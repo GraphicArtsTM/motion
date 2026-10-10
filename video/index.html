@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Muhr — промо-ролик</title>
+<link rel="stylesheet" href="app.css">
+<style>
+@font-face{font-family:'Unbounded';font-weight:400;src:url(fonts/Unbounded-400.ttf)}
+@font-face{font-family:'Unbounded';font-weight:500;src:url(fonts/Unbounded-500.ttf)}
+@font-face{font-family:'Unbounded';font-weight:600;src:url(fonts/Unbounded-600.ttf)}
+@font-face{font-family:'Unbounded';font-weight:700;src:url(fonts/Unbounded-700.ttf)}
+@font-face{font-family:'Unbounded';font-weight:800;src:url(fonts/Unbounded-800.ttf)}
+@font-face{font-family:'Unbounded';font-weight:900;src:url(fonts/Unbounded-900.ttf)}
+@font-face{font-family:'Rubik';font-weight:400;src:url(fonts/Rubik-400.ttf)}
+@font-face{font-family:'Rubik';font-weight:500;src:url(fonts/Rubik-500.ttf)}
+@font-face{font-family:'Rubik';font-weight:600;src:url(fonts/Rubik-600.ttf)}
+@font-face{font-family:'Rubik';font-weight:700;src:url(fonts/Rubik-700.ttf)}
+@font-face{font-family:'Rubik';font-weight:800;src:url(fonts/Rubik-800.ttf)}
+@font-face{font-family:'Rubik';font-weight:900;src:url(fonts/Rubik-900.ttf)}
+
+/* весь ролик рисуется кадр за кадром из motion.js — никаких CSS-анимаций */
+*,*::before,*::after{transition:none!important;animation:none!important}
+html,body{margin:0;width:1080px;height:1350px;overflow:hidden;background:#020D13;
+  font-family:var(--ui);color:var(--txt);-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;border:0;background:none;text-align:left;padding:0}
+
+#root{position:relative;width:1080px;height:1350px;overflow:hidden;
+  background:radial-gradient(90% 60% at 50% 36%,#0C3546 0%,#041720 62%,#020D13 100%)}
+.full{position:absolute;inset:0;pointer-events:none}
+.a{position:absolute;left:0;top:0;transform-origin:50% 50%;will-change:transform,opacity}
+.sc{position:absolute;inset:0;display:none;perspective:1800px;perspective-origin:50% 45%}
+#cam{position:absolute;inset:0;transform-origin:50% 50%}
+
+/* фон */
+#patt{position:absolute;inset:-200px;opacity:.07;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='62' height='62' viewBox='0 0 62 62'%3E%3Cg fill='none' stroke='%237FD9D2' stroke-width='1'%3E%3Cpath d='M0 18 18 0M44 0 62 18M62 44 44 62M18 62 0 44'/%3E%3Cpath d='M18 0h26M62 18v26M44 62H18M0 44V18'/%3E%3C/g%3E%3C/svg%3E");
+  background-size:124px 124px}
+#pattGold{position:absolute;inset:-200px;opacity:0;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='62' height='62' viewBox='0 0 62 62'%3E%3Cg fill='none' stroke='%23E5A93F' stroke-width='1.2'%3E%3Cpath d='M0 18 18 0M44 0 62 18M62 44 44 62M18 62 0 44'/%3E%3Cpath d='M18 0h26M62 18v26M44 62H18M0 44V18'/%3E%3C/g%3E%3C/svg%3E");
+  background-size:124px 124px;-webkit-mask-image:radial-gradient(60% 50% at 50% 50%,#000,transparent)}
+.blob{position:absolute;border-radius:50%;filter:blur(60px)}
+#blobA{width:900px;height:900px;background:radial-gradient(circle,rgba(47,191,192,.30),transparent 64%)}
+#blobB{width:760px;height:760px;background:radial-gradient(circle,rgba(229,169,63,.20),transparent 64%)}
+#tint{background:rgba(217,129,103,1);mix-blend-mode:soft-light;opacity:0}
+#rays{width:1900px;height:1900px;border-radius:50%;opacity:0;
+  background:repeating-conic-gradient(from 0deg,rgba(255,217,138,.20) 0deg 5deg,transparent 5deg 22.5deg);
+  -webkit-mask-image:radial-gradient(circle,#000 0,rgba(0,0,0,.6) 22%,transparent 62%)}
+#vig{background:radial-gradient(120% 90% at 50% 45%,transparent 55%,rgba(1,8,12,.78) 100%)}
+#grain{opacity:.075;mix-blend-mode:overlay;background-size:256px 256px}
+#flash{opacity:0;background:#FFF6E0}
+#fade{opacity:0;background:#000}
+
+/* типографика ролика */
+.hl{font-family:var(--dis);font-weight:700;letter-spacing:-.045em;line-height:1.04;text-align:center;white-space:nowrap}
+.hl .ln{display:block;overflow:hidden;padding:.08em .1em .1em;margin:-.08em 0}
+.ch{display:inline-block;will-change:transform}
+.sp{display:inline-block;width:.28em}
+.ochre{color:var(--ochre)}.glz{color:var(--glaze-lt)}.brk{color:var(--brick)}.jd{color:var(--jade)}
+.goldtxt{background:linear-gradient(180deg,#FFE3A3 0%,#E5A93F 55%,#A96D12 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub2{font-family:var(--ui);font-weight:500;color:var(--dim);text-align:center;white-space:nowrap}
+.word{display:inline-block;will-change:transform}
+
+/* ui-блоки крупным планом */
+.ui{zoom:2}
+.bubble{max-width:380px;padding:11px 14px;font-size:13px;line-height:1.5;border-radius:16px 16px 16px 4px;
+  background:var(--night-3);box-shadow:0 18px 40px -18px #000}
+.bubble time{display:block;font-size:10px;font-weight:600;opacity:.6;margin-top:5px}
+.bubble .who{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:700;color:var(--dim);margin-bottom:6px}
+.bubble .who .mini{width:20px;height:20px;font-size:8px}
+
+.seal{width:420px;height:420px}
+.seal>svg{position:absolute;inset:0;width:100%;height:100%}
+.seal .core{position:absolute;inset:0;display:grid;place-items:center;color:#4A2E03}
+.ring{position:absolute;left:0;top:0;width:400px;height:400px;border-radius:50%;
+  border:4px solid rgba(255,217,138,.9);box-shadow:0 0 30px rgba(229,169,63,.6),inset 0 0 30px rgba(229,169,63,.4)}
+.ring.jade{border-color:rgba(140,224,175,.9);box-shadow:0 0 30px rgba(79,176,122,.6),inset 0 0 30px rgba(79,176,122,.4)}
+.ring.glz{border-color:rgba(143,227,221,.9);box-shadow:0 0 30px rgba(47,191,192,.6),inset 0 0 30px rgba(47,191,192,.4)}
+.pt{position:absolute;left:0;top:0;width:14px;height:14px;transform-origin:50% 50%}
+.pt.dia{clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}
+.orbit svg{display:block}
+
+.toastx{padding:18px 26px;border-radius:14px;background:rgba(17,65,79,.97);font-size:34px;font-weight:600;
+  display:flex;align-items:center;gap:12px;white-space:nowrap;
+  box-shadow:inset 0 0 0 2px var(--edge-2),0 30px 60px -24px #000}
+.toastx.gold{color:var(--ochre);box-shadow:inset 0 0 0 2px rgba(229,169,63,.5),0 30px 60px -24px #000}
+.toastx.jade{color:var(--jade);box-shadow:inset 0 0 0 2px rgba(79,176,122,.5),0 30px 60px -24px #000}
+.toastx.brick{color:var(--brick);box-shadow:inset 0 0 0 2px rgba(210,105,74,.5),0 30px 60px -24px #000}
+
+.who-av{display:flex;flex-direction:column;align-items:center;gap:16px}
+.who-av .av{width:132px;height:132px;display:grid;place-items:center;border-radius:18px;font-weight:800;font-size:44px;color:#fff;
+  box-shadow:0 24px 50px -20px #000}
+.who-av span{font-size:28px;font-weight:600;color:var(--dim)}
+.vault{width:300px;height:300px;display:grid;place-items:center;color:var(--ochre);
+  clip-path:polygon(28% 0,72% 0,100% 28%,100% 72%,72% 100%,28% 100%,0 72%,0 28%);background:rgba(229,169,63,.55)}
+.vault::before{content:"";position:absolute;inset:3px;clip-path:inherit;background:#0B2E33}
+.vault::after{content:"";position:absolute;inset:3px;clip-path:inherit;opacity:.3;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='62' height='62' viewBox='0 0 62 62'%3E%3Cg fill='none' stroke='%23E5A93F' stroke-width='1.2'%3E%3Cpath d='M0 18 18 0M44 0 62 18M62 44 44 62M18 62 0 44'/%3E%3Cpath d='M18 0h26M62 18v26M44 62H18M0 44V18'/%3E%3C/g%3E%3C/svg%3E")}
+.vault svg{position:relative;z-index:1;overflow:visible;filter:drop-shadow(0 0 18px rgba(229,169,63,.55))}
+.coin{position:absolute;left:0;top:0;width:22px;height:22px;background:linear-gradient(150deg,#FFD98A,#A8690F);
+  clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);box-shadow:0 0 12px #E5A93F}
+
+.stepbox{width:150px;height:150px;display:grid;place-items:center;border-radius:14px;background:var(--ochre);color:#2B1A02;
+  font-family:var(--dis);font-weight:700;font-size:78px;box-shadow:0 0 0 12px var(--ochre-soft),0 30px 60px -20px #000}
+.stepbox.jade{background:var(--jade);color:#04241A;box-shadow:0 0 0 12px var(--jade-soft),0 30px 60px -20px #000}
+.steptitle{font-family:var(--dis);font-weight:700;font-size:80px;letter-spacing:-.045em;white-space:nowrap;text-align:center}
+.stepdesc{font-size:36px;line-height:1.45;color:var(--dim);text-align:center;width:900px}
+.bignum{font-family:var(--dis);font-weight:900;font-size:760px;letter-spacing:-.06em;color:transparent;line-height:1;
+  -webkit-text-stroke:3px rgba(229,169,63,.22);white-space:nowrap}
+.secx{display:flex;align-items:center;gap:20px;font-size:40px;font-weight:600;white-space:nowrap}
+.secx svg{width:30px;height:30px;fill:var(--ochre)}
+.secx .rule{width:220px;height:2px;background:linear-gradient(90deg,var(--edge-2),transparent)}
+.ribbon{display:flex;align-items:center;width:860px}
+.ribbon .ln{flex:1;height:3px;background:var(--edge);position:relative;overflow:hidden}
+.ribbon .ln i{position:absolute;inset:0;background:var(--ochre);transform-origin:0 50%;transform:scaleX(0)}
+.ribbon .cell{position:relative;width:84px;height:84px;flex:none}
+.ribbon .cell svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.ribbon .cell .o{fill:none;stroke:var(--edge-2);stroke-width:1.2}
+
+.stamp2{width:210px;height:210px}
+.stamp2>svg{position:absolute;inset:0;width:100%;height:100%}
+.stamp2 .lab{position:absolute;inset:0;display:grid;place-items:center;align-content:center;text-align:center;color:#04241A}
+.stamp2 .lab b{display:block;font-family:var(--dis);font-size:15px;font-weight:700;margin-top:4px;letter-spacing:-.02em}
+
+.donebox{display:flex;flex-direction:column;align-items:center;text-align:center}
+.donebox .tick{width:210px;height:210px;border-radius:20px;margin:0 0 50px;
+  box-shadow:inset 0 0 0 3px rgba(79,176,122,.5),0 0 80px rgba(79,176,122,.25)}
+.donebox h2{font-family:var(--dis);font-size:60px;font-weight:700;letter-spacing:-.04em;margin:0 0 18px;white-space:nowrap}
+.donebox p{font-size:32px;color:var(--dim);margin:0;white-space:nowrap}
+
+.cta .z{zoom:2.1;width:330px}
+.cta .btn{position:relative;overflow:hidden;justify-content:center}
+.cta .shine{position:absolute;top:0;bottom:0;width:40%;left:-60%;
+  background:linear-gradient(100deg,transparent,rgba(255,255,255,.6),transparent)}
+.fee-row.big{font-family:var(--ui);letter-spacing:0;font-size:13px;line-height:1.4}
+.keyx.on{background:rgba(47,191,192,.45)!important;box-shadow:inset 0 0 0 1px rgba(143,227,221,.6)!important}
+</style>
+</head>
+<body>
+<div id="root">
+  <!-- фон -->
+  <div class="full" id="bgL">
+    <div id="patt"></div>
+    <div id="pattGold"></div>
+    <div class="blob a" id="blobA"></div>
+    <div class="blob a" id="blobB"></div>
+    <div class="a" id="rays"></div>
+    <div class="full" id="tint"></div>
+  </div>
+
+  <div id="cam">
+
+  <!-- ============ 1. ХУК: покупка у незнакомца ============ -->
+  <section class="sc" id="s1">
+    <div class="a hl" id="s1h" style="font-size:100px">
+      <span class="ln" data-split>Покупаешь</span>
+      <span class="ln" data-split><span class="brk">у незнакомца?</span></span>
+    </div>
+    <div class="a" id="s1b1"><div class="ui" style="zoom:2.5"><div class="bubble">
+      <div class="who"><span class="mini" data-av="PC-1580-63">ЖА</span>Жасур А. · продавец</div>
+      Переведи всю сумму вперёд —<br>отправлю завтра<time>23:41</time></div></div></div>
+    <div class="a" id="s1b2"><div class="ui" style="zoom:2.5"><div class="bubble">Честно, не обману<time>23:41</time></div></div></div>
+    <div class="a" id="s1risk"><div class="ui" style="zoom:2.25"><div class="risk" style="width:420px;margin:0">
+      <div class="risk-head"><span class="av" data-av="PC-1580-63">ЖА</span>
+        <span><span class="n">Жасур Абдуллаев</span><span class="m">7 сделок · в сервисе 2 месяца</span></span>
+        <span class="lvl pill brick" id="s1lvl">Высокий риск</span></div>
+      <div class="meter"><i id="s1dia" style="left:80%"></i></div>
+      <div class="rfact bad" data-f><i>✕</i><span>Личность не подтверждена</span></div>
+      <div class="rfact bad" data-f><i>✕</i><span>Сумма выше его максимальной сделки, 800 000 сўм</span></div>
+      <div class="rfact warn" data-f><i>!</i><span>Предоплата напрямую — деньги не вернуть</span></div>
+    </div></div></div>
+  </section>
+
+  <!-- ============ 2. РАСКРЫТИЕ БРЕНДА ============ -->
+  <section class="sc" id="s2">
+    <div class="a" id="s2rings"></div>
+    <div class="a orbit" id="s2orbit"></div>
+    <div class="a seal" id="s2seal"></div>
+    <div class="a" id="s2parts"></div>
+    <div class="a hl" id="s2word" style="font-size:190px;font-weight:600;letter-spacing:-.05em"><span class="ln" data-split>Muhr</span></div>
+    <div class="a sub2" id="s2sub" style="font-size:46px">Платежи с гарантом</div>
+  </section>
+
+  <!-- ============ 3. ТЕЛЕФОН ============ -->
+  <section class="sc" id="s3">
+    <div class="a hl" id="s3h" style="font-size:86px">
+      <span class="ln" data-split>Гарант держит</span>
+      <span class="ln" data-split><span class="goldtxt">ваши деньги</span></span>
+    </div>
+    <div class="a" id="s3phone" style="transform-style:preserve-3d"><div style="zoom:1.42" id="phoneZoom"></div></div>
+    <div class="a toastx gold" id="s3t1" data-ic="lock" data-ic-size="34">Деньги под замком</div>
+    <div class="a toastx jade" id="s3t2" data-ic="check" data-ic-size="34">Выплата после подтверждения</div>
+    <div class="a toastx brick" id="s3t3" data-ic="scale" data-ic-size="34">Спор решает арбитр</div>
+  </section>
+
+  <!-- ============ 4. ДЕНЬГИ ПОД ЗАМКОМ ============ -->
+  <section class="sc" id="s4">
+    <div class="a hl" id="s4h" style="font-size:104px">
+      <span class="ln" data-split>Деньги</span>
+      <span class="ln" data-split><span class="goldtxt">под замком</span></span>
+    </div>
+    <div class="a who-av" id="s4buyer"><span class="av" style="background:linear-gradient(150deg,var(--glaze),#0E6167);color:#02222B">АК</span><span>Покупатель</span></div>
+    <div class="a who-av" id="s4seller"><span class="av" data-av="PC-2277-49">ТС</span><span>Продавец</span></div>
+    <div class="a" id="s4coins"></div>
+    <div class="a vault" id="s4vault"></div>
+    <div class="a" id="s4ring"></div>
+    <div class="a" id="s4sealed"><div class="ui" style="zoom:2.3"><div class="sealed" style="width:360px;margin:0">
+      <span class="sheen" id="s4sheen" style="opacity:1"></span>
+      <span class="lockbox" data-ic="lock"></span>
+      <span><span class="amt" id="s4amt">0 сўм</span><span class="meta">Под замком у гаранта, PC-2001</span></span>
+      <span class="go" data-ic="chev"></span>
+    </div></div></div>
+    <div class="a sub2" id="s4sub" style="font-size:36px;line-height:1.45;color:var(--dim)">
+      <div data-words>Продавец видит, что деньги есть,</div><div data-words>но забрать их не может.</div></div>
+  </section>
+
+  <!-- ============ 5. КАК РАБОТАЕТ ГАРАНТ ============ -->
+  <section class="sc" id="s5">
+    <div class="a bignum" id="s5num">01</div>
+    <div class="a secx" id="s5sec"><svg viewBox="0 0 24 24" data-star></svg><span>Как работает гарант</span><span class="rule"></span></div>
+    <div id="s5steps"></div>
+    <div class="a ribbon" id="s5rib"></div>
+    <div class="a" id="s5done"><span class="pill jade" style="font-size:30px;padding:14px 26px;border-radius:10px;display:flex;gap:12px;align-items:center" data-ic="check" data-ic-size="30">Сделка завершена</span></div>
+  </section>
+
+  <!-- ============ 6. СДЕЛКИ ============ -->
+  <section class="sc" id="s6">
+    <div class="a hl" id="s6h" style="font-size:80px">
+      <span class="ln" data-split>Каждая сделка</span>
+      <span class="ln" data-split><span class="glz">под контролем</span></span>
+    </div>
+    <div id="s6cards"></div>
+  </section>
+
+  <!-- ============ 7. ПЕРЕВОД ============ -->
+  <section class="sc" id="s7">
+    <div class="a hl" id="s7h" style="font-size:80px">
+      <span class="ln" data-split>Перевод</span>
+      <span class="ln" data-split><span class="glz">в одно касание</span></span>
+    </div>
+    <div id="s7ui"></div>
+    <div class="a donebox" id="s7done">
+      <div class="tick" style="display:grid;place-items:center;background:var(--jade-soft);color:var(--jade)" data-ic="check" data-ic-size="110" data-ic-w="2.4"></div>
+      <h2>Перевод отправлен</h2><p>1 500 000 сўм · Дилноза Рахимова</p></div>
+    <div class="a" id="s7rings"></div>
+    <div class="a" id="s7parts"></div>
+  </section>
+
+  <!-- ============ 8. ФИНАЛ ============ -->
+  <section class="sc" id="s8">
+    <div class="a" id="s8rings"></div>
+    <div class="a orbit" id="s8orbit"></div>
+    <div class="a seal" id="s8seal" style="width:360px;height:360px"></div>
+    <div class="a" id="s8parts"></div>
+    <div class="a hl" id="s8word" style="font-size:176px;font-weight:600;letter-spacing:-.05em"><span class="ln" data-split>Muhr</span></div>
+    <div class="a sub2" id="s8sub" style="font-size:44px;color:var(--glaze-lt)">Платежи с гарантом</div>
+    <div class="a sub2" id="s8tag" style="font-size:34px;line-height:1.45">
+      <div data-words>Гарант держит деньги между сторонами —</div><div data-words>обманывать невыгодно никому</div></div>
+    <div class="a cta" id="s8cta"><div class="z"><div class="btn primary"><span class="shine" id="s8shine"></span>Начать сделку<span data-ic="chev" data-ic-size="18"></span></div></div></div>
+  </section>
+
+  </div><!-- /cam -->
+
+  <div class="full" id="vig"></div>
+  <div class="full" id="grain"></div>
+  <div class="full" id="flash"></div>
+  <div class="full" id="fade"></div>
+</div>
+<script src="motion.js"></script>
+</body>
+</html>
