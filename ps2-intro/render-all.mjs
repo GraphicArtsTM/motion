@@ -21,7 +21,7 @@ for (const v of versions) {
   const r = spawnSync(process.execPath, [path.join(dir, 'render.mjs'), '--version', v, ...argv], { stdio: 'inherit', cwd: dir });
   if (r.status !== 0) { console.error('\nРендер прерван с ошибкой (код ' + r.status + ').'); process.exit(r.status || 1); }
 }
-console.log(`\nВсё готово за ${((Date.now() - t0) / 60000).toFixed(1)} мин. Видео лежат в папке out\\`);
+console.log(`\nВсё готово за ${((Date.now() - t0) / 60000).toFixed(1)} мин. Видео лежат в папке ${path.join(dir, "out")}`);
 try {
   if (process.platform === 'win32') execSync(`explorer "${path.join(dir, 'out')}"`);
   else if (process.platform === 'darwin') execSync(`open "${path.join(dir, 'out')}"`);

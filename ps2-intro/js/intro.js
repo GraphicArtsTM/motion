@@ -437,9 +437,12 @@ function renderA(t, ta) {
     A.coreGlow.scale.setScalar(t > 0 ? 4 + cg * 2.5 : .5 + ign * 1.6 + 1.6 * E.outCubic(P(ta, .6, 1.5)) + 3.5 * E.inOutSine(P(ta, 1.5, OFF + .5 - 1.5)));
     A.core.intensity = Math.max(A.core.intensity, 70 * (ign * 1.5 + .35 * P(ta, .6, 1)));
     const f = A.floor;
+    const beat = pulse(ta, 1.47, .03, .22) + .6 * pulse(ta, 1.72, .03, .2) + pulse(ta, 2.27, .03, .22) + .6 * pulse(ta, 2.52, .03, .2);
     f.uRefl.value = .55; f.uBlur.value = .0022;
-    f.uGrid.value = .08 * E.outCubic(P(ta, .7, 2.5)) + .05 * A.edge.value;
-    f.uW.value.set((ta - .65) * 7, (t - 3.1) * 7.5, (t - 6.0) * 7.5, (ta - OFF - T.cut1 + .5) * 30);
+    f.uGrid.value = .08 * E.outCubic(P(ta, .7, 2.5)) + .05 * A.edge.value + beat * .06;
+    const hb = ta < OFF + .3;   // в прологе волны по полу идут в такт «сердцебиению» звука
+    f.uW.value.set((ta - .65) * 7, hb ? (ta - 1.45) * 6.5 : (t - 3.1) * 7.5, hb ? (ta - 2.25) * 6.5 : (t - 6.0) * 7.5, (ta - OFF - T.cut1 + .5) * 30);
+    A.coreGlow.material.opacity += beat * .35; A.core.intensity += beat * 40;
     f.uRun.value = (ta - .7) * 9; f.uRunA.value = ta > .7 ? Math.exp(-Math.max(0, ta - 2.2) * .9) : 0;
     rays.uniforms.uStr.value = Math.max(rays.uniforms.uStr.value, ign * .9);
     bloom.strength = Math.max(bloom.strength, .55 + ign * .8);
@@ -744,7 +747,7 @@ function renderC(t, ta) {
     const cIn = kf(u, [[0, 0], [.25, 1], [3, .7], [6.5, 0]]);
     C.comets.forEach((c, k) => { c.tr.material.uniforms.uScale.value = sc; updComet(c, cometPathC(k), t, cIn, .0055, .35); if (c.light) c.light.intensity = cIn * 5; });
     const f = C.floor;
-    f.uRefl.value = .06 + .06 * solidIn; f.uBlur.value = .005; f.uFadeR.value = 6; f.uStep.value = .9;
+    f.uRefl.value = .035 + .035 * solidIn; f.uBlur.value = .007; f.uFadeR.value = 6; f.uStep.value = .9;
     f.uGrid.value = .05 + .04 * solidIn; f.uRunA.value = 0;
     f.uW.value.set(u * 9, (u - 1.25) * 7, -99, -99);
     rays.uniforms.uStr.value = .35 * Math.exp(-u * 3);
