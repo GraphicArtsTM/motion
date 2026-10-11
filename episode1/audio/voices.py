@@ -5,6 +5,10 @@
 (рация у деда, металл в шлеме Кронова, эхо у Тени).
 
     python3 audio/voices.py          # → audio/voice/<id>.wav + audio/voice/durations.json
+
+Свои записи: положите файл с именем реплики в audio/voice_user/ (n1.wav, d1.m4a, t10.mp3 …,
+любой формат, который понимает ffmpeg) — он заменит синтезированный голос. Список реплик с таймингом
+и подсказками — VOICEOVER.md.
 """
 import json
 import os
@@ -16,6 +20,8 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, 'voice')
+USER = os.path.join(HERE, 'voice_user')
+EXTS = ('.wav', '.mp3', '.m4a', '.ogg', '.opus', '.flac', '.aac', '.webm', '.mp4')
 PIPER_MODEL = os.environ.get('PIPER_MODEL', '/opt/voices/ru-irinia-medium.onnx')
 
 # диктор, высота %, темп %
@@ -40,6 +46,20 @@ def synth(speaker, text, path):
                        input=text.encode(), check=True, capture_output=True)
 
 
+def user_file(lid):
+    for e in EXTS:
+        p = os.path.join(USER, lid + e)
+        if os.path.exists(p):
+            return p
+    return None
+
+
+def from_user(src, path):
+    """Запись пользователя → моно 44,1 кГц, срез гула ниже 80 Гц, выравнивание громкости."""
+    subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-i', src, '-ac', '1', '-ar', '44100',
+                    '-af', 'highpass=f=80,dynaudnorm=f=150:g=15', '-c:a', 'pcm_s16le', path], check=True)
+
+
 def trim(path):
     """Срезает тишину по краям, чтобы реплики вставали точно в тайминг."""
     w = wave.open(path)
@@ -61,12 +81,20 @@ def trim(path):
 def main():
     lines = json.load(open(os.path.join(HERE, 'dialogue.json'), encoding='utf-8'))['lines']
     os.makedirs(OUT, exist_ok=True)
+    order = sorted(lines, key=lambda l: l['t'])
+    nxt = {l['id']: (order[i + 1]['t'] if i + 1 < len(order) else 1e9) for i, l in enumerate(order)}
     dur = {}
     for ln in lines:
         p = os.path.join(OUT, ln['id'] + '.wav')
-        synth(ln['who'], ln.get('say', ln['text']), p)
+        src = user_file(ln['id'])
+        if src:
+            from_user(src, p)
+        else:
+            synth(ln['who'], ln.get('say', ln['text']), p)
         dur[ln['id']] = round(trim(p), 3)
-        print(f"{ln['id']:>4} {ln['who']:>8} {dur[ln['id']]:5.2f}s  {ln['text']}")
+        slot = nxt[ln['id']] - ln['t'] - .15
+        warn = f'  ⚠ длиннее окна {slot:.2f}s' if dur[ln['id']] > slot else ''
+        print(f"{ln['id']:>4} {ln['who']:>8} {'ЗАПИСЬ' if src else 'синтез':>6} {dur[ln['id']]:5.2f}s  {ln['text']}{warn}")
     json.dump(dur, open(os.path.join(OUT, 'durations.json'), 'w'), indent=1)
 
 
