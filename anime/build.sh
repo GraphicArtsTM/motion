@@ -13,7 +13,7 @@ node render.mjs --cues
 python3 audio.py
 node render.mjs --jobs "${JOBS:-4}" --out out/frames.mp4
 ffmpeg -y -loglevel error -i out/frames.mp4 -i out/mix.wav \
-  -map 0:v -map 1:a -c:v libx264 -preset slow -crf 18 -pix_fmt yuv420p -profile:v high -level 4.1 \
-  -af "loudnorm=I=-15:TP=-1.0:LRA=11" -c:a aac -b:a 256k -ar 48000 \
+  -map 0:v -map 1:a -c:v libx264 -preset slow -crf 20 -pix_fmt yuv420p -profile:v high -level 4.1 \
+  -af "loudnorm=I=-15:TP=-1.0:LRA=11" -c:a aac -b:a 224k -ar 48000 \
   -shortest -movflags +faststart out/yulduz-1920x1080.mp4
 echo "готово: out/yulduz-1920x1080.mp4"
