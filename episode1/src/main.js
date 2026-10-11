@@ -12,6 +12,8 @@ import { makeWebs, makeSparks, makeRings, makeSilkSwirl } from './fx.js';
 import { makeOverlay } from './overlay.js';
 import { buildShots, makeCab } from './shots.js';
 import { makeStreetLife } from './props.js';
+import { dressLab, dressBridge, dressKitchen } from './dressing.js';
+import { makeSpray } from './fx.js';
 
 const params = new URLSearchParams(location.search);
 const RENDER = params.has('render');
@@ -47,6 +49,7 @@ const city = makeCity();
 const lab = makeLab(city.tower);
 const life = makeStreetLife(city.scene);
 const kitchen = makeKitchen();
+const labD = dressLab(lab), bridgeD = dressBridge(city.scene), kitchenD = dressKitchen(kitchen);
 const lair = makeLair();
 const cab = makeCab();
 const ch = {
@@ -64,7 +67,7 @@ for (const c of Object.values(ch)) {
 const props = {
   bike: makeBike(), bus: makeBus(), spider: makeSpider({ scale: 3.2, gold: true }),
   webs: makeWebs(city.scene, 40), sparks: makeSparks(city.scene, 500), sparks2: makeSparks(city.scene, 300, 0x9ff8ff),
-  rings: makeRings(city.scene, 5), swirl: makeSilkSwirl(city.scene), shards: makeShards(city.scene, 220, 21),
+  rings: makeRings(city.scene, 5), spray: makeSpray(city.scene), swirl: makeSilkSwirl(city.scene), shards: makeShards(city.scene, 220, 21),
 };
 const busPivot = new THREE.Group(); busPivot.add(props.bus); props.bus.position.z = -1; props.busPivot = busPivot;
 city.scene.add(busPivot, props.bike, props.spider);
@@ -121,7 +124,7 @@ function shapeOf(who) {
   }
   return 0;
 }
-const ctx = { THREE, city, lab, kitchen, lair, cab, ch, props, camera, overlay, U, bolts, lines, mouthOf, shapeOf, fricOf, renderer, timeline };
+const ctx = { THREE, city, lab, kitchen, lair, cab, ch, props, camera, overlay, U, bolts, lines, mouthOf, shapeOf, fricOf, renderer, timeline, labD };
 const shots = buildShots(ctx);
 const DURATION = timeline.duration;
 
@@ -129,7 +132,7 @@ const DURATION = timeline.duration;
 function resetFrame() {
   for (const c of Object.values(ch)) { c.root.visible = false; c.root.rotation.set(0, 0, 0); c.root.quaternion.identity(); c.root.scale.setScalar(1); }
   for (const k of ['bike', 'spider', 'busPivot']) props[k].visible = false;
-  props.webs.reset(); props.rings.reset(); props.sparks.hide(); props.sparks2.hide(); props.swirl.update(new THREE.Vector3(), 0, 0);
+  props.webs.reset(); props.rings.reset(); props.spray.hide(); ch.vera.tablet.visible = false; props.sparks.hide(); props.sparks2.hide(); props.swirl.update(new THREE.Vector3(), 0, 0);
   props.shards.update(-1, [new THREE.Vector3()]);
   lab.shards.update(-1, [new THREE.Vector3()]);
   bolts.forEach(b => b.mesh.visible = false);
@@ -169,6 +172,9 @@ function renderAt(T) {
     city.rim.color.set(ctx.rim.color); city.rim.intensity = ctx.rim.k;
   } else city.rim.color.set(0xff9a4a);
   life.update(t, { police: t >= 117 && t < 183 });
+  labD.update(t, { alarm: t >= 62 && t < 83, inLab: scene === city.scene && !city.rain.visible });
+  bridgeD.update(t, t >= 117 && t < 183);
+  kitchenD.update(t);
   const up = new THREE.Vector3();
   for (const c of Object.values(ch)) { up.set(0, 1, 0).applyQuaternion(c.root.getWorldQuaternion(new THREE.Quaternion())); c.blob.visible = c.root.visible && up.y > .95 && !ctx.noBlob?.includes(c); }
   ctx.noBlob = null;

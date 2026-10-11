@@ -84,9 +84,23 @@ export function buildingMaterial() {
           wc = mix(wc, vec3(.9,.45,1.), step(.95, h21(cell*2.3+vS.x*3.)));
           float shade = .3 + .5*dif;
           col = base*shade;
+          // жизнь в окнах: силуэты людей и мерцание телевизоров
+          float who = step(.9, h21(cell*3.1 + vS.x*5.)) * lit;
+          vec2 q = f - vec2(.5, .5);
+          float head = 1. - step(.075, length((q - vec2(0., .1))*vec2(1., .9)));
+          float body = step(abs(q.x), .1) * step(q.y, .02);
+          float sil = who * max(head, body) * step(.28, f.y);
+          float tv = step(.965, h21(cell*4.7 + vS.x*2.)) * lit;
+          vec3 tvc = vec3(.45, .65, 1.) * (.55 + .45*sin(time*11. + r*40.)*sin(time*4.3 + r*9.));
+          wc = mix(wc, tvc, tv);
           float glass = win*(1.-lit);
-          col = mix(col, base*.18 + vec3(.02,.03,.06) + flash*.25, glass);
-          col += win*lit*wc*(.55 + .45*r)*.95;
+          vec3 cWin = mix(base*shade, base*.18 + vec3(.02,.03,.06) + flash*.25, glass);
+          cWin += win*lit*wc*(.55 + .45*r)*.95*(1. - .8*sil);
+          // сглаживание вдали: когда окно меньше ~2 пикселей, заменяем узор средним цветом (нет ряби и «лесенки»)
+          vec2 fw = fwidth(vec2(u/cw, v/fh));
+          float aa = smoothstep(.18, .5, max(fw.x, fw.y));
+          vec3 avg = base*shade*.7 + vec3(1.,.8,.55)*.16*(.6 + .8*(1. - block));
+          col = mix(cWin, avg, aa);
           // витрины первого этажа
           float shop = step(.6, v)*step(v, 3.9)*step(.08, fract(u/7.))*step(fract(u/7.), .92);
           vec3 sc = mix(vec3(1.,.55,.25), vec3(.3,.9,1.), h21(vec2(floor(u/7.), vS.x)));
@@ -146,6 +160,10 @@ function groundMaterial() {
         float puddle = smoothstep(.55, .62, vnoise(p*.12) );
         vec3 refl = vec3(.08,.07,.13) + flash*vec3(.7,.75,1.);
         refl += vec3(1.,.7,.4)*pool*.6;
+        // отражения неоновых вывесок в лужах вдоль проспекта — вытянутые цветные полосы
+        vec3 neon = .55 + .45*cos(6.2832*(h21(vec2(floor((p.y + 8.)/34.), 3.)) + vec3(0., .33, .67)));
+        float lane = step(abs(p.x), 11.) * (.5 + .5*sin(p.y*.9 + vnoise(p*.3)*4.)) * smoothstep(.0, .4, vnoise(vec2(p.x*.6, p.y*.05)));
+        refl += neon * lane * .55;
         col = mix(col, refl, fr*(.25 + .5*puddle));
         // рябь от капель
         vec2 rc = floor(p*1.5); vec2 rf = fract(p*1.5)-.5; float ph = fract(rainTime*1.3 + h21(rc));

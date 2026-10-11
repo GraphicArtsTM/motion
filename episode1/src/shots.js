@@ -5,6 +5,7 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { E, P, kf, tw, lerp, clamp, shake, pulse, toon, glow, mesh, W, H, noise } from './core.js';
 import { POSE, seq, blend, blinkAt, gait, squash, springAt, secondary, ikArm } from './rig.js';
 import { updateTraffic, makeCar } from './city.js';
+import { plume, puffTex } from './dressing.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const L2W = (x, y, z) => [40 + x, 258.82 + y, -440 + z];          // координаты лаборатории → мир
@@ -54,7 +55,20 @@ export function buildShots(C) {
     const r = new THREE.Vector3().crossVectors(u, f).normalize();
     c.root.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(r, u, f));
   };
+  // выхлоп из сопел ранца Кронова; после удара молнии — чёрный дым и искры из повреждённой брони
+  const exhaustT = puffTex('150,140,135', .7), dmgT = puffTex('30,28,30', .9);
+  const krEx = [plume(S, 6, exhaustT, { rise: 1.6, grow: 2.2, size: .5, alpha: .35, speed: .9, wobble: .2 }), plume(S, 6, exhaustT, { rise: 1.6, grow: 2.2, size: .5, alpha: .35, speed: .9, wobble: .2 })];
+  const krDmg = plume(S, 10, dmgT, { rise: 7, grow: 3, size: 1.2, alpha: .6, speed: .3, wobble: .6, wind: 2 });
+  const kronovFX = t => {
+    if (KR.root.parent !== S && KR.root.parent?.parent !== city.tower) return;
+    KR.root.updateMatrixWorld(true);
+    const damaged = t > 169.05;
+    [1, -1].forEach((sx, i) => krEx[i].update(KR.J.spine.localToWorld(V(sx * .1 * KR.d.k, .27 * KR.d.k, -.5 * KR.d.k)), t + i * .3, damaged ? 0 : 1));
+    if (damaged) { krDmg.update(KR.J.spine.localToWorld(V(0, .35 * KR.d.k, .1)), t, 1); props.sparks2.burst(KR.J.spine.localToWorld(V(0, .3 * KR.d.k, .2)), ((t - 169.05) % 1.3), { speed: 3, life: .5, grav: 6, size: .06 }); }
+    else krDmg.hide();
+  };
   const face = (c, who, t, o = {}) => {
+    if (c === KR) kronovFX(t);
     const sd = o.seed ?? 0;
     // дыхание и «живые» микродвижения глаз
     c.J.chest.scale.set(1 + .008 * Math.sin(t * 2.1 + sd), 1 + .012 * Math.sin(t * 2.1 + sd), 1 + .018 * Math.sin(t * 2.1 + sd));
@@ -107,6 +121,10 @@ export function buildShots(C) {
     if (!o.freeHands) {                      // IK: ладони точно на ручках руля
       b.updateMatrixWorld(true);
       for (const [sd, sx] of [['L', 1], ['R', -1]]) if (!(o.freeL && sd === 'L')) ikArm(TI, sd, b.localToWorld(V(sx * .26, .92, .43)), b.localToWorld(V(sx * 1.5, .3, -.3)).sub(b.position));
+    }
+    if (!(o.y > .05)) {                     // брызги из-под заднего колеса
+      const back = V(0, 0, -1).applyQuaternion(b.quaternion).setY(0).normalize();
+      props.spray.update(b.localToWorld(V(0, .05, -.6)), back, t, 1);
     }
     const sq = o.squash || 0; if (sq) { b.scale.set(1 / Math.sqrt(1 + sq), 1 + sq, 1 / Math.sqrt(1 + sq)); } else b.scale.set(1, 1, 1);
   };
@@ -277,6 +295,7 @@ export function buildShots(C) {
     look(addv([x - .2, 1.55, z - lerp(2.2, 1.5, k)], shk(t, .02, 3)), [x, lerp(1.3, 1.25, k), z], lerp(42, 32, k));
     updateTraffic(city, t);
     cabCall(t, clamp((lt - .1) / .3) - clamp((lt - 3.7) / .3));
+    post(o => o.lensDrops(t, .9));
     fadeOut(lt, 6, .25);
     return S;
   });
@@ -329,6 +348,7 @@ export function buildShots(C) {
     const turn = E.outBack(P(t, 48.6, .8));                 // разворот с лёгким перелётом
     place(VE, lab.group, [2.4, 0, -6.8], lerp(Math.PI * .9, 0, turn));
     VE.pose(seq(t - 48.6, [[0, POSE.stand(t)], [.3, tt => POSE.adjustGlasses(tt)], [1.3, tt => POSE.talk(tt + 48)]], .35)); face(VE, 'vera', t, { brow: .3, seed: 1, smile: .4 });
+    VE.tablet.visible = true;
     const k = E.inOutSine(lt / 8);
     if (t < 53.4) look(L2W(lerp(4.6, 4.0, k), lerp(2.3, 2.0, k), lerp(-10.5, -9.5, k)), L2W(lerp(.5, 1.0, k), 1.5, lerp(8, 2, k)), 44);
     else look(L2W(-1.2, 1.5, -1.2), L2W(.3, 1.55, 1.6), 36);
@@ -346,6 +366,7 @@ export function buildShots(C) {
       sp.position.y = 2.1 + Math.sin(t * 1.5) * .05;
       TI.pose(POSE.stand(t)); holdBox(TI); face(TI, 'timur', t, {});
       VE.pose(seq(t - 56, [[0, tt => POSE.talk(tt)], [1.2, tt => POSE.adjustGlasses(tt)], [2.2, tt => POSE.talk(tt)]], .35)); face(VE, 'vera', t, {});
+      VE.tablet.visible = true;
       const k = E.inOutSine((t - 56) / 3.6);
       look(L2W(lerp(.8, .3, k), lerp(3.6, 3.4, k), lerp(-7.6, -8.3, k)), L2W(0, 3.1, -11), lerp(30, 24, k));
     } else {                   // Вера забирает посылку, грозит пальцем
@@ -480,7 +501,7 @@ export function buildShots(C) {
     TI.mats.hand.emissive.setRGB(.02 * g, .2 * g, .3 * g);
     face(TI, 'timur', t, { brow: .5, blink: t < 85 ? 1 : blinkAt(t), look: [0, -.3] });
     if (t < 87.6) { const k = E.inOutSine(P(t, 83, 4.6)); look([128 + Math.sin(k) * .4, lerp(122, 116.5, k), -432 + .01], [128, 112, -432], 40, k * .6); }
-    else { const hw = handW(TI, 'R'); look(hw.clone().add(V(-.2, .55, .9)).toArray(), hw.toArray(), 32); }
+    else { const hw = handW(TI, 'R'); look(hw.clone().add(V(-.2, .55, .9)).toArray(), hw.toArray(), 32); post(o => o.lensDrops(t, .8)); }
     fadeIn(lt, 1.4);
     return S;
   });
@@ -654,6 +675,7 @@ export function buildShots(C) {
     else if (t < 138.6) { const hw = handW(TI, 'R'); look(hw.clone().add(V(.35, .15, .35)).toArray(), hw.toArray(), 30); }
     else { const k = E.outCubic(P(t, 138.6, 1.5)); look([lerp(307.6, 307.2, k), 75.6, -386.6], [305.6, 75.35, -387], lerp(30, 22, k)); }
     post(o => o.fill('#3a2410', memory * .25));
+    post(o => o.lensDrops(t, .7));
     if (t > 139.4 && t < 140.4) post(o => o.speedLines((t - 139.4) * .9, t));
     return S;
   });
@@ -753,6 +775,7 @@ export function buildShots(C) {
     if (t < 159.2) look(addv([446.5, .9, -405.5], sh), [452, 1.6, -398], 44);
     else if (t < 160.4) {     // крупно: лицо в маске, на пределе сил
       const hp = headW(TI); look(addv(hp.clone().add(V(.25, .1, 1.35)).toArray(), shk(t, .02, 18)), hp.clone().add(V(0, -.05, 0)).toArray(), 30);
+      post(o => o.lensDrops(t, .9));
     }
     else if (t < 161.6) { const hw = hr; look(addv(hw.clone().add(V(.9, .25, -.6)).toArray(), sh), hw.clone().add(V(0, .1, 1.5)).toArray(), 36); }
     else look(addv([445.5, 3.5, -409], sh), [452, 1.4, -400], 48);
@@ -845,6 +868,7 @@ export function buildShots(C) {
     else if (t < 179.4) {     // крупно: дед смотрит вверх на героя
       const hp = headW(DE), k = E.inOutSine(P(t, 176.9, 2.5));
       look(hp.clone().add(V(lerp(1.05, .95, k), lerp(1.0, .9, k), lerp(-1.0, -.85, k))).toArray(), hp.clone().add(V(0, -.08, 0)).toArray(), lerp(32, 28, k));
+      post(o => o.lensDrops(t, .6));
     }
     else look([455.4, 4.0, -393.4], [454.6, 6.4, -396.2], 38);
     if (t > 181.4) post(o => o.comic('ВЖУХ!', 980, 260, t - 181.45, { size: .55, color: '#7ff8ff', dur: .8 }));
@@ -926,7 +950,7 @@ export function buildShots(C) {
   /* сброс общих объектов перед каждым кадром */
   C.frameReset = t => {
     box.visible = false; carab.visible = false; hideBridgeProps();
-    smoke.forEach(sp => sp.visible = false); lab.lights[2].position.set(0, 6, 9); lab.lights[2].color.set(0xff4020);
+    smoke.forEach(sp => sp.visible = false); krEx.forEach(p => p.hide()); krDmg.hide(); lab.lights[2].position.set(0, 6, 9); lab.lights[2].color.set(0xff4020);
     props.spider.scale.setScalar(1);
     KR.mats.coreM.color.setRGB(3, 1.9, .75);
     updateTraffic(city, t);

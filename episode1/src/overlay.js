@@ -69,6 +69,24 @@ export function makeOverlay(canvas) {
   };
 
   // окно звонка (рамка вокруг вставки с дедом)
+  // капли дождя на объективе (крупные планы под дождём)
+  O.lensDrops = (t, k = 1) => {
+    if (k <= 0) return;
+    const r = rng(1234);
+    g.save();
+    for (let i = 0; i < 26; i++) {
+      const born = r() * 6, life = 2 + r() * 3, ph = ((t - born) % 6 + 6) % 6;
+      if (ph > life) continue;
+      const x = r() * W, y0 = r() * H, rad = 6 + r() * 18, slide = ph > life * .6 ? (ph - life * .6) * (30 + r() * 60) : 0;
+      const y = y0 + slide, a = k * Math.min(1, ph * 4) * (1 - Math.max(0, ph - life + .4) / .4);
+      const gr = g.createRadialGradient(x - rad * .3, y - rad * .3, rad * .1, x, y, rad);
+      gr.addColorStop(0, `rgba(255,255,255,${.35 * a})`); gr.addColorStop(.6, `rgba(180,200,255,${.08 * a})`); gr.addColorStop(1, `rgba(20,30,50,${.25 * a})`);
+      g.fillStyle = gr; g.beginPath(); g.ellipse(x, y, rad, rad * 1.1, 0, 0, Math.PI * 2); g.fill();
+      if (slide > 0) { g.strokeStyle = `rgba(200,215,255,${.12 * a})`; g.lineWidth = rad * .5; g.beginPath(); g.moveTo(x, y0); g.lineTo(x, y - rad); g.stroke(); }
+    }
+    g.restore();
+  };
+
   // рамка комикс-панели
   O.panelFrame = (x, y, w, h) => {
     g.save(); g.lineJoin = 'miter';

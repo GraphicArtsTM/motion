@@ -1,9 +1,9 @@
 // Персонажи: иерархический риг из примитивов, библиотека поз, мимика.
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { toon, glow, mesh, lerp, clamp, noise, E } from './core.js';
+import { toon, glow, mesh, lerp, clamp, noise, E, rimify } from './core.js';
 
-const cap = (r, len) => new THREE.CapsuleGeometry(r, Math.max(len - 2 * r, .001), 6, 14);
+const cap = (r, len) => new THREE.CapsuleGeometry(r, Math.max(len - 2 * r, .001), 8, 22);
 const sph = (r, w = 20, h = 14) => new THREE.SphereGeometry(r, w, h);
 const rbox = (x, y, z, r = .02) => new RoundedBoxGeometry(x, y, z, 3, Math.min(r, x / 2.1, y / 2.1, z / 2.1));
 
@@ -33,7 +33,8 @@ let SUIT_MAT;
 function suitMaterial() {
   if (SUIT_MAT) return SUIT_MAT;
   SUIT_MAT = toon(0xffffff, { map: webCanvas(false), emissiveMap: webCanvas(true), emissive: 0x33e6ff });
-  SUIT_MAT.emissiveIntensity = 1.1;
+  SUIT_MAT.emissiveIntensity = 1.35;
+  rimify(SUIT_MAT, 0x5fe8ff, .55, 2.2);
   return SUIT_MAT;
 }
 
@@ -72,7 +73,7 @@ function addFace(J, o, R) {
   const irisM = toon(o.iris || 0x5a3418), shine = new THREE.MeshBasicMaterial({ color: 0xffffff });
   const lidM = toon(o.skin);
   const ek = o.eyeK || 1, er = .036 * ek;
-  const eyes = [], pupils = [], brows = [], lids = [];
+  const eyes = [], pupils = [], brows = [], lids = [], lowLids = [], cheeks = [];
   for (const sx of [1, -1]) {
     const pos = onSphere(sx * .058, .025, -.012);
     const e = mesh(sph(er), white, { pos: pos.toArray(), scale: [1, 1.2, .55], outline: .006 });
@@ -86,6 +87,15 @@ function addFace(J, o, R) {
     const lid = new THREE.Group(); lid.position.copy(pos); lid.scale.set(1.08, 1.25, .62); face.add(lid);
     mesh(new THREE.SphereGeometry(er * 1.06, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), lidM, { outline: .005, parent: lid });
     lids.push(lid);
+    if (o.lashes) for (let i = 0; i < 3; i++) mesh(new THREE.BoxGeometry(.004, .016, .003), dark, { pos: [sx * (.012 + i * .011), .004, er * 1.04], rot: [-.3, 0, sx * (.35 + i * .3)], parent: lid });
+    // нижнее веко: поднимается при улыбке и прищуре
+    const ll = new THREE.Group(); ll.position.copy(pos); ll.scale.set(1.06, 1.2, .6); face.add(ll);
+    mesh(new THREE.SphereGeometry(er * 1.05, 18, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), lidM, { outline: .004, parent: ll });
+    lowLids.push(ll);
+    // щёки: приподнимаются при улыбке
+    const ck = mesh(sph(.03, 12, 8), lidM, { pos: onSphere(sx * .072, -.042, -.012).toArray(), scale: [1.3, .85, .5], parent: face });
+    cheeks.push(ck); ck.userData.y0 = ck.position.y;
+
     const bw = mesh(rbox(.078, .022, .026, .01), toon(o.brow || o.hair || 0x222222), { pos: onSphere(sx * .06, .088, .006).toArray(), outline: .004 });
     face.add(bw); brows.push(bw);
   }
@@ -98,7 +108,8 @@ function addFace(J, o, R) {
   face.add(nose);
   for (const sx of [1, -1]) mesh(sph(.035, 12, 8), toon(o.skin), { pos: [sx * R * .98, headC.y, -.01], scale: [.5, 1, .8], outline: .005, parent: face });
   if (o.blush) for (const sx of [1, -1]) mesh(sph(.022, 10, 8), toon(o.blush, { transparent: true, opacity: .45 }), { pos: onSphere(sx * .085, -.035, -.004).toArray(), scale: [1.3, .7, .3], parent: face });
-  return { face, eyes, pupils, brows, lids, mouth, cav, teeth, tongue, headC };
+  if (o.wrinkles) for (const sx of [1, -1]) mesh(new THREE.TorusGeometry(.03, .003, 4, 12, Math.PI * .7), toon(0x9a5a3c), { pos: onSphere(sx * .058, -.018, .0).toArray(), rot: [0, 0, Math.PI + Math.PI * .15], parent: face });
+  return { face, eyes, pupils, brows, lids, lowLids, cheeks, mouth, cav, teeth, tongue, headC };
 }
 
 /* ---------- кисть с пальцами ---------- */
@@ -170,7 +181,8 @@ export function makeCharacter(kind) {
   const head = reg('skin', mesh(sph(R, 28, 20), m.skin, { pos: [0, .13 * k, 0], scale: [1, 1.03, 1], outline: OL, parent: J.head }));
   ch.head = head;
   const fr = addFace(J, { skin: C.skin, hair: C.hair, brow: kind === 'ded' ? 0xe8e6e0 : C.hair, eyeK: kind === 'vera' ? 1.05 : 1,
-    iris: { timur: 0x6b3a1c, ded: 0x3d5a78, vera: 0x3f8a52 }[kind] || 0x220000, blush: { timur: 0xe0705a, vera: 0xf08a80 }[kind] }, .165);
+    iris: { timur: 0x6b3a1c, ded: 0x3d5a78, vera: 0x3f8a52 }[kind] || 0x220000, blush: { timur: 0xe0705a, vera: 0xf08a80 }[kind],
+    lashes: kind === 'vera', wrinkles: kind === 'ded' }, .165);
   ch.faceRig = fr; fr.face.scale.setScalar(k); // лицо строится в единичном масштабе
   reg('face', fr.face);
 
@@ -240,6 +252,13 @@ export function makeCharacter(kind) {
     for (const sx of [1, -1]) reg('acc', mesh(rbox(.05 * k, .4 * k, .03 * k, .012), toon(0x0f7f74), { pos: [sx * .1 * k, .26 * k, .13 * k], rot: [-.12, 0, 0], outline: OL * .5, parent: J.spine }));
     const carab = reg('acc', mesh(new THREE.TorusGeometry(.035 * k, .009 * k, 8, 20), toon(0xc8ccd4, { emissive: 0x222630 }), { pos: [.1 * k, .14 * k, .16 * k], scale: [.7, 1.2, 1], outline: OL * .4, parent: J.spine }));
     ch.carabiner = carab;
+    // наушники на шее — курьер всегда «на связи»
+    const hph = new THREE.Group(); hph.position.set(0, .015 * k, .02 * k); J.neck.add(hph); reg('acc', hph);
+    mesh(new THREE.TorusGeometry(.085 * k, .012 * k, 6, 20, Math.PI), toon(0x1c1f26), { rot: [-Math.PI / 2 + .35, 0, Math.PI], outline: OL * .4, parent: hph });
+    for (const sx of [1, -1]) {
+      mesh(new THREE.CylinderGeometry(.035 * k, .035 * k, .025 * k, 16), toon(0x1c1f26), { pos: [sx * .085 * k, -.02 * k, .02 * k], rot: [0, 0, Math.PI / 2], outline: OL * .4, parent: hph });
+      mesh(new THREE.CylinderGeometry(.022 * k, .022 * k, .027 * k, 12), toon(0xff7b1c), { pos: [sx * .086 * k, -.02 * k, .02 * k], rot: [0, 0, Math.PI / 2], outline: false, parent: hph });
+    }
     // маска костюма: линзы
     const lenses = new THREE.Group(); J.head.add(lenses); lenses.visible = false; ch.lenses = lenses;
     const lensMat = new THREE.MeshBasicMaterial({ color: 0xdff4f8 });
@@ -271,6 +290,15 @@ export function makeCharacter(kind) {
     for (const sx of [1, -1]) mesh(new THREE.TorusGeometry(.043 * k, .007 * k, 6, 18), gl, { pos: [sx * .058 * k, .155 * k, .155 * k], outline: false, parent: J.head });
     mesh(rbox(.03 * k, .007 * k, .007 * k, .002), gl, { pos: [0, .16 * k, .165 * k], outline: false, parent: J.head });
     reg('acc', mesh(rbox(.07 * k, .09 * k, .01 * k, .005), toon(0x2c7be5), { pos: [-.09 * k, .3 * k, .14 * k], outline: false, parent: J.spine })); // бейдж
+    // планшет в руке (видимость задаёт режиссура)
+    const tab = new THREE.Group(); J.handR.add(tab); tab.position.set(0, -.11 * k, .05 * k); tab.rotation.set(-1.2, 0, 0); tab.visible = false; ch.tablet = tab;
+    mesh(rbox(.17 * k, .23 * k, .014 * k, .012 * k), toon(0x22262e), { outline: OL * .4, parent: tab });
+    const tc = document.createElement('canvas'); tc.width = 128; tc.height = 170; const tg = tc.getContext('2d');
+    tg.fillStyle = '#062030'; tg.fillRect(0, 0, 128, 170); tg.strokeStyle = '#3ff0ff'; tg.lineWidth = 3;
+    tg.beginPath(); for (let x = 0; x < 128; x += 4) tg.lineTo(x, 60 + Math.sin(x * .12) * 20); tg.stroke();
+    tg.fillStyle = '#3ff0ff'; for (let i = 0; i < 5; i++) tg.fillRect(12, 100 + i * 12, 30 + (i * 37) % 80, 5);
+    const tt = new THREE.CanvasTexture(tc); tt.colorSpace = THREE.SRGBColorSpace;
+    mesh(new THREE.PlaneGeometry(.15 * k, .2 * k), new THREE.MeshBasicMaterial({ map: tt, color: new THREE.Color(1.4, 1.4, 1.4) }), { pos: [0, 0, .008 * k], parent: tab });
   }
   if (kind === 'shadow') {
     fr.face.visible = false;
@@ -324,7 +352,11 @@ function buildKronov(ch, d) {
     mesh(new THREE.BoxGeometry(.012 * k, d.shin * .6, .012 * k), seam, { pos: [0, -d.shin * .5, .1 * k], outline: false, parent: J['shin' + s] });
     mesh(new THREE.CylinderGeometry(.025 * k, .025 * k, d.thigh * .7, 8), toon(0xb8c0cc), { pos: [0, -d.thigh * .5, -.11 * k], outline: OL * .5, parent: J['leg' + s] });
     mesh(new THREE.CylinderGeometry(.022 * k, .022 * k, d.upper * .6, 8), toon(0xb8c0cc), { pos: [0, -d.upper * .5, -.09 * k], outline: OL * .5, parent: J['arm' + s] });
-    for (let i = 0; i < 3; i++) mesh(rbox(.05 * k, .05 * k, .06 * k, .015 * k), dark, { pos: [(i - 1) * .055 * k, -.16 * k, .06 * k], outline: OL * .5, parent: J['hand' + s] });
+    for (let i = 0; i < 4; i++) {           // кулак: костяшки + согнутые пальцы
+      mesh(cap(.024 * k, .07 * k), dark, { pos: [(i - 1.5) * .042 * k, -.15 * k, .075 * k], rot: [Math.PI / 2, 0, 0], outline: OL * .4, parent: J['hand' + s] });
+      mesh(cap(.022 * k, .06 * k), metal, { pos: [(i - 1.5) * .042 * k, -.19 * k, .055 * k], outline: OL * .4, parent: J['hand' + s] });
+    }
+    mesh(cap(.026 * k, .08 * k), dark, { pos: [(s === 'L' ? -1 : 1) * .085 * k, -.12 * k, .06 * k], rot: [.4, 0, (s === 'L' ? 1 : -1) * .8], outline: OL * .4, parent: J['hand' + s] });
   }
   mesh(new THREE.BoxGeometry(.012 * k, .012 * k, .28 * k), seam, { pos: [0, .3 * k, 0], outline: false, parent: J.head });
   // светящееся ядро «Арахны», которое Кронов уносит (по умолчанию скрыто)
@@ -335,6 +367,8 @@ function buildKronov(ch, d) {
 }
 
 function finish(ch) {
+  // лёгкий контровой свет на всех тун-материалах персонажа (костюм — свой, ярче)
+  ch.root.traverse(o => { if (o.isMesh && o.material?.isMeshToonMaterial && !o.material.userData.rim) rimify(o.material, ch.kind === 'kronov' ? 0xffb080 : 0x9fc4ff, ch.kind === 'kronov' ? .18 : .14); });
   ch.pose = p => applyPose(ch, p);
   ch.setFace = f => setFace(ch, f);
   ch.setSuit = on => setSuit(ch, on);
@@ -547,6 +581,9 @@ function setFace(ch, f = {}) {
   fr.lids.forEach((l, i) => { const sx = i === 0 ? 1 : -1; l.rotation.set(lerp(-1.25, 1.6, clamp(closure)), 0, sx * (br < 0 ? br * .35 : br * .15)); });
   fr.eyes.forEach(e => { e.scale.set(f.wide ? 1.1 : 1, f.wide ? 1.3 : 1.2, .55); });
   fr.pupils.forEach(p => { p.position.x = look[0] * .011; p.position.y = look[1] * .011; });
+  const smil = clamp(f.smile || 0), sq = f.squint ? .5 : br < 0 ? .25 : 0;
+  fr.lowLids.forEach(l => l.rotation.x = lerp(1.25, .45, clamp(smil * .55 + sq + blink * .4)));
+  fr.cheeks.forEach(c => { c.position.y = c.userData.y0 + smil * .012; c.scale.set(1.3 + smil * .15, .85 + smil * .2, .5); });
   fr.brows.forEach((b, i) => { const sx = i === 0 ? 1 : -1; b.rotation.z = sx * br * .38; b.position.y = fr.headC.y + .088 + br * .016 + (f.wide ? .01 : 0); });
   const mo = clamp(f.mouth || 0), sh = clamp(f.shape || 0), sm = f.smile || 0;
   const sx = (1.3 - mo * .2 + sm * .45) * (1 - sh * .45), sy = .2 + mo * 1.2 * (1 + sh * .3);

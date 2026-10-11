@@ -119,3 +119,29 @@ export function makeSilkSwirl(scene, n = 600) {
     },
   };
 }
+
+/* Брызги из-под колёс: веер капель за колесом, детерминированно по времени */
+export function makeSpray(scene, n = 260) {
+  const g = new THREE.BufferGeometry();
+  const pos = new Float32Array(n * 3); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const m = new THREE.Points(g, new THREE.PointsMaterial({ color: new THREE.Color(0xc8d8ff).multiplyScalar(1.3), size: .05, transparent: true, opacity: .7, depthWrite: false }));
+  m.frustumCulled = false; m.visible = false; scene.add(m);
+  const r = rng(71); const seeds = []; for (let i = 0; i < n; i++) seeds.push([r(), r(), r(), r()]);
+  return {
+    // origin — точка контакта колеса, back — направление «назад», k — интенсивность
+    update(origin, back, t, k = 1) {
+      m.visible = k > 0; if (!m.visible) return;
+      const side = new THREE.Vector3(-back.z, 0, back.x);
+      for (let i = 0; i < n; i++) {
+        const [a, b, c, d] = seeds[i];
+        const life = .35 + d * .25, age = ((t * 1.7 + a) % 1) * life;
+        const v = 2.5 + b * 3;
+        pos[i * 3] = origin.x + back.x * v * age + side.x * (c - .5) * 1.6 * age;
+        pos[i * 3 + 1] = origin.y + .05 + (1.6 + c * 1.5) * age - 4.9 * age * age;
+        pos[i * 3 + 2] = origin.z + back.z * v * age + side.z * (c - .5) * 1.6 * age;
+      }
+      g.attributes.position.needsUpdate = true; m.material.opacity = .65 * k;
+    },
+    hide() { m.visible = false; },
+  };
+}

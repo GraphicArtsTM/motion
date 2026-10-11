@@ -66,6 +66,19 @@ export function toon(color, o = {}) {
   if (o.emissive != null) m.emissive = new THREE.Color(o.emissive);
   return m;
 }
+/* Контровой свет по краю силуэта (френель) — фигура отделяется от тёмного фона */
+export function rimify(mat, color = 0x8fb8ff, k = .14, pow = 2.6) {
+  if (!mat || !mat.isMeshToonMaterial || mat.userData.rim) return mat;
+  mat.userData.rim = true;
+  const col = new THREE.Color(color).multiplyScalar(k);
+  mat.onBeforeCompile = sh => {
+    sh.uniforms.rimCol = { value: col }; sh.uniforms.rimPow = { value: pow };
+    sh.fragmentShader = 'uniform vec3 rimCol; uniform float rimPow;\n' + sh.fragmentShader.replace('#include <emissivemap_fragment>',
+      '#include <emissivemap_fragment>\n  totalEmissiveRadiance += rimCol * pow(1.0 - clamp(abs(normalize(vNormal).z), 0.0, 1.0), rimPow);');
+  };
+  mat.customProgramCacheKey = () => 'rim' + color + '_' + k + '_' + pow;
+  return mat;
+}
 export const glow = (color, k = 2.5, o = {}) => new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(k), ...o });
 
 /* Контур «вывернутой оболочкой»: копия меха с выдавливанием по нормали, рисуется только изнанка */
