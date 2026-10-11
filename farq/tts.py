@@ -8,11 +8,13 @@
 
 Движки:
   edge   — нейроголос Microsoft uz-UZ-SardorNeural (нужен доступ к speech.platform.bing.com)
-  mbrola — офлайн: espeak-ng + MBROLA tr1; узбекская латиница переводится в турецкую
-           орфографию, у которой близкое произношение (sh→ş, ch→ç, j→c, q→k, x→h …)
-По умолчанию пробуется edge, при ошибке — mbrola.
+  piper  — офлайн-нейроголос Piper tr_TR-fettah (VITS, CC0, через sherpa-onnx); модель сама
+           скачивается из релизов sherpa-onnx на GitHub в models/. Узбекская латиница
+           переводится в турецкую орфографию с близким произношением (sh→ş, ch→ç, j→c, q→k, x→h …)
+  mbrola — запасной офлайн: espeak-ng + MBROLA tr1 (дифонный, звучит роботизированно)
+По умолчанию: edge → piper → mbrola, первый работающий.
 
-    python3 tts.py [--engine edge|mbrola]
+    python3 tts.py [--engine edge|piper|mbrola]
 """
 import json
 import os
@@ -30,6 +32,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, 'out')
 TMP = tempfile.mkdtemp(prefix='farq-tts-')
 EDGE_VOICE = 'uz-UZ-SardorNeural'
+PIPER_MODEL = 'vits-piper-tr_TR-fettah-medium'
+PIPER_URL = 'https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/' + PIPER_MODEL + '.tar.bz2'
+PIPER_SPEED = 0.95         # темп, при котором узбекские слова разборчивее всего (проверено Whisper)
 RATE = '160'
 
 
@@ -106,6 +111,36 @@ def synth_mbrola(text, name):
     return to48k(raw, os.path.join(TMP, name + '.wav'))
 
 
+_piper = None
+
+
+def piper_tts():
+    global _piper
+    if _piper is None:
+        import sherpa_onnx
+        d = os.path.join(HERE, 'models', PIPER_MODEL)
+        if not os.path.isdir(d):
+            os.makedirs(os.path.dirname(d), exist_ok=True)
+            print('скачиваю', PIPER_URL)
+            subprocess.run(f'curl -sSL "{PIPER_URL}" | tar xj -C "{os.path.dirname(d)}"', shell=True, check=True)
+        onnx = next(f for f in os.listdir(d) if f.endswith('.onnx'))
+        cfg = sherpa_onnx.OfflineTtsConfig(model=sherpa_onnx.OfflineTtsModelConfig(
+            vits=sherpa_onnx.OfflineTtsVitsModelConfig(model=os.path.join(d, onnx), tokens=os.path.join(d, 'tokens.txt'),
+                                                       data_dir=os.path.join(d, 'espeak-ng-data')), num_threads=4))
+        _piper = sherpa_onnx.OfflineTts(cfg)
+    return _piper
+
+
+def synth_piper(text, name):
+    a = piper_tts().generate(uz_to_tr(text), sid=0, speed=PIPER_SPEED)
+    x = np.array(a.samples)
+    raw = os.path.join(TMP, name + '.raw.wav')
+    with wave.open(raw, 'wb') as w:
+        w.setnchannels(1); w.setsampwidth(2); w.setframerate(a.sample_rate)
+        w.writeframes((np.clip(x, -1, 1) * 32767).astype('<i2').tobytes())
+    return to48k(raw, os.path.join(TMP, name + '.wav'))
+
+
 def synth_edge(text, name):
     mp3 = os.path.join(TMP, name + '.mp3')
     subprocess.run(['edge-tts', '--voice', EDGE_VOICE, '--rate', '+6%', '--text', text, '--write-media', mp3],
@@ -129,7 +164,7 @@ def word_times(x, words, synth, name, text):
     пропорционально длине слов, синтезированных по отдельности."""
     weights = []
     for i, w in enumerate(words):
-        if ENGINE == 'mbrola':
+        if ENGINE in ('mbrola', 'piper'):
             weights.append(len(trim(synth(w, f'{name}_w{i}'))) / SR)
         else:
             weights.append(0.06 * len(re.sub(r'\W', '', w)) + 0.08)
@@ -208,11 +243,14 @@ def pick_engine():
     global ENGINE
     if ENGINE:
         return
-    try:
-        synth_edge('Salom', 'probe')
-        ENGINE = 'edge'
-    except Exception:
-        ENGINE = 'mbrola'
+    for eng, fn in (('edge', synth_edge), ('piper', synth_piper)):
+        try:
+            fn('Salom', 'probe')
+            ENGINE = eng
+            return
+        except Exception:
+            pass
+    ENGINE = 'mbrola'
 
 
 def snap(t):
@@ -221,7 +259,7 @@ def snap(t):
 
 def main():
     pick_engine()
-    synth = synth_edge if ENGINE == 'edge' else synth_mbrola
+    synth = {'edge': synth_edge, 'piper': synth_piper, 'mbrola': synth_mbrola}[ENGINE]
     print('движок:', ENGINE)
     S = json.load(open(os.path.join(HERE, 'script.json'), encoding='utf-8'))
     clips = []          # (t0, signal)
@@ -294,6 +332,11 @@ def main():
               'equalizer=f=2600:t=q:w=1.2:g=4,aexciter=amount=2.5:drive=6:blend=0:freq=5200:ceil=16000,'
               'deesser=i=0.4,acompressor=threshold=-22dB:ratio=3.5:attack=4:release=90:makeup=5,'
               'aecho=0.9:0.6:23|41:0.10|0.06')
+    elif ENGINE == 'piper':
+        # Piper звучит на 22 кГц: чистим низ, добавляем тепло и присутствие, лёгкий «воздух», ровная громкость
+        af = ('highpass=f=75,equalizer=f=160:t=q:w=1:g=1.5,equalizer=f=380:t=q:w=1.5:g=-2,'
+              'equalizer=f=3200:t=q:w=1.3:g=2.5,aexciter=amount=1.2:drive=4:blend=0:freq=7500:ceil=18000,'
+              'deesser=i=0.3,acompressor=threshold=-21dB:ratio=3:attack=4:release=110:makeup=4')
     else:
         af = 'highpass=f=70,acompressor=threshold=-20dB:ratio=2.5:attack=5:release=100:makeup=3'
     to48k(dry, os.path.join(OUT, 'voice.wav'), af)

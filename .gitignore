@@ -9,3 +9,7 @@ farq/out/*.wav
 farq/out/timeline.json
 __pycache__/
 farq/out/render.log
+farq/models/
+farq/out/part_*.mp4
+farq/out/render_*.log
+farq/out/parts.txt
