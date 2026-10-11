@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>PS2 Intro — Modern</title>
+<style>
+  @font-face { font-family: 'Jost'; font-weight: 500; src: url('fonts/Jost-500.woff2') format('woff2'); }
+  @font-face { font-family: 'Jost'; font-weight: 600; src: url('fonts/Jost-600.woff2') format('woff2'); }
+  @font-face { font-family: 'Jost'; font-weight: 700; src: url('fonts/Jost-700.woff2') format('woff2'); }
+  html, body { margin: 0; background: #000; overflow: hidden; }
+  #stage { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: #000; transform-origin: 0 0; }
+  #gl { position: absolute; inset: 0; width: 1920px; height: 1080px; display: block; }
+  .sce { position: absolute; left: 0; right: 0; top: 50%; margin-top: -40px; text-align: center; white-space: nowrap;
+    font: 600 50px/80px 'Jost', sans-serif; color: #eef2ff; visibility: hidden;
+    text-shadow: 0 0 18px rgba(110, 150, 255, .55), 0 0 2px rgba(255, 255, 255, .6); }
+  .sce span { display: inline-block; will-change: transform, opacity, filter; }
+  #sceShine { color: #fff; text-shadow: 0 0 22px rgba(170, 200, 255, .95), 0 0 6px #fff; }
+  #sceLine { position: absolute; left: 50%; top: calc(50% + 48px); height: 1px; transform: translateX(-50%); visibility: hidden;
+    background: linear-gradient(90deg, transparent, rgba(160, 190, 255, .9), transparent); box-shadow: 0 0 8px rgba(120, 160, 255, .8); }
+  #hint { display: none; position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); font: 500 16px 'Jost', sans-serif;
+    color: #9fb3ff; background: rgba(10, 16, 40, .7); padding: 8px 16px; border-radius: 8px; z-index: 5; }
+</style>
+<script type="importmap">{ "imports": { "three": "./lib/three/three.module.js" } }</script>
+</head>
+<body>
+<div id="stage">
+  <canvas id="gl" width="1920" height="1080"></canvas>
+  <div id="sce" class="sce"></div>
+  <div id="sceShine" class="sce"></div>
+  <div id="sceLine"></div>
+</div>
+<div id="hint">Кликните, чтобы смотреть со звуком</div>
+<audio id="audio" preload="auto"></audio>
+<script>
+  /* в превью сцена вписывается в окно браузера */
+  if (!window.__RENDER__) {
+    const fit = () => { const k = Math.min(innerWidth / 1920, innerHeight / 1080); document.getElementById('stage').style.transform = `scale(${k})`; };
+    addEventListener('resize', fit); fit();
+  }
+</script>
+<script type="module" src="js/intro.js"></script>
+</body>
+</html>

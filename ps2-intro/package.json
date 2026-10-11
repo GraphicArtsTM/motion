@@ -1,0 +1,19 @@
+{
+  "name": "ps2-intro-modern",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PlayStation 2 intro — modern remake and Director's Cut, rendered with Three.js + Playwright + ffmpeg",
+  "type": "module",
+  "scripts": {
+    "render": "node render-all.mjs",
+    "render:pro": "node render-all.mjs --only pro",
+    "render:remake": "node render-all.mjs --only remake",
+    "render:4k": "node render-all.mjs --scale 2",
+    "preview": "node render.mjs --preview",
+    "audio": "python sfx.py"
+  },
+  "dependencies": {
+    "ffmpeg-static": "5.2.0",
+    "playwright": "1.56.1"
+  }
+}
