@@ -52,7 +52,7 @@ const step = (to - from) / jobs;
 await Promise.all(Array.from({ length: jobs }, (_, i) => {
   const a = Math.round((from + i * step) * fps) / fps, b = Math.round((from + (i + 1) * step) * fps) / fps;
   return run(process.execPath, ['render.mjs', '--gpu', '--progress', '--fps', String(fps), '--from', String(a), '--to', String(b),
-    '--crf', '16', '--q', fast ? '' : '&q=high', '--out', path.join(parts, `p${i}.mp4`)], {
+    '--crf', '16', '--q', (fast ? '' : '&q=high') + '&fps=' + fps, '--out', path.join(parts, `p${i}.mp4`)], {
     stdio: ['ignore', 'pipe', 'pipe'],
     onLine: l => {
       if (l.startsWith('PROGRESS')) { done[i] = +l.split(' ')[1]; show(); }
