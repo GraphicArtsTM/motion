@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Maxway KLABJON 1+1</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <!-- чистый контур текста: расширенная альфа минус исходная (у вариативного шрифта обводка даёт внутренние линии) -->
+  <filter id="ol" x="-5%" y="-20%" width="110%" height="140%" color-interpolation-filters="sRGB"><feMorphology in="SourceAlpha" operator="dilate" radius="2.4" result="d"/><feComposite in="d" in2="SourceAlpha" operator="out" result="o"/><feFlood flood-color="#fff"/><feComposite in2="o" operator="in"/></filter>
+  <filter id="olY" x="-5%" y="-20%" width="110%" height="140%" color-interpolation-filters="sRGB"><feMorphology in="SourceAlpha" operator="dilate" radius="2.4" result="d"/><feComposite in="d" in2="SourceAlpha" operator="out" result="o"/><feFlood flood-color="#FFD502"/><feComposite in2="o" operator="in"/></filter>
+  <filter id="olP" x="-5%" y="-20%" width="110%" height="140%" color-interpolation-filters="sRGB"><feMorphology in="SourceAlpha" operator="dilate" radius="3" result="d"/><feComposite in="d" in2="SourceAlpha" operator="out" result="o"/><feFlood flood-color="#7669AF" flood-opacity=".5"/><feComposite in2="o" operator="in"/></filter>
+</svg>
+<div id="root">
+  <div id="bg" class="full"></div>
+  <div id="dots" class="full"></div>
+  <div id="rays" class="a"></div>
+
+  <div id="cam">
+    <!-- 1. Хук: КУПИ ОДИН — ПОЛУЧИ ДВА -->
+    <div class="sc" id="sc1"><div id="w1" class="a big"></div></div>
+
+    <!-- 2. 1+1 -->
+    <div class="sc" id="sc2">
+      <div id="pill" class="a pill"><span class="pc">1</span><span class="pc">+</span><span class="pc">1</span></div>
+      <div id="s2a" class="a sub">при покупке <b class="yl">KLABJON</b></div>
+      <div id="s2b" class="a sub">второй — в подарок</div>
+    </div>
+
+    <!-- 3. Раскрытие продукта -->
+    <div class="sc" id="sc3">
+      <div id="kTitle" class="a ttl">KLABJON<span class="badgeL">L</span></div>
+      <svg id="kLines" class="full" viewBox="0 0 1080 1920"></svg>
+      <div id="kShadow" class="a shadow"></div>
+      <img id="kSand" class="a" src="assets/klabjon.png" alt="">
+      <div id="kStamp" class="a stamp"><b>385</b><span>грамм</span></div>
+      <div id="kRate" class="a rate"><span class="star">★</span> 4.0</div>
+      <div id="kNew" class="a newrow"><span class="newb">NEW</span>Новинка в Maxway</div>
+    </div>
+
+    <!-- 4. Не клаб-сэндвич, а KLABJON -->
+    <div class="sc" id="sc4">
+      <div id="cl0" class="a sml">все знают</div>
+      <div id="cl1" class="a big ink">КЛАБ-</div>
+      <div id="cl2" class="a big ink">СЭНДВИЧ?</div>
+      <div id="stk1" class="a strike"></div>
+      <div id="stk2" class="a strike"></div>
+      <div id="kj" class="a ttl pur">KLABJON<span class="badgeL p">L</span></div>
+      <div id="alt" class="a altpill">альтернатива клаб-сэндвичу</div>
+      <div id="alt2" class="a sml">только в Maxway</div>
+    </div>
+
+    <!-- 5. Приложение: главная (фон) -->
+    <div class="sc" id="sc5">
+      <div id="mq" class="full"></div>
+      <div id="h5a" class="a big pur">ЗАКАЖИ</div>
+      <div id="h5b" class="a big pur">В ПРИЛОЖЕНИИ</div>
+    </div>
+
+    <!-- 6. Корзина (фон) -->
+    <div class="sc" id="sc6">
+      <div id="orCirc" class="a circ"></div>
+      <div id="z1" class="a big">ВТОРОЙ</div>
+      <div id="z2" class="a big shadowtxt">0 СУМ</div>
+    </div>
+
+    <!-- 7. Один + один -->
+    <div class="sc" id="sc7">
+      <div id="t7a" class="a big shadowtxt">ВТОРОЙ</div>
+      <div id="t7b" class="a big shadowtxt">В ПОДАРОК</div>
+      <div id="h7" class="a ttl">KLABJON<span class="badgeL">L</span></div>
+      <div id="h7s" class="a sub2">при покупке <b class="yl">KLABJON</b><br>второй в подарок</div>
+      <img id="hero" class="a" src="assets/banner_cut.png" alt="">
+      <div id="heroPill" class="a pill sm"><span>1+1</span></div>
+      <div id="sh7a" class="a shadow"></div><div id="sh7b" class="a shadow"></div>
+      <img id="g3" class="a ghost" src="assets/klabjon.png" alt=""><img id="g2" class="a ghost" src="assets/klabjon.png" alt=""><img id="g1" class="a ghost" src="assets/klabjon.png" alt="">
+      <img id="sA" class="a" src="assets/klabjon.png" alt="">
+      <img id="sB" class="a" src="assets/klabjon.png" alt="">
+      <div id="bow" class="a bow"></div>
+      <div id="tag" class="a tag">БЕСПЛАТНО</div>
+      <div id="n1" class="a big shadowtxt">1</div>
+      <div id="n2" class="a big shadowtxt yl">+1</div>
+    </div>
+
+    <!-- 8. Доставка -->
+    <div class="sc" id="sc8">
+      <div id="m40" class="a big">40 МИН</div>
+      <div id="m40s" class="a sub2">и KLABJON у тебя дома</div>
+      <div id="map" class="a"></div>
+    </div>
+
+    <!-- 9. Финал -->
+    <div class="sc" id="sc9">
+      <div id="rings9" class="full"></div>
+      <img id="logo" class="a" src="assets/logo.png" alt="maxway">
+      <div id="fT" class="a ttl">KLABJON<span class="badgeL">L</span></div>
+      <div id="fPill" class="a pill sm"><span>1+1</span></div>
+      <div id="fSh" class="a shadow"></div>
+      <img id="fSa" class="a" src="assets/klabjon.png" alt="">
+      <img id="fSb" class="a" src="assets/klabjon.png" alt="">
+      <div id="fBow" class="a bow"></div>
+      <div id="cta" class="a cta"><span>Заказать в приложении</span></div>
+      <div id="url" class="a url">maxway.delever.uz</div>
+      <div id="note" class="a note">*Акция действует только на доставку</div>
+    </div>
+
+    <!-- телефон: общий для сцен 5–6 -->
+    <div id="phL" class="full">
+      <div id="phone" class="a">
+        <div class="scr">
+          <div class="stat"><span class="tm">01:09</span><span class="isl"></span><span class="sic"></span></div>
+          <div id="home">
+            <div class="hdr hp">
+              <div class="dlv">Доставка <i class="ic chev"></i></div>
+              <div class="addr">30-й квартал, 25</div>
+              <i class="ic srch"></i>
+            </div>
+            <div class="bnr hp"><img src="assets/appbanner.jpg" alt=""></div>
+            <div class="chips hp">
+              <span class="chip f"><i class="ic filt"></i></span><span class="chip y" id="chipA">Акция</span><span class="chip">Новинка</span><span class="chip">ЛАВАШ</span><span class="chip">Бокс на компанию</span>
+            </div>
+            <div class="h2 hp" style="top:318px">Акция</div>
+            <div class="cards hp">
+              <div class="card" id="card1">
+                <span class="newb s">NEW</span>
+                <div class="cimg"><img src="assets/klabjon.png" alt=""></div>
+                <div class="pr">40 000 сум</div>
+                <div class="nm">KLABJON L</div>
+                <div class="ds">Тостер хлеб, куриный шницель, маринованные огурцы, айсбе…</div>
+                <div class="add" id="addBtn"><span id="addTxt">Добавить</span><span id="stepper"><b>−</b><span>1</span><b>+</b></span></div>
+              </div>
+              <div class="card">
+                <div class="cimg"><img src="assets/superbox.jpg" alt=""></div>
+                <div class="pr">65 000 сум</div>
+                <div class="nm">Супер Бокс KLABJON L</div>
+                <div class="ds">KLABJON L, картофель фри, напиток, соус</div>
+                <div class="add"><span>Добавить</span></div>
+              </div>
+            </div>
+            <div class="h2 hp" style="top:706px">Новинка</div>
+          </div>
+          <img id="fly" src="assets/klabjon.png" alt="">
+          <div class="tabbar">
+            <div class="tab on"><i class="ic home"></i>Главная</div>
+            <div class="tab" id="tabCart"><i class="ic bag"></i>Корзина<b id="badge">1</b></div>
+            <div class="tab"><i class="ic ord"></i>Заказы</div>
+            <div class="tab"><i class="ic usr"></i>Профиль</div>
+          </div>
+          <div id="dim"></div>
+          <div id="sheet">
+            <div class="grab"></div>
+            <div class="shd"><i class="ic x"></i><b>Корзина</b><i class="ic trash"></i></div>
+            <div class="row" id="r1"><img src="assets/klabjon.png" class="th w" alt=""><div class="ri"><div>KLABJON L</div><b>40 000 сум</b></div><div class="stp">−<span>1</span>+</div></div>
+            <div class="row" id="r2"><img src="assets/kraft.jpg" class="th" alt=""><div class="ri"><div>Крафт пакет</div><b>1 000 сум</b></div><div class="stp">−<span>1</span>+</div></div>
+            <div class="row" id="r3"><img src="assets/gift.jpg" class="th" alt=""><div class="ri"><div>KLABJON L в подарок</div><b id="gp"><span id="gpv">40 000 сум</span><i id="gps"></i></b></div><div class="stp">−<span>1</span>+</div></div>
+            <div class="pay" id="payBtn"><span>К оплате</span><b>41 000 сум</b></div>
+          </div>
+          <div id="ok"><div class="okc"></div><b>Заказ оформлен</b></div>
+          <div id="touch"><i></i></div>
+        </div>
+        <div class="btn1"></div><div class="btn2"></div>
+      </div>
+    </div>
+
+    <!-- наклейки поверх телефона -->
+    <div id="ovl" class="full">
+      <div id="st40" class="a stk w">40 000 сум</div>
+      <div id="stGift" class="a stk p"><i class="ic gift"></i>+1 в подарок</div>
+      <div id="stSave" class="a stk y">экономия 40 000 сум</div>
+      <div id="conf" class="full"></div>
+    </div>
+
+    <div id="tapeA" class="a tape p"></div>
+    <div id="tapeB" class="a tape y"></div>
+  </div>
+
+  <div id="wipe" class="full"><div class="wb" id="wb0"></div><div class="wb" id="wb1"></div><div class="wb" id="wb2"></div></div>
+  <div id="hud" class="full">
+    <span class="tl">MAXWAY®</span><span class="tr">АКЦИЯ 1+1</span><span class="bl">KLABJON L</span><span class="br" id="hudT">00:00</span>
+  </div>
+  <div id="flash" class="full"></div>
+  <div id="grain" class="full"></div>
+  <div id="vig" class="full"></div>
+</div>
+<script src="motion.js"></script>
+</body>
+</html>
