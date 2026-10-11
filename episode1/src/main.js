@@ -14,11 +14,14 @@ import { buildShots, makeCab } from './shots.js';
 import { makeStreetLife } from './props.js';
 import { dressLab, dressBridge, dressKitchen } from './dressing.js';
 import { makeSpray } from './fx.js';
+import { makeGradePass, gradeAt, makeAccumulator, mblurAt } from './post.js';
+import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
 
 const params = new URLSearchParams(location.search);
 const RENDER = params.has('render');
 // качество: q=high — для рендера на видеокарте (MSAA 4×, HDR-буфер, bloom в 1/2), по умолчанию — быстрый режим
 const HIGH = params.get('q') === 'high';
+const FPS = +(params.get('fps') || 30);
 
 await Promise.all([
   ['Unbounded', 'fonts/Unbounded-900.ttf', '900'], ['Unbounded', 'fonts/Unbounded-700.ttf', '700'],
@@ -41,7 +44,15 @@ const rt = new THREE.WebGLRenderTarget(W, H, { type: HIGH || params.has('hdr') ?
 const composer = new EffectComposer(renderer, rt);
 const renderPass = new RenderPass(new THREE.Scene(), camera);
 const bloom = new UnrealBloomPass(new THREE.Vector2(W / +(params.get('bd') ?? (HIGH ? 2 : 4)), H / +(params.get('bd') ?? (HIGH ? 2 : 4))), .75, .55, .92);
-composer.addPass(renderPass); if (!params.has('nobloom')) composer.addPass(bloom); composer.addPass(new OutputPass());
+composer.addPass(renderPass); if (!params.has('nobloom')) composer.addPass(bloom);
+// глубина резкости на крупных планах (только на видеокарте — это ещё один проход сцены)
+const bokeh = HIGH ? new BokehPass(new THREE.Scene(), camera, { focus: 3, aperture: .0006, maxblur: .006 }) : null;
+if (bokeh) { bokeh.enabled = false; composer.addPass(bokeh); }
+composer.addPass(new OutputPass());
+const grade = makeGradePass(); composer.addPass(grade);
+const accum = HIGH ? makeAccumulator(renderer, W, H) : null;
+// мягкие тени (на видеокарте)
+if (HIGH) { renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; }
 const overlay = makeOverlay(document.getElementById('ov'));
 
 /* ---------- мир ---------- */
@@ -77,6 +88,19 @@ const bolts = timeline.strikes.map((s, i) => {
   const b = makeBolt(new THREE.Vector3(...s.from), new THREE.Vector3(...s.to), 100 + i, { width: s.w ?? 1.2, branches: s.br ?? 5, scale: s.sc ?? 1, jag: s.jag ?? 1 });
   b.visible = false; city.bolts.add(b); return { ...s, mesh: b };
 });
+
+if (HIGH) {
+  city.key.castShadow = true; city.key.shadow.mapSize.set(2048, 2048);
+  Object.assign(city.key.shadow.camera, { left: -26, right: 26, top: 26, bottom: -26, near: 10, far: 300 }); city.key.shadow.bias = -.0006; city.key.shadow.normalBias = .02;
+  const lampK = kitchen.scene.children.find(o => o.isPointLight && o.intensity > 2);
+  if (lampK) { lampK.castShadow = true; lampK.shadow.mapSize.set(1024, 1024); lampK.shadow.bias = -.002; }
+  for (const sc of [city.scene, kitchen.scene, lair.scene, cab.scene]) sc.traverse(o => {
+    if (!o.isMesh || o.isInstancedMesh) return;
+    const m = o.material;
+    if (m?.isMeshToonMaterial) { o.castShadow = true; o.receiveShadow = true; }
+  });
+  for (const c of Object.values(ch)) c.root.traverse(o => { if (o.isMesh && o.material?.isMeshToonMaterial) { o.castShadow = true; o.receiveShadow = true; } });
+}
 
 /* ---------- реплики и липсинк ---------- */
 /* карта времени: сюжетное время s (в нём поставлены шоты) → экранное T (растянуто под живую озвучку) */
@@ -124,7 +148,7 @@ function shapeOf(who) {
   }
   return 0;
 }
-const ctx = { THREE, city, lab, kitchen, lair, cab, ch, props, camera, overlay, U, bolts, lines, mouthOf, shapeOf, fricOf, renderer, timeline, labD };
+const ctx = { THREE, city, lab, kitchen, lair, cab, ch, props, camera, overlay, U, bolts, lines, mouthOf, shapeOf, fricOf, renderer, timeline, labD, kitchenD };
 const shots = buildShots(ctx);
 const DURATION = timeline.duration;
 
@@ -150,8 +174,8 @@ function resetFrame() {
 }
 
 let inset = null;
-function renderAt(T) {
-  T = clamp(T, 0, DURATION - 1e-4);
+/* логика кадра: персонажи, камера, эффекты на момент T (без отрисовки) */
+function frameLogic(T) {
   filmT = T;
   const t = toStory(T);
   ctx.t = t;
@@ -164,7 +188,7 @@ function renderAt(T) {
   U.rainTime.value = t;
   city.hemi.intensity = 1.1 + flash * 2.2;
   ctx.t = t; ctx.inset = null; ctx.post = [];
-  ctx.camFill = null; ctx.panels = null; ctx.rim = null;
+  ctx.camFill = null; ctx.panels = null; ctx.rim = null; ctx.dof = null; ctx.grade = null;
   const scene = shot.run(lt, t, ctx) || city.scene;
   if (ctx.rim) {
     const tg = ctx.rim.target, d = tg.clone().sub(camera.position).setY(0).normalize();
@@ -173,19 +197,49 @@ function renderAt(T) {
   } else city.rim.color.set(0xff9a4a);
   life.update(t, { police: t >= 117 && t < 183 });
   labD.update(t, { alarm: t >= 62 && t < 83, inLab: scene === city.scene && !city.rain.visible });
-  bridgeD.update(t, t >= 117 && t < 183);
-  kitchenD.update(t);
+  bridgeD.update(t, t >= 117 && t < 183, camera);
+  kitchenD.update(t, { inKitchen: scene === kitchen.scene });
   const up = new THREE.Vector3();
   for (const c of Object.values(ch)) { up.set(0, 1, 0).applyQuaternion(c.root.getWorldQuaternion(new THREE.Quaternion())); c.blob.visible = c.root.visible && up.y > .95 && !ctx.noBlob?.includes(c); }
   ctx.noBlob = null;
-  if (ctx.camFill) { city.fill.position.copy(camera.position).add(new THREE.Vector3(0, 1.5, 0)); city.fill.intensity = ctx.camFill[0]; city.fill.color.set(ctx.camFill[1]); city.fill.distance = 60; city.fill.decay = 1; }
+  if (ctx.camFill) { city.fill.position.copy(camera.position).add(new THREE.Vector3(0, 3.5, 0)); city.fill.intensity = ctx.camFill[0] * .8; city.fill.color.set(ctx.camFill[1]); city.fill.distance = 60; city.fill.decay = 1; }
   else { city.fill.distance = 40; city.fill.decay = 1.6; }
   // молнии, видимые в этом кадре
   if (scene === city.scene) for (const b of bolts) { const d = t - b.t; b.mesh.visible = !shot.hideBolts && d > -.02 && d < (b.dur ?? .38) && (Math.sin(d * 90) > -.6 || d < .08); }
   if (ctx.bloom != null) { bloom.strength = ctx.bloom; ctx.bloom = null; }
   renderPass.scene = scene;
-  composer.render();
-  // вставка «звонок»: вторая камера поверх кадра
+  // тени: солнце-«луна» следит за точкой, куда смотрит камера
+  if (HIGH) {
+    const focus = camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(12).add(camera.position);
+    city.key.position.copy(focus).add(new THREE.Vector3(-60, 120, 80).normalize().multiplyScalar(120)); city.key.target.position.copy(focus);
+  }
+  if (bokeh) {
+    bokeh.enabled = !!ctx.dof; bokeh.scene = scene;
+    if (ctx.dof) { bokeh.uniforms.focus.value = ctx.dof.focus; bokeh.uniforms.aperture.value = ctx.dof.aperture ?? .0006; bokeh.uniforms.maxblur.value = ctx.dof.maxblur ?? .007; }
+  }
+  grade.setGrade(ctx.grade || gradeAt(t), t);
+  return { t, shot, scene };
+}
+
+function renderAt(T) {
+  T = clamp(T, 0, DURATION - 1e-4);
+  const t0 = toStory(T);
+  // motion blur: на видеокарте в экшн-сценах усредняем подкадры внутри «затвора 180°»
+  const N = HIGH && !params.has('nomblur') && mblurAt(t0) ? +(params.get('mbs') || 5) : 1;
+  if (N > 1) {
+    accum.clear(); composer.renderToScreen = false;
+    const shutter = .5 / FPS;
+    for (let i = 0; i < N; i++) {
+      frameLogic(clamp(T + (i / (N - 1) - .5) * shutter, 0, DURATION - 1e-4));
+      composer.render();
+      accum.add(composer.readBuffer.texture, 1 / N);
+    }
+    composer.renderToScreen = true;
+    accum.present();
+  }
+  const { shot } = frameLogic(T);
+  if (N === 1) composer.render();
+  // вставки и комикс-панели: вторая камера поверх кадра
   for (const p of [ctx.inset, ...(ctx.panels || [])]) {
     if (!p) continue;
     const { x, y, w, h, scene: s2, cam } = p;
@@ -203,7 +257,7 @@ function renderAt(T) {
     const dt = T - l.ft;
     if (dt > -.05 && T < l.end) overlay.subtitle(l.text, Math.min(clamp((dt + .05) / .12), clamp((l.end - T) / .12)), l.who, l.who === 'narrator');
   }
-  overlay.vignette(.5);
+  overlay.vignette(.3);
 }
 
 window.renderAt = renderAt;

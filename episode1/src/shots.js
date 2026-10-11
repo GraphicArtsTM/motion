@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { E, P, kf, tw, lerp, clamp, shake, pulse, toon, glow, mesh, W, H, noise } from './core.js';
-import { POSE, seq, blend, blinkAt, gait, squash, springAt, secondary, ikArm } from './rig.js';
+import { POSE, seq, blend, blinkAt, gait, squash, springAt, secondary, ikArm, makeSpider } from './rig.js';
 import { updateTraffic, makeCar } from './city.js';
 import { plume, puffTex } from './dressing.js';
 
@@ -30,8 +30,9 @@ export function makeCab() {
   scene.add(new THREE.HemisphereLight(0xa0b4ff, 0x201820, 1.4));
   const dash = new THREE.PointLight(0x7feaff, 6, 4, 1.3); dash.position.set(.2, 1.3, 1.1); scene.add(dash);
   const warm = new THREE.PointLight(0xffb070, 4, 5, 1.5); warm.position.set(-.8, 1.9, .6); scene.add(warm);
+  const alarm = new THREE.PointLight(0xff2020, 0, 6, 1.2); alarm.position.set(-.6, 2.0, .3); scene.add(alarm);
   const cam = new THREE.PerspectiveCamera(34, 520 / 360, .05, 50);
-  return { scene, cam, tex, wheel };
+  return { scene, cam, tex, wheel, alarm, dash, warm };
 }
 
 export function buildShots(C) {
@@ -42,6 +43,9 @@ export function buildShots(C) {
   /* ---- помощники ---- */
   const look = (pos, at, fov = 45, roll = 0) => {
     cam.position.set(...pos); cam.up.set(0, 1, 0); cam.lookAt(...at);
+    // крупный план (узкий объектив, объект близко) — глубина резкости с фокусом на объекте
+    const dist = Math.hypot(pos[0] - at[0], pos[1] - at[1], pos[2] - at[2]);
+    if (fov <= 38 && dist < 8) C.dof = { focus: dist, aperture: .0007 };
     if (roll) cam.rotateZ(roll);
     cam.fov = fov; cam.updateProjectionMatrix();
   };
@@ -63,6 +67,13 @@ export function buildShots(C) {
     if (KR.root.parent !== S && KR.root.parent?.parent !== city.tower) return;
     KR.root.updateMatrixWorld(true);
     const damaged = t > 169.05;
+    // украденное ядро вставлено в грудь: перегрев — неровное мерцание и разряды
+    KR.arachna.visible = t > 100 && t < 153.65;
+    if (KR.arachna.visible) {
+      const fl = .55 + .45 * Math.abs(Math.sin(t * 17) * Math.sin(t * 5.3));
+      KR.arachnaM.color.setRGB(.5 * fl + (Math.sin(t * 31) > .7 ? 1.5 : 0), 2.6 * fl, 3.2 * fl);
+      if (KR.root.parent === S) props.sparks2.burst(KR.J.spine.localToWorld(V(0, .32 * KR.d.k, .3 * KR.d.k)), (t % 1.15), { speed: 2.5, life: .35, grav: 0, size: .05 });
+    }
     [1, -1].forEach((sx, i) => krEx[i].update(KR.J.spine.localToWorld(V(sx * .1 * KR.d.k, .27 * KR.d.k, -.5 * KR.d.k)), t + i * .3, damaged ? 0 : 1));
     if (damaged) { krDmg.update(KR.J.spine.localToWorld(V(0, .35 * KR.d.k, .1)), t, 1); props.sparks2.burst(KR.J.spine.localToWorld(V(0, .3 * KR.d.k, .2)), ((t - 169.05) % 1.3), { speed: 3, life: .5, grav: 6, size: .06 }); }
     else krDmg.hide();
@@ -89,11 +100,11 @@ export function buildShots(C) {
   };
   /* комикс-панель: второй ракурс поверх кадра (рисуется отдельной камерой) */
   const panelCams = [new THREE.PerspectiveCamera(30, 1, .05, 3000), new THREE.PerspectiveCamera(30, 1, .05, 3000)];
-  const panel = (i, k, rect, scene, pos, at, fov = 30) => {
+  const panel = (i, k, rect, scene, pos, at, fov = 30, roll = 0) => {
     if (k <= 0) return;
     const [x, y, w, h] = rect, s = E.outBack(clamp(k));
     const ws = Math.round(w * s), hs = Math.round(h * s), px = Math.round(x + (w - ws) / 2), py = Math.round(y + (h - hs) / 2);
-    const pc = panelCams[i]; pc.position.set(...pos); pc.up.set(0, 1, 0); pc.lookAt(...at); pc.fov = fov;
+    const pc = panelCams[i]; pc.position.set(...pos); pc.up.set(0, 1, 0); pc.lookAt(...at); if (roll) pc.rotateZ(roll); pc.fov = fov;
     (C.panels = C.panels || []).push({ x: px, y: py, w: ws, h: hs, scene, cam: pc });
     post(o => o.panelFrame(px, py, ws, hs));
   };
@@ -143,6 +154,18 @@ export function buildShots(C) {
     post(o => o.callFrame(x + (w - ws) / 2, y + (h - hs) / 2, ws, hs, 1, t));
   };
 
+  /* вставка «дед в кабине»: автобус завис над рекой, аварийный красный свет, кабина накренилась */
+  const cabPanel = (t, k, tilt = .2) => {
+    if (k <= 0) return;
+    place(DE, cab.scene, [0, .05, -.1], 0);
+    const p = POSE.sitChair(t); p.armL = [-1.15, .1, .1]; p.armR = [-1.15, .1, .1]; p.foreL = [-.45, 0, 0]; p.foreR = [-.45, 0, 0]; p.grip = 1;
+    p.spine = [-.15, 0, Math.sin(t * 7) * .03]; p.head = [-.25 + Math.sin(t * 9) * .03, .2 * Math.sin(t * 1.3), 0];
+    DE.pose(p); face(DE, 'ded', t, { brow: .9, wide: true, look: [.4, .7], seed: 2 });
+    cab.tex.offset.x = 0; cab.wheel.rotation.z = Math.sin(t * 5) * .08;
+    cab.alarm.intensity = Math.sin(t * 9) > 0 ? 9 : 2; cab.dash.intensity = 1.5; cab.warm.intensity = .6;
+    panel(0, k * 1.01, [90, 90, 580, 330], cab.scene, [.55, 1.5, 1.25], [0, 1.4, 0], 36, tilt);
+  };
+
   /* ---- мост и автобус ---- */
   const BUS = { x: 455, z: -388.6 };
   const busState = (t, tilt, slide) => {
@@ -153,12 +176,13 @@ export function buildShots(C) {
   const busSlide = t => kf(t, [[120, 0], [154.6, 0], [156.6, 2.6, E.outCubic], [171, 2.6], [174, -2.4, E.inOutCubic]]);
   const busRear = t => { props.busPivot.updateMatrixWorld(true); return props.bus.localToWorld(V(0, 1.6, -6)); };
   const wreck = [];                         // брошенные машины на мосту
-  for (let i = 0; i < 3; i++) { const c = makeCar(i + 3); S.add(c); c.visible = false; wreck.push(c); }
+  for (let i = 0; i < 3; i++) { const c = makeCar(i + 3); S.add(c); c.visible = false; wreck.push(c);
+    c.children.forEach(m => { if (m.material?.blending === THREE.AdditiveBlending) m.visible = false; }); }   // брошенные машины — фары погашены
   const fire = new THREE.PointLight(0xff7a2a, 0, 40, 1.4); S.add(fire);
   const flames = [];
   for (let i = 0; i < 10; i++) { const f = mesh(new THREE.SphereGeometry(.6, 10, 8), glow(i % 2 ? 0xff9a2a : 0xffd04a, 2.6, { transparent: true, opacity: .8 }), { outline: false, parent: S }); f.visible = false; flames.push(f); }
   const bridgeProps = t => {
-    const pos = [[448.5, -406, .25, 0], [470, -394, -.8, 1], [492, -406, 2.4, 2]];
+    const pos = [[448.8, -407.4, .25, 0], [470, -394, -.8, 1], [492, -406, 2.4, 2]];
     wreck.forEach((c, i) => { c.visible = true; c.position.set(pos[i][0], 0, pos[i][1]); c.rotation.set(0, pos[i][2], i === 2 ? Math.PI : 0); if (i === 2) c.position.y = 2.1; });
     // машина подпрыгивает от удара Кронова
     const jd = t - 125.7; if (jd > 0) { const b = Math.max(0, Math.sin(jd * 9) * Math.exp(-jd * 4)); wreck[0].position.y = b * .9; wreck[0].rotation.z = b * .25; wreck[0].rotation.x = -b * .1; }
@@ -331,6 +355,38 @@ export function buildShots(C) {
   };
   const box = mesh(new RoundedBoxGeometry(.42, .3, .32, 2, .03), toon(0xc9a06a), { outline: .01 });
   mesh(new THREE.BoxGeometry(.44, .05, .1), toon(0x15b9a8), { pos: [0, .13, 0], outline: false, parent: box });
+  // ядро «Арахны», выбитое из груди Кронова, и чёрный дрон-паук Тени, который его утаскивает
+  const coreProp = new THREE.Group(); S.add(coreProp); coreProp.visible = false;
+  mesh(new THREE.CylinderGeometry(.09, .09, .3, 16), glow(0x5ff6ff, 3.2), { rot: [0, 0, Math.PI / 2], outline: .015, parent: coreProp });
+  for (const sx of [-1, 1]) mesh(new THREE.TorusGeometry(.1, .02, 6, 16), toon(0x262b33), { pos: [sx * .12, 0, 0], rot: [0, Math.PI / 2, 0], outline: .01, parent: coreProp });
+  const coreLight = new THREE.PointLight(0x5ff6ff, 0, 6, 1.5); coreProp.add(coreLight);
+  const makeDrone = scale => {
+    const d = makeSpider({ scale });
+    d.traverse(m => { if (!m.isMesh) return; if (m.material.isMeshBasicMaterial && m.material.side !== THREE.BackSide) m.material = glow(0xff1a1a, 3.5); else if (m.material.isMeshToonMaterial) m.material = toon(0x111216); });
+    return d;
+  };
+  const drone = makeDrone(4.5); S.add(drone); drone.visible = false;
+  const CORE_FROM = V(431.4, 2.2, -398.5), CORE_REST = V(437.5, .12, -393.5);
+  const coreAt = t => {
+    if (t < 154.4) { const u = P(t, 153.65, .75); const p = CORE_FROM.clone().lerp(CORE_REST, u); p.y += Math.sin(u * Math.PI) * 2.2 - u * 0; return p; }
+    if (t < 172.9) return CORE_REST.clone();
+    return droneAt(t).add(V(0, .55, -.1));
+  };
+  const droneAt = t => kf(t, [[171.9, [431.5, 0, -390.2]], [172.85, [437.2, 0, -393.2], E.inOutSine], [173.1, [437.2, 0, -393.2]], [173.85, [439.6, 0, -388.4], E.inQuad], [174.5, [440.5, -6, -386.5], E.inQuad]]).reduce((v, x, i) => (v.setComponent(i, x), v), V(0, 0, 0));
+  const coreFX = t => {
+    coreProp.visible = t >= 153.65 && t < 174.3;
+    if (coreProp.visible) {
+      coreProp.position.copy(coreAt(t)); coreProp.rotation.set(t < 154.4 ? t * 14 : 0, t < 154.4 ? t * 9 : .4, 0);
+      coreLight.intensity = 4 + 2 * Math.sin(t * 6);
+    }
+    drone.visible = t >= 171.9 && t < 174.5;
+    if (drone.visible) {
+      const p = droneAt(t), q = droneAt(t + .05);
+      drone.position.copy(p); drone.rotation.set(0, Math.atan2(q.x - p.x, q.z - p.z) || 2.4, 0);
+      drone.userData.anim(t, t > 172.85 && t < 173.1 ? 0 : 1, .3);
+    }
+  };
+
   // клубы дыма (спрайты) для выбитых дверей
   const smokeTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
     const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64); gr.addColorStop(0, 'rgba(120,110,105,.9)'); gr.addColorStop(1, 'rgba(120,110,105,0)'); g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
@@ -476,6 +532,22 @@ export function buildShots(C) {
     return S;
   }, { flashK: 0 });
   shot(80.2, 83, (lt, t) => {
+    if (t >= 81.7) {          // снаружи: Тимура выбрасывает из окна — рука сама выстреливает первой нитью
+      env({ fill: [[80, 258, -420], 30, 0x7feaff] });
+      props.shards.update(t - 81.7, [V(65.5, 268, -438), V(65.5, 264, -444)]);
+      const tp = kf(t, [[81.7, [66, 266.5, -437]], [82.15, [71.5, 256, -434], E.inQuad], [82.95, [93, 246, -424], E.outQuad]]);
+      place(TI, S, tp, 0);
+      const A0 = V(62, 300, -414), web = P(t, 82.0, .18);
+      if (t < 82.15) { TI.root.rotation.set(Math.sin(t * 6) * 1.6, t * 2, .8); TI.pose(POSE.fall(t)); }
+      else { orient(TI, A0.clone().sub(V(...tp)), V(1, 0, .3)); TI.pose({ ...POSE.shootUp(), head: [.6, 0, 0], legL: [.3, 0, .1], legR: [.1, 0, .1] }); }
+      face(TI, 'timur', t, { blink: 1, noBlink: true });
+      TI.mats.hand.emissive.setRGB(.05, .6, .8);
+      if (web > 0) props.webs.add(handW(TI, 'R'), A0, { k: E.outCubic(web), w: .05, splat: false, wob: .8, wobT: t - 82.2 });
+      look(addv([lerp(86, 96, P(t, 81.7, 1.3)), 259, -414], shk(t, .12, 6)), tp.map((v, i) => v + [0, -.6, 0][i]), 48);
+      post(o => o.comic('ВЖУХ!', 1250, 300, t - 82.05, { size: .5, color: '#7ff8ff', dur: .8 }));
+      fadeOut(lt, 2.8, .45);
+      return S;
+    }
     labBase(t, { lights: .15, red: 1.6 });
     place(KR, lab.group, kf(t, [[80.2, [-18, 0, -1]], [81.8, [-22.5, 0, -1], E.inQuad], [83, [-30, -6, -1], E.inQuad]]), -Math.PI / 2);
     KR.pose(t < 81.8 ? POSE.run(t) : POSE.flip(t)); KR.stolen.visible = true; face(KR, 'kronov', t);
@@ -483,7 +555,6 @@ export function buildShots(C) {
     if (out > 0) props.shards.update(out, [V(15, 263, -441)]);
     look(L2W(-8, 2.4, 2), L2W(-22, 3, -1), 40);
     post(o => o.fill('#e9fdff', 1 - (t - 80.2) / .9));
-    fadeOut(lt, 2.8, .5);
     return S;
   });
 
@@ -500,6 +571,7 @@ export function buildShots(C) {
     const g = .5 + .5 * Math.sin(t * 3);
     TI.mats.hand.emissive.setRGB(.02 * g, .2 * g, .3 * g);
     face(TI, 'timur', t, { brow: .5, blink: t < 85 ? 1 : blinkAt(t), look: [0, -.3] });
+    props.webs.add(handW(TI, 'R'), V(150, 112.15, -468), { w: .018, splat: false });    // обрывок первой нити на запястье
     if (t < 87.6) { const k = E.inOutSine(P(t, 83, 4.6)); look([128 + Math.sin(k) * .4, lerp(122, 116.5, k), -432 + .01], [128, 112, -432], 40, k * .6); }
     else { const hw = handW(TI, 'R'); look(hw.clone().add(V(-.2, .55, .9)).toArray(), hw.toArray(), 32); post(o => o.lensDrops(t, .8)); }
     fadeIn(lt, 1.4);
@@ -633,7 +705,7 @@ export function buildShots(C) {
     place(KR, S, kp, t < 126.6 ? 2.9 : lerp(2.9, -Math.PI / 2, E.outBack(P(t, 126.6, .6))));
     KR.pose(seq(t - 123, [[0, () => POSE.heavyWalk(gait(kd, .95, .7))], [2.2, POSE.stand(t)], [2.5, tt => POSE.punch(tt, 'R')], [3.6, tt => POSE.roar(tt)]], .25));
     face(KR, 'kronov', t);
-    if (t > 125.6) props.sparks.burst(V(447.2, 1.3, -403.4), t - 125.7, { speed: 7, life: 1 });
+    if (t > 125.6) props.sparks.burst(V(447.4, 1.3, -404.6), t - 125.7, { speed: 7, life: 1 });
     if (t < 125.4) {          // общий план
       const k = E.inOutSine(P(t, 123, 2.4));
       look(addv([lerp(418, 424, k), lerp(14, 11, k), lerp(-362, -368, k)], shk(t, .1, 2)), [450, 1.6, -396], 44);
@@ -644,6 +716,14 @@ export function buildShots(C) {
     }
     fadeIn(lt, .3);
     post(o => o.comic('БАМ!', 1240, 420, t - 125.7, { size: .7, color: '#ff8a3d', dur: .9 }));
+    // комикс-вставка: ядро в груди Кронова перегревается — поэтому он и громит всё вокруг
+    const pk = pulse(t, 123.25, 125.3, .12, .15);
+    if (pk > 0) {
+      KR.root.updateMatrixWorld(true);
+      const cw = KR.J.spine.localToWorld(V(0, .32 * KR.d.k, .22 * KR.d.k)), fw = V(Math.sin(KR.root.rotation.y), 0, Math.cos(KR.root.rotation.y));
+      panel(1, pk * 1.01, [1240, 90, 580, 330], S, cw.clone().addScaledVector(fw, 1.6).add(V(.3, .15, 0)).toArray(), cw.toArray(), 32);
+      post(o => o.hud(['⚠ ПЕРЕГРЕВ ЯДРА: 312%', 'СИСТЕМЫ НЕСТАБИЛЬНЫ'], 1262, 380, pk, t));
+    }
     return S;
   });
   shot(129, 133, (lt, t) => {
@@ -654,6 +734,7 @@ export function buildShots(C) {
     const k = E.inOutExpo(P(t, 129.3, 1.2));
     look([lerp(330, 438, k), lerp(70, 10, k), lerp(-386, -360, k)], sign.toArray(), lerp(30, 14, k));
     post(o => o.speedLines(pulse(t, 129.3, 130.6, .1, .3) * .6, t));
+    cabPanel(t, pulse(t, 130.7, 132.9, .12, .15), .22);
     return S;
   });
   // сомнение: «Обещал — держи»
@@ -751,6 +832,7 @@ export function buildShots(C) {
     post(o => o.comic('БАМ!', 1250, 430, t - 153.65, { size: .7, color: '#ffe23d', dur: .9 }));
     post(o => o.comic('ХРЯСЬ!', 640, 380, t - 154.6, { size: .65, color: '#ff8a3d', rot: .12, dur: 1.0 }));
     impact(t, 153.65, { zoom: .14, shake: .2 }); impact(t, 154.6, { zoom: .1, shake: .3 });
+    post(o => o.comic('ДЗЫНЬ!', 980, 260, t - 153.75, { size: .45, color: '#7ff8ff', rot: .1, dur: .7 }));
     return S;
   }, { flashK: .7 });
   // держит автобус
@@ -772,13 +854,14 @@ export function buildShots(C) {
     }
     const kp = KRp(t); place(KR, S, kp, Math.PI / 2 - .4); KR.pose(seq(t - 157, [[0, POSE.collapse()], [3.6, tt => POSE.roar(tt)]], 1.2)); face(KR, 'kronov', t, { dim: t < 160 ? .4 : 1 });
     const sh = shk(t, .03 + .04 * pulse(t, 157, 160, .2, .5), 14);
-    if (t < 159.2) look(addv([446.5, .9, -405.5], sh), [452, 1.6, -398], 44);
+    if (t < 159.2) look(addv([443.6, 1.2, -402.6], sh), [451, 1.4, -400.6], 50);
     else if (t < 160.4) {     // крупно: лицо в маске, на пределе сил
       const hp = headW(TI); look(addv(hp.clone().add(V(.25, .1, 1.35)).toArray(), shk(t, .02, 18)), hp.clone().add(V(0, -.05, 0)).toArray(), 30);
       post(o => o.lensDrops(t, .9));
     }
     else if (t < 161.6) { const hw = hr; look(addv(hw.clone().add(V(.9, .25, -.6)).toArray(), sh), hw.clone().add(V(0, .1, 1.5)).toArray(), 36); }
     else look(addv([445.5, 3.5, -409], sh), [452, 1.4, -400], 48);
+    cabPanel(t, pulse(t, 157.9, 159.15, .12, .15), .5 + Math.sin(t * 3) * .05);
     return S;
   });
   // «Молния не бьёт дважды» — Кронов примотан к пилону, удар молнии
@@ -840,6 +923,9 @@ export function buildShots(C) {
     look(addv([lerp(470, 474, k), lerp(14, 9, k), lerp(-372, -366, k)], shk(t, t > 174 ? .2 * Math.exp(-(t - 174) * 4) : .02, 14)), [454, 1.5, -394], 44);
     post(o => o.comic('БУМ!', 1320, 600, t - 174.05, { size: .55, color: '#ffffff', dur: .8 }));
     impact(t, 174.05, { zoom: .08, shake: .2 });
+    // пока все смотрят на автобус — чёрный дрон утаскивает ядро
+    const dk = pulse(t, 172.2, 174.2, .12, .15);
+    if (dk > 0) { const c = coreAt(t); panel(0, dk * 1.01, [90, 90, 580, 330], S, c.clone().add(V(-2.4, 1.1, 2.0)).toArray(), c.clone().add(V(0, .2, 0)).toArray(), 34); }
     squash(TI, springAt(t, 174.05, -.1, 12, 6));
     return S;
   });
@@ -899,7 +985,10 @@ export function buildShots(C) {
     kitchen.flashLight.intensity = 3 + 25 * C.U.flash.value;
     if (t < 186.2) look([1.6, 1.5, 1.6], [0, 1.0, -1.0], 44);
     else if (t < 189.3) look([-.25, 1.4, -.95], [.55, 1.15, .3], 36);
-    else if (t < 192.4) look([.3, 1.3, -.45], [-.55, 1.2, -1.45], 34);
+    else if (t < 191.5) look([.3, 1.3, -.45], [-.55, 1.2, -1.45], 34);
+    else if (t >= 191.5 && t < 192.4) {   // крупно: вечерние новости по телевизору
+      const tv = C.kitchenD.tvPos; look([tv.x + .05, tv.y + .26, tv.z + .72], [tv.x, tv.y + .24, tv.z], 40);
+    }
     else if (t < 193.8) {   // крупно: дед улыбается — всё понял
       const hp = headW(DE); look(hp.clone().add(V(.25, .02, .95)).toArray(), hp.clone().add(V(0, -.06, 0)).toArray(), 30);
     }
@@ -909,6 +998,20 @@ export function buildShots(C) {
   }, { noFlash: false });
   // финал: на шпиле башни
   shot(195, 203, (lt, t) => {
+    if (t >= 198.4 && t < 200.2) {     // вставка: Вера жива — одна в разрушенной лаборатории, у пустой капсулы «Арахны-7»
+      labBase(t, { lights: .22, red: .25 });
+      lab.capsules.forEach(c => { c.glass.visible = false; c.liquid.visible = false; });
+      lab.main.spider.visible = false; lab.core.visible = false;
+      lab.doors.forEach((d, i) => { const sd = i ? 1 : -1; d.position.set(sd * 7.6, .4, 3.75); d.rotation.set(-1.57, sd * .4, sd * .2); });
+      lab.shards.update(2.4, lab.capsules.map(c => V(c.x, 2.5 * c.s, c.z)));
+      place(VE, lab.group, [1.6, 0, -12.6], .41);
+      VE.pose({ ...POSE.stand(t), armR: [-.9, .25, .1], foreR: [-1.0, 0, 0], handR: [-.3, 0, 0], armL: [-.5, -.2, .25], foreL: [-1.3, 0, 0], head: [.3, 0, 0], grip: .6 });
+      VE.tablet.visible = true; face(VE, 'vera', t, { brow: .7, look: [0, -.6], seed: 1 });
+      const k = E.inOutSine(P(t, 198.4, 1.8));
+      look(L2W(lerp(4.2, 3.6, k), 1.85, lerp(-7.2, -8.0, k)), L2W(1.5, 1.55, -12.6), lerp(34, 30, k));
+      fadeIn(t - 198.4, .2); post(o => o.fill('#000', (t - 200.0) / .2));
+      return S;
+    }
     env({ key: 1.6, rim: 1.6, rimPos: [300, 80, -900] });
     city.rain.visible = false;
     city.sky.userData.mat.uniforms.dawn.value = .45;
@@ -930,11 +1033,19 @@ export function buildShots(C) {
     post(o => o.fill('#000', (lt - 3.5) / .5));
     return S;
   }, { noSubs: true, noFlash: true });
-  // тизер
+  // тизер: ядро уже у Тени, дрон сидит на подлокотнике
+  const lairCore = new THREE.Group(); lairCore.visible = false;
+  mesh(new THREE.CylinderGeometry(.06, .06, .22, 16), glow(0x5ff6ff, 3.2), { outline: .01, parent: lairCore });
+  const lairCoreL = new THREE.PointLight(0x5ff6ff, 6, 4, 1.4); lairCore.add(lairCoreL);
+  const lairDrone = makeDrone(2.6); lair.scene.add(lairDrone); lairDrone.visible = false;
   shot(207, 216, (lt, t) => {
     const Z = lair.scene;
     place(SH, Z, [0, .02, .2], 0);
-    SH.pose(POSE.sitChair(t * .5));
+    const lift = E.inOutCubic(P(t, 209.3, 1.2));
+    SH.pose({ ...POSE.sitChair(t * .5), armR: [lerp(-.6, -1.25, lift), lerp(0, .25, lift), .15], foreR: [lerp(-.9, -.9, lift), 0, 0], handR: [lerp(0, -.5, lift), 0, 0], gripR: .8 });
+    SH.J.handR.add(lairCore); lairCore.visible = true; lairCore.position.set(0, -.1, .06); lairCore.rotation.set(Math.PI / 2, 0, 0);
+    lairCoreL.intensity = 4 + 2 * Math.sin(t * 5);
+    lairDrone.visible = true; lairDrone.position.set(.42, .95, .45); lairDrone.rotation.y = -.6 + Math.sin(t * .8) * .2; lairDrone.userData.anim(t, 0, .25);
     SH.redEyes.visible = t > 208.2;
     SH.redEyes.children.forEach((e, i) => e.scale.setScalar(clamp((t - 208.2 - i * .06) / .15) * (1 + .3 * C.mouthOf('shadow', t))));
     lair.red.intensity = 10 + 6 * Math.sin(t * 2);
@@ -950,7 +1061,9 @@ export function buildShots(C) {
   /* сброс общих объектов перед каждым кадром */
   C.frameReset = t => {
     box.visible = false; carab.visible = false; hideBridgeProps();
-    smoke.forEach(sp => sp.visible = false); krEx.forEach(p => p.hide()); krDmg.hide(); lab.lights[2].position.set(0, 6, 9); lab.lights[2].color.set(0xff4020);
+    smoke.forEach(sp => sp.visible = false); krEx.forEach(p => p.hide()); krDmg.hide();
+    coreFX(t); lairCore.visible = false; lairDrone.visible = false;
+    cab.alarm.intensity = 0; cab.dash.intensity = 6; cab.warm.intensity = 4; lab.lights[2].position.set(0, 6, 9); lab.lights[2].color.set(0xff4020);
     props.spider.scale.setScalar(1);
     KR.mats.coreM.color.setRGB(3, 1.9, .75);
     updateTraffic(city, t);

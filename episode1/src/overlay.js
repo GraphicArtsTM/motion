@@ -87,6 +87,18 @@ export function makeOverlay(canvas) {
     g.restore();
   };
 
+  // HUD-надпись (визор/системы) поверх комикс-вставки
+  O.hud = (lines, x, y, a, t) => {
+    if (a <= 0) return;
+    g.save(); g.globalAlpha = clamp(a);
+    g.fillStyle = 'rgba(30,0,0,.75)'; g.fillRect(x - 10, y - 40, 470, 34 * lines.length + 18);
+    lines.forEach((ln, i) => {
+      g.font = `${i ? 600 : 800} ${i ? 24 : 30}px Rubik`;
+      g.fillStyle = i ? '#ffb0a0' : (Math.sin(t * 14) > -.2 ? '#ff4a3a' : '#ffd0c0'); g.fillText(ln, x, y - 8 + i * 34);
+    });
+    g.restore();
+  };
+
   // рамка комикс-панели
   O.panelFrame = (x, y, w, h) => {
     g.save(); g.lineJoin = 'miter';

@@ -456,6 +456,11 @@ export function makeCity() {
     m4.makeTranslation(x + s * 1.2, 8, z); bulb.setMatrixAt(i, m4);
   });
   scene.add(pole, bulb);
+  // объёмный свет: конусы под фонарями, подсвеченные дождём
+  const coneM = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffc880).multiplyScalar(.5), transparent: true, opacity: .07, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+  const cone = new THREE.InstancedMesh(new THREE.ConeGeometry(3.2, 8, 20, 1, true).translate(0, 4, 0), coneM, lamps.length);
+  lamps.forEach(([x, z, sd], i) => { m4.makeTranslation(x + sd * 1.2, 0, z); cone.setMatrixAt(i, m4); });
+  cone.frustumCulled = false; cone.renderOrder = 3; scene.add(cone); city.lampCones = cone;
 
   // неоновые вертикальные вывески вдоль проспекта
   const SIGNS = [['ЛАПША', '#ff3d7f'], ['КИНО', '#3df2ff'], ['24/7', '#ffd23d'], ['АПТЕКА', '#3dff8a'], ['СУШИ', '#ff6a3d'], ['КАРАОКЕ', '#c06bff'],

@@ -114,7 +114,7 @@ export function dressBridge(scene) {
   const spotL = new THREE.PointLight(0xfff2d0, 0, 30, 1.2); scene.add(spotL);
   const spotDisk = mesh(new THREE.CircleGeometry(5, 32), new THREE.MeshBasicMaterial({ color: new THREE.Color(0xfff2d0).multiplyScalar(.5), transparent: true, opacity: .12, depthWrite: false, blending: THREE.AdditiveBlending }), { rot: [-Math.PI / 2, 0, 0], outline: false, parent: scene });
   spotDisk.visible = false;
-  B.update = (t, on) => {
+  B.update = (t, on, cam) => {
     B.cars.forEach(c => c.visible = on); debris.forEach(d => d.visible = on);
     if (!on) { B.smoke.hide(); heli.visible = beam.visible = spotDisk.visible = false; spotL.intensity = 0; return; }
     B.smoke.update(new THREE.Vector3(492, 4, -406), t, 1);
@@ -127,7 +127,8 @@ export function dressBridge(scene) {
     const tgt = new THREE.Vector3(452 + Math.sin(t * .6) * 6, 0, -397 + Math.cos(t * .45) * 3).lerp(new THREE.Vector3(394 + Math.sin(t * .5), 0, -390), k);
     const from = heli.position.clone().add(new THREE.Vector3(0, -1, 0));
     const dir = tgt.clone().sub(from), len = dir.length();
-    beam.visible = true; beam.position.copy(from).addScaledVector(dir, .5); beam.scale.set(1, len / 60, 1);
+    // если камера рядом с пятном — объёмный луч прячем (иначе камера оказывается внутри конуса)
+    beam.visible = !cam || cam.position.distanceTo(tgt) > 25; beam.position.copy(from).addScaledVector(dir, .5); beam.scale.set(1, len / 60, 1);
     beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), dir.normalize());
     spotDisk.visible = true; spotDisk.position.set(tgt.x, .12, tgt.z);
     spotL.intensity = 30; spotL.position.set(tgt.x, 8, tgt.z);
@@ -161,10 +162,45 @@ export function dressKitchen(K) {
   for (let i = 0; i < 12; i++) mesh(new THREE.BoxGeometry(.012, i % 3 ? .02 : .04, .01), toon(0x222222), { pos: [Math.sin(i * Math.PI / 6) * .18, Math.cos(i * Math.PI / 6) * .18, .025], rot: [0, 0, -i * Math.PI / 6], parent: clock });
   const hand = (len, w) => { const g = new THREE.Group(); g.position.z = .03; clock.add(g); mesh(new THREE.BoxGeometry(w, len, .008), toon(0x111111), { pos: [0, len / 2 - .01, 0], parent: g }); return g; };
   D.hourH = hand(.11, .014); D.minH = hand(.16, .01); D.secH = hand(.17, .004);
+  // маленький телевизор на тумбе у плиты: вечерние новости (бегущая строка закрывает сюжетные линии)
+  const tvG = new THREE.Group(); tvG.position.set(-1.25, .9, -2.7); scene.add(tvG);
+  mesh(new RoundedBoxGeometry(.62, .46, .4, 3, .06), toon(0x3a3530), { pos: [0, .23, 0], outline: .01, parent: tvG });
+  mesh(new THREE.BoxGeometry(.9, .9, .5), toon(0x6a4226), { pos: [0, -.45, 0], outline: .01, parent: tvG });
+  for (const sx of [-1, 1]) mesh(new THREE.CylinderGeometry(.006, .006, .3, 4), toon(0x222222), { pos: [sx * .08, .55, -.05], rot: [0, 0, sx * .45], outline: false, parent: tvG });
+  const tvC = document.createElement('canvas'); tvC.width = 512; tvC.height = 384;
+  const tvT = new THREE.CanvasTexture(tvC); tvT.colorSpace = THREE.SRGBColorSpace;
+  const scr = mesh(new THREE.PlaneGeometry(.5, .375), new THREE.MeshBasicMaterial({ map: tvT, color: new THREE.Color(1.25, 1.25, 1.25) }), { pos: [0, .24, .201], parent: tvG });
+  const tvLight = new THREE.PointLight(0x80b0ff, 1.2, 3, 1.5); tvLight.position.set(-1.25, 1.2, -2.3); scene.add(tvLight);
+  const TICK = 'ЗАГАДОЧНЫЙ «ПАУК» СПАС АВТОБУС №42 НА МОСТУ  ·  НАЧАЛЬНИК ОХРАНЫ «АРКАДЫ» КРОНОВ ЗАДЕРЖАН  ·  Д-Р ВЕРА ЛИС НЕ ПОСТРАДАЛА  ·  ЯДРО ПРОЕКТА «АРАХНА» ПРОПАЛО  ·  ';
+  const drawTV = t => {
+    const g = tvC.getContext('2d');
+    const gr = g.createLinearGradient(0, 0, 0, 384); gr.addColorStop(0, '#1b2b55'); gr.addColorStop(1, '#0b1226'); g.fillStyle = gr; g.fillRect(0, 0, 512, 384);
+    g.fillStyle = '#e8343c'; g.fillRect(0, 0, 512, 54); g.fillStyle = '#fff'; g.font = '900 30px Unbounded'; g.fillText('СРОЧНО', 16, 38);
+    g.font = '700 22px Rubik'; g.fillText('НОВОГРАД ТВ', 360, 36);
+    // «кадр с камеры наблюдения»: мост, автобус и силуэт на нити
+    g.fillStyle = '#0f1830'; g.fillRect(30, 72, 452, 200); g.strokeStyle = '#c0d0ff'; g.lineWidth = 2; g.strokeRect(30, 72, 452, 200);
+    g.strokeStyle = '#ff7060'; g.lineWidth = 6; g.beginPath(); g.moveTo(60, 220); g.lineTo(450, 220); g.stroke();
+    g.beginPath(); g.moveTo(120, 220); g.lineTo(120, 100); g.moveTo(380, 220); g.lineTo(380, 100); g.stroke();
+    g.fillStyle = '#e8e8e0'; g.save(); g.translate(270, 232); g.rotate(.35); g.fillRect(-60, -18, 120, 36); g.fillStyle = '#e8343c'; g.fillRect(-60, 8, 120, 10); g.restore();
+    g.strokeStyle = '#7ff8ff'; g.lineWidth = 2; g.beginPath(); g.moveTo(250, 72); g.lineTo(250, 150); g.stroke();
+    g.fillStyle = '#7ff8ff'; g.beginPath(); g.arc(250, 160, 9, 0, 7); g.fill(); g.fillRect(244, 166, 12, 22);
+    g.fillStyle = '#ff3a3a'; g.beginPath(); g.arc(462, 90, 6 + 2 * Math.sin(t * 6), 0, 7); g.fill(); g.fillStyle = '#fff'; g.font = '600 16px Rubik'; g.fillText('REC 23:47', 380, 96);
+    // бегущая строка
+    g.fillStyle = '#ffd23d'; g.fillRect(0, 296, 512, 52); g.fillStyle = '#111'; g.font = '800 26px Rubik';
+    const w = g.measureText(TICK).width, x = -((t * 120) % w);
+    g.fillText(TICK, x, 331); g.fillText(TICK, x + w, 331);
+    g.fillStyle = '#fff'; g.fillRect(0, 348, 512, 36); g.fillStyle = '#1b2b55'; g.font = '700 20px Rubik'; g.fillText('«Паук» скрылся. Полиция просит откликнуться очевидцев', 12, 372);
+    tvT.needsUpdate = true;
+  };
+  drawTV(0);
+  D.tvScreen = scr; D.tvPos = tvG.position;
+
   // пар от плова
   const steamT = puffTex('255,250,240', .5);
   D.steam = K.plates.map(p => plume(scene, 5, steamT, { rise: .6, grow: 1.6, size: .18, alpha: .35, speed: .3, wobble: .05 }));
-  D.update = t => {
+  D.update = (t, o = {}) => {
+    if (o.inKitchen) drawTV(t);
+    tvLight.intensity = 1 + .4 * Math.sin(t * 9) * Math.sin(t * 3.7);
     // часы показывают 23:47 и идут
     const sec = 47 * 60 + t; D.secH.rotation.z = -(sec % 60) / 60 * Math.PI * 2;
     D.minH.rotation.z = -((sec / 60) % 60) / 60 * Math.PI * 2; D.hourH.rotation.z = -((23 + sec / 3600) % 12) / 12 * Math.PI * 2;

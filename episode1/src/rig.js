@@ -363,6 +363,11 @@ function buildKronov(ch, d) {
   const stolen = new THREE.Group(); J.handL.add(stolen); stolen.position.set(0, -.2 * k, .05); stolen.visible = false;
   mesh(new THREE.CylinderGeometry(.06, .06, .22, 16), glow(0x5ff6ff, 3), { outline: .012, parent: stolen });
   ch.stolen = stolen;
+  // ядро «Арахны», вставленное Кроновым себе в грудь (перегревается, искрит) — видимость задаёт режиссура
+  const ar = new THREE.Group(); ar.position.set(0, .32 * k, .22 * k); J.spine.add(ar); ar.visible = false; ch.arachna = ar;
+  ch.arachnaM = glow(0x5ff6ff, 3.2);
+  mesh(new THREE.CylinderGeometry(.06 * k, .06 * k, .2 * k, 16), ch.arachnaM, { rot: [0, 0, Math.PI / 2], outline: .012, parent: ar });
+  for (const sx of [-1, 1]) mesh(new THREE.TorusGeometry(.07 * k, .015 * k, 6, 16), dark, { pos: [sx * .08 * k, 0, 0], rot: [0, Math.PI / 2, 0], outline: .008, parent: ar });
   return finish(ch);
 }
 
