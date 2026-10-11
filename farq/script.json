@@ -1,0 +1,77 @@
+{
+  "title": "Siyosiy atamalar",
+  "intro": [
+    "Bu so‘zlarni ko‘pchilik adashtiradi.",
+    "Keling, ularning farqini bilib olamiz!"
+  ],
+  "pairs": [
+    {
+      "q": "Kommunizm va sotsializm farqi nimada?",
+      "colors": ["#FF4D5E", "#FFB020"],
+      "a": {
+        "term": "Kommunizm", "icon": "equal",
+        "def": "nazariy jihatdan sinfsiz va ishlab chiqarish vositalari xususiy mulk bo‘lmagan jamiyatni maqsad qiladi.",
+        "keys": ["sinfsiz", "xususiy mulk bo‘lmagan", "maqsad"],
+        "chips": ["Sinfsiz jamiyat", "Xususiy mulk yo‘q", "Nazariy maqsad"]
+      },
+      "b": {
+        "term": "Sotsializm", "icon": "share",
+        "def": "iqtisodiyot va resurslarni jamiyat manfaatlari uchun boshqarishga urg‘u beradi.",
+        "keys": ["resurslarni", "jamiyat manfaatlari", "boshqarishga"],
+        "chips": ["Jamiyat manfaati", "Resurslarni boshqarish", "Iqtisodiy tizim"]
+      }
+    },
+    {
+      "q": "Demokratiya va respublika farqi nimada?",
+      "colors": ["#3D8BFF", "#1FD1B2"],
+      "a": {
+        "term": "Demokratiya", "icon": "ballot",
+        "def": "xalq hokimiyatni bevosita yoki saylangan vakillari orqali amalga oshiradigan boshqaruv tamoyili.",
+        "keys": ["xalq", "saylangan vakillari", "tamoyili"],
+        "chips": ["Xalq hokimiyati", "Saylov va vakillar", "Boshqaruv tamoyili"]
+      },
+      "b": {
+        "term": "Respublika", "icon": "crown",
+        "def": "davlat boshlig‘i monarx kabi meros orqali emas, saylov yo‘li bilan hokimiyatga keladigan davlat shakli.",
+        "keys": ["meros orqali emas", "saylov yo‘li bilan", "davlat shakli"],
+        "chips": ["Meros yo‘q", "Rahbar saylanadi", "Davlat shakli"]
+      }
+    },
+    {
+      "q": "Millatchilik va shovinizm farqi nimada?",
+      "colors": ["#2BD46B", "#B45CFF"],
+      "a": {
+        "term": "Millatchilik", "icon": "shield",
+        "def": "o‘z millatining manfaatlari, o‘zligi va mustaqilligini himoya qilish g‘oyasi.",
+        "keys": ["o‘zligi", "mustaqilligini", "himoya qilish"],
+        "chips": ["O‘zlikni asrash", "Mustaqillik", "Himoya g‘oyasi"]
+      },
+      "b": {
+        "term": "Shovinizm", "icon": "podium",
+        "def": "o‘z millatini boshqalardan ustun qo‘yib, boshqa millatlarga nisbatan kamsituvchi munosabatda bo‘lish.",
+        "keys": ["ustun qo‘yib", "kamsituvchi"],
+        "chips": ["Ustunlik da’vosi", "Kamsitish", "Mensimaslik"]
+      }
+    },
+    {
+      "q": "Kapitalizm va sotsializm farqi nimada?",
+      "colors": ["#FFC93D", "#FF5C8A"],
+      "a": {
+        "term": "Kapitalizm", "icon": "market",
+        "def": "korxonalar va ishlab chiqarish vositalari asosan xususiy mulk bo‘lgan, bozor va raqobat muhim rol o‘ynaydigan iqtisodiy tizim.",
+        "keys": ["xususiy mulk", "bozor", "raqobat"],
+        "chips": ["Xususiy mulk", "Bozor", "Raqobat"]
+      },
+      "b": {
+        "term": "Sotsializm", "icon": "gear",
+        "def": "iqtisodiyotda ijtimoiy manfaatlarga hamda resurslarni jamoaviy yoki davlat tomonidan boshqarishga ko‘proq urg‘u beradi.",
+        "keys": ["ijtimoiy manfaatlarga", "jamoaviy", "davlat"],
+        "chips": ["Ijtimoiy manfaat", "Jamoaviy boshqaruv", "Davlat nazorati"]
+      }
+    }
+  ],
+  "outro": [
+    "Foydali bo‘lsa, saqlab qo‘ying va do‘stlaringizga ulashing!",
+    "Yangi atamalar uchun obuna bo‘ling."
+  ]
+}
