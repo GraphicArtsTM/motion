@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>ЮЛДУЗ — Свет Самарканда</title>
+<style>
+@font-face{font-family:'Unbounded';font-weight:500;src:url(../video/fonts/Unbounded-500.ttf)}
+@font-face{font-family:'Unbounded';font-weight:600;src:url(../video/fonts/Unbounded-600.ttf)}
+@font-face{font-family:'Unbounded';font-weight:700;src:url(../video/fonts/Unbounded-700.ttf)}
+@font-face{font-family:'Unbounded';font-weight:900;src:url(../video/fonts/Unbounded-900.ttf)}
+@font-face{font-family:'Rubik';font-weight:500;src:url(../video/fonts/Rubik-500.ttf)}
+@font-face{font-family:'Rubik';font-weight:700;src:url(../video/fonts/Rubik-700.ttf)}
+@font-face{font-family:'Rubik';font-weight:900;src:url(../video/fonts/Rubik-900.ttf)}
+*{animation:none!important;transition:none!important}
+html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:#000}
+#stage{position:absolute;inset:0;overflow:hidden}
+#stage>svg{position:absolute;inset:0}
+#post{position:absolute;inset:0;pointer-events:none}
+#subs{position:absolute;left:0;right:0;bottom:58px;text-align:center;font-family:Rubik;font-weight:700;font-size:44px;line-height:1.25;color:#fff;
+  text-shadow:0 0 2px #000,0 0 6px #000,3px 3px 0 #000,-3px 3px 0 #000,3px -3px 0 #000,-3px -3px 0 #000,0 3px 0 #000,0 -3px 0 #000,3px 0 0 #000,-3px 0 0 #000;padding:0 180px}
+#subs .who{display:block;font-size:30px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px}
+#grain{position:absolute;inset:0;opacity:.06;mix-blend-mode:overlay;pointer-events:none}
+#vig{position:absolute;inset:0;pointer-events:none;background:radial-gradient(120% 95% at 50% 50%,transparent 60%,rgba(0,0,0,.45) 100%)}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs id="gdefs"></defs></svg>
+<div id="stage"></div>
+<div id="vig"></div>
+<canvas id="grain" width="480" height="270"></canvas>
+<div id="post"></div>
+<div id="subs"></div>
+<script src="voice_data.js"></script>
+<script src="lib.js"></script>
+<script src="chars.js"></script>
+<script src="scenes.js"></script>
+<script src="shots.js"></script>
+<script>
+'use strict';
+document.getElementById('gdefs').innerHTML = GLOBAL_DEFS + SHARED_PATTERNS() + SCENE_PATTERNS;
+const stage = document.getElementById('stage'), subs = document.getElementById('subs'), post = document.getElementById('post');
+const grainC = document.getElementById('grain'), gx = grainC.getContext('2d');
+function grain(f) {
+  const r = rng(f * 13 + 1), img = gx.createImageData(480, 270);
+  for (let i = 0; i < img.data.length; i += 4) { const v = r() * 255; img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 255; }
+  gx.putImageData(img, 0, 0);
+}
+let lastSub = '';
+window.renderAt = function (t) {
+  resetUid();
+  const fr = renderFrame(t);       // из shots.js: { svg, post, filter }
+  stage.innerHTML = fr.svg;
+  stage.style.filter = fr.filter || 'none';
+  stage.style.transform = fr.shake ? `translate(${fr.shake[0].toFixed(1)}px,${fr.shake[1].toFixed(1)}px) scale(1.03)` : 'none';
+  post.innerHTML = fr.post || '';
+  const sb = subtitleAt(t);
+  if (sb !== lastSub) { subs.innerHTML = sb; lastSub = sb; }
+  grain(Math.floor(t * FPS));
+};
+window.DURATION = TIMELINE_END;
+window.CUES = () => audioCues();
+window.ready = document.fonts.ready.then(() => { const q = new URLSearchParams(location.search); renderAt(+(q.get('t') || 0)); });
+const q = new URLSearchParams(location.search);
+if (!q.has('t') && !navigator.webdriver) {
+  const t0 = performance.now();
+  const loop = () => { renderAt(((performance.now() - t0) / 1000) % TIMELINE_END); requestAnimationFrame(loop); };
+  window.ready.then(loop);
+}
+</script>
+</body>
+</html>
