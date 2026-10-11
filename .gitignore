@@ -3,3 +3,9 @@ video/out/stills/
 video/out/frames.mp4
 video/out/music.wav
 video/out/build.log
+episode1/out/stills/
+episode1/out/parts/
+episode1/out/frames.mp4
+episode1/audio/voice/
+episode1/assets/soundtrack.wav
+episode1/out/render.log

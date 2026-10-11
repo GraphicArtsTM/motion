@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Паук Новограда — Серия 1</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font-family: Rubik, system-ui, sans-serif; }
+  #stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; }
+  #stage canvas { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; display: block; }
+  body:not(.render) #stage { transform: scale(var(--k, 1)); left: var(--x, 0); top: var(--y, 0); }
+  #ui { position: fixed; left: 0; right: 0; bottom: 0; display: flex; gap: 12px; align-items: center; padding: 12px 16px;
+        background: linear-gradient(transparent, rgba(0,0,0,.8)); color: #fff; font-size: 14px; }
+  #ui[hidden] { display: none; }
+  #play { width: 44px; height: 44px; border-radius: 50%; border: 0; background: #e8343c; color: #fff; font-size: 18px; cursor: pointer; }
+  #ui.playing #play::after { content: '❚❚'; } #ui:not(.playing) #play::after { content: '▶'; }
+  #bar { flex: 1; accent-color: #3ff0ff; }
+</style>
+<script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js", "three/addons/": "./vendor/jsm/" } }</script>
+</head>
+<body>
+<div id="stage"><canvas id="ov"></canvas></div>
+<div id="ui" hidden><button id="play" aria-label="Играть/пауза"></button><input id="bar" type="range" min="0" max="1000" value="0"><span id="tl">0:00</span></div>
+<script>
+  if (location.search.includes('render')) document.body.classList.add('render');
+  const fit = () => { const k = Math.min(innerWidth / 1920, innerHeight / 1080); const s = document.documentElement.style;
+    s.setProperty('--k', k); s.setProperty('--x', (innerWidth - 1920 * k) / 2 + 'px'); s.setProperty('--y', (innerHeight - 1080 * k) / 2 + 'px'); };
+  addEventListener('resize', fit); fit();
+</script>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
