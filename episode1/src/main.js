@@ -85,7 +85,7 @@ function toStory(T) {
   return (lo + hi) / 2;
 }
 const durs = lipsync?.durations || {};
-const lines = dialogue.lines.map(l => ({ ...l, ft: toFilm(l.t), d: durs[l.id] ?? (l.text.length * .07 + .4), env: lipsync?.env?.[l.id], shape: lipsync?.shape?.[l.id] })).sort((a, b) => a.t - b.t);
+const lines = dialogue.lines.map(l => ({ ...l, ft: toFilm(l.t), d: durs[l.id] ?? (l.text.length * .07 + .4), env: lipsync?.env?.[l.id], shape: lipsync?.shape?.[l.id], fric: lipsync?.fric?.[l.id] })).sort((a, b) => a.t - b.t);
 lines.forEach((l, i) => { const nx = lines[i + 1]; l.end = Math.min(l.ft + l.d + .35, nx ? nx.ft - .05 : 1e9); });
 let filmT = 0;
 /* открытие рта по огибающей голоса; t — сюжетное время шота, сравниваем в экранном */
@@ -101,6 +101,16 @@ function mouthOf(who, t) {
   return 0;
 }
 
+/* шипящие/фрикативные звуки в данный момент реплики */
+function fricOf(who) {
+  for (const l of lines) {
+    if (l.who !== who) continue;
+    const dt = filmT - l.ft;
+    if (dt < 0 || dt > l.d || !l.fric) continue;
+    return l.fric[Math.min(Math.floor(dt * lipsync.fps), l.fric.length - 1)] || 0;
+  }
+  return 0;
+}
 /* форма рта: 0 — широкая («и», «э»), 1 — округлая («о», «у») */
 function shapeOf(who) {
   for (const l of lines) {
@@ -111,7 +121,7 @@ function shapeOf(who) {
   }
   return 0;
 }
-const ctx = { THREE, city, lab, kitchen, lair, cab, ch, props, camera, overlay, U, bolts, lines, mouthOf, shapeOf, renderer, timeline };
+const ctx = { THREE, city, lab, kitchen, lair, cab, ch, props, camera, overlay, U, bolts, lines, mouthOf, shapeOf, fricOf, renderer, timeline };
 const shots = buildShots(ctx);
 const DURATION = timeline.duration;
 
@@ -151,8 +161,13 @@ function renderAt(T) {
   U.rainTime.value = t;
   city.hemi.intensity = 1.1 + flash * 2.2;
   ctx.t = t; ctx.inset = null; ctx.post = [];
-  ctx.camFill = null;
+  ctx.camFill = null; ctx.panels = null; ctx.rim = null;
   const scene = shot.run(lt, t, ctx) || city.scene;
+  if (ctx.rim) {
+    const tg = ctx.rim.target, d = tg.clone().sub(camera.position).setY(0).normalize();
+    city.rim.position.copy(tg).addScaledVector(d, 40).add(new THREE.Vector3(0, 18, 0)); city.rim.target.position.copy(tg);
+    city.rim.color.set(ctx.rim.color); city.rim.intensity = ctx.rim.k;
+  } else city.rim.color.set(0xff9a4a);
   life.update(t, { police: t >= 117 && t < 183 });
   const up = new THREE.Vector3();
   for (const c of Object.values(ch)) { up.set(0, 1, 0).applyQuaternion(c.root.getWorldQuaternion(new THREE.Quaternion())); c.blob.visible = c.root.visible && up.y > .95 && !ctx.noBlob?.includes(c); }
@@ -165,8 +180,9 @@ function renderAt(T) {
   renderPass.scene = scene;
   composer.render();
   // вставка «звонок»: вторая камера поверх кадра
-  if (ctx.inset) {
-    const { x, y, w, h, scene: s2, cam } = ctx.inset;
+  for (const p of [ctx.inset, ...(ctx.panels || [])]) {
+    if (!p) continue;
+    const { x, y, w, h, scene: s2, cam } = p;
     renderer.setScissorTest(true);
     renderer.setScissor(x, H - y - h, w, h); renderer.setViewport(x, H - y - h, w, h);
     renderer.autoClear = false; renderer.clear(true, true, false);

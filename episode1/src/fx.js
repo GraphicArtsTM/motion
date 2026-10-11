@@ -28,12 +28,15 @@ export function makeWebs(scene, n = 24) {
       const k = o.k ?? 1, w = o.w ?? .035;
       if (k <= 0) return;
       const end = tmp.copy(a).lerp(b, k);
-      const segs = o.sag ? 6 : 1;
+      // пружинящая нить: после натяжения затухающие колебания (wob — амплитуда, wobT — время с момента крепления)
+      let sag = o.sag || 0;
+      if (o.wob && o.wobT >= 0) sag += Math.sin(o.wobT * 28) * Math.exp(-o.wobT * 5) * o.wob;
+      const segs = sag ? 8 : 1;
       let prev = a.clone();
       for (let s = 1; s <= segs && used < pool.length; s++) {
         const u = s / segs;
         const p = a.clone().lerp(end, u);
-        if (o.sag) p.y -= Math.sin(u * Math.PI) * o.sag;
+        if (sag) p.y -= Math.sin(u * Math.PI) * sag;
         const m = pool[used++];
         const d = p.clone().sub(prev), len = d.length();
         m.position.copy(prev); m.quaternion.setFromUnitVectors(UP, d.normalize());

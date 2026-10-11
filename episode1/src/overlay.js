@@ -69,6 +69,14 @@ export function makeOverlay(canvas) {
   };
 
   // окно звонка (рамка вокруг вставки с дедом)
+  // рамка комикс-панели
+  O.panelFrame = (x, y, w, h) => {
+    g.save(); g.lineJoin = 'miter';
+    g.lineWidth = 14; g.strokeStyle = '#000'; g.strokeRect(x - 7, y - 7, w + 14, h + 14);
+    g.lineWidth = 7; g.strokeStyle = '#fff'; g.strokeRect(x - 2, y - 2, w + 4, h + 4);
+    g.restore();
+  };
+
   O.callFrame = (x, y, w, h, a, t) => {
     if (a <= 0) return;
     g.save(); g.globalAlpha = clamp(a);

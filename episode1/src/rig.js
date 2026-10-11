@@ -232,10 +232,10 @@ export function makeCharacter(kind) {
     const hairG = new THREE.Group(); J.head.add(hairG); reg('hair', hairG);
     mesh(new THREE.SphereGeometry(R * 1.04, 24, 14, 0, Math.PI * 2, 0, Math.PI * .52), m.hair, { pos: [0, .145 * k, -.012], scale: [1, .92, 1.02], outline: OL, parent: hairG });
     const spikes = [[0, .3, .08, -.5], [.07, .29, .05, -.3], [-.07, .29, .06, -.7], [.1, .26, -.03, .1], [-.1, .26, -.02, .2], [0, .29, -.07, .5], [.04, .27, .12, -1]];
-    for (const [x, y, z, r] of spikes) mesh(new THREE.ConeGeometry(.05, .13, 8), m.hair, { pos: [x * k, y * k, z * k], rot: [r - .2, 0, -x * 5], outline: OL * .8, parent: hairG });
+    ch.spikes = spikes.map(([x, y, z, r]) => { const sp = mesh(new THREE.ConeGeometry(.05, .13, 8), m.hair, { pos: [x * k, y * k, z * k], rot: [r - .2, 0, -x * 5], outline: OL * .8, parent: hairG }); sp.userData.rx = r - .2; return sp; });
     // капюшон, рюкзак, лямки, карабин
-    reg('acc', mesh(new THREE.TorusGeometry(.12 * k, .055 * k, 10, 20), m.topDark, { pos: [0, .43 * k, -.1 * k], rot: [1.2, 0, 0], scale: [1.1, 1, 1], outline: OL, parent: J.spine }));
-    const pack = reg('acc', mesh(rbox(.36 * k, .42 * k, .22 * k, .05 * k), toon(0x15b9a8), { pos: [0, .22 * k, -.24 * k], outline: OL, parent: J.spine }));
+    ch.hood = reg('acc', mesh(new THREE.TorusGeometry(.12 * k, .055 * k, 10, 20), m.topDark, { pos: [0, .43 * k, -.1 * k], rot: [1.2, 0, 0], scale: [1.1, 1, 1], outline: OL, parent: J.spine }));
+    const pack = ch.pack = reg('acc', mesh(rbox(.36 * k, .42 * k, .22 * k, .05 * k), toon(0x15b9a8), { pos: [0, .22 * k, -.24 * k], outline: OL, parent: J.spine }));
     mesh(rbox(.3 * k, .1 * k, .02 * k, .01), toon(0xfff1c2), { pos: [0, .07 * k, -.111 * k], outline: false, parent: pack }); // полоса-светоотражатель
     for (const sx of [1, -1]) reg('acc', mesh(rbox(.05 * k, .4 * k, .03 * k, .012), toon(0x0f7f74), { pos: [sx * .1 * k, .26 * k, .13 * k], rot: [-.12, 0, 0], outline: OL * .5, parent: J.spine }));
     const carab = reg('acc', mesh(new THREE.TorusGeometry(.035 * k, .009 * k, 8, 20), toon(0xc8ccd4, { emissive: 0x222630 }), { pos: [.1 * k, .14 * k, .16 * k], scale: [.7, 1.2, 1], outline: OL * .4, parent: J.spine }));
@@ -264,7 +264,7 @@ export function makeCharacter(kind) {
   if (kind === 'vera') {
     const hairG = new THREE.Group(); J.head.add(hairG); reg('hair', hairG);
     mesh(new THREE.SphereGeometry(R * 1.05, 24, 14, 0, Math.PI * 2, 0, Math.PI * .55), m.hair, { pos: [0, .15 * k, -.02], outline: OL, parent: hairG });
-    mesh(sph(.085 * k), m.hair, { pos: [0, .25 * k, -.13 * k], outline: OL, parent: hairG });
+    ch.bun = mesh(sph(.085 * k), m.hair, { pos: [0, .25 * k, -.13 * k], outline: OL, parent: hairG });
     for (const sx of [1, -1]) mesh(cap(.035 * k, .2 * k), m.hair, { pos: [sx * .15 * k, .08 * k, .04 * k], rot: [0, 0, sx * .12], outline: OL * .6, parent: hairG });
     // очки
     const gl = toon(0x222222);
@@ -364,8 +364,8 @@ function applyPose(ch, p) {
   J.hips.position.set(p.hx || 0, ch.d.hipY + (p.hy || 0) * ch.d.k, p.hz || 0);
   if (ch.handL) { setGrip(ch.handL, p.gripL ?? p.grip ?? .35, p.spiderL || 0); setGrip(ch.handR, p.gripR ?? p.grip ?? .35, p.spiderR || 0); }
 }
-export function blend(a, b, k) {
-  if (k <= 0) return a; if (k >= 1) return b;
+export function blend(a, b, k, extrap = false) {
+  if (k <= 0) return a; if (k >= 1 && !(extrap && k > 1.0001)) return b;
   const o = {};
   for (const n of [...JOINTS, 'hx', 'hy', 'hz', 'grip', 'gripL', 'gripR', 'spiderL', 'spiderR']) {
     const va = a[n], vb = b[n];
@@ -376,18 +376,73 @@ export function blend(a, b, k) {
   return o;
 }
 /* Последовательность поз: [[t, poseOrFn], ...] с плавным переходом xf секунд перед каждой */
+/* Переход с лёгким перелётом (overshoot): поза «доходит» с запасом и возвращается — живее, чем ровный лерп */
+const SNAP = x => { const c = .9; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
 export function seq(t, list, xf = .25) {
   let i = 0;
   while (i + 1 < list.length && t >= list[i + 1][0]) i++;
   const cur = typeof list[i][1] === 'function' ? list[i][1](t - list[i][0]) : list[i][1];
   if (i > 0) {
-    const k = clamp((t - list[i][0]) / (list[i][2] ?? xf));
+    const d = list[i][2] ?? xf;
+    const k = clamp((t - list[i][0]) / d);
     if (k < 1) {
       const prev = typeof list[i - 1][1] === 'function' ? list[i - 1][1](t - list[i - 1][0]) : list[i - 1][1];
-      return blend(prev, cur, E.inOutSine(k));
+      const ease = list[i][3] || (d > .6 ? E.inOutSine : SNAP);
+      return blend(prev, cur, ease(k), true);
     }
   }
   return cur;
+}
+/* Время для цикла шага по пройденному пути: ноги не скользят (stride — длина шага, f — частота позы) */
+export const gait = (dist, stride = .7, f = .9) => dist / (2 * stride * f);
+
+/* Сжатие/растяжение с сохранением объёма: a > 0 — вытянуться, a < 0 — сплющиться */
+export function squash(ch, a) {
+  const y = 1 + a, xz = 1 / Math.sqrt(Math.max(y, .2));
+  ch.root.scale.set(xz, y, xz);
+}
+/* Импульс сжатия: удар в момент t0, затухающие колебания (как пружина) */
+export const springAt = (t, t0, amp = -.18, freq = 14, damp = 7) => t < t0 ? 0 : amp * Math.cos((t - t0) * freq) * Math.exp(-(t - t0) * damp);
+
+/* Вторичная анимация: рюкзак, капюшон, пряди волос, пучок — раскачиваются с запаздыванием */
+export function secondary(ch, t, energy = .2) {
+  const s1 = Math.sin(t * 7.3), s2 = Math.sin(t * 5.1 + 1), e = energy;
+  if (ch.pack) ch.pack.rotation.set(-.05 + .12 * e * s1, .06 * e * s2, .08 * e * s2);
+  if (ch.hood) ch.hood.rotation.set(1.2 + .25 * e * s2, 0, .1 * e * s1);
+  if (ch.bun) ch.bun.position.y = .25 * ch.d.k + .008 * e * s1;
+  if (ch.spikes) ch.spikes.forEach((m, i) => { m.rotation.x = m.userData.rx + .18 * e * Math.sin(t * 9 + i); });
+}
+
+/* IK руки: кисть тянется к точке в мире (двухзвенная аналитическая IK, локоть — в сторону pole) */
+const _v = () => new THREE.Vector3();
+export function ikArm(ch, side, target, pole = new THREE.Vector3(0, -1, -.3), weight = 1) {
+  const J = ch.J, sh = J['arm' + side], el = J['fore' + side];
+  ch.root.updateMatrixWorld(true);
+  const parent = sh.parent;
+  const inv = new THREE.Matrix4().copy(parent.matrixWorld).invert();
+  const T = target.clone().applyMatrix4(inv);            // цель в пространстве груди
+  const S0 = sh.position.clone();
+  const a = ch.d.upper, b = ch.d.lower + .07 * ch.d.k;
+  const dirv = T.clone().sub(S0); let dist = dirv.length();
+  dist = Math.min(dist, (a + b) * .999); dirv.normalize();
+  // угол в плече по теореме косинусов
+  const cosA = clamp((a * a + dist * dist - b * b) / (2 * a * dist), -1, 1);
+  const angA = Math.acos(cosA);
+  const poleL = pole.clone().transformDirection(inv).normalize();
+  const n = new THREE.Vector3().crossVectors(dirv, poleL).normalize();
+  if (n.lengthSq() < 1e-6) n.set(1, 0, 0);
+  const upperDir = dirv.clone().applyAxisAngle(n, -angA);   // направление плеча
+  const elbow = S0.clone().addScaledVector(upperDir, a);
+  const lowerDir = T.clone().sub(elbow).normalize();
+  // плечо: «вниз» (−y) поворачиваем в upperDir
+  const qS = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, -1, 0), upperDir);
+  const qSoff = sh.quaternion.clone();
+  sh.quaternion.copy(qSoff.slerp(qS, weight));
+  // предплечье: в локале плеча
+  const lowerLocal = lowerDir.clone().applyQuaternion(sh.quaternion.clone().invert());
+  const qE = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, -1, 0), lowerLocal);
+  el.quaternion.copy(el.quaternion.clone().slerp(qE, weight));
+  ch.root.updateMatrixWorld(true);
 }
 
 const S = Math.sin, Cc = Math.cos, PI = Math.PI;
@@ -465,6 +520,10 @@ export const POSE = {
   phone: (t = 0) => ({ ...POSE.stand(t), armR: [-.5, .4, .45], foreR: [-2.3, 0, 0], handR: [0, 0, .5], head: [0, -.1, .1] }),
   reach: () => ({ spine: [.2, 0, 0], armR: [-1.4, .2, .1], foreR: [-.2, 0, 0], handR: [.2, 0, 0], armL: [.1, 0, .15], foreL: [-.4, 0, 0], head: [.2, 0, 0] }),
   hold: () => ({ grip: .55, armL: [-.9, .3, .1], armR: [-.9, .3, .1], foreL: [-.8, 0, 0], foreR: [-.8, 0, 0], handL: [0, 0, -.3], handR: [0, 0, -.3], spine: [.05, 0, 0] }),
+  pointFinger: (t = 0) => ({ ...POSE.stand(t), armR: [-1.25, .25, .2], foreR: [-.35, 0, 0], handR: [.15 * Math.sin(t * 9), 0, 0], gripR: .9, head: [.08, -.1, 0] }),
+  adjustGlasses: (t = 0) => ({ ...POSE.stand(t), armL: [-.9, -.5, .3], foreL: [-2.35, 0, 0], handL: [0, 0, .4], gripL: .7, head: [.12, 0, 0] }),
+  fistShake: (t = 0) => ({ ...POSE.stand(t), armR: [-.9, .1, .35], foreR: [-1.6, 0, 0], handR: [.15 * Math.sin(t * 16), 0, 0], gripR: 1, spine: [.08, -.1, 0] }),
+  shrug: (t = 0) => ({ ...POSE.stand(t), armL: [-.2, 0, .45], armR: [-.2, 0, .45], foreL: [-1.3, 0, 0], foreR: [-1.3, 0, 0], gripL: 0, gripR: 0, head: [0, 0, .12] }),
   lookUp: (t = 0) => ({ ...POSE.stand(t), spine: [-.12, 0, 0], neck: [-.3, 0, 0], head: [-.35, 0, 0], armL: [-.2, 0, .15], foreL: [-.6, 0, 0] }),
 };
 
@@ -493,7 +552,9 @@ function setFace(ch, f = {}) {
   const sx = (1.3 - mo * .2 + sm * .45) * (1 - sh * .45), sy = .2 + mo * 1.2 * (1 + sh * .3);
   fr.cav.scale.set(sx, sy, .45);
   fr.mouth.rotation.z = 0; fr.mouth.position.y = fr.headC.y - .068 + sm * .004;
-  fr.teeth.visible = mo > .18; fr.teeth.scale.set(sx * .62, 1, 1); fr.teeth.position.y = .03 * sy * .32;
+  const fc = clamp(f.fric || 0);
+  if (fc > .4) fr.cav.scale.set(sx * 1.05, Math.min(sy, .45), .45);          // «с/ф/ш»: губы почти сомкнуты, видны зубы
+  fr.teeth.visible = mo > .18 || fc > .4; fr.teeth.scale.set(sx * .62, 1, 1); fr.teeth.position.y = .03 * Math.min(sy, fc > .4 ? .45 : sy) * .32;
   fr.tongue.visible = mo > .35; fr.tongue.position.y = -.03 * sy * .35;
 }
 /* моргание: детерминированно по времени */

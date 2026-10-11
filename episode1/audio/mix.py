@@ -798,7 +798,7 @@ VOX_GAIN = {'narrator': 0.85, 'timur': 0.9, 'ded': 0.9, 'vera': 0.85, 'kronov': 
 VOX_REV = {'narrator': 0.05, 'timur': 0.08, 'ded': 0.1, 'vera': 0.12, 'kronov': 0.15, 'shadow': 0.6, 'crowd': 0.5}
 lines = json.load(open(os.path.join(HERE, 'dialogue.json'), encoding='utf-8'))['lines']
 FPS = 30
-lips = {'fps': FPS, 'durations': {}, 'env': {}, 'shape': {}}
+lips = {'fps': FPS, 'durations': {}, 'env': {}, 'shape': {}, 'fric': {}}
 vox_env = np.zeros(N)
 for ln in lines:
     p = os.path.join(HERE, 'voice', ln['id'] + '.wav')
@@ -816,13 +816,15 @@ for ln in lines:
     vox_env[i:i + len(ev)] = np.maximum(vox_env[i:i + len(ev)], np.convolve(ev, np.ones(2048) / 2048, 'same')[:N - i])
     # липсинк по «сухому» голосу: открытие рта (RMS) и форма (спектральный центроид: низкий — «о/у», высокий — «и/э»)
     hop = SR // FPS
-    op, cen = [], []
+    op, cen, fri = [], [], []
     for k in range(0, len(dry), hop):
         fr_ = dry[k:k + hop]
         op.append(float(np.sqrt(np.mean(fr_ ** 2))))
         S = np.abs(np.fft.rfft(fr_ * np.hanning(len(fr_)), 2048)); f = np.fft.rfftfreq(2048, 1 / SR)
         band = (f > 250) & (f < 4000)
         cen.append(float((S[band] * f[band]).sum() / (S[band].sum() + 1e-9)))
+        hiE, loE = (S[f > 4000] ** 2).sum(), (S[(f > 100) & (f < 1500)] ** 2).sum()
+        fri.append(float(hiE / (hiE + loE + 1e-9)))     # шипящие/свистящие: «с», «ф», «ш» — зубы видны, рот почти закрыт
     op = np.array(op); op = op / (np.percentile(op, 95) + 1e-9)
     op = np.clip(np.convolve(op, [.25, .5, .25], 'same'), 0, 1)
     cen = np.array(cen); voiced = op > .2
@@ -832,6 +834,8 @@ for ln in lines:
     lips['durations'][ln['id']] = round(len(dry) / SR, 3)
     lips['env'][ln['id']] = [round(float(v), 2) for v in op]
     lips['shape'][ln['id']] = [round(float(v), 2) for v in shape]
+    fri = np.clip((np.array(fri) - .25) / .4, 0, 1) * (op > .08)
+    lips['fric'][ln['id']] = [round(float(v), 2) for v in fri]
 
 # ---------------- сведение ----------------
 side = np.ones(N)

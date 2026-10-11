@@ -42,7 +42,7 @@ export function makeLab(tower) {
 
   // капсулы
   const glassM = new THREE.MeshBasicMaterial({ color: 0x9fe8ff, transparent: true, opacity: .16, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
-  const liquidM = new THREE.MeshBasicMaterial({ color: new THREE.Color(0x1fd0ff).multiplyScalar(.6), transparent: true, opacity: .32, depthWrite: false, blending: THREE.AdditiveBlending });
+  const liquidM = new THREE.MeshBasicMaterial({ color: new THREE.Color(0x1fd0ff).multiplyScalar(.5), transparent: true, opacity: .22, depthWrite: false, blending: THREE.AdditiveBlending });
   const metal = toon(0x5c6678), ring = glow(0x3ff0ff, 2.6);
   const makeCapsule = (x, z, s = 1, gold = false) => {
     const c = new THREE.Group(); c.position.set(x, 0, z); c.scale.setScalar(s); L.add(c);

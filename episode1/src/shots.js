@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { E, P, kf, tw, lerp, clamp, shake, pulse, toon, glow, mesh, W, H, noise } from './core.js';
-import { POSE, seq, blend, blinkAt } from './rig.js';
+import { POSE, seq, blend, blinkAt, gait, squash, springAt, secondary, ikArm } from './rig.js';
 import { updateTraffic, makeCar } from './city.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -58,9 +58,33 @@ export function buildShots(C) {
     const sd = o.seed ?? 0;
     // дыхание и «живые» микродвижения глаз
     c.J.chest.scale.set(1 + .008 * Math.sin(t * 2.1 + sd), 1 + .012 * Math.sin(t * 2.1 + sd), 1 + .018 * Math.sin(t * 2.1 + sd));
-    c.setFace({ mouth: C.mouthOf(who, t) * (o.mk ?? 1), shape: C.shapeOf(who), blink: o.noBlink ? 0 : blinkAt(t, sd),
+    c.setFace({ mouth: C.mouthOf(who, t) * (o.mk ?? 1), shape: C.shapeOf(who), fric: C.fricOf(who), blink: o.noBlink ? 0 : blinkAt(t, sd),
       look: [noise(t * .8 + sd * 7) * .35, noise(t * .7 + sd * 7 + 40) * .2], ...o });
+    secondary(c, t, o.energy ?? .2);
   };
+  /* «кадр удара»: вспышка на 1–2 кадра + толчок камеры (зум) — классический приём экшн-анимации */
+  const impact = (t, t0, o = {}) => {
+    const dt = t - t0;
+    if (dt >= 0 && dt < .045) post(ov => ov.fill(o.color || '#ffffff', .75));
+    else if (dt >= .045 && dt < .09) post(ov => ov.fill('#000000', .35));
+    if (dt >= 0 && dt < .6) {
+      const kick = Math.exp(-dt * 10);
+      cam.fov *= 1 - (o.zoom ?? .12) * kick; cam.updateProjectionMatrix();
+      const sh = shk(t, (o.shake ?? .12) * kick, 22); cam.position.x += sh[0]; cam.position.y += sh[1]; cam.position.z += sh[2];
+    }
+  };
+  /* комикс-панель: второй ракурс поверх кадра (рисуется отдельной камерой) */
+  const panelCams = [new THREE.PerspectiveCamera(30, 1, .05, 3000), new THREE.PerspectiveCamera(30, 1, .05, 3000)];
+  const panel = (i, k, rect, scene, pos, at, fov = 30) => {
+    if (k <= 0) return;
+    const [x, y, w, h] = rect, s = E.outBack(clamp(k));
+    const ws = Math.round(w * s), hs = Math.round(h * s), px = Math.round(x + (w - ws) / 2), py = Math.round(y + (h - hs) / 2);
+    const pc = panelCams[i]; pc.position.set(...pos); pc.up.set(0, 1, 0); pc.lookAt(...at); pc.fov = fov;
+    (C.panels = C.panels || []).push({ x: px, y: py, w: ws, h: hs, scene, cam: pc });
+    post(o => o.panelFrame(px, py, ws, hs));
+  };
+  /* контровой свет за героем относительно камеры — силуэт отделяется от тёмного фона */
+  const rimOn = (target, color = 0x9feaff, k = 2.4) => { C.rim = { target: V(...target), color, k }; };
   const handW = (c, s = 'R') => { c.root.updateMatrixWorld(true); return c.J['hand' + s].localToWorld(V(0, -.09 * c.d.k, 0)); };
   const headW = c => { c.root.updateMatrixWorld(true); return c.J.head.localToWorld(V(0, .16 * c.d.k, .1)); };
   const post = f => C.post.push(f);
@@ -80,6 +104,11 @@ export function buildShots(C) {
     b.userData.wheels.forEach(w => w.rotation.x = -t * 13 / .35);
     b.add(TI.root); TI.root.visible = true; TI.root.position.set(0, .2, -.02); TI.root.rotation.set(0, 0, 0);
     TI.pose(o.pose || POSE.bike(t));
+    if (!o.freeHands) {                      // IK: ладони точно на ручках руля
+      b.updateMatrixWorld(true);
+      for (const [sd, sx] of [['L', 1], ['R', -1]]) if (!(o.freeL && sd === 'L')) ikArm(TI, sd, b.localToWorld(V(sx * .26, .92, .43)), b.localToWorld(V(sx * 1.5, .3, -.3)).sub(b.position));
+    }
+    const sq = o.squash || 0; if (sq) { b.scale.set(1 / Math.sqrt(1 + sq), 1 + sq, 1 / Math.sqrt(1 + sq)); } else b.scale.set(1, 1, 1);
   };
   const cabCall = (t, k) => {               // вставка «дед на связи»
     if (k <= 0) return;
@@ -111,8 +140,10 @@ export function buildShots(C) {
   const flames = [];
   for (let i = 0; i < 10; i++) { const f = mesh(new THREE.SphereGeometry(.6, 10, 8), glow(i % 2 ? 0xff9a2a : 0xffd04a, 2.6, { transparent: true, opacity: .8 }), { outline: false, parent: S }); f.visible = false; flames.push(f); }
   const bridgeProps = t => {
-    const pos = [[418, -405, .6, 0], [470, -394, -.8, 1], [492, -406, 2.4, 2]];
+    const pos = [[448.5, -406, .25, 0], [470, -394, -.8, 1], [492, -406, 2.4, 2]];
     wreck.forEach((c, i) => { c.visible = true; c.position.set(pos[i][0], 0, pos[i][1]); c.rotation.set(0, pos[i][2], i === 2 ? Math.PI : 0); if (i === 2) c.position.y = 2.1; });
+    // машина подпрыгивает от удара Кронова
+    const jd = t - 125.7; if (jd > 0) { const b = Math.max(0, Math.sin(jd * 9) * Math.exp(-jd * 4)); wreck[0].position.y = b * .9; wreck[0].rotation.z = b * .25; wreck[0].rotation.x = -b * .1; }
     fire.intensity = 300 + 120 * Math.sin(t * 17) * Math.sin(t * 5.3); fire.position.set(492, 3, -406);
     flames.forEach((f, i) => { const ph = (t * 1.3 + i * .37) % 1; f.visible = true; f.position.set(492 + Math.sin(i * 2.1) * 1.2, 2.4 + ph * 3.2, -406 + Math.cos(i * 1.7) * 1.0); f.scale.setScalar((1 - ph) * 1.4 + .2); });
   };
@@ -135,7 +166,7 @@ export function buildShots(C) {
   /* ---- бой на мосту: позиции ---- */
   const TIp = t => kf(t, [[140.3, [310, 74, -386]], [141.3, [425, 0, -398], E.inQuad], [151.3, [425, 0, -398]], [151.9, [423, 0, -401], E.outCubic], [152.5, [426, 2.8, -400]],
     [153.3, [446, 0, -399], E.inOutQuad], [156.8, [448, 0, -401]], [157.2, [452, 0, -403], E.outCubic], [163.8, [452, 0, -403]], [164.4, [446, 6, -404], E.outQuad], [165.2, [430, 4, -404]], [165.8, [418, 0, -404], E.inQuad], [175, [418, 0, -404]]]);
-  const KRp = t => kf(t, [[141, [440, 0, -399]], [145.5, [432, 0, -399], E.inOutSine], [151, [431, 0, -399]], [153.8, [431, 0, -399]], [154.4, [444, 0, -397], E.outCubic], [163, [444, 0, -397]],
+  const KRp = t => kf(t, [[141, [440, 0, -399]], [143.6, [434, 0, -399], E.inOutSine], [151, [431, 0, -399]], [153.8, [431, 0, -399]], [154.4, [444, 0, -397], E.outCubic], [163, [444, 0, -397]],
     [164.4, [448, 0, -402], E.inQuad], [164.6, [448, 0, -402]], [165.6, [393.6, 1.5, -389.8], E.inOutQuad], [175, [393.6, 1.5, -389.8]]]);
 
   /* ======================= ШОТЫ ======================= */
@@ -181,7 +212,7 @@ export function buildShots(C) {
     env({ fill: [[4.5, 3, bikeZ(t) + 2], 0], rimPos: [40, 30, bikeZ(t) - 80] });
     const z = bikeZ(t), x = 4.5 + Math.sin(t * 1.3) * .4;
     rideBike(t, x, z, { lean: Math.sin(t * 1.3 + 1) * .08 });
-    face(TI, 'timur', t, { brow: .2, look: [0, -.2] });
+    face(TI, 'timur', t, { brow: .2, look: [0, -.2], energy: 1 });
     const back = lerp(6.5, 4.2, E.inOutSine(lt / 5));
     look(addv([x - 1.2, 1.0, z - back], shk(t, .04, 3)), [x, 1.3, z], 50, .03);
     updateTraffic(city, t);
@@ -194,7 +225,7 @@ export function buildShots(C) {
     const z = bikeZ(t), x = 4.5 + Math.sin(t * 1.3) * .4;
     const p = POSE.bike(t); p.head = [-.35, .5, 0];           // слушает звонок, смотрит в камеру
     rideBike(t, x, z, { pose: p, lean: Math.sin(t * 1.3 + 1) * .06 });
-    face(TI, 'timur', t, { brow: .45, look: [.3, 0] });
+    face(TI, 'timur', t, { brow: .45, look: [.3, 0], energy: .8 });
     look(addv([x - 3.6, 1.2, z - 1.4], shk(t, .03, 3)), [x, 1.15, z - .3], 40);
     updateTraffic(city, t);
     cabCall(t, clamp((lt - .1) / .3) - clamp((lt - 6.6) / .3));
@@ -208,9 +239,13 @@ export function buildShots(C) {
     const j = clamp((wt - 34.3) / 1.0);
     const y = Math.sin(j * Math.PI) * 2.3;
     const pitch = j > 0 && j < 1 ? -Math.cos(j * Math.PI) * .35 : 0;
-    const p = j > 0 && j < 1 ? POSE.bikeStand() : POSE.bike(wt);
-    rideBike(wt, x, z, { y, pitch, pose: p });
-    face(TI, 'timur', t, { brow: .3, wide: j > 0 && j < 1 });
+    // присед перед прыжком → вытягивание в отрыве → сплющивание при приземлении
+    const crouch = pulse(wt, 33.95, 34.32, .3, .05);
+    const pBase = j > 0 && j < 1 ? POSE.bikeStand() : POSE.bike(wt);
+    const p = crouch > 0 ? blend(pBase, { ...POSE.bike(wt), hy: -.32, spine: [.8, 0, 0], head: [-.7, 0, 0] }, crouch) : pBase;
+    const sq = -.12 * crouch + .14 * pulse(wt, 34.3, 34.75, .05, .3) + springAt(wt, 35.3, -.2, 16, 8);
+    rideBike(wt, x, z, { y, pitch, pose: p, squash: sq });
+    face(TI, 'timur', t, { brow: .3, wide: j > 0 && j < 1, energy: 1 });
     // такси выезжает поперёк
     const taxi = city.cars[1].g; taxi.visible = true;
     const tx = kf(t, [[33, -40], [34.4, 3.0, E.outCubic], [40, 3.0]]);
@@ -224,6 +259,9 @@ export function buildShots(C) {
     look(addv(cp, shk(t, .03, 4)), [x, 1 + y * .7, z - 1], lerp(50, 40, k));
     post(o => o.comic('БИ-БИП!', 520, 330, t - 34.2, { size: .6, color: '#ffe23d', rot: -.1, dur: 1.0 }));
     post(o => o.speedLines(pulse(t, 34.5, 35.9, .1, .3) * .8, t));
+    // комикс-панель: крупно лицо Тимура над такси
+    const hp = headW(TI);
+    panel(0, pulse(t, 34.55, 35.6, .12, .12) * 1.01, [1260, 90, 560, 330], S, hp.clone().add(V(-1.0, .15, -1.25)).toArray(), hp.toArray(), 28);
     return S;
   });
   shot(38, 44, (lt, t) => {
@@ -233,8 +271,8 @@ export function buildShots(C) {
     const touch = pulse(t, 39.2, 42.8, .5, .5);
     p.armL = [lerp(-1.12, -.6, touch), lerp(0, -.5, touch), lerp(.2, .1, touch)]; p.foreL = [lerp(-.35, -2.0, touch), 0, 0];
     p.head = [-.25 - .2 * touch, 0, 0];
-    rideBike(t, x, z, { pose: p });
-    face(TI, 'timur', t, { brow: lerp(.2, -.05, touch), smile: t > 41.8 ? .8 : .2, look: [0, -.5 * touch] });
+    rideBike(t, x, z, { pose: p, freeL: touch > .05 });
+    face(TI, 'timur', t, { brow: lerp(.2, -.05, touch), smile: t > 41.8 ? .8 : .2, look: [0, -.5 * touch], energy: .6 });
     const k = E.inOutSine(lt / 6);
     look(addv([x - .2, 1.55, z - lerp(2.2, 1.5, k)], shk(t, .02, 3)), [x, lerp(1.3, 1.25, k), z], lerp(42, 32, k));
     updateTraffic(city, t);
@@ -250,8 +288,11 @@ export function buildShots(C) {
     const bz = kf(t, [[44, -360], [45.3, -404, E.outCubic]]);
     rideBike(t * (t < 45.3 ? 1 : 0), 6, bz, { pose: t < 45.3 ? POSE.bike(t) : POSE.bikeStand(), yaw: t > 44.8 ? .5 * E.outCubic(P(t, 44.8, .5)) : 0, lean: t > 44.8 ? -.15 : 0 });
     if (t > 45.8) {                            // слез и бежит ко входу
-      props.bike.remove(TI.root); place(TI, S, kf(t, [[45.8, [7, 0, -405]], [48, [14, 0, -412], E.inQuad]]), 2.2);
-      TI.pose(seq(t - 45.8, [[0, POSE.stand(t)], [.5, tt => POSE.run(tt)]]));
+      const tp = kf(t, [[45.8, [7, 0, -405]], [48, [14, 0, -412], E.inQuad]]);
+      props.bike.remove(TI.root); place(TI, S, tp, 2.2);
+      const dist = Math.hypot(tp[0] - 7, tp[2] + 405);       // фаза бега по пройденному пути — ноги не скользят
+      TI.pose(seq(t - 45.8, [[0, POSE.stand(t)], [.5, () => POSE.run(gait(dist, 1.1, 1.6), 1.6)]]));
+      squash(TI, springAt(t, 45.85, -.12, 14, 8));
     }
     face(TI, 'timur', t, { brow: .3 });
     look([lerp(-2, 0, k), lerp(1.2, .8, k), -392], [lerp(8, 40, k), lerp(4, 320, k), lerp(-405, -440, k)], lerp(55, 60, k));
@@ -271,18 +312,23 @@ export function buildShots(C) {
   };
   const box = mesh(new RoundedBoxGeometry(.42, .3, .32, 2, .03), toon(0xc9a06a), { outline: .01 });
   mesh(new THREE.BoxGeometry(.44, .05, .1), toon(0x15b9a8), { pos: [0, .13, 0], outline: false, parent: box });
+  // клубы дыма (спрайты) для выбитых дверей
+  const smokeTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+    const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64); gr.addColorStop(0, 'rgba(120,110,105,.9)'); gr.addColorStop(1, 'rgba(120,110,105,0)'); g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+    return new THREE.CanvasTexture(c); })();
+  const smoke = Array.from({ length: 9 }, () => { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: smokeTex, transparent: true, depthWrite: false })); sp.visible = false; S.add(sp); return sp; });
   const holdBox = c => { c.J.handL.add(box); box.visible = true; box.position.set(-.12, -.1, .02); box.rotation.set(0, 0, 0); };
   shot(48, 56, (lt, t) => {
     labBase(t);
     const tp = kf(t, [[48.6, [0, 0, 11]], [51.5, [0, 0, 3], E.inOutSine], [56, [0, 0, 1.5]]]);
     place(TI, lab.group, tp, Math.PI + (t > 53.4 ? Math.sin((t - 53.4) * 1.4) * .7 : 0));
-    const p = t < 51.5 ? POSE.walk(t) : POSE.stand(t); p.armL = [-.35, .35, .1]; p.foreL = [-1.45, 0, 0]; p.armR = [-.35, .35, .1]; p.foreR = [-1.45, 0, 0]; p.grip = .6;
+    const p = t < 51.5 ? POSE.walk(gait(11 - tp[2], .62, .9)) : POSE.stand(t); p.armL = [-.35, .35, .1]; p.foreL = [-1.45, 0, 0]; p.armR = [-.35, .35, .1]; p.foreR = [-1.45, 0, 0]; p.grip = .6;
     if (t > 53.4) { p.head = [-.25, .3 * Math.sin((t - 53.4) * 1.1), 0]; }
     TI.pose(p); holdBox(TI);
     face(TI, 'timur', t, { brow: .55, wide: t > 53.4, mouth: C.mouthOf('timur', t) });
-    const turn = E.inOutCubic(P(t, 48.6, 1.0));
+    const turn = E.outBack(P(t, 48.6, .8));                 // разворот с лёгким перелётом
     place(VE, lab.group, [2.4, 0, -6.8], lerp(Math.PI * .9, 0, turn));
-    VE.pose(t > 49 ? POSE.talk(t) : POSE.stand(t)); face(VE, 'vera', t, { brow: .3, seed: 1, smile: .4 });
+    VE.pose(seq(t - 48.6, [[0, POSE.stand(t)], [.3, tt => POSE.adjustGlasses(tt)], [1.3, tt => POSE.talk(tt + 48)]], .35)); face(VE, 'vera', t, { brow: .3, seed: 1, smile: .4 });
     const k = E.inOutSine(lt / 8);
     if (t < 53.4) look(L2W(lerp(4.6, 4.0, k), lerp(2.3, 2.0, k), lerp(-10.5, -9.5, k)), L2W(lerp(.5, 1.0, k), 1.5, lerp(8, 2, k)), 44);
     else look(L2W(-1.2, 1.5, -1.2), L2W(.3, 1.55, 1.6), 36);
@@ -299,7 +345,7 @@ export function buildShots(C) {
       sp.userData.anim(t, 0, 1);
       sp.position.y = 2.1 + Math.sin(t * 1.5) * .05;
       TI.pose(POSE.stand(t)); holdBox(TI); face(TI, 'timur', t, {});
-      VE.pose(POSE.talk(t)); face(VE, 'vera', t, {});
+      VE.pose(seq(t - 56, [[0, tt => POSE.talk(tt)], [1.2, tt => POSE.adjustGlasses(tt)], [2.2, tt => POSE.talk(tt)]], .35)); face(VE, 'vera', t, {});
       const k = E.inOutSine((t - 56) / 3.6);
       look(L2W(lerp(.8, .3, k), lerp(3.6, 3.4, k), lerp(-7.6, -8.3, k)), L2W(0, 3.1, -11), lerp(30, 24, k));
     } else {                   // Вера забирает посылку, грозит пальцем
@@ -320,9 +366,19 @@ export function buildShots(C) {
       d.position.set(s * (1.6 + 6 * E.outCubic(k)), 3.5 + Math.sin(k * Math.PI) * 2, 12.75 - 9 * E.outCubic(k)); d.rotation.set(-k * 2, s * k * 1.5, s * k);
     });
     if (blast > 0) props.sparks.burst(V(...L2W(0, 3.5, 12.5)), blast, { speed: 8, life: .9 });
-    const kp = kf(t, [[62.4, [0, 0, 15]], [66, [0, 0, 6], E.lin], [70.8, [0, 0, 5]], [71.4, [.6, 0, 3.4], E.outCubic]]);
+    // дым в проёме и оранжевый контровой свет из лифта — Кронов выходит силуэтом
+    smoke.forEach((sp, i) => {
+      const k = clamp((blast - i * .05) / 3.5); sp.visible = blast > 0 && k < 1;
+      sp.position.set(...L2W(Math.sin(i * 2.3) * (1 + k * 4), 1 + i * .45 + k * 2, 12.4 - k * (2 + i % 3)));
+      sp.scale.setScalar(2 + k * 6); sp.material.opacity = .5 * (1 - k);
+    });
+    lab.lights[2].position.set(0, 4, 15.5); lab.lights[2].color.set(0xff7a2a);
+    lab.lights[2].intensity = blast > 0 ? 260 * Math.exp(-blast * .6) + 40 : 0;
+    const kp = kf(t, [[62.25, [0, 0, 12.4]], [66, [0, 0, 6], E.lin], [70.8, [0, 0, 5]], [71.4, [.6, 0, 3.4], E.outCubic]]);
     place(KR, lab.group, kp, Math.PI);
-    KR.pose(t < 66 ? POSE.heavyWalk(t - 62.4) : seq(t - 66, [[0, POSE.stand(t)], [5.0, { ...POSE.stand(t), spine: [.45, 0, 0], neck: [.2, 0, 0], head: [.25, 0, 0] }]]));
+    const kd = 12.4 - kp[2], kph = gait(kd, .95, .7);
+    KR.pose(t < 66 ? POSE.heavyWalk(kph) : seq(t - 66, [[0, POSE.stand(t)], [.25, tt => POSE.fistShake(tt)], [1.3, tt => POSE.stand(tt)], [5.0, { ...POSE.stand(t), spine: [.45, 0, 0], neck: [.2, 0, 0], head: [.25, 0, 0] }]]));
+    if (t < 66) squash(KR, -.035 * Math.abs(Math.cos(kph * .7 * Math.PI * 2)));   // проседание брони на каждом шаге
     face(KR, 'kronov', t);
     place(TI, lab.group, [-1.5, 0, 1.6], Math.PI * .8);
     TI.pose({ ...POSE.stand(t), spine: [-.1, 0, 0], armL: [-.3, 0, .4], armR: [-.3, 0, .4], foreL: [-1.2, 0, 0], foreR: [-1.2, 0, 0] });
@@ -330,7 +386,7 @@ export function buildShots(C) {
     place(VE, lab.group, [kf(t, [[66.5, 1.2], [67.6, .6, E.outCubic]]), 0, kf(t, [[66.5, -1.2], [67.6, 1.8, E.outCubic]])], 0);
     VE.pose(t > 67 ? { ...POSE.talk(t * 1.3), armR: [-1.0, .3, .5], foreR: [-.3, 0, 0], spine: [.15, 0, 0] } : POSE.stand(t));
     face(VE, 'vera', t, { brow: -.5, mouth: C.mouthOf('vera', t) });
-    if (t < 63) { const k = P(t, 62, 1); look(addv(L2W(1.8, 1.0, 1), shk(t, .25 * (1 - k), 18)), L2W(0, 3.5, 13), 50); }
+    if (t < 63.2) { const k = E.outCubic(P(t, 62, 1.2)); look(L2W(lerp(1.4, .8, k), 1.25, lerp(3.2, 4.2, k)), L2W(0, lerp(3.4, 2.8, k), 12.6), 50, .03); impact(t, 62.0, { zoom: .18, shake: .3 }); }
     else if (t < 67.1) { const k = E.inOutSine(P(t, 63, 4)); look(addv(L2W(-1.2 + k, .35, lerp(-.5, 1.0, k)), shk(t, .03, 2)), L2W(0, 2.4, kp[2]), 52, .04); }
     else if (t < 71.4) look(L2W(3.6, 1.7, 3.2), L2W(.4, 1.8, 2.2), 38);
     else { const k = E.outCubic(P(t, 71.4, .8)); look(L2W(-.4, 1.9, .2), L2W(.5, lerp(2.0, 2.3, k), 3.2), lerp(40, 28, k)); }
@@ -367,10 +423,11 @@ export function buildShots(C) {
     place(VE, lab.group, [2.2, 0, 2.2], -2.5); VE.pose({ ...POSE.stand(t), armL: [-.4, 0, .6], armR: [-.4, 0, .6], foreL: [-1.6, 0, 0], foreR: [-1.6, 0, 0], spine: [.3, 0, 0] }); face(VE, 'vera', t, { brow: .9, wide: true });
     // камера
     const sh = shk(t, t > 74 ? .5 * Math.exp(-(t - 74) * 1.5) : .04, 16);
-    if (t < 74) look(addv(L2W(4.5, 2.6, -5), sh), L2W(0, 3.5, -15), 50);
+    if (t < 74) { const k = E.inOutSine(P(t, 72.5, 1.5)); look(addv(L2W(lerp(6.5, 5, k), lerp(3.4, 3.8, k), lerp(-14, -15.8, k)), sh), L2W(lerp(1, 0, k), lerp(2.8, 4.2, k), lerp(-12, -17, k)), 50); }
     else if (t < 76) look(addv(L2W(-5.5, 3.2, -1), sh), L2W(0, 3.5, -12), 54, .08);
     else { const k = (t - 76) / 1.6; look(addv(L2W(-3.6, 2.2, lerp(-2, -.6, k)), sh), sp.getWorldPosition(TMP).toArray(), lerp(44, 36, k), -.1); }
     if (t > 74 && t < 74.6) post(o => o.fill('#e8f4ff', (1 - (t - 74) / .6) * .8));
+    impact(t, 73.45, { zoom: .1, shake: .15 }); impact(t, 74.0, { zoom: .14, shake: .3, color: '#dff4ff' });
     post(o => o.comic('ДЗЫНЬ!', 600, 300, t - 74.35, { size: .55, color: '#bff6ff', rot: -.15, dur: .9 }));
     post(o => o.speedLines(pulse(t, 76, 77.6, .2, .1) * .5, t));
     return S;
@@ -394,6 +451,7 @@ export function buildShots(C) {
     look(addv(hw.clone().add(V(.6, .5, -1.3)).toArray(), sh), hw.clone().add(V(0, .3, 0)).toArray(), 38);
     if (t > 78.9) { post(o => o.fill('#e9fdff', (t - 78.9) / 1.0)); }
     post(o => o.comic('КУСЬ!', 1350, 360, t - 77.8, { size: .7, color: '#7ff8ff', dur: 1.1 }));
+    impact(t, 77.8, { zoom: .16, shake: .1, color: '#bff6ff' });
     return S;
   }, { flashK: 0 });
   shot(80.2, 83, (lt, t) => {
@@ -490,7 +548,7 @@ export function buildShots(C) {
     TI.pose(POSE.shootUp());
     face(TI, 'timur', t, { squint: .75 });
     const hw = handW(TI, 'R');
-    props.webs.add(hw, A1, { k: E.outCubic(P(t, 107.1, .3)), w: .05, splatSize: 1.2, splatNormal: V(0, 0, 1) });
+    props.webs.add(hw, A1, { k: E.outCubic(P(t, 107.1, .3)), w: .05, splatSize: 1.2, splatNormal: V(0, 0, 1), wob: .9, wobT: t - 107.4 });
     look(hw.clone().add(V(-1.6, -1.2, 1.4)).toArray(), hw.clone().add(V(.4, 1.2, -.3)).toArray(), 46, .2);
     post(o => o.comic('ВЖУХ!', 1250, 330, t - 107.15, { size: .9, color: '#7ff8ff', dur: 1.0 }));
     return S;
@@ -506,12 +564,17 @@ export function buildShots(C) {
     if (anchor) { orient(TI, anchor.clone().sub(pos), vel); TI.pose(POSE.swing(t)); }
     else if (t < 112.3) { orient(TI, V(0, 1, 0), V(1, 0, 0)); TI.root.rotateX(-flipK * Math.PI * 2); TI.pose(blend(POSE.flip(t), POSE.swing(t), Math.abs(flipK - .5) * 2 > .8 ? 1 : 0)); }
     else { orient(TI, V(0, 1, 0).lerp(vel.clone().normalize(), .3), V(.2, 0, 1)); TI.pose(t < 116.3 ? POSE.flip(t) : POSE.heroLand()); }
-    face(TI, 'timur', t, { squint: .9 });
-    if (anchor) props.webs.add(handW(TI, 'R'), anchor, { w: .05, k: swing2 ? E.outCubic(P(t, 112.3, .25)) : 1, splatSize: 1.2, splatNormal: V(0, 0, swing2 ? 1 : 1) });
+    face(TI, 'timur', t, { squint: .9, energy: 1.2 });
+    // вытягивание в начале сальто, пружинка при приземлении
+    squash(TI, .13 * pulse(t, 111.35, 111.85, .06, .3) + springAt(t, 116.6, -.26, 15, 7));
+    if (anchor) props.webs.add(handW(TI, 'R'), anchor, { w: .05, k: swing2 ? E.outCubic(P(t, 112.3, .25)) : 1, splatSize: 1.2, splatNormal: V(0, 0, 1),
+      wob: .7, wobT: swing2 ? t - 112.55 : t - 107.4 });
     const sh = shk(t, .08, 6);
-    if (t < 111.4) {            // погоня за героем
-      const k = P(t, 108.2, 3.2);
-      look(addv(pos.clone().add(V(lerp(-10, -7, k), lerp(5, 2, k), lerp(5, 8, k))).toArray(), sh), pos.clone().add(V(4, 1, 0)).toArray(), 55, -.08);
+    if (t < 111.4) {            // камера «на нити»: летит прямо за героем, чуть сбоку, крен в дуге
+      const vn = vel.clone().normalize(), side = V(0, 1, 0).cross(vn).normalize();
+      const k = E.inOutSine(P(t, 108.2, 3.2));
+      const cp = pos.clone().addScaledVector(vn, -lerp(4.6, 3.2, k)).addScaledVector(side, lerp(1.8, 1.2, k)).add(V(0, lerp(1.6, .9, k), 0));
+      look(addv(cp.toArray(), sh), pos.clone().addScaledVector(vn, 5).add(V(0, .6, 0)).toArray(), lerp(62, 56, k), -vel.y * .012 - .06);
     } else if (t < 114.4) {     // фронтально, вдоль улицы: сальто на фоне неба
       look(addv([340, lerp(55, 44, P(t, 111.4, 3)), -399], sh), pos.toArray(), lerp(34, 46, P(t, 111.4, 3)));
     } else {                    // облёт и приземление
@@ -529,6 +592,7 @@ export function buildShots(C) {
     TI.setSuit(true);
     place(TI, S, [305.5, 74.1, -387], Math.PI / 2 + .1);
     TI.pose(seq(t - 117.2, [[0, POSE.heroLand()], [1.4, tt => ({ ...POSE.stand(tt), head: [.1, 0, 0] })]], 1.2));
+    squash(TI, springAt(t, 116.6, -.26, 15, 7));
     face(TI, 'timur', t, { squint: 1 });
     bridgeProps(t); busState(t, busTilt(t), busSlide(t));
     place(KR, S, [446, 0, -399], -Math.PI / 2); KR.pose(POSE.roar(t)); face(KR, 'kronov', t);
@@ -538,17 +602,27 @@ export function buildShots(C) {
   });
 
   /* ===== СЦЕНА 5. Мост ===== */
-  const bridgeBase = t => { bridgeProps(t); busState(t, busTilt(t), busSlide(t)); env({ key: 2.0, rim: 2.2, rimPos: [520, 40, -460] }); C.camFill = [6, 0xffd0a0]; };
+  const bridgeBase = t => { bridgeProps(t); busState(t, busTilt(t), busSlide(t)); env({ key: 2.0, rim: 2.2, rimPos: [520, 40, -460] }); C.camFill = [6, 0xffd0a0];
+    if (t >= 141 && t < 175) { const p = TIp(t); rimOn([p[0], p[1] + 1.2, p[2]], 0xa8f0ff, 3.0); } };
   shot(123, 129, (lt, t) => {
     bridgeBase(t);
-    place(KR, S, [446 - (t - 123) * .6, 0, -399], -Math.PI / 2 + Math.sin(t) * .3);
-    KR.pose(seq(t - 123, [[0, tt => POSE.heavyWalk(tt)], [2.5, tt => POSE.punch(tt, 'R')], [3.6, tt => POSE.roar(tt)]]));
+    // Кронов подходит к брошенной машине, бьёт кулаком и рычит в сторону города
+    const kp = kf(t, [[123, [443.5, 0, -397]], [125.2, [446, 0, -399.6], E.inOutSine]]);
+    const kd = Math.hypot(kp[0] - 443.5, kp[2] + 397);
+    place(KR, S, kp, t < 126.6 ? 2.9 : lerp(2.9, -Math.PI / 2, E.outBack(P(t, 126.6, .6))));
+    KR.pose(seq(t - 123, [[0, () => POSE.heavyWalk(gait(kd, .95, .7))], [2.2, POSE.stand(t)], [2.5, tt => POSE.punch(tt, 'R')], [3.6, tt => POSE.roar(tt)]], .25));
     face(KR, 'kronov', t);
-    if (t > 125.6) props.sparks.burst(V(468, 1.5, -394), t - 125.7, { speed: 7, life: 1 });
-    const k = E.inOutSine(lt / 6);
-    look(addv([lerp(418, 426, k), lerp(14, 10, k), lerp(-362, -370, k)], shk(t, .1, 2)), [450, lerp(2, 1, k), -395], 44);
+    if (t > 125.6) props.sparks.burst(V(447.2, 1.3, -403.4), t - 125.7, { speed: 7, life: 1 });
+    if (t < 125.4) {          // общий план
+      const k = E.inOutSine(P(t, 123, 2.4));
+      look(addv([lerp(418, 424, k), lerp(14, 11, k), lerp(-362, -368, k)], shk(t, .1, 2)), [450, 1.6, -396], 44);
+    } else {                  // средний план снизу: удар крупно
+      const k = E.inOutSine(P(t, 125.4, 3.6));
+      look(addv([lerp(440.2, 441.2, k), lerp(1.2, 1.5, k), lerp(-401.2, -400.4, k)], shk(t, .03, 3)), [446.6, lerp(2.4, 2.9, k), -401.8], lerp(46, 40, k));
+      impact(t, 125.7, { zoom: .14, shake: .25 });
+    }
     fadeIn(lt, .3);
-    post(o => o.comic('БАМ!', 1180, 520, t - 125.7, { size: .6, color: '#ff8a3d', dur: .9 }));
+    post(o => o.comic('БАМ!', 1240, 420, t - 125.7, { size: .7, color: '#ff8a3d', dur: .9 }));
     return S;
   });
   shot(129, 133, (lt, t) => {
@@ -590,13 +664,18 @@ export function buildShots(C) {
     const tp = TIp(t);
     place(TI, S, tp, Math.PI / 2);
     TI.pose(seq(t - 141.3, [[-1, POSE.flip(t)], [0, POSE.heroLand()], [2.4, tt => ({ ...POSE.stand(tt), spine: [.1, 0, 0], armL: [-.3, 0, .5], armR: [-.3, 0, .5], foreL: [-1.0, 0, 0], foreR: [-1.0, 0, 0], legL: [-.2, 0, .2], legR: [.1, 0, .2], hy: -.1 })]], .15));
-    face(TI, 'timur', t, { squint: .7 });
+    face(TI, 'timur', t, { squint: .7, energy: .6 });
+    squash(TI, springAt(t, 141.3, -.28, 15, 7));                       // отдача приземления
     const kp = KRp(t); place(KR, S, kp, -Math.PI / 2);
-    KR.pose(t < 141.6 ? POSE.roar(t) : POSE.heavyWalk(t - 141.6, .45)); face(KR, 'kronov', t);
+    // идёт, останавливается и грозит кулаком на «…с кем связался!»
+    KR.pose(seq(t - 141, [[0, tt => POSE.roar(tt)], [.6, () => POSE.heavyWalk(gait(440 - kp[0], .95, .7))], [2.6, tt => POSE.stand(tt)], [3.0, tt => POSE.fistShake(tt)], [5.2, tt => POSE.stand(tt)]], .3));
+    if (t > 141.6 && t < 143.6) squash(KR, -.035 * Math.abs(Math.cos(gait(440 - kp[0], .95, .7) * .7 * Math.PI * 2)));
+    face(KR, 'kronov', t);
     if (t > 141.3) { props.rings.add(V(425, .2, -398), (t - 141.3) * 7, Math.max(0, 1 - (t - 141.3) * 1.5), null, 0xffffff); props.sparks.burst(V(425, .3, -398), t - 141.3, { speed: 4, life: .6, size: .1 }); }
-    if (t < 142.4) { const k = P(t, 141, 1.4); look(addv([418, 1.0, -392], shk(t, t > 141.3 ? .25 * Math.exp(-(t - 141.3) * 4) : 0, 16)), [lerp(420, 425, k), lerp(9, 1, k), -398], 50); }
+    if (t < 142.4) { const k = E.outCubic(P(t, 141, .38)); look(addv([418, 1.0, -392], shk(t, t > 141.3 ? .25 * Math.exp(-(t - 141.3) * 4) : 0, 16)), [lerp(421, 425, k), lerp(8, 1.2, k), -398], 50); }
     else { const k = E.inOutSine(P(t, 142.4, 4.6)); look(addv([lerp(419.5, 420.2, k), .7, lerp(-399.8, -401.2, k)], shk(t, .02, 2)), [kp[0], lerp(2.6, 3.0, k), kp[2]], lerp(44, 36, k), .03); }
     post(o => o.comic('ТУДУМ!', 520, 300, t - 141.3, { size: .55, color: '#ffffff', dur: .9 }));
+    impact(t, 141.3, { zoom: .12, shake: .2 });
     return S;
   });
   // «Курьерская доставка! Распишитесь!»
@@ -608,11 +687,16 @@ export function buildShots(C) {
     face(TI, 'timur', t, { squint: .8 });
     const kp = KRp(t); place(KR, S, kp, -Math.PI / 2);
     const hit = t - 148.4;
-    KR.pose(hit < 0 ? POSE.heavyWalk(t, .45) : seq(hit, [[0, { ...POSE.stand(t), spine: [-.3, 0, 0], head: [-.5, 0, 0], armL: [-1.8, 0, .6], foreL: [-1.6, 0, 0], armR: [-1.6, 0, .6], foreR: [-1.8, 0, 0] }], [1.4, tt => POSE.roar(tt)]], .3));
+    KR.pose(hit < 0 ? POSE.stand(t) : seq(hit, [[0, { ...POSE.stand(t), spine: [-.3, 0, 0], head: [-.5, 0, 0], armL: [-1.8, 0, .6], foreL: [-1.6, 0, 0], armR: [-1.6, 0, .6], foreR: [-1.8, 0, 0] }], [1.4, tt => POSE.roar(tt)]], .3));
     face(KR, 'kronov', t, { dim: hit > 0 && hit < 1.5 ? .3 : 1 });
-    if (hit > -.2) { const hw = handW(TI, 'R'); const vis = headW(KR).add(V(-.25, -.1, 0)); props.webs.add(hw, vis, { k: E.outCubic(P(t, 148.3, .2)), w: .04, splatSize: .35, splatNormal: V(-1, 0, 0) }); }
+    if (hit > -.2) { const hw = handW(TI, 'R'); const vis = headW(KR).add(V(-.25, -.1, 0)); props.webs.add(hw, vis, { k: E.outCubic(P(t, 148.3, .2)), w: .04, splatSize: .35, splatNormal: V(-1, 0, 0), wob: .3, wobT: t - 148.5 }); }
+    squash(KR, springAt(t, 148.5, -.08, 12, 6));
     if (t < 149.6) look([419.8, 1.8, -394.5], [433, 2.6, -399], 40);
     else look(addv([429, 2.2, -395.2], shk(t, .05, 8)), [434, 3, -399], 34);
+    impact(t, 148.47, { zoom: .1, shake: .08, color: '#c8fbff' });
+    // комикс-панель: визор, залепленный паутиной
+    const kh = headW(KR);
+    panel(0, pulse(t, 148.45, 149.55, .1, .15) * 1.01, [90, 90, 560, 330], S, kh.clone().add(V(-1.9, .25, -.9)).toArray(), kh.clone().add(V(0, -.1, 0)).toArray(), 30);
     post(o => o.comic('ШЛЁП!', 1300, 380, t - 148.5, { size: .6, color: '#7ff8ff', dur: .9 }));
     return S;
   });
@@ -626,13 +710,15 @@ export function buildShots(C) {
     const fk = P(t, 152.4, .9);
     TI.pose(seq(t - 151, [[0, tt => POSE.stand(tt)], [.4, POSE.dodge()], [1.4, POSE.flip(t)], [2.4, { ...POSE.punch(.2, 'R'), legR: [-1.6, 0, .1], shinR: [.1, 0, 0] }], [3.0, tt => POSE.stand(tt)]], .15));
     if (t > 152.4 && t < 153.3) TI.root.rotateX(-fk * Math.PI * 2);
-    face(TI, 'timur', t, { squint: .7 });
+    squash(TI, .14 * pulse(t, 152.35, 152.75, .05, .25) + springAt(t, 153.35, -.22, 15, 7));
+    face(TI, 'timur', t, { squint: .7, energy: 1 });
     const sense = pulse(t, 151.3, 152.5, .1, .3);
     U.sense.value = sense * .8;
     U.rainTime.value = 151.3 + (t - 151.3) * lerp(1, .1, sense);
     const kp = KRp(t); place(KR, S, kp, t < 153.8 ? -Math.PI / 2 : t < 154.4 ? Math.PI / 2 : Math.PI / 2 - .4);
     KR.pose(seq(t - 151, [[0, tt => POSE.punch(tt * (sense > .5 ? .3 : 1), 'R')], [2.6, tt => POSE.stand(tt)], [2.8, { ...POSE.stand(t), spine: [.5, 0, 0], armL: [-.5, 0, .9], armR: [-.5, 0, .9] }], [3.8, tt => POSE.roar(tt)]], .2));
     face(KR, 'kronov', t);
+    squash(KR, springAt(t, 153.65, -.1, 12, 6));
     if (t > 151.3 && t < 152.5) props.rings.add(headW(TI), .3 + (t - 151.3) * 1.5, (1 - (t - 151.3)) * .8, cam);
     if (t > 154.5) props.sparks.burst(V(449, 2, -395), t - 154.5, { speed: 8, life: 1.1 });
     let sh = shk(t, .04, 3);
@@ -642,6 +728,7 @@ export function buildShots(C) {
     else look(addv([438, 5, -386], sh), [452, 1, -391], 44);
     post(o => o.comic('БАМ!', 1250, 430, t - 153.65, { size: .7, color: '#ffe23d', dur: .9 }));
     post(o => o.comic('ХРЯСЬ!', 640, 380, t - 154.6, { size: .65, color: '#ff8a3d', rot: .12, dur: 1.0 }));
+    impact(t, 153.65, { zoom: .14, shake: .2 }); impact(t, 154.6, { zoom: .1, shake: .3 });
     return S;
   }, { flashK: .7 });
   // держит автобус
@@ -654,8 +741,8 @@ export function buildShots(C) {
     const rear = busRear(t);
     const hl = handW(TI, 'L'), hr = handW(TI, 'R');
     const k = E.outCubic(P(t, 157.1, .25));
-    props.webs.add(hr, rear.clone().add(V(.8, .6, 0)), { k, w: .05 + .01 * Math.sin(t * 40) });
-    props.webs.add(hl, rear.clone().add(V(-.8, .6, 0)), { k, w: .05 + .01 * Math.sin(t * 43) });
+    props.webs.add(hr, rear.clone().add(V(.8, .6, 0)), { k, w: .05 + .01 * Math.sin(t * 40), wob: .6, wobT: t - 157.35 });
+    props.webs.add(hl, rear.clone().add(V(-.8, .6, 0)), { k, w: .05 + .01 * Math.sin(t * 43), wob: .6, wobT: t - 157.4 });
     if (t > 160.4) {      // привязывает к фонарю
       const post0 = V(460, 6.5, -398.9 - 11.5 + 0);
       props.webs.add(rear.clone().add(V(.8, .6, 0)), V(460, 3, -411), { k: E.outCubic(P(t, 160.5, .3)), w: .05 });
@@ -664,7 +751,10 @@ export function buildShots(C) {
     const kp = KRp(t); place(KR, S, kp, Math.PI / 2 - .4); KR.pose(seq(t - 157, [[0, POSE.collapse()], [3.6, tt => POSE.roar(tt)]], 1.2)); face(KR, 'kronov', t, { dim: t < 160 ? .4 : 1 });
     const sh = shk(t, .03 + .04 * pulse(t, 157, 160, .2, .5), 14);
     if (t < 159.2) look(addv([446.5, .9, -405.5], sh), [452, 1.6, -398], 44);
-    else if (t < 161.2) { const hw = hr; look(addv(hw.clone().add(V(.9, .25, -.6)).toArray(), sh), hw.clone().add(V(0, .1, 1.5)).toArray(), 36); }
+    else if (t < 160.4) {     // крупно: лицо в маске, на пределе сил
+      const hp = headW(TI); look(addv(hp.clone().add(V(.25, .1, 1.35)).toArray(), shk(t, .02, 18)), hp.clone().add(V(0, -.05, 0)).toArray(), 30);
+    }
+    else if (t < 161.6) { const hw = hr; look(addv(hw.clone().add(V(.9, .25, -.6)).toArray(), sh), hw.clone().add(V(0, .1, 1.5)).toArray(), 36); }
     else look(addv([445.5, 3.5, -409], sh), [452, 1.4, -400], 48);
     return S;
   });
@@ -675,7 +765,8 @@ export function buildShots(C) {
     const tp = TIp(t);
     place(TI, S, tp, t < 164 ? 0 : -Math.PI / 2);
     TI.pose(seq(t - 163, [[0, tt => POSE.pull(tt)], [1.0, POSE.flip(t)], [1.6, POSE.shootFwd('R')], [2.8, POSE.shootFwd('L')], [3.6, tt => ({ ...POSE.stand(tt), armR: [-2.9, 0, .3], foreR: [-.2, 0, 0], head: [-.4, 0, 0] })], [5.8, POSE.crouch()]], .2));
-    face(TI, 'timur', t, { squint: t > 168 ? 1.2 : .8 });
+    face(TI, 'timur', t, { squint: t > 168 ? 1.2 : .8, energy: .8 });
+    squash(TI, .13 * pulse(t, 163.95, 164.4, .05, .25) + springAt(t, 165.8, -.2, 15, 7));
     const rear = busRear(t);
     props.webs.add(rear.clone().add(V(.8, .6, 0)), V(460, 3, -411), { w: .05 });
     props.webs.add(rear.clone().add(V(-.8, .6, 0)), V(448, 3, -411), { w: .05 });
@@ -705,6 +796,8 @@ export function buildShots(C) {
     else look(addv([418, 6, -368], sh), [393, lerp(30, 8, E.outCubic(P(t, 169, 1.2))), -389], 54);
     if (zap > 0 && zap < .5) post(o => o.fill('#e8f4ff', (1 - zap / .5) * .9));
     post(o => o.comic('БА-БАХ!', 960, 360, t - 169.1, { size: 1.0, color: '#bff6ff', rot: -.05, dur: 1.4 }));
+    impact(t, 165.6, { zoom: .12, shake: .25 }); impact(t, 169.0, { zoom: .18, shake: .2, color: '#e8f4ff' });
+    squash(KR, springAt(t, 165.6, -.12, 12, 6));
     return S;
   }, { flashK: 1.2 });
   // вытягивает автобус
@@ -723,6 +816,8 @@ export function buildShots(C) {
     const k = E.inOutSine(lt / 4);
     look(addv([lerp(470, 474, k), lerp(14, 9, k), lerp(-372, -366, k)], shk(t, t > 174 ? .2 * Math.exp(-(t - 174) * 4) : .02, 14)), [454, 1.5, -394], 44);
     post(o => o.comic('БУМ!', 1320, 600, t - 174.05, { size: .55, color: '#ffffff', dur: .8 }));
+    impact(t, 174.05, { zoom: .08, shake: .2 });
+    squash(TI, springAt(t, 174.05, -.1, 12, 6));
     return S;
   });
 
@@ -733,7 +828,7 @@ export function buildShots(C) {
     // дед выходит из автобуса
     const dp = kf(t, [[175.4, [456.6, .5, -390.4]], [176.6, [456.6, 0, -393.6], E.inOutSine], [182, [456.4, 0, -394.2]]]);
     place(DE, S, dp, Math.PI + .25);
-    DE.pose(t < 176.6 ? POSE.walk(t) : blend(POSE.stand(t), POSE.lookUp(t), E.inOutSine(P(t, 176.6, .6))));
+    DE.pose(t < 176.6 ? POSE.walk(gait(Math.hypot(dp[0] - 456.6, dp[2] + 390.4), .55, .9)) : blend(POSE.stand(t), POSE.lookUp(t), E.inOutSine(P(t, 176.6, .6))));
     face(DE, 'ded', t, { brow: .45, look: [0, .8], smile: t > 181 ? .9 : 0, seed: 2 });
     // Тимур висит вниз головой на нити
     TI.setSuit(true);
@@ -744,8 +839,13 @@ export function buildShots(C) {
     TI.root.position.y = hang.y + TI.d.hipY + .45;
     TI.pose(t < 181.4 ? { ...POSE.hangUpside(t), armR: t > 179.6 && t < 181.3 ? [-.6, .2, 1.4] : [-.4, -.4, .3], foreR: t > 179.6 && t < 181.3 ? [-1.2, 0, 0] : [-1.8, 0, 0] } : POSE.shootUp());
     face(TI, 'timur', t, { squint: .9 });
-    props.webs.add(V(454.6, hang.y + 2.4, -396.2), V(454.6, 70, -396.2), { w: .035, splat: false });
-    if (t < 179.4) { const k = E.inOutSine(P(t, 175, 4.4)); look([lerp(459.5, 458.8, k), 1.3, lerp(-399.5, -398.5, k)], [456, lerp(1.6, 4.5, k), -395], 46); }
+    squash(TI, .22 * pulse(t, 181.45, 182.1, .06, .3));                 // рывок вверх — вытягивается
+    props.webs.add(V(454.6, hang.y + 2.4, -396.2), V(454.6, 70, -396.2), { w: .035, splat: false, wob: .25, wobT: t - 181.45 });
+    if (t < 176.9) { const k = E.inOutSine(P(t, 175, 1.9)); look([lerp(459.5, 459, k), 1.3, lerp(-399.5, -399, k)], [456, lerp(1.6, 2.4, k), -394.5], 46); }
+    else if (t < 179.4) {     // крупно: дед смотрит вверх на героя
+      const hp = headW(DE), k = E.inOutSine(P(t, 176.9, 2.5));
+      look(hp.clone().add(V(lerp(1.05, .95, k), lerp(1.0, .9, k), lerp(-1.0, -.85, k))).toArray(), hp.clone().add(V(0, -.08, 0)).toArray(), lerp(32, 28, k));
+    }
     else look([455.4, 4.0, -393.4], [454.6, 6.4, -396.2], 38);
     if (t > 181.4) post(o => o.comic('ВЖУХ!', 980, 260, t - 181.45, { size: .55, color: '#7ff8ff', dur: .8 }));
     fadeOut(lt, 8, .5);
@@ -757,6 +857,8 @@ export function buildShots(C) {
     // дед за столом, лицом к двери
     place(DE, K, [-.55, 0, -1.45], 0);
     const dp = POSE.sitChair(t);
+    const point = pulse(t, 184.3, 185.9, .25, .3);                     // «Опять опоздал.» — грозит пальцем
+    if (point > 0) { dp.armR = [lerp(-.6, -1.25, point), .25 * point, .15]; dp.foreR = [lerp(-.9, -.35, point), 0, 0]; dp.handR = [.18 * Math.sin(t * 9) * point, 0, 0]; dp.gripR = .9; }
     if (t > 189.4 && t < 191.0) { dp.armR = [-1.1, -.2, .1]; dp.foreR = [-.4, 0, 0]; }
     DE.pose(dp);
     const deLook = t < 186.8 ? [.9, .1] : t > 192.4 ? [.4, -.6] : [.5, 0];
@@ -764,7 +866,7 @@ export function buildShots(C) {
     // Тимур входит
     const tp = kf(t, [[183, [3.0, 0, .6]], [185.6, [.85, 0, .25], E.inOutSine], [186.6, [.55, 0, .25]]]);
     place(TI, K, tp, t < 185.6 ? -Math.PI / 2 - .3 : Math.PI);
-    TI.pose(t < 185.6 ? POSE.walk(t) : seq(t - 185.6, [[0, tt => POSE.stand(tt)], [1.0, tt => POSE.sitChair(tt)]], .7));
+    TI.pose(t < 185.6 ? POSE.walk(gait(Math.hypot(tp[0] - 3, tp[2] - .6), .55, .9)) : seq(t - 185.6, [[0, tt => POSE.stand(tt)], [1.0, tt => POSE.sitChair(tt)]], .7));
     if (t > 186.6) { TI.root.position.set(.55, 0, .25 - E.inOutSine(P(t, 186.6, .7)) * .0); }
     face(TI, 'timur', t, { brow: .3, smile: t > 186 && t < 189 ? .7 : .3, look: [-.5, 0] });
     const g = .2 + .2 * Math.sin(t * 3);
@@ -774,7 +876,10 @@ export function buildShots(C) {
     if (t < 186.2) look([1.6, 1.5, 1.6], [0, 1.0, -1.0], 44);
     else if (t < 189.3) look([-.25, 1.4, -.95], [.55, 1.15, .3], 36);
     else if (t < 192.4) look([.3, 1.3, -.45], [-.55, 1.2, -1.45], 34);
-    else { const k = E.inOutSine(P(t, 192.4, 2.6)); look([lerp(1.8, 2.3, k), lerp(1.7, 1.9, k), lerp(1.5, 2.1, k)], [0, 1.0, -.8], 40); }
+    else if (t < 193.8) {   // крупно: дед улыбается — всё понял
+      const hp = headW(DE); look(hp.clone().add(V(.25, .02, .95)).toArray(), hp.clone().add(V(0, -.06, 0)).toArray(), 30);
+    }
+    else { const k = E.inOutSine(P(t, 193.8, 1.2)); look([lerp(1.8, 2.3, k), lerp(1.7, 1.9, k), lerp(1.5, 2.1, k)], [0, 1.0, -.8], 40); }
     fadeIn(lt, .5); fadeOut(lt, 12, .5);
     return K;
   }, { noFlash: false });
@@ -821,6 +926,7 @@ export function buildShots(C) {
   /* сброс общих объектов перед каждым кадром */
   C.frameReset = t => {
     box.visible = false; carab.visible = false; hideBridgeProps();
+    smoke.forEach(sp => sp.visible = false); lab.lights[2].position.set(0, 6, 9); lab.lights[2].color.set(0xff4020);
     props.spider.scale.setScalar(1);
     KR.mats.coreM.color.setRGB(3, 1.9, .75);
     updateTraffic(city, t);
