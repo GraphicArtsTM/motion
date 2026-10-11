@@ -177,7 +177,7 @@ export function buildShots(C) {
   const busRear = t => { props.busPivot.updateMatrixWorld(true); return props.bus.localToWorld(V(0, 1.6, -6)); };
   const wreck = [];                         // брошенные машины на мосту
   for (let i = 0; i < 3; i++) { const c = makeCar([5, 2, 7][i]); S.add(c); c.visible = false; wreck.push(c);
-    c.children.forEach(m => { if (m.material?.blending === THREE.AdditiveBlending) m.visible = false; }); }   // брошенные машины — фары погашены
+    c.children.forEach(m => { if (m.userData.lamp) m.visible = false; }); }   // брошенные машины — фары и стопы погашены
   const fire = new THREE.PointLight(0xff7a2a, 0, 40, 1.4); S.add(fire);
   const flames = [];
   for (let i = 0; i < 10; i++) { const f = mesh(new THREE.SphereGeometry(.6, 10, 8), glow(i % 2 ? 0xff9a2a : 0xffd04a, 2.6, { transparent: true, opacity: .8 }), { outline: false, parent: S }); f.visible = false; flames.push(f); }
@@ -206,10 +206,43 @@ export function buildShots(C) {
   const swingVel = t => swingAt(t + .05).sub(swingAt(t - .05)).multiplyScalar(10);
 
   /* ---- бой на мосту: позиции ---- */
-  const TIp = t => kf(t, [[140.3, [310, 74, -386]], [141.3, [425, 0, -398], E.inQuad], [151.3, [425, 0, -398]], [151.9, [423, 0, -401], E.outCubic], [152.5, [426, 2.8, -400]],
-    [153.3, [446, 0, -399], E.inOutQuad], [156.8, [448, 0, -401]], [157.2, [452, 0, -403], E.outCubic], [163.8, [452, 0, -403]], [164.4, [446, 6, -404], E.outQuad], [165.2, [430, 4, -404]], [165.8, [418, 0, -404], E.inQuad], [175, [418, 0, -404]]]);
-  const KRp = t => kf(t, [[141, [440, 0, -399]], [143.6, [434, 0, -399], E.inOutSine], [151, [431, 0, -399]], [153.8, [431, 0, -399]], [154.4, [444, 0, -397], E.outCubic], [163, [444, 0, -397]],
-    [164.4, [448, 0, -402], E.inQuad], [164.6, [448, 0, -402]], [165.6, [393.6, 1.5, -389.8], E.inOutQuad], [175, [393.6, 1.5, -389.8]]]);
+  const TIp = t => kf(t, [[140.3, [310, 74, -386]], [141.3, [425, 0, -398], E.inQuad], [151.3, [425, 0, -398.4]], [151.9, [424.5, 0, -398.6], E.outCubic], [153.1, [424.6, 0, -398.6]],
+    [153.65, [424.9, .6, -398.7], E.outQuad],                     // прыжок: удар двумя ногами в ядро
+    [153.98, [423.2, 2.3, -398.6], E.outQuad], [154.35, [421.8, 0, -398.6], E.inQuad],   // сальто назад, приземление
+    [155.5, [421.8, 0, -398.6]], [156.5, [449.5, 1.4, -402.2], E.inQuad], [157.2, [452, 0, -403], E.outCubic],   // рывок на нити к автобусу
+    [163.8, [452, 0, -403]], [164.4, [446, 6, -404], E.outQuad], [165.2, [430, 4, -404]], [165.8, [418, 0, -404], E.inQuad], [175, [418, 0, -404]]]);
+  const KRp = t => kf(t, [[141, [440, 0, -399]], [143.6, [434, 0, -399], E.inOutSine], [151, [431, 0, -399]],
+    [151.3, [429.4, 0, -398.9], E.inOutSine], [152.05, [426.1, 0, -398.8], E.inOutSine], [153.65, [426.1, 0, -398.8]],   // замах и выпад
+    [154.6, [452.6, 0, -396.4], E.outQuad],                        // отлетает от удара и врезается в автобус
+    [155.3, [451.2, 0, -397.4], E.outCubic], [163.5, [451.2, 0, -397.4]],
+    [164.4, [449.6, 0, -400.2], E.inQuad], [164.6, [449.6, 0, -400.2]], [165.6, [393.6, .1, -389.8], E.inOutQuad], [175, [393.6, .1, -389.8]]]);
+  // куда смотрит Кронов: плавно, без рывков (иначе motion blur рисует «лесенку»)
+  const KRyaw = t => kf(t, [[141, -Math.PI / 2], [153.65, -Math.PI / 2], [154.6, -Math.PI / 2 - .3], [163.0, -Math.PI / 2 - .3], [163.5, -3.28, E.inOutSine], [164.6, -3.28], [165.0, -Math.PI]]);
+  /* позы драки */
+  const FP = {
+    guard: tt => ({ ...POSE.stand(tt), spine: [.18, 0, 0], head: [-.12, 0, 0], armL: [-1.05, -.2, .45], foreL: [-1.85, 0, 0], armR: [-.85, -.2, .4], foreR: [-1.95, 0, 0], gripL: .9, gripR: .9,
+      legL: [-.35, 0, .2], legR: [.3, 0, .2], shinL: [.4, 0, 0], shinR: [.25, 0, 0], hy: -.13 + .01 * Math.sin(tt * 9) }),
+    leanBack: { hy: -.42, spine: [-.85, 0, .05], chest: [-.25, 0, 0], head: [.55, 0, 0], armL: [.7, 0, 1.25], armR: [.6, 0, 1.35], foreL: [-.3, 0, 0], foreR: [-.3, 0, 0],
+      legL: [-.75, 0, .25], legR: [-.35, 0, .2], shinL: [1.5, 0, 0], shinR: [1.1, 0, 0], footL: [-.3, 0, 0], gripL: .2, gripR: .2 },
+    load: { ...POSE.crouch(), spine: [.35, 0, 0], head: [-.3, 0, 0], armL: [.6, 0, .5], armR: [.6, 0, .5], foreL: [-.4, 0, 0], foreR: [-.4, 0, 0] },
+    dropKick: { spine: [-.55, 0, 0], head: [.45, 0, 0], armL: [.9, 0, .8], armR: [.9, 0, .8], foreL: [-.5, 0, 0], foreR: [-.5, 0, 0],
+      legL: [-1.55, 0, .08], legR: [-1.45, 0, .08], shinL: [.05, 0, 0], shinR: [.15, 0, 0], footL: [.5, 0, 0], footR: [.5, 0, 0], hy: -.05 },
+    tuck: POSE.flip(0),
+    zip: { ...POSE.swing(0), armR: [-1.75, 0, .05], foreR: [0, 0, 0], handR: [-.6, 0, 0], spiderR: 1, gripR: .9, spine: [.2, 0, 0] },
+  };
+  const KP = {
+    windUp: { grip: 1, spine: [.1, .55, 0], chest: [0, .35, 0], head: [-.1, -.4, 0], armR: [-.55, .35, 1.25], foreR: [-2.0, 0, 0], armL: [-1.0, 0, .45], foreL: [-1.3, 0, 0],
+      legL: [-.45, 0, .18], legR: [.35, 0, .18], shinL: [.35, 0, 0], shinR: [.15, 0, 0], hy: -.12 },
+    swing: k => ({ grip: 1, spine: [lerp(.1, .5, k), lerp(.55, -.45, k), 0], chest: [0, lerp(.35, -.25, k), 0], head: [lerp(-.1, .3, k), lerp(-.4, .35, k), 0],
+      armR: [lerp(-.55, -1.25, k), lerp(.35, -.2, k), lerp(1.25, .1, k)], foreR: [lerp(-2.0, -.1, k), 0, 0], armL: [lerp(-1.0, .4, k), 0, lerp(.45, .7, k)], foreL: [-1.0, 0, 0],
+      legL: [lerp(-.45, -.8, k), 0, .18], legR: [lerp(.35, .55, k), 0, .18], shinL: [lerp(.35, .7, k), 0, 0], shinR: [.15, 0, 0], hy: lerp(-.12, -.22, k) }),
+    hitBack: tt => ({ grip: .2, spine: [-.55, .15 * Math.sin(tt * 9), 0], chest: [-.2, 0, 0], head: [-.55, 0, 0], armL: [-1.7 + .3 * Math.sin(tt * 13), 0, .95], armR: [-1.5 + .3 * Math.sin(tt * 11), 0, 1.05],
+      foreL: [-.3, 0, 0], foreR: [-.4, 0, 0], legL: [-.75, 0, .25], legR: [-.25, 0, .25], shinL: [.35, 0, 0], shinR: [.2, 0, 0], footL: [.5, 0, 0], footR: [.5, 0, 0], hy: -.1 }),
+    slump: tt => ({ grip: .1, hy: -.86, spine: [.35, 0, .15], chest: [.1, 0, 0], head: [.5 + .03 * Math.sin(tt * 2), .25, .2], armL: [.1, 0, .6], armR: [.2, 0, .45], foreL: [-.35, 0, 0], foreR: [-.2, 0, 0],
+      legL: [-1.45, 0, .3], legR: [-1.25, 0, .4], shinL: [.3, 0, 0], shinR: [.55, 0, 0], footL: [-.4, 0, 0], footR: [-.3, 0, 0] }),
+    grabVisor: { ...POSE.stand(0), spine: [-.05, .2, 0], head: [-.15, .15, 0], armR: [-2.35, -.2, .3], foreR: [-1.95, 0, 0], gripR: 1, armL: [-.6, 0, .5], foreL: [-1.0, 0, 0] },
+    rip: { ...POSE.stand(0), spine: [.1, -.35, 0], head: [.1, -.3, 0], armR: [-1.2, .2, 1.55], foreR: [-.4, 0, 0], gripR: 1, armL: [-.4, 0, .6], foreL: [-1.0, 0, 0] },
+  };
 
   /* ======================= ШОТЫ ======================= */
   const shots = [];
@@ -367,9 +400,9 @@ export function buildShots(C) {
     return d;
   };
   const drone = makeDrone(4.5); S.add(drone); drone.visible = false;
-  const CORE_FROM = V(431.4, 2.2, -398.5), CORE_REST = V(437.5, .12, -393.5);
+  const CORE_FROM = V(425.8, 2.2, -398.8), CORE_REST = V(437.5, .12, -393.5);
   const coreAt = t => {
-    if (t < 154.4) { const u = P(t, 153.65, .75); const p = CORE_FROM.clone().lerp(CORE_REST, u); p.y += Math.sin(u * Math.PI) * 2.2 - u * 0; return p; }
+    if (t < 154.6) { const u = P(t, 153.65, .95); const p = CORE_FROM.clone().lerp(CORE_REST, u); p.y += Math.sin(u * Math.PI) * 3.2; return p; }
     if (t < 172.9) return CORE_REST.clone();
     return droneAt(t).add(V(0, .55, -.1));
   };
@@ -377,7 +410,7 @@ export function buildShots(C) {
   const coreFX = t => {
     coreProp.visible = t >= 153.65 && t < 174.3;
     if (coreProp.visible) {
-      coreProp.position.copy(coreAt(t)); coreProp.rotation.set(t < 154.4 ? t * 14 : 0, t < 154.4 ? t * 9 : .4, 0);
+      coreProp.position.copy(coreAt(t)); coreProp.rotation.set(t < 154.6 ? t * 14 : 0, t < 154.6 ? t * 9 : .4, 0);
       coreLight.intensity = 4 + 2 * Math.sin(t * 6);
     }
     drone.visible = t >= 171.9 && t < 174.5;
@@ -779,7 +812,7 @@ export function buildShots(C) {
     TI.setSuit(true);
     const tp = TIp(t);
     place(TI, S, tp, Math.PI / 2);
-    TI.pose(seq(t - 141.3, [[-1, POSE.flip(t)], [0, POSE.heroLand()], [2.4, tt => ({ ...POSE.stand(tt), spine: [.1, 0, 0], armL: [-.3, 0, .5], armR: [-.3, 0, .5], foreL: [-1.0, 0, 0], foreR: [-1.0, 0, 0], legL: [-.2, 0, .2], legR: [.1, 0, .2], hy: -.1 })]], .15));
+    TI.pose(seq(t - 141.3, [[-1, POSE.flip(t)], [0, POSE.heroLand()], [2.4, FP.guard, .4]], .15));
     face(TI, 'timur', t, { squint: .7, energy: .6 });
     squash(TI, springAt(t, 141.3, -.28, 15, 7));                       // отдача приземления
     const kp = KRp(t); place(KR, S, kp, -Math.PI / 2);
@@ -803,12 +836,17 @@ export function buildShots(C) {
     face(TI, 'timur', t, { squint: .8 });
     const kp = KRp(t); place(KR, S, kp, -Math.PI / 2);
     const hit = t - 148.4;
-    KR.pose(hit < 0 ? POSE.stand(t) : seq(hit, [[0, { ...POSE.stand(t), spine: [-.3, 0, 0], head: [-.5, 0, 0], armL: [-1.8, 0, .6], foreL: [-1.6, 0, 0], armR: [-1.6, 0, .6], foreR: [-1.8, 0, 0] }], [1.4, tt => POSE.roar(tt)]], .3));
-    face(KR, 'kronov', t, { dim: hit > 0 && hit < 1.5 ? .3 : 1 });
-    if (hit > -.2) { const hw = handW(TI, 'R'); const vis = headW(KR).add(V(-.25, -.1, 0)); props.webs.add(hw, vis, { k: E.outCubic(P(t, 148.3, .2)), w: .04, splatSize: .35, splatNormal: V(-1, 0, 0), wob: .3, wobT: t - 148.5 }); }
+    // ослеп: машет руками → нащупывает паутину на визоре → срывает её → рёв «Р-раздавлю!»
+    KR.pose(hit < 0 ? POSE.stand(t) : seq(hit, [[0, tt => ({ ...POSE.stand(t), spine: [-.3, .2 * Math.sin(tt * 5), 0], head: [-.5, .3 * Math.sin(tt * 4), 0], armL: [-1.8 + .4 * Math.sin(tt * 9), 0, .6], foreL: [-1.6, 0, 0], armR: [-1.6 + .4 * Math.sin(tt * 8 + 1), 0, .6], foreR: [-1.8, 0, 0] })],
+      [1.3, KP.grabVisor], [1.9, KP.rip, .12], [2.2, tt => POSE.roar(tt), .3]], .3));
+    face(KR, 'kronov', t, { dim: hit > 0 && hit < 2.0 ? .3 : 1 });
+    const vis = headW(KR).add(V(-.25, -.1, 0));
+    if (hit > -.2 && t < 150.3) { const hw = handW(TI, 'R'); props.webs.add(hw, vis, { k: E.outCubic(P(t, 148.3, .2)), w: .04, splatSize: .35, splatNormal: V(-1, 0, 0), wob: .3, wobT: t - 148.5 }); }
+    if (t >= 150.3 && t < 150.75) props.webs.add(vis, handW(KR, 'R'), { w: .05, splat: false, wob: .5, wobT: t - 150.3 });   // сорванный клок паутины в кулаке
+    if (t > 150.3 && t < 151) props.sparks.burst(vis, t - 150.3, { speed: 3, life: .5, size: .06 });
     squash(KR, springAt(t, 148.5, -.08, 12, 6));
     if (t < 149.6) look([419.8, 1.8, -394.5], [433, 2.6, -399], 40);
-    else look(addv([429, 2.2, -395.2], shk(t, .05, 8)), [434, 3, -399], 34);
+    else look(addv([427.6, 2.3, -394.6], shk(t, .05, 8)), [431.2, 2.6, -399], 40);
     impact(t, 148.47, { zoom: .1, shake: .08, color: '#c8fbff' });
     // комикс-панель: визор, залепленный паутиной
     const kh = headW(KR);
@@ -816,36 +854,51 @@ export function buildShots(C) {
     post(o => o.comic('ШЛЁП!', 1300, 380, t - 148.5, { size: .6, color: '#7ff8ff', dur: .9 }));
     return S;
   });
-  // бой
+  // бой: замах → уклон в слоу-мо → удар двумя ногами в ядро → Кронов отлетает в автобус → автобус срывается → Тимур на нити к автобусу
   shot(151, 157, (lt, t) => {
     bridgeBase(t);
     TI.setSuit(true);
-    // слоу-мо уклонения
-    const tp = TIp(t);
-    place(TI, S, tp, Math.PI / 2 + (t > 152.4 && t < 153.4 ? 0 : t > 153.4 ? Math.PI : 0));
-    const fk = P(t, 152.4, .9);
-    TI.pose(seq(t - 151, [[0, tt => POSE.stand(tt)], [.4, POSE.dodge()], [1.4, POSE.flip(t)], [2.4, { ...POSE.punch(.2, 'R'), legR: [-1.6, 0, .1], shinR: [.1, 0, 0] }], [3.0, tt => POSE.stand(tt)]], .15));
-    if (t > 152.4 && t < 153.3) TI.root.rotateX(-fk * Math.PI * 2);
-    squash(TI, .14 * pulse(t, 152.35, 152.75, .05, .25) + springAt(t, 153.35, -.22, 15, 7));
+    const tp = TIp(t), kp = KRp(t);
+    place(TI, S, tp, t < 155.4 ? Math.PI / 2 : lerp(Math.PI / 2, Math.PI / 2 + .16, P(t, 155.4, .3)));
+    TI.pose(seq(t - 151, [[0, FP.guard], [.3, FP.leanBack, .22], [1.45, FP.guard, .3], [1.85, FP.load, .2], [2.15, FP.dropKick, .12], [2.75, FP.tuck, .12], [3.25, POSE.heroLand(), .12],
+      [3.75, tt => ({ ...FP.guard(tt), head: [-.1, .35, 0] }), .35], [4.35, POSE.shootFwd('R'), .12], [4.55, FP.zip, .2], [5.45, POSE.crouch(), .15]]));
+    if (t > 153.68 && t < 154.3) TI.root.rotateX(E.inOutSine(P(t, 153.68, .6)) * Math.PI * 2);   // сальто назад после удара
+    if (t > 155.45 && t < 157) TI.root.rotateX(-1.0 * pulse(t, 155.45, 156.55, .25, .3));            // летит на нити, наклонившись вперёд
+    squash(TI, .14 * pulse(t, 153.12, 153.5, .05, .2) + springAt(t, 154.35, -.24, 15, 7) + .18 * pulse(t, 155.5, 156.5, .1, .3));
     face(TI, 'timur', t, { squint: .7, energy: 1 });
-    const sense = pulse(t, 151.3, 152.5, .1, .3);
+    // паучье чутьё: время почти останавливается, пока кулак идёт мимо
+    const sense = pulse(t, 151.3, 152.45, .1, .3);
     U.sense.value = sense * .8;
     U.rainTime.value = 151.3 + (t - 151.3) * lerp(1, .1, sense);
-    const kp = KRp(t); place(KR, S, kp, t < 153.8 ? -Math.PI / 2 : t < 154.4 ? Math.PI / 2 : Math.PI / 2 - .4);
-    KR.pose(seq(t - 151, [[0, tt => POSE.punch(tt * (sense > .5 ? .3 : 1), 'R')], [2.6, tt => POSE.stand(tt)], [2.8, { ...POSE.stand(t), spine: [.5, 0, 0], armL: [-.5, 0, .9], armR: [-.5, 0, .9] }], [3.8, tt => POSE.roar(tt)]], .2));
-    face(KR, 'kronov', t);
-    squash(KR, springAt(t, 153.65, -.1, 12, 6));
+    place(KR, S, kp, KRyaw(t));
+    const pk = kf(t, [[151.3, 0], [151.5, .2, E.outQuad], [152.25, .8, x => x], [152.5, 1, E.outQuad]]);
+    KR.pose(seq(t - 151, [[0, tt => POSE.roar(tt)], [.12, KP.windUp, .18], [.3, () => KP.swing(pk), .1], [1.5, KP.swing(1)], [2.65, KP.hitBack, .06], [3.6, KP.slump, .35]]));
+    face(KR, 'kronov', t, { dim: t > 153.65 && t < 155 ? .4 : 1 });
+    squash(KR, springAt(t, 153.65, -.12, 12, 6) + springAt(t, 154.6, -.1, 14, 6));
+    // эффекты
     if (t > 151.3 && t < 152.5) props.rings.add(headW(TI), .3 + (t - 151.3) * 1.5, (1 - (t - 151.3)) * .8, cam);
-    if (t > 154.5) props.sparks.burst(V(449, 2, -395), t - 154.5, { speed: 8, life: 1.1 });
-    let sh = shk(t, .04, 3);
-    if (t > 153.6) sh = addv(sh, shk(t, .25 * Math.exp(-(t - 153.6) * 4), 18));
-    if (t < 152.4) look(addv([427, 1.8, -389.5], sh), [427.5, 1.9, -399.5], 44);
-    else if (t < 154.3) look(addv([lerp(428, 438, P(t, 152.4, 1.8)), 3.5, -389], sh), [tp[0], tp[1] + 1.2, tp[2]], 46, -.05);
-    else look(addv([438, 5, -386], sh), [452, 1, -391], 44);
-    post(o => o.comic('БАМ!', 1250, 430, t - 153.65, { size: .7, color: '#ffe23d', dur: .9 }));
-    post(o => o.comic('ХРЯСЬ!', 640, 380, t - 154.6, { size: .65, color: '#ff8a3d', rot: .12, dur: 1.0 }));
-    impact(t, 153.65, { zoom: .14, shake: .2 }); impact(t, 154.6, { zoom: .1, shake: .3 });
-    post(o => o.comic('ДЗЫНЬ!', 980, 260, t - 153.75, { size: .45, color: '#7ff8ff', rot: .1, dur: .7 }));
+    const kick = V(425.75, 2.1, -398.75);
+    if (t > 153.65 && t < 154.3) { for (let i = 0; i < 2; i++) props.rings.add(kick, .4 + ((t - 153.65) * 3 + i * .4) % 1 * 3.2, Math.max(0, .9 - (t - 153.65) * 1.4), cam, 0xbff6ff); props.sparks.burst(kick, t - 153.65, { speed: 9, life: .8 }); }
+    if (t > 153.75 && t < 154.6) {             // ступни Кронова скребут по асфальту
+      for (const sd of ['L', 'R']) { KR.root.updateMatrixWorld(true); props.sparks2.burst(KR.J['foot' + sd].localToWorld(V(0, -.05, 0)), (t * 7 + (sd === 'L' ? .3 : 0)) % 1 * .25, { speed: 4, life: .35, grav: 5, size: .07 }); }
+    }
+    if (t > 154.6) props.sparks.burst(V(453.4, 1.7, -396.2), t - 154.6, { speed: 9, life: 1.1 });
+    // камера
+    let sh = shk(t, .03, 3);
+    if (t > 153.65) sh = addv(sh, shk(t, .3 * Math.exp(-(t - 153.65) * 5), 18));
+    if (t > 154.6) sh = addv(sh, shk(t, .35 * Math.exp(-(t - 154.6) * 4), 20));
+    if (t < 151.3) look(addv([427.8, 1.8, -391.2], sh), [427.8, 1.9, -398.8], 48);                                  // общий: оба в кадре, замах
+    else if (t < 152.45) { const k = E.inOutSine(P(t, 151.3, 1.15)); look(addv([lerp(423.4, 423.1, k), 1.0, lerp(-395.0, -395.4, k)], sh), [425.3, 1.75, -398.8], lerp(42, 38, k)); }   // слоу-мо: кулак над головой
+    else if (t < 153.65) { const k = E.inOutSine(P(t, 152.45, 1.2)); look(addv([lerp(421.2, 421.6, k), 1.3, lerp(-393.6, -394.0, k)], sh), [lerp(425.4, 425.8, k), lerp(1.6, 1.9, k), -398.8], 46); }  // спереди-сбоку от Тимура: присел — прыжок — удар в ядро
+    else if (t < 154.9) { const k = E.outCubic(P(t, 153.65, .35)); look(addv([433.5, 2.6, -390.2], sh), [lerp(426, kp[0], k), lerp(2.0, 1.9, k), lerp(-398.6, kp[2], k)], 54); }   // проводка за Кроновым до автобуса
+    else if (t < 155.45) look(addv([446.5, 3.0, -402.5], sh), [453, 2, -395.5], 46);                          // автобус сползает, Кронов осел
+    else { const k = E.inOutSine(P(t, 155.45, 1.5)); const c = addv(tp, [-4.2, 1.7, 1.6]); look(addv(c, sh), [lerp(454.5, tp[0] + 3, k), lerp(2, 1.4, k), lerp(-395, -401, k)], 50); }   // за Тимуром — рывок к автобусу
+    if (t > 155.35 && t < 156.6) props.webs.add(handW(TI, 'R'), busRear(t).add(V(-.6, .4, 0)), { k: E.outCubic(P(t, 155.35, .15)), w: .045, wob: .4, wobT: t - 155.5 });
+    impact(t, 153.65, { zoom: .16, shake: .25 }); impact(t, 154.6, { zoom: .1, shake: .3, color: '#ffd6a0' });
+    post(o => o.comic('БАМ!', 430, 300, t - 153.65, { size: .75, color: '#ffe23d', dur: .9 }));
+    post(o => o.comic('ДЗЫНЬ!', 820, 170, t - 153.75, { size: .45, color: '#7ff8ff', rot: .1, dur: .7 }));
+    post(o => o.comic('ХРЯСЬ!', 1500, 230, t - 154.6, { size: .65, color: '#ff8a3d', rot: .12, dur: 1.0 }));
+    if (t > 154.9 && t < 155.45) post(o => o.speedLines(.35, t));
     return S;
   }, { flashK: .7 });
   // держит автобус
@@ -865,7 +918,7 @@ export function buildShots(C) {
       props.webs.add(rear.clone().add(V(.8, .6, 0)), V(460, 3, -411), { k: E.outCubic(P(t, 160.5, .3)), w: .05 });
       props.webs.add(rear.clone().add(V(-.8, .6, 0)), V(448, 3, -411), { k: E.outCubic(P(t, 160.7, .3)), w: .05 });
     }
-    const kp = KRp(t); place(KR, S, kp, Math.PI / 2 - .4); KR.pose(seq(t - 157, [[0, POSE.collapse()], [3.6, tt => POSE.roar(tt)]], 1.2)); face(KR, 'kronov', t, { dim: t < 160 ? .4 : 1 });
+    const kp = KRp(t); place(KR, S, kp, KRyaw(t)); KR.pose(seq(t - 157, [[0, KP.slump], [4.8, POSE.collapse(), .5], [5.3, tt => POSE.roar(tt), .45]])); face(KR, 'kronov', t, { dim: t < 161.2 ? .4 * (Math.sin(t * 13) > .6 ? .3 : 1) : 1 });
     const sh = shk(t, .03 + .04 * pulse(t, 157, 160, .2, .5), 14);
     if (t < 159.2) look(addv([443.6, 1.2, -402.6], sh), [451, 1.4, -400.6], 50);
     else if (t < 160.4) {     // крупно: лицо в маске, на пределе сил
@@ -889,9 +942,9 @@ export function buildShots(C) {
     const rear = busRear(t);
     props.webs.add(rear.clone().add(V(.8, .6, 0)), V(460, 3, -411), { w: .05 });
     props.webs.add(rear.clone().add(V(-.8, .6, 0)), V(448, 3, -411), { w: .05 });
-    const kp = KRp(t); place(KR, S, kp, t < 164.6 ? Math.PI / 2 - .6 : Math.PI);
+    const kp = KRp(t); place(KR, S, kp, KRyaw(t));
     const zap = t - 169.05;
-    KR.pose(t < 164.6 ? POSE.run(t, 1.3) : t < 165.6 ? POSE.fall(t) : zap < 0 ? { ...POSE.strained(t), armL: [.2, 0, .4], armR: [.2, 0, .4] } : zap < 1.4 ? { ...POSE.strained(t * 3), head: [-.6, 0, 0] } : POSE.collapse());
+    KR.pose(t < 163.5 ? POSE.roar(t) : t < 164.6 ? POSE.run(t, 1.3) : t < 165.6 ? POSE.fall(t) : zap < 0 ? { ...POSE.strained(t), armL: [.2, 0, .4], armR: [.2, 0, .4] } : zap < 1.4 ? { ...POSE.strained(t * 3), head: [-.6, 0, 0] } : POSE.collapse());
     face(KR, 'kronov', t, { dim: zap > 1.2 ? Math.max(0, 1 - (zap - 1.2) * 2) * (Math.sin(t * 40) > 0 ? 1 : .2) : 1 });
     if (zap > 0 && zap < 1.6) { KR.mats.coreM.color.setRGB(.5, 2 + Math.sin(t * 60), 3); } else KR.mats.coreM.color.setRGB(3, 1.9, .75);
     // нити: рывок и обмотка вокруг пилона
@@ -909,12 +962,14 @@ export function buildShots(C) {
     // камера
     let sh = shk(t, .04, 3);
     if (zap > 0) sh = addv(sh, shk(t, .6 * Math.exp(-zap * 2.2), 20));
-    if (t < 165.8) look(addv([lerp(440, 420, P(t, 163, 2.8)), 5, -380], sh), [kp[0], kp[1] + 2, kp[2]], 50);
-    else if (t < 168.2) look(addv([404, 2.2, -394], sh), [kf(t, [[165.8, 399], [167.4, 395]]), kf(t, [[165.8, 2], [167.4, 3], [168.2, 12]]), -390], 44);
+    if (t < 164.55) { const k = E.inOutSine(P(t, 163, 1.55)); look(addv([443.8, 2.2, -391.6], sh), [lerp(451.2, 449.4, k), lerp(2.0, 3.0, k), lerp(-399.8, -402, k)], 52); }   // Кронов бросается на Тимура
+    else if (t < 165.8) look(addv([lerp(436, 420, P(t, 164.55, 1.25)), 4.5, -381], sh), [kp[0], kp[1] + 2, kp[2]], 50);
+    else if (t < 167.0) { const k = E.inOutSine(P(t, 165.8, 1.2)); look(addv([lerp(421.0, 420.4, k), 2.0, lerp(-404.6, -404.9, k)], sh), [lerp(398, 396, k), 2.1, -390.8], 36); }   // через плечо Тимура: Кронов примотан к пилону
+    else if (t < 168.2) look(addv([404, 2.2, -394], sh), [kf(t, [[167.0, 397], [167.6, 395]]), kf(t, [[167.0, 2.6], [167.6, 3], [168.2, 12]]), -390], 44);
     else if (t < 169.0) look(addv([410, 1.2, -380], sh), [392, 60, -390], 60);
     else look(addv([418, 6, -368], sh), [393, lerp(30, 8, E.outCubic(P(t, 169, 1.2))), -389], 54);
     if (zap > 0 && zap < .5) post(o => o.fill('#e8f4ff', (1 - zap / .5) * .9));
-    post(o => o.comic('БА-БАХ!', 960, 360, t - 169.1, { size: 1.0, color: '#bff6ff', rot: -.05, dur: 1.4 }));
+    post(o => o.comic('БА-БАХ!', 560, 230, t - 169.1, { size: 1.0, color: '#bff6ff', rot: -.05, dur: 1.4 }));
     impact(t, 165.6, { zoom: .12, shake: .25 }); impact(t, 169.0, { zoom: .18, shake: .2, color: '#e8f4ff' });
     squash(KR, springAt(t, 165.6, -.12, 12, 6));
     return S;
@@ -932,8 +987,11 @@ export function buildShots(C) {
     place(KR, S, [393.6, .2, -389.2], Math.PI); KR.pose(POSE.collapse()); face(KR, 'kronov', t, { dim: 0 });
     for (let i = 0; i < 6; i++) { const y = .6 + i * .45; props.webs.add(V(393.6 + Math.sin(i) * .8, y, -390.1), V(391.6, y + .2, -387.5 + (i % 2 ? 1.6 : -1.6)), { w: .05, splat: false }); }
     if (t > 174) props.rings.add(V(455, .2, -389), (t - 174) * 9, Math.max(0, 1 - (t - 174) * 1.4), null, 0xffffff);
-    const k = E.inOutSine(lt / 4);
-    look(addv([lerp(470, 474, k), lerp(14, 9, k), lerp(-372, -366, k)], shk(t, t > 174 ? .2 * Math.exp(-(t - 174) * 4) : .02, 14)), [454, 1.5, -394], 44);
+    if (t < 173.6) {            // сбоку: Тимур на нитях тянет автобус обратно на мост
+      const k = E.inOutSine(P(t, 171, 2.6));
+      look(addv([lerp(460.6, 459.8, k), lerp(1.9, 2.5, k), lerp(-406.4, -405.6, k)], shk(t, .03, 6)), [lerp(452.6, 451.4, k), lerp(2.1, 2.5, k), lerp(-401.4, -400.6, k)], lerp(52, 56, k));
+    } else { const k = E.inOutSine(P(t, 173.6, 1.4));
+      look(addv([lerp(470, 474, k), lerp(14, 9, k), lerp(-372, -366, k)], shk(t, t > 174 ? .2 * Math.exp(-(t - 174) * 4) : .02, 14)), [454, 1.5, -394], 44); }
     post(o => o.comic('БУМ!', 1320, 600, t - 174.05, { size: .55, color: '#ffffff', dur: .8 }));
     impact(t, 174.05, { zoom: .08, shake: .2 });
     // пока все смотрят на автобус — чёрный дрон утаскивает ядро

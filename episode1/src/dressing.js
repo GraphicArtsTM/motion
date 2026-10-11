@@ -89,7 +89,7 @@ export function dressBridge(scene) {
   B.cars = [];
   for (const [x, z, ry, roll, i] of [[505, -397, 1.9, Math.PI / 2, 4], [430, -409, -.4, 0, 6]]) {
     const c = makeCar(i); c.position.set(x, roll ? 1.0 : 0, z); c.rotation.set(0, ry, roll); c.visible = false; scene.add(c); B.cars.push(c);
-    c.children.forEach(ch => { if (ch.material?.blending === THREE.AdditiveBlending) ch.visible = false; });
+    c.children.forEach(ch => { if (ch.userData.lamp) ch.visible = false; });
   }
   // обломки ограждения и бетона
   const debris = [];
@@ -112,7 +112,10 @@ export function dressBridge(scene) {
   const beam = mesh(new THREE.ConeGeometry(5, 60, 20, 1, true), new THREE.MeshBasicMaterial({ color: new THREE.Color(0xfff2d0).multiplyScalar(.7), transparent: true, opacity: .06, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }), { outline: false, parent: scene });
   beam.visible = false;
   const spotL = new THREE.PointLight(0xfff2d0, 0, 30, 1.2); scene.add(spotL);
-  const spotDisk = mesh(new THREE.CircleGeometry(5, 32), new THREE.MeshBasicMaterial({ color: new THREE.Color(0xfff2d0).multiplyScalar(.5), transparent: true, opacity: .12, depthWrite: false, blending: THREE.AdditiveBlending }), { rot: [-Math.PI / 2, 0, 0], outline: false, parent: scene });
+  const poolTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+    const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64); gr.addColorStop(0, 'rgba(255,242,208,1)'); gr.addColorStop(.5, 'rgba(255,242,208,.45)'); gr.addColorStop(1, 'rgba(255,242,208,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(c); })();
+  const spotDisk = mesh(new THREE.CircleGeometry(6, 32), new THREE.MeshBasicMaterial({ map: poolTex, color: new THREE.Color(0xfff2d0).multiplyScalar(.35), transparent: true, opacity: 1, depthWrite: false, blending: THREE.AdditiveBlending }), { rot: [-Math.PI / 2, 0, 0], outline: false, parent: scene });
   spotDisk.visible = false;
   B.update = (t, on, cam) => {
     B.cars.forEach(c => c.visible = on); debris.forEach(d => d.visible = on);
@@ -131,7 +134,7 @@ export function dressBridge(scene) {
     beam.visible = !cam || cam.position.distanceTo(tgt) > 25; beam.position.copy(from).addScaledVector(dir, .5); beam.scale.set(1, len / 60, 1);
     beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), dir.normalize());
     spotDisk.visible = true; spotDisk.position.set(tgt.x, .12, tgt.z);
-    spotL.intensity = 30; spotL.position.set(tgt.x, 8, tgt.z);
+    spotL.intensity = 18; spotL.position.set(tgt.x, 8, tgt.z);
   };
   return B;
 }

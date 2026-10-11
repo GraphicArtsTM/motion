@@ -106,8 +106,6 @@ export function makeCrowd(scene, life) {
   const lanesE = [-401.6, -402.4, -400.9, -403.1, -399.9], lanesW = [-393.2, -394.6, -395.8, -392.6];
   for (let i = 0; i < 10; i++) plan.push({ x0: 458 + r() * 34, z: lanesE[i % lanesE.length] + (r() - .5) * .5, dir: 1, xs: 566 + r() * 22, t0: 117 + r() * 2.2, v: 3.8 + r() * 1.4 });
   for (let i = 0; i < 6; i++) plan.push({ x0: 431 + r() * 9, z: lanesW[i % lanesW.length] + (r() - .5) * .5, dir: -1, xs: 301 + r() * 8, t0: 122.4 + r() * 1.4, v: 3.9 + r() * 1.2 });
-  // смельчаки прячутся за брошенной машиной и снимают драку
-  plan.push({ x0: 426.6, z: -410.7, dir: 0 }, { x0: 428.5, z: -410.9, dir: 0 }, { x0: 432.6, z: -410.8, dir: 0 });
   for (let i = 0; i < 9; i++) plan.push({ x0: 299 + r() * 10, z: -409 + r() * 18, dir: 0 });
   for (let i = 0; i < 8; i++) plan.push({ x0: 570 + r() * 22, z: -409 + r() * 18, dir: 0 });
   plan.forEach((pl, i) => {

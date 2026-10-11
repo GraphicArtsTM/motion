@@ -292,12 +292,12 @@ export function makeCar(i, taxi = false) {
   for (const [x, z] of [[1, 1.4], [-1, 1.4], [1, -1.4], [-1, -1.4]]) mesh(wheel, toon(0x111111), { pos: [x * .95, .38, z], rot: [0, 0, Math.PI / 2], outline: false, parent: g });
   const hl = glow(0xfff4d6, 4), tl = glow(0xff2020, 3);
   for (const x of [-.65, .65]) {
-    mesh(new THREE.BoxGeometry(.42, .16, .05), hl, { pos: [x, .78, 2.21], outline: false, parent: g });
-    mesh(new THREE.BoxGeometry(.42, .14, .05), tl, { pos: [x, .82, -2.21], outline: false, parent: g });
+    mesh(new THREE.BoxGeometry(.42, .16, .05), hl, { pos: [x, .78, 2.21], outline: false, parent: g }).userData.lamp = true;
+    mesh(new THREE.BoxGeometry(.42, .14, .05), tl, { pos: [x, .82, -2.21], outline: false, parent: g }).userData.lamp = true;
   }
   // конус света фар
   const beam = new THREE.Mesh(new THREE.ConeGeometry(2.4, 14, 16, 1, true), new THREE.MeshBasicMaterial({ color: 0xfff1cc, transparent: true, opacity: .06, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }));
-  beam.rotation.x = -Math.PI / 2; beam.position.set(0, .7, 2.2 + 7); g.add(beam);
+  beam.rotation.x = -Math.PI / 2; beam.position.set(0, .7, 2.2 + 7); g.add(beam); beam.userData.lamp = true;
   g.traverse(m => { if (m.isMesh) m.frustumCulled = false; });
   return g;
 }
@@ -668,7 +668,7 @@ function makeBridge(scene) {
   mesh(new THREE.BoxGeometry(x1 - x0, 2.4, 24), conc, { pos: [(x0 + x1) / 2, -1.2, z0], outline: false, parent: B });
   // проезжая часть с разметкой
   const road = textTexture(' ', { size: 10 });
-  mesh(new THREE.BoxGeometry(x1 - x0, .1, 20), toon(0x1c1f27), { pos: [(x0 + x1) / 2, .05, z0], outline: false, parent: B });
+  mesh(new THREE.BoxGeometry(x1 - x0, .1, 20), new THREE.MeshLambertMaterial({ color: 0x1c1f27 }), { pos: [(x0 + x1) / 2, .05, z0], outline: false, parent: B });   // мягкое пятно прожектора, без «ступенек» тун-света
   for (let x = x0 + 4; x < x1; x += 8) mesh(new THREE.BoxGeometry(3.5, .12, .25), glow(0xd8d2b0, .9), { pos: [x, .08, z0], outline: false, parent: B });
   // перила (с проломом у автобуса)
   for (const s of [1, -1]) for (let x = x0; x < x1; x += 2.5) {

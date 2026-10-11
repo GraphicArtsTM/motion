@@ -234,10 +234,17 @@ function renderAt(T) {
   T -= INTRO;
   const t0 = toStory(T);
   // motion blur: на видеокарте в экшн-сценах усредняем подкадры внутри «затвора 180°»
-  const N = HIGH && !params.has('nomblur') && mblurAt(t0) ? +(params.get('mbs') || 5) : 1;
+  let N = HIGH && !params.has('nomblur') && mblurAt(t0) ? +(params.get('mbs') || 5) : 1;
+  const shutter = .5 / FPS;
+  if (N > 1) {
+    // быстрая проводка камеры: подкадров столько, чтобы шаг между ними был ≤ 3 px — иначе вместо смаза «лесенка»
+    const probe = s => { frameLogic(clamp(T + s * shutter, 0, DURATION - 1e-4)); return { d: camera.getWorldDirection(new THREE.Vector3()), p: camera.position.clone(), fov: camera.fov }; };
+    const a = probe(-.5), b = probe(.5);
+    const px = (a.d.angleTo(b.d) + a.p.distanceTo(b.p) * .02) / (a.fov * Math.PI / 180) * H;
+    N = Math.min(24, Math.max(N, Math.ceil(px / 3)));
+  }
   if (N > 1) {
     accum.clear(); composer.renderToScreen = false;
-    const shutter = .5 / FPS;
     for (let i = 0; i < N; i++) {
       frameLogic(clamp(T + (i / (N - 1) - .5) * shutter, 0, DURATION - 1e-4));
       composer.render();
