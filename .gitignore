@@ -7,3 +7,5 @@ farq/out/stills/
 farq/out/frames.mp4
 farq/out/*.wav
 farq/out/timeline.json
+__pycache__/
+farq/out/render.log
