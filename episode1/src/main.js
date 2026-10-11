@@ -32,10 +32,10 @@ renderer.setPixelRatio(1); renderer.setSize(W, H, false);
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
 document.getElementById('stage').insertBefore(renderer.domElement, document.getElementById('ov'));
 const camera = new THREE.PerspectiveCamera(45, W / H, .05, 6000);
-const rt = new THREE.WebGLRenderTarget(W, H, { type: params.has('ub') ? THREE.UnsignedByteType : THREE.HalfFloatType, samples: +(params.get('msaa') ?? 4) });
+const rt = new THREE.WebGLRenderTarget(W, H, { type: params.has('hdr') ? THREE.HalfFloatType : THREE.UnsignedByteType, samples: +(params.get('msaa') ?? 0) });
 const composer = new EffectComposer(renderer, rt);
 const renderPass = new RenderPass(new THREE.Scene(), camera);
-const bloom = new UnrealBloomPass(new THREE.Vector2(W / +(params.get('bd') ?? 2), H / +(params.get('bd') ?? 2)), .75, .55, .92);
+const bloom = new UnrealBloomPass(new THREE.Vector2(W / +(params.get('bd') ?? 4), H / +(params.get('bd') ?? 4)), .75, .55, .92);
 composer.addPass(renderPass); if (!params.has('nobloom')) composer.addPass(bloom); composer.addPass(new OutputPass());
 const overlay = makeOverlay(document.getElementById('ov'));
 

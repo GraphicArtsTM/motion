@@ -17,7 +17,7 @@ catch { ({ chromium } = require(path.join(execSync('npm root -g').toString().tri
 
 const dir = path.dirname(fileURLToPath(import.meta.url));
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
-const fps = +arg('fps', 30);
+const fps = +arg('fps', 24);
 const W = +arg('w', 1920), H = +arg('h', 1080);
 const out = path.join(dir, 'out');
 mkdirSync(out, { recursive: true });

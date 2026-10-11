@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Полная сборка серии: голоса → звук → кадры (параллельно) → итоговый mp4 1920×1080, 30 fps.
+# Полная сборка серии: голоса → звук → кадры (параллельно) → итоговый mp4 1920×1080, 24 fps.
 #   ./build.sh            — всё
-#   JOBS=2 ./build.sh     — число параллельных рендеров Chromium (по умолчанию 4)
+#   JOBS=2 ./build.sh     — число параллельных рендеров Chromium (по умолчанию 2)
 set -euo pipefail
 cd "$(dirname "$0")"
 mkdir -p out/parts
-JOBS=${JOBS:-4}
-FPS=${FPS:-30}
+JOBS=${JOBS:-2}
+FPS=${FPS:-24}
 
 python3 audio/voices.py
 python3 audio/mix.py
