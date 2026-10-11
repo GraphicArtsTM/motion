@@ -106,6 +106,9 @@ export function buildingMaterial() {
           vec3 sc = mix(vec3(1.,.55,.25), vec3(.3,.9,1.), h21(vec2(floor(u/7.), vS.x)));
           col = mix(col, sc*.9, shop*step(.35, h21(vec2(floor(u/7.)+3., vS.x))));
           col *= mix(.55, 1., smoothstep(0., 5., v));
+          // межэтажные пояса (каждые 6 этажей) — фасад не «гладкая коробка»
+          float belt = step(fract(v / (fh * 6.)), .045) * step(6., v);
+          col = mix(col, base*.42 + vec3(.03), belt);
           // мокрые потёки
           col *= .92 + .08*vnoise(vec2(u*.7, v*.05+vS.x));
         } else {
@@ -353,6 +356,83 @@ export function makeBike() {
 }
 
 /* ---------- город целиком ---------- */
+/* ---------- детали фасадов и крыш ---------- */
+function facadeDetails(scene, items) {
+  const r = rng(777);
+  const SPEC = [[120, -440], [282, -440], [200, -440], [200, -362], [282, -362], [120, -362]];
+  const isSpec = b => SPEC.some(([x, z]) => Math.abs(b.x - x) < 1 && Math.abs(b.z - z) < 1);
+  const core = items.filter(b => b.x > -500 && b.x < 330 && b.z > -1000 && b.z < 300);
+  const L = { cornice: [], cap: [], tankBody: [], tankRoof: [], leg: [], mast: [], slab: [], rail: [], ac: [], fireP: [], fireR: [], stair: [] };
+  const q = new THREE.Quaternion(), qa = new THREE.Quaternion(), m4 = new THREE.Matrix4();
+  const Y = new THREE.Vector3(0, 1, 0), Z = new THREE.Vector3(0, 0, 1);
+  // ящик на фасаде: face — {n: нормаль, axis: 'x'|'z'}, u — вдоль фасада, y — высота, out — вынос от стены
+  const onFace = (list, b, f, u, y, sx, sy, sz, out, roll = 0) => {
+    const hx = b.w / 2, hz = b.d / 2;
+    const pos = f.axis === 'x' ? new THREE.Vector3(b.x + f.n * (hx + out), (b.y0 || 0) + y, b.z + u) : new THREE.Vector3(b.x + u, (b.y0 || 0) + y, b.z + f.n * (hz + out));
+    q.setFromAxisAngle(Y, f.axis === 'x' ? Math.PI / 2 : 0); qa.setFromAxisAngle(Z, roll); q.multiply(qa);
+    m4.compose(pos, q, new THREE.Vector3(sx, sy, sz)); list.push(m4.clone());
+  };
+  const box = (list, x, y, z, sx, sy, sz) => { m4.compose(new THREE.Vector3(x, y, z), q.identity(), new THREE.Vector3(sx, sy, sz)); list.push(m4.clone()); };
+  // карниз-парапет по периметру крыши (кольцо, а не плита — по крыше можно ходить)
+  const ring = (x, y, z, w, d, h) => { const th = 1.1;
+    box(L.cornice, x, y, z + d / 2 + .05, w + 1.2, h, th); box(L.cornice, x, y, z - d / 2 - .05, w + 1.2, h, th);
+    box(L.cornice, x + w / 2 + .05, y, z, th, h, d - 1); box(L.cornice, x - w / 2 - .05, y, z, th, h, d - 1); };
+  const extra = [];
+  for (const b of core) {
+    if (isSpec(b)) continue;          // на крышах этих домов стоит герой — без парапета
+    ring(b.x, b.h + .4, b.z, b.w, b.d, .9);
+    // форма крыши
+    const k = r();
+    if (b.h > 55 && k < .4) {
+      const h1 = 6 + r() * 14; extra.push({ x: b.x, z: b.z, w: b.w * .66, d: b.d * .66, h: h1, y0: b.h, style: b.style, col: b.col });
+      ring(b.x, b.h + h1 + .35, b.z, b.w * .66, b.d * .66, .7);
+      if (r() < .5) { const h2 = 4 + r() * 8; extra.push({ x: b.x, z: b.z, w: b.w * .4, d: b.d * .4, h: h2, y0: b.h + h1, style: b.style, col: b.col }); }
+    } else if (b.h > 80 && k < .58) box(L.cap, b.x, b.h + .9, b.z, b.w * .74, 7 + r() * 10, b.d * .74);
+    else if (k < .8) {
+      const x = b.x + (r() - .5) * b.w * .45, z = b.z + (r() - .5) * b.d * .45;
+      box(L.tankBody, x, b.h + 4.6, z, 1, 1, 1); box(L.tankRoof, x, b.h + 7.3, z, 1, 1, 1);
+      for (const [dx, dz] of [[1.6, 1.6], [-1.6, 1.6], [1.6, -1.6], [-1.6, -1.6]]) box(L.leg, x + dx, b.h + 1.6, z + dz, 1, 1, 1);
+    } else if (k < .9) box(L.mast, b.x, b.h + .9, b.z, 1, 6 + r() * 14, 1);
+    // фасады — только в центре города, где их видно с камеры
+    if (Math.abs(b.x) > 340 || b.z < -600 || b.h < 16) continue;
+    const fh = b.style > 1.5 ? 4.2 : 3.6, cw = b.style > 1.5 ? 2.0 : 3.2, nf = Math.floor(b.h / fh);
+    const faces = [{ n: 1, axis: 'x', W: b.d }, { n: -1, axis: 'x', W: b.d }, { n: 1, axis: 'z', W: b.w }, { n: -1, axis: 'z', W: b.w }];
+    const cols = W => { const a = []; for (let i = -12; i < 12; i++) { const u = (i + .5) * cw; if (Math.abs(u) + cw / 2 < W / 2 - .5) a.push(u); } return a; };
+    if (b.style < 1.5 && r() < .75) {                 // балконы
+      for (const f of faces) { if (r() < .3) continue; const cs = cols(f.W).filter(() => r() < .5);
+        for (let j = 3; j < nf - 1; j++) for (const u of cs) { if (r() < .25) continue;
+          onFace(L.slab, b, f, u, j * fh + 1.0, cw * .82, .18, 1.1, .55); onFace(L.rail, b, f, u, j * fh + 1.55, cw * .82, .9, .07, 1.08); } }
+    }
+    if (r() < .85) for (let i = 0; i < 28; i++) {     // кондиционеры
+      const f = faces[Math.floor(r() * 4)], cs = cols(f.W); if (!cs.length) continue;
+      onFace(L.ac, b, f, cs[Math.floor(r() * cs.length)] + cw * .22, (1 + Math.floor(r() * (nf - 2))) * fh + .55, .95, .6, .5, .25);
+    }
+    if (b.style < 1.5 && r() < .5 && nf > 4) {        // пожарная лестница зигзагом
+      const f = faces[Math.floor(r() * 4)], cs = cols(f.W); if (cs.length < 3) continue;
+      const u0 = cs[Math.floor(cs.length / 2)], len = cw * 1.5, ang = Math.atan2(fh, len * .9);
+      for (let j = 1; j < Math.min(nf, 14); j++) {
+        onFace(L.fireP, b, f, u0, j * fh + .9, len * 1.15, .12, 1.3, .65); onFace(L.fireR, b, f, u0, j * fh + 1.35, len * 1.15, .8, .05, 1.28);
+        if (j < Math.min(nf, 14) - 1) onFace(L.stair, b, f, u0, j * fh + .9 + fh / 2, Math.hypot(len * .9, fh), .1, .6, .65, (j % 2 ? 1 : -1) * ang);
+      }
+    }
+  }
+  items.push(...extra);
+  const mk = (geo, mat, list) => { if (!list.length) return; const im = new THREE.InstancedMesh(geo, mat, list.length); list.forEach((m, i) => im.setMatrixAt(i, m)); im.frustumCulled = false; scene.add(im); return im; };
+  const unit = new THREE.BoxGeometry(1, 1, 1);
+  mk(unit, toon(0x262a33), L.cornice);
+  const pyr = new THREE.ConeGeometry(.7071, 1, 4, 1); pyr.rotateY(Math.PI / 4); pyr.translate(0, .5, 0);
+  mk(pyr, toon(0x3d7a6a), L.cap);
+  mk(new THREE.CylinderGeometry(2.6, 2.6, 4.6, 16), toon(0x6b4a3a), L.tankBody);
+  mk(new THREE.ConeGeometry(2.9, 1.4, 16), toon(0x2a2e38), L.tankRoof);
+  mk(new THREE.CylinderGeometry(.15, .15, 3.2, 6), toon(0x2a2e38), L.leg);
+  const mast = new THREE.CylinderGeometry(.12, .3, 1, 6); mast.translate(0, .5, 0);
+  mk(mast, toon(0x3a3f4c), L.mast);
+  mk(unit, toon(0x6a6e78), L.slab); mk(unit, toon(0x2a2d36), L.rail);
+  mk(unit, toon(0x9aa0aa), L.ac);
+  mk(unit, toon(0x1d2026), L.fireP); mk(unit, toon(0x1d2026), L.fireR); mk(unit, toon(0x1d2026), L.stair);
+  return L;
+}
+
 export function makeCity() {
   const scene = new THREE.Scene();
   scene.fog = new THREE.FogExp2(0x141a2e, .0021);
@@ -407,12 +487,13 @@ export function makeCity() {
   for (let i = 0; i < 160; i++) add(650 + r() * 700, -1100 + r() * 1500, 20 + r() * 30, 20 + r() * 30, 20 + r() * 120, r() < .3 ? 2 : 1);
   for (let i = 0; i < 140; i++) { const a = r() * Math.PI * 2, R = 1150 + r() * 500; add(-150 + Math.cos(a) * R, -300 + Math.sin(a) * R, 40 + r() * 60, 40 + r() * 60, 60 + r() * 260, r() < .4 ? 2 : 1); }
 
+  const facade = facadeDetails(scene, items);   // добавляет в items верхние ярусы, строит детали фасадов
   const bgeo = new THREE.BoxGeometry(1, 1, 1); bgeo.translate(0, .5, 0);
   const inst = new THREE.InstancedMesh(bgeo, buildingMaterial(), items.length);
   const aColor = new Float32Array(items.length * 3), aSeed = new Float32Array(items.length * 2);
   const m4 = new THREE.Matrix4();
   items.forEach((b, i) => {
-    m4.makeScale(b.w, b.h, b.d); m4.setPosition(b.x, 0, b.z);
+    m4.makeScale(b.w, b.h, b.d); m4.setPosition(b.x, b.y0 || 0, b.z);
     inst.setMatrixAt(i, m4);
     aColor.set(b.col, i * 3); aSeed.set([r(), b.style], i * 2);
   });

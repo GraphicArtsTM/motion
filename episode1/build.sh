@@ -14,7 +14,7 @@ python3 audio/voices.py
 python3 audio/mix.py
 ffmpeg -y -loglevel error -i assets/soundtrack.wav -af "loudnorm=I=-15:TP=-1.0:LRA=11" -c:a aac -b:a 256k -ar 48000 assets/soundtrack.m4a
 
-DUR=$(python3 -c "import json;print(json.load(open('timeline.json'))['duration'])")
+DUR=$(python3 -c "import json;t=json.load(open('timeline.json'));print(t['duration']+t.get('intro',0))")
 STEP=$(python3 -c "print($DUR/$JOBS)")
 for i in $(seq 0 $((JOBS-1))); do
   FROM=$(python3 -c "print(round($i*$STEP*$FPS)/$FPS)")

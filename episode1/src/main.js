@@ -12,6 +12,7 @@ import { makeWebs, makeSparks, makeRings, makeSilkSwirl } from './fx.js';
 import { makeOverlay } from './overlay.js';
 import { buildShots, makeCab } from './shots.js';
 import { makeStreetLife } from './props.js';
+import { makeCrowd } from './crowd.js';
 import { dressLab, dressBridge, dressKitchen } from './dressing.js';
 import { makeSpray } from './fx.js';
 import { makeGradePass, gradeAt, makeAccumulator, mblurAt } from './post.js';
@@ -59,6 +60,7 @@ const overlay = makeOverlay(document.getElementById('ov'));
 const city = makeCity();
 const lab = makeLab(city.tower);
 const life = makeStreetLife(city.scene);
+const crowd = makeCrowd(city.scene, life);
 const kitchen = makeKitchen();
 const labD = dressLab(lab), bridgeD = dressBridge(city.scene), kitchenD = dressKitchen(kitchen);
 const lair = makeLair();
@@ -148,9 +150,10 @@ function shapeOf(who) {
   }
   return 0;
 }
-const ctx = { THREE, city, lab, kitchen, lair, cab, ch, props, camera, overlay, U, bolts, lines, mouthOf, shapeOf, fricOf, renderer, timeline, labD, kitchenD };
+const ctx = { THREE, city, lab, kitchen, lair, cab, ch, props, camera, overlay, U, bolts, lines, mouthOf, shapeOf, fricOf, renderer, timeline, labD, kitchenD, crowd };
 const shots = buildShots(ctx);
-const DURATION = timeline.duration;
+const DURATION = timeline.duration;          // сама серия
+const INTRO = timeline.intro || 0;            // заставка студии перед серией
 
 /* ---------- кадр ---------- */
 function resetFrame() {
@@ -196,6 +199,7 @@ function frameLogic(T) {
     city.rim.color.set(ctx.rim.color); city.rim.intensity = ctx.rim.k;
   } else city.rim.color.set(0xff9a4a);
   life.update(t, { police: t >= 117 && t < 183 });
+  crowd.update(t, t >= 117 && t < 183 && scene === city.scene);
   labD.update(t, { alarm: t >= 62 && t < 83, inLab: scene === city.scene && !city.rain.visible });
   bridgeD.update(t, t >= 117 && t < 183, camera);
   kitchenD.update(t, { inKitchen: scene === kitchen.scene });
@@ -222,7 +226,12 @@ function frameLogic(T) {
 }
 
 function renderAt(T) {
-  T = clamp(T, 0, DURATION - 1e-4);
+  T = clamp(T, 0, INTRO + DURATION - 1e-4);
+  if (T < INTRO) {             // заставка студии GraphicArts Animation — целиком 2D-слой
+    renderer.setClearColor(0x000000, 1); renderer.clear();
+    overlay.clear(); overlay.studio(T, INTRO); return;
+  }
+  T -= INTRO;
   const t0 = toStory(T);
   // motion blur: на видеокарте в экшн-сценах усредняем подкадры внутри «затвора 180°»
   const N = HIGH && !params.has('nomblur') && mblurAt(t0) ? +(params.get('mbs') || 5) : 1;
@@ -261,27 +270,29 @@ function renderAt(T) {
 }
 
 window.renderAt = renderAt;
+window.toFilm = s => toFilm(s) + INTRO;   // сюжетное время → время ролика (с заставкой)
 window.bench = (t, n = 5) => { const a = performance.now(); for (let i = 0; i < n; i++) { renderAt(t + i * .03); renderer.getContext().finish(); } return (performance.now() - a) / n; };
-window.DURATION = DURATION;
+window.DURATION = INTRO + DURATION;
 window.ready = true;
 
 /* ---------- предпросмотр в браузере ---------- */
 if (!RENDER) {
+  const TOTAL = INTRO + DURATION;
   const ui = document.getElementById('ui'); ui.hidden = false;
   const audio = new Audio('assets/soundtrack.m4a');
   const bar = document.getElementById('bar'), tl = document.getElementById('tl');
   let playing = false, t0 = 0, start = 0;
   const now = () => playing ? (audio.readyState > 2 && !audio.paused ? audio.currentTime : start + (performance.now() - t0) / 1000) : start;
-  const seek = t => { start = clamp(t, 0, DURATION); t0 = performance.now(); try { audio.currentTime = start; } catch (e) { } if (!playing) renderAt(start); };
+  const seek = t => { start = clamp(t, 0, TOTAL); t0 = performance.now(); try { audio.currentTime = start; } catch (e) { } if (!playing) renderAt(start); };
   const toggle = () => { playing = !playing; start = now(); t0 = performance.now(); if (playing) { audio.currentTime = start; audio.play().catch(() => { }); } else { start = audio.currentTime || start; audio.pause(); } ui.classList.toggle('playing', playing); };
   document.getElementById('play').onclick = toggle;
   addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); toggle(); } if (e.code === 'ArrowRight') seek(now() + 5); if (e.code === 'ArrowLeft') seek(now() - 5); });
-  bar.oninput = () => seek(+bar.value / 1000 * DURATION);
+  bar.oninput = () => seek(+bar.value / 1000 * TOTAL);
   const loop = () => {
     const t = now();
-    if (playing) { renderAt(t); if (t >= DURATION) { playing = false; ui.classList.remove('playing'); } }
-    bar.value = t / DURATION * 1000;
-    tl.textContent = `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')} / ${Math.floor(DURATION / 60)}:${String(Math.floor(DURATION % 60)).padStart(2, '0')}`;
+    if (playing) { renderAt(t); if (t >= TOTAL) { playing = false; ui.classList.remove('playing'); } }
+    bar.value = t / TOTAL * 1000;
+    tl.textContent = `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')} / ${Math.floor(TOTAL / 60)}:${String(Math.floor(TOTAL % 60)).padStart(2, '0')}`;
     requestAnimationFrame(loop);
   };
   seek(+(params.get('t') || 0));

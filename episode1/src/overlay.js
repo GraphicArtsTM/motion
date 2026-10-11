@@ -87,6 +87,21 @@ export function makeOverlay(canvas) {
     g.restore();
   };
 
+  // комикс-подпись: жёлтая плашка рассказчика (без озвучки) — объясняет, что происходит
+  O.caption = (text, x, y, lt, o = {}) => {
+    const dur = o.dur ?? 2; if (lt < 0 || lt > dur) return;
+    const a = Math.min(clamp(lt / .2), clamp((dur - lt) / .25));
+    const s = .9 + .1 * E.outBack(clamp(lt / .3));
+    g.save(); g.globalAlpha = a; g.translate(x, y); g.scale(s, s); g.rotate(o.rot ?? -.015);
+    g.font = '700 34px Rubik';
+    const lines = String(text).split('\n'), w = Math.max(...lines.map(l => g.measureText(l).width)) + 44, h = 46 * lines.length + 22;
+    g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(8, 8, w, h);
+    g.fillStyle = o.bg || '#ffe23d'; g.fillRect(0, 0, w, h);
+    g.lineWidth = 5; g.strokeStyle = '#111'; g.strokeRect(0, 0, w, h);
+    g.fillStyle = '#111'; g.textBaseline = 'top'; lines.forEach((l, i) => g.fillText(l, 22, 14 + i * 46));
+    g.restore();
+  };
+
   // HUD-надпись (визор/системы) поверх комикс-вставки
   O.hud = (lines, x, y, a, t) => {
     if (a <= 0) return;
@@ -107,6 +122,47 @@ export function makeOverlay(canvas) {
     g.restore();
   };
 
+  // кадр «с телефона зеваки»: рамка смартфона, запись, хэштег, счётчик зрителей, сердечки
+  O.phoneFrame = (x, y, w, h, t, t0) => {
+    g.save();
+    const R = Math.min(w, h) * .12;
+    // маска: всё вне скруглённого экрана закрываем корпусом
+    g.fillStyle = '#0b0c10'; g.beginPath(); g.rect(x - 22, y - 22, w + 44, h + 44);
+    g.moveTo(x + R, y); g.arcTo(x + w, y, x + w, y + h, R); g.arcTo(x + w, y + h, x, y + h, R); g.arcTo(x, y + h, x, y, R); g.arcTo(x, y, x + w, y, R); g.closePath(); g.fill('evenodd');
+    g.lineWidth = 4; g.strokeStyle = '#3a3e48'; roundRect(g, x - 22, y - 22, w + 44, h + 44, R + 20); g.stroke();
+    g.lineWidth = 6; g.strokeStyle = '#000'; roundRect(g, x - 26, y - 26, w + 52, h + 52, R + 24); g.stroke();
+    g.fillStyle = '#000'; roundRect(g, x + w / 2 - 48, y + 12, 96, 26, 13); g.fill();
+    const lt = t - t0, s = Math.max(0, Math.floor(lt + 13));
+    g.textBaseline = 'middle';
+    g.fillStyle = 'rgba(0,0,0,.35)'; roundRect(g, x + 14, y + 50, 132, 34, 17); g.fill();
+    g.fillStyle = Math.floor(t * 2) % 2 ? '#ff2a3a' : '#a01020'; g.beginPath(); g.arc(x + 34, y + 67, 8, 0, 7); g.fill();
+    g.fillStyle = '#fff'; g.font = '600 20px Rubik'; g.fillText('REC 0:' + String(s).padStart(2, '0'), x + 50, y + 68);
+    g.textAlign = 'right'; g.font = '600 16px Rubik'; g.fillText('4K · 60', x + w - 18, y + 67); g.textAlign = 'left';
+    // рамка фокуса
+    const cx = x + w / 2, cy = y + h * .42, fs = 46 + 8 * Math.exp(-lt * 4);
+    g.strokeStyle = 'rgba(255,214,60,.9)'; g.lineWidth = 3;
+    for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { g.beginPath(); g.moveTo(cx + sx * fs, cy + sy * (fs - 14)); g.lineTo(cx + sx * fs, cy + sy * fs); g.lineTo(cx + sx * (fs - 14), cy + sy * fs); g.stroke(); }
+    // низ: хэштег, зрители
+    const gr = g.createLinearGradient(0, y + h - 150, 0, y + h); gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,.65)');
+    g.fillStyle = gr; g.fillRect(x, y + h - 150, w, 150);
+    g.fillStyle = '#ff2a5a'; roundRect(g, x + 16, y + h - 112, 66, 26, 6); g.fill();
+    g.fillStyle = '#fff'; g.font = '700 15px Rubik'; g.fillText('LIVE', x + 29, y + h - 98);
+    const viewers = Math.floor(1200 + Math.pow(Math.max(0, lt), 1.6) * 2600);
+    g.font = '500 17px Rubik'; g.fillText(viewers.toLocaleString('ru-RU') + ' смотрят', x + 92, y + h - 98);
+    g.font = '800 23px Unbounded'; g.fillStyle = '#7ff8ff'; g.fillText('#ПаукНовограда', x + 16, y + h - 62);
+    g.font = '500 16px Rubik'; g.fillStyle = 'rgba(255,255,255,.85)'; g.fillText('он спас автобус!!! это реально', x + 16, y + h - 32);
+    // сердечки всплывают справа
+    for (let i = 0; i < 9; i++) {
+      if (lt < i * .22) continue;
+      const k = ((lt - i * .22) * .55) % 1, hx = x + w - 44 + Math.sin(i * 2.3 + lt * 3) * 14, hy = y + h - 60 - k * h * .55, hs2 = 9 + (i % 3) * 3;
+      g.globalAlpha = Math.min(1, (1 - k) * 2) * .95; g.fillStyle = ['#ff3d6a', '#ff7aa8', '#ffd23d'][i % 3];
+      g.beginPath(); g.moveTo(hx, hy + hs2 * .9);
+      g.bezierCurveTo(hx - hs2 * 1.4, hy - hs2 * .2, hx - hs2 * .6, hy - hs2 * 1.2, hx, hy - hs2 * .45);
+      g.bezierCurveTo(hx + hs2 * .6, hy - hs2 * 1.2, hx + hs2 * 1.4, hy - hs2 * .2, hx, hy + hs2 * .9); g.fill();
+    }
+    g.restore();
+  };
+
   O.callFrame = (x, y, w, h, a, t) => {
     if (a <= 0) return;
     g.save(); g.globalAlpha = clamp(a);
@@ -116,6 +172,150 @@ export function makeOverlay(canvas) {
     g.fillStyle = '#3dff8a'; g.beginPath(); g.arc(x + 44, y + h - 40, 9 + Math.sin(t * 8) * 2, 0, 7); g.fill();
     g.fillStyle = '#fff'; g.font = '600 28px Rubik'; g.textBaseline = 'middle'; g.fillText('Дед · на связи', x + 64, y + h - 39);
     g.restore();
+  };
+
+  /* ---------- заставка студии GraphicArts Animation ----------
+     0.0  тёмный «лист», полутоновые точки; загорается кончик пера
+     0.5  перо одной линией рисует монограмму GA (G, перекладина которой становится перекладиной A)
+     2.4  всплеск краски: оранжевая, малиновая, бирюзовая, жёлтая кляксы; линия становится «чернильной»
+     2.9  буквы GraphicArts выпрыгивают по одной, ниже разъезжается A N I M A T I O N, слоган
+     4.3  паучок спускается на нити и садится на точку над «i», в 5.3 уезжает вверх
+     5.2  «представляет»; 6.0 — затемнение */
+  const GA = (() => {
+    const R = 120, s1 = [], s2 = [];
+    for (let i = 0; i <= 60; i++) { const a = -.6 - (2 * Math.PI - 1.0) * i / 60; s1.push([Math.cos(a) * R, Math.sin(a) * R]); }
+    const e = s1[s1.length - 1];
+    s1.push([e[0], .05 * R], [-.27 * R, .05 * R]);
+    s2.push([-.46 * R, .66 * R], [0, -.72 * R], [.46 * R, .66 * R]);
+    const len = pts => pts.reduce((a, p, i) => i ? a + Math.hypot(p[0] - pts[i - 1][0], p[1] - pts[i - 1][1]) : 0, 0);
+    return { R, strokes: [s1, s2], lens: [len(s1), len(s2)] };
+  })();
+  const partial = (pts, L) => {        // ломаная до длины L и точка пера
+    const out = [pts[0]]; let acc = 0;
+    for (let i = 1; i < pts.length; i++) {
+      const [ax, ay] = pts[i - 1], [bx, by] = pts[i], d = Math.hypot(bx - ax, by - ay);
+      if (acc + d >= L) { const k = (L - acc) / d; out.push([ax + (bx - ax) * k, ay + (by - ay) * k]); return out; }
+      acc += d; out.push(pts[i]);
+    }
+    return out;
+  };
+  const splats = (() => { const r = rng(31), a = [];
+    const cols = ['#ff7b1c', '#ff3d7f', '#3ff0ff', '#ffd23d', '#8a5cff'];
+    for (let i = 0; i < 14; i++) { const ang = r() * Math.PI * 2, d = 120 + r() * 230; a.push({ ang, d, r: 22 + r() * 70, c: cols[i % cols.length], dl: r() * .15, blobs: 5 + Math.floor(r() * 4), seed: r() * 9 }); }
+    return a; })();
+  const blob = (x, y, r, seed, n) => {
+    g.beginPath();
+    for (let i = 0; i <= 24; i++) { const a = i / 24 * Math.PI * 2, rr = r * (1 + .13 * Math.sin(a * n + seed) + .09 * Math.sin(a * 3 + seed * 2) + .04 * Math.sin(a * 11 + seed)); const px = x + Math.cos(a) * rr, py = y + Math.sin(a) * rr; i ? g.lineTo(px, py) : g.moveTo(px, py); }
+    g.closePath(); g.fill();
+  };
+  O.studio = (t, dur = 6.5) => {
+    const cx = W / 2, cy = 400;
+    g.save();
+    // фон: глубокий синий, мягкое пятно света, полутон
+    const bg = g.createRadialGradient(cx, cy, 40, cx, cy, W * .75);
+    bg.addColorStop(0, '#16213d'); bg.addColorStop(.55, '#0a0f1e'); bg.addColorStop(1, '#020308');
+    g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    g.fillStyle = 'rgba(120,170,255,.06)';
+    for (let y = 0; y < H; y += 22) for (let x = (y / 22) % 2 ? 11 : 0; x < W; x += 22) {
+      const d = Math.hypot(x - cx, y - cy) / 900, r = 3.2 * (1 - d) * clamp(t / .6);
+      if (r > .3) { g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); }
+    }
+    // всплеск краски
+    const sp = t - 2.4;
+    if (sp > 0) for (const s of splats) {
+      const k = E.outBack(clamp((sp - s.dl) / .35)); if (k <= 0) continue;
+      const d = s.d * E.outCubic(clamp((sp - s.dl) / .5));
+      g.fillStyle = s.c; g.globalAlpha = .9;
+      blob(cx + Math.cos(s.ang) * d, cy + Math.sin(s.ang) * d * .8, s.r * k, s.seed, s.blobs);
+      for (let j = 1; j <= 3; j++) blob(cx + Math.cos(s.ang) * (d + s.r * (1.1 + j * .45)), cy + Math.sin(s.ang) * (d + s.r * (1.1 + j * .45)) * .8, s.r * .16 * k / j * 1.4, s.seed + j, 3);
+      g.globalAlpha = 1;
+    }
+    if (sp > 0) {                      // ударная волна
+      const k = clamp(sp / .45); g.strokeStyle = `rgba(255,255,255,${(1 - k) * .8})`; g.lineWidth = 10 * (1 - k) + 1;
+      g.beginPath(); g.arc(cx, cy, 60 + k * 420, 0, 7); g.stroke();
+    }
+    // монограмма
+    const draw = clamp((t - .5) / 1.9), total = GA.lens[0] + GA.lens[1];
+    let L = E.inOutCubic(draw) * total, pen = null;
+    const ink = clamp((t - 2.4) / .25), scale = 1 + .08 * Math.exp(-Math.max(0, sp) * 6) * (sp > 0 ? 1 : 0);
+    g.translate(cx, cy); g.scale(scale, scale);
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    const pass = (w, col, blur, dx = 0, dy = 0) => {
+      g.strokeStyle = col; g.lineWidth = w; g.shadowColor = col; g.shadowBlur = blur;
+      let rest = L;
+      GA.strokes.forEach((st, i) => { if (rest <= 0) return; const pts = partial(st, Math.min(rest, GA.lens[i])); rest -= GA.lens[i];
+        g.beginPath(); pts.forEach(([x, y], j) => j ? g.lineTo(x + dx, y + dy) : g.moveTo(x + dx, y + dy)); g.stroke(); pen = pts[pts.length - 1]; });
+      g.shadowBlur = 0;
+    };
+    if (ink > 0) { g.globalAlpha = ink; pass(34, '#000', 0); pass(26, '#ff7b1c', 0, 9, 9); pass(26, '#ffffff', 0); g.globalAlpha = 1; }
+    if (ink < 1) { g.globalAlpha = 1 - ink; pass(12, '#7ff8ff', 28); pass(4, '#ffffff', 0); g.globalAlpha = 1; }
+    if (t > .35 && draw < 1 && pen) {  // светящийся кончик пера и искры
+      const pk = clamp((t - .35) / .2);
+      g.fillStyle = '#fff'; g.shadowColor = '#7ff8ff'; g.shadowBlur = 40; g.beginPath(); g.arc(pen[0], pen[1], 9 * pk, 0, 7); g.fill(); g.shadowBlur = 0;
+      const r = rng(Math.floor(t * 30));
+      for (let i = 0; i < 6; i++) { const a = r() * 7, d = 10 + r() * 34; g.fillStyle = `rgba(160,250,255,${.4 + r() * .6})`; g.fillRect(pen[0] + Math.cos(a) * d, pen[1] + Math.sin(a) * d, 3, 3); }
+    } else if (t <= .5) {
+      const pk = clamp((t - .15) / .3); const p0 = GA.strokes[0][0];
+      g.fillStyle = '#fff'; g.shadowColor = '#7ff8ff'; g.shadowBlur = 40 * pk; g.beginPath(); g.arc(p0[0], p0[1], 9 * pk, 0, 7); g.fill(); g.shadowBlur = 0;
+    }
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    // название студии по буквам
+    const word = 'GraphicArts', ty = 690;
+    g.font = '900 112px Unbounded'; g.textBaseline = 'alphabetic';
+    const widths = [...word].map(c => g.measureText(c).width), tw = widths.reduce((a, b) => a + b, 0);
+    let x = cx - tw / 2, iTop = null;
+    [...word].forEach((c, i) => {
+      const k = clamp((t - 2.9 - i * .055) / .35); if (k <= 0) { x += widths[i]; return; }
+      const s = E.outBack(k), lx = x + widths[i] / 2;
+      if (c === 'i') iTop = [lx, ty - 112 * .78];
+      g.save(); g.translate(lx, ty - (1 - k) * 40); g.scale(s, s); g.globalAlpha = clamp(k * 2);
+      g.lineJoin = 'round'; g.lineWidth = 14; g.strokeStyle = '#000'; g.strokeText(c, -widths[i] / 2, 0);
+      g.fillStyle = i < 7 ? '#ff7b1c' : '#3ff0ff'; g.fillText(c, -widths[i] / 2 + 6, 6);
+      g.fillStyle = '#ffffff'; g.fillText(c, -widths[i] / 2, 0);
+      g.restore(); x += widths[i];
+    });
+    // A N I M A T I O N
+    const ak = E.outCubic(clamp((t - 3.55) / .6));
+    if (ak > 0) {
+      g.globalAlpha = ak; g.font = '700 40px Rubik'; g.fillStyle = '#7ff8ff'; g.textAlign = 'center';
+      const spc = 12 + 20 * ak, letters = [...'ANIMATION'], ay = 770;
+      letters.forEach((c, i) => g.fillText(c, cx + (i - (letters.length - 1) / 2) * (28 + spc), ay));
+      const half = (letters.length / 2) * (28 + spc) + 30;
+      g.fillRect(cx - half - 160 * ak, ay - 16, 160 * ak, 3); g.fillRect(cx + half, ay - 16, 160 * ak, 3);
+      g.globalAlpha = 1;
+    }
+    // слоган, потом «представляет»
+    const tg = Math.min(clamp((t - 4.0) / .4), 1 - clamp((t - 5.0) / .3));
+    g.textAlign = 'center';
+    if (tg > 0) { g.globalAlpha = tg; g.font = 'italic 500 32px Rubik'; g.fillStyle = '#c9d6ff'; g.fillText('Рисуем. Оживляем. Удивляем.', cx, 850); g.globalAlpha = 1; }
+    const pr = clamp((t - 5.25) / .4);
+    if (pr > 0) { g.globalAlpha = pr; g.font = '600 38px Rubik'; g.fillStyle = '#ffffff'; g.fillText('п р е д с т а в л я е т', cx, 860); g.globalAlpha = 1; }
+    g.textAlign = 'left';
+    // паучок на нити садится на точку над «i»
+    if (iTop && t > 4.25 && t < 5.9) {
+      const down = E.outBack(clamp((t - 4.3) / .55)), up = E.inQuad(clamp((t - 5.3) / .45));
+      const sy = lerp(-30, iTop[1] - 46, down) - up * (iTop[1] + 80), sx = iTop[0] + 4 + Math.sin(t * 5) * 2;
+      g.strokeStyle = 'rgba(220,240,255,.9)'; g.lineWidth = 2; g.beginPath(); g.moveTo(sx, 0); g.lineTo(sx, sy - 10); g.stroke();
+      const wig = Math.sin(t * 24) * .2, land = clamp((t - 4.8) / .15) * (1 - up);
+      g.save(); g.translate(sx, sy); g.scale(1.55, 1.55); g.translate(-sx, -sy);
+      g.strokeStyle = '#05060a'; g.lineWidth = 3.5;
+      for (const sd of [-1, 1]) for (let j = 0; j < 4; j++) {
+        const a = (j - 1.5) * .45 + (j % 2 ? wig : -wig);
+        const kx = sx + sd * (14 + j * 1.5), ky = sy - 4 + j * 4;
+        g.beginPath(); g.moveTo(sx + sd * 6, sy + j * 3 - 4); g.lineTo(kx, ky - 10 + a * 10); g.lineTo(kx + sd * 8, ky + 8 + land * 4 + a * 6); g.stroke();
+      }
+      g.fillStyle = '#05060a'; g.beginPath(); g.ellipse(sx, sy + 6, 12, 14, 0, 0, 7); g.fill();
+      g.beginPath(); g.arc(sx, sy - 10, 8, 0, 7); g.fill();
+      g.fillStyle = '#3ff0ff'; g.beginPath(); g.arc(sx, sy + 6, 4, 0, 7); g.fill();       // знак на спинке
+      g.fillStyle = '#fff'; for (const sd of [-1, 1]) { g.beginPath(); g.arc(sx + sd * 3.5, sy - 12, 2.6, 0, 7); g.fill(); }
+      g.restore();
+      if (t > 4.8 && t < 5.1) { const k = (t - 4.8) / .3; g.strokeStyle = `rgba(255,255,255,${1 - k})`; g.lineWidth = 3; g.beginPath(); g.arc(sx, sy + 28, 14 + k * 34, Math.PI * 1.1, Math.PI * 1.9); g.stroke(); }
+    }
+    // финальное затемнение
+    g.globalAlpha = 1;
+    const fo = clamp((t - (dur - .55)) / .5); if (fo > 0) { g.fillStyle = `rgba(0,0,0,${fo})`; g.fillRect(0, 0, W, H); }
+    g.restore();
+    O.vignette(.45);
   };
 
   // большой титр (имя серии, финальные карточки)

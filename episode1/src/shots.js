@@ -100,13 +100,13 @@ export function buildShots(C) {
   };
   /* комикс-панель: второй ракурс поверх кадра (рисуется отдельной камерой) */
   const panelCams = [new THREE.PerspectiveCamera(30, 1, .05, 3000), new THREE.PerspectiveCamera(30, 1, .05, 3000)];
-  const panel = (i, k, rect, scene, pos, at, fov = 30, roll = 0) => {
+  const panel = (i, k, rect, scene, pos, at, fov = 30, roll = 0, frame = null) => {
     if (k <= 0) return;
     const [x, y, w, h] = rect, s = E.outBack(clamp(k));
     const ws = Math.round(w * s), hs = Math.round(h * s), px = Math.round(x + (w - ws) / 2), py = Math.round(y + (h - hs) / 2);
     const pc = panelCams[i]; pc.position.set(...pos); pc.up.set(0, 1, 0); pc.lookAt(...at); if (roll) pc.rotateZ(roll); pc.fov = fov;
     (C.panels = C.panels || []).push({ x: px, y: py, w: ws, h: hs, scene, cam: pc });
-    post(o => o.panelFrame(px, py, ws, hs));
+    post(o => frame ? frame(o, px, py, ws, hs) : o.panelFrame(px, py, ws, hs));
   };
   /* контровой свет за героем относительно камеры — силуэт отделяется от тёмного фона */
   const rimOn = (target, color = 0x9feaff, k = 2.4) => { C.rim = { target: V(...target), color, k }; };
@@ -131,7 +131,7 @@ export function buildShots(C) {
     TI.pose(o.pose || POSE.bike(t));
     if (!o.freeHands) {                      // IK: ладони точно на ручках руля
       b.updateMatrixWorld(true);
-      for (const [sd, sx] of [['L', 1], ['R', -1]]) if (!(o.freeL && sd === 'L')) ikArm(TI, sd, b.localToWorld(V(sx * .26, .92, .43)), b.localToWorld(V(sx * 1.5, .3, -.3)).sub(b.position));
+      for (const [sd, sx] of [['L', 1], ['R', -1]]) if (!(o.freeL && sd === 'L')) ikArm(TI, sd, b.localToWorld(V(sx * .26, .92, .43)), b.localToWorld(V(sx * .45, -.5, -1)).sub(b.position));
     }
     if (!(o.y > .05)) {                     // брызги из-под заднего колеса
       const back = V(0, 0, -1).applyQuaternion(b.quaternion).setY(0).normalize();
@@ -176,7 +176,7 @@ export function buildShots(C) {
   const busSlide = t => kf(t, [[120, 0], [154.6, 0], [156.6, 2.6, E.outCubic], [171, 2.6], [174, -2.4, E.inOutCubic]]);
   const busRear = t => { props.busPivot.updateMatrixWorld(true); return props.bus.localToWorld(V(0, 1.6, -6)); };
   const wreck = [];                         // брошенные машины на мосту
-  for (let i = 0; i < 3; i++) { const c = makeCar(i + 3); S.add(c); c.visible = false; wreck.push(c);
+  for (let i = 0; i < 3; i++) { const c = makeCar([5, 2, 7][i]); S.add(c); c.visible = false; wreck.push(c);
     c.children.forEach(m => { if (m.material?.blending === THREE.AdditiveBlending) m.visible = false; }); }   // брошенные машины — фары погашены
   const fire = new THREE.PointLight(0xff7a2a, 0, 40, 1.4); S.add(fire);
   const flames = [];
@@ -314,6 +314,7 @@ export function buildShots(C) {
     p.armL = [lerp(-1.12, -.6, touch), lerp(0, -.5, touch), lerp(.2, .1, touch)]; p.foreL = [lerp(-.35, -2.0, touch), 0, 0];
     p.head = [-.25 - .2 * touch, 0, 0];
     rideBike(t, x, z, { pose: p, freeL: touch > .05 });
+    if (touch > .35) { TI.J.handL.add(carab); carab.visible = true; carab.position.set(0, -.07, .07); carab.rotation.set(.3, 0, .4); }   // сжимает дедов карабин на лямке
     face(TI, 'timur', t, { brow: lerp(.2, -.05, touch), smile: t > 41.8 ? .8 : .2, look: [0, -.5 * touch], energy: .6 });
     const k = E.inOutSine(lt / 6);
     look(addv([x - .2, 1.55, z - lerp(2.2, 1.5, k)], shk(t, .02, 3)), [x, lerp(1.3, 1.25, k), z], lerp(42, 32, k));
@@ -532,19 +533,24 @@ export function buildShots(C) {
     return S;
   }, { flashK: 0 });
   shot(80.2, 83, (lt, t) => {
-    if (t >= 81.7) {          // снаружи: Тимура выбрасывает из окна — рука сама выстреливает первой нитью
+    if (t >= 81.2) {          // снаружи: взрыв выбрасывает Тимура из окна — рука сама выстреливает первой нитью
       env({ fill: [[80, 258, -420], 30, 0x7feaff] });
-      props.shards.update(t - 81.7, [V(65.5, 268, -438), V(65.5, 264, -444)]);
-      const tp = kf(t, [[81.7, [66, 266.5, -437]], [82.15, [71.5, 256, -434], E.inQuad], [82.95, [93, 246, -424], E.outQuad]]);
+      props.shards.update(t - 81.2, [V(65.5, 268, -438), V(65.5, 264, -444)]);
+      props.sparks.burst(V(65.5, 268, -438), t - 81.2, { speed: 9, life: .9 });
+      const tp = kf(t, [[81.2, [64.5, 267.5, -438]], [81.95, [72, 255, -434], E.inQuad], [82.95, [93, 246, -424], E.outQuad]]);
       place(TI, S, tp, 0);
-      const A0 = V(62, 300, -414), web = P(t, 82.0, .18);
-      if (t < 82.15) { TI.root.rotation.set(Math.sin(t * 6) * 1.6, t * 2, .8); TI.pose(POSE.fall(t)); }
+      const A0 = V(62, 300, -414), web = P(t, 81.85, .18);
+      if (t < 81.95) { TI.root.rotation.set(Math.sin(t * 6) * 1.6, t * 2, .8); TI.pose(POSE.fall(t)); }
       else { orient(TI, A0.clone().sub(V(...tp)), V(1, 0, .3)); TI.pose({ ...POSE.shootUp(), head: [.6, 0, 0], legL: [.3, 0, .1], legR: [.1, 0, .1] }); }
       face(TI, 'timur', t, { blink: 1, noBlink: true });
       TI.mats.hand.emissive.setRGB(.05, .6, .8);
-      if (web > 0) props.webs.add(handW(TI, 'R'), A0, { k: E.outCubic(web), w: .05, splat: false, wob: .8, wobT: t - 82.2 });
-      look(addv([lerp(86, 96, P(t, 81.7, 1.3)), 259, -414], shk(t, .12, 6)), tp.map((v, i) => v + [0, -.6, 0][i]), 48);
-      post(o => o.comic('ВЖУХ!', 1250, 300, t - 82.05, { size: .5, color: '#7ff8ff', dur: .8 }));
+      if (web > 0) props.webs.add(handW(TI, 'R'), A0, { k: E.outCubic(web), w: .05, splat: false, wob: .8, wobT: t - 82.05 });
+      const kc = E.inOutSine(P(t, 81.2, 1.75));
+      look(addv([lerp(78, 92, kc), lerp(262, 254, kc), lerp(-424, -414, kc)], shk(t, .12 * Math.exp(-(t - 81.2) * 2), 10)), tp.map((v, i) => v + [0, -.5, 0][i]), 44);
+      impact(t, 81.2, { zoom: .1, shake: .2, color: '#ffe8c0' });
+      post(o => o.comic('ВЖУХ!', 1300, 280, t - 81.9, { size: .5, color: '#7ff8ff', dur: .8 }));
+      post(o => o.caption('Взрыв выбросил Тимура из окна…', 60, 60, t - 81.25, { dur: 1.75 }));
+      post(o => o.caption('…но его рука сама выстрелила нитью!', 120, 150, t - 81.9, { dur: 1.1, bg: '#9ff8ff' }));
       fadeOut(lt, 2.8, .45);
       return S;
     }
@@ -571,7 +577,12 @@ export function buildShots(C) {
     const g = .5 + .5 * Math.sin(t * 3);
     TI.mats.hand.emissive.setRGB(.02 * g, .2 * g, .3 * g);
     face(TI, 'timur', t, { brow: .5, blink: t < 85 ? 1 : blinkAt(t), look: [0, -.3] });
-    props.webs.add(handW(TI, 'R'), V(150, 112.15, -468), { w: .018, splat: false });    // обрывок первой нити на запястье
+    { // обрывок первой нити: от запястья уходит по крыше в сторону от тела, а не сквозь него
+      const hw = handW(TI, 'R'), bc = TI.J.spine.getWorldPosition(V(0, 0, 0));
+      const away = hw.clone().sub(bc).setY(0).normalize();
+      props.webs.add(hw, hw.clone().addScaledVector(away, 9).setY(112.12), { w: .018, splat: false });
+    }
+    post(o => o.caption('Соседняя крыша.\nНесколько минут спустя…', 60, 60, t - 83.4, { dur: 2.6 }));
     if (t < 87.6) { const k = E.inOutSine(P(t, 83, 4.6)); look([128 + Math.sin(k) * .4, lerp(122, 116.5, k), -432 + .01], [128, 112, -432], 40, k * .6); }
     else { const hw = handW(TI, 'R'); look(hw.clone().add(V(-.2, .55, .9)).toArray(), hw.toArray(), 32); post(o => o.lensDrops(t, .8)); }
     fadeIn(lt, 1.4);
@@ -707,8 +718,9 @@ export function buildShots(C) {
     face(KR, 'kronov', t);
     if (t > 125.6) props.sparks.burst(V(447.4, 1.3, -404.6), t - 125.7, { speed: 7, life: 1 });
     if (t < 125.4) {          // общий план
+      // низкая камера на мосту: мимо неё в панике бегут люди, за ними — Кронов
       const k = E.inOutSine(P(t, 123, 2.4));
-      look(addv([lerp(418, 424, k), lerp(14, 11, k), lerp(-362, -368, k)], shk(t, .1, 2)), [450, 1.6, -396], 44);
+      look(addv([lerp(418.2, 421, k), lerp(1.5, 1.9, k), lerp(-390.4, -391, k)], shk(t, .06, 3)), [lerp(446, 447, k), 2.3, -399.5], 40);
     } else {                  // средний план снизу: удар крупно
       const k = E.inOutSine(P(t, 125.4, 3.6));
       look(addv([lerp(440.2, 441.2, k), lerp(1.2, 1.5, k), lerp(-401.2, -400.4, k)], shk(t, .03, 3)), [446.6, lerp(2.4, 2.9, k), -401.8], lerp(46, 40, k));
@@ -735,6 +747,7 @@ export function buildShots(C) {
     look([lerp(330, 438, k), lerp(70, 10, k), lerp(-386, -360, k)], sign.toArray(), lerp(30, 14, k));
     post(o => o.speedLines(pulse(t, 129.3, 130.6, .1, .3) * .6, t));
     cabPanel(t, pulse(t, 130.7, 132.9, .12, .15), .22);
+    post(o => o.caption('Автобус №42. За рулём — дед.', 100, 440, t - 130.8, { dur: 2.0 }));
     return S;
   });
   // сомнение: «Обещал — держи»
@@ -925,6 +938,7 @@ export function buildShots(C) {
     impact(t, 174.05, { zoom: .08, shake: .2 });
     // пока все смотрят на автобус — чёрный дрон утаскивает ядро
     const dk = pulse(t, 172.2, 174.2, .12, .15);
+    post(o => o.caption('А тем временем…', 100, 440, t - 172.25, { dur: 1.9, bg: '#ff9a9a' }));
     if (dk > 0) { const c = coreAt(t); panel(0, dk * 1.01, [90, 90, 580, 330], S, c.clone().add(V(-2.4, 1.1, 2.0)).toArray(), c.clone().add(V(0, .2, 0)).toArray(), 34); }
     squash(TI, springAt(t, 174.05, -.1, 12, 6));
     return S;
@@ -958,6 +972,12 @@ export function buildShots(C) {
     }
     else look([455.4, 4.0, -393.4], [454.6, 6.4, -396.2], 38);
     if (t > 181.4) post(o => o.comic('ВЖУХ!', 980, 260, t - 181.45, { size: .55, color: '#7ff8ff', dur: .8 }));
+    // вставка: зевака снимает героя на телефон — город узнаёт о новом герое
+    const phk = pulse(t, 179.45, 182.75, .15, .2);
+    if (phk > 0) {
+      const pc = addv(C.crowd.braveCam(t), shk(t, .05, 2.5)), tg = [454.6, Math.min(hang.y, 24) + 1.0, -396.2];
+      panel(1, phk * 1.01, [1452, 92, 352, 626], S, pc, tg, lerp(14, 24, P(t, 181.4, .8)), .04 * Math.sin(t * 1.1), (o, x, y, w, h) => o.phoneFrame(x, y, w, h, t, 179.45));
+    }
     fadeOut(lt, 8, .5);
     return S;
   });
@@ -1010,6 +1030,7 @@ export function buildShots(C) {
       const k = E.inOutSine(P(t, 198.4, 1.8));
       look(L2W(lerp(4.2, 3.6, k), 1.85, lerp(-7.2, -8.0, k)), L2W(1.5, 1.55, -12.6), lerp(34, 30, k));
       fadeIn(t - 198.4, .2); post(o => o.fill('#000', (t - 200.0) / .2));
+      post(o => o.caption('Лаборатория «Аркада».\nДоктор Лис жива.', 60, 60, t - 198.5, { dur: 1.6 }));
       return S;
     }
     env({ key: 1.6, rim: 1.6, rimPos: [300, 80, -900] });
@@ -1030,6 +1051,8 @@ export function buildShots(C) {
   shot(203, 207, (lt, t) => {
     look([0, 100, 200], [0, 100, 0], 45);
     post(o => o.logo(lt, { sub: 'КОНЕЦ ПЕРВОЙ СЕРИИ' }));
+    post(o => o.title([{ text: 'мультфильм студии', font: '500 28px Rubik', y: 958, color: '#9fb4d8' },
+      { text: 'GraphicArts Animation', font: '800 42px Unbounded', y: 1008, color: '#ffffff', stroke: 8, glow: '#ff7b1c' }], clamp((lt - 1.2) / .6)));
     post(o => o.fill('#000', (lt - 3.5) / .5));
     return S;
   }, { noSubs: true, noFlash: true });
@@ -1054,6 +1077,7 @@ export function buildShots(C) {
     fadeIn(lt, .8);
     post(o => o.fill('#000', (t - 212.4) / .3 * .85));
     post(o => o.title([{ text: 'ПРОДОЛЖЕНИЕ СЛЕДУЕТ…', font: '900 76px Unbounded', y: 540, color: '#ff3a3a', stroke: 14, glow: '#ff0000' }], clamp((t - 212.6) / .5)));
+    post(o => o.title([{ text: '© 2026 GraphicArts Animation', font: '500 24px Rubik', y: 1030, color: '#8a94a8' }], clamp((t - 213.2) / .5)));
     post(o => o.fill('#000', (t - 215.3) / .6));
     return Z;
   }, { noFlash: true });

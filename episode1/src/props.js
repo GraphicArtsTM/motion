@@ -149,7 +149,7 @@ export function makeStreetLife(scene) {
       p.c.visible = pol; const f = Math.floor(t * 6 + p.i) % 2;
       p.red.visible = f === 0; p.blue.visible = f === 1;
     }
-    L.policeLight.intensity = pol ? 40 : 0; L.policeLight.position.set(325, 4, -400);
+    L.policeLight.intensity = pol ? 40 : 0; L.policeLight.position.set(t < 165 ? 325 : 369, 4, -400);
     L.policeLight.color.set(Math.floor(t * 6) % 2 ? 0x2050ff : 0xff2020);
   };
   return L;

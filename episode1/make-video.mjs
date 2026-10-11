@@ -19,7 +19,7 @@ try { FFMPEG = require('ffmpeg-static') || 'ffmpeg'; } catch { }
 const fps = +arg('fps', 30);
 const fast = process.argv.includes('--fast');
 const timeline = JSON.parse(readFileSync(path.join(dir, 'timeline.json'), 'utf8'));
-const from = +arg('from', 0), to = +arg('to', timeline.duration);
+const from = +arg('from', 0), to = +arg('to', timeline.duration + (timeline.intro || 0));
 const jobs = Math.max(1, +arg('jobs', Math.min(3, Math.max(1, Math.floor(os.cpus().length / 4)))));
 const outDir = path.join(dir, 'out'), parts = path.join(outDir, 'parts');
 rmSync(parts, { recursive: true, force: true }); mkdirSync(parts, { recursive: true });

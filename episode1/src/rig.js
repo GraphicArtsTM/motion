@@ -313,6 +313,10 @@ export function makeCharacter(kind) {
 /* ---------- Кронов в экзокостюме ---------- */
 function buildKronov(ch, d) {
   const k = d.k, J = ch.J, OL = .016 * k;
+  // массивный торс брони: плечи и бёдра шире, чем у обычного скелета, — руки не «растут» из корпуса
+  J.armL.position.set(.33 * k, .12 * k, 0); J.armR.position.set(-.33 * k, .12 * k, 0);
+  J.legL.position.x = .13 * k; J.legR.position.x = -.13 * k;
+  d.shX = .33 * k;
   const metal = toon(0x4a5260), dark = toon(0x262b33), orange = toon(0xff6a17);
   const visorM = glow(0xff2a1a, 3.2), coreM = glow(0xffa340, 3);
   ch.mats = { metal, dark, orange, visorM, coreM };
@@ -470,7 +474,7 @@ export function ikArm(ch, side, target, pole = new THREE.Vector3(0, -1, -.3), we
   const poleL = pole.clone().transformDirection(inv).normalize();
   const n = new THREE.Vector3().crossVectors(dirv, poleL).normalize();
   if (n.lengthSq() < 1e-6) n.set(1, 0, 0);
-  const upperDir = dirv.clone().applyAxisAngle(n, -angA);   // направление плеча
+  const upperDir = dirv.clone().applyAxisAngle(n, angA);    // плечо отклоняется к pole — локоть смотрит наружу
   const elbow = S0.clone().addScaledVector(upperDir, a);
   const lowerDir = T.clone().sub(elbow).normalize();
   // плечо: «вниз» (−y) поворачиваем в upperDir

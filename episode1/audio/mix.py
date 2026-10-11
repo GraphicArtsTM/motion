@@ -710,6 +710,26 @@ add('fx', thwip(), 112.35, 0.6)
 add('fx', thud(1.0), 116.6, 0.55)
 
 # мост
+def walla(len_, excite=0.5, seed=0):
+    """Гул толпы: несколько «голосов» — шум через плавающие форманты с рваной огибающей слогов."""
+    g = np.random.default_rng(seed); n = int(len_ * SR); t = tt(n); out = np.zeros(n)
+    for v in range(10):
+        f1 = g.uniform(350, 800) * (1 + excite * 0.5); rate = g.uniform(3, 6) * (1 + excite * 0.6)
+        x = tv_band(g.standard_normal(n), lambda s, f1=f1, ph=g.random() * 6: f1 * (1 + 0.35 * np.sin(s * 2.3 + ph)), bw=0.45)
+        syl = np.clip(np.sin(2 * np.pi * rate * t + g.random() * 6) + g.uniform(-.2, .5), 0, 1) ** 1.5
+        out += x * syl * g.uniform(.5, 1)
+    return out * np.minimum(1, t * 2) * np.minimum(1, (len_ - t) * 1.5)
+
+
+add('amb', walla(6.0, 0.9, 1), 122.2, 0.06, pan=-0.3, rev=0.3)                    # люди бегут, кричат
+add('amb', walla(14.0, 0.3, 2), 128.0, 0.025, pan=0.4, rev=0.5)                     # зеваки вдалеке
+add('fx', screech(1.1), 165.4, 0.12, pan=-0.5, rev=0.2)                              # полиция тормозит на мосту
+for t0, p in ((166.55, -0.5), (166.85, -0.3), (166.75, -0.6)):
+    add('fx', thud(0.5), t0, 0.12, pan=p, rev=0.3)                                   # хлопают двери
+cheer = walla(4.5, 1.4, 3)
+for k in range(46):
+    i = int((0.1 + rs.random() * 3.6) * SR); c = clap()[:len(cheer) - i]; cheer[i:i + len(c)] += c * (0.6 + rs.random() * 0.6)
+add('amb', cheer, 174.2, 0.07, pan=0.2, rev=0.4)                                     # толпа ликует: автобус спасён
 add('amb', siren(52, 600, 900, 0.3) * 0.5 + siren(52, 700, 1000, 0.42) * 0.4, 121.0, 0.07, pan=-0.4, rev=0.4)
 for t0 in (124.5, 131.5, 146.0, 158.5, 161.5, 172.0):
     add('fx', metal_groan(2.2, 60 + 20 * rs.random()), t0, 0.25, rev=0.3)
@@ -877,6 +897,48 @@ mix = np.tanh(mix * 1.6) / np.tanh(1.6)
 fade = np.clip((DUR - tt(N)) / 1.0, 0, 1) ** 2
 mix *= fade
 mix = mix[:, :int(DUR * SR)]
+
+
+# ---------------- заставка студии GraphicArts Animation ----------------
+def make_intro(n):
+    """Перо рисует монограмму (шуршание + искры), всплеск краски, музыкальный логотип в ре миноре,
+    паучок на нити спускается на точку над «i» и уезжает обратно."""
+    L, R = np.zeros(n + 3 * SR), np.zeros(n + 3 * SR)
+
+    def put(sig, t0, g=1.0, pan=0.0):
+        i = int(t0 * SR); sig = sig[:len(L) - i] * g; a = (pan + 1) * np.pi / 4
+        L[i:i + len(sig)] += sig * np.cos(a); R[i:i + len(sig)] += sig * np.sin(a)
+    put(riser(0.8, 300, 6000), 0.0, 0.18)
+    m = int(1.9 * SR); t = tt(m)
+    pen = tv_band(noise(m), lambda s: 3200 + 1800 * np.sin(s * 11), bw=0.35) * (0.5 + 0.5 * np.abs(np.sin(t * 17))) * np.minimum(1, t * 6) * np.minimum(1, (1.9 - t) * 4)
+    put(pen, 0.55, 0.22, -0.3)
+    put(np.sin(2 * np.pi * np.cumsum(900 + 700 * t / 1.9) / SR) * 0.12 * np.minimum(1, t * 4) * np.minimum(1, (1.9 - t) * 4), 0.55, 0.5, 0.3)
+    g = np.random.default_rng(5)
+    for k in range(9):
+        put(bell(mtof([86, 89, 93, 96, 98][k % 5]), 0.6), 0.65 + k * 0.2 + g.random() * 0.05, 0.06, g.uniform(-.7, .7))
+    put(crash(0.55)[::-1].copy(), 1.85, 0.3)
+    put(boom(2.2), 2.4, 0.75); put(splat(), 2.4, 0.7); put(crash(2.6), 2.42, 0.22)
+    for m_ in (50, 57, 62, 65, 69, 76):
+        put(pad(m_, 2.9, fc=1800), 2.45, 0.05, (m_ - 63) / 20)
+    for i, m_ in enumerate((62, 65, 69, 74)):
+        put(pluck(mtof(m_), 1.6, bright=0.75), 2.95 + i * 0.17, 0.32, -0.3 + 0.2 * i)
+    put(bell(mtof(86), 2.2), 3.66, 0.2); put(bell(mtof(81), 2.2), 3.68, 0.12, 0.4)
+    put(whoosh(0.5, False, 900), 4.3, 0.22, 0.2)
+    b = int(0.14 * SR); tb = tt(b)
+    put(np.sin(2 * np.pi * np.cumsum(1700 * np.exp(-tb * 18) + 500) / SR) * np.exp(-tb * 22), 4.84, 0.25, 0.2)
+    put(thwip(), 5.3, 0.3, 0.2)
+    rl, rr = reverb(L, R, 2.2)
+    L += rl * 0.6; R += rr * 0.6
+    out = np.stack([L, R])[:, :n]
+    out *= np.clip((INTRO - tt(n)) / 0.7, 0, 1) ** 1.5
+    return out
+
+
+INTRO = TL.get('intro', 0)
+if INTRO > 0:
+    intro = make_intro(int(INTRO * SR))
+    intro *= 0.8 * np.max(np.abs(mix)) / (np.max(np.abs(intro)) + 1e-9)
+    mix = np.concatenate([intro, mix], axis=1)
 mix *= 0.89 / np.max(np.abs(mix))
 
 os.makedirs(os.path.join(ROOT, 'assets'), exist_ok=True)

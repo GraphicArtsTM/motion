@@ -59,7 +59,7 @@ const stills = arg('stills');
 if (stills) {
   mkdirSync(path.join(out, 'stills'), { recursive: true });
   for (const s of stills.split(',')) {
-    const t = +s;
+    const t = process.argv.includes('--story') ? await page.evaluate(s => window.toFilm(s), +s) : +s;   // --story: время по сюжету
     const t0 = Date.now();
     await page.evaluate(t => window.renderAt(t), t);
     const file = path.join(out, 'stills', 't' + t.toFixed(2).padStart(6, '0') + '.png');
