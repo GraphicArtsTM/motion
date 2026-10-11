@@ -8,9 +8,11 @@ mkdir -p out/parts
 JOBS=${JOBS:-2}
 FPS=${FPS:-24}
 
+# озвучка: если есть общая запись audio/voice_src/*.mp3 — нарезаем её на реплики (см. audio/align_voice.py)
+for f in audio/voice_src/*.mp3 audio/voice_src/*.m4a audio/voice_src/*.wav; do [ -e "$f" ] && python3 audio/align_voice.py "$f"; done
 python3 audio/voices.py
 python3 audio/mix.py
-ffmpeg -y -loglevel error -i assets/soundtrack.wav -c:a libmp3lame -b:a 192k assets/soundtrack.mp3
+ffmpeg -y -loglevel error -i assets/soundtrack.wav -af "loudnorm=I=-15:TP=-1.0:LRA=11" -c:a aac -b:a 256k -ar 48000 assets/soundtrack.m4a
 
 DUR=$(python3 -c "import json;print(json.load(open('timeline.json'))['duration'])")
 STEP=$(python3 -c "print($DUR/$JOBS)")

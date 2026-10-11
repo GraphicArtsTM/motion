@@ -19,8 +19,14 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 SR = 44100
 TL = json.load(open(os.path.join(ROOT, 'timeline.json')))
-DUR = TL['duration']
+DUR = TL['duration']                      # экранная длительность (с растяжками под озвучку)
 N = int((DUR + 2) * SR)
+STR = TL.get('stretch', [])
+
+
+def W(t):
+    """Сюжетное время (в нём расписаны события) → экранное."""
+    return t + sum(e * min(max((t - a) / (b - a), 0), 1) for a, b, e in STR)
 BPM = 126
 BEAT = 60 / BPM
 BAR = BEAT * 4
@@ -43,8 +49,9 @@ def noise(n):
     return rs.standard_normal(n)
 
 
-def add(bus, sig, t0, gain=1.0, pan=0.0, rev=0.0):
-    i = int(round(t0 * SR))
+def add(bus, sig, t0, gain=1.0, pan=0.0, rev=0.0, raw=False):
+    """raw=True — t0 уже в экранном времени (ритм-секции, голоса)."""
+    i = int(round((t0 if raw else W(t0)) * SR))
     if i >= N or len(sig) == 0:
         return
     if i < 0:
@@ -389,7 +396,9 @@ KICKS = []
 
 
 def groove(t0, t1, prog=PROG, intensity=1.0, hats=True, toms=False, arp=True, half=False):
-    """Ритм-секция: бочка, малый, хэты, бас восьмыми, аккорд-пэд, арпеджио."""
+    """Ритм-секция: бочка, малый, хэты, бас восьмыми, аккорд-пэд, арпеджио.
+    Сетка долей строится в экранном времени, чтобы растяжки не ломали темп."""
+    t0, t1 = W(t0), W(t1)
     nb = int((t1 - t0) / BAR + 0.999)
     for bi in range(nb):
         b0 = t0 + bi * BAR
@@ -400,40 +409,41 @@ def groove(t0, t1, prog=PROG, intensity=1.0, hats=True, toms=False, arp=True, ha
             if tb >= t1:
                 break
             if not half or b % 2 == 0:
-                add('drums', kick(1.0), tb, 0.85 * intensity); KICKS.append(tb)
+                add('drums', kick(1.0), tb, 0.85 * intensity, raw=True); KICKS.append(tb)
             if b in (1, 3):
-                add('drums', snare(1.0), tb, 0.55 * intensity, rev=0.2)
-                add('drums', clap(), tb, 0.3 * intensity, rev=0.2)
+                add('drums', snare(1.0), tb, 0.55 * intensity, rev=0.2, raw=True)
+                add('drums', clap(), tb, 0.3 * intensity, rev=0.2, raw=True)
             if hats:
                 for s in range(4):
-                    add('drums', hat(s == 2), tb + s * BEAT / 4, (0.14 + 0.07 * (s == 2)) * intensity, pan=0.3 * (-1) ** s)
+                    add('drums', hat(s == 2), tb + s * BEAT / 4, (0.14 + 0.07 * (s == 2)) * intensity, pan=0.3 * (-1) ** s, raw=True)
             if toms and b == 3 and bi % 2 == 1:
                 for k, f in enumerate((140, 115, 90)):
-                    add('drums', tom(f), tb + k * BEAT / 3, 0.45 * intensity, pan=0.4 - 0.4 * k)
+                    add('drums', tom(f), tb + k * BEAT / 3, 0.45 * intensity, pan=0.4 - 0.4 * k, raw=True)
             for h in range(2):
                 m = root + (12 if (b * 2 + h) % 4 == 3 else 0)
-                add('bass', bassnote(m, 0.22), tb + h * BEAT / 2, 0.34 * intensity)
+                add('bass', bassnote(m, 0.22), tb + h * BEAT / 2, 0.34 * intensity, raw=True)
         for m in CH[c]:
-            add('music', pad(m + 12, BAR, fc=1600), b0, 0.03 * intensity, pan=rs.uniform(-.6, .6), rev=0.4)
+            add('music', pad(m + 12, BAR, fc=1600), b0, 0.03 * intensity, pan=rs.uniform(-.6, .6), rev=0.4, raw=True)
         if arp:
             tones = [CH[c][0] + 24, CH[c][1] + 24, CH[c][2] + 24, CH[c][0] + 36]
             for s, p in enumerate([0, 2, 3, 1, 2, 3, 1, 2]):
                 ts = b0 + s * BEAT / 2
                 if ts < t1:
-                    add('music', pluck(mtof(tones[p]), 0.45, 0.65, 0.993), ts, 0.16 * intensity, pan=0.35 * (1 if s % 2 else -1), rev=0.3)
+                    add('music', pluck(mtof(tones[p]), 0.45, 0.65, 0.993), ts, 0.16 * intensity, pan=0.35 * (1 if s % 2 else -1), rev=0.3, raw=True)
 
 
 def melody(notes, t0, step, inst='brass', amp=0.3, oct=0, ln=None):
+    t0 = W(t0)
     for i, m in enumerate(notes):
         if m is None:
             continue
         L = (ln[i] if ln else 1) * step
         if inst == 'brass':
-            add('music', brass(m + oct, L), t0 + i * step, amp, rev=0.35)
+            add('music', brass(m + oct, L), t0 + i * step, amp, rev=0.35, raw=True)
         elif inst == 'strings':
-            add('music', strings(m + oct, L, att=0.12), t0 + i * step, amp, rev=0.45)
+            add('music', strings(m + oct, L, att=0.12), t0 + i * step, amp, rev=0.45, raw=True)
         else:
-            add('music', pluck(mtof(m + oct), L + 0.6, 0.6, 0.997), t0 + i * step, amp, pan=0.1, rev=0.4)
+            add('music', pluck(mtof(m + oct), L + 0.6, 0.6, 0.997), t0 + i * step, amp, pan=0.1, rev=0.4, raw=True)
 
 
 def chord(c, t0, len_, inst='strings', amp=0.05, oct=12):
@@ -636,6 +646,7 @@ rain = rain_bed()
 lvl = np.ones(N)
 T = tt(N)
 def seg(a, b, v, fade=0.4):
+    a, b = W(a), W(b)
     m = (T >= a - fade) & (T < b + fade)
     k = np.clip(np.minimum((T - (a - fade)) / fade, ((b + fade) - T) / fade), 0, 1)
     lvl[m] = lvl[m] * (1 - k[m]) + v * k[m]
@@ -787,27 +798,40 @@ VOX_GAIN = {'narrator': 0.85, 'timur': 0.9, 'ded': 0.9, 'vera': 0.85, 'kronov': 
 VOX_REV = {'narrator': 0.05, 'timur': 0.08, 'ded': 0.1, 'vera': 0.12, 'kronov': 0.15, 'shadow': 0.6, 'crowd': 0.5}
 lines = json.load(open(os.path.join(HERE, 'dialogue.json'), encoding='utf-8'))['lines']
 FPS = 30
-lips = {'fps': FPS, 'durations': {}, 'env': {}}
+lips = {'fps': FPS, 'durations': {}, 'env': {}, 'shape': {}}
 vox_env = np.zeros(N)
 for ln in lines:
     p = os.path.join(HERE, 'voice', ln['id'] + '.wav')
-    x = process(ln['who'], ln['id'], load_wav(p))
+    dry = load_wav(p)
+    x = process(ln['who'], ln['id'], dry)
     # мягкая компрессия: выравниваем громкость фраз
     e = np.sqrt(np.convolve(x ** 2, np.ones(1024) / 1024, 'same'))
     x = x / (0.25 + 0.75 * e / (e.max() + 1e-9))
     x /= np.max(np.abs(x)) + 1e-9
     pan = {'ded': -0.1, 'vera': 0.15, 'kronov': 0.1, 'crowd': 0.4}.get(ln['who'], 0.0)
-    add('vox', x, ln['t'], VOX_GAIN[ln['who']], pan=pan, rev=VOX_REV[ln['who']])
-    i = int(ln['t'] * SR)
+    t0 = W(ln['t'])
+    add('vox', x, t0, VOX_GAIN[ln['who']], pan=pan, rev=VOX_REV[ln['who']], raw=True)
+    i = int(t0 * SR)
     ev = np.abs(x)
     vox_env[i:i + len(ev)] = np.maximum(vox_env[i:i + len(ev)], np.convolve(ev, np.ones(2048) / 2048, 'same')[:N - i])
-    # липсинк: RMS по кадрам 30 fps
+    # липсинк по «сухому» голосу: открытие рта (RMS) и форма (спектральный центроид: низкий — «о/у», высокий — «и/э»)
     hop = SR // FPS
-    fr = [float(np.sqrt(np.mean(x[k:k + hop] ** 2))) for k in range(0, len(x), hop)]
-    fr = np.array(fr); fr = fr / (np.percentile(fr, 95) + 1e-9)
-    fr = np.clip(np.convolve(fr, [.25, .5, .25], 'same'), 0, 1)
-    lips['durations'][ln['id']] = round(len(x) / SR, 3)
-    lips['env'][ln['id']] = [round(float(v), 2) for v in fr]
+    op, cen = [], []
+    for k in range(0, len(dry), hop):
+        fr_ = dry[k:k + hop]
+        op.append(float(np.sqrt(np.mean(fr_ ** 2))))
+        S = np.abs(np.fft.rfft(fr_ * np.hanning(len(fr_)), 2048)); f = np.fft.rfftfreq(2048, 1 / SR)
+        band = (f > 250) & (f < 4000)
+        cen.append(float((S[band] * f[band]).sum() / (S[band].sum() + 1e-9)))
+    op = np.array(op); op = op / (np.percentile(op, 95) + 1e-9)
+    op = np.clip(np.convolve(op, [.25, .5, .25], 'same'), 0, 1)
+    cen = np.array(cen); voiced = op > .2
+    lo, hi = (np.percentile(cen[voiced], 10), np.percentile(cen[voiced], 90)) if voiced.sum() > 4 else (800, 2000)
+    shape = np.clip((hi - cen) / max(hi - lo, 1), 0, 1) * (op > .1)
+    shape = np.convolve(shape, [.25, .5, .25], 'same')
+    lips['durations'][ln['id']] = round(len(dry) / SR, 3)
+    lips['env'][ln['id']] = [round(float(v), 2) for v in op]
+    lips['shape'][ln['id']] = [round(float(v), 2) for v in shape]
 
 # ---------------- сведение ----------------
 side = np.ones(N)

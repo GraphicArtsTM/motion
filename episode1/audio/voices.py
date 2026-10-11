@@ -55,9 +55,11 @@ def user_file(lid):
 
 
 def from_user(src, path):
-    """Запись пользователя → моно 44,1 кГц, срез гула ниже 80 Гц, выравнивание громкости."""
+    """Запись пользователя → «студийная» обработка: срез гула, шумодав, EQ, де-эссер, компрессор."""
+    chain = ('highpass=f=80,afftdn=nr=10:nf=-42,equalizer=f=250:t=q:w=1:g=-2,equalizer=f=3500:t=q:w=1.4:g=3,'
+             'deesser=i=0.4,acompressor=threshold=-22dB:ratio=3:attack=5:release=90:makeup=3,alimiter=limit=0.9')
     subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-i', src, '-ac', '1', '-ar', '44100',
-                    '-af', 'highpass=f=80,dynaudnorm=f=150:g=15', '-c:a', 'pcm_s16le', path], check=True)
+                    '-af', chain, '-c:a', 'pcm_s16le', path], check=True)
 
 
 def trim(path):

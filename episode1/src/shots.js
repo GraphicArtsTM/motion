@@ -54,7 +54,13 @@ export function buildShots(C) {
     const r = new THREE.Vector3().crossVectors(u, f).normalize();
     c.root.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(r, u, f));
   };
-  const face = (c, who, t, o = {}) => c.setFace({ mouth: C.mouthOf(who, t) * (o.mk ?? 1), blink: o.noBlink ? 0 : blinkAt(t, o.seed ?? 0), ...o });
+  const face = (c, who, t, o = {}) => {
+    const sd = o.seed ?? 0;
+    // дыхание и «живые» микродвижения глаз
+    c.J.chest.scale.set(1 + .008 * Math.sin(t * 2.1 + sd), 1 + .012 * Math.sin(t * 2.1 + sd), 1 + .018 * Math.sin(t * 2.1 + sd));
+    c.setFace({ mouth: C.mouthOf(who, t) * (o.mk ?? 1), shape: C.shapeOf(who), blink: o.noBlink ? 0 : blinkAt(t, sd),
+      look: [noise(t * .8 + sd * 7) * .35, noise(t * .7 + sd * 7 + 40) * .2], ...o });
+  };
   const handW = (c, s = 'R') => { c.root.updateMatrixWorld(true); return c.J['hand' + s].localToWorld(V(0, -.09 * c.d.k, 0)); };
   const headW = c => { c.root.updateMatrixWorld(true); return c.J.head.localToWorld(V(0, .16 * c.d.k, .1)); };
   const post = f => C.post.push(f);
@@ -265,12 +271,12 @@ export function buildShots(C) {
   };
   const box = mesh(new RoundedBoxGeometry(.42, .3, .32, 2, .03), toon(0xc9a06a), { outline: .01 });
   mesh(new THREE.BoxGeometry(.44, .05, .1), toon(0x15b9a8), { pos: [0, .13, 0], outline: false, parent: box });
-  const holdBox = c => { c.J.handL.add(box); box.visible = true; box.position.set(-.1, -.12, .18); box.rotation.set(0, 0, 0); };
+  const holdBox = c => { c.J.handL.add(box); box.visible = true; box.position.set(-.12, -.1, .02); box.rotation.set(0, 0, 0); };
   shot(48, 56, (lt, t) => {
     labBase(t);
     const tp = kf(t, [[48.6, [0, 0, 11]], [51.5, [0, 0, 3], E.inOutSine], [56, [0, 0, 1.5]]]);
     place(TI, lab.group, tp, Math.PI + (t > 53.4 ? Math.sin((t - 53.4) * 1.4) * .7 : 0));
-    const p = t < 51.5 ? POSE.walk(t) : POSE.stand(t); p.armL = [-.9, .3, .1]; p.foreL = [-.9, 0, 0]; p.armR = [-.9, .3, .1]; p.foreR = [-.9, 0, 0];
+    const p = t < 51.5 ? POSE.walk(t) : POSE.stand(t); p.armL = [-.35, .35, .1]; p.foreL = [-1.45, 0, 0]; p.armR = [-.35, .35, .1]; p.foreR = [-1.45, 0, 0]; p.grip = .6;
     if (t > 53.4) { p.head = [-.25, .3 * Math.sin((t - 53.4) * 1.1), 0]; }
     TI.pose(p); holdBox(TI);
     face(TI, 'timur', t, { brow: .55, wide: t > 53.4, mouth: C.mouthOf('timur', t) });
@@ -527,7 +533,7 @@ export function buildShots(C) {
     bridgeProps(t); busState(t, busTilt(t), busSlide(t));
     place(KR, S, [446, 0, -399], -Math.PI / 2); KR.pose(POSE.roar(t)); face(KR, 'kronov', t);
     const k = E.inOutCubic(P(t, 117.2, 5.8));
-    look([lerp(303, 300, k), lerp(75.4, 77.5, k), lerp(-385, -383, k)], [lerp(305.5, 455, k), lerp(75, 4, k), lerp(-387, -394, k)], lerp(50, 38, k));
+    look([lerp(303, 311, k), lerp(75.4, 81, k), lerp(-385, -384, k)], [lerp(305.5, 455, k), lerp(75, 4, k), lerp(-387, -394, k)], lerp(50, 36, k));
     return S;
   });
 

@@ -11,9 +11,12 @@ import { makeCharacter, makeSpider } from './rig.js';
 import { makeWebs, makeSparks, makeRings, makeSilkSwirl } from './fx.js';
 import { makeOverlay } from './overlay.js';
 import { buildShots, makeCab } from './shots.js';
+import { makeStreetLife } from './props.js';
 
 const params = new URLSearchParams(location.search);
 const RENDER = params.has('render');
+// качество: q=high — для рендера на видеокарте (MSAA 4×, HDR-буфер, bloom в 1/2), по умолчанию — быстрый режим
+const HIGH = params.get('q') === 'high';
 
 await Promise.all([
   ['Unbounded', 'fonts/Unbounded-900.ttf', '900'], ['Unbounded', 'fonts/Unbounded-700.ttf', '700'],
@@ -32,16 +35,17 @@ renderer.setPixelRatio(1); renderer.setSize(W, H, false);
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
 document.getElementById('stage').insertBefore(renderer.domElement, document.getElementById('ov'));
 const camera = new THREE.PerspectiveCamera(45, W / H, .05, 6000);
-const rt = new THREE.WebGLRenderTarget(W, H, { type: params.has('hdr') ? THREE.HalfFloatType : THREE.UnsignedByteType, samples: +(params.get('msaa') ?? 0) });
+const rt = new THREE.WebGLRenderTarget(W, H, { type: HIGH || params.has('hdr') ? THREE.HalfFloatType : THREE.UnsignedByteType, samples: +(params.get('msaa') ?? (HIGH ? 4 : 0)) });
 const composer = new EffectComposer(renderer, rt);
 const renderPass = new RenderPass(new THREE.Scene(), camera);
-const bloom = new UnrealBloomPass(new THREE.Vector2(W / +(params.get('bd') ?? 4), H / +(params.get('bd') ?? 4)), .75, .55, .92);
+const bloom = new UnrealBloomPass(new THREE.Vector2(W / +(params.get('bd') ?? (HIGH ? 2 : 4)), H / +(params.get('bd') ?? (HIGH ? 2 : 4))), .75, .55, .92);
 composer.addPass(renderPass); if (!params.has('nobloom')) composer.addPass(bloom); composer.addPass(new OutputPass());
 const overlay = makeOverlay(document.getElementById('ov'));
 
 /* ---------- мир ---------- */
 const city = makeCity();
 const lab = makeLab(city.tower);
+const life = makeStreetLife(city.scene);
 const kitchen = makeKitchen();
 const lair = makeLair();
 const cab = makeCab();
@@ -49,6 +53,14 @@ const ch = {
   timur: makeCharacter('timur'), ded: makeCharacter('ded'), vera: makeCharacter('vera'),
   kronov: makeCharacter('kronov'), shadow: makeCharacter('shadow'),
 };
+// контактные тени под персонажами
+const blobTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+  const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64); gr.addColorStop(0, 'rgba(0,0,0,.6)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+  return new THREE.CanvasTexture(c); })();
+for (const c of Object.values(ch)) {
+  const b = new THREE.Mesh(new THREE.PlaneGeometry(1.1 * c.d.k, 1.1 * c.d.k), new THREE.MeshBasicMaterial({ map: blobTex, transparent: true, depthWrite: false }));
+  b.rotation.x = -Math.PI / 2; b.position.y = .015; b.renderOrder = 2; c.root.add(b); c.blob = b;
+}
 const props = {
   bike: makeBike(), bus: makeBus(), spider: makeSpider({ scale: 3.2, gold: true }),
   webs: makeWebs(city.scene, 40), sparks: makeSparks(city.scene, 500), sparks2: makeSparks(city.scene, 300, 0x9ff8ff),
@@ -64,13 +76,24 @@ const bolts = timeline.strikes.map((s, i) => {
 });
 
 /* ---------- реплики и липсинк ---------- */
+/* карта времени: сюжетное время s (в нём поставлены шоты) → экранное T (растянуто под живую озвучку) */
+const STR = timeline.stretch || [];
+const toFilm = s => s + STR.reduce((a, [s0, s1, e]) => a + e * clamp((s - s0) / (s1 - s0)), 0);
+function toStory(T) {
+  let lo = 0, hi = timeline.story_duration ?? T;
+  for (let i = 0; i < 50; i++) { const m = (lo + hi) / 2; if (toFilm(m) < T) lo = m; else hi = m; }
+  return (lo + hi) / 2;
+}
 const durs = lipsync?.durations || {};
-const lines = dialogue.lines.map(l => ({ ...l, d: durs[l.id] ?? (l.text.length * .07 + .4), env: lipsync?.env?.[l.id] })).sort((a, b) => a.t - b.t);
-lines.forEach((l, i) => { const nx = lines[i + 1]; l.end = Math.min(l.t + l.d + .35, nx ? nx.t - .05 : 1e9); });
+const lines = dialogue.lines.map(l => ({ ...l, ft: toFilm(l.t), d: durs[l.id] ?? (l.text.length * .07 + .4), env: lipsync?.env?.[l.id], shape: lipsync?.shape?.[l.id] })).sort((a, b) => a.t - b.t);
+lines.forEach((l, i) => { const nx = lines[i + 1]; l.end = Math.min(l.ft + l.d + .35, nx ? nx.ft - .05 : 1e9); });
+let filmT = 0;
+/* открытие рта по огибающей голоса; t — сюжетное время шота, сравниваем в экранном */
 function mouthOf(who, t) {
+  const T = filmT;
   for (const l of lines) {
-    if (l.who !== who && !(who === 'timur' && l.who === 'timur')) continue;
-    const dt = t - l.t;
+    if (l.who !== who) continue;
+    const dt = T - l.ft;
     if (dt < 0 || dt > l.d) continue;
     if (l.env) { const i = Math.floor(dt * lipsync.fps); return l.env[Math.min(i, l.env.length - 1)] || 0; }
     return .5 + .5 * Math.sin(dt * 22) * Math.sin(dt * 7.3);
@@ -78,7 +101,17 @@ function mouthOf(who, t) {
   return 0;
 }
 
-const ctx = { THREE, city, lab, kitchen, lair, cab, ch, props, camera, overlay, U, bolts, lines, mouthOf, renderer, timeline };
+/* форма рта: 0 — широкая («и», «э»), 1 — округлая («о», «у») */
+function shapeOf(who) {
+  for (const l of lines) {
+    if (l.who !== who) continue;
+    const dt = filmT - l.ft;
+    if (dt < 0 || dt > l.d || !l.shape) continue;
+    return l.shape[Math.min(Math.floor(dt * lipsync.fps), l.shape.length - 1)] || 0;
+  }
+  return 0;
+}
+const ctx = { THREE, city, lab, kitchen, lair, cab, ch, props, camera, overlay, U, bolts, lines, mouthOf, shapeOf, renderer, timeline };
 const shots = buildShots(ctx);
 const DURATION = timeline.duration;
 
@@ -104,8 +137,10 @@ function resetFrame() {
 }
 
 let inset = null;
-function renderAt(t) {
-  t = clamp(t, 0, DURATION - 1e-4);
+function renderAt(T) {
+  T = clamp(T, 0, DURATION - 1e-4);
+  filmT = T;
+  const t = toStory(T);
   ctx.t = t;
   resetFrame();
   const shot = shots.find(s => t >= s.t0 && t < s.t1) || shots[shots.length - 1];
@@ -118,6 +153,10 @@ function renderAt(t) {
   ctx.t = t; ctx.inset = null; ctx.post = [];
   ctx.camFill = null;
   const scene = shot.run(lt, t, ctx) || city.scene;
+  life.update(t, { police: t >= 117 && t < 183 });
+  const up = new THREE.Vector3();
+  for (const c of Object.values(ch)) { up.set(0, 1, 0).applyQuaternion(c.root.getWorldQuaternion(new THREE.Quaternion())); c.blob.visible = c.root.visible && up.y > .95 && !ctx.noBlob?.includes(c); }
+  ctx.noBlob = null;
   if (ctx.camFill) { city.fill.position.copy(camera.position).add(new THREE.Vector3(0, 1.5, 0)); city.fill.intensity = ctx.camFill[0]; city.fill.color.set(ctx.camFill[1]); city.fill.distance = 60; city.fill.decay = 1; }
   else { city.fill.distance = 40; city.fill.decay = 1.6; }
   // молнии, видимые в этом кадре
@@ -139,8 +178,8 @@ function renderAt(t) {
   overlay.clear();
   for (const f of ctx.post) f(overlay);
   if (!shot.noSubs) for (const l of lines) {
-    const dt = t - l.t;
-    if (dt > -.05 && t < l.end) overlay.subtitle(l.text, Math.min(clamp((dt + .05) / .12), clamp((l.end - t) / .12)), l.who, l.who === 'narrator');
+    const dt = T - l.ft;
+    if (dt > -.05 && T < l.end) overlay.subtitle(l.text, Math.min(clamp((dt + .05) / .12), clamp((l.end - T) / .12)), l.who, l.who === 'narrator');
   }
   overlay.vignette(.5);
 }
@@ -153,7 +192,7 @@ window.ready = true;
 /* ---------- предпросмотр в браузере ---------- */
 if (!RENDER) {
   const ui = document.getElementById('ui'); ui.hidden = false;
-  const audio = new Audio('assets/soundtrack.mp3');
+  const audio = new Audio('assets/soundtrack.m4a');
   const bar = document.getElementById('bar'), tl = document.getElementById('tl');
   let playing = false, t0 = 0, start = 0;
   const now = () => playing ? (audio.readyState > 2 && !audio.paused ? audio.currentTime : start + (performance.now() - t0) / 1000) : start;

@@ -63,27 +63,72 @@ const DIM = k => ({
   upper: .29 * k, lower: .27 * k, hipX: .095 * k, thigh: .44 * k, shin: .43 * k,
 });
 
-/* ---------- лицо ---------- */
-function addFace(J, o, R, c) {
+/* ---------- лицо: глаза с радужкой и бликом, веки, брови, рот с зубами ---------- */
+function addFace(J, o, R) {
   const headC = new THREE.Vector3(0, .13, 0);
   const onSphere = (x, y, push = 0) => new THREE.Vector3(x, headC.y + y, Math.sqrt(Math.max(R * R - x * x - y * y, 0)) + push);
   const face = new THREE.Group(); J.head.add(face);
-  const white = new THREE.MeshBasicMaterial({ color: 0xd8d8d8 }), dark = toon(0x14100e);
-  const eyes = [], pupils = [], brows = [];
+  const white = new THREE.MeshBasicMaterial({ color: 0xe6e6e2 }), dark = new THREE.MeshBasicMaterial({ color: 0x0b0908 });
+  const irisM = toon(o.iris || 0x5a3418), shine = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  const lidM = toon(o.skin);
+  const ek = o.eyeK || 1, er = .036 * ek;
+  const eyes = [], pupils = [], brows = [], lids = [];
   for (const sx of [1, -1]) {
-    const e = mesh(sph(.036 * (o.eyeK || 1)), white, { pos: onSphere(sx * .058, .025, -.012).toArray(), scale: [1, 1.2, .55], outline: .006 });
+    const pos = onSphere(sx * .058, .025, -.012);
+    const e = mesh(sph(er), white, { pos: pos.toArray(), scale: [1, 1.2, .55], outline: .006 });
     face.add(e); eyes.push(e);
-    const p = mesh(sph(.019 * (o.eyeK || 1), 12, 8), dark, { pos: [0, 0, .028], scale: [1, 1, .6] });
-    e.add(p); pupils.push(p);
-    const b = mesh(rbox(.07, .016, .02, .007), toon(o.brow || o.hair || 0x222222), { pos: onSphere(sx * .06, .085, .004).toArray(), outline: .004 });
-    face.add(b); brows.push(b);
+    const iris = new THREE.Group(); iris.position.z = er * .78; e.add(iris);
+    mesh(sph(er * .62, 14, 10), irisM, { scale: [1, 1, .5], parent: iris });
+    mesh(sph(er * .33, 12, 8), dark, { pos: [0, 0, er * .2], scale: [1, 1, .5], parent: iris });
+    mesh(sph(er * .14, 8, 6), shine, { pos: [er * .2, er * .25, er * .3], parent: iris });
+    pupils.push(iris);
+    // верхнее веко: полусфера цвета кожи, поворотом закрывает глаз
+    const lid = new THREE.Group(); lid.position.copy(pos); lid.scale.set(1.08, 1.25, .62); face.add(lid);
+    mesh(new THREE.SphereGeometry(er * 1.06, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), lidM, { outline: .005, parent: lid });
+    lids.push(lid);
+    const bw = mesh(rbox(.078, .022, .026, .01), toon(o.brow || o.hair || 0x222222), { pos: onSphere(sx * .06, .088, .006).toArray(), outline: .004 });
+    face.add(bw); brows.push(bw);
   }
-  const mouth = mesh(sph(.03, 16, 10), toon(0x3a0d10), { pos: onSphere(0, -.065, -.006).toArray(), scale: [1.3, .25, .45] });
-  face.add(mouth);
+  // рот: тёмная полость + верхние зубы + язык
+  const mouth = new THREE.Group(); mouth.position.copy(onSphere(0, -.068, -.008)); face.add(mouth);
+  const cav = mesh(sph(.03, 16, 10), toon(0x3a0d10), { scale: [1.3, .25, .45], outline: .004, parent: mouth });
+  const teeth = mesh(rbox(.042, .012, .01, .004), white, { pos: [0, .009, .01], parent: mouth });
+  const tongue = mesh(sph(.017, 10, 8), toon(0xc0505a), { pos: [0, -.012, .006], scale: [1.3, .6, .6], parent: mouth });
   const nose = mesh(sph(.024, 12, 8), toon(o.skin), { pos: onSphere(0, -.01, -.004).toArray(), scale: [1, .9, 1.1], outline: .004 });
   face.add(nose);
   for (const sx of [1, -1]) mesh(sph(.035, 12, 8), toon(o.skin), { pos: [sx * R * .98, headC.y, -.01], scale: [.5, 1, .8], outline: .005, parent: face });
-  return { face, eyes, pupils, brows, mouth, headC };
+  if (o.blush) for (const sx of [1, -1]) mesh(sph(.022, 10, 8), toon(o.blush, { transparent: true, opacity: .45 }), { pos: onSphere(sx * .085, -.035, -.004).toArray(), scale: [1.3, .7, .3], parent: face });
+  return { face, eyes, pupils, brows, lids, mouth, cav, teeth, tongue, headC };
+}
+
+/* ---------- кисть с пальцами ---------- */
+function makeHand(mat, k, OL, side) {
+  const g = new THREE.Group(); g.scale.setScalar(k);
+  mesh(rbox(.04, .075, .07, .017), mat, { pos: [0, -.042, 0], outline: OL * .7, parent: g });
+  const fingers = [];
+  [.027, .009, -.009, -.026].forEach((z, i) => {
+    const s1 = new THREE.Group(); s1.position.set(0, -.078, z * 1.0); g.add(s1);
+    const L1 = i === 3 ? .026 : .033, L2 = i === 3 ? .022 : .028;
+    mesh(cap(.0105, L1 + .01), mat, { pos: [0, -L1 / 2, 0], outline: OL * .5, parent: s1 });
+    const s2 = new THREE.Group(); s2.position.y = -L1; s1.add(s2);
+    mesh(cap(.0095, L2 + .008), mat, { pos: [0, -L2 / 2, 0], outline: OL * .5, parent: s2 });
+    fingers.push({ s1, s2 });
+  });
+  const t1 = new THREE.Group(); t1.position.set(-side * .012, -.03, .037); t1.rotation.set(-.6, 0, side * .5); g.add(t1);
+  mesh(cap(.011, .034), mat, { pos: [0, -.015, 0], outline: OL * .5, parent: t1 });
+  const t2 = new THREE.Group(); t2.position.y = -.03; t1.add(t2);
+  mesh(cap(.0105, .028), mat, { pos: [0, -.012, 0], outline: OL * .5, parent: t2 });
+  return { g, fingers, thumb: [t1, t2], side };
+}
+/* curl: 0 — раскрытая ладонь, 1 — кулак; spider — жест «паутина» (средний и безымянный прижаты) */
+function setGrip(h, curl = .35, spider = 0) {
+  h.fingers.forEach((f, i) => {
+    const c = spider && (i === 1 || i === 2) ? 1 : spider && (i === 0 || i === 3) ? 0 : curl;
+    f.s1.rotation.z = -h.side * c * 1.35; f.s2.rotation.z = -h.side * c * 1.6;
+    f.s1.rotation.x = (i - 1.5) * .06 * (1 - c);
+  });
+  const tc = spider ? 0 : curl;
+  h.thumb[0].rotation.set(-.6 + tc * .4, 0, h.side * (.5 - tc * .9)); h.thumb[1].rotation.z = -h.side * tc * .8;
 }
 
 /* ---------- персонажи ---------- */
@@ -124,7 +169,8 @@ export function makeCharacter(kind) {
   const R = .165 * k;
   const head = reg('skin', mesh(sph(R, 28, 20), m.skin, { pos: [0, .13 * k, 0], scale: [1, 1.03, 1], outline: OL, parent: J.head }));
   ch.head = head;
-  const fr = addFace(J, { skin: C.skin, hair: C.hair, brow: kind === 'ded' ? 0xe8e6e0 : C.hair, eyeK: kind === 'vera' ? 1.05 : 1 }, .165, C);
+  const fr = addFace(J, { skin: C.skin, hair: C.hair, brow: kind === 'ded' ? 0xe8e6e0 : C.hair, eyeK: kind === 'vera' ? 1.05 : 1,
+    iris: { timur: 0x6b3a1c, ded: 0x3d5a78, vera: 0x3f8a52 }[kind] || 0x220000, blush: { timur: 0xe0705a, vera: 0xf08a80 }[kind] }, .165);
   ch.faceRig = fr; fr.face.scale.setScalar(k); // лицо строится в единичном масштабе
   reg('face', fr.face);
 
@@ -132,14 +178,56 @@ export function makeCharacter(kind) {
   for (const s of ['L', 'R']) {
     reg('top', mesh(cap(.058 * k, d.upper + .03 * k), m.top, { pos: [0, -d.upper / 2 + .01 * k, 0], outline: OL, parent: J['arm' + s] }));
     reg('top', mesh(cap(.05 * k, d.lower + .02 * k), kind === 'vera' ? m.top : m.topDark, { pos: [0, -d.lower / 2, 0], outline: OL, parent: J['fore' + s] }));
-    reg('hand', mesh(sph(.056 * k, 14, 10), m.hand, { pos: [0, -.045 * k, .005], scale: [.95, 1.25, .72], outline: OL * .8, parent: J['hand' + s] }));
+    const hd = makeHand(m.hand, k, OL, s === 'L' ? 1 : -1); J['hand' + s].add(hd.g); ch['hand' + s] = hd;
+    hd.g.traverse(o => { if (o.isMesh && o.material === m.hand) reg('hand', o); });
+    setGrip(hd, .35);
     // ноги
     reg('pants', mesh(cap(.078 * k, d.thigh + .04 * k), m.pants, { pos: [0, -d.thigh / 2, 0], outline: OL, parent: J['leg' + s] }));
     reg('pants', mesh(cap(.064 * k, d.shin + .03 * k), m.pants, { pos: [0, -d.shin / 2, 0], outline: OL, parent: J['shin' + s] }));
     reg('shoes', mesh(rbox(.11 * k, .08 * k, .25 * k, .035 * k), m.shoes, { pos: [0, -.02 * k, .055 * k], outline: OL, parent: J['foot' + s] }));
   }
 
+  // детали одежды
+  for (const s of ['L', 'R']) {
+    reg(kind === 'vera' ? 'top' : 'acc', mesh(new THREE.TorusGeometry(.05 * k, .016 * k, 6, 16), kind === 'timur' ? m.topDark : m.top, { pos: [0, -d.lower + .03 * k, 0], rot: [Math.PI / 2, 0, 0], outline: OL * .5, parent: J['fore' + s] }));
+    reg('pants', mesh(new THREE.TorusGeometry(.064 * k, .018 * k, 6, 16), m.pants, { pos: [0, -d.shin + .05 * k, 0], rot: [Math.PI / 2, 0, 0], outline: OL * .5, parent: J['shin' + s] }));
+    // подошва и шнуровка кроссовок/ботинок
+    reg('acc', mesh(rbox(.118 * k, .03 * k, .262 * k, .012 * k), toon(kind === 'timur' ? 0xf7f7f2 : 0x2a2420), { pos: [0, -.058 * k, .058 * k], outline: OL * .6, parent: J['foot' + s] }));
+    if (kind === 'timur') {
+      reg('acc', mesh(rbox(.06 * k, .012 * k, .1 * k, .005), toon(0xffffff), { pos: [0, .022 * k, .09 * k], rot: [.35, 0, 0], outline: false, parent: J['foot' + s] }));
+      reg('acc', mesh(rbox(.115 * k, .045 * k, .06 * k, .015 * k), toon(0xe8343c), { pos: [0, -.03 * k, -.04 * k], outline: false, parent: J['foot' + s] }));
+    }
+  }
+  reg('acc', mesh(rbox(.31 * k, .035 * k, .2 * k, .012), toon(kind === 'vera' ? 0x2a2a2a : 0x1a1410), { pos: [0, .07 * k, 0], outline: OL * .5, parent: J.hips }));   // ремень
   if (kind === 'timur') {
+    reg('acc', mesh(rbox(.2 * k, .085 * k, .03 * k, .02 * k), m.topDark, { pos: [0, .08 * k, .118 * k], outline: OL * .5, parent: J.spine }));    // карман-кенгуру
+    for (const sx of [1, -1]) reg('acc', mesh(cap(.007 * k, .13 * k), toon(0xf4f1ea), { pos: [sx * .035 * k, .33 * k, .128 * k], rot: [-.1, 0, 0], outline: false, parent: J.spine }));
+  }
+  if (kind === 'ded') {
+    for (let i = 0; i < 4; i++) reg('acc', mesh(sph(.012 * k, 8, 6), toon(0xd9a441, { emissive: 0x3a2a00 }), { pos: [.03 * k, (.09 + i * .085) * k, .136 * k], outline: false, parent: J.spine }));
+    for (const sx of [1, -1]) reg('acc', mesh(rbox(.09 * k, .07 * k, .02 * k, .01), m.topDark, { pos: [sx * .05 * k, .41 * k, .1 * k], rot: [-.5, sx * .3, sx * .5], outline: OL * .5, parent: J.spine }));
+    reg('acc', mesh(rbox(.06 * k, .03 * k, .012 * k, .005), toon(0xd9a441), { pos: [-.07 * k, .3 * k, .14 * k], outline: false, parent: J.spine }));
+  }
+  if (kind === 'vera') {
+    for (const sx of [1, -1]) reg('acc', mesh(rbox(.06 * k, .2 * k, .015 * k, .006), m.topDark, { pos: [sx * .055 * k, .3 * k, .125 * k], rot: [0, 0, sx * .35], outline: OL * .5, parent: J.spine }));
+    reg('acc', mesh(rbox(.08 * k, .07 * k, .015 * k, .008), m.topDark, { pos: [.08 * k, .2 * k, .128 * k], outline: false, parent: J.spine }));
+    for (const [x, c] of [[.07, 0x2c7be5], [.088, 0xe8343c]]) reg('acc', mesh(new THREE.CylinderGeometry(.005 * k, .005 * k, .07 * k, 6), toon(c), { pos: [x * k, .24 * k, .133 * k], outline: false, parent: J.spine }));
+  }
+
+  if (kind === 'timur') {
+    // эмблема паука на груди и спине костюма, браслеты-паутиномёты
+    const emb = new THREE.Group(); J.spine.add(emb); emb.visible = false; ch.suitOnly = [emb];
+    const eg = glow(0x7ff8ff, 1.6);
+    for (const [z, flip] of [[.131 * k, 1], [-.131 * k, -1]]) {
+      const e = new THREE.Group(); e.position.set(0, .27 * k, z); e.rotation.y = flip < 0 ? Math.PI : 0; emb.add(e);
+      mesh(sph(.022 * k, 10, 8), eg, { scale: [.8, 1.1, .3], parent: e });
+      mesh(sph(.03 * k, 10, 8), eg, { pos: [0, -.04 * k, 0], scale: [.8, 1.25, .3], parent: e });
+      for (let i = 0; i < 8; i++) {
+        const sd = i < 4 ? 1 : -1, j = i % 4;
+        const lg = mesh(new THREE.BoxGeometry(.075 * k, .006 * k, .004 * k), eg, { pos: [sd * .04 * k, (.01 - j * .016) * k, 0], rot: [0, 0, sd * (.7 - j * .45)], parent: e });
+      }
+    }
+    for (const s of ['L', 'R']) { const b = mesh(new THREE.TorusGeometry(.052 * k, .012 * k, 6, 18), glow(0x7ff8ff, 1.8), { pos: [0, -d.lower + .045 * k, 0], rot: [Math.PI / 2, 0, 0], outline: OL * .4, parent: J['fore' + s] }); b.visible = false; ch.suitOnly.push(b); }
     // волосы: шапка + торчащие пряди
     const hairG = new THREE.Group(); J.head.add(hairG); reg('hair', hairG);
     mesh(new THREE.SphereGeometry(R * 1.04, 24, 14, 0, Math.PI * 2, 0, Math.PI * .52), m.hair, { pos: [0, .145 * k, -.012], scale: [1, .92, 1.02], outline: OL, parent: hairG });
@@ -223,6 +311,22 @@ function buildKronov(ch, d) {
     mesh(cap(.1 * k, d.shin + .03 * k), dark, { pos: [0, -d.shin / 2, 0], outline: OL, parent: J['shin' + s] });
     mesh(R(.2 * k, .13 * k, .34 * k, .05 * k), metal, { pos: [0, -.03 * k, .07 * k], outline: OL, parent: J['foot' + s] });
   }
+  // детали брони: воротник, светящиеся швы, вентиляция, поршни на коленях и локтях
+  mesh(new THREE.TorusGeometry(.14 * k, .045 * k, 8, 20), dark, { pos: [0, .52 * k, 0], rot: [Math.PI / 2, 0, 0], outline: OL, parent: J.spine });
+  const seam = glow(0xff7a2a, 2.2);
+  for (const sx of [1, -1]) {
+    mesh(new THREE.BoxGeometry(.012 * k, .3 * k, .012 * k), seam, { pos: [sx * .2 * k, .26 * k, .2 * k], outline: false, parent: J.spine });
+    for (let i = 0; i < 3; i++) mesh(new THREE.BoxGeometry(.09 * k, .014 * k, .02 * k), dark, { pos: [sx * .2 * k, (.36 + i * .035) * k, -.205 * k], outline: false, parent: J.spine });
+    mesh(new THREE.CylinderGeometry(.03 * k, .03 * k, .05 * k, 10), glow(0xffa340, 2.5), { pos: [sx * .1 * k, .27 * k, -.43 * k], rot: [Math.PI / 2 + .3, 0, 0], outline: false, parent: J.spine });
+  }
+  for (const s of ['L', 'R']) {
+    mesh(new THREE.BoxGeometry(.012 * k, d.lower * .7, .012 * k), seam, { pos: [0, -d.lower * .45, .105 * k], outline: false, parent: J['fore' + s] });
+    mesh(new THREE.BoxGeometry(.012 * k, d.shin * .6, .012 * k), seam, { pos: [0, -d.shin * .5, .1 * k], outline: false, parent: J['shin' + s] });
+    mesh(new THREE.CylinderGeometry(.025 * k, .025 * k, d.thigh * .7, 8), toon(0xb8c0cc), { pos: [0, -d.thigh * .5, -.11 * k], outline: OL * .5, parent: J['leg' + s] });
+    mesh(new THREE.CylinderGeometry(.022 * k, .022 * k, d.upper * .6, 8), toon(0xb8c0cc), { pos: [0, -d.upper * .5, -.09 * k], outline: OL * .5, parent: J['arm' + s] });
+    for (let i = 0; i < 3; i++) mesh(rbox(.05 * k, .05 * k, .06 * k, .015 * k), dark, { pos: [(i - 1) * .055 * k, -.16 * k, .06 * k], outline: OL * .5, parent: J['hand' + s] });
+  }
+  mesh(new THREE.BoxGeometry(.012 * k, .012 * k, .28 * k), seam, { pos: [0, .3 * k, 0], outline: false, parent: J.head });
   // светящееся ядро «Арахны», которое Кронов уносит (по умолчанию скрыто)
   const stolen = new THREE.Group(); J.handL.add(stolen); stolen.position.set(0, -.2 * k, .05); stolen.visible = false;
   mesh(new THREE.CylinderGeometry(.06, .06, .22, 16), glow(0x5ff6ff, 3), { outline: .012, parent: stolen });
@@ -245,6 +349,7 @@ function setSuit(ch, on) {
   for (const role of ['top', 'pants', 'skin', 'hand', 'shoes']) for (const m of ch.parts[role] || []) m.material = on ? sm : m.userData.base;
   for (const role of ['hair', 'face', 'acc']) for (const m of ch.parts[role] || []) m.visible = !on;
   ch.lenses.visible = on;
+  for (const m of ch.suitOnly || []) m.visible = on;
 }
 
 /* ---------- позы ---------- */
@@ -257,14 +362,15 @@ function applyPose(ch, p) {
     J[n].rotation.set(v[0], mir ? -v[1] : v[1], mir ? -v[2] : v[2]);
   }
   J.hips.position.set(p.hx || 0, ch.d.hipY + (p.hy || 0) * ch.d.k, p.hz || 0);
+  if (ch.handL) { setGrip(ch.handL, p.gripL ?? p.grip ?? .35, p.spiderL || 0); setGrip(ch.handR, p.gripR ?? p.grip ?? .35, p.spiderR || 0); }
 }
 export function blend(a, b, k) {
   if (k <= 0) return a; if (k >= 1) return b;
   const o = {};
-  for (const n of [...JOINTS, 'hx', 'hy', 'hz']) {
+  for (const n of [...JOINTS, 'hx', 'hy', 'hz', 'grip', 'gripL', 'gripR', 'spiderL', 'spiderR']) {
     const va = a[n], vb = b[n];
     if (va === undefined && vb === undefined) continue;
-    if (typeof (va ?? vb) === 'number') o[n] = lerp(va || 0, vb || 0, k);
+    if (typeof (va ?? vb) === 'number') { const d0 = n.startsWith('grip') ? .35 : 0; o[n] = lerp(va ?? d0, vb ?? d0, k); }
     else { const A = va || ZERO, B = vb || ZERO; o[n] = [lerp(A[0], B[0], k), lerp(A[1], B[1], k), lerp(A[2], B[2], k)]; }
   }
   return o;
@@ -288,7 +394,7 @@ const S = Math.sin, Cc = Math.cos, PI = Math.PI;
 export const POSE = {
   stand: (t = 0) => ({ armL: [.03, 0, .1 + .01 * S(t * 2)], armR: [.03, 0, .1 + .01 * S(t * 2)], foreL: [-.2, 0, 0], foreR: [-.2, 0, 0],
     spine: [.01 * S(t * 2), 0, 0], legL: [0, 0, .03], legR: [0, 0, .03], hy: .004 * S(t * 2) }),
-  talk: (t = 0) => ({ ...POSE.stand(t), armL: [-.35 - .15 * S(t * 3.1), .2, .25], foreL: [-1.1 - .2 * S(t * 4), 0, 0], handL: [0, 0, .3],
+  talk: (t = 0) => ({ ...POSE.stand(t), gripL: .1, armL: [-.35 - .15 * S(t * 3.1), .2, .25], foreL: [-1.1 - .2 * S(t * 4), 0, 0], handL: [0, 0, .3],
     armR: [.05, 0, .12], foreR: [-.3, 0, 0], head: [.05 * S(t * 2.3), .08 * S(t * 1.7), 0] }),
   run: (t, f = 1.6) => {
     const ph = t * f * PI * 2, s = S(ph), c = Cc(ph);
@@ -305,18 +411,18 @@ export const POSE = {
   heavyWalk: (t, f = .7) => { const p = POSE.walk(t, f); p.spine = [.1, 0, 0]; p.armL[2] = .35; p.armR[2] = .35; p.hy -= .03; return p; },
   bike: (t, cad = 1.4) => {
     const ph = t * cad * PI * 2, s = S(ph), c = Cc(ph);
-    return { hy: -.2, hz: -.08, spine: [.62, 0, 0], chest: [.12, 0, 0], neck: [-.3, 0, 0], head: [-.45, 0, 0],
+    return { grip: .85, hy: -.2, hz: -.08, spine: [.62, 0, 0], chest: [.12, 0, 0], neck: [-.3, 0, 0], head: [-.45, 0, 0],
       armL: [-1.12, 0, .2], armR: [-1.12, 0, .2], foreL: [-.35, 0, -.1], foreR: [-.35, 0, -.1], handL: [.2, 0, 0], handR: [.2, 0, 0],
       legL: [-1.15 - .35 * s, 0, .05], legR: [-1.15 + .35 * s, 0, .05], shinL: [1.45 + .4 * c, 0, 0], shinR: [1.45 - .4 * c, 0, 0],
       footL: [-.2, 0, 0], footR: [-.2, 0, 0] };
   },
-  bikeStand: () => ({ hy: -.25, hz: -.05, spine: [.9, 0, 0], chest: [.1, 0, 0], head: [-.7, 0, 0], armL: [-1.25, 0, .25], armR: [-1.25, 0, .25], foreL: [-.6, 0, 0], foreR: [-.6, 0, 0],
+  bikeStand: () => ({ grip: .85, hy: -.25, hz: -.05, spine: [.9, 0, 0], chest: [.1, 0, 0], head: [-.7, 0, 0], armL: [-1.25, 0, .25], armR: [-1.25, 0, .25], foreL: [-.6, 0, 0], foreR: [-.6, 0, 0],
     legL: [-.9, 0, .15], legR: [-.5, 0, .15], shinL: [1.1, 0, 0], shinR: [.7, 0, 0] }),
   crouch: () => ({ hy: -.42, spine: [.55, 0, 0], head: [-.5, 0, 0], armL: [-.5, 0, .35], armR: [-.5, 0, .35], foreL: [-.6, 0, 0], foreR: [-.6, 0, 0],
     legL: [-1.6, 0, .35], legR: [-1.6, 0, .35], shinL: [2.2, 0, 0], shinR: [2.2, 0, 0], footL: [-.5, 0, 0], footR: [-.5, 0, 0] }),
-  spiderCrouch: (t = 0) => ({ hy: -.48, spine: [.7, 0, 0], head: [-.85, .15 * S(t * 1.3), 0], armL: [-.9, -.4, .9], armR: [-.9, -.4, .9], foreL: [-1.1, 0, 0], foreR: [-1.1, 0, 0],
+  spiderCrouch: (t = 0) => ({ grip: .05, hy: -.48, spine: [.7, 0, 0], head: [-.85, .15 * S(t * 1.3), 0], armL: [-.9, -.4, .9], armR: [-.9, -.4, .9], foreL: [-1.1, 0, 0], foreR: [-1.1, 0, 0],
     handL: [.4, 0, 0], handR: [.4, 0, 0], legL: [-1.5, 0, .75], legR: [-1.5, 0, .75], shinL: [2.4, 0, 0], shinR: [2.4, 0, 0], footL: [-.7, 0, 0], footR: [-.7, 0, 0] }),
-  heroLand: () => ({ hy: -.5, spine: [.75, -.1, 0], head: [-.7, .1, 0], armL: [.4, 0, .9], foreL: [-.3, 0, 0], armR: [-1.0, 0, .2], foreR: [-.2, 0, 0], handR: [-.6, 0, 0],
+  heroLand: () => ({ gripR: .05, gripL: .5, hy: -.5, spine: [.75, -.1, 0], head: [-.7, .1, 0], armL: [.4, 0, .9], foreL: [-.3, 0, 0], armR: [-1.0, 0, .2], foreR: [-.2, 0, 0], handR: [-.6, 0, 0],
     legL: [-1.7, 0, .25], shinL: [2.3, 0, 0], footL: [-.6, 0, 0], legR: [-.2, 0, .1], shinR: [2.5, 0, 0], footR: [.6, 0, 0] }),
   lie: (t = 0) => ({ armL: [0, 0, .5], armR: [-.3, 0, .8], foreL: [-.4, 0, 0], foreR: [-.1, 0, 0], legL: [0, 0, .1], legR: [-.3, 0, .05], shinR: [.6, 0, 0],
     head: [0, .3, 0], spine: [.02 * S(t * 2), 0, 0] }),
@@ -324,20 +430,20 @@ export const POSE = {
     legL: [-1.45, 0, .1], legR: [-1.2, 0, .2], shinL: [.2, 0, 0], shinR: [1.2, 0, 0] }),
   lookHand: (t = 0) => ({ hy: -.6, spine: [.3, 0, 0], head: [.25, -.25, 0], armL: [.3, 0, .3], foreL: [-.2, 0, 0], armR: [-1.2, -.5, .1], foreR: [-1.4, 0, 0], handR: [.3 * S(t * 2), 0, -.3],
     legL: [-1.45, 0, .1], legR: [-1.2, 0, .2], shinL: [.2, 0, 0], shinR: [1.2, 0, 0] }),
-  fall: t => ({ spine: [-.3 + .2 * S(t * 7), .3 * S(t * 3), 0], head: [.3, 0, 0], armL: [-2.6 + .5 * S(t * 11), 0, .6 + .3 * S(t * 9)], armR: [-2.4 + .5 * S(t * 10 + 1), 0, .7 + .3 * S(t * 8)],
+  fall: t => ({ grip: .05, spine: [-.3 + .2 * S(t * 7), .3 * S(t * 3), 0], head: [.3, 0, 0], armL: [-2.6 + .5 * S(t * 11), 0, .6 + .3 * S(t * 9)], armR: [-2.4 + .5 * S(t * 10 + 1), 0, .7 + .3 * S(t * 8)],
     foreL: [-.5, 0, 0], foreR: [-.4, 0, 0], legL: [-.6 + .6 * S(t * 9), 0, .3], legR: [-.3 - .6 * S(t * 9), 0, .3], shinL: [.9, 0, 0], shinR: [.8, 0, 0] }),
-  shootUp: () => ({ spine: [-.15, 0, 0], head: [.35, 0, 0], armR: [-2.9, 0, .15], foreR: [0, 0, 0], handR: [-.9, 0, 0], armL: [.3, 0, .8], foreL: [-.6, 0, 0],
+  shootUp: () => ({ spiderR: 1, gripL: .2, spine: [-.15, 0, 0], head: [.35, 0, 0], armR: [-2.9, 0, .15], foreR: [0, 0, 0], handR: [-.9, 0, 0], armL: [.3, 0, .8], foreL: [-.6, 0, 0],
     legL: [-.4, 0, .1], legR: [.2, 0, .1], shinL: [.9, 0, 0], shinR: [.5, 0, 0] }),
   shootFwd: (arm = 'R') => {
     const o = { spine: [.1, .15, 0], head: [0, -.1, 0], armL: [.2, 0, .3], foreL: [-1.2, 0, 0], armR: [.2, 0, .3], foreR: [-1.2, 0, 0], legL: [-.4, 0, .15], legR: [.3, 0, .1], shinL: [.5, 0, 0], shinR: [.3, 0, 0], hy: -.08 };
-    o['arm' + arm] = [-1.55, 0, .05]; o['fore' + arm] = [0, 0, 0]; o['hand' + arm] = [-1.0, 0, 0];
+    o['arm' + arm] = [-1.55, 0, .05]; o['fore' + arm] = [0, 0, 0]; o['hand' + arm] = [-1.0, 0, 0]; o['spider' + arm] = 1;
     return o;
   },
-  swing: t => ({ spine: [-.15, 0, .05 * S(t * 2)], head: [.1, 0, 0], armR: [-3.0, 0, .1], foreR: [-.05, 0, 0], handR: [-.6, 0, 0], armL: [-.4, 0, 1.0], foreL: [-.9, 0, 0],
+  swing: t => ({ gripR: .9, gripL: .15, spine: [-.15, 0, .05 * S(t * 2)], head: [.1, 0, 0], armR: [-3.0, 0, .1], foreR: [-.05, 0, 0], handR: [-.6, 0, 0], armL: [-.4, 0, 1.0], foreL: [-.9, 0, 0],
     legL: [-.9, 0, .1], legR: [-.25, 0, .1], shinL: [1.4, 0, 0], shinR: [.5, 0, 0], footL: [.3, 0, 0], footR: [.4, 0, 0] }),
   flip: t => ({ spine: [.9, 0, 0], head: [-.4, 0, 0], armL: [-1.4, 0, .3], armR: [-1.4, 0, .3], foreL: [-1.6, 0, 0], foreR: [-1.6, 0, 0],
     legL: [-2.0, 0, .1], legR: [-2.0, 0, .1], shinL: [2.4, 0, 0], shinR: [2.4, 0, 0], hy: -.2 }),
-  pull: (t = 0) => ({ hy: -.3, hz: -.15, spine: [-.35, 0, 0], head: [.15 + .03 * S(t * 23), 0, 0], armL: [-1.35, .1, .12], armR: [-1.35, .1, .12], foreL: [-.15, 0, 0], foreR: [-.15, 0, 0],
+  pull: (t = 0) => ({ grip: .95, hy: -.3, hz: -.15, spine: [-.35, 0, 0], head: [.15 + .03 * S(t * 23), 0, 0], armL: [-1.35, .1, .12], armR: [-1.35, .1, .12], foreL: [-.15, 0, 0], foreR: [-.15, 0, 0],
     handL: [-.4, 0, 0], handR: [-.4, 0, 0], legL: [-1.2, 0, .2], legR: [.35, 0, .15], shinL: [1.4, 0, 0], shinR: [.35, 0, 0], footL: [-.2, 0, 0] }),
   hangUpside: t => ({ spine: [0, 0, .04 * S(t * 1.5)], head: [0, 0, 0], armL: [-.3, 0, .25 + .05 * S(t * 2)], armR: [-.4, -.4, .3], foreL: [-1.9, 0, 0], foreR: [-1.8, 0, 0],
     legL: [0, 0, -.02], legR: [0, 0, -.02], shinL: [.05, 0, 0], shinR: [.05, 0, 0], footL: [.6, 0, 0], footR: [.6, 0, 0] }),
@@ -345,11 +451,11 @@ export const POSE = {
     armL: [-.6, 0, .15], armR: [-.6, 0, .15], foreL: [-.9, 0, 0], foreR: [-.9, 0, 0], head: [.04 * S(t), 0, 0] }),
   punch: (t, arm = 'R') => {
     const k = E.outCubic(clamp(t / .18)) * (1 - E.inQuad(clamp((t - .35) / .4)));
-    const o = { spine: [.2, -.4 * k, 0], chest: [0, -.3 * k, 0], armL: [-.5, 0, .3], foreL: [-1.6, 0, 0], armR: [-.5, 0, .3], foreR: [-1.6, 0, 0], legL: [-.5, 0, .1], legR: [.4, 0, .1], shinL: [.4, 0, 0], hy: -.1 };
+    const o = { grip: .95, spine: [.2, -.4 * k, 0], chest: [0, -.3 * k, 0], armL: [-.5, 0, .3], foreL: [-1.6, 0, 0], armR: [-.5, 0, .3], foreR: [-1.6, 0, 0], legL: [-.5, 0, .1], legR: [.4, 0, .1], shinL: [.4, 0, 0], hy: -.1 };
     o['arm' + arm] = [lerp(-.5, -1.55, k), 0, lerp(.3, .05, k)]; o['fore' + arm] = [lerp(-1.6, -.05, k), 0, 0];
     return o;
   },
-  roar: (t = 0) => ({ spine: [-.25, 0, 0], head: [-.35, 0, 0], armL: [-.3, 0, 1.0 + .05 * S(t * 30)], armR: [-.3, 0, 1.0 + .05 * S(t * 30)], foreL: [-1.3, 0, 0], foreR: [-1.3, 0, 0], legL: [-.2, 0, .25], legR: [-.2, 0, .25], shinL: [.3, 0, 0], shinR: [.3, 0, 0], hy: -.05 }),
+  roar: (t = 0) => ({ grip: 1, spine: [-.25, 0, 0], head: [-.35, 0, 0], armL: [-.3, 0, 1.0 + .05 * S(t * 30)], armR: [-.3, 0, 1.0 + .05 * S(t * 30)], foreL: [-1.3, 0, 0], foreR: [-1.3, 0, 0], legL: [-.2, 0, .25], legR: [-.2, 0, .25], shinL: [.3, 0, 0], shinR: [.3, 0, 0], hy: -.05 }),
   dodge: () => ({ hy: -.35, spine: [.3, 0, .9], head: [0, 0, -.5], armL: [-.4, 0, 1.6], foreL: [-.4, 0, 0], armR: [.2, 0, .4], foreR: [-1.0, 0, 0],
     legL: [-.3, 0, .6], legR: [-1.0, 0, -.1], shinL: [.3, 0, 0], shinR: [1.6, 0, 0] }),
   strained: t => ({ spine: [.35, .4 * S(t * 2), .2 * S(t * 3)], head: [-.2, 0, 0], armL: [-1.1 + .3 * S(t * 25), 0, .5], armR: [-.9 + .3 * S(t * 23), 0, .5], foreL: [-.5, 0, 0], foreR: [-.5, 0, 0],
@@ -358,7 +464,7 @@ export const POSE = {
     legL: [-1.4, 0, .3], legR: [-1.0, 0, .3], shinL: [2.3, 0, 0], shinR: [2.0, 0, 0] }),
   phone: (t = 0) => ({ ...POSE.stand(t), armR: [-.5, .4, .45], foreR: [-2.3, 0, 0], handR: [0, 0, .5], head: [0, -.1, .1] }),
   reach: () => ({ spine: [.2, 0, 0], armR: [-1.4, .2, .1], foreR: [-.2, 0, 0], handR: [.2, 0, 0], armL: [.1, 0, .15], foreL: [-.4, 0, 0], head: [.2, 0, 0] }),
-  hold: () => ({ armL: [-.9, .3, .1], armR: [-.9, .3, .1], foreL: [-.8, 0, 0], foreR: [-.8, 0, 0], handL: [0, 0, -.3], handR: [0, 0, -.3], spine: [.05, 0, 0] }),
+  hold: () => ({ grip: .55, armL: [-.9, .3, .1], armR: [-.9, .3, .1], foreL: [-.8, 0, 0], foreR: [-.8, 0, 0], handL: [0, 0, -.3], handR: [0, 0, -.3], spine: [.05, 0, 0] }),
   lookUp: (t = 0) => ({ ...POSE.stand(t), spine: [-.12, 0, 0], neck: [-.3, 0, 0], head: [-.35, 0, 0], armL: [-.2, 0, .15], foreL: [-.6, 0, 0] }),
 };
 
@@ -376,12 +482,19 @@ function setFace(ch, f = {}) {
   const fr = ch.faceRig; if (!fr) return;
   const blink = f.blink || 0;
   const look = f.look || [0, 0];
-  fr.eyes.forEach((e, i) => { e.scale.y = 1.2 * Math.max(.08, 1 - blink) * (f.wide ? 1.15 : 1); e.scale.x = f.wide ? 1.12 : 1; });
-  fr.pupils.forEach(p => { p.position.x = look[0] * .012; p.position.y = look[1] * .012; });
   const br = f.brow || 0; // >0 — тревога/удивление, <0 — злость
-  fr.brows.forEach((b, i) => { const sx = i === 0 ? 1 : -1; b.rotation.z = sx * br * .35; b.position.y = fr.headC.y + .085 + Math.abs(br) * .015 * Math.sign(br); });
-  const mo = clamp(f.mouth || 0);
-  fr.mouth.scale.set(1.3 - mo * .25 + (f.smile || 0) * .4, .22 + mo * 1.15, .45);
+  const base = f.wide ? -.25 : f.squint ? .45 : br < 0 ? .3 - br * .25 : .12;
+  const closure = Math.max(blink, base);
+  fr.lids.forEach((l, i) => { const sx = i === 0 ? 1 : -1; l.rotation.set(lerp(-1.25, 1.6, clamp(closure)), 0, sx * (br < 0 ? br * .35 : br * .15)); });
+  fr.eyes.forEach(e => { e.scale.set(f.wide ? 1.1 : 1, f.wide ? 1.3 : 1.2, .55); });
+  fr.pupils.forEach(p => { p.position.x = look[0] * .011; p.position.y = look[1] * .011; });
+  fr.brows.forEach((b, i) => { const sx = i === 0 ? 1 : -1; b.rotation.z = sx * br * .38; b.position.y = fr.headC.y + .088 + br * .016 + (f.wide ? .01 : 0); });
+  const mo = clamp(f.mouth || 0), sh = clamp(f.shape || 0), sm = f.smile || 0;
+  const sx = (1.3 - mo * .2 + sm * .45) * (1 - sh * .45), sy = .2 + mo * 1.2 * (1 + sh * .3);
+  fr.cav.scale.set(sx, sy, .45);
+  fr.mouth.rotation.z = 0; fr.mouth.position.y = fr.headC.y - .068 + sm * .004;
+  fr.teeth.visible = mo > .18; fr.teeth.scale.set(sx * .62, 1, 1); fr.teeth.position.y = .03 * sy * .32;
+  fr.tongue.visible = mo > .35; fr.tongue.position.y = -.03 * sy * .35;
 }
 /* моргание: детерминированно по времени */
 export function blinkAt(t, seed = 0) {
