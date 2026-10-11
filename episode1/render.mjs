@@ -39,10 +39,11 @@ const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--ena
 const page = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
 page.on('pageerror', e => console.error('page error:', e.message));
 page.on('console', m => { if (m.type() === 'error' || m.type() === 'warning') console.error('console:', m.text()); });
-await page.goto(base + arg('page', 'index.html') + '?render=1');
+await page.goto(base + arg('page', 'index.html') + '?render=1' + arg('q', ''));
 await page.waitForFunction(() => window.ready === true, null, { timeout: 120000 });
 const DUR = await page.evaluate(() => window.DURATION);
 
+if (arg('bench')) { for (const t of arg('bench').split(',')) console.log('bench', t, (await page.evaluate(t => window.bench(+t), +t)).toFixed(0) + 'ms'); await browser.close(); server.close(); process.exit(0); }
 const stills = arg('stills');
 if (stills) {
   mkdirSync(path.join(out, 'stills'), { recursive: true });

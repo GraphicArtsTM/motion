@@ -32,11 +32,11 @@ renderer.setPixelRatio(1); renderer.setSize(W, H, false);
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
 document.getElementById('stage').insertBefore(renderer.domElement, document.getElementById('ov'));
 const camera = new THREE.PerspectiveCamera(45, W / H, .05, 6000);
-const rt = new THREE.WebGLRenderTarget(W, H, { type: THREE.HalfFloatType, samples: 4 });
+const rt = new THREE.WebGLRenderTarget(W, H, { type: params.has('ub') ? THREE.UnsignedByteType : THREE.HalfFloatType, samples: +(params.get('msaa') ?? 4) });
 const composer = new EffectComposer(renderer, rt);
 const renderPass = new RenderPass(new THREE.Scene(), camera);
-const bloom = new UnrealBloomPass(new THREE.Vector2(W / 2, H / 2), .75, .55, .92);
-composer.addPass(renderPass); composer.addPass(bloom); composer.addPass(new OutputPass());
+const bloom = new UnrealBloomPass(new THREE.Vector2(W / +(params.get('bd') ?? 2), H / +(params.get('bd') ?? 2)), .75, .55, .92);
+composer.addPass(renderPass); if (!params.has('nobloom')) composer.addPass(bloom); composer.addPass(new OutputPass());
 const overlay = makeOverlay(document.getElementById('ov'));
 
 /* ---------- мир ---------- */
@@ -146,6 +146,7 @@ function renderAt(t) {
 }
 
 window.renderAt = renderAt;
+window.bench = (t, n = 5) => { const a = performance.now(); for (let i = 0; i < n; i++) { renderAt(t + i * .03); renderer.getContext().finish(); } return (performance.now() - a) / n; };
 window.DURATION = DURATION;
 window.ready = true;
 
