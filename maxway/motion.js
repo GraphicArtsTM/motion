@@ -67,8 +67,9 @@ function S(el, o) {
   if (o.b > .05) f += 'blur(' + o.b.toFixed(2) + 'px) ';
   if (o.f) f += o.f;
   el.style.filter = f || 'none';
+  if (window.__rec) window.__rec(el, o);
 }
-const hide = el => { el.style.visibility = 'hidden'; el.style.opacity = 0; };
+const hide = el => { el.style.visibility = 'hidden'; el.style.opacity = 0; if (window.__rec) window.__rec(el, { o: 0 }); };
 
 /* ---------- иконки интерфейса (линейные, как в приложении) ---------- */
 const I = {
@@ -509,7 +510,9 @@ function background(t) {
   else if (t >= 25) ro = .45 * P(t, 25.0, .4);
   const ry = t < 4 ? 820 : t < 22 ? 1100 : 520;
   S(R.rays, { x: 540, y: ry, r: t * 14, o: ro });
-  // ленты
+  // ленты (текст меняем до расчёта прокрутки, чтобы кадр не зависел от предыдущих)
+  if (t >= 24 && R.tapeB._txt !== 2) { R.tapeB._tt.innerHTML = Array(10).fill('<span>*Акция действует только на доставку ✦</span>').join(''); R.tapeB._unit = 0; R.tapeB._txt = 2; }
+  if (t < 24 && R.tapeB._txt !== 1) { R.tapeB._tt.innerHTML = Array(14).fill('<span>KLABJON L ✦ ВТОРОЙ В ПОДАРОК ✦</span>').join(''); R.tapeB._unit = 0; R.tapeB._txt = 1; }
   if (t >= 2 && t < 4) {
     const k = E.outExpo(P(t, 2.0, .4)), o = 1 - E.inExpo(P(t, 3.6, .35));
     tape(R.tapeA, { x: 540 - 1600 * (1 - k) - 1600 * (1 - o), y: 300, r: -8, o: 1 }, t * 260);
@@ -519,8 +522,6 @@ function background(t) {
     hide(R.tapeA);
     tape(R.tapeB, { x: 540 + 1600 * (1 - k), y: 1780, r: -4, o: 1 }, t * 220);
   } else { hide(R.tapeA); hide(R.tapeB); }
-  if (t >= 24 && R.tapeB._txt !== 2) { R.tapeB._tt.innerHTML = Array(10).fill('<span>*Акция действует только на доставку ✦</span>').join(''); R.tapeB._unit = 0; R.tapeB._txt = 2; }
-  if (t < 24 && R.tapeB._txt !== 1) { R.tapeB._tt.innerHTML = Array(14).fill('<span>KLABJON L ✦ ВТОРОЙ В ПОДАРОК ✦</span>').join(''); R.tapeB._unit = 0; R.tapeB._txt = 1; }
 
   // вспышки на сильных ударах
   const FL = [[2.0, .55], [4.0, .35], [9.0, .3], [15.9, .25], [20.0, .45], [25.0, .7]];
@@ -548,6 +549,7 @@ function camera(t, frame) {
       s += .03 * e; x += (rr() - .5) * 26 * e; y += (rr() - .5) * 26 * e; r += (rr() - .5) * 1.2 * e;
     }
   }
+  window.__cam = { x, y, r, s };   // для экспорта в After Effects (ae/export.mjs)
   R.cam.style.transform = 'translate(' + x.toFixed(2) + 'px,' + y.toFixed(2) + 'px) rotate(' + r.toFixed(3) + 'deg) scale(' + s.toFixed(4) + ')';
   R.grain.style.backgroundPosition = Math.floor(rr() * 256) + 'px ' + Math.floor(rr() * 256) + 'px';
 }
