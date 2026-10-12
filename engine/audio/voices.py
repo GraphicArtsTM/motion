@@ -44,6 +44,13 @@ PROFILES = {
     'vera':     ('piper', None, 0, 1.0),
     'shadow':   ('rhv', 'vitaliy', 62, 84),
     'crowd':    ('rhv', 'anna', 115, 120),
+    # лицей «Новоград» (серия 2)
+    'diyor':    ('rhv', 'mikhail', 124, 108),    # Диёр Гарриев — лучший друг
+    'marjon':   ('rhv', 'victoria', 106, 104),   # Маржон (Эм-Джей)
+    'azim':     ('rhv', 'evgeniy-rus', 90, 110), # Азим «Флэш» — задира
+    'teacher':  ('rhv', 'irina', 96, 98),        # учительница физики
+    'mom':      ('rhv', 'elena', 92, 104),       # мама Маржон
+    'odilman':  ('rhv', 'artemiy', 72, 88),      # ODILMAN
     # голоса для будущих персонажей (см. SERIES_BIBLE.md)
     'sokol':    ('rhv', 'mikhail', 92, 98),       # майор Сокол
     'mgla':     ('rhv', 'elena', 92, 96),        # Мгла

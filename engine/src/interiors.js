@@ -161,6 +161,20 @@ export function makeKitchen() {
   });
   const win = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 1.3), new THREE.MeshBasicMaterial({ map: winTex, color: new THREE.Color(1.3, 1.3, 1.3) }));
   win.position.set(1.4, 1.75, -2.98); scene.add(win);
+  // утреннее окно (серия 2): поверх ночного, прозрачность — K.setDay(k)
+  const dayTex = canvasTex(512, 384, (g, w, h) => {
+    const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#7fb6ea'); gr.addColorStop(.65, '#f7d9a8'); gr.addColorStop(1, '#f6c48a'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    g.fillStyle = 'rgba(255,250,220,.9)'; g.beginPath(); g.arc(380, 120, 34, 0, 7); g.fill();
+    const r = rng(9);
+    for (let i = 0; i < 22; i++) { const bx = r() * w, bw = 26 + r() * 50, bh = 70 + r() * 200; g.fillStyle = ['#8d97b0', '#a1a8bc', '#7d86a0'][i % 3]; g.fillRect(bx, h - bh, bw, bh);
+      for (let y = h - bh + 8; y < h; y += 14) for (let x = bx + 5; x < bx + bw - 5; x += 10) if (r() < .5) { g.fillStyle = 'rgba(255,255,255,.35)'; g.fillRect(x, y, 5, 7); } }
+    for (let i = 0; i < 6; i++) { g.fillStyle = ['#d9902e', '#c9b23a', '#b8642a'][i % 3]; g.beginPath(); g.arc(i * 100 + 30, h - 14, 40, 0, 7); g.fill(); }
+  });
+  const winDay = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 1.3), new THREE.MeshBasicMaterial({ map: dayTex, color: new THREE.Color(1.15, 1.15, 1.15), transparent: true, opacity: 0, depthWrite: false }));
+  winDay.position.set(1.4, 1.75, -2.975); scene.add(winDay);
+  // солнечный луч из окна на стол и пол (утро)
+  const beamM = new THREE.MeshBasicMaterial({ color: 0xffd9a0, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+  const beam = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 3.2), beamM); beam.position.set(1.0, 1.2, -1.6); beam.rotation.set(-1.0, .25, 0); scene.add(beam);
   const frameM = toon(0xf0e6d8);
   for (const [x, y, w, h] of [[1.4, 2.42, 1.95, .1], [1.4, 1.08, 1.95, .1], [.45, 1.75, .1, 1.4], [2.35, 1.75, .1, 1.4], [1.4, 1.75, .06, 1.3]]) mesh(new THREE.BoxGeometry(w, h, .08), frameM, { pos: [x, y, -2.94], outline: .01, parent: scene });
   // фото деда в горах (рамка) — отсылка к карабину
@@ -208,10 +222,19 @@ export function makeKitchen() {
   mesh(new THREE.CylinderGeometry(.05, .35, .25, 20, 1, true), toon(0xd9a441, { side: THREE.DoubleSide }), { pos: [0, 2.55, -.6], outline: .01, parent: scene });
   mesh(new THREE.SphereGeometry(.09, 12, 8), glow(0xffe0a0, 4), { pos: [0, 2.48, -.6], outline: false, parent: scene });
   mesh(new THREE.CylinderGeometry(.008, .008, .6, 4), toon(0x111111), { pos: [0, 2.9, -.6], outline: false, parent: scene });
-  scene.add(new THREE.HemisphereLight(0xffe2c0, 0x3a2418, 1.0));
+  const hemi = new THREE.HemisphereLight(0xffe2c0, 0x3a2418, 1.0); scene.add(hemi);
   const lamp = new THREE.PointLight(0xffc880, 2.6, 9, 1.4); lamp.position.set(0, 2.3, -.6); scene.add(lamp);
   const winL = new THREE.PointLight(0x6080ff, 3, 6, 1.5); winL.position.set(1.4, 1.8, -2.5); scene.add(winL);
   K.flashLight = winL;
+  // день/ночь: k = 1 — солнечное утро, 0 — ночь (как в серии 1); вызывать каждый кадр (по умолчанию — ночь)
+  const night = new THREE.Color(0x6080ff), sunC = new THREE.Color(0xffd8a0), bgN = new THREE.Color(0x120c0a), bgD = new THREE.Color(0x3a2a1e);
+  K.setDay = k => {
+    winDay.material.opacity = k; beamM.opacity = .12 * k;
+    winL.color.copy(night).lerp(sunC, k); winL.intensity = 3 + 5 * k;
+    hemi.intensity = 1 + .8 * k; hemi.color.set(0xffe2c0).lerp(new THREE.Color(0xfff2e0), k);
+    lamp.intensity = 2.6 * (1 - .75 * k);
+    scene.background.copy(bgN).lerp(bgD, k);
+  };
   return K;
 }
 

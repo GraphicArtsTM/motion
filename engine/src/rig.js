@@ -109,7 +109,7 @@ function addFace(J, o, R) {
   for (const sx of [1, -1]) mesh(sph(.035, 12, 8), toon(o.skin), { pos: [sx * R * .98, headC.y, -.01], scale: [.5, 1, .8], outline: .005, parent: face });
   if (o.blush) for (const sx of [1, -1]) mesh(sph(.022, 10, 8), toon(o.blush, { transparent: true, opacity: .45 }), { pos: onSphere(sx * .085, -.035, -.004).toArray(), scale: [1.3, .7, .3], parent: face });
   if (o.wrinkles) for (const sx of [1, -1]) mesh(new THREE.TorusGeometry(.03, .003, 4, 12, Math.PI * .7), toon(0x9a5a3c), { pos: onSphere(sx * .058, -.018, .0).toArray(), rot: [0, 0, Math.PI + Math.PI * .15], parent: face });
-  return { face, eyes, pupils, brows, lids, lowLids, cheeks, mouth, cav, teeth, tongue, headC };
+  return { face, eyes, pupils, brows, lids, lowLids, cheeks, mouth, cav, teeth, tongue, headC, nose };
 }
 
 /* ---------- кисть с пальцами ---------- */
@@ -143,9 +143,25 @@ function setGrip(h, curl = .35, spider = 0) {
 }
 
 /* ---------- персонажи ---------- */
-export function makeCharacter(kind) {
-  const k = kind === 'kronov' ? 1.6 : kind === 'ded' ? 1.0 : kind === 'vera' ? .96 : 1.0;
+/* палитры школьников: верх, низ, волосы, обувь, кожа, причёска (0 — короткая, 1 — хвост, 2 — каре, 3 — кепка, 4 — ёжик), девочка */
+const STUDENTS = [
+  { top: 0xf4f4f0, pants: 0x2a3550, hair: 0x2a1a10, shoes: 0x1a1a1a, skin: 0xe0a77a, style: 0, girl: 0, vest: 0x24324f },
+  { top: 0xe6dccb, pants: 0x3a3a44, hair: 0x5a3018, shoes: 0xf2f2f2, skin: 0xf0c3a0, style: 1, girl: 1 },
+  { top: 0x7a8fb8, pants: 0x22252e, hair: 0x14100c, shoes: 0x2a2a2a, skin: 0xc98d68, style: 2, girl: 1 },
+  { top: 0xd94f3c, pants: 0x2f3440, hair: 0x221410, shoes: 0xf2f2f2, skin: 0xd9996b, style: 3, girl: 0, cap: 0x1f5fa8 },
+  { top: 0x3e7a5a, pants: 0x2a2a30, hair: 0x3a2a1a, shoes: 0x3a2a20, skin: 0xe8b48a, style: 4, girl: 0 },
+  { top: 0xf2c94c, pants: 0x34405c, hair: 0x7a3a18, shoes: 0xf2f2f2, skin: 0xf0c3a0, style: 1, girl: 1 },
+  { top: 0x9b5ab8, pants: 0x262a33, hair: 0x101010, shoes: 0x1a1a1a, skin: 0xb07650, style: 2, girl: 1 },
+  { top: 0xf4f4f0, pants: 0x2a3550, hair: 0x4a2e18, shoes: 0x1a1a1a, skin: 0xd9996b, style: 0, girl: 0, vest: 0x5a2030 },
+  { top: 0x2b2f38, pants: 0x1e2028, hair: 0x14100c, shoes: 0xf2f2f2, skin: 0xc98d68, style: 3, girl: 0, cap: 0xd94f3c },   // дружок Азима в кепке
+  { top: 0x1d4fa0, pants: 0x2a2a30, hair: 0x2a1a10, shoes: 0xf2f2f2, skin: 0xe0a77a, style: 4, girl: 0 },                 // второй дружок — тоже в куртке команды
+];
+export function makeCharacter(kind, opt = {}) {
+  const SV = kind === 'student' ? STUDENTS[(opt.variant ?? 0) % STUDENTS.length] : null;
+  const k = kind === 'kronov' ? 1.6 : kind === 'ded' ? 1.0 : kind === 'vera' ? .96 : kind === 'azim' ? 1.1 : kind === 'odilman' ? 1.08 : kind === 'marjon' ? .97 : kind === 'teacher' ? .95
+    : SV ? (SV.girl ? .95 : 1.0) + ((opt.variant ?? 0) % 3 - 1) * .025 : 1.0;
   const d = DIM(k);
+  if (kind === 'azim' || kind === 'odilman') d.shX = .235 * k;            // широкие плечи
   const { root, J } = skeleton(d);
   const ch = { kind, root, J, d, parts: {}, suit: false, faceRig: null, extras: {} };
   const OL = .012 * k;
@@ -154,6 +170,12 @@ export function makeCharacter(kind) {
     ded: { skin: 0xc98d68, hair: 0xd9d6d0, top: 0x2b3f6b, topDark: 0x1d2c4d, pants: 0x232f4a, shoes: 0x1a1a1a },
     vera: { skin: 0xf0c3a0, hair: 0xd8481f, top: 0xf4f6f8, topDark: 0xc9d2da, pants: 0x3b3446, shoes: 0x2a2a2a },
     shadow: { skin: 0x050507, hair: 0x050507, top: 0x07070a, topDark: 0x050507, pants: 0x050507, shoes: 0x050507 },
+    marjon: { skin: 0xeab38c, hair: 0x7a2a16, top: 0x2f6b4f, topDark: 0x2f6b4f, pants: 0x2c3a5c, shoes: 0xf3f1ea },
+    diyor: { skin: 0xe6b48f, hair: 0x120d0a, top: 0x1e2b4a, topDark: 0x1e2b4a, pants: 0x2b2e36, shoes: 0x4a2a18 },
+    azim: { skin: 0xc98d68, hair: 0x1a120c, top: 0x1d4fa0, topDark: 0xf2f2ee, pants: 0x2a2a30, shoes: 0xf2f2f2 },
+    teacher: { skin: 0xf0c3a0, hair: 0xa8a39c, top: 0x7a2e3c, topDark: 0x7a2e3c, pants: 0x4a4550, shoes: 0x2a2a2a },
+    odilman: { skin: 0xc98d68, hair: 0x111111, top: 0xffffff, topDark: 0x1b2440, pants: 0xffffff, shoes: 0x1b2440 },
+    student: SV && { skin: SV.skin, hair: SV.hair, top: SV.top, topDark: SV.top, pants: SV.pants, shoes: SV.shoes },
   }[kind] || {};
   ch.colors = C;
 
@@ -161,15 +183,21 @@ export function makeCharacter(kind) {
 
   const m = {
     skin: toon(C.skin), top: toon(C.top), topDark: toon(C.topDark), pants: toon(C.pants), shoes: toon(C.shoes), hair: toon(C.hair),
-    hand: toon(C.skin, { emissive: 0x000000 }),
+    hand: toon(kind === 'odilman' ? C.topDark : C.skin, { emissive: 0x000000 }),
   };
+  if (kind === 'odilman') { m.top = odilSuit(); m.pants = m.top; }
   ch.mats = m;
   const reg = (role, msh) => { (ch.parts[role] = ch.parts[role] || []).push(msh); msh.userData.role = role; msh.userData.base = msh.material; return msh; };
 
   // таз и торс
   reg('pants', mesh(rbox(.3 * k, .17 * k, .19 * k, .07 * k), m.pants, { pos: [0, .01 * k, 0], outline: OL, parent: J.hips }));
   const belly = kind === 'ded' ? 1.18 : 1;
-  const torso = reg('top', mesh(cap(.155 * k, .46 * k), m.top, { pos: [0, .2 * k, .0], scale: [1.22, 1, .82 * belly], outline: OL, parent: J.spine }));
+  const wide = kind === 'azim' ? 1.42 : kind === 'odilman' ? 1.38 : kind === 'marjon' || SV?.girl || kind === 'teacher' ? 1.1 : kind === 'diyor' ? 1.16 : 1.22;
+  const torso = reg('top', mesh(cap(.155 * k, .46 * k), m.top, { pos: [0, .2 * k, .0], scale: [wide, 1, .82 * belly * (kind === 'azim' ? 1.12 : 1)], outline: OL, parent: J.spine }));
+  ch.torso = torso;
+  if (kind === 'teacher' || (SV?.girl && SV.style === 2)) {   // юбка до колен
+    reg('pants', mesh(new THREE.CylinderGeometry(.17 * k, .25 * k, .42 * k, 20, 1, true), toon(kind === 'teacher' ? 0x4a4550 : 0x2a2f3a, { side: THREE.DoubleSide }), { pos: [0, -.2 * k, 0], scale: [1, 1, .82], outline: OL, parent: J.hips }));
+  }
   if (kind === 'vera') { // халат: юбка-конус от пояса
     const coat = reg('top', mesh(new THREE.CylinderGeometry(.19 * k, .27 * k, .55 * k, 20, 1, true), toon(C.top, { side: THREE.DoubleSide }), { pos: [0, -.27 * k, 0], scale: [1, 1, .8], outline: OL, parent: J.hips }));
     coat.userData.coat = true;
@@ -180,22 +208,24 @@ export function makeCharacter(kind) {
   const R = .165 * k;
   const head = reg('skin', mesh(sph(R, 28, 20), m.skin, { pos: [0, .13 * k, 0], scale: [1, 1.03, 1], outline: OL, parent: J.head }));
   ch.head = head;
-  const fr = addFace(J, { skin: C.skin, hair: C.hair, brow: kind === 'ded' ? 0xe8e6e0 : C.hair, eyeK: kind === 'vera' ? 1.05 : 1,
-    iris: { timur: 0x6b3a1c, ded: 0x3d5a78, vera: 0x3f8a52 }[kind] || 0x220000, blush: { timur: 0xe0705a, vera: 0xf08a80 }[kind],
-    lashes: kind === 'vera', wrinkles: kind === 'ded' }, .165);
+  const girl = kind === 'vera' || kind === 'marjon' || kind === 'teacher' || !!SV?.girl;
+  const fr = addFace(J, { skin: C.skin, hair: C.hair, brow: kind === 'ded' ? 0xe8e6e0 : kind === 'teacher' ? 0x8a857e : C.hair, eyeK: kind === 'vera' || kind === 'marjon' ? 1.05 : kind === 'azim' ? .9 : 1,
+    iris: { timur: 0x6b3a1c, ded: 0x3d5a78, vera: 0x3f8a52, marjon: 0x5f7f32, diyor: 0x3a2414, azim: 0x2a1a10, teacher: 0x5a4a3a, odilman: 0x2a1a10 }[kind] || (SV ? [0x4a2a14, 0x2f5a7a, 0x3a5a2a][(opt.variant ?? 0) % 3] : 0x220000),
+    blush: { timur: 0xe0705a, vera: 0xf08a80, marjon: 0xf0806e }[kind] || (SV?.girl ? 0xf08a80 : undefined),
+    lashes: girl, wrinkles: kind === 'ded' }, .165);
   ch.faceRig = fr; fr.face.scale.setScalar(k); // лицо строится в единичном масштабе
   reg('face', fr.face);
 
   // руки
   for (const s of ['L', 'R']) {
-    reg('top', mesh(cap(.058 * k, d.upper + .03 * k), m.top, { pos: [0, -d.upper / 2 + .01 * k, 0], outline: OL, parent: J['arm' + s] }));
+    reg('top', mesh(cap((kind === 'azim' || kind === 'odilman' ? .068 : .058) * k, d.upper + .03 * k), kind === 'azim' ? m.topDark : m.top, { pos: [0, -d.upper / 2 + .01 * k, 0], outline: OL, parent: J['arm' + s] }));
     reg('top', mesh(cap(.05 * k, d.lower + .02 * k), kind === 'vera' ? m.top : m.topDark, { pos: [0, -d.lower / 2, 0], outline: OL, parent: J['fore' + s] }));
     const hd = makeHand(m.hand, k, OL, s === 'L' ? 1 : -1); J['hand' + s].add(hd.g); ch['hand' + s] = hd;
     hd.g.traverse(o => { if (o.isMesh && o.material === m.hand) reg('hand', o); });
     setGrip(hd, .35);
     // ноги
     reg('pants', mesh(cap(.078 * k, d.thigh + .04 * k), m.pants, { pos: [0, -d.thigh / 2, 0], outline: OL, parent: J['leg' + s] }));
-    reg('pants', mesh(cap(.064 * k, d.shin + .03 * k), m.pants, { pos: [0, -d.shin / 2, 0], outline: OL, parent: J['shin' + s] }));
+    reg('pants', mesh(cap(.064 * k, d.shin + .03 * k), kind === 'odilman' ? m.topDark : m.pants, { pos: [0, -d.shin / 2, 0], outline: OL, parent: J['shin' + s] }));
     reg('shoes', mesh(rbox(.11 * k, .08 * k, .25 * k, .035 * k), m.shoes, { pos: [0, -.02 * k, .055 * k], outline: OL, parent: J['foot' + s] }));
   }
 
@@ -300,6 +330,7 @@ export function makeCharacter(kind) {
     const tt = new THREE.CanvasTexture(tc); tt.colorSpace = THREE.SRGBColorSpace;
     mesh(new THREE.PlaneGeometry(.15 * k, .2 * k), new THREE.MeshBasicMaterial({ map: tt, color: new THREE.Color(1.4, 1.4, 1.4) }), { pos: [0, 0, .008 * k], parent: tab });
   }
+  if (['marjon', 'diyor', 'azim', 'teacher', 'odilman', 'student'].includes(kind)) buildCast(ch, kind, d, m, fr, reg, R, OL, SV, opt);
   if (kind === 'shadow') {
     fr.face.visible = false;
     const eyes = new THREE.Group(); J.head.add(eyes); ch.redEyes = eyes;
@@ -308,6 +339,170 @@ export function makeCharacter(kind) {
       .forEach(([x, y, s]) => mesh(sph(.022 * s + .006, 10, 8), em, { pos: [x, y, .15 - Math.abs(x) * .3], outline: false, parent: eyes }));
   }
   return finish(ch);
+}
+
+/* ---------- ODILMAN: красный костюм с чёрной паутиной ---------- */
+let ODIL_MAT;
+function odilSuit() {
+  if (ODIL_MAT) return ODIL_MAT;
+  const c = document.createElement('canvas'); c.width = c.height = 512; const g = c.getContext('2d');
+  const gr = g.createLinearGradient(0, 0, 512, 512); gr.addColorStop(0, '#d42430'); gr.addColorStop(1, '#a8141e');
+  g.fillStyle = gr; g.fillRect(0, 0, 512, 512);
+  for (let i = 0; i < 3000; i++) { g.fillStyle = `rgba(0,0,0,${Math.random() * .05})`; g.fillRect(Math.random() * 512, Math.random() * 512, 2, 2); }
+  g.strokeStyle = '#0d0a10'; g.lineWidth = 10; g.lineCap = 'round';
+  for (let i = 0; i <= 4; i++) { g.beginPath(); g.moveTo(i * 128 + 20, 0); g.bezierCurveTo(i * 128 - 10, 170, i * 128 + 50, 340, i * 128 + 20, 512); g.stroke(); }
+  g.lineWidth = 7;
+  for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) { g.beginPath(); g.moveTo(i * 128 + 20, j * 128 + 40); g.quadraticCurveTo(i * 128 + 84, j * 128 + 82, i * 128 + 148, j * 128 + 40); g.stroke(); }
+  const tx = new THREE.CanvasTexture(c); tx.wrapS = tx.wrapT = THREE.RepeatWrapping; tx.colorSpace = THREE.SRGBColorSpace; tx.repeat.set(1.3, 1.3);
+  ODIL_MAT = toon(0xffffff, { map: tx });
+  rimify(ODIL_MAT, 0xff8a7a, .4, 2.2); ODIL_MAT.userData.rim = true;
+  return ODIL_MAT;
+}
+
+/* ---------- школьный состав серии 2: Маржон, Диёр, Азим, учительница, школьники, ODILMAN ---------- */
+function buildCast(ch, kind, d, m, fr, reg, R, OL, SV, opt) {
+  const k = d.k, J = ch.J;
+  const hairG = new THREE.Group(); J.head.add(hairG); reg('hair', hairG);
+  const capHair = (mat, theta = .55, y = .145, sc = [1, .93, 1.03], rr = 1.05) =>
+    mesh(new THREE.SphereGeometry(R * rr, 24, 14, 0, Math.PI * 2, 0, Math.PI * theta), mat, { pos: [0, y * k, -.012], scale: sc, outline: OL, parent: hairG });
+  const front = (y, w = 1.12) => .155 * k * .82 * w;            // передняя поверхность торса на уровне груди (z)
+  /** хвост из звеньев: ch.tail — для вторичной анимации */
+  const ponytail = (mat, n = 4, len = .12, r0 = .052, base = [0, .27, -.15]) => {
+    let parent = new THREE.Group(); parent.position.set(base[0] * k, base[1] * k, base[2] * k); hairG.add(parent);
+    mesh(new THREE.TorusGeometry(.04 * k, .014 * k, 6, 14), toon(0x2f6b4f), { rot: [Math.PI / 2 + .6, 0, 0], outline: OL * .5, parent });
+    const segs = [];
+    for (let i = 0; i < n; i++) {
+      const g = new THREE.Group(); if (i) g.position.y = -len * k; parent.add(g);
+      g.userData.rx = i ? -.55 : 2.35; g.rotation.x = g.userData.rx;
+      const r = lerp(r0, r0 * .45, i / (n - 1));
+      mesh(cap(r * k, (len + r) * k), mat, { pos: [0, -len * k / 2, 0], scale: [1.1, 1, .8], outline: OL * .8, parent: g });
+      segs.push(g); parent = g;
+    }
+    return segs;
+  };
+  const glasses = (col = 0x222222, w = .007) => {
+    const gl = toon(col);
+    for (const sx of [1, -1]) mesh(new THREE.TorusGeometry(.043 * k, w * k, 6, 18), gl, { pos: [sx * .058 * k, .155 * k, .155 * k], outline: false, parent: J.head });
+    mesh(rbox(.03 * k, .007 * k, .007 * k, .002), gl, { pos: [0, .16 * k, .165 * k], outline: false, parent: J.head });
+  };
+  const onFace = (x, y, push = .002) => [x, .13 + y, Math.sqrt(Math.max(.165 * .165 - x * x - y * y, 0)) + push];
+
+  if (kind === 'marjon') {
+    capHair(m.hair, .5, .15, [1, .95, 1.06], 1.06);
+    mesh(sph(.08 * k), m.hair, { pos: [.045 * k, .285 * k, .1 * k], rot: [.35, 0, -.4], scale: [1.3, .3, .62], outline: OL * .8, parent: hairG });   // косая чёлка
+    for (const sx of [1, -1]) mesh(cap(.03 * k, (sx > 0 ? .2 : .26) * k), m.hair, { pos: [sx * .152 * k, (sx > 0 ? .1 : .07) * k, .045 * k], rot: [.1, 0, sx * .12], outline: OL * .6, parent: hairG });
+    ch.tail = ponytail(m.hair, 4, .13, .056);
+    for (const sx of [1, -1]) mesh(sph(.011 * k, 8, 6), glow(0xffd36b, 1.3), { pos: [sx * .168 * k, .07 * k, .0], outline: false, parent: J.head });   // серёжки
+    const frk = toon(0xb86a44);
+    [[.07, -.03], [.085, -.045], [.062, -.05], [.095, -.028], [.078, -.06]].forEach(([x, y]) => { for (const sx of [1, -1]) mesh(sph(.0045, 6, 4), frk, { pos: onFace(sx * x, y), outline: false, parent: fr.face }); });
+    // бомбер: воротник-резинка, белая футболка, молния, низ куртки, нашивка
+    const rib = toon(0x234f3a);
+    reg('acc', mesh(new THREE.TorusGeometry(.085 * k, .02 * k, 8, 20), rib, { pos: [0, .46 * k, -.005 * k], rot: [Math.PI / 2 + .2, 0, 0], scale: [1.1, 1, 1], outline: OL * .4, parent: J.spine }));
+    reg('acc', mesh(new THREE.CircleGeometry(.04 * k, 3), toon(0xf6f4ee), { pos: [0, .43 * k, front(.4) + .003 * k], rot: [0, 0, -Math.PI / 2], scale: [1, .8, 1], outline: false, parent: J.spine }));
+    reg('acc', mesh(new THREE.BoxGeometry(.008 * k, .36 * k, .008 * k), toon(0xc9c9c9), { pos: [.012 * k, .2 * k, front(.2) + .006 * k], outline: false, parent: J.spine }));
+    reg('acc', mesh(new THREE.TorusGeometry(.155 * k, .026 * k, 6, 24), rib, { pos: [0, .015 * k, 0], rot: [Math.PI / 2, 0, 0], scale: [1.1, .82, 1], outline: OL * .5, parent: J.spine }));
+    reg('acc', mesh(rbox(.06 * k, .045 * k, .01 * k, .01), toon(0xff7b1c), { pos: [.055 * k, -.09 * k, .0], rot: [0, Math.PI / 2, 0], outline: false, parent: J.armL }));
+    // скетчбук (видимость задаёт режиссура)
+    const sk = new THREE.Group(); J.handL.add(sk); sk.position.set(0, -.1 * k, .05 * k); sk.rotation.set(-1.1, 0, 0); sk.visible = false; ch.sketch = sk;
+    mesh(rbox(.17 * k, .23 * k, .02 * k, .008), toon(0xe85a7a), { outline: OL * .4, parent: sk });
+  }
+  if (kind === 'diyor') {
+    capHair(m.hair, .46, .15, [1, .9, 1.03], 1.05);
+    mesh(sph(.09 * k), m.hair, { pos: [.03 * k, .29 * k, .06 * k], rot: [.45, 0, -.25], scale: [1.25, .48, .9], outline: OL * .8, parent: hairG });   // уложенная чёлка
+    for (const sx of [1, -1]) mesh(rbox(.02 * k, .06 * k, .03 * k, .008), m.hair, { pos: [sx * .158 * k, .1 * k, .03 * k], outline: false, parent: hairG });
+    const lapel = toon(0x16203a), white = toon(0xf7f7f4);
+    reg('acc', mesh(rbox(.08 * k, .21 * k, .01 * k, .006), white, { pos: [0, .34 * k, front(.34) - .006 * k], outline: false, parent: J.spine }));      // рубашка
+    for (const sx of [1, -1]) reg('acc', mesh(rbox(.05 * k, .22 * k, .014 * k, .006), lapel, { pos: [sx * .052 * k, .33 * k, front(.33) + .002 * k], rot: [0, 0, sx * .33], outline: OL * .4, parent: J.spine }));
+    reg('acc', mesh(rbox(.034 * k, .19 * k, .012 * k, .005), toon(0xb3262e), { pos: [.006 * k, .3 * k, front(.3) + .006 * k], rot: [0, 0, .07], outline: OL * .3, parent: J.spine }));  // галстук
+    reg('acc', mesh(rbox(.04 * k, .035 * k, .016 * k, .008), toon(0x9a1e26), { pos: [0, .405 * k, front(.4) + .008 * k], outline: OL * .3, parent: J.spine }));
+    reg('acc', mesh(new THREE.TorusGeometry(.06 * k, .016 * k, 6, 16), white, { pos: [0, .46 * k, .01 * k], rot: [Math.PI / 2 + .25, 0, 0], outline: OL * .4, parent: J.spine }));   // воротник
+    for (let i = 0; i < 2; i++) reg('acc', mesh(sph(.011 * k, 8, 6), toon(0xd9a441, { emissive: 0x3a2a00 }), { pos: [-.025 * k, (.16 - i * .07) * k, front(.15) + .004 * k], outline: false, parent: J.spine }));
+    reg('acc', mesh(rbox(.045 * k, .02 * k, .01 * k, .004), white, { pos: [-.085 * k, .33 * k, front(.33) - .004 * k], outline: false, parent: J.spine }));   // платок в кармане
+    reg('acc', mesh(new THREE.TorusGeometry(.05 * k, .012 * k, 6, 16), toon(0xd9a441, { emissive: 0x3a2a00 }), { pos: [0, -d.lower + .07 * k, 0], rot: [Math.PI / 2, 0, 0], outline: OL * .3, parent: J.foreL })); // часы
+    for (const s of ['L', 'R']) reg('acc', mesh(new THREE.TorusGeometry(.048 * k, .012 * k, 6, 16), white, { pos: [0, -d.lower + .02 * k, 0], rot: [Math.PI / 2, 0, 0], outline: false, parent: J['fore' + s] }));
+  }
+  if (kind === 'azim') {
+    capHair(toon(0x2a2018), .47, .14, [1.03, .96, 1.05], 1.07);                                 // ёжик
+    reg('skin', mesh(rbox(.2 * k, .085 * k, .14 * k, .04 * k), m.skin, { pos: [0, .045 * k, .04 * k], outline: OL * .7, parent: J.head }));   // тяжёлая челюсть
+    reg('skin', mesh(new THREE.CylinderGeometry(.075 * k, .08 * k, .12 * k, 12), m.skin, { pos: [0, .03 * k, 0], outline: OL * .7, parent: J.neck }));
+    fr.brows.forEach(b => b.scale.set(1.12, 1.35, 1.1));
+    const blue = toon(0x1d4fa0), white = toon(0xf2f2ee);
+    const stripe = (y, r, sx = 1, parent = J.spine) => { mesh(new THREE.TorusGeometry(r * k, .022 * k, 6, 24), blue, { pos: [0, y * k, 0], rot: [Math.PI / 2, 0, 0], scale: [sx, .9, 1], outline: OL * .4, parent }); mesh(new THREE.TorusGeometry(r * k, .008 * k, 6, 24), white, { pos: [0, (y + .02) * k, 0], rot: [Math.PI / 2, 0, 0], scale: [sx * 1.02, .92, 1], outline: false, parent }); };
+    stripe(.46, .12, 1.15); stripe(.02, .16, 1.42);
+    for (const s of ['L', 'R']) { mesh(new THREE.TorusGeometry(.05 * k, .02 * k, 6, 16), blue, { pos: [0, -d.lower + .035 * k, 0], rot: [Math.PI / 2, 0, 0], outline: OL * .4, parent: J['fore' + s] }); }
+    for (let i = 0; i < 4; i++) reg('acc', mesh(sph(.012 * k, 8, 6), white, { pos: [0, (.08 + i * .09) * k, front(.2, 1.12) + .006 * k], outline: false, parent: J.spine }));
+    // нашивка «7» на груди
+    const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+    g.fillStyle = '#f2f2ee'; g.beginPath(); g.arc(64, 64, 60, 0, 7); g.fill(); g.fillStyle = '#c8202c'; g.font = '900 96px Unbounded'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('7', 66, 70);
+    const tx = new THREE.CanvasTexture(c); tx.colorSpace = THREE.SRGBColorSpace;
+    reg('acc', mesh(new THREE.CircleGeometry(.055 * k, 20), new THREE.MeshBasicMaterial({ map: tx, color: new THREE.Color(.9, .9, .9) }), { pos: [.075 * k, .31 * k, front(.31, 1.12) + .008 * k], rot: [0, .25, 0], outline: false, parent: J.spine }));
+    ch.gum = mesh(sph(.03 * k, 12, 8), toon(0xff8ab8), { pos: [0, .07 * k, .19 * k], outline: OL * .4, parent: J.head }); ch.gum.visible = false;
+  }
+  if (kind === 'teacher') {
+    capHair(m.hair, .55, .15, [1, .95, 1.04], 1.05);
+    ch.bun = mesh(sph(.08 * k), m.hair, { pos: [0, .26 * k, -.12 * k], outline: OL, parent: hairG });
+    glasses(0x5a3a2a, .006);
+    for (let i = 0; i < 9; i++) { const a = -1 + i * .25; reg('acc', mesh(sph(.012 * k, 8, 6), toon(0xe8e2d4), { pos: [Math.sin(a) * .1 * k, .42 * k - Math.cos(a) * .03 * k, .1 * k + Math.cos(a) * .02 * k], outline: false, parent: J.spine })); }   // бусы
+    for (let i = 0; i < 4; i++) reg('acc', mesh(sph(.01 * k, 8, 6), toon(0x3a1a20), { pos: [.0, (.08 + i * .08) * k, front(.2, 1.1) + .004 * k], outline: false, parent: J.spine }));
+    const chalk = mesh(new THREE.CylinderGeometry(.008, .008, .07, 8), toon(0xffffff), { pos: [0, -.1 * k, .03 * k], rot: [Math.PI / 2, 0, 0], outline: .002, parent: J.handR }); chalk.visible = false; ch.chalk = chalk;
+  }
+  if (kind === 'student') {
+    const st = SV.style;
+    if (st === 0) { capHair(m.hair, .5); mesh(sph(.07 * k), m.hair, { pos: [0, .27 * k, .08 * k], scale: [1.4, .45, .8], outline: OL * .7, parent: hairG }); }
+    if (st === 1) { capHair(m.hair, .56, .15, [1, .95, 1.06], 1.06); ch.tail = ponytail(m.hair, 3, .12, .05); }
+    if (st === 2) { capHair(m.hair, .66, .14, [1.05, .98, 1.08], 1.08); mesh(cap(.04 * k, .2 * k), m.hair, { pos: [0, .25 * k, .12 * k], rot: [0, 0, Math.PI / 2], scale: [1, 1.1, .7], outline: OL * .6, parent: hairG }); }
+    if (st === 3) {
+      capHair(m.hair, .45);
+      mesh(new THREE.SphereGeometry(R * 1.08, 20, 12, 0, Math.PI * 2, 0, Math.PI * .48), toon(SV.cap), { pos: [0, .16 * k, -.01], outline: OL, parent: hairG });
+      mesh(rbox(.2 * k, .015 * k, .13 * k, .006), toon(SV.cap), { pos: [0, .2 * k, .17 * k], rot: [-.15, 0, 0], outline: OL * .6, parent: hairG });
+    }
+    if (st === 4) { capHair(m.hair, .5); for (let i = 0; i < 5; i++) mesh(new THREE.ConeGeometry(.04 * k, .09 * k, 6), m.hair, { pos: [(i - 2) * .04 * k, .3 * k, (.03 - Math.abs(i - 2) * .02) * k], rot: [-.2, 0, -(i - 2) * .25], outline: OL * .6, parent: hairG }); }
+    if (SV.vest) {                                     // школьная форма: жилет и галстук
+      reg('acc', mesh(cap(.158 * k, .4 * k), toon(SV.vest), { pos: [0, .2 * k, 0], scale: [1.22 * 1.02, .92, .84], outline: OL, parent: J.spine }));
+      reg('acc', mesh(rbox(.03 * k, .16 * k, .012 * k, .005), toon(0x1a2440), { pos: [0, .34 * k, front(.34) + .012 * k], outline: false, parent: J.spine }));
+    }
+    if ((opt.variant ?? 0) % 2 === 0) reg('acc', mesh(rbox(.3 * k, .36 * k, .16 * k, .05 * k), toon([0x2c7be5, 0xe8343c, 0x3a3a44, 0xf2c94c, 0x15b9a8][(opt.variant ?? 0) % 5]), { pos: [0, .22 * k, -.2 * k], outline: OL, parent: J.spine }));
+  }
+  if (kind === 'odilman') {
+    [...fr.eyes, ...fr.lids, ...fr.lowLids, ...fr.brows, ...fr.cheeks, fr.nose].forEach(o => o.visible = false);
+    const navy = toon(0x1b2440), black = toon(0x0d0a10);
+    rimify(navy, 0x7a8cff, .35, 2.4); navy.userData.rim = true;
+    // капюшон-маска: закрывает голову до носа, сзади — до шеи
+    mesh(new THREE.SphereGeometry(R * 1.07, 28, 18, 0, Math.PI * 2, 0, Math.PI * .585), navy, { pos: [0, .13 * k, 0], outline: OL, parent: J.head });
+    mesh(new THREE.SphereGeometry(R * 1.065, 24, 16, Math.PI, Math.PI, 0, Math.PI * .92), navy, { pos: [0, .13 * k, -.005], outline: OL, parent: J.head });
+    reg('acc', mesh(new THREE.CylinderGeometry(.07 * k, .1 * k, .14 * k, 14), navy, { pos: [0, .03 * k, 0], outline: OL * .7, parent: J.neck }));
+    reg('acc', mesh(new THREE.TorusGeometry(.105 * k, .028 * k, 8, 20), navy, { pos: [0, .47 * k, 0], rot: [Math.PI / 2, 0, 0], scale: [1.2, 1, 1], outline: OL * .7, parent: J.spine }));
+    // белые глаза маски
+    const lensM = new THREE.MeshBasicMaterial({ color: 0xf2f4f8 });
+    ch.lensList = [1, -1].map(sx => mesh(sph(.052, 18, 10), lensM, { pos: [sx * .064 * k, .17 * k, .153 * k], rot: [0, sx * .42, sx * .42], scale: [1.5, .5, .3], outline: .016, parent: J.head }));
+    // бородка и усы
+    reg('face', mesh(cap(.017 * k, .055 * k), black, { pos: [0, .03 * k, .142 * k], rot: [.35, 0, 0], outline: OL * .3, parent: J.head }));
+    reg('face', mesh(cap(.011 * k, .1 * k), black, { pos: [0, .085 * k, .158 * k], rot: [0, 0, Math.PI / 2], outline: false, parent: J.head }));
+    // чёрный паук на груди: тело + 8 лап, обнимающих торс
+    const fz = front(.3, 1.38);
+    const sp = new THREE.Group(); sp.position.set(0, .28 * k, fz * .98); J.spine.add(sp);
+    mesh(sph(.04 * k, 12, 8), black, { scale: [.8, 1.15, .35], outline: false, parent: sp });
+    mesh(sph(.05 * k, 12, 8), black, { pos: [0, -.075 * k, -.004 * k], scale: [.85, 1.3, .35], outline: false, parent: sp });
+    for (let i = 0; i < 8; i++) {
+      const sd = i < 4 ? 1 : -1, j = i % 4, a = sd * (.95 - j * .42);
+      const l1 = mesh(new THREE.BoxGeometry(.14 * k, .02 * k, .01 * k), black, { pos: [sd * .07 * k * Math.cos(a - sd * .9), (.02 - j * .03) * k + .05 * k * Math.sin(a), 0], rot: [0, 0, a], outline: false, parent: sp });
+      mesh(new THREE.BoxGeometry(.12 * k, .018 * k, .01 * k), black, { pos: [sd * .17 * k, (.05 - j * .07) * k, -.03 * k], rot: [0, -sd * .6, a * .4 - sd * .5], outline: false, parent: sp });
+    }
+    // ленты маски за головой (ch.ribbons — ветер во вторичной анимации)
+    ch.ribbons = [1, -1].map(sx => {
+      let parent = new THREE.Group(); parent.position.set(sx * .03 * k, .2 * k, -.16 * k); J.head.add(parent);
+      const segs = [];
+      for (let i = 0; i < 5; i++) {
+        const g = new THREE.Group(); if (i) g.position.y = -.15 * k; parent.add(g);
+        mesh(new THREE.BoxGeometry(.045 * k * (1 - i * .08), .16 * k, .008 * k), navy, { pos: [0, -.075 * k, 0], outline: OL * .5, parent: g });
+        segs.push(g); parent = g;
+      }
+      return segs;
+    });
+    ch.wind = .6;
+    // пояс и перчатки до локтя уже из палитры; швы на перчатках
+    for (const s of ['L', 'R']) mesh(new THREE.TorusGeometry(.055 * k, .014 * k, 6, 16), black, { pos: [0, -.02 * k, 0], rot: [Math.PI / 2, 0, 0], outline: false, parent: J['fore' + s] });
+  }
 }
 
 /* ---------- Кронов в экзокостюме ---------- */
@@ -454,6 +649,12 @@ export function secondary(ch, t, energy = .2) {
   if (ch.hood) ch.hood.rotation.set(1.2 + .25 * e * s2, 0, .1 * e * s1);
   if (ch.bun) ch.bun.position.y = .25 * ch.d.k + .008 * e * s1;
   if (ch.spikes) ch.spikes.forEach((m, i) => { m.rotation.x = m.userData.rx + .18 * e * Math.sin(t * 9 + i); });
+  if (ch.tail) ch.tail.forEach((g, i) => { g.rotation.x = g.userData.rx + (.06 + .25 * e) * Math.sin(t * 4.2 - i * .9); g.rotation.z = (.04 + .12 * e) * Math.sin(t * 3.1 - i * .8); });
+  if (ch.ribbons) ch.ribbons.forEach((r, j) => r.forEach((g, i) => {     // ленты маски — на ветру
+    const w = ch.wind ?? .6;
+    g.rotation.x = (i ? .25 : -.9) + w * (.35 * Math.sin(t * 6.3 - i * 1.1 + j) + .2);
+    g.rotation.z = (j ? 1 : -1) * (.12 + .25 * w * Math.sin(t * 4.7 - i * .9 + j * 2));
+  }));
 }
 
 /* IK руки: кисть тянется к точке в мире (двухзвенная аналитическая IK, локоть — в сторону pole) */
@@ -581,6 +782,7 @@ function setFace(ch, f = {}) {
     for (const L of ch.lensList) L.scale.set(1.25, .82 * (f.squint ?? 1) * (1 - .9 * (f.blink || 0)), .35);
     return;
   }
+  if (ch.kind === 'odilman') for (const L of ch.lensList) L.scale.set(1.5, .5 * (f.squint ?? 1) * (f.wide ? 1.3 : 1), .3);
   const fr = ch.faceRig; if (!fr) return;
   const blink = f.blink || 0;
   const look = f.look || [0, 0];

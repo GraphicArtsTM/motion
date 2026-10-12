@@ -526,6 +526,8 @@ def process(who, fx, x):
     x = x / (np.max(np.abs(x)) + 1e-9)
     if fx == 'phone':                                  # телефон
         x = np.tanh(fft_filter(x, lo=350, hi=3200, order=3) * 2.5) * 0.7
+    elif fx == 'mask':                                 # голос из-под маски: низ, плотность, лёгкий металл
+        x = np.tanh((fft_filter(x, lo=70, hi=4200) + comb(x, 0.0031, 0.25) * 0.4 + fft_filter(x, hi=300) * 0.6) * 1.8) * 0.8
     elif fx == 'tv':                                   # телевизор в комнате
         x = fft_filter(x, lo=220, hi=5000, order=2) * 0.8
     elif fx == 'radio':                                # рация / голос через дрон: уже телефона и с хрипом
@@ -547,8 +549,8 @@ def process(who, fx, x):
     return x / (np.max(np.abs(x)) + 1e-9)
 
 
-VOX_GAIN = {**{'narrator': 0.85, 'timur': 0.9, 'ded': 0.9, 'vera': 0.85, 'kronov': 0.95, 'shadow': 0.95, 'crowd': 0.4, 'news': 0.55, 'drone': 0.9, 'sokol': 0.9, 'mgla': 0.85}, **globals().get('EXTRA_VOX_GAIN', {})}
-VOX_REV = {**{'narrator': 0.05, 'timur': 0.08, 'ded': 0.1, 'vera': 0.12, 'kronov': 0.15, 'shadow': 0.6, 'crowd': 0.5, 'news': 0.15, 'drone': 0.35, 'sokol': 0.1, 'mgla': 0.3}, **globals().get('EXTRA_VOX_REV', {})}
+VOX_GAIN = {**{'narrator': 0.85, 'timur': 0.9, 'ded': 0.9, 'vera': 0.85, 'kronov': 0.95, 'shadow': 0.95, 'crowd': 0.4, 'news': 0.55, 'drone': 0.9, 'sokol': 0.9, 'mgla': 0.85, 'diyor': 0.9, 'marjon': 0.9, 'azim': 0.95, 'teacher': 0.85, 'mom': 0.6, 'odilman': 1.0}, **globals().get('EXTRA_VOX_GAIN', {})}
+VOX_REV = {**{'narrator': 0.05, 'timur': 0.08, 'ded': 0.1, 'vera': 0.12, 'kronov': 0.15, 'shadow': 0.6, 'crowd': 0.5, 'news': 0.15, 'drone': 0.35, 'sokol': 0.1, 'mgla': 0.3, 'diyor': 0.08, 'marjon': 0.08, 'azim': 0.1, 'teacher': 0.14, 'mom': 0.35, 'odilman': 0.45}, **globals().get('EXTRA_VOX_REV', {})}
 lines = json.load(open(os.path.join(EPDIR, 'dialogue.json'), encoding='utf-8'))['lines']
 FPS = 30
 lips = {'fps': FPS, 'durations': {}, 'env': {}, 'shape': {}, 'fric': {}}

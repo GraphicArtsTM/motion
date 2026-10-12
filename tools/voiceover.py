@@ -6,8 +6,8 @@ import sys
 
 STUDIO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WHO = {'timur': 'Тимур', 'narrator': 'Рассказчик', 'ded': 'Дед Рустам', 'vera': 'Вера Лис', 'kronov': 'Кронов',
-       'shadow': 'Тень', 'crowd': 'Толпа', 'news': 'Новости (ТВ)', 'drone': 'Дрон (голос Тени)', 'sokol': 'Майор Сокол', 'mgla': 'Мгла'}
-FX = {'phone': 'телефонный фильтр', 'memory': 'эхо воспоминания', 'radio': 'рация/динамик', 'tv': 'звук из телевизора'}
+       'shadow': 'Тень', 'crowd': 'Толпа', 'news': 'Новости (ТВ)', 'drone': 'Дрон (голос Тени)', 'sokol': 'Майор Сокол', 'mgla': 'Мгла', 'diyor': 'Диёр', 'marjon': 'Маржон', 'azim': 'Азим «Флэш»', 'teacher': 'Учительница', 'mom': 'Мама Маржон', 'odilman': 'ODILMAN'}
+FX = {'phone': 'телефонный фильтр', 'memory': 'эхо воспоминания', 'radio': 'рация/динамик', 'tv': 'звук из телевизора', 'mask': 'голос из-под маски'}
 
 
 def main():

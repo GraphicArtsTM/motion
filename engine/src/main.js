@@ -9,6 +9,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { W, H, clamp } from './core.js';
 import { makeCity, U, flashAt, makeBus, makeBike, makeBolt } from './city.js';
 import { makeLab, makeKitchen, makeLair, makeShards, makeCab } from './interiors.js';
+import { makeSchool } from './school.js';
+import { makeZaton } from './zaton.js';
 import { makeCharacter, makeSpider } from './rig.js';
 import { makeWebs, makeSparks, makeRings, makeSilkSwirl } from './fx.js';
 import { makeOverlay } from './overlay.js';
@@ -75,9 +77,15 @@ const kitchen = makeKitchen();
 const labD = dressLab(lab), bridgeD = dressBridge(city.scene), kitchenD = dressKitchen(kitchen);
 const lair = makeLair();
 const cab = makeCab();
+// лицей «Новоград» (коридор, класс, столовая) и двор Старого Затона с фасадом лицея — серия 2 и дальше
+const school = makeSchool();
+const zaton = makeZaton();
 const ch = {
   timur: makeCharacter('timur'), ded: makeCharacter('ded'), vera: makeCharacter('vera'),
   kronov: makeCharacter('kronov'), shadow: makeCharacter('shadow'),
+  // лицей (серия 2): друзья, задира, учительница, ODILMAN и школьники s0…s9 (s8, s9 — дружки Азима)
+  marjon: makeCharacter('marjon'), diyor: makeCharacter('diyor'), azim: makeCharacter('azim'), teacher: makeCharacter('teacher'), odilman: makeCharacter('odilman'),
+  ...Object.fromEntries(Array.from({ length: 10 }, (_, i) => ['s' + i, makeCharacter('student', { variant: i })])),
 };
 // контактные тени под персонажами
 const blobTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
@@ -106,7 +114,11 @@ if (HIGH) {
   Object.assign(city.key.shadow.camera, { left: -26, right: 26, top: 26, bottom: -26, near: 10, far: 300 }); city.key.shadow.bias = -.0006; city.key.shadow.normalBias = .02;
   const lampK = kitchen.scene.children.find(o => o.isPointLight && o.intensity > 2);
   if (lampK) { lampK.castShadow = true; lampK.shadow.mapSize.set(1024, 1024); lampK.shadow.bias = -.002; }
-  for (const sc of [city.scene, kitchen.scene, lair.scene, cab.scene]) sc.traverse(o => {
+  for (const S of [school.corridor, school.classroom, school.canteen, zaton]) if (S.sun) {
+    S.sun.castShadow = true; S.sun.shadow.mapSize.set(2048, 2048); S.sun.shadow.bias = -.0006; S.sun.shadow.normalBias = .02;
+    Object.assign(S.sun.shadow.camera, { left: -14, right: 14, top: 14, bottom: -14, near: 1, far: 80 });
+  }
+  for (const sc of [city.scene, kitchen.scene, lair.scene, cab.scene, school.corridor.scene, school.classroom.scene, school.canteen.scene, zaton.scene]) sc.traverse(o => {
     if (!o.isMesh || o.isInstancedMesh) return;
     const m = o.material;
     if (m?.isMeshToonMaterial) { o.castShadow = true; o.receiveShadow = true; }
@@ -160,7 +172,7 @@ function shapeOf(who) {
   }
   return 0;
 }
-const ctx = { THREE, city, lab, kitchen, lair, cab, ch, props, camera, overlay, U, bolts, lines, mouthOf, shapeOf, fricOf, renderer, timeline, labD, kitchenD, bridgeD, crowd, life, EP };
+const ctx = { THREE, city, lab, kitchen, lair, cab, school, zaton, ch, props, camera, overlay, U, bolts, lines, mouthOf, shapeOf, fricOf, renderer, timeline, labD, kitchenD, bridgeD, crowd, life, EP };
 const shots = EPI.buildShots(ctx);
 const DURATION = timeline.duration;          // сама серия
 const INTRO = timeline.intro || 0;            // заставка студии перед серией
@@ -214,7 +226,8 @@ function frameLogic(T) {
   crowd.update(t, !!wo.crowd && scene === city.scene);
   labD.update(t, { alarm: !!wo.alarm, inLab: scene === city.scene && !city.rain.visible });
   bridgeD.update(t, !!wo.bridge, camera);
-  kitchenD.update(t, { inKitchen: scene === kitchen.scene });
+  kitchenD.update(t, { inKitchen: scene === kitchen.scene, ...(wo.kitchen || {}) });
+  zaton.update?.(t, scene === zaton.scene);
   const up = new THREE.Vector3();
   for (const c of Object.values(ch)) { up.set(0, 1, 0).applyQuaternion(c.root.getWorldQuaternion(new THREE.Quaternion())); c.blob.visible = c.root.visible && up.y > .95 && !ctx.noBlob?.includes(c); }
   ctx.noBlob = null;
@@ -228,6 +241,7 @@ function frameLogic(T) {
   if (HIGH) {
     const focus = camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(12).add(camera.position);
     city.key.position.copy(focus).add(new THREE.Vector3(-60, 120, 80).normalize().multiplyScalar(120)); city.key.target.position.copy(focus);
+    scene.userData.aim?.(focus);
   }
   if (bokeh) {
     bokeh.enabled = !!ctx.dof; bokeh.scene = scene;

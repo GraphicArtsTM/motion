@@ -175,6 +175,7 @@ export function dressKitchen(K) {
   const scr = mesh(new THREE.PlaneGeometry(.5, .375), new THREE.MeshBasicMaterial({ map: tvT, color: new THREE.Color(1.25, 1.25, 1.25) }), { pos: [0, .24, .201], parent: tvG });
   const tvLight = new THREE.PointLight(0x80b0ff, 1.2, 3, 1.5); tvLight.position.set(-1.25, 1.2, -2.3); scene.add(tvLight);
   const TICK = 'ЗАГАДОЧНЫЙ «ПАУК» СПАС АВТОБУС №42 НА МОСТУ  ·  НАЧАЛЬНИК ОХРАНЫ «АРКАДЫ» КРОНОВ ЗАДЕРЖАН  ·  Д-Р ВЕРА ЛИС НЕ ПОСТРАДАЛА  ·  ЯДРО ПРОЕКТА «АРАХНА» ПРОПАЛО  ·  ';
+  let tick = TICK, rec = 'REC 23:47';
   const drawTV = t => {
     const g = tvC.getContext('2d');
     const gr = g.createLinearGradient(0, 0, 0, 384); gr.addColorStop(0, '#1b2b55'); gr.addColorStop(1, '#0b1226'); g.fillStyle = gr; g.fillRect(0, 0, 512, 384);
@@ -187,11 +188,11 @@ export function dressKitchen(K) {
     g.fillStyle = '#e8e8e0'; g.save(); g.translate(270, 232); g.rotate(.35); g.fillRect(-60, -18, 120, 36); g.fillStyle = '#e8343c'; g.fillRect(-60, 8, 120, 10); g.restore();
     g.strokeStyle = '#7ff8ff'; g.lineWidth = 2; g.beginPath(); g.moveTo(250, 72); g.lineTo(250, 150); g.stroke();
     g.fillStyle = '#7ff8ff'; g.beginPath(); g.arc(250, 160, 9, 0, 7); g.fill(); g.fillRect(244, 166, 12, 22);
-    g.fillStyle = '#ff3a3a'; g.beginPath(); g.arc(462, 90, 6 + 2 * Math.sin(t * 6), 0, 7); g.fill(); g.fillStyle = '#fff'; g.font = '600 16px Rubik'; g.fillText('REC 23:47', 380, 96);
+    g.fillStyle = '#ff3a3a'; g.beginPath(); g.arc(462, 90, 6 + 2 * Math.sin(t * 6), 0, 7); g.fill(); g.fillStyle = '#fff'; g.font = '600 16px Rubik'; g.fillText(rec, 380, 96);
     // бегущая строка
     g.fillStyle = '#ffd23d'; g.fillRect(0, 296, 512, 52); g.fillStyle = '#111'; g.font = '800 26px Rubik';
-    const w = g.measureText(TICK).width, x = -((t * 120) % w);
-    g.fillText(TICK, x, 331); g.fillText(TICK, x + w, 331);
+    const w = g.measureText(tick).width, x = -((t * 120) % w);
+    g.fillText(tick, x, 331); g.fillText(tick, x + w, 331);
     g.fillStyle = '#fff'; g.fillRect(0, 348, 512, 36); g.fillStyle = '#1b2b55'; g.font = '700 20px Rubik'; g.fillText('«Паук» скрылся. Полиция просит откликнуться очевидцев', 12, 372);
     tvT.needsUpdate = true;
   };
@@ -201,12 +202,15 @@ export function dressKitchen(K) {
   // пар от плова
   const steamT = puffTex('255,250,240', .5);
   D.steam = K.plates.map(p => plume(scene, 5, steamT, { rise: .6, grow: 1.6, size: .18, alpha: .35, speed: .3, wobble: .05 }));
+  // o.day — утро (0…1, свет из окна), o.hour — время на часах, o.tick — бегущая строка новостей
   D.update = (t, o = {}) => {
+    K.setDay(o.day ?? 0);
+    tick = o.tick || TICK; rec = o.rec || 'REC 23:47';
     if (o.inKitchen) drawTV(t);
     tvLight.intensity = 1 + .4 * Math.sin(t * 9) * Math.sin(t * 3.7);
     // часы показывают 23:47 и идут
-    const sec = 47 * 60 + t; D.secH.rotation.z = -(sec % 60) / 60 * Math.PI * 2;
-    D.minH.rotation.z = -((sec / 60) % 60) / 60 * Math.PI * 2; D.hourH.rotation.z = -((23 + sec / 3600) % 12) / 12 * Math.PI * 2;
+    const sec = (o.hour ?? 23 + 47 / 60) * 3600 + t; D.secH.rotation.z = -(sec % 60) / 60 * Math.PI * 2;
+    D.minH.rotation.z = -((sec / 60) % 60) / 60 * Math.PI * 2; D.hourH.rotation.z = -((sec / 3600) % 12) / 12 * Math.PI * 2;
     segs.forEach((s, i) => { s.rotation.y = Math.sin(t * 1.6 - i * .5) * .35; s.rotation.x = .25; });
     head.rotation.set(Math.sin(t * .5) * .1, Math.sin(t * .35) * .4, 0);
     K.plates.forEach((p, i) => { const w = p.getWorldPosition(new THREE.Vector3()); D.steam[i].update(w.add(new THREE.Vector3(0, .08, 0)), t + i, 1); });

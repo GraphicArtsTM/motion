@@ -17,6 +17,9 @@ export const GRADES = {
   calm:    { lift: [.01, .015, .03], gamma: [1, 1, 1], gain: [1.04, 1.0, .97], sat: 1.0, con: 1.02 },
   kitchen: { lift: [.025, .01, 0], gamma: [.95, 1, 1.06], gain: [1.1, 1.02, .9], sat: 1.12, con: 1.04 },
   dawn:    { lift: [.03, .01, .03], gamma: [.95, 1, 1.02], gain: [1.12, 1.0, .95], sat: 1.12, con: 1.05 },
+  school:  { lift: [.0, .01, .025], gamma: [.97, 1, 1.02], gain: [1.02, .99, .94], sat: 1.12, con: 1.1 },     // дневной лицей
+  sunset:  { lift: [.02, .0, .03], gamma: [.95, 1, 1.04], gain: [1.08, .98, .9], sat: 1.15, con: 1.08 },     // закат во дворе
+  villain: { lift: [.0, .0, .03], gamma: [1.04, 1, .94], gain: [1.12, .9, .92], sat: 1.15, con: 1.2 },      // ODILMAN
   tag:     { lift: [.0, 0, 0], gamma: [.9, 1.08, 1.08], gain: [1.12, .9, .9], sat: .9, con: 1.2 },
 };
 export function makeGradePass() {
