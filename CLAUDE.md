@@ -29,7 +29,9 @@ engine/
   src/core.js             ← утилиты: kf (ключи), E (изинги), P, lerp, clamp, pulse, shake, noise, toon/glow/mesh, rimify
   src/rig.js              ← персонажи: makeCharacter(kind), POSE (библиотека поз), seq/blend, ikArm, squash, springAt, makeSpider
   src/city.js             ← Новоград: небоскрёбы (шейдер окон), фасады, проспект, мост, башня «Аркада», дождь, молнии, машины, автобус, велосипед
-  src/interiors.js        ← лаборатория, кухня деда, логово Тени, кабина автобуса, осколки
+  src/interiors.js        ← лаборатория, кухня деда (K.setDay — утро/ночь), логово Тени, кабина автобуса, осколки
+  src/school.js           ← лицей «Новоград»: коридор со шкафчиками, класс физики, столовая (makeSchool)
+  src/zaton.js            ← двор Старого Затона (пятиэтажка, подъезды, площадка, остановка «42») + фасад лицея; setTime
   src/props.js, crowd.js  ← прохожие, светофоры, реклама, полиция; толпа и полицейские на мосту
   src/dressing.js         ← «обвес» сцен: голограмма/пар/маячки лаборатории, обломки/дым/вертолёт моста, кот/часы/ТВ на кухне
   src/fx.js               ← паутина (webs), искры, кольца, вихрь нанонити, брызги
@@ -43,7 +45,7 @@ episodes/
   index.json              ← список серий {id, title, file}, default
   _template/              ← заготовка новой серии (рабочий пример на 48 с)
   e01/  «Укус молнии»     ← готовая серия (shots.js написан до director.js — держит свои копии помощников)
-  e02/  «Сигнал»          ← сценарий + аниматик на director.js (дорабатывать сцену за сценой)
+  e02/  «Личная жизнь»    ← готовая серия на director.js (лицей, Маржон, Диёр, Азим, тизер ODILMAN), ИИ-голоса
     episode.js            ← title, buildShots, world(t), gradeAt(t), mblur
     shots.js              ← все шоты серии
     dialogue.json         ← реплики: {id, who, t, text, hint?, fx?, say?}
@@ -103,11 +105,13 @@ export default {
   mblur: [[a, b], …],                          // где motion blur (только q=high)
 };
 ```
-`C` (контекст) содержит: `city, lab, kitchen, lair, cab, ch` (персонажи), `props` (bike, bus, busPivot, spider,
+`C` (контекст) содержит: `city, lab, kitchen, lair, cab, school, zaton, ch` (персонажи), `props` (bike, bus, busPivot, spider,
 webs, sparks, sparks2, rings, spray, swirl, shards), `camera, overlay, U` (униформы: flash, sense, rainTime, tint…),
 `bolts, lines, mouthOf, shapeOf, fricOf, kitchenD, labD, bridgeD, crowd, life, EP`.
 Шот каждый кадр выставляет **всё заново** (персонажи скрываются в resetFrame) и возвращает сцену:
-`C.city.scene` (город, лаборатория внутри башни), `C.kitchen.scene`, `C.lair.scene`, `C.cab.scene`.
+`C.city.scene` (город, лаборатория внутри башни), `C.kitchen.scene`, `C.lair.scene`, `C.cab.scene`,
+`C.school.corridor/classroom/canteen.scene`, `C.zaton.scene` (двор и лицей).
+`world(t)` может вернуть `kitchen: {day: 0…1, hour, tick, rec}` — утро/вечер на кухне, часы, бегущая строка ТВ.
 
 ### Режиссёрский набор `engine/src/director.js`
 ```js
@@ -129,7 +133,9 @@ FIGHT.guard/leanBack/load/dropKick/kickR/tuck/zip/shootBoth/eat/tired   HEAVY.wi
 ```
 
 ### Персонажи (`C.ch`)
-`timur, ded, vera, kronov, shadow`. У каждого: `root` (Group), `J` (суставы: hips, spine, chest, neck, head,
+`timur, ded, vera, kronov, shadow`, лицей: `marjon, diyor, azim, teacher`, злодей `odilman`, школьники `s0…s15`
+(`makeCharacter('student', {variant})`, s8/s9 — дружки Азима). Маржон: `sketch` (скетчбук с комиксом), `tail` (хвост);
+Азим: `gum`; учительница: `chalk`; ODILMAN: `lensList` (белые глаза — цвет = свечение), `ribbons` + `wind` (ленты маски). У каждого: `root` (Group), `J` (суставы: hips, spine, chest, neck, head,
 armL/R, foreL/R, handL/R, legL/R, shinL/R, footL/R), `pose(p)`, `setFace(f)`, `d.k` (масштаб: Кронов 1.6),
 `d.hipY`. Тимур: `setSuit(true/false)`, `mats.hand.emissive` (свечение запястий). Вера: `tablet`. Тень: `redEyes`.
 Кронов: `arachna` (ядро в груди), `stolen` (ядро в руке).
@@ -147,6 +153,14 @@ phone, reach, hold, pointFinger, adjustGlasses, fistShake, shrug, lookUp.
   в мир; капсулы x ±9, z −8/−2/4, главная — (0, −11); стеклянная стена с разбитым окном — x ≈ 24, y ≈ 9.
 - Северный мост — полотно x 300…640, z −412…−388, пилоны x 390 и 550; крыша у моста — y 74.1, (256…308, −387…−337).
 - Кухня деда: стол (0, 0, −0.6); дед на стуле (−0.55, 0, −1.45) yaw 0; Тимур (0.55, 0, 0.25) yaw π; ТВ — `kitchenD.tvPos`.
+- Лицей (school.js, у каждой сцены пол y = 0): коридор x −21…21, шкафчики z ≈ −2 (дверцы `doorD` x −1.25, `doorM` x 6.25),
+  окна/батареи z ≈ 2.5, табличка `wetSign`, вмятина `dent`; класс: доска z −4.5, парты 3×4 (x = −3 + 2.7c, z = −1.6 + 1.6r),
+  стул ±0.32 по x и +0.55 по z от парты, смотрят yaw π; столовая: столы x −3.2/2.8, z −2.2/0.8/3.8, табуретки ±0.85 по z,
+  ТВ на стене x = 8 (`drawTV(t)`), поднос Тимура `timurTray`.
+- Затон (zaton.js): фасад дома z = 0, подъезды x −16.5/−4.5 (Тимур)/4.5 (Маржон)/16.5, лавочки z 2.4 (±2.3 от подъезда),
+  окно мамы Маржон `momWin/momSash/momSil` (10.5, 5.35), двор z 4…16, тротуар 16…19.5, дорога 19.5…27, остановка (22, 0, 18.2),
+  `bus`, `oranges`, `bag`; лицей — группа `school` в (600, 0, 0): ворота x ±4 на z = 16, двери z ≈ 3. `setTime('morning'|'sunset'|'dusk')`
+  или смесь `setTime(a, b, k)` — вызывать в каждом шоте этой сцены.
 - Логово Тени: кресло (0, 0, −0.3), Тень (0, 0.02, 0.2) yaw 0, стена мониторов по дуге за креслом.
 
 ---
@@ -194,6 +208,15 @@ phone, reach, hold, pointFinger, adjustGlasses, fistShake, shrug, lookUp.
 - Длинные фоновые команды: не ждать `sleep`-ом, `pgrep -f` находит сам себя — ждать по файлу-флагу.
 - `RENDER_WINDOWS.bat` должен быть в CRLF (pack.py делает сам).
 - Модели и голоса TTS в облаке: RHVoice `/usr/bin/RHVoice-test`, Piper-модель `/opt/voices/ru-irinia-medium.onnx`.
+
+### Выучено на серии 2
+- Боковой ракурс драки (камера на одной стороне линии) часто перекрывают фигуранты между камерой и героями —
+  расставлять толпу **за** дерущимися и проверять каждый ракурс стоп-кадром.
+- Паучье чутьё в интерьерах: городские шейдеры не синеют — нужен синий грейд + заливка кадра (см. `sense` в e02/shots.js).
+- Комикс-надписи рядом с лицами смещать в угол кадра; буквы «в воздухе» — по бокам, не на лбу.
+- Предмет в руке, который должен «смотреть» в камеру (скетчбук, телефон), — `obj.lookAt(camera.position)` после `look`.
+- В e02/shots.js есть помощники, которые стоит копировать в новые серии: `walk` (ходьба по ломаной), `talking`
+  (жест говорящего поверх любой позы), `close`/`ots` (крупный план и «через плечо»), `extra` (фигуранты), `hold/put` (реквизит).
 
 ## 8. Git
 
