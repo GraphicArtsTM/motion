@@ -83,9 +83,9 @@ const zaton = makeZaton();
 const ch = {
   timur: makeCharacter('timur'), ded: makeCharacter('ded'), vera: makeCharacter('vera'),
   kronov: makeCharacter('kronov'), shadow: makeCharacter('shadow'),
-  // лицей (серия 2): друзья, задира, учительница, ODILMAN и школьники s0…s9 (s8, s9 — дружки Азима)
+  // лицей (серия 2): друзья, задира, учительница, ODILMAN и школьники s0…s15 (s8, s9 — дружки Азима)
   marjon: makeCharacter('marjon'), diyor: makeCharacter('diyor'), azim: makeCharacter('azim'), teacher: makeCharacter('teacher'), odilman: makeCharacter('odilman'),
-  ...Object.fromEntries(Array.from({ length: 10 }, (_, i) => ['s' + i, makeCharacter('student', { variant: i })])),
+  ...Object.fromEntries(Array.from({ length: 16 }, (_, i) => ['s' + i, makeCharacter('student', { variant: i })])),
 };
 // контактные тени под персонажами
 const blobTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');

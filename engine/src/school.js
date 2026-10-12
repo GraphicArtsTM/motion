@@ -54,7 +54,7 @@ function makeCorridor() {
   const floor = mesh(new THREE.PlaneGeometry(44, 5), toon(0xffffff, { map: floorT }), { rot: [-Math.PI / 2, 0, 0], outline: false, parent: scene });
   S.floor = floor;
   // блик на мокром полу (рядом с табличкой)
-  const wet = mesh(new THREE.CircleGeometry(1.1, 24), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .16, depthWrite: false }), { pos: [1.2, .005, .4], rot: [-Math.PI / 2, 0, 0], scale: [1.6, .7, 1], outline: false, parent: scene });
+  const wet = S.wet = mesh(new THREE.CircleGeometry(1.1, 24), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .16, depthWrite: false }), { pos: [1.2, .005, .4], rot: [-Math.PI / 2, 0, 0], scale: [1.6, .7, 1], outline: false, parent: scene });
   const wallM = toon(0xf1e7d2), trimM = toon(0x2f6b8a);
   mesh(new THREE.BoxGeometry(44, 3.3, .2), wallM, { pos: [0, 1.65, -2.6], outline: false, parent: scene });
   mesh(new THREE.BoxGeometry(44, .9, .22), trimM, { pos: [0, .45, 2.6], outline: false, parent: scene });

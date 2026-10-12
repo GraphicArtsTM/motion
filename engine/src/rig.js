@@ -155,6 +155,12 @@ const STUDENTS = [
   { top: 0xf4f4f0, pants: 0x2a3550, hair: 0x4a2e18, shoes: 0x1a1a1a, skin: 0xd9996b, style: 0, girl: 0, vest: 0x5a2030 },
   { top: 0x2b2f38, pants: 0x1e2028, hair: 0x14100c, shoes: 0xf2f2f2, skin: 0xc98d68, style: 3, girl: 0, cap: 0xd94f3c },   // дружок Азима в кепке
   { top: 0x1d4fa0, pants: 0x2a2a30, hair: 0x2a1a10, shoes: 0xf2f2f2, skin: 0xe0a77a, style: 4, girl: 0 },                 // второй дружок — тоже в куртке команды
+  { top: 0xe8a0b0, pants: 0x2a3550, hair: 0x2a1a10, shoes: 0xf2f2f2, skin: 0xd9996b, style: 2, girl: 1 },
+  { top: 0x5a8ac0, pants: 0x3a3a44, hair: 0x1a120c, shoes: 0x1a1a1a, skin: 0xc98d68, style: 0, girl: 0, vest: 0x2a4a3a },
+  { top: 0xf4f4f0, pants: 0x262a33, hair: 0x6a4a2a, shoes: 0x2a2a2a, skin: 0xf0c3a0, style: 1, girl: 1, vest: 0x24324f },
+  { top: 0xc8783a, pants: 0x2a2a30, hair: 0x14100c, shoes: 0xf2f2f2, skin: 0xb07650, style: 4, girl: 0 },
+  { top: 0x6ab89a, pants: 0x34405c, hair: 0x3a2a1a, shoes: 0xf2f2f2, skin: 0xe8b48a, style: 2, girl: 1 },
+  { top: 0x8a8a94, pants: 0x1e2028, hair: 0x2a1a10, shoes: 0x1a1a1a, skin: 0xe0a77a, style: 3, girl: 0, cap: 0x2f8a4a },
 ];
 export function makeCharacter(kind, opt = {}) {
   const SV = kind === 'student' ? STUDENTS[(opt.variant ?? 0) % STUDENTS.length] : null;
@@ -405,6 +411,20 @@ function buildCast(ch, kind, d, m, fr, reg, R, OL, SV, opt) {
     // скетчбук (видимость задаёт режиссура)
     const sk = new THREE.Group(); J.handL.add(sk); sk.position.set(0, -.1 * k, .05 * k); sk.rotation.set(-1.1, 0, 0); sk.visible = false; ch.sketch = sk;
     mesh(rbox(.17 * k, .23 * k, .02 * k, .008), toon(0xe85a7a), { outline: OL * .4, parent: sk });
+    // раскрытый разворот с комиксом про героя (на обеих сторонах — видно с любого ракурса)
+    const pc = document.createElement('canvas'); pc.width = 256; pc.height = 340; const g = pc.getContext('2d');
+    g.fillStyle = '#fbf8ef'; g.fillRect(0, 0, 256, 340); g.strokeStyle = '#1a1a1a'; g.lineWidth = 4;
+    g.strokeRect(10, 10, 236, 150); g.strokeRect(10, 172, 112, 156); g.strokeRect(134, 172, 112, 156);
+    g.strokeStyle = '#2a7ad8'; g.lineWidth = 3; g.beginPath(); g.moveTo(40, 20); g.lineTo(70, 70); g.lineTo(55, 72); g.lineTo(85, 130); g.stroke();   // молния
+    g.fillStyle = '#d8402c'; g.beginPath(); g.arc(160, 62, 16, 0, 7); g.fill(); g.fillRect(146, 78, 28, 44);                                    // герой
+    g.strokeStyle = '#d8402c'; g.lineWidth = 6; g.beginPath(); g.moveTo(150, 84); g.lineTo(120, 40); g.moveTo(170, 84); g.lineTo(205, 52); g.stroke();
+    g.fillStyle = '#fff'; g.beginPath(); g.ellipse(154, 60, 5, 3, -.4, 0, 7); g.ellipse(166, 60, 5, 3, .4, 0, 7); g.fill();
+    g.fillStyle = '#e8e2d2'; g.fillRect(30, 230, 70, 34); g.fillStyle = '#d8402c'; g.fillRect(30, 256, 70, 8);                                  // автобус
+    g.strokeStyle = '#555'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(65, 182); g.lineTo(65, 230); g.stroke();
+    g.fillStyle = '#1a1a1a'; g.font = '800 17px Rubik'; g.fillText('ЧЕЛОВЕК-', 144, 220); g.fillText('МОЛНИЯ?', 144, 242);
+    g.font = '600 14px Rubik'; g.fillText('или…', 150, 280); g.fillText('ПАУК?', 150, 300);
+    const pt = new THREE.CanvasTexture(pc); pt.colorSpace = THREE.SRGBColorSpace;
+    for (const sz of [1, -1]) { const pg = new THREE.Mesh(new THREE.PlaneGeometry(.155 * k, .21 * k), new THREE.MeshBasicMaterial({ map: pt, color: 0x8c8c8c })); pg.position.z = sz * .0105 * k; if (sz < 0) pg.rotation.y = Math.PI; sk.add(pg); }
   }
   if (kind === 'diyor') {
     capHair(m.hair, .46, .15, [1, .9, 1.03], 1.05);
