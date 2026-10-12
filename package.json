@@ -1,13 +1,14 @@
 {
-  "name": "pauk-novograda",
-  "version": "1.1.0",
+  "name": "pauk-novograda-studio",
+  "version": "2.0.0",
   "private": true,
-  "description": "Паук Новограда — серия 1. Three.js-мультфильм с покадровым рендером в видео.",
+  "description": "Паук Новограда — студия сериала (GraphicArts Animation): общий движок на Three.js и серии с покадровым рендером в видео.",
   "type": "module",
   "scripts": {
     "render": "node make-video.mjs",
     "render:fast": "node make-video.mjs --fast",
-    "preview": "node preview.mjs"
+    "preview": "node preview.mjs",
+    "new-episode": "node tools/new-episode.mjs"
   },
   "dependencies": {
     "ffmpeg-static": "5.2.0",

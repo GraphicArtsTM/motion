@@ -1,0 +1,4 @@
+# Python нужен только для пересборки звука (готовые soundtrack.m4a уже лежат в episodes/*/assets/)
+numpy>=1.24
+numba>=0.58        # нарезка длинной записи озвучки (engine/audio/align_voice.py)
+piper-tts>=1.2     # голос Веры (нейросетевой); остальные голоса — RHVoice (apt install rhvoice rhvoice-russian)
