@@ -163,6 +163,49 @@ export function makeOverlay(canvas) {
     g.restore();
   };
 
+  // уведомление на телефоне (заказ, сообщение): notice(x, y, k, { app, title, lines, time, color })
+  O.notice = (x, y, k, o = {}) => {
+    if (k <= 0) return;
+    const s = E.outBack(clamp(k)), w = 620, h = 70 + 44 * (o.lines?.length || 1);
+    g.save(); g.globalAlpha = clamp(k * 1.5); g.translate(x + w / 2, y + h / 2); g.scale(s, s); g.translate(-w / 2, -h / 2);
+    g.shadowColor = 'rgba(0,0,0,.6)'; g.shadowBlur = 30;
+    g.fillStyle = 'rgba(20,24,36,.94)'; roundRect(g, 0, 0, w, h, 26); g.fill(); g.shadowBlur = 0;
+    g.fillStyle = o.color || '#ff7b1c'; roundRect(g, 22, 20, 40, 40, 10); g.fill();
+    g.fillStyle = '#fff'; g.font = '900 24px Unbounded'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('Б', 42, 41);
+    g.textAlign = 'left'; g.font = '600 22px Rubik'; g.fillStyle = '#9aa6c0'; g.fillText((o.app || 'БЫСТРО · доставка'), 76, 32);
+    g.textAlign = 'right'; g.fillText(o.time || 'сейчас', w - 24, 32); g.textAlign = 'left';
+    g.font = '800 28px Rubik'; g.fillStyle = '#fff'; g.fillText(o.title || 'Новый заказ', 76, 66);
+    g.font = '500 24px Rubik'; g.fillStyle = '#d8def0';
+    (o.lines || []).forEach((l, i) => g.fillText(l, 76, 104 + i * 40));
+    g.restore();
+  };
+
+  // радар/карта города на планшете Веры: radar(x, y, w, h, t, { blue:[u,v], reds:[[u,v],…], label })
+  O.radar = (x, y, w, h, t, o = {}) => {
+    g.save();
+    g.fillStyle = 'rgba(6,14,22,.92)'; roundRect(g, x, y, w, h, 18); g.fill();
+    g.strokeStyle = 'rgba(63,240,255,.5)'; g.lineWidth = 3; roundRect(g, x, y, w, h, 18); g.stroke();
+    g.beginPath(); roundRect(g, x + 6, y + 6, w - 12, h - 12, 14); g.clip();
+    g.strokeStyle = 'rgba(63,240,255,.13)'; g.lineWidth = 2;
+    for (let i = 0; i < 12; i++) { g.beginPath(); g.moveTo(x + i * w / 11, y); g.lineTo(x + i * w / 11, y + h); g.stroke(); g.beginPath(); g.moveTo(x, y + i * h / 7); g.lineTo(x + w, y + i * h / 7); g.stroke(); }
+    g.fillStyle = 'rgba(40,80,140,.45)'; g.fillRect(x + w * .72, y, w * .12, h);                 // река
+    g.strokeStyle = 'rgba(255,90,60,.6)'; g.lineWidth = 5; g.beginPath(); g.moveTo(x + w * .66, y + h * .55); g.lineTo(x + w * .9, y + h * .55); g.stroke(); // мост
+    g.strokeStyle = 'rgba(63,240,255,.35)'; g.lineWidth = 6; g.beginPath(); g.moveTo(x + w * .45, y); g.lineTo(x + w * .45, y + h); g.stroke();     // проспект
+    const sweep = (t * 1.2) % 1; g.fillStyle = 'rgba(63,240,255,.07)'; g.fillRect(x + sweep * w - 40, y, 40, h);
+    const dot = ([u, v], col, r0) => {
+      const px = x + u * w, py = y + v * h, k = (t * 1.6) % 1;
+      g.strokeStyle = col; g.globalAlpha = 1 - k; g.lineWidth = 3; g.beginPath(); g.arc(px, py, r0 + k * 30, 0, 7); g.stroke(); g.globalAlpha = 1;
+      g.fillStyle = col; g.shadowColor = col; g.shadowBlur = 16; g.beginPath(); g.arc(px, py, r0, 0, 7); g.fill(); g.shadowBlur = 0;
+    };
+    (o.reds || []).forEach(p => dot(p, '#ff3a3a', 6));
+    if (o.blue) dot(o.blue, '#3ff0ff', 9);
+    g.restore();
+    g.save(); g.font = '700 22px Rubik'; g.fillStyle = '#3ff0ff'; g.textBaseline = 'top';
+    g.fillText(o.label || 'АРАХНА-7 · СИГНАЛ', x + 20, y + 16);
+    if (o.reds?.length) { g.fillStyle = '#ff5a5a'; g.textAlign = 'right'; g.fillText(`НЕИЗВЕСТНЫЕ: ${o.reds.length}`, x + w - 20, y + 16); }
+    g.restore();
+  };
+
   O.callFrame = (x, y, w, h, a, t) => {
     if (a <= 0) return;
     g.save(); g.globalAlpha = clamp(a);

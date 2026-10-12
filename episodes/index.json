@@ -1,6 +1,15 @@
 {
   "default": "e01",
   "episodes": [
-    { "id": "e01", "title": "Серия 1 · Укус молнии", "file": "PAUK_NOVOGRADA_S01E01" }
+    {
+      "id": "e01",
+      "title": "Серия 1 · Укус молнии",
+      "file": "PAUK_NOVOGRADA_S01E01"
+    },
+    {
+      "id": "e02",
+      "title": "Серия 2 · Сигнал",
+      "file": "PAUK_NOVOGRADA_S01E02"
+    }
   ]
 }
