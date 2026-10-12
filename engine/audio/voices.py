@@ -4,11 +4,12 @@
 Тембр персонажа задаётся профилем (диктор, высота, темп) и пост-обработкой в mix.py
 (рация у деда, металл в шлеме Кронова, эхо у Тени).
 
-    python3 audio/voices.py          # → audio/voice/<id>.wav + audio/voice/durations.json
+    python3 engine/audio/voices.py e01   # → episodes/e01/audio/voice/<id>.wav + durations.json
 
-Свои записи: положите файл с именем реплики в audio/voice_user/ (n1.wav, d1.m4a, t10.mp3 …,
-любой формат, который понимает ffmpeg) — он заменит синтезированный голос. Список реплик с таймингом
-и подсказками — VOICEOVER.md.
+Свои записи: положите файл с именем реплики в episodes/<ep>/audio/voice_user/ (n1.wav, d1.m4a, t10.mp3 …,
+любой формат, который понимает ffmpeg) — он заменит синтезированный голос. Одну длинную запись всех реплик
+подряд нарезает engine/audio/align_voice.py. Список реплик с таймингом и подсказками — VOICEOVER.md серии.
+Новый персонаж: добавьте его профиль в PROFILES (или в episodes/<ep>/audio/voices.json).
 """
 import json
 import os
@@ -19,8 +20,18 @@ import wave
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(HERE, 'voice')
-USER = os.path.join(HERE, 'voice_user')
+STUDIO = os.path.dirname(os.path.dirname(HERE))
+EPDIR = OUT = USER = None
+
+
+def use_episode(ep):
+    global EPDIR, OUT, USER
+    EPDIR = ep if os.path.isdir(ep) else os.path.join(STUDIO, 'episodes', ep)
+    OUT = os.path.join(EPDIR, 'audio', 'voice')
+    USER = os.path.join(EPDIR, 'audio', 'voice_user')
+    extra = os.path.join(EPDIR, 'audio', 'voices.json')          # голоса новых персонажей серии
+    if os.path.exists(extra):
+        PROFILES.update({k: tuple(v) for k, v in json.load(open(extra, encoding='utf-8')).items()})
 EXTS = ('.wav', '.mp3', '.m4a', '.ogg', '.opus', '.flac', '.aac', '.webm', '.mp4')
 PIPER_MODEL = os.environ.get('PIPER_MODEL', '/opt/voices/ru-irinia-medium.onnx')
 
@@ -33,6 +44,11 @@ PROFILES = {
     'vera':     ('piper', None, 0, 1.0),
     'shadow':   ('rhv', 'vitaliy', 62, 84),
     'crowd':    ('rhv', 'anna', 115, 120),
+    # голоса для будущих персонажей (см. SERIES_BIBLE.md)
+    'sokol':    ('rhv', 'mikhail', 92, 98),       # майор Сокол
+    'mgla':     ('rhv', 'elena', 92, 96),        # Мгла
+    'drone':    ('rhv', 'vitaliy', 70, 110),    # голос Тени через дрон
+    'news':     ('rhv', 'tatiana', 100, 106),      # диктор новостей
 }
 
 
@@ -81,7 +97,8 @@ def trim(path):
 
 
 def main():
-    lines = json.load(open(os.path.join(HERE, 'dialogue.json'), encoding='utf-8'))['lines']
+    use_episode(sys.argv[1] if len(sys.argv) > 1 else json.load(open(os.path.join(STUDIO, 'episodes', 'index.json')))['default'])
+    lines = json.load(open(os.path.join(EPDIR, 'dialogue.json'), encoding='utf-8'))['lines']
     os.makedirs(OUT, exist_ok=True)
     order = sorted(lines, key=lambda l: l['t'])
     nxt = {l['id']: (order[i + 1]['t'] if i + 1 < len(order) else 1e9) for i, l in enumerate(order)}

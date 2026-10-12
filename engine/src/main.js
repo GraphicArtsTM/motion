@@ -1,4 +1,6 @@
-// Точка входа: сборка мира, постобработка, таймлайн, детерминированный renderAt(t).
+// Движок «Паука Новограда»: сборка общего мира (город, персонажи, интерьеры, эффекты), постобработка,
+// таймлайн и детерминированный renderAt(t). Серия подключается по ?ep=e01 из папки episodes/<ep>/
+// (episode.js — шоты и настройки, timeline.json, dialogue.json, assets/ — звук и липсинк).
 import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
@@ -6,16 +8,15 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { W, H, clamp } from './core.js';
 import { makeCity, U, flashAt, makeBus, makeBike, makeBolt } from './city.js';
-import { makeLab, makeKitchen, makeLair, makeShards } from './interiors.js';
+import { makeLab, makeKitchen, makeLair, makeShards, makeCab } from './interiors.js';
 import { makeCharacter, makeSpider } from './rig.js';
 import { makeWebs, makeSparks, makeRings, makeSilkSwirl } from './fx.js';
 import { makeOverlay } from './overlay.js';
-import { buildShots, makeCab } from './shots.js';
 import { makeStreetLife } from './props.js';
 import { makeCrowd } from './crowd.js';
 import { dressLab, dressBridge, dressKitchen } from './dressing.js';
 import { makeSpray } from './fx.js';
-import { makeGradePass, gradeAt, makeAccumulator, mblurAt } from './post.js';
+import { makeGradePass, makeAccumulator } from './post.js';
 import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
 
 const params = new URLSearchParams(location.search);
@@ -25,15 +26,24 @@ const HIGH = params.get('q') === 'high';
 const FPS = +(params.get('fps') || 30);
 
 await Promise.all([
-  ['Unbounded', 'fonts/Unbounded-900.ttf', '900'], ['Unbounded', 'fonts/Unbounded-700.ttf', '700'],
-  ['Rubik', 'fonts/Rubik-600.ttf', '600'], ['Rubik', 'fonts/Rubik-800.ttf', '800'],
+  ['Unbounded', 'engine/fonts/Unbounded-900.ttf', '900'], ['Unbounded', 'engine/fonts/Unbounded-700.ttf', '700'],
+  ['Rubik', 'engine/fonts/Rubik-600.ttf', '600'], ['Rubik', 'engine/fonts/Rubik-800.ttf', '800'],
 ].map(async ([f, url, w]) => { const ff = new FontFace(f, `url(${url})`, { weight: w }); await ff.load(); document.fonts.add(ff); }));
 
+/* ---------- какая серия ---------- */
+const EPISODES = await fetch('episodes/index.json').then(r => r.json());
+const EP = params.get('ep') || EPISODES.default;
+const BASE = `episodes/${EP}/`;
+const EPI = (await import(`../../episodes/${EP}/episode.js`)).default;
+document.title = `Паук Новограда — ${EPI.title || EP}`;
 const [timeline, dialogue, lipsync] = await Promise.all([
-  fetch('timeline.json').then(r => r.json()),
-  fetch('audio/dialogue.json').then(r => r.json()),
-  fetch('assets/lipsync.json').then(r => r.ok ? r.json() : null).catch(() => null),
+  fetch(BASE + 'timeline.json').then(r => r.json()),
+  fetch(BASE + 'dialogue.json').then(r => r.json()),
+  fetch(BASE + 'assets/lipsync.json').then(r => r.ok ? r.json() : null).catch(() => null),
 ]);
+// грейд и motion blur — настройки серии (по сюжетному времени)
+const gradeAt = EPI.gradeAt || (() => 'night');
+const mblurAt = t => (EPI.mblur || []).some(([a, b]) => t >= a && t < b);
 
 /* ---------- рендерер и постобработка ---------- */
 const renderer = new THREE.WebGLRenderer({ antialias: false, preserveDrawingBuffer: true, powerPreference: 'high-performance' });
@@ -150,8 +160,8 @@ function shapeOf(who) {
   }
   return 0;
 }
-const ctx = { THREE, city, lab, kitchen, lair, cab, ch, props, camera, overlay, U, bolts, lines, mouthOf, shapeOf, fricOf, renderer, timeline, labD, kitchenD, crowd };
-const shots = buildShots(ctx);
+const ctx = { THREE, city, lab, kitchen, lair, cab, ch, props, camera, overlay, U, bolts, lines, mouthOf, shapeOf, fricOf, renderer, timeline, labD, kitchenD, bridgeD, crowd, life, EP };
+const shots = EPI.buildShots(ctx);
 const DURATION = timeline.duration;          // сама серия
 const INTRO = timeline.intro || 0;            // заставка студии перед серией
 
@@ -198,10 +208,12 @@ function frameLogic(T) {
     city.rim.position.copy(tg).addScaledVector(d, 40).add(new THREE.Vector3(0, 18, 0)); city.rim.target.position.copy(tg);
     city.rim.color.set(ctx.rim.color); city.rim.intensity = ctx.rim.k;
   } else city.rim.color.set(0xff9a4a);
-  life.update(t, { police: t >= 117 && t < 183 });
-  crowd.update(t, t >= 117 && t < 183 && scene === city.scene);
-  labD.update(t, { alarm: t >= 62 && t < 83, inLab: scene === city.scene && !city.rain.visible });
-  bridgeD.update(t, t >= 117 && t < 183, camera);
+  // какие «живые» части мира включены в этот момент — решает серия (episode.world)
+  const wo = EPI.world?.(t, scene, ctx) || {};
+  life.update(t, { police: !!wo.police });
+  crowd.update(t, !!wo.crowd && scene === city.scene);
+  labD.update(t, { alarm: !!wo.alarm, inLab: scene === city.scene && !city.rain.visible });
+  bridgeD.update(t, !!wo.bridge, camera);
   kitchenD.update(t, { inKitchen: scene === kitchen.scene });
   const up = new THREE.Vector3();
   for (const c of Object.values(ch)) { up.set(0, 1, 0).applyQuaternion(c.root.getWorldQuaternion(new THREE.Quaternion())); c.blob.visible = c.root.visible && up.y > .95 && !ctx.noBlob?.includes(c); }
@@ -280,13 +292,14 @@ window.renderAt = renderAt;
 window.toFilm = s => toFilm(s) + INTRO;   // сюжетное время → время ролика (с заставкой)
 window.bench = (t, n = 5) => { const a = performance.now(); for (let i = 0; i < n; i++) { renderAt(t + i * .03); renderer.getContext().finish(); } return (performance.now() - a) / n; };
 window.DURATION = INTRO + DURATION;
+window.EPISODE = EP;
 window.ready = true;
 
 /* ---------- предпросмотр в браузере ---------- */
 if (!RENDER) {
   const TOTAL = INTRO + DURATION;
   const ui = document.getElementById('ui'); ui.hidden = false;
-  const audio = new Audio('assets/soundtrack.m4a');
+  const audio = new Audio(BASE + 'assets/soundtrack.m4a');
   const bar = document.getElementById('bar'), tl = document.getElementById('tl');
   let playing = false, t0 = 0, start = 0;
   const now = () => playing ? (audio.readyState > 2 && !audio.paused ? audio.currentTime : start + (performance.now() - t0) / 1000) : start;

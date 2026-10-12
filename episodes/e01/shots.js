@@ -2,39 +2,17 @@
 // Персонажи, камера и эффекты выставляются заново для каждого кадра — рендер детерминирован.
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { E, P, kf, tw, lerp, clamp, shake, pulse, toon, glow, mesh, W, H, noise } from './core.js';
-import { POSE, seq, blend, blinkAt, gait, squash, springAt, secondary, ikArm, makeSpider } from './rig.js';
-import { updateTraffic, makeCar } from './city.js';
-import { plume, puffTex } from './dressing.js';
+import { E, P, kf, tw, lerp, clamp, shake, pulse, toon, glow, mesh, W, H, noise } from 'engine/core.js';
+import { POSE, seq, blend, blinkAt, gait, squash, springAt, secondary, ikArm, makeSpider } from 'engine/rig.js';
+import { updateTraffic, makeCar } from 'engine/city.js';
+import { plume, puffTex } from 'engine/dressing.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const L2W = (x, y, z) => [40 + x, 258.82 + y, -440 + z];          // координаты лаборатории → мир
 const yawTo = (a, b) => Math.atan2(b[0] - a[0], b[2] - a[2]);
 const TMP = new THREE.Vector3(), TMP2 = new THREE.Vector3();
 
-/* ---------- кабина автобуса для окна звонка ---------- */
-export function makeCab() {
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0b1020);
-  const c = document.createElement('canvas'); c.width = 1024; c.height = 256;
-  const g = c.getContext('2d'); g.fillStyle = '#0a0d1c'; g.fillRect(0, 0, 1024, 256);
-  for (let i = 0; i < 90; i++) { g.fillStyle = ['#ffc070', '#80c8ff', '#ff6a8a', '#fff'][i % 4]; g.globalAlpha = .7; g.fillRect((i * 97) % 1024, 40 + (i * 53) % 170, 30 + (i % 5) * 20, 4); }
-  const tex = new THREE.CanvasTexture(c); tex.wrapS = THREE.RepeatWrapping; tex.colorSpace = THREE.SRGBColorSpace;
-  const win = new THREE.Mesh(new THREE.PlaneGeometry(6, 1.6), new THREE.MeshBasicMaterial({ map: tex, color: new THREE.Color(1.4, 1.4, 1.4) }));
-  win.position.set(-.4, 1.7, -1.4); scene.add(win);
-  mesh(new THREE.BoxGeometry(6, .2, .3), toon(0x30384a), { pos: [-.4, .85, -1.3], outline: false, parent: scene });
-  mesh(new THREE.BoxGeometry(6, .8, .3), toon(0x1b2130), { pos: [-.4, .45, -1.3], outline: false, parent: scene });
-  mesh(new RoundedBoxGeometry(.8, 1.0, .3, 2, .1), toon(0x334060), { pos: [0, .95, -.35], outline: .01, parent: scene });
-  const wheel = mesh(new THREE.TorusGeometry(.26, .03, 8, 28), toon(0x111111), { pos: [0, 1.12, .52], rot: [-1.0, 0, 0], outline: .008, parent: scene });
-  mesh(new THREE.BoxGeometry(1.2, .5, .5), toon(0x232a38), { pos: [0, .8, .95], outline: false, parent: scene });
-  scene.add(new THREE.HemisphereLight(0xa0b4ff, 0x201820, 1.4));
-  const dash = new THREE.PointLight(0x7feaff, 6, 4, 1.3); dash.position.set(.2, 1.3, 1.1); scene.add(dash);
-  const warm = new THREE.PointLight(0xffb070, 4, 5, 1.5); warm.position.set(-.8, 1.9, .6); scene.add(warm);
-  const alarm = new THREE.PointLight(0xff2020, 0, 6, 1.2); alarm.position.set(-.6, 2.0, .3); scene.add(alarm);
-  const cam = new THREE.PerspectiveCamera(34, 520 / 360, .05, 50);
-  return { scene, cam, tex, wheel, alarm, dash, warm };
-}
-
+/* ---------- все шоты серии ---------- */
 export function buildShots(C) {
   const { city, lab, kitchen, lair, cab, ch, props, camera: cam, U } = C;
   const { timur: TI, ded: DE, vera: VE, kronov: KR, shadow: SH } = ch;

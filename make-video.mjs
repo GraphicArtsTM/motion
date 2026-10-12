@@ -1,5 +1,6 @@
 // Сборка готового видео одной командой: кадры (на видеокарте, в несколько потоков) → склейка → звук → mp4.
-//   node make-video.mjs                    — 1920×1080, 30 fps, высокое качество
+//   node make-video.mjs                    — серия по умолчанию (episodes/index.json), 1920×1080, 30 fps, высокое качество
+//   node make-video.mjs --ep e02           — другая серия
 //   node make-video.mjs --fps 24 --jobs 3  — другая частота кадров / число потоков
 //   node make-video.mjs --fast             — быстрый режим (без сглаживания), для проверки
 //   node make-video.mjs --from 100 --to 120 — только кусок (для проверки)
@@ -18,12 +19,16 @@ try { FFMPEG = require('ffmpeg-static') || 'ffmpeg'; } catch { }
 
 const fps = +arg('fps', 30);
 const fast = process.argv.includes('--fast');
-const timeline = JSON.parse(readFileSync(path.join(dir, 'timeline.json'), 'utf8'));
+const EPS = JSON.parse(readFileSync(path.join(dir, 'episodes', 'index.json'), 'utf8'));
+const EP = arg('ep', process.argv.slice(2).find(a => /^e\d+$/.test(a)) || EPS.default), EPinfo = EPS.episodes.find(e => e.id === EP) || { id: EP, title: EP, file: 'PAUK_NOVOGRADA_' + EP.toUpperCase() };
+const epDir = path.join(dir, 'episodes', EP);
+if (!existsSync(epDir)) { console.error(`Нет серии «${EP}» (папка episodes/${EP}). Есть: ${EPS.episodes.map(e => e.id).join(', ')}`); process.exit(1); }
+const timeline = JSON.parse(readFileSync(path.join(epDir, 'timeline.json'), 'utf8'));
 const from = +arg('from', 0), to = +arg('to', timeline.duration + (timeline.intro || 0));
 const jobs = Math.max(1, +arg('jobs', Math.min(3, Math.max(1, Math.floor(os.cpus().length / 4)))));
 const outDir = path.join(dir, 'out'), parts = path.join(outDir, 'parts');
 rmSync(parts, { recursive: true, force: true }); mkdirSync(parts, { recursive: true });
-const final = path.join(outDir, arg('out', 'PAUK_NOVOGRADA_S01E01_1920x1080.mp4'));
+const final = path.join(outDir, arg('out', `${EPinfo.file}_1920x1080.mp4`));
 
 const run = (cmd, args, opts = {}) => new Promise((res, rej) => {
   const p = spawn(cmd, args, { stdio: opts.stdio || 'inherit', cwd: dir });
@@ -35,7 +40,7 @@ const run = (cmd, args, opts = {}) => new Promise((res, rej) => {
   p.on('close', c => c === 0 ? res() : rej(new Error(`${path.basename(cmd)} завершился с кодом ${c}`)));
 });
 
-console.log(`\n🕷  ПАУК НОВОГРАДА — серия 1: рендер ${from}–${to} с, ${fps} fps, ${fast ? 'быстрое' : 'высокое'} качество, потоков: ${jobs}\n`);
+console.log(`\n🕷  ПАУК НОВОГРАДА — ${EPinfo.title}: рендер ${from}–${to} с, ${fps} fps, ${fast ? 'быстрое' : 'высокое'} качество, потоков: ${jobs}\n`);
 const t0 = Date.now();
 const total = Math.round((to - from) * fps);
 const done = new Array(jobs).fill(0);
@@ -51,7 +56,7 @@ const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2,
 const step = (to - from) / jobs;
 await Promise.all(Array.from({ length: jobs }, (_, i) => {
   const a = Math.round((from + i * step) * fps) / fps, b = Math.round((from + (i + 1) * step) * fps) / fps;
-  return run(process.execPath, ['render.mjs', '--gpu', '--progress', '--fps', String(fps), '--from', String(a), '--to', String(b),
+  return run(process.execPath, ['render.mjs', '--ep', EP, '--gpu', '--progress', '--fps', String(fps), '--from', String(a), '--to', String(b),
     '--crf', '16', '--q', (fast ? '' : '&q=high') + '&fps=' + fps, '--out', path.join(parts, `p${i}.mp4`)], {
     stdio: ['ignore', 'pipe', 'pipe'],
     onLine: l => {
@@ -65,7 +70,7 @@ await Promise.all(Array.from({ length: jobs }, (_, i) => {
 }));
 console.log('\n\n  склеиваю части и добавляю звук…');
 writeFileSync(path.join(parts, 'list.txt'), Array.from({ length: jobs }, (_, i) => `file 'p${i}.mp4'`).join('\n'));
-const sound = ['soundtrack.m4a', 'soundtrack.wav'].map(f => path.join(dir, 'assets', f)).find(existsSync);
+const sound = ['soundtrack.m4a', 'soundtrack.wav'].map(f => path.join(epDir, 'assets', f)).find(existsSync);
 await run(FFMPEG, ['-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', path.join(parts, 'list.txt'),
   ...(sound ? ['-ss', String(from), '-i', sound, '-map', '0:v', '-map', '1:a', '-c:a', 'aac', '-b:a', '256k', '-shortest'] : []),
   '-c:v', 'copy', '-movflags', '+faststart', final]);

@@ -19,25 +19,6 @@ export const GRADES = {
   dawn:    { lift: [.03, .01, .03], gamma: [.95, 1, 1.02], gain: [1.12, 1.0, .95], sat: 1.12, con: 1.05 },
   tag:     { lift: [.0, 0, 0], gamma: [.9, 1.08, 1.08], gain: [1.12, .9, .9], sat: .9, con: 1.2 },
 };
-/* грейд по сюжетному времени */
-export function gradeAt(t) {
-  if (t < 16.5) return 'night';
-  if (t < 21) return 'neutral';
-  if (t < 44) return 'street';
-  if (t < 48) return 'night';
-  if (t < 62) return 'lab';
-  if (t < 80.2) return 'danger';
-  if (t < 90) return 'night';
-  if (t < 97) return 'sense';
-  if (t < 117.2) return 'action';
-  if (t < 175) return 'bridge';
-  if (t < 183) return 'calm';
-  if (t < 195) return 'kitchen';
-  if (t < 203) return t >= 198.4 && t < 200.2 ? 'lab' : 'dawn';
-  if (t < 207) return 'neutral';
-  return 'tag';
-}
-
 export function makeGradePass() {
   const pass = new ShaderPass({
     uniforms: {
@@ -94,7 +75,3 @@ export function makeAccumulator(renderer, W, H) {
     present() { quad.material = copyM; renderer.setRenderTarget(null); renderer.render(scene, cam); },
   };
 }
-
-/* сцены, где нужен motion blur (сюжетное время) */
-export const MBLUR = [[21, 44], [44, 46], [62, 63.4], [72.5, 83], [97, 123], [123, 133], [140, 175]];
-export const mblurAt = t => MBLUR.some(([a, b]) => t >= a && t < b);

@@ -1,18 +1,13 @@
 node_modules/
+__pycache__/
+out/
 video/out/stills/
 video/out/frames.mp4
 video/out/music.wav
 video/out/build.log
-episode1/out/stills/
-episode1/out/parts/
-episode1/out/frames.mp4
-episode1/audio/voice/
-episode1/assets/soundtrack.wav
-episode1/out/render.log
-episode1/out/x264*
-episode1/audio/voice_tts/
-episode1/audio/voice_user/*.wav
-episode1/audio/voice_user/alignment.json
-episode1/out/x264*
-episode1/out/*.log
-__pycache__/
+# генерируемое при сборке звука
+episodes/*/assets/soundtrack.wav
+episodes/*/audio/voice/
+episodes/*/audio/voice_tts/
+episodes/*/audio/voice_user/*.wav
+episodes/*/audio/voice_user/alignment.json

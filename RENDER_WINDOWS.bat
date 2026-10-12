@@ -4,7 +4,7 @@ title Паук Новограда — рендер серии
 cd /d "%~dp0"
 echo.
 echo  ===============================================
-echo    ПАУК НОВОГРАДА — серия 1: сборка видео
+echo    ПАУК НОВОГРАДА — сборка видео серии
 echo  ===============================================
 echo.
 
@@ -24,6 +24,17 @@ if errorlevel 1 (
   exit /b 1
 )
 
+set "EPARG="
+echo %~1 | findstr /r "^e[0-9]" >nul
+if not errorlevel 1 goto :haveep
+echo  Какую серию собрать? Введите номер серии (1, 2, ...) и нажмите Enter.
+echo  Просто Enter — серия по умолчанию.
+set "N="
+set /p N=  Серия: 
+if "%N%"=="" goto :haveep
+if %N% LSS 10 (set "EPARG=--ep e0%N%") else (set "EPARG=--ep e%N%")
+:haveep
+
 echo  [1/3] Устанавливаю библиотеки (Playwright, ffmpeg)...
 call npm install --no-audit --no-fund
 if errorlevel 1 goto :err
@@ -33,7 +44,7 @@ call npx playwright install chromium
 if errorlevel 1 goto :err
 
 echo  [3/3] Рендер...
-node make-video.mjs %*
+node make-video.mjs %EPARG% %*
 if errorlevel 1 goto :err
 
 echo.

@@ -5,9 +5,10 @@
   2) сравнивает их с эталонными синтезированными версиями тех же реплик (MFCC + DTW),
   3) динамическим программированием выбирает, какие участки составляют каждую реплику
      (учитывает похожесть, длительность и паузы; лишние дубли и оговорки пропускает),
-  4) сохраняет реплики в audio/voice_user/<id>.wav с мягкими краями.
+  4) сохраняет реплики в episodes/<ep>/audio/voice_user/<id>.wav с мягкими краями.
 
-    python3 audio/align_voice.py путь/к/записи.mp3
+    python3 engine/audio/align_voice.py e02 путь/к/записи.mp3
+    python3 engine/audio/align_voice.py episodes/e02/audio/voice_src/golos_01.mp3   (серия — по пути)
 """
 import json
 import os
@@ -110,12 +111,25 @@ def vad(x):
     return [(a * HOP / SR, b * HOP / SR) for a, b in merged if b - a >= 10]
 
 
+def episode_dir(args):
+    """(ep, запись) или (запись внутри episodes/<ep>/…) → папка серии и путь к записи."""
+    studio = os.path.dirname(os.path.dirname(HERE))
+    if len(args) >= 2:
+        ep = args[0]
+        return (ep if os.path.isdir(ep) else os.path.join(studio, 'episodes', ep)), args[1]
+    src = os.path.abspath(args[0]); parts = src.split(os.sep)
+    if 'episodes' in parts:
+        return os.sep.join(parts[:parts.index('episodes') + 2]), src
+    sys.exit('укажите серию: python3 engine/audio/align_voice.py e02 запись.mp3')
+
+
 def main():
-    src = sys.argv[1]
-    lines = sorted(json.load(open(os.path.join(HERE, 'dialogue.json'), encoding='utf-8'))['lines'], key=lambda l: l['t'])
-    refdir = os.path.join(HERE, 'voice_tts')
+    epdir, src = episode_dir(sys.argv[1:])
+    lines = sorted(json.load(open(os.path.join(epdir, 'dialogue.json'), encoding='utf-8'))['lines'], key=lambda l: l['t'])
+    refdir = os.path.join(epdir, 'audio', 'voice_tts')
     sys.path.insert(0, HERE)
     import voices
+    voices.use_episode(epdir)
     os.makedirs(refdir, exist_ok=True)
     refs = []
     for ln in lines:                     # эталоны: синтез тех же фраз
@@ -187,7 +201,7 @@ def main():
                 a, b = fix[ln['id']]; assign[i] = (a, b + 1)
         print('применены правки из', os.path.basename(mp))
 
-    out = os.path.join(HERE, 'voice_user')
+    out = os.path.join(epdir, 'audio', 'voice_user')
     os.makedirs(out, exist_ok=True)
     full = load(src, 48000)
     report = []

@@ -1,6 +1,8 @@
 // Рендер серии: headless Chromium (Playwright) рисует каждый кадр index.html через WebGL, ffmpeg собирает видео.
+//   node render.mjs --ep e02                 — какая серия (папка episodes/<ep>; по умолчанию — episodes/index.json → default)
 //   node render.mjs                          — полный рендер в out/frames.mp4 (без звука)
-//   node render.mjs --stills 3,41.5,120      — стоп-кадры в out/stills/*.png для проверки
+//   node render.mjs --stills 3,41.5,120      — стоп-кадры в out/stills/*.png для проверки (время ролика)
+//   node render.mjs --story --stills 150,153 — то же, но время по сюжету (как в shots.js)
 //   node render.mjs --fps 30 --from 40 --to 60 --out out/part.mp4
 //   node render.mjs --page test.html         — другой файл (для отладки)
 //   node render.mjs --gpu --q "&q=high"      — рендер на видеокарте в высоком качестве (так запускает make-video.mjs)
@@ -48,7 +50,7 @@ const browser = GPU
 const page = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
 page.on('pageerror', e => console.error('page error:', e.message));
 page.on('console', m => { if (m.type() === 'error' || m.type() === 'warning') console.error('console:', m.text()); });
-await page.goto(base + arg('page', 'index.html') + '?render=1' + arg('q', ''));
+await page.goto(base + arg('page', 'index.html') + '?render=1' + (arg('ep') ? '&ep=' + arg('ep') : '') + arg('q', ''));
 await page.waitForFunction(() => window.ready === true, null, { timeout: 120000 });
 const DUR = await page.evaluate(() => window.DURATION);
 const gpuName = await page.evaluate(() => { const gl = document.querySelector('canvas:not(#ov)').getContext('webgl2'); const e = gl.getExtension('WEBGL_debug_renderer_info'); return e ? gl.getParameter(e.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER); });

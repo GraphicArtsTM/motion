@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Паук Новограда — Серия 1</title>
+<title>Паук Новограда</title>
 <style>
   html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font-family: Rubik, system-ui, sans-serif; }
   #stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; }
@@ -16,7 +16,7 @@
   #ui.playing #play::after { content: '❚❚'; } #ui:not(.playing) #play::after { content: '▶'; }
   #bar { flex: 1; accent-color: #3ff0ff; }
 </style>
-<script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js", "three/addons/": "./vendor/jsm/" } }</script>
+<script type="importmap">{ "imports": { "three": "./engine/vendor/three.module.min.js", "three/addons/": "./engine/vendor/jsm/", "engine/": "./engine/src/" } }</script>
 </head>
 <body>
 <div id="stage"><canvas id="ov"></canvas></div>
@@ -27,6 +27,6 @@
     s.setProperty('--k', k); s.setProperty('--x', (innerWidth - 1920 * k) / 2 + 'px'); s.setProperty('--y', (innerHeight - 1080 * k) / 2 + 'px'); };
   addEventListener('resize', fit); fit();
 </script>
-<script type="module" src="src/main.js"></script>
+<script type="module" src="engine/src/main.js"></script>
 </body>
 </html>
