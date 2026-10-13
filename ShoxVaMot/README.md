@@ -56,7 +56,7 @@
 
 Чтобы реклама заработала:
 1. В [Unity Dashboard](https://dashboard.unity3d.com) создайте проект, включите **Monetization → Unity Ads** и скопируйте **Game ID** для Android (и iOS).
-2. Впишите их в `Assets/Scripts/Core/AdsConfig` (файл `AdsManager.cs`): `AndroidGameId`, `IosGameId`. ID рекламных блоков по умолчанию: `Interstitial_Android` / `Interstitial_iOS`.
+2. Впишите их в класс `AdsConfig` в файле `Assets/Scripts/Core/AdsManager.cs`: `AndroidGameId`, `IosGameId`. ID рекламных блоков по умолчанию: `Interstitial_Android` / `Interstitial_iOS`.
 3. Для проверки оставьте `TestMode = true` — будут показываться тестовые ролики. Перед публикацией поставьте `false`.
 4. `MinSecondsBetweenAds` задаёт паузу между показами: 0 — реклама перед каждой партией.
 
