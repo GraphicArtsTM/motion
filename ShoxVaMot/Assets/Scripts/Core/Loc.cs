@@ -244,8 +244,9 @@ namespace Shatranj.Core
         public static string T(string key)
         {
             string[] v;
-            if (T3.TryGetValue(key, out v)) return v[(int)Current];
-            return key;
+            if (!T3.TryGetValue(key, out v)) return key;
+            if (Current == Language.UzbekCyrillic) return UzCyrillic.Convert(v[0]);
+            return v[(int)Current];
         }
 
         public static string T(string key, params object[] args)
@@ -259,11 +260,15 @@ namespace Shatranj.Core
             return T("proverb." + Random.Range(0, ProverbCount));
         }
 
+        /// <summary>Порядок языков в меню: обе узбекские записи первыми.</summary>
+        public static readonly Language[] Order = { Language.Uzbek, Language.UzbekCyrillic, Language.Russian, Language.English };
+
         public static string LanguageName(Language l)
         {
             switch (l)
             {
                 case Language.Uzbek: return "O'zbekcha";
+                case Language.UzbekCyrillic: return "Ўзбекча";
                 case Language.Russian: return "Русский";
                 default: return "English";
             }

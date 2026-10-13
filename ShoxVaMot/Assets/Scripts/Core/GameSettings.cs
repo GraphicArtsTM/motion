@@ -5,7 +5,7 @@ using Shatranj.Chess;
 
 namespace Shatranj.Core
 {
-    public enum Language { Uzbek = 0, Russian = 1, English = 2 }
+    public enum Language { Uzbek = 0, Russian = 1, English = 2, UzbekCyrillic = 3 }
     public enum BattleMode { Full = 0, Fast = 1, Off = 2 }
     public enum TimeOfDay { Day = 0, Sunset = 1, Night = 2 }
     public enum GameMode { LocalPvP = 0, VsAI = 1 }
@@ -27,7 +27,7 @@ namespace Shatranj.Core
 
         const string Key = "shatranj.settings.v1";
 
-        public Language Lang { get { return (Language)Mathf.Clamp(language, 0, 2); } }
+        public Language Lang { get { return (Language)Mathf.Clamp(language, 0, 3); } }
         public BattleMode Battle { get { return (BattleMode)Mathf.Clamp(battleMode, 0, 2); } }
         public TimeOfDay Ambience { get { return (TimeOfDay)Mathf.Clamp(timeOfDay, 0, 2); } }
 
@@ -41,20 +41,8 @@ namespace Shatranj.Core
             }
             catch (Exception e) { Debug.LogWarning("Settings load failed: " + e.Message); }
             if (s == null) s = new GameSettings();
-            if (s.language < 0)
-            {
-                switch (Application.systemLanguage)
-                {
-                    case SystemLanguage.Russian:
-                    case SystemLanguage.Ukrainian:
-                    case SystemLanguage.Belarusian:
-                        s.language = (int)Language.Russian; break;
-                    case SystemLanguage.English:
-                        s.language = (int)Language.English; break;
-                    default:
-                        s.language = (int)Language.Uzbek; break;
-                }
-            }
+            // игра узбекская — по умолчанию всегда O'zbekcha; сменить можно кнопкой в главном меню
+            if (s.language < 0) s.language = (int)Language.Uzbek;
             return s;
         }
 

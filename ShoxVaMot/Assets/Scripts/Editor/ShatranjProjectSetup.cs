@@ -31,7 +31,9 @@ namespace Shatranj.EditorTools
         {
             EditorApplication.delayCall += () =>
             {
-                if (Application.isBatchMode || EditorApplication.isPlayingOrWillChangePlaymode) return;
+                if (EditorApplication.isPlayingOrWillChangePlaymode) return;
+                EnsureAdsDefine();
+                if (Application.isBatchMode) return;
                 if (SessionState.GetBool(DoneKey, false)) return;
                 SessionState.SetBool(DoneKey, true);
                 Setup(false);
@@ -49,6 +51,7 @@ namespace Shatranj.EditorTools
         {
             EnsureMaterial();
             EnsureScene();
+            EnsureAdsDefine();
             if (forcePlayer || !File.Exists(MarkerPath))
             {
                 ConfigurePlayer();
@@ -57,6 +60,28 @@ namespace Shatranj.EditorTools
             }
             AssetDatabase.SaveAssets();
             if (verbose) Debug.Log("[Shox va Mot] Проект настроен. Откройте Assets/Scenes/Main.unity и нажмите Play.");
+        }
+
+        const string AdsDefine = "SHOX_UNITY_ADS";
+
+        /// <summary>
+        /// Если установлен пакет Unity Ads (com.unity.ads), включаем символ SHOX_UNITY_ADS,
+        /// чтобы скомпилировался код рекламы; если пакет удалён — выключаем.
+        /// </summary>
+        public static void EnsureAdsDefine()
+        {
+            bool hasAds = false;
+            foreach (var asm in System.AppDomain.CurrentDomain.GetAssemblies())
+                if (asm.GetType("UnityEngine.Advertisements.Advertisement", false) != null) { hasAds = true; break; }
+            foreach (var group in new[] { BuildTargetGroup.Android, BuildTargetGroup.iOS, BuildTargetGroup.Standalone })
+            {
+                string defs = PlayerSettings.GetScriptingDefineSymbolsForGroup(group);
+                var list = new System.Collections.Generic.List<string>(defs.Split(new[] { ';' }, System.StringSplitOptions.RemoveEmptyEntries));
+                bool has = list.Contains(AdsDefine);
+                if (hasAds == has) continue;
+                if (hasAds) list.Add(AdsDefine); else list.Remove(AdsDefine);
+                PlayerSettings.SetScriptingDefineSymbolsForGroup(group, string.Join(";", list.ToArray()));
+            }
         }
 
         static void EnsureMaterial()

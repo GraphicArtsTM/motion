@@ -75,6 +75,7 @@ namespace Shatranj.Core
             Board.Rig = Rig;
             Fx.Init(transform);
             AudioManager.Create(transform);
+            AdsManager.Create(transform);
             ApplyAudio();
             UI.Loading.SetProgress(0.65f);
             yield return null;
@@ -149,8 +150,12 @@ namespace Shatranj.Core
         public void StartNewMatch(MatchConfig cfg)
         {
             SavedMatch.Clear();
-            menuDecor = false;
-            Match.Begin(cfg, null);
+            // перед каждой новой партией — межстраничная реклама (если загружена)
+            AdsManager.ShowThen(() =>
+            {
+                menuDecor = false;
+                Match.Begin(cfg, null);
+            });
         }
 
         public void ContinueSaved()
@@ -162,8 +167,11 @@ namespace Shatranj.Core
                 UI.Show(UI.NewGame);
                 return;
             }
-            menuDecor = false;
-            Match.Begin(s.config, s);
+            AdsManager.ShowThen(() =>
+            {
+                menuDecor = false;
+                Match.Begin(s.config, s);
+            });
         }
 
         public void ExitToMenu()

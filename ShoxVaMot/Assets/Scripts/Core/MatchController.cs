@@ -316,7 +316,7 @@ namespace Shatranj.Core
             var cfg = Config.Clone();
             root.UI.CloseAllOverlays();
             SavedMatch.Clear();
-            Begin(cfg, null);
+            AdsManager.ShowThen(() => Begin(cfg, null));
         }
 
         public void OpenPause()

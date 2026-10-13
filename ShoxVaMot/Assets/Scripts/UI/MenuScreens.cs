@@ -87,6 +87,15 @@ namespace Shatranj.UI
             UIKit.Btn(row, Loc.T("menu.stats"), () => UI.Show(UI.Stats), BtnStyle.Secondary, -1, 40);
             UIKit.Btn(list, Loc.T("menu.exit"), () => OnBack(), BtnStyle.Ghost, 96, 38);
 
+            // кнопка языка в правом верхнем углу: O'zbekcha → Ўзбекча → Русский → English
+            var lang = UIKit.Btn(Root, Loc.LanguageName(Game.Settings.Lang), () =>
+            {
+                int idx = System.Array.IndexOf(Loc.Order, Game.Settings.Lang);
+                Game.SetLanguage(Loc.Order[(idx + 1) % Loc.Order.Length]);
+            }, BtnStyle.Ghost, -1, 32);
+            var lrt = (RectTransform)lang.transform;
+            UIKit.Place(lrt, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-24, -24), new Vector2(250, 84));
+
             var ver = UIKit.Label(Root, Loc.T("version") + " " + Application.version, 26, new Color(1, 1, 1, 0.45f));
             UIKit.Place(ver.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0, 30), new Vector2(800, 40));
         }
@@ -184,9 +193,10 @@ namespace Shatranj.UI
             RectTransform content, footer;
             Page(Loc.T("menu.settings"), out content, out footer);
 
-            UIKit.OptionRow(content, Loc.T("set.language"),
-                new[] { Loc.LanguageName(Language.Uzbek), Loc.LanguageName(Language.Russian), Loc.LanguageName(Language.English) },
-                (int)s.Lang, i => Game.SetLanguage((Language)i));
+            var langNames = new string[Loc.Order.Length];
+            for (int i = 0; i < langNames.Length; i++) langNames[i] = Loc.LanguageName(Loc.Order[i]);
+            UIKit.OptionRow(content, Loc.T("set.language"), langNames,
+                System.Array.IndexOf(Loc.Order, s.Lang), i => Game.SetLanguage(Loc.Order[i]));
             UIKit.SliderRow(content, Loc.T("set.music"), s.musicVolume, v => { s.musicVolume = v; Game.ApplyAudio(); });
             UIKit.SliderRow(content, Loc.T("set.sfx"), s.sfxVolume, v => { s.sfxVolume = v; Game.ApplyAudio(); });
             string[] onOff = { Loc.T("common.on"), Loc.T("common.off") };
