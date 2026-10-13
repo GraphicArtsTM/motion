@@ -106,7 +106,7 @@ namespace Shatranj.Visual
             mesh.SetUVs(0, uvs);
             mesh.SetTriangles(tris, 0);
             if (flat) MakeFlat(mesh);
-            mesh.RecalculateBounds();
+            mesh.RecalculateBounds(); mesh.RecalculateTangents();
             return mesh;
         }
 
@@ -164,7 +164,7 @@ namespace Shatranj.Visual
                     }
                 var m = new Mesh();
                 m.SetVertices(verts); m.SetNormals(norms); m.SetUVs(0, uvs); m.SetTriangles(tris, 0);
-                m.RecalculateBounds();
+                m.RecalculateBounds(); m.RecalculateTangents();
                 return m;
             });
         }
@@ -221,7 +221,7 @@ namespace Shatranj.Visual
                 }
                 var m = new Mesh();
                 m.SetVertices(verts); m.SetNormals(norms); m.SetUVs(0, uvs); m.SetTriangles(tris, 0);
-                m.RecalculateBounds();
+                m.RecalculateBounds(); m.RecalculateTangents();
                 return m;
             });
         }
@@ -262,7 +262,7 @@ namespace Shatranj.Visual
                 var m = new Mesh();
                 m.SetVertices(verts); m.SetUVs(0, uvs); m.SetTriangles(tris, 0);
                 MakeFlat(m);
-                m.RecalculateBounds();
+                m.RecalculateBounds(); m.RecalculateTangents();
                 return m;
             });
         }
@@ -288,12 +288,12 @@ namespace Shatranj.Visual
             }
             m.SetVertices(v); m.SetNormals(n); m.SetUVs(0, uv); m.SetTriangles(t, 0);
             FixWinding(m);
-            m.RecalculateBounds();
+            m.RecalculateBounds(); m.RecalculateTangents();
             return m;
         }
 
         /// <summary>Гарантирует, что треугольники смотрят наружу (по нормалям вершин).</summary>
-        static void FixWinding(Mesh m)
+        public static void FixWinding(Mesh m)
         {
             var v = m.vertices; var n = m.normals; var t = m.triangles;
             for (int i = 0; i < t.Length; i += 3)
@@ -303,6 +303,86 @@ namespace Shatranj.Visual
                 if (Vector3.Dot(fn, n[t[i]]) < 0f) { int tmp = t[i + 1]; t[i + 1] = t[i + 2]; t[i + 2] = tmp; }
             }
             m.triangles = t;
+        }
+
+        /// <summary>
+        /// Профиль (s — отступ наружу от внутреннего края, y — высота), протянутый по квадратному
+        /// контуру с полустороной halfInner и митровыми углами. Для резных рам доски и стола.
+        /// </summary>
+        public static Mesh FrameExtrude(string key, Vector2[] profile, float halfInner, float uTile, float vTile)
+        {
+            return Cached("frame." + key, () =>
+            {
+                var verts = new List<Vector3>();
+                var norms = new List<Vector3>();
+                var uvs = new List<Vector2>();
+                var tris = new List<int>();
+                int n = profile.Length;
+                float[] len = new float[n];
+                for (int i = 1; i < n; i++) len[i] = len[i - 1] + Vector2.Distance(profile[i], profile[i - 1]);
+                Vector3[] outs = { Vector3.back, Vector3.right, Vector3.forward, Vector3.left };
+                for (int side = 0; side < 4; side++)
+                {
+                    Vector3 o = outs[side];
+                    Vector3 t = Vector3.Cross(Vector3.up, o);
+                    int baseIdx = verts.Count;
+                    for (int i = 0; i < n; i++)
+                    {
+                        Vector2 prev = profile[Mathf.Max(i - 1, 0)], next = profile[Mathf.Min(i + 1, n - 1)];
+                        Vector2 d = (next - prev).normalized;
+                        Vector2 n2 = new Vector2(-d.y, d.x);
+                        Vector3 nrm = (o * n2.x + Vector3.up * n2.y).normalized;
+                        float r = halfInner + profile[i].x;
+                        Vector3 a = o * r - t * r + Vector3.up * profile[i].y;
+                        Vector3 b = o * r + t * r + Vector3.up * profile[i].y;
+                        verts.Add(a); verts.Add(b);
+                        norms.Add(nrm); norms.Add(nrm);
+                        float v = len[i] / vTile;
+                        uvs.Add(new Vector2(-r / uTile, v));
+                        uvs.Add(new Vector2(r / uTile, v));
+                    }
+                    for (int i = 0; i < n - 1; i++)
+                    {
+                        int a0 = baseIdx + i * 2, b0 = a0 + 1, a1 = a0 + 2, b1 = a0 + 3;
+                        tris.Add(a0); tris.Add(a1); tris.Add(b0);
+                        tris.Add(b0); tris.Add(a1); tris.Add(b1);
+                    }
+                }
+                var m = new Mesh();
+                m.SetVertices(verts); m.SetNormals(norms); m.SetUVs(0, uvs); m.SetTriangles(tris, 0);
+                FixWinding(m);
+                m.RecalculateBounds(); m.RecalculateTangents();
+                return m;
+            });
+        }
+
+        /// <summary>Круг радиуса 1 в плоскости XZ с плоской развёрткой UV (тарелки-ляганы, кожа дойры).</summary>
+        public static Mesh Disc
+        {
+            get
+            {
+                return Cached("disc", () =>
+                {
+                    const int seg = 40;
+                    var v = new List<Vector3> { Vector3.zero };
+                    var uv = new List<Vector2> { new Vector2(0.5f, 0.5f) };
+                    var nr = new List<Vector3> { Vector3.up };
+                    var t = new List<int>();
+                    for (int i = 0; i <= seg; i++)
+                    {
+                        float a = 2f * Mathf.PI * i / seg;
+                        v.Add(new Vector3(Mathf.Cos(a), 0, Mathf.Sin(a)));
+                        uv.Add(new Vector2(0.5f + 0.5f * Mathf.Cos(a), 0.5f + 0.5f * Mathf.Sin(a)));
+                        nr.Add(Vector3.up);
+                    }
+                    for (int i = 1; i <= seg; i++) { t.Add(0); t.Add(i); t.Add(i + 1); }
+                    var m = new Mesh();
+                    m.SetVertices(v); m.SetNormals(nr); m.SetUVs(0, uv); m.SetTriangles(t, 0);
+                    FixWinding(m);
+                    m.RecalculateBounds(); m.RecalculateTangents();
+                    return m;
+                });
+            }
         }
 
         /// <summary>Плоский квадрат в плоскости XZ (нормаль вверх), размер 1×1.</summary>
@@ -317,7 +397,7 @@ namespace Shatranj.Visual
                     m.uv = new[] { new Vector2(0, 0), new Vector2(0, 1), new Vector2(1, 1), new Vector2(1, 0) };
                     m.normals = new[] { Vector3.up, Vector3.up, Vector3.up, Vector3.up };
                     m.triangles = new[] { 0, 1, 2, 0, 2, 3 };
-                    m.RecalculateBounds();
+                    m.RecalculateBounds(); m.RecalculateTangents();
                     return m;
                 });
             }
@@ -336,7 +416,7 @@ namespace Shatranj.Visual
             }
             m.vertices = v;
             m.colors = cols;
-            m.RecalculateBounds();
+            m.RecalculateBounds(); m.RecalculateTangents();
             return m;
         }
     }

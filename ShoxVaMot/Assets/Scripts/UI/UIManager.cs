@@ -104,6 +104,9 @@ namespace Shatranj.UI
             UIKit.OnClickSound = () => Shatranj.Audio.AudioManager.Play(Shatranj.Audio.Sfx.Click, 0.7f, 0.02f);
             Canvas = UIKit.CreateCanvas("Canvas", 10);
             Canvas.transform.SetParent(transform, false);
+            // мягкая виньетка поверх 3D-сцены — «киношная» глубина кадра
+            var vignette = UIKit.Raw(Canvas.transform, Shatranj.Visual.TextureFactory.Vignette(), Color.white, "Vignette");
+            vignette.raycastTarget = false;
             safe = UIKit.Rect(Canvas.transform, "SafeArea");
             screensRoot = UIKit.Rect(safe, "Screens");
             overlayRoot = UIKit.Rect(safe, "Overlays");

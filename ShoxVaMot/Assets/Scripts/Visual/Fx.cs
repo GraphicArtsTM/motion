@@ -253,7 +253,7 @@ namespace Shatranj.Visual
             var parts = new List<Transform>();
             foreach (var r in v.GetComponentsInChildren<MeshRenderer>())
             {
-                if (r.GetComponent<MeshFilter>() == null || r.name == "HeroAura") continue;
+                if (r.GetComponent<MeshFilter>() == null || r.name == "HeroAura" || r.name == "Contact") continue;
                 var t = r.transform;
                 t.SetParent(inst.debrisRoot, true);
                 var go = t.gameObject;

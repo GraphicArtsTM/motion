@@ -11,7 +11,7 @@ namespace Shatranj.Core
         static readonly Dictionary<string, string[]> T3 = new Dictionary<string, string[]>
         {
             // ---------------------------------------------------------------- Общее
-            { "app.title", new[] { "SHATRANJ", "ШАТРАНДЖ", "SHATRANJ" } },
+            { "app.title", new[] { "SHOX VA MOT", "SHOX VA MOT", "SHOX VA MOT" } },
             { "app.subtitle", new[] { "Samarqand afsonasi", "Легенда Самарканда", "The Legend of Samarkand" } },
             { "loading", new[] { "Yuklanmoqda...", "Загрузка...", "Loading..." } },
             { "common.back", new[] { "Orqaga", "Назад", "Back" } },

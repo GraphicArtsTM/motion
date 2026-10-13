@@ -32,7 +32,7 @@ namespace Shatranj.Core
         static void Boot()
         {
             if (I != null || FindObjectOfType<GameRoot>() != null) return;
-            var go = new GameObject("Shatranj");
+            var go = new GameObject("ShoxVaMot");
             go.AddComponent<GameRoot>();
         }
 
@@ -96,6 +96,7 @@ namespace Shatranj.Core
             ApplyVisualSettings();
 
             Board.SpawnAll(new PieceTracker(new Position(Variant.Classic)));
+            Env.RefreshReflections();
             menuDecor = true;
             Rig.MenuOrbit = true;
             Rig.SetView(Side.White, true);

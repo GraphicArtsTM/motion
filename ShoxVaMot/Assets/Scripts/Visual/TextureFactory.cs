@@ -8,7 +8,7 @@ namespace Shatranj.Visual
     /// чустская тюбетейка, майолика Регистана, сюзане, ислими, кирпич, мех тельпака,
     /// «пахта» (хлопковый узор чайника) и служебные спрайты.
     /// </summary>
-    public static class TextureFactory
+    public static partial class TextureFactory
     {
         static readonly Dictionary<string, Texture2D> cache = new Dictionary<string, Texture2D>();
 

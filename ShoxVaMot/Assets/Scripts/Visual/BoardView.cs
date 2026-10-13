@@ -50,41 +50,11 @@ namespace Shatranj.Visual
             var boardRoot = new GameObject("Board").transform;
             boardRoot.SetParent(transform, false);
 
-            // основание
-            AddBox(boardRoot, MaterialLib.FrameWood, new Vector3(0, -0.17f, 0), new Vector3(9.7f, 0.32f, 9.7f));
-            // рама с орнаментом
-            var frameMat = new Material(MaterialLib.Frame) { mainTextureScale = new Vector2(3.3f, 1f) };
-            for (int i = 0; i < 4; i++)
-            {
-                var t = AddBox(boardRoot, frameMat, Vector3.zero, new Vector3(8.16f, 0.1f, 0.62f));
-                t.localRotation = Quaternion.Euler(0, 90f * i, 0);
-                t.localPosition = t.localRotation * new Vector3(0, -0.04f, -4.39f);
-            }
-            for (int i = 0; i < 4; i++)
-            {
-                float x = (i % 2 == 0 ? 1 : -1) * 4.39f, z = (i < 2 ? 1 : -1) * 4.39f;
-                AddBox(boardRoot, MaterialLib.FrameWood, new Vector3(x, -0.04f, z), new Vector3(0.62f, 0.1f, 0.62f));
-                var star = Part(boardRoot, MeshBuilder.Cached("lathe.rosette", () => MeshBuilder.Lathe("rosette", new[]
-                {
-                    new Vector2(0, 0), new Vector2(0.24f, 0), new Vector2(0.24f, 0.012f), new Vector2(0.12f, 0.03f), new Vector2(0, 0.035f)
-                }, 8, 22.5f, 360f, true)), MaterialLib.Inlay, new Vector3(x, 0.011f, z));
-                star.localRotation = Quaternion.Euler(0, 22.5f, 0);
-            }
-            // золотая инкрустация вокруг поля
-            for (int i = 0; i < 4; i++)
-            {
-                var t = AddBox(boardRoot, MaterialLib.Inlay, Vector3.zero, new Vector3(8.14f, 0.03f, 0.05f));
-                t.localRotation = Quaternion.Euler(0, 90f * i, 0);
-                t.localPosition = t.localRotation * new Vector3(0, 0.0f, -4.045f);
-            }
-
-            // клетки
-            BuildSquares(boardRoot, true);
-            BuildSquares(boardRoot, false);
+            BoardModel.Build(boardRoot);
 
             var col = boardRoot.gameObject.AddComponent<BoxCollider>();
-            col.center = new Vector3(0, -0.17f, 0);
-            col.size = new Vector3(9.7f, 0.34f, 9.7f);
+            col.center = new Vector3(0, (BoardModel.Bottom + 0.05f) * 0.5f, 0);
+            col.size = new Vector3(BoardModel.Outer * 2f, 0.05f - BoardModel.Bottom, BoardModel.Outer * 2f);
 
             BuildCoordinates();
 
@@ -112,40 +82,6 @@ namespace Shatranj.Visual
             return go.transform;
         }
 
-        void BuildSquares(Transform parent, bool light)
-        {
-            var verts = new List<Vector3>();
-            var uvs = new List<Vector2>();
-            var tris = new List<int>();
-            var rng = new System.Random(light ? 17 : 29);
-            for (int sq = 0; sq < 64; sq++)
-            {
-                if (Sq.IsLight(sq) != light) continue;
-                Vector3 c = SquarePos(sq);
-                int i0 = verts.Count;
-                verts.Add(c + new Vector3(-0.5f, 0, -0.5f));
-                verts.Add(c + new Vector3(-0.5f, 0, 0.5f));
-                verts.Add(c + new Vector3(0.5f, 0, 0.5f));
-                verts.Add(c + new Vector3(0.5f, 0, -0.5f));
-                // у каждой клетки свой кусок древесины, волокна чередуются как в паркете
-                float ou = (float)rng.NextDouble(), ov = (float)rng.NextDouble();
-                const float s = 0.45f;
-                bool rot = ((Sq.File(sq) + Sq.Rank(sq) / 2) & 1) == 0;
-                Vector2 a = new Vector2(ou, ov), b = new Vector2(ou, ov + s), cc = new Vector2(ou + s, ov + s), d = new Vector2(ou + s, ov);
-                if (rot) { uvs.Add(b); uvs.Add(cc); uvs.Add(d); uvs.Add(a); }
-                else { uvs.Add(a); uvs.Add(b); uvs.Add(cc); uvs.Add(d); }
-                tris.Add(i0); tris.Add(i0 + 1); tris.Add(i0 + 2);
-                tris.Add(i0); tris.Add(i0 + 2); tris.Add(i0 + 3);
-            }
-            var m = new Mesh { name = light ? "squares.light" : "squares.dark" };
-            m.SetVertices(verts);
-            m.SetUVs(0, uvs);
-            m.SetTriangles(tris, 0);
-            m.RecalculateNormals();
-            m.RecalculateBounds();
-            Part(parent, m, light ? MaterialLib.BoardLight : MaterialLib.BoardDark, Vector3.zero);
-        }
-
         void BuildCoordinates()
         {
             coordsRoot = new GameObject("Coordinates").transform;
@@ -156,10 +92,11 @@ namespace Shatranj.Visual
             {
                 string file = ((char)('a' + i)).ToString();
                 string rank = (i + 1).ToString();
-                AddLabel(font, file, new Vector3(i - 3.5f, 0.016f, -4.39f), 0f);
-                AddLabel(font, file, new Vector3(i - 3.5f, 0.016f, 4.39f), 180f);
-                AddLabel(font, rank, new Vector3(-4.39f, 0.016f, i - 3.5f), 0f);
-                AddLabel(font, rank, new Vector3(4.39f, 0.016f, i - 3.5f), 180f);
+                const float m = BoardModel.BandMid, y = 0.054f;
+                AddLabel(font, file, new Vector3(i - 3.5f, y, -m), 0f);
+                AddLabel(font, file, new Vector3(i - 3.5f, y, m), 180f);
+                AddLabel(font, rank, new Vector3(-m, y, i - 3.5f), 0f);
+                AddLabel(font, rank, new Vector3(m, y, i - 3.5f), 180f);
             }
         }
 
@@ -173,11 +110,11 @@ namespace Shatranj.Visual
             tm.font = font;
             tm.text = text;
             tm.fontSize = 64;
-            tm.characterSize = 0.055f;
+            tm.characterSize = 0.045f;
             tm.anchor = TextAnchor.MiddleCenter;
             tm.alignment = TextAlignment.Center;
             tm.fontStyle = FontStyle.Bold;
-            tm.color = new Color(1f, 0.93f, 0.75f);
+            tm.color = new Color(1f, 0.86f, 0.5f);
             var mr = go.GetComponent<MeshRenderer>();
             mr.sharedMaterial = font.material;
             mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
@@ -278,8 +215,27 @@ namespace Shatranj.Visual
             v.Kills = info.Kills;
             if (info.Kills >= 3) v.SetHero(true);
             v.OnFootstep = OnFootstep;
+            AddContactShadow(v);
             views[info.Id] = v;
             return v;
+        }
+
+        static Material contactMat;
+
+        /// <summary>Мягкая контактная тень — фигура «стоит» на доске даже без теней от света.</summary>
+        static void AddContactShadow(PieceView v)
+        {
+            if (contactMat == null) contactMat = MaterialLib.Unlit(new Color(0.05f, 0.03f, 0.01f, 0.55f), TextureFactory.Glow());
+            var go = new GameObject("Contact");
+            go.transform.SetParent(v.transform, false);
+            go.transform.localPosition = new Vector3(0, 0.003f, 0);
+            float s = v.Type == PieceType.Knight || v.Type == PieceType.Bishop ? 1.0f : 0.9f;
+            go.transform.localScale = new Vector3(s, 1f, s);
+            go.AddComponent<MeshFilter>().sharedMesh = MeshBuilder.QuadXZ;
+            var r = go.AddComponent<MeshRenderer>();
+            r.sharedMaterial = contactMat;
+            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            r.receiveShadows = false;
         }
 
         public void SpawnAll(PieceTracker tracker)

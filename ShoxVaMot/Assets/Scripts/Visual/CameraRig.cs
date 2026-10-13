@@ -19,7 +19,7 @@ namespace Shatranj.Visual
         float shakeAmp, shakeTime, shakeDur;
         Vector3 center = new Vector3(0, -0.1f, 0);
 
-        public const float MinPitch = 28f, MaxPitch = 84f, DefaultPitch = 52f;
+        public const float MinPitch = 28f, MaxPitch = 84f, DefaultPitch = 46f;
 
         public static CameraRig Create()
         {
@@ -30,7 +30,7 @@ namespace Shatranj.Visual
             cam.nearClipPlane = 0.1f;
             cam.farClipPlane = 450f;
             cam.clearFlags = CameraClearFlags.SolidColor;
-            cam.backgroundColor = new Color(0.1f, 0.12f, 0.2f);
+            cam.backgroundColor = new Color(0.12f, 0.08f, 0.05f);
             cam.cullingMask = ~(1 << IconRenderer.Layer);
             cam.allowHDR = false;
             cam.allowMSAA = true;
@@ -64,7 +64,7 @@ namespace Shatranj.Visual
 
         public void Zoom(float factor)
         {
-            userZoomT = Mathf.Clamp(userZoomT * factor, 0.45f, 1.35f);
+            userZoomT = Mathf.Clamp(userZoomT * factor, 0.45f, 1.15f);
         }
 
         public void FocusOn(Vector3 p, float zoom)
@@ -97,6 +97,19 @@ namespace Shatranj.Visual
             return Mathf.Max(dW, dH);
         }
 
+        /// <summary>Камера не выходит за стены и не упирается в потолочные балки мехмонхоны.</summary>
+        static Vector3 KeepInsideRoom(Vector3 target, Vector3 pos)
+        {
+            Vector3 off = pos - target;
+            float k = 1f;
+            float lim = InteriorBuilder.Half - 1.8f;
+            float top = InteriorBuilder.CeilingY - 2.6f;
+            if (off.y > 0.01f && target.y + off.y > top) k = Mathf.Min(k, (top - target.y) / off.y);
+            if (Mathf.Abs(target.x + off.x) > lim) k = Mathf.Min(k, (lim - Mathf.Abs(target.x)) / Mathf.Abs(off.x));
+            if (Mathf.Abs(target.z + off.z) > lim) k = Mathf.Min(k, (lim - Mathf.Abs(target.z)) / Mathf.Abs(off.z));
+            return target + off * Mathf.Max(0.2f, k);
+        }
+
         void LateUpdate()
         {
             float dt = Time.unscaledDeltaTime;
@@ -120,6 +133,7 @@ namespace Shatranj.Visual
                 if (shakeTime <= 0f) shakeAmp = 0f;
             }
 
+            pos = KeepInsideRoom(target, pos);
             Quaternion look = Quaternion.LookRotation(target - pos, Vector3.up);
             // в портрете нижняя панель HUD выше верхней — приподнимаем доску в кадре
             if (Cam.aspect < 1f)

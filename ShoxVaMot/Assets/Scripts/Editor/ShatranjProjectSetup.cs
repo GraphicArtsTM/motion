@@ -15,7 +15,7 @@ namespace Shatranj.EditorTools
     ///  • сцена Assets/Scenes/Main.unity в Build Settings (игра строится кодом сама);
     ///  • параметры Android: портрет, IL2CPP, ARM64+ARMv7, minSdk 24, идентификатор пакета;
     ///  • шейдеры текста и спрайтов в Always Included, линейный туман не вырезается.
-    /// Меню: Shatranj → Setup Project / Build Android APK / Build Android App Bundle.
+    /// Меню: Shox va Mot → Setup Project / Build Android APK / Build Android App Bundle.
     /// </summary>
     [InitializeOnLoad]
     public static class ShatranjProjectSetup
@@ -23,7 +23,9 @@ namespace Shatranj.EditorTools
         public const string ScenePath = "Assets/Scenes/Main.unity";
         const string MaterialPath = "Assets/Resources/ShatranjStandard.mat";
         const string DoneKey = "Shatranj.SetupDone.v1";
-        const string MarkerPath = "ProjectSettings/ShatranjConfigured.txt";
+        const string MarkerPath = "ProjectSettings/ShoxVaMotConfigured.txt";
+        const string BumpPath = "Assets/Resources/ShatranjStandardBump.mat";
+        const string FlatNormalPath = "Assets/Resources/ShatranjFlatNormal.asset";
 
         static ShatranjProjectSetup()
         {
@@ -36,7 +38,7 @@ namespace Shatranj.EditorTools
             };
         }
 
-        [MenuItem("Shatranj/Setup Project", priority = 1)]
+        [MenuItem("Shox va Mot/Setup Project", priority = 1)]
         public static void SetupMenu() { Setup(true, true); }
 
         /// <summary>
@@ -51,20 +53,40 @@ namespace Shatranj.EditorTools
             {
                 ConfigurePlayer();
                 ConfigureGraphics();
-                File.WriteAllText(MarkerPath, "Shatranj: Samarqand — player settings applied. Delete this file to re-apply automatically.\n");
+                File.WriteAllText(MarkerPath, "Shox va Mot — player settings applied. Delete this file to re-apply automatically.\n");
             }
             AssetDatabase.SaveAssets();
-            if (verbose) Debug.Log("[Shatranj] Проект настроен. Откройте Assets/Scenes/Main.unity и нажмите Play.");
+            if (verbose) Debug.Log("[Shox va Mot] Проект настроен. Откройте Assets/Scenes/Main.unity и нажмите Play.");
         }
 
         static void EnsureMaterial()
         {
-            if (AssetDatabase.LoadAssetAtPath<Material>(MaterialPath) != null) return;
             Directory.CreateDirectory("Assets/Resources");
             var shader = Shader.Find("Standard");
             if (shader == null) return;
-            var m = new Material(shader) { name = "ShatranjStandard", enableInstancing = true };
-            AssetDatabase.CreateAsset(m, MaterialPath);
+            if (AssetDatabase.LoadAssetAtPath<Material>(MaterialPath) == null)
+            {
+                var m = new Material(shader) { name = "ShatranjStandard", enableInstancing = true };
+                AssetDatabase.CreateAsset(m, MaterialPath);
+            }
+            if (AssetDatabase.LoadAssetAtPath<Material>(BumpPath) == null)
+            {
+                // плоская карта нормалей: материал с _NORMALMAP попадёт в сборку вместе со своим вариантом шейдера
+                var flat = AssetDatabase.LoadAssetAtPath<Texture2D>(FlatNormalPath);
+                if (flat == null)
+                {
+                    flat = new Texture2D(4, 4, TextureFormat.RGBA32, false, true) { name = "ShatranjFlatNormal" };
+                    var px = new Color32[16];
+                    for (int i = 0; i < 16; i++) px[i] = new Color32(128, 128, 255, 255);
+                    flat.SetPixels32(px);
+                    flat.Apply();
+                    AssetDatabase.CreateAsset(flat, FlatNormalPath);
+                }
+                var b = new Material(shader) { name = "ShatranjStandardBump", enableInstancing = true };
+                b.SetTexture("_BumpMap", flat);
+                b.EnableKeyword("_NORMALMAP");
+                AssetDatabase.CreateAsset(b, BumpPath);
+            }
         }
 
         static void EnsureScene()
@@ -75,7 +97,7 @@ namespace Shatranj.EditorTools
                 var active = SceneManager.GetActiveScene();
                 bool replaceActive = string.IsNullOrEmpty(active.path) && !active.isDirty;
                 var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, replaceActive ? NewSceneMode.Single : NewSceneMode.Additive);
-                var marker = new GameObject("Shatranj (сцена строится кодом — GameRoot)");
+                var marker = new GameObject("Shox va Mot (сцена строится кодом — GameRoot)");
                 SceneManager.MoveGameObjectToScene(marker, scene);
                 EditorSceneManager.SaveScene(scene, ScenePath);
                 if (!replaceActive) EditorSceneManager.CloseScene(scene, true);
@@ -98,10 +120,10 @@ namespace Shatranj.EditorTools
         static void ConfigurePlayer()
         {
             PlayerSettings.companyName = "Shatranj Studio";
-            PlayerSettings.productName = "Shatranj: Samarqand";
+            PlayerSettings.productName = "Shox va Mot";
             if (string.IsNullOrEmpty(PlayerSettings.bundleVersion) || PlayerSettings.bundleVersion == "0.1" || PlayerSettings.bundleVersion == "1.0")
                 PlayerSettings.bundleVersion = "1.0.0";
-            PlayerSettings.SetApplicationIdentifier(BuildTargetGroup.Android, "uz.shatranj.samarqand");
+            PlayerSettings.SetApplicationIdentifier(BuildTargetGroup.Android, "uz.shoxvamot.game");
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
             PlayerSettings.allowedAutorotateToPortrait = true;
             PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
@@ -151,13 +173,13 @@ namespace Shatranj.EditorTools
 
         // ------------------------------------------------------------------ Сборка
 
-        [MenuItem("Shatranj/Build Android APK", priority = 20)]
+        [MenuItem("Shox va Mot/Build Android APK", priority = 20)]
         public static void BuildApk() { Build(false); }
 
-        [MenuItem("Shatranj/Build Android App Bundle (Google Play)", priority = 21)]
+        [MenuItem("Shox va Mot/Build Android App Bundle (Google Play)", priority = 21)]
         public static void BuildAab() { Build(true); }
 
-        [MenuItem("Shatranj/Open Main Scene", priority = 40)]
+        [MenuItem("Shox va Mot/Open Main Scene", priority = 40)]
         public static void OpenScene()
         {
             if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) EditorSceneManager.OpenScene(ScenePath);
@@ -173,17 +195,17 @@ namespace Shatranj.EditorTools
             var options = new BuildPlayerOptions
             {
                 scenes = new[] { ScenePath },
-                locationPathName = "Builds/Android/Shatranj" + (aab ? ".aab" : ".apk"),
+                locationPathName = "Builds/Android/ShoxVaMot" + (aab ? ".aab" : ".apk"),
                 target = BuildTarget.Android,
                 options = BuildOptions.None
             };
             var report = BuildPipeline.BuildPlayer(options);
             if (report.summary.result == BuildResult.Succeeded)
             {
-                Debug.Log("[Shatranj] Сборка готова: " + options.locationPathName + " (" + (report.summary.totalSize / (1024 * 1024)) + " МБ)");
+                Debug.Log("[Shox va Mot] Сборка готова: " + options.locationPathName + " (" + (report.summary.totalSize / (1024 * 1024)) + " МБ)");
                 EditorUtility.RevealInFinder(options.locationPathName);
             }
-            else Debug.LogError("[Shatranj] Сборка не удалась: " + report.summary.result);
+            else Debug.LogError("[Shox va Mot] Сборка не удалась: " + report.summary.result);
         }
 
         /// <summary>Командная строка: Unity -batchmode -quit -projectPath . -executeMethod Shatranj.EditorTools.ShatranjProjectSetup.CIBuildApk</summary>
@@ -196,7 +218,7 @@ namespace Shatranj.EditorTools
         public int callbackOrder { get { return 0; } }
         public void OnPreprocessBuild(BuildReport report)
         {
-            if (AssetDatabase.LoadAssetAtPath<Material>("Assets/Resources/ShatranjStandard.mat") == null)
+            if (AssetDatabase.LoadAssetAtPath<Material>("Assets/Resources/ShatranjStandardBump.mat") == null)
                 ShatranjProjectSetup.Setup(false);
         }
     }
