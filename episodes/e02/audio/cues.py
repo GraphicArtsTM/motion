@@ -159,24 +159,80 @@ add('fx', metal_groan(.8, 120), 111.6, .1)
 chord('F', 118.3, 2.4, 'strings', .05, oct=0)                      # «Не давай ему»
 add('fx', thud(.6), 128.35, .45)                                   # толчок — Тимур не сдвинулся
 add('fx', riser(1.1, 300, 6000), 129.3, .3)
-# слоу-мо: удар в шкафчик, нырок, толчок ладонью, полёт в стену
+# ---- драка: шесть приёмов (время — как F в shots.js) ----
+def crowd_vowel(len_, f0=170, formant=420, seed=0, rise=.25, fall=.6, slide=0.0):
+    """толпа тянет гласную («у-у-у», «о-о-о»): дюжина голосов с вибрато, пропущенных через форманту"""
+    g = np.random.default_rng(seed); n = int(len_ * SR); t = tt(n); out = np.zeros(n)
+    for v in range(12):
+        f = f0 * g.uniform(.75, 1.6) * (1 + slide * t / len_)
+        ph = 2 * np.pi * np.cumsum(f * (1 + .012 * np.sin(2 * np.pi * g.uniform(4.5, 6.5) * t + g.random() * 6))) / SR
+        out += sum(np.sin(k * ph) / k for k in range(1, 9)) * g.uniform(.5, 1)
+    out = fft_filter(out, lo=formant * .55, hi=formant * 1.8) + fft_filter(g.standard_normal(n), lo=600, hi=3000) * .08
+    env = np.minimum(1, t / rise) * np.clip((len_ - t) / fall, 0, 1)
+    return out * env / 6
+
+
+def crowd_gasp(seed=0, n_voices=10):
+    """общий вздох «ах!»: короткие вдохи разных людей вразнобой"""
+    g = np.random.default_rng(seed); L = int(.9 * SR); out = np.zeros(L)
+    for v in range(n_voices):
+        d = int(g.uniform(0, .12) * SR); m = int(g.uniform(.22, .4) * SR); tm = tt(m)
+        x = fft_filter(g.standard_normal(m), lo=g.uniform(700, 1100), hi=g.uniform(2500, 4200)) * (tm / tm[-1]) ** 1.5 * np.exp(-np.maximum(0, tm - tm[-1] * .8) * 30)
+        out[d:d + m] += x[:L - d] * g.uniform(.6, 1)
+    return out / 3
+
+
+def crowd_laugh(len_=1.6, seed=0):
+    """смешки в толпе: гул, прерывистый «ха-ха»"""
+    t = tt(int(len_ * SR)); w = walla(len_, 1.4, seed)
+    return w * (.45 + .55 * (np.sin(2 * np.pi * 5.3 * t) > -.2)) * np.exp(-t * .6)
+
+
 add('music', tape_stop(.4), 130.25, .25)
-add('fx', heartbeat(1.0), 130.4, .45)
-add('fx', whoosh(.9, True, 200), 130.6, .55, rev=.4)
-add('fx', impact(1.3, 1.0), 131.05, .9, rev=.3)                    # БДЫНЬ!
-add('fx', metal_groan(1.5, 90), 131.1, .25)
-add('fx', crash(1.6), 131.05, .2)
-add('fx', whoosh(.6, True, 250), 131.95, .45)
-add('fx', impact(1.4), 132.45, .85)                                # ладонь в грудь
-add('fx', boom(1.2, 1.0), 132.45, .5)
-add('fx', whoosh(.5, False, 500), 132.5, .4, pan=.4)
-add('fx', thud(1.4), 132.92, .9, pan=.5, rev=.3)                   # ТЫДЫЩ!
-add('fx', impact(.9, .8), 132.95, .5, pan=.5)
-add('fx', scrape(.8), 133.0, .25, pan=.5)                          # сползает по батарее
-add('fx', impact(.3, .6), 133.15, .25, pan=.6)                     # табличка падает
-add('fx', impact(.2, .6), 133.4, .12, pan=.6)
-for k in range(6):                                                 # «звёздочки» в голове
-    add('fx', bell(mtof(91 + (k % 3) * 4), .6), 134.0 + k * .9, .025, pan=.5, rev=.6)
+add('fx', heartbeat(1.0), 130.35, .45)
+add('fx', whoosh(.7, True, 200), 130.5, .55, rev=.4)
+add('fx', impact(1.3, 1.0), 130.85, .9, rev=.3)                    # 1) кулак в шкафчик — БДЫНЬ
+add('fx', metal_groan(1.4, 90), 130.9, .25)
+add('fx', crash(1.4), 130.85, .2)
+add('amb', crowd_vowel(1.0, 200, 520, 41, .1, .5), 130.95, .12, rev=.3)   # «о!»
+# боевой бит: тайко, малый, тема героя на меди
+groove(131.15, 134.95, prog=['Dm', 'Bb', 'C', 'Dm'], intensity=.8, toms=True, arp=False)
+melody([62, 65, 69, 67, 65, 69, 74, None], 131.2, BEAT / 2, 'brass', .1)
+for j in (131.25, 131.5, 131.75):                                   # 2) три джеба — свист мимо уха
+    add('fx', whoosh(.25, True, 700), j, .4, pan=(.3 if j == 131.5 else -.3))
+add('fx', whoosh(.5, True, 250), 131.95, .45)                       # 3) бросок
+add('fx', whoosh(.35, False, 500), 132.1, .3, pan=.4)               #    Тимур выкручивается
+add('fx', impact(1.1, 1.0), 132.3, .8)                              #    БАМ лицом в шкафчик
+add('fx', metal_groan(1.0, 110), 132.32, .2)
+add('amb', crowd_laugh(1.8, 43), 132.4, .2, rev=.2)                 #    смех в коридоре
+for k in range(5):                                                  # 4) разгон: топот
+    add('fx', stomp(.8), 132.85 + k * .07, .3)
+add('fx', whoosh(.4, True, 400), 133.13, .4)                        #    подножка
+add('fx', thud(1.0), 133.4, .7, pan=.5)                             #    БУХ — в дружка
+add('fx', thud(.6), 133.6, .4, pan=.6)
+add('amb', crowd_laugh(2.0, 47), 133.45, .26, rev=.2)
+add('fx', fft_filter(noise(int(.6 * SR)) * np.exp(-tt(int(.6 * SR)) * 4), lo=90, hi=500), 133.75, .5)   # 5) рык
+add('fx', whoosh(.5, True, 200), 134.2, .5)                         #    размах
+add('fx', splat(), 134.45, .55); add('fx', impact(.9), 134.45, .6)  #    ХВАТЬ — кулак в ладони
+add('amb', crowd_vowel(1.5, 160, 380, 53, .15, .7, -.15), 134.5, .2, rev=.3)   # «у-у-у!»
+add('bass', tape_stop(.35), 134.95, .3); add('music', tape_stop(.35), 134.95, .2)
+add('fx', impact(1.5), 135.0, .9); add('fx', boom(1.4, 1.0), 135.0, .55)       # 6) толчок ладонью
+add('fx', whoosh(.5, False, 500), 135.05, .45, pan=.4)
+add('fx', impact(.35, .6), 135.22, .3, pan=.5)                       #    табличка
+add('fx', thud(1.5), 135.42, .95, pan=.5, rev=.3)                    #    ТЫДЫЩ в шкафчики
+add('fx', impact(1.2, 1.0), 135.43, .7, pan=.5)
+add('fx', crash(1.2), 135.43, .25, pan=.5)
+add('fx', metal_groan(1.2, 80), 135.45, .25, pan=.5)
+add('fx', impact(.4, .9), 135.5, .3, pan=.6)                         #    распахнулась дверца
+for k in range(3):                                                   #    учебники
+    add('fx', thud(.35), 135.75 + k * .09, .25, pan=.6)
+add('fx', scrape(.6), 135.5, .2, pan=.5)                             #    сползает вниз
+add('amb', crowd_gasp(59, 12), 135.55, .55, rev=.3)                  # общий вздох «ах!»
+add('amb', crowd_vowel(1.2, 190, 600, 61, .05, .5, .1), 135.62, .14, rev=.3)
+add('amb', walla(1.4, .3, 63) * np.linspace(0, 1, int(1.4 * SR)), 135.95, .12)   # шёпот нарастает
+for k in range(6):                                                   # «звёздочки» в голове
+    add('fx', bell(mtof(91 + (k % 3) * 4), .6), 136.0 + k * .9, .025, pan=.5, rev=.6)
+add('amb', crowd_vowel(2.2, 175, 450, 67, .2, 1.2), 136.3, .2, rev=.3)   # «о-о-о!» вместе с репликой
 add('amb', walla(15, 1.0, 11), 136.4, .22, rev=.2)                 # «Ого-о-о!», телефоны
 add('fx', bell(mtof(100), .1), 137.0, .03); add('fx', bell(mtof(100), .1), 137.4, .03)
 melody([65, None, 64, None, 62], 140.0, BEAT / 2, 'pluck', .07, oct=12)   # «пол мокрый»
@@ -202,14 +258,19 @@ for row in EMJ * 2:
                 add('music', pluck(mtof(CH[c][idx] + 24), 1.2, .4, .997), t0 + s * BEAT, .045, pan=.3 * (-1) ** s, rev=.45)
         b += 1
 melody([72, 74, 76, None, 77, 76, 74, 72], 156.0, BEAT, 'pluck', .07, oct=12)
-# апельсины: пакет рвётся, слоу-мо, ловля
-add('fx', fft_filter(noise(int(.25 * SR)) * np.exp(-tt(int(.25 * SR)) * 12), lo=800, hi=6000), 160.45, .35)   # треск пакета
-add('fx', whoosh(.7, False, 300), 160.5, .4, rev=.4)
-add('fx', heartbeat(1.0), 160.6, .35)
-for i in range(7):
-    add('fx', thud(.3), 160.95 + i * .1 + .4, .2, pan=.2 * np.sin(i))
-add('fx', splat(), 161.75, .2)
-add('music', pluck(mtof(84), .6, .6, .995), 161.8, .08)
+# апельсины: дно пакета рвётся (159.8), чутьё — замедление, рывок, ловля «корзиной», два — на лету
+add('fx', fft_filter(noise(int(.3 * SR)) * np.exp(-tt(int(.3 * SR)) * 10), lo=800, hi=6000), 159.8, .4)   # треск бумаги
+add('fx', whoosh(.8, False, 260), 159.85, .4, rev=.5)                # мир замедляется
+add('fx', heartbeat(1.0), 159.95, .4); add('fx', heartbeat(1.0), 160.75, .35)
+add('fx', tinnitus(1.6), 159.9, .04)
+add('fx', whoosh(.35, True, 500), 159.95, .5, pan=.4)               # рывок
+for k, tk in enumerate((160.62, 160.67, 160.72, 160.77, 160.82)):    # мягкие шлепки в ладони
+    add('fx', thud(.3), tk, .22, pan=.1 * (k - 2))
+add('fx', whoosh(.25, True, 800), 161.1, .3, pan=-.4); add('fx', splat(), 161.3, .2, pan=-.4)   # выхватил левой
+add('fx', whoosh(.25, True, 800), 161.15, .3, pan=.4); add('fx', splat(), 161.35, .2, pan=.4)    # и правой
+add('fx', whoosh(.6, True, 300), 161.8, .3)                         # мир снова в обычном темпе
+add('fx', splat(), 161.85, .2)
+add('music', pluck(mtof(84), .6, .6, .995), 161.9, .08)
 # «Эм-Джей» — мотив на колокольчиках
 melody([81, 77, None, 81, 84], 182.4, BEAT, 'pluck', .08, oct=0)
 for k, m in enumerate([84, 88]):

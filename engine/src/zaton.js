@@ -316,6 +316,9 @@ export function makeZaton() {
   for (let i = 0; i < 3; i++) mesh(new THREE.SphereGeometry(.05, 10, 8), toon(0xf08a1a), { pos: [-.07 + i * .07, -.04, (i % 2) * .03 - .015], outline: .003, parent: bag });   // апельсины сверху
   mesh(new THREE.ConeGeometry(.03, .14, 6), toon(0x6aa83a), { pos: [.08, .0, .03], rot: [0, 0, -.3], outline: .003, parent: bag });                                      // лук-перо
   for (const sx of [-1, 1]) mesh(new THREE.TorusGeometry(.045, .008, 4, 10, Math.PI), toon(0xb8986a), { pos: [sx * .05, -.06, 0], outline: false, parent: bag });
+  // дно пакета: откидывается, когда пакет рвётся (Z.bagFlap.rotation.x)
+  const flapPivot = new THREE.Group(); flapPivot.position.set(0, -.36, -.075); bag.add(flapPivot); Z.bagFlap = flapPivot;
+  mesh(new THREE.BoxGeometry(.26, .012, .15), toon(0xc9a874), { pos: [0, 0, .075], outline: .003, parent: flapPivot });
 
   /* ---------- лицей «Новоград» (группа в 600, 0, 0) ---------- */
   const S = new THREE.Group(); S.position.set(600, 0, 0); scene.add(S); Z.school = S;

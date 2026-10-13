@@ -318,7 +318,11 @@ function makeCanteen() {
     mesh(new THREE.SphereGeometry(.4, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), toon([0xf0c060, 0xd99a50, 0x8ac060, 0xf0c060, 0xe0704a, 0xf6e6c0][i]), { pos: [-3.6 + i * 1.45, 1.13, -5.45], scale: [1.2, .25, .6], outline: .004, parent: scene });
   }
   const menuT = tex(512, 256, (g, w, h) => { g.fillStyle = '#1c2a22'; g.fillRect(0, 0, w, h); g.fillStyle = '#f2f0e0'; g.font = '800 40px Rubik'; g.fillText('МЕНЮ', 30, 52);
-    g.font = '500 30px Rubik'; ['Плов ........ 25', 'Самса ....... 12', 'Лагман ...... 22', 'Чай ........... 5', 'Компот ....... 6'].forEach((l, i) => g.fillText(l, 30, 100 + i * 34)); });
+    g.font = '600 22px Rubik'; g.fillStyle = '#ffd23d'; g.fillText('цены в сумах', 340, 50);
+    g.font = '500 30px Rubik'; g.fillStyle = '#f2f0e0';
+    [['Самса гуштли', '13 000'], ['Плов', '30 000'], ['Чай', '2 000'], ['Компот', '6 000']].forEach(([n, p], i) => {
+      const y = 104 + i * 38; g.textAlign = 'left'; g.fillText(n, 30, y); g.textAlign = 'right'; g.fillText(p, 482, y);
+      g.fillStyle = 'rgba(242,240,224,.45)'; const x0 = 30 + g.measureText(n).width + 10, x1 = 482 - g.measureText(p).width - 10; for (let x = x0; x < x1; x += 10) g.fillRect(x, y - 6, 3, 3); g.fillStyle = '#f2f0e0'; }); });
   const menu = plane(2.4, 1.2, menuT); menu.position.set(0, 2.6, -6.09); scene.add(menu);
   // столы и стулья: 2 колонки × 3 ряда (длинные столы вдоль x)
   const tabM = toon(0xcfd8d0), legM = toon(0x6a707a), stoolM = toon(0xe0874a);

@@ -176,6 +176,7 @@ export function makeCharacter(kind, opt = {}) {
     : SV ? (SV.girl ? .95 : 1.0) + ((opt.variant ?? 0) % 3 - 1) * .025 : 1.0;
   const d = DIM(k);
   if (kind === 'azim' || kind === 'odilman') d.shX = .235 * k;            // широкие плечи
+  if (kind === 'azim') { d.shX = .262 * k; d.hipX = .12 * k; }          // Азим — толстый: широко поставленные руки и ноги
   const { root, J } = skeleton(d);
   const ch = { kind, root, J, d, parts: {}, suit: false, faceRig: null, extras: {} };
   const OL = .012 * k;
@@ -207,11 +208,18 @@ export function makeCharacter(kind, opt = {}) {
   const reg = (role, msh) => { (ch.parts[role] = ch.parts[role] || []).push(msh); msh.userData.role = role; msh.userData.base = msh.material; return msh; };
 
   // таз и торс
-  reg('pants', mesh(rbox(.3 * k, .17 * k, .19 * k, .07 * k), m.pants, { pos: [0, .01 * k, 0], outline: OL, parent: J.hips }));
+  const fat = kind === 'azim';
+  reg('pants', mesh(rbox((fat ? .42 : .3) * k, (fat ? .2 : .17) * k, (fat ? .29 : .19) * k, (fat ? .09 : .07) * k), m.pants, { pos: [0, .01 * k, 0], outline: OL, parent: J.hips }));
   const belly = kind === 'ded' ? 1.18 : 1;
-  const wide = kind === 'azim' ? 1.42 : kind === 'odilman' ? 1.38 : kind === 'granny' ? 1.25 : kind === 'marjon' || SV?.girl || kind === 'teacher' ? 1.1 : kind === 'diyor' ? 1.16 : 1.22;
-  const torso = reg('top', mesh(cap(.155 * k, .46 * k), m.top, { pos: [0, .2 * k, .0], scale: [wide, 1, .82 * belly * (kind === 'azim' ? 1.12 : 1)], outline: OL, parent: J.spine }));
+  const wide = kind === 'azim' ? 1.62 : kind === 'odilman' ? 1.38 : kind === 'granny' ? 1.25 : kind === 'marjon' || SV?.girl || kind === 'teacher' ? 1.1 : kind === 'diyor' ? 1.16 : 1.22;
+  const torso = reg('top', mesh(cap(.155 * k, .46 * k), m.top, { pos: [0, .2 * k, .0], scale: [wide, 1, .82 * belly * (kind === 'azim' ? 1.4 : 1)], outline: OL, parent: J.spine }));
   ch.torso = torso;
+  if (fat) {   // живот: выпирает вперёд и чуть свисает над ремнём
+    ch.belly = reg('top', mesh(sph(.19 * k, 22, 16), m.top, { pos: [0, .1 * k, .075 * k], scale: [1.32, 1.0, 1.0], outline: OL, parent: J.spine }));
+    reg('acc', mesh(sph(.13 * k, 16, 12), toon(0xf2f2ee), { pos: [0, .05 * k, .14 * k], scale: [1.25, .75, .7], outline: false, parent: J.spine }));   // футболка из-под куртки
+  }
+  // плечевой пояс («трапеция»): связывает шею, плечи и торс — без него сзади видно, как шея висит в воздухе
+  reg('top', mesh(sph(.135 * k, 20, 12), m.top, { pos: [0, .135 * k, -.012 * k], scale: [wide * (fat ? 1.08 : 1.12), .5, .82 * belly * (fat ? 1.3 : 1)], outline: OL, parent: J.chest }));
   if (kind === 'teacher' || kind === 'granny' || (SV?.girl && SV.style === 2)) {   // юбка до колен
     reg('pants', mesh(new THREE.CylinderGeometry(.17 * k, .25 * k, (kind === 'granny' ? .55 : .42) * k, 20, 1, true), toon(kind === 'teacher' ? 0x4a4550 : kind === 'granny' ? C.pants : 0x2a2f3a, { side: THREE.DoubleSide }), { pos: [0, -.2 * k, 0], scale: [1, 1, .82], outline: OL, parent: J.hips }));
   }
@@ -219,7 +227,8 @@ export function makeCharacter(kind, opt = {}) {
     const coat = reg('top', mesh(new THREE.CylinderGeometry(.19 * k, .27 * k, .55 * k, 20, 1, true), toon(C.top, { side: THREE.DoubleSide }), { pos: [0, -.27 * k, 0], scale: [1, 1, .8], outline: OL, parent: J.hips }));
     coat.userData.coat = true;
   }
-  reg('skin', mesh(new THREE.CylinderGeometry(.05 * k, .055 * k, .12 * k, 12), m.skin, { pos: [0, .03 * k, 0], outline: OL * .7, parent: J.neck }));
+  // шея уходит глубоко в плечи: при любом наклоне головы между головой и телом нет зазора
+  reg('skin', mesh(new THREE.CylinderGeometry(.05 * k, (fat ? .085 : .058) * k, .26 * k, 14), m.skin, { pos: [0, -.04 * k, 0], outline: OL * .7, parent: J.neck }));
 
   // голова
   const R = .165 * k;
@@ -235,21 +244,21 @@ export function makeCharacter(kind, opt = {}) {
 
   // руки
   for (const s of ['L', 'R']) {
-    reg('top', mesh(cap((kind === 'azim' || kind === 'odilman' ? .068 : .058) * k, d.upper + .03 * k), kind === 'azim' ? m.topDark : m.top, { pos: [0, -d.upper / 2 + .01 * k, 0], outline: OL, parent: J['arm' + s] }));
-    reg('top', mesh(cap(.05 * k, d.lower + .02 * k), kind === 'vera' ? m.top : m.topDark, { pos: [0, -d.lower / 2, 0], outline: OL, parent: J['fore' + s] }));
+    reg('top', mesh(cap((kind === 'azim' ? .082 : kind === 'odilman' ? .068 : .058) * k, d.upper + .03 * k), kind === 'azim' ? m.topDark : m.top, { pos: [0, -d.upper / 2 + .01 * k, 0], outline: OL, parent: J['arm' + s] }));
+    reg('top', mesh(cap((fat ? .064 : .05) * k, d.lower + .02 * k), kind === 'vera' ? m.top : m.topDark, { pos: [0, -d.lower / 2, 0], outline: OL, parent: J['fore' + s] }));
     const hd = makeHand(m.hand, k, OL, s === 'L' ? 1 : -1); J['hand' + s].add(hd.g); ch['hand' + s] = hd;
     hd.g.traverse(o => { if (o.isMesh && o.material === m.hand) reg('hand', o); });
     setGrip(hd, .35);
     // ноги
-    reg('pants', mesh(cap(.078 * k, d.thigh + .04 * k), m.pants, { pos: [0, -d.thigh / 2, 0], outline: OL, parent: J['leg' + s] }));
-    reg('pants', mesh(cap(.064 * k, d.shin + .03 * k), kind === 'odilman' ? m.topDark : m.pants, { pos: [0, -d.shin / 2, 0], outline: OL, parent: J['shin' + s] }));
+    reg('pants', mesh(cap((fat ? .108 : .078) * k, d.thigh + .04 * k), m.pants, { pos: [0, -d.thigh / 2, 0], outline: OL, parent: J['leg' + s] }));
+    reg('pants', mesh(cap((fat ? .08 : .064) * k, d.shin + .03 * k), kind === 'odilman' ? m.topDark : m.pants, { pos: [0, -d.shin / 2, 0], outline: OL, parent: J['shin' + s] }));
     reg('shoes', mesh(rbox(.11 * k, .08 * k, .25 * k, .035 * k), m.shoes, { pos: [0, -.02 * k, .055 * k], outline: OL, parent: J['foot' + s] }));
   }
 
   // детали одежды
   for (const s of ['L', 'R']) {
     reg(kind === 'vera' ? 'top' : 'acc', mesh(new THREE.TorusGeometry(.05 * k, .016 * k, 6, 16), kind === 'timur' ? m.topDark : m.top, { pos: [0, -d.lower + .03 * k, 0], rot: [Math.PI / 2, 0, 0], outline: OL * .5, parent: J['fore' + s] }));
-    reg('pants', mesh(new THREE.TorusGeometry(.064 * k, .018 * k, 6, 16), m.pants, { pos: [0, -d.shin + .05 * k, 0], rot: [Math.PI / 2, 0, 0], outline: OL * .5, parent: J['shin' + s] }));
+    reg('pants', mesh(new THREE.TorusGeometry((fat ? .08 : .064) * k, .018 * k, 6, 16), m.pants, { pos: [0, -d.shin + .05 * k, 0], rot: [Math.PI / 2, 0, 0], outline: OL * .5, parent: J['shin' + s] }));
     // подошва и шнуровка кроссовок/ботинок
     reg('acc', mesh(rbox(.118 * k, .03 * k, .262 * k, .012 * k), toon(kind === 'timur' ? 0xf7f7f2 : 0x2a2420), { pos: [0, -.058 * k, .058 * k], outline: OL * .6, parent: J['foot' + s] }));
     if (kind === 'timur') {
@@ -257,7 +266,7 @@ export function makeCharacter(kind, opt = {}) {
       reg('acc', mesh(rbox(.115 * k, .045 * k, .06 * k, .015 * k), toon(0xe8343c), { pos: [0, -.03 * k, -.04 * k], outline: false, parent: J['foot' + s] }));
     }
   }
-  reg('acc', mesh(rbox(.31 * k, .035 * k, .2 * k, .012), toon(kind === 'vera' ? 0x2a2a2a : 0x1a1410), { pos: [0, .07 * k, 0], outline: OL * .5, parent: J.hips }));   // ремень
+  reg('acc', mesh(rbox((fat ? .43 : .31) * k, .035 * k, (fat ? .3 : .2) * k, .012), toon(kind === 'vera' ? 0x2a2a2a : 0x1a1410), { pos: [0, .07 * k, 0], outline: OL * .5, parent: J.hips }));   // ремень
   if (kind === 'timur') {
     reg('acc', mesh(rbox(.2 * k, .085 * k, .03 * k, .02 * k), m.topDark, { pos: [0, .08 * k, .118 * k], outline: OL * .5, parent: J.spine }));    // карман-кенгуру
     for (const sx of [1, -1]) reg('acc', mesh(cap(.007 * k, .13 * k), toon(0xf4f1ea), { pos: [sx * .035 * k, .33 * k, .128 * k], rot: [-.1, 0, 0], outline: false, parent: J.spine }));
@@ -362,18 +371,33 @@ export function makeCharacter(kind, opt = {}) {
 let ODIL_MAT;
 function odilSuit() {
   if (ODIL_MAT) return ODIL_MAT;
+  // ровная паутина: 12 «меридианов» по окружности детали и провисающие дуги между ними (как у костюма паука)
   const c = document.createElement('canvas'); c.width = c.height = 512; const g = c.getContext('2d');
-  const gr = g.createLinearGradient(0, 0, 512, 512); gr.addColorStop(0, '#d42430'); gr.addColorStop(1, '#a8141e');
+  const gr = g.createLinearGradient(0, 0, 0, 512); gr.addColorStop(0, '#d8222e'); gr.addColorStop(1, '#b0161f');
   g.fillStyle = gr; g.fillRect(0, 0, 512, 512);
-  for (let i = 0; i < 3000; i++) { g.fillStyle = `rgba(0,0,0,${Math.random() * .05})`; g.fillRect(Math.random() * 512, Math.random() * 512, 2, 2); }
-  g.strokeStyle = '#0d0a10'; g.lineWidth = 10; g.lineCap = 'round';
-  for (let i = 0; i <= 4; i++) { g.beginPath(); g.moveTo(i * 128 + 20, 0); g.bezierCurveTo(i * 128 - 10, 170, i * 128 + 50, 340, i * 128 + 20, 512); g.stroke(); }
-  g.lineWidth = 7;
-  for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) { g.beginPath(); g.moveTo(i * 128 + 20, j * 128 + 40); g.quadraticCurveTo(i * 128 + 84, j * 128 + 82, i * 128 + 148, j * 128 + 40); g.stroke(); }
-  const tx = new THREE.CanvasTexture(c); tx.wrapS = tx.wrapT = THREE.RepeatWrapping; tx.colorSpace = THREE.SRGBColorSpace; tx.repeat.set(1.3, 1.3);
+  g.strokeStyle = '#120a0e'; g.lineCap = 'round';
+  const N = 12, step = 512 / N;
+  g.lineWidth = 3.5; for (let i = 0; i <= N; i++) { g.beginPath(); g.moveTo(i * step, 0); g.lineTo(i * step, 512); g.stroke(); }
+  g.lineWidth = 4; for (let r = 0; r < 7; r++) for (let i = 0; i < N; i++) { const y = r * 512 / 7 + 18; g.beginPath(); g.moveTo(i * step, y); g.quadraticCurveTo(i * step + step / 2, y + 30, (i + 1) * step, y); g.stroke(); }
+  const tx = new THREE.CanvasTexture(c); tx.wrapS = tx.wrapT = THREE.RepeatWrapping; tx.colorSpace = THREE.SRGBColorSpace; tx.anisotropy = 8;
   ODIL_MAT = toon(0xffffff, { map: tx });
   rimify(ODIL_MAT, 0xff8a7a, .4, 2.2); ODIL_MAT.userData.rim = true;
   return ODIL_MAT;
+}
+/** наклейка паука: чёрный паук на прозрачном фоне (для груди и спины ODILMAN) */
+let ODIL_SPIDER = null;
+function odilSpiderTex() {
+  if (ODIL_SPIDER) return ODIL_SPIDER;
+  const c = document.createElement('canvas'); c.width = 256; c.height = 256; const g = c.getContext('2d');
+  g.fillStyle = '#0d0a10'; g.strokeStyle = '#0d0a10'; g.lineCap = 'round'; g.lineJoin = 'round';
+  g.beginPath(); g.ellipse(128, 100, 16, 22, 0, 0, 7); g.fill();               // голова-грудь
+  g.beginPath(); g.ellipse(128, 150, 22, 36, 0, 0, 7); g.fill();               // брюшко
+  for (const sx of [1, -1]) for (let i = 0; i < 4; i++) {                       // 8 лап: колено вверх, кончик — к краю
+    const y0 = 92 + i * 12, kx = 128 + sx * (52 + i * 6), ky = y0 - 40 + i * 26, ex = 128 + sx * (100 - i * 4), ey = y0 + 10 + i * 34;
+    g.lineWidth = 9 - i; g.beginPath(); g.moveTo(128 + sx * 10, y0); g.lineTo(kx, ky); g.lineTo(ex, ey); g.stroke();
+  }
+  ODIL_SPIDER = new THREE.CanvasTexture(c); ODIL_SPIDER.colorSpace = THREE.SRGBColorSpace;
+  return ODIL_SPIDER;
 }
 
 /* ---------- школьный состав серии 2: Маржон, Диёр, Азим, учительница, школьники, ODILMAN ---------- */
@@ -455,19 +479,22 @@ function buildCast(ch, kind, d, m, fr, reg, R, OL, SV, opt) {
   if (kind === 'azim') {
     capHair(toon(0x2a2018), .47, .14, [1.03, .96, 1.05], 1.07);                                 // ёжик
     reg('skin', mesh(rbox(.2 * k, .085 * k, .14 * k, .04 * k), m.skin, { pos: [0, .045 * k, .04 * k], outline: OL * .7, parent: J.head }));   // тяжёлая челюсть
-    reg('skin', mesh(new THREE.CylinderGeometry(.075 * k, .08 * k, .12 * k, 12), m.skin, { pos: [0, .03 * k, 0], outline: OL * .7, parent: J.neck }));
+    reg('skin', mesh(new THREE.CylinderGeometry(.088 * k, .1 * k, .24 * k, 14), m.skin, { pos: [0, -.03 * k, 0], outline: OL * .7, parent: J.neck }));
+    reg('skin', mesh(sph(.085 * k, 14, 10), m.skin, { pos: [0, -.03 * k, .05 * k], scale: [1.3, .5, .85], outline: OL * .6, parent: J.head }));      // второй подбородок
+    for (const sx of [1, -1]) reg('skin', mesh(sph(.05 * k, 12, 10), m.skin, { pos: [sx * .112 * k, .08 * k, .07 * k], scale: [.9, .85, .7], outline: OL * .4, parent: J.head }));   // пухлые щёки
+    ch.head.scale.set(1.08, 1.0, 1.04);
     fr.brows.forEach(b => b.scale.set(1.12, 1.35, 1.1));
     const blue = toon(0x1d4fa0), white = toon(0xf2f2ee);
     const stripe = (y, r, sx = 1, parent = J.spine) => { mesh(new THREE.TorusGeometry(r * k, .022 * k, 6, 24), blue, { pos: [0, y * k, 0], rot: [Math.PI / 2, 0, 0], scale: [sx, .9, 1], outline: OL * .4, parent }); mesh(new THREE.TorusGeometry(r * k, .008 * k, 6, 24), white, { pos: [0, (y + .02) * k, 0], rot: [Math.PI / 2, 0, 0], scale: [sx * 1.02, .92, 1], outline: false, parent }); };
-    stripe(.46, .12, 1.15); stripe(.02, .16, 1.42);
+    stripe(.46, .12, 1.25); stripe(.0, .2, 1.32);
     for (const s of ['L', 'R']) { mesh(new THREE.TorusGeometry(.05 * k, .02 * k, 6, 16), blue, { pos: [0, -d.lower + .035 * k, 0], rot: [Math.PI / 2, 0, 0], outline: OL * .4, parent: J['fore' + s] }); }
-    for (let i = 0; i < 4; i++) reg('acc', mesh(sph(.012 * k, 8, 6), white, { pos: [0, (.08 + i * .09) * k, front(.2, 1.12) + .006 * k], outline: false, parent: J.spine }));
+    for (let i = 0; i < 4; i++) reg('acc', mesh(sph(.012 * k, 8, 6), white, { pos: [0, (.12 + i * .08) * k, front(.2, 1.4) + .045 * k - i * .012 * k], outline: false, parent: J.spine }));
     // нашивка «7» на груди
     const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
     g.fillStyle = '#f2f2ee'; g.beginPath(); g.arc(64, 64, 60, 0, 7); g.fill(); g.fillStyle = '#c8202c'; g.font = '900 96px Unbounded'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('7', 66, 70);
     const tx = new THREE.CanvasTexture(c); tx.colorSpace = THREE.SRGBColorSpace;
-    reg('acc', mesh(new THREE.CircleGeometry(.055 * k, 20), new THREE.MeshBasicMaterial({ map: tx, color: new THREE.Color(.9, .9, .9) }), { pos: [.075 * k, .31 * k, front(.31, 1.12) + .008 * k], rot: [0, .25, 0], outline: false, parent: J.spine }));
-    ch.gum = mesh(sph(.03 * k, 12, 8), toon(0xff8ab8), { pos: [0, .07 * k, .19 * k], outline: OL * .4, parent: J.head }); ch.gum.visible = false;
+    reg('acc', mesh(new THREE.CircleGeometry(.055 * k, 20), new THREE.MeshBasicMaterial({ map: tx, color: new THREE.Color(.9, .9, .9) }), { pos: [.1 * k, .31 * k, front(.31, 1.4) + .006 * k], rot: [0, .3, 0], outline: false, parent: J.spine }));
+    ch.gum = mesh(sph(.03 * k, 12, 8), toon(0xff8ab8), { pos: [0, .07 * k, .2 * k], outline: OL * .4, parent: J.head }); ch.gum.visible = false;
   }
   if (kind === 'teacher') {
     capHair(m.hair, .55, .15, [1, .95, 1.04], 1.05);
@@ -520,15 +547,12 @@ function buildCast(ch, kind, d, m, fr, reg, R, OL, SV, opt) {
     // бородка и усы
     reg('face', mesh(cap(.017 * k, .055 * k), black, { pos: [0, .03 * k, .142 * k], rot: [.35, 0, 0], outline: OL * .3, parent: J.head }));
     reg('face', mesh(cap(.011 * k, .1 * k), black, { pos: [0, .085 * k, .158 * k], rot: [0, 0, Math.PI / 2], outline: false, parent: J.head }));
-    // чёрный паук на груди: тело + 8 лап, обнимающих торс
-    const fz = front(.3, 1.38);
-    const sp = new THREE.Group(); sp.position.set(0, .28 * k, fz * .98); J.spine.add(sp);
-    mesh(sph(.04 * k, 12, 8), black, { scale: [.8, 1.15, .35], outline: false, parent: sp });
-    mesh(sph(.05 * k, 12, 8), black, { pos: [0, -.075 * k, -.004 * k], scale: [.85, 1.3, .35], outline: false, parent: sp });
-    for (let i = 0; i < 8; i++) {
-      const sd = i < 4 ? 1 : -1, j = i % 4, a = sd * (.95 - j * .42);
-      const l1 = mesh(new THREE.BoxGeometry(.14 * k, .02 * k, .01 * k), black, { pos: [sd * .07 * k * Math.cos(a - sd * .9), (.02 - j * .03) * k + .05 * k * Math.sin(a), 0], rot: [0, 0, a], outline: false, parent: sp });
-      mesh(new THREE.BoxGeometry(.12 * k, .018 * k, .01 * k), black, { pos: [sd * .17 * k, (.05 - j * .07) * k, -.03 * k], rot: [0, -sd * .6, a * .4 - sd * .5], outline: false, parent: sp });
+    // чёрный паук на груди и спине: наклейка, изогнутая по форме торса (кусок цилиндра того же сечения)
+    const decM = new THREE.MeshBasicMaterial({ map: odilSpiderTex(), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
+    for (const back of [0, 1]) {
+      const geo = new THREE.CylinderGeometry(.157 * k, .157 * k, .3 * k, 24, 1, true, back ? Math.PI - .95 : -.95, 1.9);
+      const dc = mesh(geo, decM, { pos: [0, .27 * k, 0], scale: [1.38, 1, .82], outline: false, parent: J.spine }); dc.renderOrder = 2;
+      if (back) dc.scale.set(1.38 * 1.15, 1.15, .82 * 1.02);
     }
     // ленты маски за головой (ch.ribbons — ветер во вторичной анимации)
     ch.ribbons = [1, -1].map(sx => {

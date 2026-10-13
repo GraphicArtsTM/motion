@@ -164,6 +164,16 @@ export function buildShots(C) {
     mesh(new THREE.CylinderGeometry(.1, .075, .03, 14), toon(0xffffff), { pos: [-.08, .02, 0], outline: .003, parent: g });
     mesh(new THREE.SphereGeometry(.07, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), toon(0xf0c060), { pos: [-.08, .03, 0], scale: [1, .5, 1], outline: .003, parent: g });
     mesh(new THREE.CylinderGeometry(.035, .03, .09, 10), toon([0xe85a5a, 0x3a8ad0][i]), { pos: [.13, .055, .05], outline: .003, parent: g }); return g; });
+  /** нести поднос: поднос перед собой, руки держат его за края (IK), w — половина ширины подноса */
+  const gripTray = (c, tray, w = .23, k = 1) => {
+    c.root.updateMatrixWorld(true); tray.updateMatrixWorld(true);
+    for (const [sd, sx] of [['L', 1], ['R', -1]]) ikArm(c, sd, tray.localToWorld(V(sx * w, .01, -.04)), rel(c, [sx * .8, -1, -.3]), k);
+  };
+  const carry = (c, tray, w = .23) => {
+    if (tray.parent !== c.root) c.root.add(tray);
+    tray.position.set(0, .93 * c.d.k, .3 * c.d.k); tray.rotation.set(0, 0, 0); tray.visible = true;
+    gripTray(c, tray, w);
+  };
   const spoon = prop(new THREE.Group());
   mesh(new THREE.CylinderGeometry(.006, .006, .13, 6), toon(0xc9ced6), { pos: [0, -.04, 0], outline: false, parent: spoon });
   mesh(new THREE.SphereGeometry(.018, 8, 6), toon(0xc9ced6), { pos: [0, -.11, .006], scale: [1, 1.4, .5], outline: false, parent: spoon });
@@ -539,10 +549,10 @@ export function buildShots(C) {
     extra(15, NS, [-.6, 0, -4.5], Math.PI - .3, t, 'listen', { at: V(-1.5, 1.5, -4.4) });
     extra(18, NS, [.4, 0, -4.45], Math.PI + .2, t, 'stand', { at: V(.6, 1.1, -5.4) }); extra(19, NS, [1.3, 0, -4.4], Math.PI, t, 'talk', { at: V(.4, 1.5, -4.45) });
     extra(20, NS, [6.9, 0, -4.2], Math.PI / 2, t, (tt, s) => ({ ...LIFE.stand(tt, s), armR: [-1.3, .2, .1], foreR: [-.3, 0, 0], handR: [-.4, 0, 0] }), { at: V(7.2, 1.2, -4.2) });
-    const c16 = stroll(16, NS, [-.2, 0, -3.6], [.1, 0, 4.9], t, .95, 0, { pose: { armL: [-.85, -.2, .1], armR: [-.85, .2, .1], foreL: [-.9, 0, 0], foreR: [-.9, 0, 0], grip: .6 } });
-    c16.root.add(trays[0]); trays[0].position.set(0, .98 * c16.d.k, .36); trays[0].visible = true;
-    const c17 = stroll(17, NS, [5.6, 0, 5.2], [5.6, 0, -3.2], t, 1.05, 6, { pose: { armL: [-.85, -.2, .1], armR: [-.85, .2, .1], foreL: [-.9, 0, 0], foreR: [-.9, 0, 0], grip: .6 } });
-    c17.root.add(trays[1]); trays[1].position.set(0, .98 * c17.d.k, .36); trays[1].visible = true;
+    const c16 = stroll(16, NS, [-.2, 0, -3.6], [.1, 0, 4.9], t, .95, 0, { pose: { armL: [-.7, 0, .1], armR: [-.7, 0, .1], foreL: [-1.2, 0, 0], foreR: [-1.2, 0, 0], grip: .55 } });
+    carry(c16, trays[0]);
+    const c17 = stroll(17, NS, [5.6, 0, 5.2], [5.6, 0, -3.2], t, 1.05, 6, { pose: { armL: [-.7, 0, .1], armR: [-.7, 0, .1], foreL: [-1.2, 0, 0], foreR: [-1.2, 0, 0], grip: .55 } });
+    carry(c17, trays[1]);
     // Азим с дружками шумят за дальним столом
     if (o.azim !== false) {
       place(AZ, NS, [2.8 + .45, 0, 3.8 + .85], Math.PI); AZ.pose(LIFE.sitTalk(t, 2)); face(AZ, 'azim', t, { seed: 5, smile: .7, mouth: .2 + .2 * Math.max(0, Math.sin(t * 9)), at: V(2.8 + 1.35, 1.15, 2.95) });
@@ -574,15 +584,18 @@ export function buildShots(C) {
     canteenLife(t);
     diyorTable(t, { at: TI.root.visible ? V(-2.75, 1.3, -.4) : undefined });
     // Тимур идёт от раздачи с подносом (три порции плова) и садится
-    const r = walk(TI, NS, [[-.4, 0, -4.2], [-.6, 0, -1.1], [-2.75, 0, -.75]], t, 66.0, 1.35, { endYaw: 0, end: tt => seq(tt - 68.6, [[0, POSE.stand(tt)], [0, sit(tt), .45]]) });
+    const r = walk(TI, NS, [[-.4, 0, -4.2], [-.6, 0, -1.0], [-2.75, 0, -.4]], t, 64.25, 1.35, { endYaw: 0, end: tt => seq(tt - 68.6, [[0, POSE.stand(tt)], [0, sit(tt), .45]]) });
     const sitK = E.inOutSine(P(t, 68.6, .45));
     TI.root.position.z = lerp(TI.root.position.z, stoolA(2, false)[2], sitK);
-    if (t < 68.4) {
-      TI.pose({ ...TI.J && POSE.walk(gait(r.d, .7, .9)), ...(r.done ? POSE.stand(t) : {}), armL: [-.85, -.2, .1], armR: [-.85, .2, .1], foreL: [-.9, 0, 0], foreR: [-.9, 0, 0], grip: .6 });
-      TI.root.add(CN.timurTray); CN.timurTray.position.set(0, .98, .36); CN.timurTray.rotation.set(0, 0, 0);
+    const putDown = E.inOutSine(P(t, 68.15, .35));   // ставит поднос на стол
+    if (t < 68.5) {
+      TI.pose({ ...(r.done ? POSE.stand(t) : POSE.walk(gait(r.d, .7, .9))), armL: [-.7, 0, .1], armR: [-.7, 0, .1], foreL: [-1.2, 0, 0], foreR: [-1.2, 0, 0], grip: .55, spine: [.25 * putDown, 0, 0] });
+      if (putDown <= 0) carry(TI, CN.timurTray, .25);
+      else { TI.root.updateMatrixWorld(true); const held = TI.root.localToWorld(V(0, .93, .3)), table = V(...TRAY);
+        put(CN.timurTray, NS, held.lerp(table, putDown).toArray()); gripTray(TI, CN.timurTray, .25, 1 - P(t, 68.4, .1)); }
     } else { put(CN.timurTray, NS, TRAY); if (t > 68.95) { TI.pose(talking(FIGHT.eat(t * 1.6), 'timur', t, .5)); hold(spoon, TI, 'R', [0, -.08, .03], [-.6, 0, 0]); } }
     face(TI, 'timur', t, { smile: .4 });
-    if (t < 68.9) move(t, [[66, [1.6, 2.5, 3.8], [-.6, 1.0, -2.6], 44], [68.9, [-.7, 1.75, 2.6], [-2.9, 1.0, -.2], 40]]);
+    if (t < 68.9) { const tp = TI.root.position; move(t, [[66, [1.8, 2.7, 3.6], [-.5, 1.0, -2.4], 44], [68.9, [-.3, 2.3, 2.1], [-2.7, 1.0, -.2], 40]]); }
     else look([-2.95, 1.32, 1.95], [-3.2, 1.08, -.05], 36);
     fadeIn(lt, .4);
     return NS;
@@ -674,13 +687,14 @@ export function buildShots(C) {
     // ходят по коридору; когда начинается конфликт — останавливаются и смотрят
     for (const [i, a, b, sp, ph] of [[14, [-15, 0, .6], [14, 0, .9], 1.15, 0], [15, [13, 0, .4], [-14, 0, .2], 1.0, 7], [16, [-3, 0, 2.0], [15, 0, 2.0], .9, 3], [17, [16, 0, -.6], [2, 0, -.4], 1.1, 11]]) {
       const c = stroll(i, RS, a, b, Math.min(t, 118.2), sp, ph);
-      if (tense) { c.root.rotation.y = lerp(c.root.rotation.y, yawTo(c.root.position.toArray(), [X0, 0, -.9]), clamp((t - 118.2) * 1.5)); c.pose(wow > 0 ? LIFE.wow(t, i) : film > 0 && i % 2 ? LIFE.film(t, i) : LIFE.listen(t, i));
+      const SPOT = { 14: [X0 - 3.3, 0, .9], 15: [X0 + 5.4, 0, 1.3], 16: [X0 - 2.7, 0, 1.8], 17: [X0 + 4.6, 0, .2] }[i];
+      if (tense) { const ck = E.inOutSine(clamp((t - 118.2) / 1.5)); c.root.position.lerp(V(...SPOT), ck); c.root.rotation.y = lerp(c.root.rotation.y, yawTo(SPOT, [X0, 0, -.9]), ck); c.pose(wow > 0 ? LIFE.wow(t, i) : film > 0 && i % 2 ? LIFE.film(t, i) : LIFE.listen(t, i));
         face(c, 's', t, { seed: i % 5, at: FIGHTP, wide: wow > .5 }); if (film > 0 && i % 2) hold(phones[i % 8 + 1], c, 'R', [0, -.1, .045], [-.3, 0, 0]); }
     }
     // роется в шкафчике; пьёт из фонтанчика
     extra(18, RS, [8.6, 0, -1.45], tense ? -2.4 : Math.PI, t, tense ? 'listen' : (tt, s) => ({ ...LIFE.stand(tt, s), armR: [-1.4, .1, .1], foreR: [-.6 + .2 * Math.sin(tt * 3), 0, 0], armL: [-.6, 0, .2], foreL: [-1.2, 0, 0], head: [.2, 0, 0] }), { at: tense ? FIGHTP : false });
     extra(23, RS, [12.6, 0, -1.25], tense ? -2.2 : Math.PI, t, tense ? 'listen' : (tt, s) => ({ ...POSE.stand(tt), spine: [.75, 0, 0], head: [-.3, 0, 0], armR: [-.9, 0, .2], foreR: [-.6, 0, 0] }), { at: tense ? FIGHTP : false });
-    CR.doorD.rotation.y = -1.7; CR.doorM.rotation.y = -1.5;
+    CR.doorD.rotation.y = -1.7 * (1 - E.inOutSine(clamp((t - 119.7) / .35))); CR.doorM.rotation.y = -1.5;   // Тимур захлопывает дверцу Диёра, вставая к шкафчикам
   };
   // дружки Азима
   const cronies = (t, o = {}) => {
@@ -746,14 +760,14 @@ export function buildShots(C) {
     if (take > 0 && step < 1) { AZ.root.updateMatrixWorld(true); ikArm(TI, 'L', handW(AZ, 'R'), V(-.4, -.6, .3), take * (1 - step)); }
     face(TI, 'timur', t, { brow: -.3, squint: .85, at: headW(AZ), atK: .9 });
     if (take < .5) ikArm(AZ, 'R', V(X0, 1.32, -1.32), V(.4, -.6, .4), 1 - off);
-    place(DI, RS, [lerp(X0, X0 + 1.05, step), 0, lerp(-1.5, -1.35, step)], lerp(0, -.9, step)); DI.pose({ ...POSE.stand(t), spine: [-.1, 0, 0] }); face(DI, 'diyor', t, { seed: 4, brow: .7, at: FIGHTP });
+    place(DI, RS, [lerp(X0, X0 - .9, step), 0, lerp(-1.5, .35, step)], lerp(0, 2.55, step)); DI.pose({ ...POSE.stand(t), spine: [-.1, 0, 0] }); face(DI, 'diyor', t, { seed: 4, brow: .7, at: FIGHTP });
     if (t < 120.4) close(TI, [.15, -.18, .9], 32, [0, -.02, 0]);
     else look([-4.3, 1.45, -.95], [X0, 1.35, -.95], 38);
     return RS;
   });
   const fightBase = (t, o = {}) => {
     corridorLife(t, o); cronies(t, o.cr || {});
-    place(DI, RS, [X0 + 1.05, 0, -1.35], -.9); DI.pose(talking({ ...POSE.stand(t), spine: [-.06, 0, 0], ...o.di }, 'diyor', t, .8)); face(DI, 'diyor', t, { seed: 4, brow: .7, at: FIGHTP, ...o.dif });
+    place(DI, RS, [X0 - .9, 0, .35], 2.55); DI.pose(talking({ ...POSE.stand(t), spine: [-.06, 0, 0], ...o.di }, 'diyor', t, .8)); face(DI, 'diyor', t, { seed: 4, brow: .7, at: FIGHTP, ...o.dif });
   };
   shot(120.63, 128.15, (lt, t) => {
     // «Ты кто такой вообще?» — тычет пальцем; «Тот, кто обычно опаздывает…»
@@ -789,92 +803,201 @@ export function buildShots(C) {
     else close(AZ, [-.2, -.15, .9], 30, [0, -.03, 0]);
     return RS;
   });
-  // слоу-мо: удар в шкафчик, нырок, толчок ладонью
-  const SWING1 = 130.65, HIT1 = 131.05, SWING2 = 131.95, PALM = 132.45, WALL = 132.92;
-  const azimFlight = t => {
-    const k = E.outQuad(P(t, PALM, WALL - PALM));
-    return [lerp(AZF[0], AZF[0] + .25, k), .35 * Math.sin(Math.PI * k) * (t < WALL ? 1 : 0), lerp(AZF[2], 2.12, k)];
+  // ================= ДРАКА (130.3 – 136.42): шесть приёмов, каждый — причина и следствие =================
+  // 1) хук → Тимур уклоняется, кулак в шкафчик «БДЫНЬ»; 2) три джеба → нырки головой; 3) Азим бросается обхватить —
+  // Тимур ныряет и выкручивается в сторону, Азим впечатывается лицом в шкафчики «БАМ»; 4) Азим разгоняется —
+  // Тимур делает шаг в сторону и подставляет ногу, Азим летит в своего же дружка; 5) размашистый удар — Тимур ловит
+  // кулак ладонью «ХВАТЬ»; 6) толчок ладонью — Азим летит через табличку «мокрый пол» в шкафчики «ТЫДЫЩ», дверца
+  // распахивается, сыплются учебники; тишина, вздох толпы, «Ого-о-о!»
+  const F = { SW1: 130.5, HIT1: 130.85, J: [131.25, 131.5, 131.75], LUNGE: 131.95, PLANT: 132.3, TURN: 132.55, CHARGE: 132.85, TRIP: 133.15, BUMP: 133.4,
+    ROAR: 133.75, HAY: 134.2, CATCH: 134.45, PUSH: 135.0, CRASH: 135.42 };
+  const XF = X0;
+  const TSPIN = [XF + 1.0, 0, -1.0], TSIDE = [XF + 1.15, 0, -.1];        // куда выкручивается Тимур и куда отшагивает
+  const ASTUMBLE = [XF + 2.35, 0, -.8], AHAY = [XF + 1.88, 0, -.42], AEND = [XF + 3.35, 0, -1.6];
+  const TEND = TSIDE, TEND_YAW = 2.1, SIGNP = [XF + 2.75, 0, -1.0];
+  const popDoor = CR.lockerDoor(XF + 3.6, 0x2f6fb0); popDoor.rotation.y = 0;
+  D.onReset(() => { popDoor.rotation.y = 0; });
+  const books = [0, 1, 2].map(i => prop(mesh(new THREE.BoxGeometry(.22, .04, .16), toon([0xd8402c, 0x2f8a4a, 0xf2c94c][i]), { outline: .004 })));
+  const jab = (t, t0) => pulse(t, t0, t0 + .3, .1, .16);
+  const fightState = t => {
+    // ---- Тимур
+    let tpos = TIF, tyaw = 0, tp = FIGHT.guard(t);
+    const lean = pulse(t, F.SW1 + .1, F.HIT1 + .3, .18, .3);
+    tp = blend(tp, { ...FIGHT.guard(t), spine: [.1, 0, -.55], head: [0, 0, -.35], hy: -.08, legR: [-.1, 0, .35] }, lean);
+    F.J.forEach((j, i) => { const s = i % 2 ? -1 : 1, k = pulse(t, j - .05, j + .25, .08, .12); if (k > 0) tp = blend(tp, { ...FIGHT.guard(t), spine: [.2, .25 * s, .42 * s], head: [0, 0, .3 * s], hy: -.13 }, k); });
+    if (t > F.LUNGE - .05) {
+      const duck = pulse(t, F.LUNGE - .05, F.LUNGE + .5, .1, .2), sk = E.inOutCubic(P(t, F.LUNGE + .1, .38));
+      tp = blend(tp, { ...FIGHT.load, spine: [.75, 0, 0] }, duck);
+      tpos = [lerp(TIF[0], TSPIN[0], sk), 0, lerp(TIF[2], TSPIN[2], sk) + Math.sin(Math.PI * sk) * .45];
+      tyaw = lerp(0, -2.05 + Math.PI * 2, sk);                                    // разворот на 360° с выходом лицом к Азиму
+      if (sk >= 1) { tyaw = -2.05; tp = blend(tp, FIGHT.guard(t), E.inOutSine(P(t, F.LUNGE + .5, .3))); }
+    }
+    if (t > F.TRIP - .2) {
+      const st = E.inOutCubic(P(t, F.TRIP - .2, .22)), leg = pulse(t, F.TRIP - .12, F.TRIP + .35, .1, .2);
+      tpos = [lerp(TSPIN[0], TSIDE[0], st), 0, lerp(TSPIN[2], TSIDE[2], st)]; tyaw = lerp(-2.05, -2.5, st);
+      tp = blend(FIGHT.guard(t), { ...POSE.stand(t), spine: [-.12, -.35, .1], legL: [-.95, 0, .45], shinL: [.05, 0, 0], footL: [.4, 0, 0], legR: [.15, 0, .1], shinR: [.35, 0, 0], hy: -.08,
+        armL: [-.4, 0, .6], foreL: [-1.2, 0, 0], armR: [-.5, 0, .5], foreR: [-1.4, 0, 0] }, leg);
+    }
+    if (t > F.BUMP + .2) { tyaw = lerp(-2.5, TEND_YAW, E.inOutSine(P(t, F.BUMP + .2, .45))); tp = FIGHT.guard(t); }
+    if (t > F.HAY + .1) {
+      const c = E.outBack(P(t, F.CATCH - .1, .15)) * (1 - P(t, F.PUSH - .06, .05));
+      tp = blend(tp, { ...POSE.stand(t), spine: [.05, -.2, 0], armR: [-1.5, .1, .1], foreR: [-.15, 0, 0], handR: [-.5, 0, 0], gripR: .95, armL: [-.4, 0, .3], foreL: [-1.6, 0, 0], legL: [-.35, 0, .2], legR: [.3, 0, .2], shinL: [.3, 0, 0], hy: -.06 }, c);
+    }
+    if (t > F.PUSH - .08) tp = blend(tp, { ...POSE.stand(t), spine: [.28, 0, 0], armR: [-1.55, 0, .05], foreR: [-.05, 0, 0], handR: [-1.25, 0, 0], gripR: 0, armL: [.3, 0, .5], foreL: [-.8, 0, 0], legL: [-.7, 0, .15], legR: [.5, 0, .15], shinL: [.5, 0, 0], hy: -.12 },
+      pulse(t, F.PUSH - .08, F.PUSH + 1.3, .08, .6));
+    if (t > F.BUMP + .2) tpos = TSIDE;
+    // ---- Азим
+    let apos = AZF, ayaw = Math.PI, ap = HEAVY.windUp, arot = 0, asq = 0;
+    if (t >= F.SW1) {
+      if (t < F.HIT1 + .1) ap = HEAVY.swing(E.inCubic(P(t, F.SW1, F.HIT1 - F.SW1)));
+      else ap = blend(HEAVY.swing(1), { ...FIGHT.guard(t), armR: [-.6, .2, .4], foreR: [-1.8 + .4 * Math.sin(t * 30), 0, 0], handR: [.4 * Math.sin(t * 40), 0, 0], gripR: .4, spine: [.25, 0, 0] }, E.inOutSine(P(t, F.HIT1 + .1, .3)));
+      apos = [AZF[0], 0, AZF[2] - .12 * pulse(t, F.SW1, F.HIT1 + .3, .3, .3)];
+    }
+    if (t > F.J[0] - .1) {
+      let g = { ...FIGHT.guard(t), spine: [.25, 0, 0], legL: [-.4, 0, .25], legR: [.35, 0, .25] };
+      F.J.forEach((j, i) => { const k = jab(t, j); if (k > 0) { const sd = i % 2 ? 'R' : 'L'; g = { ...g, ['arm' + sd]: [lerp(-1.05, -1.55, k), 0, lerp(.45, .08, k)], ['fore' + sd]: [lerp(-1.85, -.05, k), 0, 0], spine: [.3, (i % 2 ? .25 : -.25) * k, 0] }; } });
+      ap = g;
+    }
+    if (t > F.LUNGE - .15) {
+      const lk = E.inQuad(P(t, F.LUNGE - .1, F.PLANT - F.LUNGE + .1));
+      ap = { spine: [.65 - .5 * lk, 0, 0], head: [-.3, 0, 0], armL: [-1.45 - 1.1 * lk, 0, .85], armR: [-1.45 - 1.1 * lk, 0, .85], foreL: [-.5, 0, 0], foreR: [-.5, 0, 0], grip: .1,
+        legL: [-.9, 0, .2], legR: [.6, 0, .2], shinR: [.3, 0, 0], hy: -.1 };
+      apos = [lerp(AZF[0], XF, lk), 0, lerp(AZF[2], -1.5, lk)];
+      if (t > F.PLANT) { asq = springAt(t, F.PLANT, -.12, 18, 7); apos = [XF, 0, -1.5 + .12 * E.outQuad(P(t, F.PLANT + .1, .3))]; }
+    }
+    if (t > F.TURN) {
+      const tk = E.inOutSine(P(t, F.TURN, .3));
+      ayaw = lerp(Math.PI, 1.1, tk); ap = blend(ap, { ...POSE.stand(t), spine: [.1, 0, .1 * Math.sin(t * 12)], head: [.2 * Math.sin(t * 9), .3 * Math.sin(t * 7), 0], armL: [-.3, 0, .4], armR: [-.3, 0, .4], foreL: [-1.3, 0, 0], foreR: [-1.3, 0, 0], grip: 1 }, tk);
+    }
+    if (t > F.CHARGE) {
+      const ck = P(t, F.CHARGE, F.TRIP - F.CHARGE), from = [XF, 0, -1.38], hit = [XF + 1.12, 0, -.86];
+      apos = [lerp(from[0], hit[0], ck), 0, lerp(from[2], hit[2], ck)]; ayaw = 1.1;
+      ap = { ...POSE.run(t * 2.4, 2.4), spine: [.6, 0, 0], head: [-.45, 0, 0] };
+      if (t > F.TRIP) {                                                          // спотыкается и летит вперёд, в дружка
+        const sk = E.outQuad(P(t, F.TRIP, F.BUMP - F.TRIP + .25));
+        apos = [lerp(hit[0], ASTUMBLE[0], sk), 0, lerp(hit[2], ASTUMBLE[2], sk)];
+        ap = POSE.fall(t); arot = .55 * Math.sin(Math.PI * sk);
+      }
+    }
+    if (t > F.BUMP + .25) {                                                      // выпрямился, разворот к Тимуру, рык
+      const rk = E.inOutSine(P(t, F.BUMP + .25, .35));
+      ayaw = lerp(1.1, -1.04, rk); arot = 0; apos = ASTUMBLE;
+      ap = blend(POSE.stand(t), POSE.roar(t), pulse(t, F.ROAR, F.HAY, .12, .1));
+    }
+    if (t > F.HAY - .05) {                                                       // размашистый удар — пойман
+      const wk = P(t, F.HAY - .05, .2), sk = E.inCubic(P(t, F.HAY + .1, F.CATCH - F.HAY - .1));
+      ap = wk < 1 ? blend(ap, HEAVY.windUp, E.outQuad(wk)) : HEAVY.swing(sk * .82);
+      if (t > F.CATCH) ap = { ...HEAVY.swing(.82), spine: [.45 + .04 * Math.sin(t * 40), -.3, 0], head: [.15, 0, 0], legL: [-.6, 0, .2], legR: [.55, 0, .2], shinR: [.3, 0, 0], hy: -.12 };
+      apos = [lerp(ASTUMBLE[0], AHAY[0], E.inOutSine(P(t, F.HAY, .25))), 0, lerp(ASTUMBLE[2], AHAY[2], E.inOutSine(P(t, F.HAY, .25)))];
+    }
+    if (t > F.PUSH) {                                                            // полёт спиной в шкафчики
+      const fk = E.outQuad(P(t, F.PUSH, F.CRASH - F.PUSH));
+      apos = [lerp(AHAY[0], AEND[0], fk), .45 * Math.sin(Math.PI * fk) * (t < F.CRASH ? 1 : 0), lerp(AHAY[2], AEND[2] + .05, fk)];
+      ayaw = lerp(-1.04, 0, E.inOutSine(P(t, F.PUSH, .5)));
+      ap = t < F.CRASH + .1 ? HEAVY.hitBack(t) : blend(HEAVY.hitBack(t), HEAVY.slump(t), E.inOutQuad(P(t, F.CRASH + .1, .55)));
+      if (t > F.CRASH) apos[1] = 0;
+    }
+    return { tpos, tyaw, tp, apos, ayaw, ap, arot, asq };
   };
-  const fightPoses = t => {
-    // Азим
-    let ap;
-    if (t < SWING1) ap = HEAVY.windUp;
-    else if (t < HIT1 + .1) ap = HEAVY.swing(E.inCubic(P(t, SWING1, HIT1 - SWING1)));
-    else if (t < SWING2) ap = blend(HEAVY.swing(1), { ...mirror(HEAVY.windUp), armR: [-.6, .2, .4], foreR: [-1.8 + .4 * Math.sin(t * 30), 0, 0], handR: [.4 * Math.sin(t * 40), 0, 0], gripR: .4 }, E.inOutSine(P(t, HIT1 + .15, .55)));
-    else if (t < PALM) ap = mirror(HEAVY.swing(E.inCubic(P(t, SWING2, PALM - .05 - SWING2))));
-    else if (t < WALL + .1) ap = HEAVY.hitBack(t);
-    else ap = blend(HEAVY.hitBack(t), HEAVY.slump(t), E.inOutQuad(P(t, WALL + .1, .7)));
-    // Тимур: уклон вбок (кулак проходит мимо головы), нырок, толчок
-    const lean = pulse(t, SWING1 + .12, HIT1 + .35, .2, .35);
-    let tp = blend(FIGHT.guard(t), { ...FIGHT.guard(t), spine: [.1, 0, -.55], head: [0, 0, -.35], hy: -.08, legR: [-.1, 0, .35] }, lean);
-    if (t > SWING2 - .1) tp = blend(tp, { ...FIGHT.load, spine: [.6, 0, 0] }, pulse(t, SWING2 - .1, PALM + .02, .2, .08));
-    if (t > PALM - .08) tp = blend(tp, { ...POSE.stand(t), spine: [.25, 0, 0], armR: [-1.55, 0, .05], foreR: [-.05, 0, 0], handR: [-1.25, 0, 0], gripR: 0, armL: [.3, 0, .5], foreL: [-.8, 0, 0], legL: [-.7, 0, .15], legR: [.5, 0, .15], shinL: [.5, 0, 0], hy: -.12 },
-      pulse(t, PALM - .08, PALM + 1.4, .08, .6));
-    return { ap, tp };
+  // общая расстановка кадра драки
+  const fightFrame = (t, o = {}) => {
+    const S = fightState(t);
+    // дружок s9 сбит Азимом и падает навзничь, потом садится, держась за голову
+    const fall9 = E.outQuad(P(t, F.BUMP, .35)), sit9 = E.inOutSine(P(t, F.BUMP + .9, .6));
+    const p9 = [lerp(XF + 2.3, XF + 2.85, fall9), 0, lerp(-.75, -.55, fall9)];
+    fightBase(t, { ...o, cr: { wide: t > F.HIT1, smile: t > F.PLANT && t < F.PLANT + 1.2 ? .8 : 0, p8: [XF + 3.4, 0, .95], y8: -2.3, p9, y9: -1.6, pose9: fall9 > 0 ? (sit9 > 0 ? { ...POSE.sitUp(), armR: [-2.4, 0, .3], foreR: [-1.8, 0, 0] } : POSE.lie(t)) : LIFE.lean(t, 2), ...(o.cr || {}) } });
+    if (fall9 > 0 && sit9 <= 0) { ST(9).root.rotation.set(-1.45 * fall9, -1.6, 0, 'YXZ'); ST(9).root.position.y = .12 * fall9; }
+    if (sit9 > 0) ST(9).root.rotation.set(0, -1.6 + Math.PI, 0);
+    marjonLocker(t, { p: [3.6, 0, -.8], yaw: Math.PI + 1.25, pose: t > F.CRASH ? LIFE.wow(t, 3) : POSE.stand(t), face: { wide: t > F.HIT1 }, at: V(S.apos[0], 1.3, S.apos[2]) });
+    place(AZ, RS, S.apos, S.ayaw); AZ.pose(S.ap); squash(AZ, S.asq);
+    if (S.arot) AZ.root.rotation.set(S.arot, S.ayaw, 0, 'YXZ');
+    place(TI, RS, S.tpos, S.tyaw); TI.pose(S.tp);
+    // Тимур ловит кулак: ладонь точно на кулаке Азима
+    if (t > F.CATCH - .05 && t < F.PUSH - .02) { AZ.root.updateMatrixWorld(true); ikArm(TI, 'R', handW(AZ, 'R'), rel(TI, [-.6, -1, -.3])); }
+    const azH = headW(AZ), tiH = headW(TI);
+    face(AZ, 'azim', t, { seed: 5, energy: .9, at: t < F.CRASH ? tiH : undefined, brow: t > F.CATCH && t < F.PUSH ? .9 : -1, wide: (t > F.HIT1 && t < F.J[0]) || (t > F.CATCH + .2 && t < F.PUSH) || t > F.PLANT && t < F.TURN + .2,
+      squint: t > F.CRASH ? .35 : .65, mouth: (t > F.ROAR && t < F.HAY) ? .9 : (t > F.HIT1 && t < F.HIT1 + .5) || (t > F.CATCH + .15 && t < F.PUSH) ? .6 : undefined });
+    face(TI, 'timur', t, { brow: -.4, squint: .8, noBlink: true, energy: .6, at: azH, atK: .9, smile: t > F.CATCH + .15 && t < F.PUSH ? .45 : 0 });
+    // декорации: вмятина, табличка, мокрый пол, дверца с учебниками
+    if (t > F.HIT1) { CR.dent.visible = true; CR.dent.position.set(XF + .02, 1.56, -1.985); }
+    CR.wet.position.set(XF + 2.55, .005, -1.0);
+    const sk = E.outCubic(P(t, F.PUSH + .22, .35));
+    CR.wetSign.position.set(SIGNP[0] + .25 * sk, 0, SIGNP[2] - .2 * sk); CR.wetSign.rotation.set(0, -.5, -1.5 * sk);
+    popDoor.rotation.y = -1.9 * E.outBack(P(t, F.CRASH, .3));
+    books.forEach((b, i) => { if (t < F.CRASH + .05) return; const k = P(t, F.CRASH + .05 + i * .06, .45), x = XF + 3.75 + i * .12;
+      put(b, RS, [x + .3 * k, Math.max(.02 + i * .04, 1.3 - 4.9 * (k * .45) ** 2 * 6), -1.75 + .55 * k], [k * 4 + i, i, k * 3]); });
+    return S;
   };
-  shot(130.3, 133.0, (lt, t) => {
-    const k = pulse(t, 130.35, 132.95, .2, .2);
-    sense(t, k, 130.3);
-    fightBase(t, { cr: { wide: t > HIT1, smile: 0 }, dif: { wide: true } });
-    marjonLocker(t, { p: [3.6, 0, -.8], yaw: Math.PI + 1.25, pose: POSE.stand(t), face: { look: [.5, 0], wide: t > HIT1 } });
-    const { ap, tp } = fightPoses(t);
-    const ap0 = t < PALM ? [AZF[0], 0, AZF[2] - .12 * pulse(t, SWING1, HIT1 + .3, .3, .3)] : azimFlight(t);
-    place(AZ, RS, ap0, Math.PI); AZ.pose(ap);
-    face(AZ, 'azim', t, { seed: 5, brow: -1, squint: t < HIT1 ? .6 : 1, wide: t > HIT1 && t < SWING2, mouth: t > HIT1 && t < HIT1 + .6 ? .7 : undefined, energy: .8 });
-    place(TI, RS, TIF, 0); TI.pose(tp); face(TI, 'timur', t, { brow: -.4, squint: .8, look: [0, .1], noBlink: true, energy: .6 });
-    // вмятина в дверце и искры удара
-    if (t > HIT1) { CR.dent.visible = true; CR.dent.position.set(TIF[0] + .02, 1.56, -1.985); }
-    if (t > HIT1 && t < HIT1 + .5) D.sparks(V(TIF[0], 1.56, -1.9), t - HIT1, { n: 30, speed: 2.5 });
-    if (t > HIT1 - .02) { comic('БДЫНЬ!', 560, 300, t - HIT1, { size: .55, rot: -.12, dur: .8 }); impact(t, HIT1, { zoom: .07, shake: .08 }); }
-    if (t > PALM - .02) { comic('ТОЛЧОК!', 1360, 330, t - PALM, { size: .45, rot: .1, dur: .55, color: '#7ff8ff' }); impact(t, PALM, { zoom: .1, shake: .1, color: '#cff8ff' }); }
-    if (t > SWING2 - .05 && t < PALM) D.ring(handW(AZ, 'L'), .2 + .3 * P(t, SWING2, .4), .6, 0x9ff8ff);
-    // сбоку по правилу 180°: Тимур слева, Азим справа
-    if (t < 131.9) look([-3.55, 1.5, -1.0], [X0, 1.42, -.98], 36);
-    else move(t, [[131.9, [-3.7, 1.35, -.85], [X0, 1.15, -.9], 38], [133.0, [-4.6, 1.5, .1], [X0 + .1, 1.0, .6], 42]]);
+  shot(130.3, 131.2, (lt, t) => {                                               // 1) хук в шкафчик
+    sense(t, pulse(t, 130.35, 131.15, .15, .2), 130.3);
+    fightFrame(t);
+    if (t > F.HIT1 && t < F.HIT1 + .5) D.sparks(V(XF, 1.56, -1.9), t - F.HIT1, { n: 30, speed: 2.5 });
+    if (t > F.HIT1 - .02) { comic('БДЫНЬ!', 560, 300, t - F.HIT1, { size: .55, rot: -.12, dur: .8 }); impact(t, F.HIT1, { zoom: .07, shake: .08 }); }
+    look([-3.55, 1.5, -1.0], [XF, 1.42, -.98], 36);
     return RS;
   }, { flashK: 0 });
-  shot(133.0, 136.42, (lt, t) => {
-    fightBase(t, { cr: { wide: true, smile: 0, pose8: LIFE.wow(t, 1) }, dif: { wide: true } });
-    marjonLocker(t, { p: [3.6, 0, -.8], yaw: Math.PI + 1.25, pose: LIFE.wow(t, 3), face: { look: [.3, -.1], wide: true } });
-    const { ap, tp } = fightPoses(t);
-    place(AZ, RS, azimFlight(t), Math.PI); AZ.pose(ap); face(AZ, 'azim', t, { seed: 5, squint: .3, look: [Math.sin(t * 5) * .5, .3], brow: .5, smile: .2 });
-    place(TI, RS, TIF, 0); TI.pose(blend(tp, POSE.stand(t), E.inOutSine(P(t, 133.6, .8)))); face(TI, 'timur', t, { brow: .3, squint: 1, wide: t > 134, look: [0, -.1] });
-    // табличка «мокрый пол» падает от удара
-    CR.wetSign.position.set(X0 + .75, 0, 1.95); CR.wetSign.rotation.set(0, -.5, -1.45 * E.outCubic(P(t, WALL + .02, .4)));
-    CR.wet.position.set(X0 + .2, .005, 1.2);
-    if (t < WALL + .7) { comic('ТЫДЫЩ!', 1560, 230, t - WALL, { size: .6, rot: .1, dur: 1.1 }); }
-    if (t > WALL + .6) { hold(stars, AZ, 'R', [0, 0, 0]); AZ.J.head.add(stars); stars.position.set(0, .34 * AZ.d.k, 0); stars.visible = true; starS.forEach((s, i) => { const a = t * 4 + i * Math.PI / 2; s.position.set(Math.cos(a) * .2, .02 * Math.sin(a * 2), Math.sin(a) * .2); }); }
-    look([-4.6, 1.45, .2], [X0 + .1, .9, .9], 42);
+  shot(131.2, 131.95, (lt, t) => {                                              // 2) три джеба — нырки
+    fightFrame(t);
+    F.J.forEach(j => { if (t > j && t < j + .3) D.ring(headW(TI), .15 + .25 * P(t, j, .3), .5 * (1 - P(t, j, .3)), 0x9ff8ff); });
+    const sh = D.shk(t, .02, 9);
+    look([AZF[0] + .78 + sh[0], 1.95, .62], [XF - .05, 1.45, -1.5], 36);
+    return RS;
+  });
+  shot(131.95, 133.7, (lt, t) => {                                              // 3–4) бросок, «БАМ» в шкафчики, разгон, подножка
+    fightFrame(t);
+    if (t > F.PLANT - .02) { comic('БАМ!', 520, 280, t - F.PLANT, { size: .5, rot: -.1, dur: .7 }); impact(t, F.PLANT, { zoom: .05, shake: .07 }); }
+    if (t > F.TRIP && t < F.TRIP + .6) comic('ОП!', 1450, 300, t - F.TRIP, { size: .4, rot: .12, dur: .5, burst: false, color: '#ffffff' });
+    if (t > F.BUMP - .02) { comic('БУХ!', 1500, 520, t - F.BUMP, { size: .45, rot: .1, dur: .7 }); impact(t, F.BUMP, { zoom: .04, shake: .06 }); }
+    if (t > F.CHARGE && t < F.TRIP) D.speedLines(.5, t);
+    move(t, [[131.95, [XF + 1.0, 2.55, 2.15], [XF + .6, .85, -1.0], 50], [133.7, [XF + 1.9, 2.35, 2.15], [XF + 1.6, .85, -.8], 48]]);
+    return RS;
+  });
+  shot(133.7, 134.98, (lt, t) => {                                              // 5) рык, размах — поймал кулак
+    fightFrame(t, { cr: {} });
+    if (t > F.CATCH - .02) { comic('ХВАТЬ!', 520, 260, t - F.CATCH, { size: .55, rot: -.08, dur: .9 }); impact(t, F.CATCH, { zoom: .08, shake: .06, color: '#cff8ff' }); }
+    if (t < F.CATCH + .05) look([XF + 1.55, 1.45, 2.1], [XF + 1.55, 1.35, -.4], 38);
+    else { const h = handW(TI, 'R'); look(h.clone().add(V(.15, .3, 1.75)).toArray(), h.clone().add(V(.1, -.05, 0)).toArray(), 34); }
+    return RS;
+  });
+  shot(134.98, 136.42, (lt, t) => {                                             // 6) толчок — полёт — «ТЫДЫЩ», тишина
+    const k = pulse(t, F.PUSH - .02, F.CRASH + .3, .05, .3);
+    sense(t, k * .6, F.PUSH);
+    fightFrame(t, { cr: { wide: true, smile: 0 } });
+    if (t > F.PUSH - .02) { comic('ТОЛЧОК!', 520, 300, t - F.PUSH, { size: .45, rot: -.1, dur: .5, color: '#7ff8ff' }); impact(t, F.PUSH, { zoom: .1, shake: .1, color: '#cff8ff' }); }
+    if (t > F.CRASH - .02) { comic('ТЫДЫЩ!', 1580, 230, t - F.CRASH, { size: .6, rot: .1, dur: 1.1 }); impact(t, F.CRASH, { zoom: .06, shake: .12 }); }
+    if (t > F.CRASH + .5) { AZ.J.head.add(stars); stars.position.set(0, .34 * AZ.d.k, 0); stars.visible = true; starS.forEach((s, i) => { const a = t * 4 + i * Math.PI / 2; s.position.set(Math.cos(a) * .2, .02 * Math.sin(a * 2), Math.sin(a) * .2); }); }
+    move(t, [[134.98, [XF + 1.0, 1.5, 2.15], [XF + 2.0, 1.15, -.6], 44], [135.6, [XF + 1.5, 1.6, 2.2], [XF + 2.9, .95, -1.2], 46], [136.42, [XF + 1.3, 1.65, 2.2], [XF + 2.6, 1.0, -1.1], 44]]);
     return RS;
   });
   shot(136.42, 152, (lt, t) => {
     // тишина → «Ого-о-о!», телефоны; Маржон, Диёр; «Пол мокрый»; Азим в космосе
     fightBase(t, { wow: E.inOutSine(P(t, 136.3, .6)), film: E.inOutSine(P(t, 136.9, .6)) * (t < 146 ? 1 : 0),
       di: talkK('diyor', t) > 0 ? { armL: [-.6, 0, .4], foreL: [-1.4, 0, 0], armR: [-.6, 0, .4], foreR: [-1.4, 0, 0] } : {}, dif: { wide: t < 139.3, smile: t > 139.3 ? .4 : 0 },
-      cr: { wide: true, smile: 0, pose8: LIFE.wow(t, 1), p9: [X0 + .9, 0, 1.6], y9: Math.PI - .3, pose9: { ...POSE.crouch(), spine: [.5, 0, 0], armR: [-1.0, 0, .2], foreR: [-.4, 0, 0] } } });
-    CR.wetSign.position.set(X0 + .75, 0, 1.95); CR.wetSign.rotation.set(0, -.5, -1.45); CR.wet.position.set(X0 + .2, .005, 1.2);
-    CR.dent.visible = true; CR.dent.position.set(TIF[0] + .02, 1.56, -1.985);
-    place(AZ, RS, azimFlight(200), Math.PI); AZ.pose(HEAVY.slump(t));
+      cr: { wide: true, smile: 0, pose8: LIFE.wow(t, 1), p8: [XF + 3.4, 0, .95], y8: -2.3, p9: [XF + 2.85, 0, -.55], y9: -1.6 + Math.PI, pose9: { ...POSE.sitUp(), armR: [-2.4, 0, .3], foreR: [-1.8, 0, 0] } } });
+    CR.wetSign.position.set(SIGNP[0] + .25, 0, SIGNP[2] - .2); CR.wetSign.rotation.set(0, -.5, -1.5); CR.wet.position.set(XF + 2.55, .005, -1.0);
+    CR.dent.visible = true; CR.dent.position.set(XF + .02, 1.56, -1.985); popDoor.rotation.y = -1.9;
+    books.forEach((b, i) => put(b, RS, [XF + 4.05 + i * .12, .02 + i * .04, -1.2], [4 + i, i, 3]));
+    place(AZ, RS, AEND, 0); AZ.pose(HEAVY.slump(t));
     face(AZ, 'azim', t, { seed: 5, squint: .35, look: [Math.sin(t * 2.5) * .6, .3], brow: .5, smile: .3, mk: 1 });
     AZ.J.head.add(stars); stars.position.set(0, .34 * AZ.d.k, 0); stars.visible = true; starS.forEach((s, i) => { const a = t * 4 + i * Math.PI / 2; s.position.set(Math.cos(a) * .2, .02 * Math.sin(a * 2), Math.sin(a) * .2); });
     // Маржон подходит ближе
     const mjK = E.inOutSine(P(t, 136.6, 1.0));
-    marjonLocker(t, { p: [lerp(3.6, 1.4, mjK), 0, lerp(-.8, -.55, mjK)], yaw: Math.PI + 1.35, at: t < 143.6 ? V(X0, 1.58, -1.5) : undefined, pose: mjK > 0 && mjK < 1 ? POSE.walk(gait(mjK * 2.2, .68, .9)) : talking(POSE.stand(t), 'marjon', t, .4), face: { brow: .6, smile: t > 141 ? .45 : 0 } });
+    marjonLocker(t, { p: [lerp(3.6, 1.9, mjK), 0, lerp(-.8, -.1, mjK)], yaw: Math.PI + 1.35, at: t < 143.6 ? V(TEND[0], 1.58, TEND[2]) : undefined, pose: mjK > 0 && mjK < 1 ? POSE.walk(gait(mjK * 2.2, .68, .9)) : talking(POSE.stand(t), 'marjon', t, .4), face: { brow: .6, smile: t > 141 ? .45 : 0 } });
     // Тимур: «Он… поскользнулся. Пол мокрый.» — показывает на табличку; потом уходит с Диёром
     const pointK = pulse(t, 139.6, 141.6, .3, .4);
     if (t < 143.6) {
-      place(TI, RS, TIF, kf(t, [[136.4, 0], [139.4, 0], [139.8, .55], [141.6, .55], [142.2, -.6]]));
-      TI.pose(blend(talking(POSE.stand(t), 'timur', t, .4), POSE.pointFinger(t), pointK)); face(TI, 'timur', t, { smile: t > 139 ? .45 : .1, brow: .3, at: pointK > .3 ? V(X0 + .75, .3, 1.95) : t < 137.9 ? headW(MJ) : headW(DI), atK: .8 });
+      place(TI, RS, TEND, kf(t, [[136.4, TEND_YAW], [139.4, TEND_YAW], [139.8, TEND_YAW + .35], [141.6, TEND_YAW + .35], [142.2, -2.4]]));
+      TI.pose(blend(talking(POSE.stand(t), 'timur', t, .4), POSE.pointFinger(t), pointK)); face(TI, 'timur', t, { smile: t > 139 ? .45 : .1, brow: .3, at: pointK > .3 ? V(SIGNP[0] + .25, .2, SIGNP[2] - .2) : t < 137.9 ? headW(MJ) : headW(DI), atK: .8 });
     } else {
-      walk(TI, RS, [[TIF[0], 0, TIF[2]], [X0 - 2, 0, -.3], [-11, 0, .2]], t, 143.6, 1.3);
-      walk(DI, RS, [[X0 + 1.05, 0, -1.35], [X0 - 1.2, 0, -.2], [-12, 0, -.1]], t, 143.9, 1.4);
+      walk(TI, RS, [TEND, [X0 - 2, 0, -.3], [-11, 0, .2]], t, 143.6, 1.3);
+      walk(DI, RS, [[X0 - .9, 0, .35], [X0 - 1.8, 0, -.1], [-12, 0, -.1]], t, 143.9, 1.4);
       face(TI, 'timur', t, { smile: .5 }); face(DI, 'diyor', t, { seed: 4, smile: .7, look: [.4, 0] });
     }
     // монтаж
     if (t < 137.12) look([4.8, 1.65, 1.0], [X0, 1.2, -.3], 44);
     else if (t < 137.93) close(MJ, [-.2, .02, .9], 30);
     else if (t < 139.32) close(DI, [-.25, .02, .95], 30);
-    else if (t < 141.88) look([X0 - 1.7, 1.45, 1.2], [X0 + .3, 1.0, .1], 42);
+    else if (t < 141.88) look([XF + .9, 1.55, 2.15], [XF + 2.3, .85, -.9], 46);
     else if (t < 143.6) close(AZ, [.35, -.05, 1.55], 34, [0, -.08, 0]);
     else {   // Маржон смотрит им вслед — достаёт скетчбук
       const k = E.inOutSine(P(t, 145.5, 1));
@@ -893,77 +1016,6 @@ export function buildShots(C) {
      ================================================================ */
   const MJE = [4.5, 0, 0];                       // подъезд Маржон
   const BENCH = [[6.4, 0, 2.42], [7.2, 0, 2.42]];
-  const orangePile = (i, c) => { c.root.updateMatrixWorld(true); return c.J.chest.localToWorld(V((i % 3 - 1) * .07, -.12 + Math.floor(i / 3) * .07, .2)); };
-  // апельсины: выпадают из пакета (в замедлении), Тимур ловит и собирает в охапку
-  const TEAR = 160.45;
-  const orangeAt = (i, t) => {
-    const fallT = (t - TEAR - i * .04) * .35;                     // слоу-мо падения
-    const start = V(6.75 + (i % 3 - 1) * .05, .55, 4.35 + (i % 2) * .05);
-    const v = V(Math.sin(i * 2.1) * .9, .8 + (i % 3) * .3, Math.cos(i * 1.7) * .7);
-    const p = start.clone().addScaledVector(v, fallT); p.y -= 4.9 * fallT * fallT;
-    return p;
-  };
-  shot(152, 156.3, (lt, t) => {
-    Z.setTime('sunset');
-    // автобус «42» отъезжает, Тимур в наушниках идёт домой
-    Z.bus.visible = true; Z.bus.position.set(lerp(21, -45, E.inQuad(P(t, 152.3, 4.8))), 0, 21.4); Z.bus.rotation.y = -Math.PI / 2;
-    yardLife(t, { watch: headW(TI) });
-    walk(TI, ZS, [[22.4, 0, 18.0], [12, 0, 17.4], [7, 0, 15.4]], t, 153.0, 1.15);
-    TI.J.head.rotation.x += .07 * Math.sin(t * Math.PI * 2 * 1.05); TI.J.neck.rotation.z = .05 * Math.sin(t * Math.PI * 1.05);   // кивает в такт музыке
-    hold(phonesH, TI, 'R'); TI.J.head.add(phonesH); phonesH.position.set(0, 0, 0); phonesH.rotation.set(0, 0, 0); phonesH.visible = true;
-    face(TI, 'timur', t, { smile: .35, look: [0, -.1] });
-    extra(12, ZS, [24.5, 0, 17.9], -1.2, t, 'phone'); hold(phones[2], ST(12), 'R', [0, -.1, .04], [-.3, 0, 0]);
-    move(t, [[152, [40, 9, 31.5], [15, 2, 12], 42], [156.3, [35, 3.6, 25.5], [12, 2, 13], 40]], E.inOutSine);
-    fadeIn(lt, .8);
-    return ZS;
-  });
-  shot(156.3, 160.35, (lt, t) => {
-    Z.setTime('sunset');
-    const r = walk(TI, ZS, [[22.4, 0, 18.0], [12, 0, 17.4], [7, 0, 15.4], [3.6, 0, 9.5], [3.3, 0, 7.4]], t, 153.0, 1.15, { end: tt => POSE.stand(tt) });
-    if (!r.done) { TI.J.head.rotation.x += .07 * Math.sin(t * Math.PI * 2 * 1.05); TI.J.neck.rotation.z = .05 * Math.sin(t * Math.PI * 1.05); }
-    TI.J.head.add(phonesH); phonesH.position.set(0, 0, 0); phonesH.visible = true;
-    face(TI, 'timur', t, { smile: .35, at: t > 159.2 ? V(6.9, 1.5, 4.6) : undefined, atK: .7 });
-    Z.scareAt = 158.7; yardLife(t, { watch: headW(TI) });
-    // Маржон с пакетом из «Продуктов» идёт к своему подъезду
-    walk(MJ, ZS, [[16, 0, 12.5], [9.5, 0, 6.6], [6.9, 0, 4.6]], t, 152.2, 1.12, { endYaw: -2.0 });
-    MJ.pose({ ...MJ.J && (t < 160 ? POSE.walk(gait(Math.max(0, t - 152.2) * 1.12, .68, .9)) : POSE.stand(t)), armR: [-.15, .1, .25], foreR: [-.4, 0, 0], gripR: 1 });
-    hold(Z.bag, MJ, 'R', [0, -.1, 0]); face(MJ, 'marjon', t, { seed: 3, smile: .3, at: Math.sin(t * .6) > .3 ? V(-24, 1, 10) : undefined, atK: .6 });
-    // дети на качелях
-    const tp = TI.root.position;
-    look([tp.x - 2.6, 1.55, tp.z + 3.4], [tp.x + .2, 1.25, tp.z - .5], 40);
-    return ZS;
-  });
-  shot(160.35, 162.2, (lt, t) => {
-    Z.setTime('sunset'); yardLife(t, { watch: V(6.6, 1.2, 4.7) });
-    const k = pulse(t, 160.4, 162.15, .2, .25); sense(t, k, 160.35);
-    // пакет рвётся, апельсины летят; Тимур в два прыжка рядом и ловит их все
-    place(MJ, ZS, [6.9, 0, 4.6], -2.0);
-    const oops = E.outBack(P(t, TEAR, .4));
-    MJ.pose({ ...POSE.stand(t), armR: [-.3 - .4 * oops, .1, .25], foreR: [-.4 - .3 * oops, 0, 0], gripR: 1, armL: [-1.0 * oops, -.3, .4], foreL: [-1.2, 0, 0], spine: [.15 * oops, 0, 0], hy: -.04 * oops });
-    face(MJ, 'marjon', t, { seed: 3, wide: t > TEAR + .1, mouth: t > TEAR + .1 ? .5 : 0, brow: .7 * oops, at: t > TEAR ? V(6.75, .3, 4.6) : undefined });
-    hold(Z.bag, MJ, 'R', [0, -.1, 0], [.5 * oops, 0, .9 * oops]);
-    const dash = E.outCubic(P(t, 160.7, .25));
-    const tpos = [lerp(3.3, 6.25, dash), 0, lerp(7.4, 4.75, dash)];
-    place(TI, ZS, tpos, lerp(2.4, 1.15, dash));
-    TI.J.head.add(phonesH); phonesH.visible = true;
-    const juggle = P(t, 160.95, 1.0);
-    TI.pose(t < 160.7 ? POSE.stand(t) : t < 160.95 ? POSE.run(t * 1.5, 2) : blend({ ...POSE.stand(t), armL: [-1.3 + .4 * Math.sin(t * 16), -.2, .2], foreL: [-.8, 0, 0], armR: [-1.3 + .4 * Math.sin(t * 16 + 2), .2, .2], foreR: [-.8, 0, 0], hy: -.06 }, POSE.hold(), E.inOutSine(P(t, 161.75, .3))));
-    face(TI, 'timur', t, { brow: .3, noBlink: true, at: Z.oranges[3].position.clone(), atK: .8 });
-    for (let i = 0; i < 7; i++) {
-      const o = Z.oranges[i]; o.visible = t > TEAR;
-      if (!o.visible) continue;
-      const caught = 160.95 + i * .1;
-      let p = orangeAt(i, Math.min(t, caught));
-      p.y = Math.max(p.y, .055);
-      if (t > caught) { const q = orangePile(i, TI), kk = E.inOutSine(P(t, caught, .45)); p = p.clone().lerp(q, kk); p.y += Math.sin(Math.PI * kk) * .5; }
-      put(o, ZS, p.toArray(), [t * 3 + i, 0, 0]);
-    }
-    if (t > TEAR && t < TEAR + .5) comic('ТРЕСЬ!', 1350, 300, t - TEAR, { size: .4, rot: .1, dur: .5, color: '#ffffff' });
-    if (t > 161.75) comic('ХОП!', 380, 250, t - 161.75, { size: .45, rot: -.1, dur: .45 });
-    Z.scareAt = 158.7;
-    look([3.6, 1.3, 3.0], [6.6, .9, 4.6], 42);
-    return ZS;
-  });
   // жизнь двора: бабушки на лавочке у подъезда Тимура (обсуждают всех, кто проходит), дети на качелях и с мячом
   const ball = prop(mesh(new THREE.SphereGeometry(.11, 14, 10), toon(0xf2f2ee), { outline: .004 }));
   mesh(new THREE.SphereGeometry(.112, 6, 4), toon(0x1a1a1a, { wireframe: true }), { parent: ball });
@@ -993,17 +1045,152 @@ export function buildShots(C) {
     const k2 = ST(23); place(k2, ZS, [-19.6, 0, 11.4], -1.3); k2.root.scale.setScalar(.72); k2.pose(LIFE.cheer(t, 2)); face(k2, 's', t, { seed: 4, smile: .8, at: V(kx, .6, kz) });
     put(ball, ZS, [kx + .45 * Math.cos(t * 1.1), .11 + .5 * Math.abs(Math.sin(t * 5.2)), kz + .2], [t * 6, t * 3, 0]);
   };
+  // ---------- апельсины ----------
+  // Маржон идёт из «Продуктов» по дорожке через двор, пакет несёт перед собой; Тимур идёт следом в 2–3 метрах.
+  // На 159.8 у пакета рвётся дно; паучье чутьё — замедление; Тимур в рывке оказывается перед ней, ловит пять
+  // апельсинов «корзиной» из рук, два отскочивших выхватывает на лету и встаёт с охапкой.
+  const YP = [[22.4, 0, 18.0], [14, 0, 16.2], [9.5, 0, 10.5], [7.2, 0, 5.2]];     // дорожка от остановки к подъезду
+  const MJ_T0 = 154.0, MJ_SP = 1.0, TI_T0 = 152.5, TI_SP = 1.3;
+  const TEAR = 159.8;
+  const mjPathPts = [[16.5, 0, 16.6], ...YP.slice(1)];
+  const MJSTOP = path(mjPathPts, (TEAR + .1 - MJ_T0) * MJ_SP).p;                  // где Маржон останавливается
+  const FWD = (() => { const a = path(mjPathPts, (TEAR - .3 - MJ_T0) * MJ_SP).p; return V(MJSTOP[0] - a[0], 0, MJSTOP[2] - a[2]).normalize(); })();
+  const MYAW = Math.atan2(FWD.x, FWD.z), RGT = V(-FWD.z, 0, FWD.x);                // направление взгляда Маржон и её «право»
+  const AT = (f, r, y = 0) => V(MJSTOP[0], y, MJSTOP[2]).addScaledVector(FWD, f).addScaledVector(RGT, r);
+  const TISPOT = AT(1.08, .05);                                                   // куда прилетает Тимур (лицом к Маржон)
+  const BASKET = AT(.56, 0, .46);                                                 // «корзина» из рук на высоте колен
+  const SLOW = .32;                                                              // замедление чутья (физическое время / сюжетное)
+  const SPAWN = i => TEAR + .03 + i * .05;
+  // 0–4 падают в корзину, 5 и 6 отскакивают от края пакета вбок — их Тимур выхватывает руками
+  const OV = [[.05, .02], [-.06, .03], [.03, -.05], [-.02, -.04], [.0, .05], [-.85, .35], [.9, .3]];
+  const bagBottom = () => AT(.36, 0, .9);
+  const orangeFree = (i, t) => {                                                 // свободный полёт (в замедлении)
+    const tau = Math.max(0, t - SPAWN(i)) * SLOW, [vr, vf] = OV[i];
+    const p = bagBottom().addScaledVector(RGT, vr * tau * (i > 4 ? 1 : 4)).addScaledVector(FWD, vf * tau * 4 + (i > 4 ? .25 * tau : 0));
+    p.y = .9 + (i > 4 ? 1.2 : -.3) * tau - 4.9 * tau * tau;
+    return p;
+  };
+  const landT = i => {                                                           // когда апельсин опускается до высоты корзины / рук
+    const yb = i > 4 ? .62 : BASKET.y + .05, a = -4.9, b = i > 4 ? 1.2 : -.3, c = .9 - yb;
+    return SPAWN(i) + ((-b - Math.sqrt(b * b - 4 * a * c)) / (2 * a)) / SLOW;
+  };
+  const SNATCH = { 5: 'L', 6: 'R' };
+  const orangePile = (i, c) => { c.root.updateMatrixWorld(true); return c.J.chest.localToWorld(V((i % 3 - 1) * .075, -.16 + Math.floor(i / 3) * .075, .22)); };
+  D.onReset(t => { Z.bagFlap.rotation.x = t > TEAR + .2 ? 1.9 : 0; });   // дно пакета: целое до разрыва, оторвано после
+  /** Маржон несёт пакет перед собой (обеими руками) */
+  const mjBag = (t, k = 1) => {
+    if (Z.bag.parent !== MJ.root) MJ.root.add(Z.bag);
+    Z.bag.position.set(0, 1.22 * MJ.d.k, .26 * MJ.d.k); Z.bag.rotation.set(0, 0, 0); Z.bag.visible = true;
+    MJ.root.updateMatrixWorld(true); Z.bag.updateMatrixWorld(true);
+    for (const [sd, sx] of [['L', 1], ['R', -1]]) ikArm(MJ, sd, Z.bag.localToWorld(V(sx * .14, -.22, .0)), rel(MJ, [sx * .8, -1, -.3]), k);
+  };
+  const mjWalk = (t, f = {}) => {
+    const r = walk(MJ, ZS, mjPathPts, Math.min(t, TEAR + .1), MJ_T0, MJ_SP, { endYaw: MYAW });
+    MJ.pose({ ...(r.done || t > TEAR ? POSE.stand(t) : POSE.walk(gait(r.d, .68, .9))), armL: [-.7, 0, .1], armR: [-.7, 0, .1], foreL: [-1.3, 0, 0], foreR: [-1.3, 0, 0], grip: .8 });
+    mjBag(t);
+    face(MJ, 'marjon', t, { seed: 3, smile: .3, ...f });
+    return r;
+  };
+  const tiWalk = (t, until = 1e9) => {
+    const r = walk(TI, ZS, YP, Math.min(t, until), TI_T0, TI_SP);
+    if (!r.done && t < until) { TI.J.head.rotation.x += .07 * Math.sin(t * Math.PI * 2 * 1.05); TI.J.neck.rotation.z = .05 * Math.sin(t * Math.PI * 1.05); }   // кивает в такт музыке
+    TI.J.head.add(phonesH); phonesH.position.set(0, 0, 0); phonesH.rotation.set(0, 0, 0); phonesH.visible = true;
+    return r;
+  };
+  shot(152, 156.3, (lt, t) => {
+    Z.setTime('sunset');
+    // автобус «42» отъезжает, Тимур в наушниках идёт домой; впереди с пакетом — Маржон
+    Z.bus.visible = true; Z.bus.position.set(lerp(21, -45, E.inQuad(P(t, 152.3, 4.8))), 0, 21.4); Z.bus.rotation.y = -Math.PI / 2;
+    yardLife(t, { watch: V(16, 1.5, 16.5) });
+    tiWalk(t); face(TI, 'timur', t, { smile: .35, look: [0, -.1] });
+    if (t > MJ_T0 - .5) mjWalk(t);
+    extra(12, ZS, [24.5, 0, 17.9], -1.2, t, 'phone'); hold(phones[2], ST(12), 'R', [0, -.1, .04], [-.3, 0, 0]);
+    move(t, [[152, [40, 9, 31.5], [15, 2, 12], 42], [156.3, [35, 3.6, 25.5], [12, 2, 13], 40]], E.inOutSine);
+    fadeIn(lt, .8);
+    return ZS;
+  });
+  shot(156.3, 159.6, (lt, t) => {
+    Z.setTime('sunset'); Z.scareAt = 158.4;
+    tiWalk(t); mjWalk(t);
+    face(TI, 'timur', t, { smile: .35, at: headW(MJ), atK: .55 });
+    yardLife(t, { watch: headW(TI) });
+    // сбоку и чуть сзади: Тимур, впереди Маржон с пакетом
+    TI.root.updateMatrixWorld(true); const tp = TI.root.position.clone();
+    look(tp.clone().addScaledVector(RGT, 3.0).addScaledVector(FWD, -.6).add(V(0, 1.45, 0)).toArray(), tp.clone().addScaledVector(FWD, 1.6).add(V(0, 1.1, 0)).toArray(), 42);
+    return ZS;
+  });
+  shot(159.6, 162.2, (lt, t) => {
+    Z.setTime('sunset'); Z.scareAt = 158.4;
+    const k = pulse(t, TEAR + .05, 162.0, .2, .3); sense(t, k, TEAR);
+    yardLife(t, { watch: BASKET });
+    // Маржон: пакет рвётся — она ахает, руки разлетаются
+    const oops = E.outBack(P(t, TEAR, .5));
+    mjWalk(t, { wide: t > TEAR + .1, mouth: t > TEAR + .1 && t < 161.6 ? .55 : undefined, brow: .8 * oops, at: t > TEAR + .2 ? BASKET : undefined, atK: .9 });
+    if (t > TEAR) {
+      MJ.pose({ ...POSE.stand(t), spine: [.25 * oops, 0, 0], hy: -.04 * oops, armL: [-.7, 0, .1], armR: [-.7, 0, .1], foreL: [-1.3, 0, 0], foreR: [-1.3, 0, 0], grip: .8 });
+      mjBag(t); Z.bag.rotation.x = -.35 * oops; Z.bagFlap.rotation.x = 1.9 * E.outCubic(P(t, TEAR, .25));
+      ikArm(MJ, 'L', Z.bag.localToWorld(V(.14, -.22, 0)).add(V(0, .05 * oops, 0)), rel(MJ, [.8, -1, -.3]));
+    }
+    // Тимур: шёл сзади → чутьё → рывок → присел «корзиной»
+    const dash = E.inOutCubic(P(t, TEAR + .12, .32));
+    let tp, tyaw;
+    const walkP = path(YP, (TEAR + .12 - TI_T0) * TI_SP).p;
+    if (t < TEAR + .12) { tiWalk(t); tp = TI.root.position.toArray(); tyaw = TI.root.rotation.y; }
+    else { const side = Math.sin(Math.PI * dash) * .75;   // обегает Маржон сбоку, а не сквозь неё
+      tp = [lerp(walkP[0], TISPOT.x, dash) + RGT.x * side, Math.sin(Math.PI * dash) * .25, lerp(walkP[2], TISPOT.z, dash) + RGT.z * side]; tyaw = lerp(MYAW, MYAW + Math.PI, E.inOutSine(P(t, TEAR + .15, .3))); }
+    if (t >= TEAR + .12) {
+      place(TI, ZS, tp, tyaw);
+      const rise = E.inOutSine(P(t, 161.6, .45));
+      const crouchP = { ...POSE.crouch(), spine: [.5, 0, 0], head: [.15, 0, 0], armL: [-1.05, 0, .3], armR: [-1.05, 0, .3], foreL: [-.75, 0, 0], foreR: [-.75, 0, 0], grip: .25 };
+      TI.pose(dash < 1 ? blend(POSE.run(t * 2, 2.2), crouchP, dash) : blend(crouchP, POSE.hold(), rise));
+      // корзина: кисти под точкой падения; два отскочивших — выхватывает рукой и возвращает к груди
+      TI.root.updateMatrixWorld(true);
+      if (dash >= 1 && rise < 1) for (const [sd, sx] of [['L', 1], ['R', -1]]) {
+        let tg = BASKET.clone().addScaledVector(RGT, -sx * .13).add(V(0, -.03, 0));
+        const i = sd === 'L' ? 5 : 6, lt5 = landT(i), sn = pulse(t, lt5 - .28, lt5 + .32, .2, .26);
+        if (sn > 0) tg = tg.lerp(orangeFree(i, Math.min(t, lt5)), sn);
+        ikArm(TI, sd, tg, rel(TI, [sx * .9, -1, -.2]), 1 - rise);
+      }
+    }
+    TI.J.head.add(phonesH); phonesH.visible = true;
+    face(TI, 'timur', t, { brow: .35, noBlink: t > TEAR, squint: t > TEAR + .05 && t < TEAR + .4 ? .75 : 1, at: t > TEAR + .3 ? BASKET : undefined, atK: .8 });
+    if (t > TEAR + .05 && t < TEAR + .9) D.ring(headW(TI), .2 + .45 * P(t, TEAR + .05, .7), 1 - P(t, TEAR + .05, .8), 0x9ff8ff);
+    // апельсины: летят → в корзину (или в ладонь) → в охапку у груди
+    for (let i = 0; i < 7; i++) {
+      const o = Z.oranges[i]; if (t < SPAWN(i)) continue;
+      const lt0 = landT(i); let p;
+      if (t < lt0) p = orangeFree(i, t);
+      else if (i > 4) {   // в ладони, потом к груди
+        const h = handW(TI, SNATCH[i]), q = orangePile(i, TI), kk = E.inOutSine(P(t, lt0 + .3, .45));
+        p = h.add(V(0, .02, 0)).lerp(q, kk);
+      } else {            // «осели» в корзине, когда встаёт — прижимает к груди
+        const settle = BASKET.clone().addScaledVector(RGT, (i % 3 - 1) * .08).addScaledVector(FWD, ((i >> 1) % 2 - .5) * .07).add(V(0, .04 + Math.floor(i / 3) * .07, 0));
+        p = orangeFree(i, lt0).lerp(settle, E.outQuad(P(t, lt0, .12)));
+        const rise = E.inOutSine(P(t, 161.6, .45)); if (rise > 0) p.lerp(orangePile(i, TI), rise);
+      }
+      put(o, ZS, p.toArray(), [t * 2 + i, i, 0]);
+    }
+    if (t > TEAR && t < TEAR + .6) comic('ТРЕСЬ!', 1420, 260, t - TEAR, { size: .4, rot: .1, dur: .6, color: '#ffffff' });
+    if (t > 161.85) comic('ХОП!', 360, 250, t - 161.85, { size: .45, rot: -.1, dur: .5 });
+    if (dash > 0 && dash < 1) D.speedLines(1 - dash, t);
+    // низкий боковой ракурс: Маржон слева, Тимур справа, между ними — летящие апельсины
+    const mid = AT(.55, 0, .75), kc = E.inOutSine(P(t, TEAR, 2.2));
+    look(mid.clone().addScaledVector(RGT, lerp(3.9, 3.2, kc)).addScaledVector(FWD, -.1).add(V(0, lerp(.55, .35, kc), 0)).toArray(), mid.toArray(), lerp(44, 40, kc));
+    return ZS;
+  });
   // разговор у подъезда и на лавочке
   const pileOnBench = () => Z.oranges.forEach((o, i) => put(o, ZS, [7.75 + (i % 3) * .1, .53 + Math.floor(i / 3) * .08, 2.36 + ((i >> 1) % 2) * .08]));
   shot(162.2, 165.6, (lt, t) => {
-    Z.setTime('sunset'); yardLife(t, { watch: V(6.6, 1.3, 4.7) });
-    place(MJ, ZS, [6.9, 0, 4.6], -2.0); MJ.pose(talking({ ...POSE.stand(t), armR: [-.3, .1, .25], foreR: [-.4, 0, 0], gripR: 1 }, 'marjon', t, 1, 'L'));
-    hold(Z.bag, MJ, 'R', [0, -.1, 0]);
-    place(TI, ZS, [6.25, 0, 4.75], 1.15); TI.pose(POSE.hold());
+    Z.setTime('sunset'); Z.scareAt = 158.4; yardLife(t, { watch: AT(.4, 0, 1.4) });
+    place(MJ, ZS, MJSTOP, MYAW); MJ.pose(talking({ ...POSE.stand(t), armL: [-.7, 0, .1], armR: [-.7, 0, .1], foreL: [-1.3, 0, 0], foreR: [-1.3, 0, 0], grip: .8 }, 'marjon', t, .6, 'L'));
+    mjBag(t); Z.bagFlap.rotation.x = 1.9;
+    place(TI, ZS, TISPOT.toArray(), MYAW + Math.PI); TI.pose(POSE.hold());
     face(MJ, 'marjon', t, { seed: 3, smile: .6, brow: .3, at: headW(TI) });
-    face(TI, 'timur', t, { smile: .3, brow: .2, at: Math.sin(t * 1.3) > .4 ? Z.oranges[4].position.clone() : headW(MJ), atK: .8 });
+    face(TI, 'timur', t, { smile: .3, brow: .2, at: Math.sin(t * 1.3) > .4 ? orangePile(4, TI) : headW(MJ), atK: .8 });
+    TI.J.head.add(phonesH); phonesH.visible = true;
     Z.oranges.forEach((o, i) => put(o, ZS, orangePile(i, TI).toArray()));
-    look([8.9, 1.55, 6.9], [6.55, 1.3, 4.65], 38);
+    const mid = AT(.55, 0, 1.3);
+    look(mid.clone().addScaledVector(RGT, 2.9).addScaledVector(FWD, .25).add(V(0, .2, 0)).toArray(), mid.toArray(), 38);
     return ZS;
   });
   const benchSit = (t, o = {}) => {
