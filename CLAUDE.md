@@ -120,7 +120,8 @@ D.shot(t0, t1, (lt, t) => { …; return D.S; }, { noSubs, noFlash });
 D.look(pos, at, fov, roll)            // камера (fov ≤ 38 и близко → глубина резкости на видеокарте)
 D.move(t, [[t, pos, at, fov], …])     // проезд камеры по ключам
 D.place(ch, parent, [x,y,z], yaw)     // yaw = 0 → смотрит в +Z; yawTo(a, b) — повернуться к точке
-D.face(ch, 'timur', t, {brow, smile, squint, wide, look:[x,y], dim, energy})  // липсинк, моргание, дыхание
+D.face(ch, 'timur', t, {brow, smile, squint, wide, look:[x,y], dim, energy, at, atK})  // липсинк, моргание, дыхание;
+                                      // at — точка/Vector3, куда повернуть голову (собеседник, событие), atK — сила
 D.impact(t, t0, {zoom, shake, color}) // «кадр удара»
 D.comic('БАМ!', x, y, t - t0, {size, color, rot, dur})  ·  D.caption('Соседняя крыша…', x, y, t - t0)
 D.panel(i, k, [x,y,w,h], scene, pos, at, fov)   // комикс-панель со вторым ракурсом
@@ -133,7 +134,8 @@ FIGHT.guard/leanBack/load/dropKick/kickR/tuck/zip/shootBoth/eat/tired   HEAVY.wi
 ```
 
 ### Персонажи (`C.ch`)
-`timur, ded, vera, kronov, shadow`, лицей: `marjon, diyor, azim, teacher`, злодей `odilman`, школьники `s0…s15`
+`timur, ded, vera, kronov, shadow`, лицей: `marjon, diyor, azim, teacher`, злодей `odilman`, школьники `s0…s23`,
+бабушки во дворе `granny0/granny1` (`makeCharacter('granny', {variant})` — платок, кофта)
 (`makeCharacter('student', {variant})`, s8/s9 — дружки Азима). Маржон: `sketch` (скетчбук с комиксом), `tail` (хвост);
 Азим: `gum`; учительница: `chalk`; ODILMAN: `lensList` (белые глаза — цвет = свечение), `ribbons` + `wind` (ленты маски). У каждого: `root` (Group), `J` (суставы: hips, spine, chest, neck, head,
 armL/R, foreL/R, handL/R, legL/R, shinL/R, footL/R), `pose(p)`, `setFace(f)`, `d.k` (масштаб: Кронов 1.6),
@@ -159,7 +161,8 @@ phone, reach, hold, pointFinger, adjustGlasses, fistShake, shrug, lookUp.
   ТВ на стене x = 8 (`drawTV(t)`), поднос Тимура `timurTray`.
 - Затон (zaton.js): фасад дома z = 0, подъезды x −16.5/−4.5 (Тимур)/4.5 (Маржон)/16.5, лавочки z 2.4 (±2.3 от подъезда),
   окно мамы Маржон `momWin/momSash/momSil` (10.5, 5.35), двор z 4…16, тротуар 16…19.5, дорога 19.5…27, остановка (22, 0, 18.2),
-  `bus`, `oranges`, `bag`; лицей — группа `school` в (600, 0, 0): ворота x ±4 на z = 16, двери z ≈ 3. `setTime('morning'|'sunset'|'dusk')`
+  `bus`, `oranges`, `bag`, голуби `pigeons` (вспорхнут, если в шоте задать `Z.scareAt = t0`), стая птиц, листопад, облака в небе;
+  лицей — группа `school` в (600, 0, 0): ворота x ±4 на z = 16, двери z ≈ 3. `setTime('morning'|'sunset'|'dusk')`
   или смесь `setTime(a, b, k)` — вызывать в каждом шоте этой сцены.
 - Логово Тени: кресло (0, 0, −0.3), Тень (0, 0.02, 0.2) yaw 0, стена мониторов по дуге за креслом.
 
@@ -216,7 +219,11 @@ phone, reach, hold, pointFinger, adjustGlasses, fistShake, shrug, lookUp.
 - Комикс-надписи рядом с лицами смещать в угол кадра; буквы «в воздухе» — по бокам, не на лбу.
 - Предмет в руке, который должен «смотреть» в камеру (скетчбук, телефон), — `obj.lookAt(camera.position)` после `look`.
 - В e02/shots.js есть помощники, которые стоит копировать в новые серии: `walk` (ходьба по ломаной), `talking`
-  (жест говорящего поверх любой позы), `close`/`ots` (крупный план и «через плечо»), `extra` (фигуранты), `hold/put` (реквизит).
+  (жест говорящего поверх любой позы), `close`/`ots` (крупный план и «через плечо»), `extra` (фигуранты с манерами:
+  перенос веса, руки на поясе/за спиной, кивки), `stroll` (фон ходит туда-обратно), `speakerAt` (смотреть на того, кто
+  говорит), `LIFE` (позы массовки: talk, listen, laugh, wow, cheer, film, eat, write, yawn, chin…), `hold/put` (реквизит).
+- Персонажи «оживают», когда смотрят друг на друга: у каждого в кадре должен быть `at` (собеседник, событие, ТВ).
+- Случайность только детерминированная (`rng(seed)`), иначе при рендере в несколько потоков кадры «прыгают».
 
 ## 8. Git
 
