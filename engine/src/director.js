@@ -123,13 +123,30 @@ export function makeDirector(C) {
   D.onFace = (c, f) => faceHooks.set(c, f);
   /** лицо и «жизнь»: липсинк по голосу (who — персонаж из dialogue.json), моргание, дыхание, взгляд.
    *  o: { brow, smile, squint, wide, look:[x,y], dim (визор Кронова), energy (вторичная анимация), seed } */
+  /** повернуть голову к точке (взгляд на собеседника/событие): поверх позы, k — сила (0…1) */
+  const _q = new THREE.Quaternion();
+  D.attendAngles = (c, at) => {
+    c.root.updateMatrixWorld(true);
+    const h = c.J.neck.getWorldPosition(V(0, 0, 0)), tg = at.isVector3 ? at : V(...at);
+    const d = tg.clone().sub(h).applyQuaternion(c.root.getWorldQuaternion(_q).invert());
+    const yaw = clamp(Math.atan2(d.x, d.z) - c.J.spine.rotation.y - c.J.chest.rotation.y, -1.25, 1.25);
+    const pitch = clamp(Math.atan2(-d.y, Math.hypot(d.x, d.z)) - c.J.spine.rotation.x * .5, -.6, .6);
+    return [yaw, pitch];
+  };
+  D.attend = (c, at, k = 1) => {
+    const [yaw, pitch] = D.attendAngles(c, at);
+    c.J.neck.rotation.y += yaw * .35 * k; c.J.head.rotation.y += yaw * .55 * k;
+    c.J.head.rotation.x = lerp(c.J.head.rotation.x, pitch * .8, .75 * k);
+  };
+  /** лицо и «жизнь»: …, o.at — точка, куда смотреть (голова поворачивается), o.atK — сила поворота */
   D.face = (c, who, t, o = {}) => {
     faceHooks.get(c)?.(t);
     const sd = o.seed ?? 0;
     c.J.chest.scale.set(1 + .008 * Math.sin(t * 2.1 + sd), 1 + .012 * Math.sin(t * 2.1 + sd), 1 + .018 * Math.sin(t * 2.1 + sd));
-    c.setFace({ mouth: C.mouthOf(who, t) * (o.mk ?? 1), shape: C.shapeOf(who), fric: C.fricOf(who), blink: o.noBlink ? 0 : blinkAt(t, sd),
-      look: [noise(t * .8 + sd * 7) * .35, noise(t * .7 + sd * 7 + 40) * .2], ...o });
+    const look = o.at ? [noise(t * .8 + sd * 7) * .1, noise(t * .7 + sd * 7 + 40) * .07] : [noise(t * .8 + sd * 7) * .35, noise(t * .7 + sd * 7 + 40) * .2];
+    c.setFace({ mouth: C.mouthOf(who, t) * (o.mk ?? 1), shape: C.shapeOf(who), fric: C.fricOf(who), blink: o.noBlink ? 0 : blinkAt(t, sd), look, ...o });
     secondary(c, t, o.energy ?? .2);
+    if (o.at) D.attend(c, o.at, o.atK ?? 1);
   };
   D.handW = (c, s = 'R') => { c.root.updateMatrixWorld(true); return c.J['hand' + s].localToWorld(V(0, -.09 * c.d.k, 0)); };
   D.headW = c => { c.root.updateMatrixWorld(true); return c.J.head.localToWorld(V(0, .16 * c.d.k, .1)); };

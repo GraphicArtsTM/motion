@@ -83,9 +83,10 @@ const zaton = makeZaton();
 const ch = {
   timur: makeCharacter('timur'), ded: makeCharacter('ded'), vera: makeCharacter('vera'),
   kronov: makeCharacter('kronov'), shadow: makeCharacter('shadow'),
-  // лицей (серия 2): друзья, задира, учительница, ODILMAN и школьники s0…s15 (s8, s9 — дружки Азима)
+  // лицей (серия 2): друзья, задира, учительница, ODILMAN и школьники s0…s23 (s8, s9 — дружки Азима)
   marjon: makeCharacter('marjon'), diyor: makeCharacter('diyor'), azim: makeCharacter('azim'), teacher: makeCharacter('teacher'), odilman: makeCharacter('odilman'),
-  ...Object.fromEntries(Array.from({ length: 16 }, (_, i) => ['s' + i, makeCharacter('student', { variant: i })])),
+  granny0: makeCharacter('granny', { variant: 0 }), granny1: makeCharacter('granny', { variant: 1 }),
+  ...Object.fromEntries(Array.from({ length: 24 }, (_, i) => ['s' + i, makeCharacter('student', { variant: i })])),
 };
 // контактные тени под персонажами
 const blobTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
@@ -228,6 +229,7 @@ function frameLogic(T) {
   bridgeD.update(t, !!wo.bridge, camera);
   kitchenD.update(t, { inKitchen: scene === kitchen.scene, ...(wo.kitchen || {}) });
   zaton.update?.(t, scene === zaton.scene);
+  school.update?.(t, scene);
   const up = new THREE.Vector3();
   for (const c of Object.values(ch)) { up.set(0, 1, 0).applyQuaternion(c.root.getWorldQuaternion(new THREE.Quaternion())); c.blob.visible = c.root.visible && up.y > .95 && !ctx.noBlob?.includes(c); }
   ctx.noBlob = null;

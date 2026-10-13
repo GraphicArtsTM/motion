@@ -78,15 +78,24 @@ function tree(parent, x, z, s, seed, birch = false) {
 function skyDome() {
   const mat = new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false, fog: false,
-    uniforms: { top: { value: new THREE.Color() }, hor: { value: new THREE.Color() }, low: { value: new THREE.Color() }, sunDir: { value: new THREE.Vector3(0, 1, 0) }, sunCol: { value: new THREE.Color() }, sunK: { value: 1 } },
+    uniforms: { top: { value: new THREE.Color() }, hor: { value: new THREE.Color() }, low: { value: new THREE.Color() }, sunDir: { value: new THREE.Vector3(0, 1, 0) }, sunCol: { value: new THREE.Color() }, sunK: { value: 1 }, time: { value: 0 }, cloudK: { value: 1 } },
     vertexShader: 'varying vec3 vD; void main(){ vD = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-    fragmentShader: `uniform vec3 top, hor, low, sunCol, sunDir; uniform float sunK; varying vec3 vD;
+    fragmentShader: `uniform vec3 top, hor, low, sunCol, sunDir; uniform float sunK, time, cloudK; varying vec3 vD;
+      float hs(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(hs(i), hs(i + vec2(1, 0)), f.x), mix(hs(i + vec2(0, 1)), hs(i + vec2(1, 1)), f.x), f.y); }
+      float fbm(vec2 p){ float a = .5, s = 0.0; for (int i = 0; i < 5; i++) { s += a * vn(p); p *= 2.03; a *= .5; } return s; }
       void main(){ float h = vD.y; vec3 c = h > 0.0 ? mix(hor, top, pow(clamp(h * 2.2, 0.0, 1.0), .7)) : mix(hor, low, clamp(-h * 6.0, 0.0, 1.0));
         float d = max(dot(normalize(vD), normalize(sunDir)), 0.0);
         c += sunCol * (pow(d, 900.0) * 3.0 + pow(d, 12.0) * .35 + pow(d, 3.0) * .12) * sunK;
-        // лёгкие полосы облаков
-        float cl = smoothstep(.55, .9, sin(vD.x * 9.0 + vD.z * 3.0) * .5 + .5) * smoothstep(.02, .12, h) * smoothstep(.45, .15, h);
-        c = mix(c, mix(hor, vec3(1.0), .45) + sunCol * .15, cl * .35);
+        // кучевые облака: проекция на «купол», дрейф ветром; край к солнцу подсвечен
+        if (h > 0.0) {
+          vec2 uv = vD.xz / (h + .18) * 1.6 + vec2(time * .012, time * .004);
+          float n = fbm(uv), cl = smoothstep(.52, .78, n) * smoothstep(.0, .12, h);
+          float lit = clamp(fbm(uv + normalize(sunDir.xz) * .08) - n + .55, 0.0, 1.0);
+          vec3 cc = mix(mix(top, hor, .5) * .75, mix(hor, vec3(1.0), .55) + sunCol * .35 * lit, lit) * cloudK + c * (1.0 - cloudK) * .9;
+          c = mix(c, cc, cl * .85);
+        }
         gl_FragColor = vec4(c, 1.0); }`,
   });
   const m = new THREE.Mesh(new THREE.SphereGeometry(2400, 32, 16), mat); m.frustumCulled = false; m.renderOrder = -10;
@@ -111,9 +120,9 @@ function skylineRing() {
 
 /* ---------- время суток ---------- */
 const TIMES = {
-  morning: { top: 0x5f9fe6, hor: 0xf3e3c4, low: 0xc9c0b0, sun: 0xfff0d4, sunI: 2.5, dir: [.45, .62, .64], hs: 0xdde9ff, hg: 0x8a7a60, hI: 1.45, fog: 0xe6e4dc, win: .05, lamp: 0, exp: 1 },
-  sunset: { top: 0x41558f, hor: 0xff9e62, low: 0x6a4a50, sun: 0xffb06a, sunI: 2.6, dir: [-.78, .2, .6], hs: 0xffc8a8, hg: 0x5a4058, hI: 1.15, fog: 0xe8a07a, win: .8, lamp: .5, exp: 1 },
-  dusk: { top: 0x101a40, hor: 0x5a3a60, low: 0x20182a, sun: 0x9080ff, sunI: .5, dir: [-.6, .15, .7], hs: 0x6070b0, hg: 0x201828, hI: .8, fog: 0x2a2440, win: 1.6, lamp: 1.2, exp: 1 },
+  morning: { top: 0x5f9fe6, hor: 0xf3e3c4, low: 0xc9c0b0, sun: 0xfff0d4, sunI: 2.5, dir: [.45, .62, .64], hs: 0xdde9ff, hg: 0x8a7a60, hI: 1.45, fog: 0xe6e4dc, win: .05, lamp: 0, exp: 1, cloud: 1 },
+  sunset: { top: 0x41558f, hor: 0xff9e62, low: 0x6a4a50, sun: 0xffb06a, sunI: 2.6, dir: [-.78, .2, .6], hs: 0xffc8a8, hg: 0x5a4058, hI: 1.15, fog: 0xe8a07a, win: .8, lamp: .5, exp: 1, cloud: .9 },
+  dusk: { top: 0x101a40, hor: 0x5a3a60, low: 0x20182a, sun: 0x9080ff, sunI: .5, dir: [-.6, .15, .7], hs: 0x6070b0, hg: 0x201828, hI: .8, fog: 0x2a2440, win: 1.6, lamp: 1.2, exp: 1, cloud: .35 },
 };
 
 export function makeZaton() {
@@ -301,8 +310,12 @@ export function makeZaton() {
     o.visible = false; return o;
   });
   const bag = Z.bag = new THREE.Group(); scene.add(bag); bag.visible = false;
-  mesh(new THREE.CylinderGeometry(.16, .13, .34, 10, 1, true), toon(0xf4f2ea, { side: THREE.DoubleSide }), { pos: [0, -.2, 0], outline: .004, parent: bag });
-  for (const sx of [-1, 1]) mesh(new THREE.TorusGeometry(.06, .01, 4, 10, Math.PI), toon(0xf4f2ea), { pos: [sx * .06, -.03, 0], outline: false, parent: bag });
+  const bagT = tex(128, 160, (g, w, h) => { g.fillStyle = '#d9b884'; g.fillRect(0, 0, w, h); g.fillStyle = 'rgba(120,80,40,.25)'; for (let y = 0; y < h; y += 6) g.fillRect(0, y, w, 1);
+    g.fillStyle = '#2f8a4a'; g.font = '900 22px Rubik'; g.textAlign = 'center'; g.fillText('ПРОДУКТЫ', w / 2, 70); g.fillText('24', w / 2, 96); });
+  mesh(rb(.26, .3, .15, .02), toon(0xffffff, { map: bagT }), { pos: [0, -.21, 0], outline: .004, parent: bag });
+  for (let i = 0; i < 3; i++) mesh(new THREE.SphereGeometry(.05, 10, 8), toon(0xf08a1a), { pos: [-.07 + i * .07, -.04, (i % 2) * .03 - .015], outline: .003, parent: bag });   // апельсины сверху
+  mesh(new THREE.ConeGeometry(.03, .14, 6), toon(0x6aa83a), { pos: [.08, .0, .03], rot: [0, 0, -.3], outline: .003, parent: bag });                                      // лук-перо
+  for (const sx of [-1, 1]) mesh(new THREE.TorusGeometry(.045, .008, 4, 10, Math.PI), toon(0xb8986a), { pos: [sx * .05, -.06, 0], outline: false, parent: bag });
 
   /* ---------- лицей «Новоград» (группа в 600, 0, 0) ---------- */
   const S = new THREE.Group(); S.position.set(600, 0, 0); scene.add(S); Z.school = S;
@@ -384,6 +397,34 @@ export function makeZaton() {
   [[-18, 5], [-10, 6], [14, 7]].forEach(([x, i]) => { const c = makeCar(i); c.position.set(SX + x, 0, 21.5); c.rotation.y = Math.PI / 2; c.traverse(o => { if (o.userData.lamp) o.visible = false; }); scene.add(c); });
   for (const tx of [-34, -26, 26, 34]) tree(scene, SX + tx, 30, 1.1, 400 + tx, tx > 0);
 
+  /* жизнь двора: голуби (вспархивают, когда рядом пробегают — Z.scareAt), стая птиц в небе, листопад */
+  const pigM = toon(0x8a92a4), pigD = toon(0x4a5060), neckM = toon(0x4a7a6a), beakM = toon(0xd8b07a);
+  Z.pigeons = [[-1.8, 8.2], [-1.2, 8.9], [-.4, 8.1], [.4, 9.2], [1.1, 8.4], [-2.4, 9.4], [2.2, 9.0], [-22, 13.5], [-21.3, 14.1]].map(([x, z], i) => {
+    const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = i * 1.7; scene.add(g);
+    const body = new THREE.Group(); g.add(body);
+    mesh(new THREE.SphereGeometry(.09, 12, 8), pigM, { pos: [0, .12, 0], scale: [.8, .75, 1.25], outline: .004, parent: body });
+    const head = new THREE.Group(); head.position.set(0, .2, .09); body.add(head);
+    mesh(new THREE.SphereGeometry(.045, 10, 8), pigD, { outline: .003, parent: head });
+    mesh(new THREE.SphereGeometry(.05, 10, 8), neckM, { pos: [0, -.04, -.02], scale: [1, .8, 1], outline: false, parent: head });
+    mesh(new THREE.ConeGeometry(.012, .035, 6), beakM, { pos: [0, -.005, .05], rot: [Math.PI / 2, 0, 0], outline: false, parent: head });
+    mesh(new THREE.BoxGeometry(.09, .015, .1), pigD, { pos: [0, .12, -.15], rot: [-.25, 0, 0], outline: .003, parent: body });
+    const wings = [-1, 1].map(sx => { const w = new THREE.Group(); w.position.set(sx * .06, .15, 0); body.add(w);
+      mesh(new THREE.BoxGeometry(.16, .012, .1), pigM, { pos: [sx * .08, 0, -.01], outline: .003, parent: w }); return w; });
+    for (const sx of [-1, 1]) mesh(new THREE.CylinderGeometry(.006, .006, .06, 4), beakM, { pos: [sx * .025, .03, 0], outline: false, parent: body });
+    return { g, body, head, wings, x, z, i, ph: i * 1.37 };
+  });
+  Z.scareAt = null;
+  const birdM = new THREE.MeshBasicMaterial({ color: 0x2a2630, side: THREE.DoubleSide, fog: false });
+  Z.birds = Array.from({ length: 7 }, (_, i) => {
+    const g = new THREE.Group(); scene.add(g);
+    const wings = [-1, 1].map(sx => { const w = new THREE.Group(); g.add(w); const m = new THREE.Mesh(new THREE.PlaneGeometry(1.1, .32), birdM); m.position.x = sx * .55; m.rotation.x = -Math.PI / 2; w.add(m); return w; });
+    return { g, wings, i };
+  });
+  const LEAF_N = 140;
+  const fallLeaves = [0, 1].map(j => { const im = new THREE.InstancedMesh(new THREE.PlaneGeometry(.11, .08), toon(0xffffff, { side: THREE.DoubleSide }), LEAF_N); im.frustumCulled = false;
+    for (let i = 0; i < LEAF_N; i++) im.setColorAt(i, lc.set([0xe0802a, 0xf2c63a, 0xb8462a, 0xd09a30][i % 4])); scene.add(im); return im; });
+  const LC = [[0, 9], [600, 12]];
+
   /* свет */
   const hemi = new THREE.HemisphereLight(0xdde9ff, 0x8a7a60, 1.45); scene.add(hemi);
   const sun = new THREE.DirectionalLight(0xfff0d4, 2.5); scene.add(sun, sun.target); Z.sun = sun; scene.userData.sun = sun;
@@ -402,6 +443,7 @@ export function makeZaton() {
     ringCol.copy(fog).lerp(C(A, B, k, 'top'), .35); ring.material.color.copy(ringCol);
     const win = A.win + (B.win - A.win) * k; Z.winMats.forEach(m => m.emissiveIntensity = win);
     const lamp = A.lamp + (B.lamp - A.lamp) * k; Z.lamps.forEach(l => l.material.color.setRGB(1, .85, .63).multiplyScalar(.3 + lamp * 3));
+    u.cloudK.value = A.cloud + (B.cloud - A.cloud) * k;
     Z.time = { a, b, k };
   };
   Z.setTime('morning');
@@ -410,13 +452,50 @@ export function makeZaton() {
   Z.aim(new THREE.Vector3(0, 0, 6)); scene.userData.aim = Z.aim;
 
   Z.update = (t, active) => {
-    if (!active) return;
+    if (!active) { Z.scareAt = null; return; }
+    sky.material.uniforms.time.value = t;
+    // голуби клюют, при испуге — взлетают
+    for (const p of Z.pigeons) {
+      const fly = Z.scareAt != null ? Math.max(0, t - Z.scareAt - p.i * .06) : 0;
+      const peck = Math.max(0, Math.sin(t * 3.1 + p.ph * 2)) ** 3;
+      if (fly > 0) {
+        const dir = new THREE.Vector3(Math.sin(p.ph * 3), 0, -Math.abs(Math.cos(p.ph * 3)) - .3).normalize();
+        p.g.position.set(p.x + dir.x * fly * 4, Math.min(fly * fly * 3 + fly * 2, 30), p.z + dir.z * fly * 4);
+        p.g.rotation.y = Math.atan2(dir.x, dir.z); p.body.rotation.x = -.5;
+        p.wings.forEach((w, k) => w.rotation.z = (k ? -1 : 1) * Math.sin(t * 40 + p.i) * .9);
+      } else {
+        const hop = Math.floor((t * .35 + p.ph) % 4);
+        p.g.position.set(p.x + Math.sin(hop * 2.1 + p.ph) * .15, 0, p.z + Math.cos(hop * 1.7 + p.ph) * .15);
+        p.g.rotation.y = p.i * 1.7 + hop * .9; p.body.rotation.x = 0;
+        p.head.rotation.x = .9 * peck; p.head.position.z = .09 + .03 * peck;
+        p.wings.forEach(w => w.rotation.z = 0);
+      }
+    }
+    // стая в небе
+    for (const b of Z.birds) {
+      const k = ((t * 3 + b.i * 1.4) % 260) - 130;
+      b.g.position.set(k + (b.i % 3) * 3, 46 + (b.i % 4) * 2.5 + Math.sin(t * .7 + b.i) * 1.2, -70 - (b.i % 3) * 6 - b.i * 2);
+      b.g.rotation.y = Math.PI / 2;
+      b.wings.forEach((w, s) => w.rotation.z = (s ? -1 : 1) * Math.sin(t * 9 + b.i) * .5);
+    }
+    // листопад
+    fallLeaves.forEach((im, j) => {
+      const [cx, cz] = LC[j];
+      for (let i = 0; i < LEAF_N; i++) {
+        const h = ((i * 7919) % 1000) / 1000, h2 = ((i * 104729) % 1000) / 1000, sp = .45 + h2 * .35;
+        const y = 9 - ((t * sp + h * 9) % 9);
+        dm.position.set(cx + (h - .5) * 46 + Math.sin(t * 1.3 + i) * .6, y, cz + (h2 - .5) * 22 + Math.cos(t * 1.1 + i * 2) * .5);
+        dm.rotation.set(t * 2.1 + i, t * 1.7 + h * 6, t * 1.3); dm.scale.setScalar(1); dm.updateMatrix(); im.setMatrixAt(i, dm.matrix);
+      }
+      im.instanceMatrix.needsUpdate = true;
+    });
     Z.swings.forEach((s, i) => s.rotation.x = Math.sin(t * 1.9 + i * 2) * (i ? .08 : .35));
     for (const { f, base } of Z.flags) {
       const p = f.geometry.attributes.position;
       for (let i = 0; i < p.count; i++) { const x = base[i * 3]; p.array[i * 3 + 2] = Math.sin(x * 3.2 - t * 6 + f.position.x) * .14 * (x / 1.8); }
       p.needsUpdate = true;
     }
+    Z.scareAt = null;
   };
   return Z;
 }

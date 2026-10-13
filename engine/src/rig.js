@@ -161,10 +161,18 @@ const STUDENTS = [
   { top: 0xc8783a, pants: 0x2a2a30, hair: 0x14100c, shoes: 0xf2f2f2, skin: 0xb07650, style: 4, girl: 0 },
   { top: 0x6ab89a, pants: 0x34405c, hair: 0x3a2a1a, shoes: 0xf2f2f2, skin: 0xe8b48a, style: 2, girl: 1 },
   { top: 0x8a8a94, pants: 0x1e2028, hair: 0x2a1a10, shoes: 0x1a1a1a, skin: 0xe0a77a, style: 3, girl: 0, cap: 0x2f8a4a },
+  { top: 0xb03a4a, pants: 0x2a3550, hair: 0x14100c, shoes: 0xf2f2f2, skin: 0xc98d68, style: 1, girl: 1 },
+  { top: 0x4a6a3a, pants: 0x2a2a30, hair: 0x5a3018, shoes: 0x3a2a20, skin: 0xf0c3a0, style: 0, girl: 0 },
+  { top: 0xf0e0b0, pants: 0x3a3a44, hair: 0x221410, shoes: 0x1a1a1a, skin: 0xd9996b, style: 2, girl: 1, vest: 0x5a2030 },
+  { top: 0x2a5a8a, pants: 0x22252e, hair: 0x101010, shoes: 0xf2f2f2, skin: 0xb07650, style: 4, girl: 0 },
+  { top: 0xd8a0d0, pants: 0x262a33, hair: 0x7a3a18, shoes: 0xf2f2f2, skin: 0xe8b48a, style: 1, girl: 1 },
+  { top: 0x6a4a8a, pants: 0x2a3550, hair: 0x2a1a10, shoes: 0x1a1a1a, skin: 0xe0a77a, style: 3, girl: 0, cap: 0xf2c94c },
+  { top: 0xe8e8e0, pants: 0x34405c, hair: 0x3a2a1a, shoes: 0x2a2a2a, skin: 0xc98d68, style: 0, girl: 0, vest: 0x2a4a3a },
+  { top: 0x58b8c8, pants: 0x1e2028, hair: 0x14100c, shoes: 0xf2f2f2, skin: 0xf0c3a0, style: 2, girl: 1 },
 ];
 export function makeCharacter(kind, opt = {}) {
   const SV = kind === 'student' ? STUDENTS[(opt.variant ?? 0) % STUDENTS.length] : null;
-  const k = kind === 'kronov' ? 1.6 : kind === 'ded' ? 1.0 : kind === 'vera' ? .96 : kind === 'azim' ? 1.1 : kind === 'odilman' ? 1.08 : kind === 'marjon' ? .97 : kind === 'teacher' ? .95
+  const k = kind === 'kronov' ? 1.6 : kind === 'ded' ? 1.0 : kind === 'vera' ? .96 : kind === 'azim' ? 1.1 : kind === 'odilman' ? 1.08 : kind === 'marjon' ? .97 : kind === 'teacher' ? .95 : kind === 'granny' ? .9
     : SV ? (SV.girl ? .95 : 1.0) + ((opt.variant ?? 0) % 3 - 1) * .025 : 1.0;
   const d = DIM(k);
   if (kind === 'azim' || kind === 'odilman') d.shX = .235 * k;            // широкие плечи
@@ -180,6 +188,9 @@ export function makeCharacter(kind, opt = {}) {
     diyor: { skin: 0xe6b48f, hair: 0x120d0a, top: 0x1e2b4a, topDark: 0x1e2b4a, pants: 0x2b2e36, shoes: 0x4a2a18 },
     azim: { skin: 0xc98d68, hair: 0x1a120c, top: 0x1d4fa0, topDark: 0xf2f2ee, pants: 0x2a2a30, shoes: 0xf2f2f2 },
     teacher: { skin: 0xf0c3a0, hair: 0xa8a39c, top: 0x7a2e3c, topDark: 0x7a2e3c, pants: 0x4a4550, shoes: 0x2a2a2a },
+    // бабушки во дворе: вариант 0 — зелёная кофта и красный платок, 1 — сиреневая кофта и жёлтый платок
+    granny: [{ skin: 0xe8b48a, hair: 0xb8b2aa, top: 0x3a6a52, topDark: 0x3a6a52, pants: 0x3a2a3a, shoes: 0x2a2a2a, scarf: 0xc8402c },
+      { skin: 0xd9996b, hair: 0xc8c2ba, top: 0x6a5a8a, topDark: 0x6a5a8a, pants: 0x2a2a3a, shoes: 0x3a2a20, scarf: 0xe8b83a }][(opt.variant ?? 0) % 2],
     odilman: { skin: 0xc98d68, hair: 0x111111, top: 0xffffff, topDark: 0x1b2440, pants: 0xffffff, shoes: 0x1b2440 },
     student: SV && { skin: SV.skin, hair: SV.hair, top: SV.top, topDark: SV.top, pants: SV.pants, shoes: SV.shoes },
   }[kind] || {};
@@ -198,11 +209,11 @@ export function makeCharacter(kind, opt = {}) {
   // таз и торс
   reg('pants', mesh(rbox(.3 * k, .17 * k, .19 * k, .07 * k), m.pants, { pos: [0, .01 * k, 0], outline: OL, parent: J.hips }));
   const belly = kind === 'ded' ? 1.18 : 1;
-  const wide = kind === 'azim' ? 1.42 : kind === 'odilman' ? 1.38 : kind === 'marjon' || SV?.girl || kind === 'teacher' ? 1.1 : kind === 'diyor' ? 1.16 : 1.22;
+  const wide = kind === 'azim' ? 1.42 : kind === 'odilman' ? 1.38 : kind === 'granny' ? 1.25 : kind === 'marjon' || SV?.girl || kind === 'teacher' ? 1.1 : kind === 'diyor' ? 1.16 : 1.22;
   const torso = reg('top', mesh(cap(.155 * k, .46 * k), m.top, { pos: [0, .2 * k, .0], scale: [wide, 1, .82 * belly * (kind === 'azim' ? 1.12 : 1)], outline: OL, parent: J.spine }));
   ch.torso = torso;
-  if (kind === 'teacher' || (SV?.girl && SV.style === 2)) {   // юбка до колен
-    reg('pants', mesh(new THREE.CylinderGeometry(.17 * k, .25 * k, .42 * k, 20, 1, true), toon(kind === 'teacher' ? 0x4a4550 : 0x2a2f3a, { side: THREE.DoubleSide }), { pos: [0, -.2 * k, 0], scale: [1, 1, .82], outline: OL, parent: J.hips }));
+  if (kind === 'teacher' || kind === 'granny' || (SV?.girl && SV.style === 2)) {   // юбка до колен
+    reg('pants', mesh(new THREE.CylinderGeometry(.17 * k, .25 * k, (kind === 'granny' ? .55 : .42) * k, 20, 1, true), toon(kind === 'teacher' ? 0x4a4550 : kind === 'granny' ? C.pants : 0x2a2f3a, { side: THREE.DoubleSide }), { pos: [0, -.2 * k, 0], scale: [1, 1, .82], outline: OL, parent: J.hips }));
   }
   if (kind === 'vera') { // халат: юбка-конус от пояса
     const coat = reg('top', mesh(new THREE.CylinderGeometry(.19 * k, .27 * k, .55 * k, 20, 1, true), toon(C.top, { side: THREE.DoubleSide }), { pos: [0, -.27 * k, 0], scale: [1, 1, .8], outline: OL, parent: J.hips }));
@@ -214,8 +225,8 @@ export function makeCharacter(kind, opt = {}) {
   const R = .165 * k;
   const head = reg('skin', mesh(sph(R, 28, 20), m.skin, { pos: [0, .13 * k, 0], scale: [1, 1.03, 1], outline: OL, parent: J.head }));
   ch.head = head;
-  const girl = kind === 'vera' || kind === 'marjon' || kind === 'teacher' || !!SV?.girl;
-  const fr = addFace(J, { skin: C.skin, hair: C.hair, brow: kind === 'ded' ? 0xe8e6e0 : kind === 'teacher' ? 0x8a857e : C.hair, eyeK: kind === 'vera' || kind === 'marjon' ? 1.05 : kind === 'azim' ? .9 : 1,
+  const girl = kind === 'vera' || kind === 'marjon' || kind === 'teacher' || kind === 'granny' || !!SV?.girl;
+  const fr = addFace(J, { skin: C.skin, hair: C.hair, brow: kind === 'ded' ? 0xe8e6e0 : kind === 'teacher' || kind === 'granny' ? 0x8a857e : C.hair, eyeK: kind === 'vera' || kind === 'marjon' ? 1.05 : kind === 'azim' ? .9 : 1,
     iris: { timur: 0x6b3a1c, ded: 0x3d5a78, vera: 0x3f8a52, marjon: 0x5f7f32, diyor: 0x3a2414, azim: 0x2a1a10, teacher: 0x5a4a3a, odilman: 0x2a1a10 }[kind] || (SV ? [0x4a2a14, 0x2f5a7a, 0x3a5a2a][(opt.variant ?? 0) % 3] : 0x220000),
     blush: { timur: 0xe0705a, vera: 0xf08a80, marjon: 0xf0806e }[kind] || (SV?.girl ? 0xf08a80 : undefined),
     lashes: girl, wrinkles: kind === 'ded' }, .165);
@@ -336,7 +347,7 @@ export function makeCharacter(kind, opt = {}) {
     const tt = new THREE.CanvasTexture(tc); tt.colorSpace = THREE.SRGBColorSpace;
     mesh(new THREE.PlaneGeometry(.15 * k, .2 * k), new THREE.MeshBasicMaterial({ map: tt, color: new THREE.Color(1.4, 1.4, 1.4) }), { pos: [0, 0, .008 * k], parent: tab });
   }
-  if (['marjon', 'diyor', 'azim', 'teacher', 'odilman', 'student'].includes(kind)) buildCast(ch, kind, d, m, fr, reg, R, OL, SV, opt);
+  if (['marjon', 'diyor', 'azim', 'teacher', 'granny', 'odilman', 'student'].includes(kind)) buildCast(ch, kind, d, m, fr, reg, R, OL, SV, opt);
   if (kind === 'shadow') {
     fr.face.visible = false;
     const eyes = new THREE.Group(); J.head.add(eyes); ch.redEyes = eyes;
@@ -465,6 +476,17 @@ function buildCast(ch, kind, d, m, fr, reg, R, OL, SV, opt) {
     for (let i = 0; i < 9; i++) { const a = -1 + i * .25; reg('acc', mesh(sph(.012 * k, 8, 6), toon(0xe8e2d4), { pos: [Math.sin(a) * .1 * k, .42 * k - Math.cos(a) * .03 * k, .1 * k + Math.cos(a) * .02 * k], outline: false, parent: J.spine })); }   // бусы
     for (let i = 0; i < 4; i++) reg('acc', mesh(sph(.01 * k, 8, 6), toon(0x3a1a20), { pos: [.0, (.08 + i * .08) * k, front(.2, 1.1) + .004 * k], outline: false, parent: J.spine }));
     const chalk = mesh(new THREE.CylinderGeometry(.008, .008, .07, 8), toon(0xffffff), { pos: [0, -.1 * k, .03 * k], rot: [Math.PI / 2, 0, 0], outline: .002, parent: J.handR }); chalk.visible = false; ch.chalk = chalk;
+  }
+  if (kind === 'granny') {     // платок (с горошком), узел под подбородком, кофта на пуговицах
+    const sc = document.createElement('canvas'); sc.width = sc.height = 64; const g = sc.getContext('2d');
+    g.fillStyle = '#' + new THREE.Color(m.top.color).getHexString(); g.fillStyle = '#' + new THREE.Color(ch.colors.scarf).getHexString(); g.fillRect(0, 0, 64, 64);
+    g.fillStyle = 'rgba(255,255,255,.8)'; for (let i = 0; i < 18; i++) { g.beginPath(); g.arc((i * 23) % 64, (i * 37) % 64, 3, 0, 7); g.fill(); }
+    const st = new THREE.CanvasTexture(sc); st.wrapS = st.wrapT = THREE.RepeatWrapping; st.repeat.set(3, 2); st.colorSpace = THREE.SRGBColorSpace;
+    const scarfM = toon(0xffffff, { map: st });
+    mesh(new THREE.SphereGeometry(R * 1.13, 24, 16, 0, Math.PI * 2, 0, Math.PI * .62), scarfM, { pos: [0, .13 * k, -.01 * k], rot: [-.25, 0, 0], outline: OL, parent: J.head });
+    mesh(new THREE.SphereGeometry(R * 1.1, 20, 12, Math.PI * .15, Math.PI * .7, Math.PI * .45, Math.PI * .35), scarfM, { pos: [0, .13 * k, -.02 * k], rot: [0, Math.PI, 0], outline: OL * .6, parent: J.head });
+    mesh(sph(.03 * k), scarfM, { pos: [0, -.03 * k, .1 * k], scale: [1.4, .8, .8], outline: OL * .5, parent: J.head });
+    for (let i = 0; i < 4; i++) reg('acc', mesh(sph(.01 * k, 8, 6), toon(0xe8e2d4), { pos: [.0, (.08 + i * .08) * k, front(.2, 1.25) + .004 * k], outline: false, parent: J.spine }));
   }
   if (kind === 'student') {
     const st = SV.style;

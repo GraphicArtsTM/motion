@@ -66,31 +66,79 @@ export function buildShots(C) {
     c.pose(moving ? (o.run ? POSE.run(gait(d, 1.15 * c.d.k, 1.6), 1.6) : o.walkPose ? o.walkPose(gait(d, stride, .9)) : POSE.walk(gait(d, stride, .9))) : (o.end ? o.end(t) : POSE.stand(t)));
     return { p, yaw, done: d >= L, d, L };
   };
-  // фигуранты: позы «жизни» на заднем плане
-  const LIFE = {
-    stand: (t, s) => POSE.stand(t + s),
-    talk: (t, s) => POSE.talk(t * .9 + s * 3),
-    listen: (t, s) => ({ ...POSE.stand(t + s), head: [.05, .25 * Math.sin(t * .4 + s), 0], armL: [.05, 0, .14], armR: [.05, 0, .14] }),
-    phone: (t, s) => POSE.phone(t + s),
-    film: (t, s) => ({ ...POSE.stand(t + s), armR: [-1.35, .3, .2], foreR: [-.9, 0, 0], handR: [-.4, 0, 0], armL: [-1.25, -.3, .25], foreL: [-1.0, 0, 0], gripR: .7, gripL: .7, head: [.08, 0, 0] }),
-    laugh: (t, s) => ({ ...POSE.stand(t + s), spine: [-.12 + .05 * Math.sin(t * 14 + s), 0, 0], head: [-.25, 0, 0], armL: [-.35, 0, .3], armR: [-.35, 0, .3], foreL: [-1.4, 0, 0], foreR: [-1.4, 0, 0] }),
-    sit: (t, s) => sit(t + s),
-    sitTalk: (t, s) => talking(sit(t + s), 'x', t, 0),
-    eat: (t, s) => FIGHT.eat(t + s),
-    write: (t, s) => sit(t + s, { spine: [.32, 0, 0], head: [.3, .1 * Math.sin(t + s), 0], armR: [-.75, .1, .1], foreR: [-1.0 + .15 * Math.sin(t * 7 + s), 0, 0], armL: [-.7, -.1, .1], foreL: [-1.1, 0, 0] }),
-    lean: (t, s) => ({ ...POSE.stand(t + s), spine: [-.06, 0, 0], legL: [.05, 0, -.05], legR: [-.15, .3, .12], shinR: [.2, 0, 0], armL: [.1, 0, .1], armR: [-.4, 0, .5], foreR: [-1.6, 0, 0] }),
-    wow: (t, s) => ({ ...POSE.stand(t + s), spine: [-.1, 0, 0], head: [-.12, 0, 0], armL: [-.9, 0, .2], foreL: [-1.9, 0, 0], armR: [-.9, 0, .2], foreR: [-1.9, 0, 0] }),
+  // фигуранты: позы «жизни» на заднем плане — перенос веса, у каждого своя манера держать руки, кивки, жесты
+  const wshift = (p, t, s, a = 1) => {           // перенос веса с ноги на ногу
+    const w = Math.sin(t * .42 + s * 2.3);
+    p.hx = (p.hx || 0) + .025 * w * a; p.spine = [(p.spine?.[0] ?? 0), (p.spine?.[1] ?? 0), (p.spine?.[2] ?? 0) - .035 * w * a];
+    p.legL = [p.legL?.[0] ?? 0, 0, (p.legL?.[2] ?? .03) + .04 * Math.max(0, w) * a]; p.legR = [p.legR?.[0] ?? 0, 0, (p.legR?.[2] ?? .03) + .04 * Math.max(0, -w) * a];
+    p.shinL = [.14 * Math.max(0, -w) * a, 0, 0]; p.shinR = [.14 * Math.max(0, w) * a, 0, 0];
+    return p;
   };
+  const arms = (p, s) => {                       // манера: 0 — руки вдоль, 1 — рука на поясе, 2 — руки за спиной, 3 — лямки рюкзака
+    const v = Math.floor(s * 7.31) % 4;
+    if (v === 1) { p.armR = [-.25, 0, .62]; p.foreR = [-1.55, 0, 0]; p.gripR = .8; }
+    if (v === 2) { p.armL = [.38, 0, .16]; p.foreL = [-.7, 0, 0]; p.armR = [.38, 0, .16]; p.foreR = [-.7, 0, 0]; }
+    if (v === 3) { p.armL = [-.35, 0, .28]; p.foreL = [-2.0, 0, 0]; p.armR = [-.35, 0, .28]; p.foreR = [-2.0, 0, 0]; p.grip = .9; }
+    return p;
+  };
+  const nod = (t, s) => .12 * Math.max(0, Math.sin(t * 2.2 + s * 5)) ** 6;
+  const LIFE = {
+    stand: (t, s) => wshift(arms(POSE.stand(t + s), s), t, s),
+    talk: (t, s) => { const p = wshift(POSE.talk(t * .9 + s * 3), t, s, .6); const g2 = Math.max(0, Math.sin(t * .8 + s * 4));
+      if (g2 > .3) { p.armR = [-.35 - .3 * g2 * Math.sin(t * 3 + s), -.2, .25]; p.foreR = [-1.1 - .3 * g2, 0, 0]; p.handR = [0, 0, -.3]; }
+      p.head = [p.head[0] + nod(t, s), p.head[1], .06 * Math.sin(t * .7 + s)]; return p; },
+    listen: (t, s) => { const p = wshift(arms(POSE.stand(t + s), s + .3), t, s); p.head = [.05 + nod(t, s + 1), 0, .08 * Math.sin(t * .3 + s)]; return p; },
+    phone: (t, s) => { const p = wshift(POSE.phone(t + s), t, s, .5); p.foreR = [-2.3 + .15 * Math.sin(t * .9 + s), 0, 0]; p.handL = [0, 0, 0]; return p; },
+    film: (t, s) => ({ ...wshift(POSE.stand(t + s), t, s, .4), armR: [-1.35, .3, .2], foreR: [-.9, 0, 0], handR: [-.4, 0, 0], armL: [-1.25, -.3, .25], foreL: [-1.0, 0, 0], gripR: .7, gripL: .7, head: [.08, 0, 0] }),
+    laugh: (t, s) => ({ ...POSE.stand(t + s), spine: [-.12 + .06 * Math.sin(t * 14 + s), .1 * Math.sin(t * 2 + s), 0], head: [-.28, 0, .1 * Math.sin(t * 3)], armL: [-.35, 0, .3], armR: [-.35, 0, .3], foreL: [-1.4, 0, 0], foreR: [-1.4, 0, 0], hy: -.02 * Math.abs(Math.sin(t * 7)) }),
+    sit: (t, s) => sit(t + s, { head: [.05 + nod(t, s), .15 * Math.sin(t * .3 + s), 0], spine: [.08 + .03 * Math.sin(t * .5 + s), 0, 0] }),
+    sitTalk: (t, s) => { const tp = POSE.talk(t + s); return sit(t + s, { armL: tp.armL, foreL: tp.foreL, handL: tp.handL, head: [tp.head[0] + nod(t, s), tp.head[1], 0] }); },
+    eat: (t, s) => { const p = FIGHT.eat(t * (.8 + (s % 1) * .5) + s); p.head = [p.head[0], .2 * Math.sin(t * .4 + s), 0]; return p; },
+    write: (t, s) => sit(t + s, { spine: [.32, 0, 0], head: [.3, .1 * Math.sin(t + s), 0], armR: [-.75, .1, .1], foreR: [-1.0 + .15 * Math.sin(t * 7 + s), 0, 0], armL: [-.7, -.1, .1], foreL: [-1.1, 0, 0] }),
+    yawn: (t, s) => { const y = Math.max(0, Math.sin(t * .35 + s)) ** 4; return sit(t + s, { armL: [-.6 - 1.9 * y, 0, .15 + .3 * y], foreL: [-.9 + .5 * y, 0, 0], armR: [-.6 - 1.9 * y, 0, .15 + .3 * y], foreR: [-.9 + .5 * y, 0, 0], head: [-.3 * y, 0, 0], spine: [.08 - .2 * y, 0, 0] }); },
+    chin: (t, s) => sit(t + s, { armR: [-1.1, .3, .1], foreR: [-2.1, 0, 0], handR: [0, 0, .4], spine: [.25, 0, 0], head: [-.05, -.2 + .1 * Math.sin(t * .3 + s), .15] }),
+    lean: (t, s) => ({ ...POSE.stand(t + s), spine: [-.06, 0, 0], legL: [.05, 0, -.05], legR: [-.15, .3, .12], shinR: [.2, 0, 0], armL: [.1, 0, .1], armR: [-.4, 0, .5], foreR: [-1.6, 0, 0], head: [nod(t, s), 0, .1] }),
+    wow: (t, s) => ({ ...POSE.stand(t + s), spine: [-.1, 0, 0], head: [-.12, 0, 0], armL: [-.9, 0, .2], foreL: [-1.9 + .2 * Math.sin(t * 6 + s), 0, 0], armR: [-.9, 0, .2], foreR: [-1.9, 0, 0] }),
+    cheer: (t, s) => ({ ...POSE.stand(t + s), armL: [-2.6 + .3 * Math.sin(t * 9 + s), 0, .3], foreL: [-.4, 0, 0], armR: [-.5, 0, .2], foreR: [-1.4, 0, 0], grip: 1, hy: -.03 * Math.abs(Math.sin(t * 9 + s)) }),
+  };
+  /** фигурант: o.at — куда смотрит (по умолчанию — общий «фокус» сцены C.focus), o.who — чей голос (смех толпы) */
+  let FOCUS = null;
   const extra = (i, sc, pos, yaw, t, mode = 'stand', o = {}) => {
     const c = ST(i); place(c, sc, pos, yaw); c.pose((typeof mode === 'function' ? mode : LIFE[mode])(t, i * 1.37));
-    face(c, o.who || 's', t, { seed: i % 5, smile: o.smile ?? .25, look: o.look, wide: o.wide, mk: o.mk ?? (o.who ? .8 : 0) });
+    const at = o.at === false ? undefined : o.at || FOCUS || undefined;
+    face(c, o.who || 's', t, { seed: i % 5, smile: o.smile ?? .25, look: o.look, wide: o.wide, mk: o.mk ?? (o.who ? .8 : 0), at, atK: o.atK ?? .75, energy: .3 });
+    return c;
   };
+  /** прогулка туда-обратно между a и b (фон): sp — скорость, ph — сдвиг по времени, o.pose — что делает руками */
+  const stroll = (i, sc, a, b, t, sp = 1.1, ph = 0, o = {}) => {
+    const c = ST(i), L = Math.hypot(b[0] - a[0], b[2] - a[2]), T1 = L / sp, per = 2 * T1 + 2.4, u = ((t + ph) % per + per) % per;
+    let k, yaw, moving = true;
+    const yAB = yawTo(a, b), yBA = yawTo(b, a);
+    if (u < T1) { k = u / T1; yaw = yAB; }
+    else if (u < T1 + 1.2) { k = 1; yaw = lerp(yAB, yAB + Math.PI, E.inOutSine((u - T1) / 1.2)); moving = false; }
+    else if (u < 2 * T1 + 1.2) { k = 1 - (u - T1 - 1.2) / T1; yaw = yBA; }
+    else { k = 0; yaw = lerp(yBA, yBA + Math.PI, E.inOutSine((u - 2 * T1 - 1.2) / 1.2)); moving = false; }
+    const pos = [lerp(a[0], b[0], k), 0, lerp(a[2], b[2], k)];
+    place(c, sc, pos, yaw);
+    let p = moving ? POSE.walk(gait(u * sp, .7 * c.d.k, .9)) : LIFE.stand(t, i);
+    if (o.pose) p = { ...p, ...o.pose };
+    c.pose(p);
+    face(c, 's', t, { seed: i % 5, smile: .3, energy: .35, at: o.at, atK: .6 });
+    return c;
+  };
+  // взгляд на говорящего: средневзвешенная голова тех, кто сейчас говорит (иначе — fallback)
+  const speakerAt = (t, whos, fb) => {
+    let w = 0; const acc = V(0, 0, 0);
+    for (const n of whos) { const k = talkK(n, t); if (k > 0 && WHO[n]?.root.visible) { acc.addScaledVector(headW(WHO[n]), k); w += k; } }
+    return w > 0 ? acc.multiplyScalar(1 / w) : (fb?.isVector3 ? fb : fb ? V(...fb) : undefined);
+  };
+  D.onReset(() => { FOCUS = null; });
 
   /* ---------- реквизит ---------- */
   const PROPS = [];
   const prop = obj => { obj.visible = false; PROPS.push(obj); return obj; };
   D.onReset(() => { PROPS.forEach(p => p.visible = false); CL.paper.visible = false; CR.dent.visible = false; Z.oranges.forEach(o => o.visible = false); Z.bag.visible = false;
-    Z.bus.visible = false; MJ.sketch.visible = false; TE.chalk.visible = false; AZ.gum.visible = false; [TI, DE, MJ, DI, AZ, TE, OD].forEach(c => { if (c.tail) c.tail; }); OD.wind = .6; });
+    Z.bus.visible = false; MJ.sketch.visible = false; TE.chalk.visible = false; AZ.gum.visible = false; AZ.gum.scale.setScalar(1); OD.wind = .6; });
   const hold = (obj, c, side = 'R', pos = [0, -.1, .03], rot = [0, 0, 0]) => {
     const j = c.J['hand' + side]; if (obj.parent !== j) j.add(obj);
     obj.position.set(pos[0] * c.d.k, pos[1] * c.d.k, pos[2] * c.d.k); obj.rotation.set(...rot); obj.visible = true; return obj;
@@ -111,6 +159,11 @@ export function buildShots(C) {
   const phones = Array.from({ length: 9 }, (_, i) => { const g = prop(new THREE.Group());
     mesh(new THREE.BoxGeometry(.072, .148, .011), toon(0x15171c), { outline: .002, parent: g });
     mesh(new THREE.PlaneGeometry(.064, .136), glow([0x9fd8ff, 0xffd0a0, 0xc0ffd8][i % 3], 1.3), { pos: [0, 0, -.0062], rot: [0, Math.PI, 0], outline: false, parent: g }); return g; });
+  const trays = [0, 1].map(i => { const g = prop(new THREE.Group());
+    mesh(new THREE.BoxGeometry(.46, .02, .32), toon([0xe0874a, 0x2f8a4a][i]), { outline: .004, parent: g });
+    mesh(new THREE.CylinderGeometry(.1, .075, .03, 14), toon(0xffffff), { pos: [-.08, .02, 0], outline: .003, parent: g });
+    mesh(new THREE.SphereGeometry(.07, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), toon(0xf0c060), { pos: [-.08, .03, 0], scale: [1, .5, 1], outline: .003, parent: g });
+    mesh(new THREE.CylinderGeometry(.035, .03, .09, 10), toon([0xe85a5a, 0x3a8ad0][i]), { pos: [.13, .055, .05], outline: .003, parent: g }); return g; });
   const spoon = prop(new THREE.Group());
   mesh(new THREE.CylinderGeometry(.006, .006, .13, 6), toon(0xc9ced6), { pos: [0, -.04, 0], outline: false, parent: spoon });
   mesh(new THREE.SphereGeometry(.018, 8, 6), toon(0xc9ced6), { pos: [0, -.11, .006], scale: [1, 1.4, .5], outline: false, parent: spoon });
@@ -145,10 +198,11 @@ export function buildShots(C) {
     if (o.p) p = { ...p, ...o.p };
     DE.pose(talking(p, 'ded', t, o.gest ?? .8, 'L'));
     hold(pialaD, DE, 'R', [0, -.09, .045]);
-    face(DE, 'ded', t, { seed: 2, ...o.face });
+    face(DE, 'ded', t, { seed: 2, at: o.at, atK: o.atK ?? .9, ...o.face });
   };
   shot(0, 5.2, (lt, t) => {
-    dedAt(t, { sip: pulse(t, 1.2, 4.2, .6, .6), face: { look: [-.3, -.2] } });
+    const tvp = KD.tvPos;
+    dedAt(t, { sip: pulse(t, 1.2, 4.2, .6, .6), at: [tvp.x, tvp.y + .25, tvp.z], atK: 1 - pulse(t, 1.4, 4.0, .4, .4) * .6 });
     const tv = KD.tvPos, k = E.inOutSine(P(lt, 0, 5.2));
     look([lerp(tv.x - .35, tv.x + .06, k), lerp(tv.y + .8, tv.y + .3, k), lerp(tv.z + 2.7, tv.z + .95, k)], [lerp(tv.x + .25, tv.x + .01, k), lerp(tv.y + .1, tv.y + .24, k), tv.z], lerp(46, 34, k));
     fadeIn(lt, 1.0);
@@ -157,13 +211,12 @@ export function buildShots(C) {
   });
   shot(5.2, 10.6, (lt, t) => {
     const turn = E.inOutSine(P(t, 5.9, .5));
-    dedAt(t, { sip: 1 - E.inOutSine(P(t, 5.3, .6)), p: { spine: [.08, .3 * turn, 0], head: [-.05, .75 * turn, 0] }, face: { brow: -.4 * turn, look: [.8 * turn, .05] } });
+    dedAt(t, { sip: 1 - E.inOutSine(P(t, 5.3, .6)), p: { spine: [.08, .3 * turn, 0] }, at: [lerp(-1.25, 3.4, turn), lerp(1.15, 1.6, turn), lerp(-2.7, .6, turn)], face: { brow: -.4 * turn - .3 * talkK('ded', t) } });
     const k = E.inOutSine(P(lt, 0, 5.4));
     look([lerp(1.3, 1.05, k), 1.32, lerp(.75, .35, k)], [-.55, 1.12, -1.45], lerp(40, 34, k));
     return K;
   });
   shot(10.6, 14, (lt, t) => {
-    dedAt(t, { p: { spine: [.08, .3, 0], head: [-.05, .7 - .5 * P(t, 13.2, .5), 0] }, gest: 0, face: { brow: t > 13.3 ? .4 : 0, smile: t > 13.4 ? .8 : 0, look: [.7, .05] } });
     // Тимур: влетает, хватает лепёшку, пятится к двери, подмигивает — и исчезает
     const pos = kf(t, [[10.6, [3.3, 0, .55]], [10.95, [.95, 0, -.05], E.outCubic], [11.6, [1.0, 0, 0]], [12.9, [2.55, 0, .45], E.inOutSine], [13.25, [4.2, 0, .6], E.inQuad]]);
     const yaw = t < 11.0 ? -Math.PI / 2 : t < 12.95 ? lerp(-Math.PI / 2 - .9, -Math.PI / 2 - .5, P(t, 11, 1.9)) : Math.PI / 2;
@@ -173,7 +226,10 @@ export function buildShots(C) {
     else if (t < 11.25) p = { ...POSE.reach(), armR: [-1.1, .2, .1], spine: [.4, 0, 0] };
     else if (t < 12.95) p = talking({ ...POSE.walk(-(t - 11.25) * .9), armR: [-.6, .2, .2], foreR: [-1.3, 0, 0], handR: [0, 0, .3] }, 'timur', t, 1, 'L');
     else p = POSE.run(t * 1.8, 2.2);
-    TI.pose(p); face(TI, 'timur', t, { smile: .8, brow: .4, look: [.5, 0], blink: t > 12.6 && t < 12.85 ? 1 : undefined, energy: .6 });
+    TI.pose(p);
+    squash(TI, springAt(t, 10.97, -.07, 16, 8));            // резкая остановка у стола
+    dedAt(t, { p: { spine: [.08, .3, 0] }, gest: 0, at: t < 13.2 ? headW(TI) : [3.4, 1.5, .6], face: { brow: t > 13.3 ? .4 : -.2, smile: t > 13.4 ? .8 : 0 } });
+    face(TI, 'timur', t, { smile: .8, brow: .4, blink: t > 12.6 && t < 12.85 ? 1 : undefined, energy: .6, at: t > 11.1 && t < 12.95 ? headW(DE) : undefined, atK: .8 });
     if (t >= 11.05) hold(non, TI, 'R', [0, -.11, .05], [1.3, 0, 0]);
     else put(non, K, [.5, .86, -.3]);
     if (t > 13.1) D.speedLines(1 - P(t, 13.1, .6), t);
@@ -215,12 +271,22 @@ export function buildShots(C) {
       if (r.done) { ST(i).root.visible = false; continue; }
       face(ST(i), 's', t, { seed: i % 5, smile: .3 });
     }
-    // двое болтают у клумбы, один с телефоном
-    if (t < 34) { extra(14, ZS, [SX + 14.5, 0, 11.5], -1.9, t, 'talk'); extra(15, ZS, [SX + 13.4, 0, 11.2], 1.3, t, 'listen'); extra(8, ZS, [SX - 15, 0, 12.6], .6, t, 'phone'); hold(phones[8], ST(8), 'R', [0, -.1, .04], [-.3, 0, 0]); }
+    // кучки у клумб и флагов: болтают, смотрят в телефон, машут друзьям; после звонка — бегут внутрь
+    if (t < 34.3) {
+      const a14 = extra(14, ZS, [SX + 14.5, 0, 11.5], -1.9, t, 'talk', { at: headW(ST(15)) }); extra(15, ZS, [SX + 13.4, 0, 11.2], 1.3, t, 'listen');
+      ST(15).root.updateMatrixWorld(true);
+      extra(8, ZS, [SX - 15, 0, 12.6], .6, t, 'phone', { at: false }); hold(phones[8], ST(8), 'R', [0, -.1, .04], [-.3, 0, 0]);
+      extra(16, ZS, [SX - 9.6, 0, 9.4], 1.1, t, 'talk'); extra(17, ZS, [SX - 8.6, 0, 9.9], -2.0, t, 'laugh'); extra(18, ZS, [SX - 9.0, 0, 8.6], -.3, t, 'listen');
+      extra(19, ZS, [SX + 7.2, 0, 6.2], .4, t, (tt, s) => ({ ...POSE.crouch(), spine: [.7, 0, 0], armL: [-1.0, 0, .2], foreL: [-.6 + .2 * Math.sin(tt * 9), 0, 0], armR: [-1.0, 0, .2], foreR: [-.6, 0, 0], head: [.4, 0, 0] }), { at: false });  // завязывает шнурок
+    } else { for (const [i, p0] of [[14, [SX + 14.5, 0, 11.5]], [15, [SX + 13.4, 0, 11.2]], [16, [SX - 9.6, 0, 9.4]], [17, [SX - 8.6, 0, 9.9]], [18, [SX - 9, 0, 8.6]], [19, [SX + 7.2, 0, 6.2]]]) {
+      const r = walk(ST(i), ZS, [p0, [SX + (i % 2 ? .4 : -.4), 0, 6], [SX, 0, 3.6]], t, 34.3 + (i % 3) * .25, 2.6, { run: true }); if (r.done) ST(i).root.visible = false; else face(ST(i), 's', t, { seed: i % 5, smile: .2, energy: .6 }); } }
+    // по тротуару мимо ограды идут прохожие; девочка машет подруге
+    for (const [i, a, b, sp, ph] of [[20, [SX - 40, 0, 18.9], [SX + 40, 0, 18.9], 1.1, 0], [21, [SX + 38, 0, 19.2], [SX - 38, 0, 19.2], 1.0, 9]]) stroll(i, ZS, a, b, t, sp, ph);
+    if (t < 34.3) { const wave = Math.max(0, Math.sin(t * 1.3)); extra(22, ZS, [SX + 5.5, 0, 12.6], 2.6, t, (tt, s) => ({ ...LIFE.stand(tt, s), armR: [-2.6, 0, .4 + .25 * Math.sin(tt * 10) * wave], foreR: [-.5, 0, 0], gripR: 0 }), { smile: .8, at: [SX - 9, 1.5, 9.4] }); }
   };
   const diyorGate = (t, pose) => {
     place(DI, ZS, [SX + 2.45, 0, 17.65], -Math.PI / 2 - .12);
-    DI.pose(pose); face(DI, 'diyor', t, { seed: 4, smile: .35, brow: .2, energy: .3 });
+    DI.pose(pose); face(DI, 'diyor', t, { seed: 4, smile: .35, brow: .2, energy: .3, at: t > 19.4 && t < 34.4 ? [SX + 1.25, 1.55, 17.7] : t < 19.4 && t > 18.9 ? [SX - 12, 1.4, 18] : undefined, atK: .85 });
   };
   shot(18.5, 21.0, (lt, t) => {
     Z.setTime('morning'); gateKids(t);
@@ -242,7 +308,7 @@ export function buildShots(C) {
     place(TI, ZS, [SX + 1.25, 0, 17.7], Math.PI / 2 + .1);
     const rub = pulse(t, 22.5, 24.2, .3, .3);
     TI.pose(blend(seq(t - 21, [[0, tt => FIGHT.tired(tt + 21)], [.9, tt => POSE.stand(tt)]], .5), { ...POSE.stand(t), armR: [-2.3, .5, .5], foreR: [-2.0, 0, 0], handR: [0, 0, .3], head: [.2, 0, .1] }, rub));
-    face(TI, 'timur', t, { smile: .3, look: [.4, -.2 * rub], squint: 1 - .3 * rub });
+    face(TI, 'timur', t, { smile: .3, squint: 1 - .3 * rub, at: headW(DI), atK: .8 - .5 * rub });
     look([SX + 1.9, 1.5, 21.4], [SX + 1.9, 1.32, 17.6], 36);
     return ZS;
   });
@@ -255,9 +321,9 @@ export function buildShots(C) {
     if (show > 0) { hold(phones[0], DI, 'R', [0, -.1, .045], [-.4, 0, 0]); cups[0].visible = false; }
     place(TI, ZS, [SX + 1.25, 0, 17.7], Math.PI / 2 + .1);
     TI.pose({ ...POSE.stand(t), armR: [-.75 * Math.max(back, give * .6), .2, .15], foreR: [-1.1, 0, 0] });
-    face(TI, 'timur', t, { smile: .2, look: [-.2, -.1] });
+    face(TI, 'timur', t, { smile: .2, at: show > .3 ? handW(DI, 'R') : headW(DI), atK: .8 });
     hold(cups[1], t < 25.2 ? DI : TI, t < 25.2 ? 'L' : 'R', [0, -.1, .045]);
-    ots(TI, DI, -1, 32);
+    ots(TI, DI, -1, 36, 1.35, .25, .95);
     // телефон Диёра: видео очевидца с моста
     const phk = pulse(t, 26.3, 29.1, .35, .15);
     if (phk > 0) {
@@ -277,12 +343,12 @@ export function buildShots(C) {
     place(TI, ZS, [SX + 1.25, 0, 17.7], Math.PI / 2 + .1);
     TI.pose(talking({ ...POSE.stand(t), armR: [-.75 - .55 * sip, .3 * sip, .15], foreR: [-1.1 - .9 * sip, 0, 0], handR: [0, 0, .4 * sip] }, 'timur', t, .7, 'L'));
     hold(cups[1], TI, 'R', [0, -.1, .045]);
-    face(TI, 'timur', t, { smile: t < 31.3 ? .15 : .55, look: [t < 31.3 ? -.5 : .35, -.1], brow: .1 });
+    face(TI, 'timur', t, { smile: t < 31.3 ? .15 : .55, look: [t < 31.3 ? -.5 : .1, -.1], brow: .1, at: t > 31.3 ? headW(DI) : undefined });
     const indig = talkK('diyor', t);
     diyorGate(t, { ...POSE.shrug(t), armL: [-.2 - .6 * indig, 0, .45 + .3 * indig], armR: [-.2 - .6 * indig, 0, .45 + .3 * indig], foreL: [-1.3, 0, 0], foreR: [-1.3, 0, 0] });
     hold(cups[0], DI, 'L', [0, -.1, .045]); hold(phones[0], DI, 'R', [0, -.1, .045], [-.4, 0, 0]);
     if (t < 31.3) close(TI, [-.32, .03, .95], 30);
-    else ots(TI, DI, -1, 34);
+    else ots(TI, DI, -1, 36, 1.3, .2, .65);
     return ZS;
   });
   shot(33.4, 41.0, (lt, t) => {
@@ -305,22 +371,28 @@ export function buildShots(C) {
      ================================================================ */
   const CS = CL.scene;
   const SEATS = { 0: seat(0, 0, 0), 1: seat(0, 0, 1), 2: seat(0, 1, 1), 3: seat(0, 2, 0), 4: seat(0, 2, 1), 5: seat(1, 0, 0), 6: seat(1, 2, 1), 7: seat(2, 0, 1),
-    10: seat(2, 1, 1), 11: seat(2, 2, 0), 12: seat(2, 2, 1), 13: seat(3, 2, 0), 14: seat(0, 1, 0), 15: seat(3, 2, 1), 8: seat(3, 0, 1), 9: seat(3, 1, 1) };
+    10: seat(2, 1, 1), 11: seat(2, 2, 0), 12: seat(2, 2, 1), 13: seat(3, 2, 0), 14: seat(0, 1, 0), 15: seat(3, 2, 1), 8: seat(3, 0, 1), 9: seat(3, 1, 1),
+    16: seat(1, 0, 1), 17: seat(2, 0, 0), 18: seat(3, 0, 0) };
+  const CLASS_MODE = { 1: 'write', 5: 'yawn', 12: 'chin', 17: 'write', 3: 'write', 13: 'chin' };
   const AZS = seat(3, 1, 0), TIS = seat(1, 1, 0), DIS = seat(1, 1, 1), MJS = seat(1, 2, 0);
+  /** класс: все смотрят на учительницу (o.focus — на кого), o.laugh — смеются, оборачиваются к Азиму */
   const classLife = (t, o = {}) => {
+    TE.root.updateMatrixWorld(true);
+    const teach = TE.root.visible ? headW(TE) : V(.5, 1.55, -3.85);
     for (const [i, p] of Object.entries(SEATS)) {
-      const laugh = o.laugh ? o.laugh * (i % 3 ? 1 : .6) : 0;
-      const turn = o.turn || 0;
+      const laugh = o.laugh ? o.laugh * (i % 3 ? 1 : .6) : 0, m = CLASS_MODE[i] || 'sit';
+      const at = o.focus ? (o.focus.isVector3 ? o.focus : V(...o.focus)) : laugh > .2 && o.azim ? o.azim : teach;
       extra(+i, CS, p, Math.PI, t, (tt, s) => {
-        const b = +i % 4 === 1 ? LIFE.write(tt, s) : sit(tt + s, { head: [.05 * Math.sin(tt * .5 + s), .2 * Math.sin(tt * .3 + s) + turn * (p[0] > TIS[0] ? -.6 : .6) * (p[2] > TIS[2] ? 1 : -1) * .5, 0] });
-        return laugh > 0 ? blend(b, { ...b, spine: [-.1 + .06 * Math.sin(tt * 15 + s), 0, 0], head: [-.3, 0, 0], armL: [-.5, 0, .3], foreL: [-1.6, 0, 0] }, laugh) : b;
-      }, { who: laugh > 0 ? 'crowd' : undefined, smile: .3 + laugh * .7, mk: laugh });
+        const b = LIFE[o.focus && m !== 'sit' ? 'sit' : m](tt, s);
+        return laugh > 0 ? blend(b, { ...b, spine: [-.1 + .06 * Math.sin(tt * 15 + s), .15 * Math.sin(s * 3), 0], armL: [-.5, 0, .3], foreL: [-1.6, 0, 0] }, laugh) : b;
+      }, { who: laugh > 0 ? 'crowd' : undefined, smile: .3 + laugh * .7, mk: laugh, at, atK: m === 'write' && !o.focus ? .25 : .8 });
     }
   };
   const teacherBoard = (t, p, yaw = 0) => { place(TE, CS, p, yaw); };
-  const diyorDesk = t => { place(DI, CS, DIS, Math.PI); DI.pose(talking(LIFE.write(t, 4), 'diyor', t, .5)); face(DI, 'diyor', t, { seed: 4, look: [0, -.4] }); };
-  const marjonDesk = (t, o = {}) => { place(MJ, CS, MJS, Math.PI); MJ.pose(o.p || sit(t, { head: [.08, .15 * Math.sin(t * .4), 0] })); face(MJ, 'marjon', t, { seed: 3, smile: .3, ...o.face }); };
-  const azimDesk = (t, p, f = {}) => { place(AZ, CS, AZS, Math.PI); AZ.pose(p); face(AZ, 'azim', t, { seed: 5, ...f }); AZ.gum.visible = true; };
+  const diyorDesk = (t, at) => { place(DI, CS, DIS, Math.PI); DI.pose(talking(at ? LIFE.sit(t, 4) : LIFE.write(t, 4), 'diyor', t, .5)); face(DI, 'diyor', t, { seed: 4, at: at || (TE.root.visible ? headW(TE) : undefined), atK: at ? .9 : .3 }); };
+  const marjonDesk = (t, o = {}) => { place(MJ, CS, MJS, Math.PI); MJ.pose(o.p || sit(t, { head: [.08, .15 * Math.sin(t * .4), 0], armL: [-.9, -.2, .1], foreL: [-1.3, 0, 0], armR: [-.8, .2, .1], foreR: [-1.2 + .1 * Math.sin(t * 5), 0, 0] }));
+    face(MJ, 'marjon', t, { seed: 3, smile: .3, at: o.at === undefined ? (TE.root.visible ? headW(TE) : undefined) : o.at || undefined, atK: .7, ...o.face }); MJ.sketch.visible = !!o.sketch; };
+  const azimDesk = (t, p, f = {}) => { place(AZ, CS, AZS, Math.PI); AZ.pose(p); face(AZ, 'azim', t, { seed: 5, mouth: talkK('azim', t) > 0 ? undefined : .12 + .1 * Math.sin(t * 7), ...f }); AZ.gum.visible = true; };   // жуёт жвачку
   const timurDesk = (t, p, f = {}) => { place(TI, CS, TIS, Math.PI); TI.pose(p); face(TI, 'timur', t, f); };
   // полёт бумажного комка: из руки Азима в затылок Тимура (сюжетное время, с замедлением чутья)
   const PAPER0 = 49.15, PAPER1 = 51.0;
@@ -335,14 +407,15 @@ export function buildShots(C) {
     const turn = E.inOutSine(P(t, 43.4, .7));
     teacherBoard(t, [.5, 0, -3.85], lerp(Math.PI, .15, turn));
     TE.pose(talking(blend({ ...POSE.stand(t), armR: [-2.3, -.2, .3], foreR: [-.5 + .15 * Math.sin(t * 9), 0, 0], handR: [-.3, 0, 0], gripR: .8 }, { ...POSE.stand(t), armR: [-.4, 0, .2], foreR: [-1.4, 0, 0], gripR: .8 }, turn), 'teacher', t, 1, 'L'));
-    TE.chalk.visible = true; face(TE, 'teacher', t, { seed: 6, brow: .2, look: [0, .1] });
+    TE.chalk.visible = true; face(TE, 'teacher', t, { seed: 6, brow: .2, at: turn > .5 ? [0, 1.2, 1.5] : [.6, 1.9, -4.5], atK: .8 });
     move(t, [[41, [.4, 1.65, 3.9], [.3, 1.55, -3.6], 40], [47.3, [.3, 1.55, 1.9], [.4, 1.5, -3.7], 36]], E.inOutSine);
     fadeIn(lt, .4, '#fff');
     return CS;
   });
   shot(47.3, 49.2, (lt, t) => {
     const lg = pulse(t, 47.25, 48.6, .1, .5);
-    classLife(t, { laugh: lg }); diyorDesk(t); marjonDesk(t, { face: { smile: .2 + .5 * lg } });
+    const azH = V(AZS[0], 1.35, AZS[2]);
+    classLife(t, { laugh: lg, azim: azH }); diyorDesk(t, lg > .2 ? azH : undefined); marjonDesk(t, { at: lg > .2 ? azH : undefined, face: { smile: .2 + .5 * lg } });
     // Азим «играет мускулами», потом мнёт бумажку и прицеливается
     const flex = pulse(t, 47.2, 48.3, .2, .3), aim = E.inOutSine(P(t, 48.4, .6));
     azimDesk(t, blend(blend(sit(t), { ...sit(t), hy: -.3, spine: [-.1, 0, 0], armR: [-.3, -.2, 1.35], foreR: [-2.1, 0, 0], armL: [-.3, .2, 1.3], foreL: [-2.0, 0, 0], grip: 1 }, flex),
@@ -350,7 +423,7 @@ export function buildShots(C) {
     if (aim > .3) hold(CL.paper, AZ, 'R', [0, -.1, .04]);
     place(ST(8), CS, SEATS[8], Math.PI);
     timurDesk(t, sit(t, { armR: [-.8, 0, .1], foreR: [-1.6, 0, 0], handR: [0, 0, .2] }), { look: [0, .2] });
-    place(TE, CS, [.5, 0, -3.85], .15); TE.pose({ ...POSE.stand(t), armR: [-.4, 0, .2], foreR: [-1.4, 0, 0] }); TE.chalk.visible = true; face(TE, 'teacher', t, { seed: 6, brow: -.3 });
+    place(TE, CS, [.5, 0, -3.85], .15); TE.pose({ ...POSE.stand(t), armR: [-.4, 0, .2], foreR: [-1.4, 0, 0], armL: [-.5, 0, .3], foreL: [-1.9, 0, 0] }); TE.chalk.visible = true; face(TE, 'teacher', t, { seed: 6, brow: -.4, at: azH, squint: .8 });
     look([AZS[0] + .55, 1.3, AZS[2] - 1.35], [AZS[0] - .05, 1.15, AZS[2]], 38);
     return CS;
   });
@@ -382,7 +455,8 @@ export function buildShots(C) {
     return CS;
   });
   shot(51.5, 53.07, (lt, t) => {
-    classLife(t, { turn: E.inOutSine(P(t, 51.5, .5)) }); diyorDesk(t);
+    const tiH = V(TIS[0], 1.3, TIS[2]);
+    classLife(t, { focus: tiH }); diyorDesk(t, tiH);
     timurDesk(t, sit(t, { armR: [-.8, 0, .1], foreR: [-1.6, 0, 0], handR: [0, 0, .2], grip: .95 }), { smile: .15 });
     hold(CL.paper, TI, 'R', [0, -.09, .02]);
     if (t < 52.2) {   // Азим: челюсть отвисла
@@ -390,17 +464,19 @@ export function buildShots(C) {
       AZ.gum.visible = false;
       close(AZ, [-.28, .02, .95], 32);
     } else {         // Маржон всё видела — улыбается краешком рта
-      marjonDesk(t, { p: sit(t, { head: [.05, .55, 0], armL: [-.9, -.2, .1], foreL: [-1.7, 0, 0], handL: [0, 0, .4] }), face: { smile: .7, brow: .5, look: [.3, 0] } });
+      marjonDesk(t, { at: tiH, p: sit(t, { armL: [-.9, -.2, .1], foreL: [-1.7, 0, 0], handL: [0, 0, .4] }), face: { smile: .7, brow: .5 } });
       close(MJ, [.32, .01, .92], 30, [-.02, -.06, 0]);
     }
     return CS;
   });
   shot(53.07, 56.6, (lt, t) => {
-    classLife(t); diyorDesk(t); marjonDesk(t, { face: { look: [-.4, .2] } });
-    azimDesk(t, sit(t), { squint: .7 });
+    TI.root.updateMatrixWorld(true);
+    const tiNow = t < 54.25 ? V(TIS[0], 1.3, TIS[2]) : V(...path([[TIS[0], 0, TIS[2]], [TIS[0] - .9, 0, TIS[2] - .4], [-1.25, 0, -2.4], [-.8, 0, -3.35]], (t - 54.25) * 1.25).p).add(V(0, 1.55, 0));
+    classLife(t, { focus: t > 53.6 ? tiNow : undefined }); diyorDesk(t, t > 53.6 ? tiNow : undefined); marjonDesk(t, { at: t > 53.6 ? tiNow : undefined });
+    azimDesk(t, sit(t), { squint: .7, at: tiNow });
     // «Арсланов! К доске!» — палец; Тимур встаёт и идёт к доске
     place(TE, CS, [.5, 0, -3.85], .15); TE.pose(talking(seq(t - 53.07, [[0, tt => POSE.pointFinger(tt)], [2.6, tt => POSE.stand(tt)]], .4), 'teacher', t, .4, 'L'));
-    face(TE, 'teacher', t, { seed: 6, brow: .4, squint: .85 });
+    face(TE, 'teacher', t, { seed: 6, brow: .4, squint: .85, at: tiNow });
     const r = walk(TI, CS, [[TIS[0], 0, TIS[2]], [TIS[0] - .9, 0, TIS[2] - .4], [-1.25, 0, -2.4], [-.8, 0, -3.35]], t, 54.25, 1.25, { endYaw: Math.PI - .25 });
     if (t < 54.25) { place(TI, CS, TIS, Math.PI); TI.pose(seq(t - 53.07, [[0, tt => sit(tt)], [.65, tt => POSE.stand(tt), .5]])); }
     face(TI, 'timur', t, { brow: .45, look: [.3, .1] });
@@ -409,21 +485,24 @@ export function buildShots(C) {
     return CS;
   });
   shot(56.6, 62.0, (lt, t) => {
-    classLife(t); diyorDesk(t); marjonDesk(t, { face: { look: [-.5, .25], smile: .4 } }); azimDesk(t, sit(t), { squint: .8 });
+    const tb = V(-.8, 1.6, -3.35);
+    classLife(t, { focus: tb }); diyorDesk(t, tb); marjonDesk(t, { at: tb, face: { smile: .4 } }); azimDesk(t, sit(t), { squint: .8, at: tb });
     place(TI, CS, [-.8, 0, -3.35], kf(t, [[56.6, Math.PI - .25], [57.4, .35], [59.0, .25]]));
     const peek = pulse(t, 57.3, 58.6, .2, .3);
     TI.pose(talking({ ...POSE.stand(t), armR: [-2.0 * pulse(t, 58.0, 59.2, .2, .3), .3, .2], foreR: [-1.3, 0, 0], head: [0, .9 * peek, 0] }, 'timur', t, .7, 'L'));
-    face(TI, 'timur', t, { brow: .3 + .3 * peek, look: [.6 * peek, .1], smile: t > 60.2 ? .5 : .1 });
+    face(TI, 'timur', t, { brow: .3 + .3 * peek, look: [.6 * peek, .1], smile: t > 60.2 ? .5 : .1, at: peek < .3 && talkK('teacher', t) > .3 ? headW(TE) : undefined, atK: .7 });
     // «Хм. Верно.» — поправляет очки
     place(TE, CS, [1.25, 0, -3.55], -.55);
     TE.pose(talking(t > 59.7 ? POSE.adjustGlasses(t) : { ...POSE.stand(t), armL: [-.5, 0, .3], foreL: [-1.9, 0, 0], armR: [-.5, 0, .3], foreR: [-1.9, 0, 0] }, 'teacher', t, .3, 'R'));
-    face(TE, 'teacher', t, { seed: 6, brow: t > 59.8 ? .6 : 0, squint: .85, look: [-.4, 0] });
+    face(TE, 'teacher', t, { seed: 6, brow: t > 59.8 ? .6 : 0, squint: .85, at: tb });
     if (t < 59.8) look([-.1, 1.42, -1.45], [-.75, 1.42, -3.35], 34);
     else close(TE, [-.25, .03, .95], 32);
     return CS;
   });
   shot(62.0, 66.0, (lt, t) => {
-    classLife(t); diyorDesk(t); azimDesk(t, sit(t), { squint: .8, brow: -.5 });
+    // учительница снова пишет на доске
+    place(TE, CS, [.7, 0, -3.9], Math.PI); TE.pose({ ...POSE.stand(t), armR: [-2.2, -.2, .3], foreR: [-.5 + .15 * Math.sin(t * 9), 0, 0], handR: [-.3, 0, 0], gripR: .8 }); TE.chalk.visible = true; face(TE, 'teacher', t, { seed: 6 });
+    classLife(t); diyorDesk(t); azimDesk(t, sit(t), { squint: .8, brow: -.5, at: TI.root.visible ? headW(TI) : undefined });
     const r = walk(TI, CS, [[-.8, 0, -3.35], [-1.25, 0, -2.4], [TIS[0] - .9, 0, TIS[2] - .4], [TIS[0], 0, TIS[2]]], t, 62.1, 1.2, { endYaw: Math.PI, end: tt => sit(tt) });
     face(TI, 'timur', t, { smile: .35, look: [.4, 0] });
     // Маржон провожает его взглядом и открывает скетчбук
@@ -447,21 +526,34 @@ export function buildShots(C) {
       [3, [2.8 - .45, 0, -2.2 - .85], 0, 'eat'], [4, [2.8 + .45, 0, -2.2 - .85], 0, 'sit'], [5, [2.8 + 1.35, 0, -2.2 + .85], Math.PI, 'eat'],
       [6, [2.8 - 1.35, 0, .8 - .85], 0, 'eat'], [7, [2.8 - .45, 0, .8 + .85], Math.PI, 'sit'], [10, [-3.2 + 1.35, 0, 3.8 - .85], 0, 'eat'], [11, [-3.2 + .45, 0, 3.8 + .85], Math.PI, 'sit'],
       [12, [-3.2 - .45, 0, 3.8 - .85], 0, 'eat'], [13, [2.8 + 1.35, 0, .8 + .85], Math.PI, 'eat']];
-    for (const [i, p, y, m] of P0) extra(i, NS, p, y, t, m === 'sitTalk' ? (tt, s) => ({ ...POSE.talk(tt + s), ...sit(tt + s), armL: POSE.talk(tt + s).armL, foreL: POSE.talk(tt + s).foreL }) : m);
-    // очередь у раздачи
-    extra(14, NS, [-1.5, 0, -4.4], Math.PI, t, 'phone'); hold(phones[1], ST(14), 'R', [0, -.1, .04], [-.3, 0, 0]);
-    extra(15, NS, [-.6, 0, -4.5], Math.PI - .3, t, 'listen');
+    // соседи по столу смотрят друг на друга, иногда — на телевизор с новостями
+    const TVH = V(CN.tvPos.x, 2.5, CN.tvPos.z);
+    for (const [i, p, y, m] of P0) {
+      const tz = [-2.2, .8, 3.8].reduce((a, b) => Math.abs(b - p[2]) < Math.abs(a - p[2]) ? b : a), mate = V(p[0] + (i % 2 ? .45 : -.45), 1.15, tz + (p[2] > tz ? -.85 : .85));
+      const tv = Math.sin(t * .23 + i * 1.9) > .82;
+      extra(i, NS, p, y, t, m === 'sitTalk' ? LIFE.sitTalk : m, { at: o.at || (tv ? TVH : mate), atK: m === 'eat' && !tv ? .35 : .8, who: o.wow ? 'crowd' : undefined });
+    }
+    [21, 22, 23].forEach((i, k) => extra(i, NS, [2.8 - 1.35 + k * .9, 0, .8 + .85], Math.PI, t, k === 1 ? 'eat' : 'sitTalk', { at: V(2.8 - 1.35 + k * .9 + (k ? -.9 : .9), 1.15, 1.65) }));
+    // очередь у раздачи, автомат с напитками, ребята с подносами ходят по залу
+    extra(14, NS, [-1.5, 0, -4.4], Math.PI, t, 'phone', { at: false }); hold(phones[1], ST(14), 'R', [0, -.1, .04], [-.3, 0, 0]);
+    extra(15, NS, [-.6, 0, -4.5], Math.PI - .3, t, 'listen', { at: V(-1.5, 1.5, -4.4) });
+    extra(18, NS, [.4, 0, -4.45], Math.PI + .2, t, 'stand', { at: V(.6, 1.1, -5.4) }); extra(19, NS, [1.3, 0, -4.4], Math.PI, t, 'talk', { at: V(.4, 1.5, -4.45) });
+    extra(20, NS, [6.9, 0, -4.2], Math.PI / 2, t, (tt, s) => ({ ...LIFE.stand(tt, s), armR: [-1.3, .2, .1], foreR: [-.3, 0, 0], handR: [-.4, 0, 0] }), { at: V(7.2, 1.2, -4.2) });
+    const c16 = stroll(16, NS, [-.2, 0, -3.6], [.1, 0, 4.9], t, .95, 0, { pose: { armL: [-.85, -.2, .1], armR: [-.85, .2, .1], foreL: [-.9, 0, 0], foreR: [-.9, 0, 0], grip: .6 } });
+    c16.root.add(trays[0]); trays[0].position.set(0, .98 * c16.d.k, .36); trays[0].visible = true;
+    const c17 = stroll(17, NS, [5.6, 0, 5.2], [5.6, 0, -3.2], t, 1.05, 6, { pose: { armL: [-.85, -.2, .1], armR: [-.85, .2, .1], foreL: [-.9, 0, 0], foreR: [-.9, 0, 0], grip: .6 } });
+    c17.root.add(trays[1]); trays[1].position.set(0, .98 * c17.d.k, .36); trays[1].visible = true;
     // Азим с дружками шумят за дальним столом
     if (o.azim !== false) {
-      place(AZ, NS, [2.8 + .45, 0, 3.8 + .85], Math.PI); AZ.pose(talking(sit(t), 'azim', t + 3, 0)); face(AZ, 'azim', t, { seed: 5, smile: .7 });
-      extra(8, NS, [2.8 - .45, 0, 3.8 + .85], Math.PI, t, 'laugh'); extra(9, NS, [2.8 + 1.35, 0, 3.8 - .85], 0, t, 'eat');
+      place(AZ, NS, [2.8 + .45, 0, 3.8 + .85], Math.PI); AZ.pose(LIFE.sitTalk(t, 2)); face(AZ, 'azim', t, { seed: 5, smile: .7, mouth: .2 + .2 * Math.max(0, Math.sin(t * 9)), at: V(2.8 + 1.35, 1.15, 2.95) });
+      extra(8, NS, [2.8 - .45, 0, 3.8 + .85], Math.PI, t, 'laugh', { at: headW(AZ) }); extra(9, NS, [2.8 + 1.35, 0, 3.8 - .85], 0, t, 'eat', { at: headW(AZ) });
     }
   };
   const diyorTable = (t, o = {}) => {
     place(DI, NS, stoolA(1, false), 0);
     DI.pose(talking(o.p || sit(t, { armR: [-.8, .1, .1], foreR: [-1.3, 0, 0] }), 'diyor', t, o.gest ?? 1, 'L'));
     if (!o.noCup) hold(cups[0], DI, 'R', [0, -.1, .045]);
-    face(DI, 'diyor', t, { seed: 4, smile: .35, ...o.face });
+    face(DI, 'diyor', t, { seed: 4, smile: .35, at: o.at !== undefined ? o.at : t > 72.5 ? speakerAt(t, ['marjon', 'timur'], V(-2.75, 1.2, 1.65)) : undefined, atK: .85, ...o.face });
   };
   const timurTable = (t, o = {}) => {
     place(TI, NS, stoolA(2, false), 0);
@@ -470,17 +562,17 @@ export function buildShots(C) {
     TI.pose(talking(p, 'timur', t, o.gest ?? .6, 'L'));
     hold(spoon, TI, 'R', [0, -.08, .03], [-.6, 0, 0]);
     put(CN.timurTray, NS, TRAY);
-    face(TI, 'timur', t, o.face || {});
+    face(TI, 'timur', t, { at: o.at, atK: .7, ...o.face });
   };
   const marjonTable = (t, o = {}) => {
     place(MJ, NS, stoolA(2, true), Math.PI);
     MJ.pose(talking(o.p || sit(t, { armL: [-.9, -.1, .1], foreL: [-1.0, 0, 0], armR: [-.9, .1, .1], foreR: [-1.1, 0, 0] }), 'marjon', t, o.gest ?? 1, 'R'));
-    face(MJ, 'marjon', t, { seed: 3, smile: .45, ...o.face });
+    face(MJ, 'marjon', t, { seed: 3, smile: .45, at: o.at !== undefined ? o.at : speakerAt(t, ['diyor', 'timur'], V(-3.65, 1.2, -.05)), atK: .85, ...o.face });
   };
   D.onReset(() => { if (CN.timurTray.parent !== CN.scene) CN.scene.add(CN.timurTray); CN.timurTray.position.set(...TRAY); CN.timurTray.rotation.set(0, 0, 0); });
   shot(66, 70.98, (lt, t) => {
     canteenLife(t);
-    diyorTable(t, { face: { look: [.5, 0] } });
+    diyorTable(t, { at: TI.root.visible ? V(-2.75, 1.3, -.4) : undefined });
     // Тимур идёт от раздачи с подносом (три порции плова) и садится
     const r = walk(TI, NS, [[-.4, 0, -4.2], [-.6, 0, -1.1], [-2.75, 0, -.75]], t, 66.0, 1.35, { endYaw: 0, end: tt => seq(tt - 68.6, [[0, POSE.stand(tt)], [0, sit(tt), .45]]) });
     const sitK = E.inOutSine(P(t, 68.6, .45));
@@ -503,10 +595,10 @@ export function buildShots(C) {
     MJ.root.position.z = lerp(MJ.root.position.z, stoolA(2, true)[2], sitK);
     let mp = r.done ? blend(POSE.stand(t), sit(t), sitK) : MJ.J && POSE.walk(gait(r.d, .68, .9));
     if (bump > 0) mp = { ...mp, armL: [-1.25 * bump, -.2, .15], foreL: [-.4, 0, 0], gripL: 1 };
-    MJ.pose(talking(mp, 'marjon', t, sitK, 'R')); face(MJ, 'marjon', t, { seed: 3, smile: .6, look: [.3, 0] });
-    diyorTable(t, { p: bump > 0 ? sit(t, { armL: [-1.3 * bump, .3, .1], foreL: [-.3, 0, 0], gripL: 1, armR: [-.8, .1, .1], foreR: [-1.3, 0, 0] }) : undefined, face: { smile: .6, look: [-.2, -.2] } });
+    MJ.pose(talking(mp, 'marjon', t, sitK, 'R')); face(MJ, 'marjon', t, { seed: 3, smile: .6, at: t < 72.8 ? V(-3.65, 1.2, -.05) : V(-3.2, 1.2, -.05), atK: .8 });
+    diyorTable(t, { at: headW(MJ), p: bump > 0 ? sit(t, { armL: [-1.3 * bump, .3, .1], foreL: [-.3, 0, 0], gripL: 1, armR: [-.8, .1, .1], foreR: [-1.3, 0, 0] }) : undefined, face: { smile: .6 } });
     const fr = E.outCubic(P(t, 71.2, .25));
-    timurTable(t, { freeze: fr, face: { wide: fr > .5 && t < 74, look: [.1, .2 * fr], smile: .1, brow: .5 * fr } });
+    timurTable(t, { freeze: fr, at: fr > .3 ? headW(MJ) : undefined, face: { wide: fr > .5 && t < 74, smile: .1, brow: .5 * fr } });
     if (t < 73.0) look([-.15, 1.48, .95], [-3.3, 1.1, .75], 42);
     else close(TI, [.2, .02, .95], 30);
     return NS;
@@ -521,23 +613,23 @@ export function buildShots(C) {
     const brand = pulse(t, 82.4, 85.4, .3, .4), sad = pulse(t, 89.6, 92.2, .5, .4);
     diyorTable(t, { p: brand > 0 ? sit(t, { armL: [-1.4, .5, .5], foreL: [-.6, 0, 0], armR: [-1.4, -.5, .5], foreR: [-.6, 0, 0], handL: [0, 0, .6], handR: [0, 0, -.6], gripL: .1, gripR: .1 }) : sit(t, { armR: [-.8, .1, .1], foreR: [-1.3, 0, 0], head: [.25 * sad, 0, 0] }),
       noCup: brand > 0, gest: 1 - brand, face: { smile: .6 - .55 * sad, look: [.5 * (1 - sad), -.4 * sad], brow: .3 - .5 * sad } });
-    timurTable(t, { speed: 1.2, face: { look: [-.3 + .6 * talkK('marjon', t), .1], smile: .2 } });
+    timurTable(t, { speed: 1.2, at: talkK('marjon', t) > .3 ? headW(MJ) : talkK('diyor', t) > .3 ? headW(DI) : undefined, face: { smile: .2 } });
     if (brand > 0) comic('ПАУК-НОВОГРАД™', 960, 250, t - 82.6, { size: .5, rot: -.05, dur: 2.6, color: '#e8343c', burstColor: '#7ff8ff' });
     // монтаж по говорящему
     const sp = ['g5', 'm2', 'g6', 'm3', 'g7'].map(id => C.lines.find(l => l.id === id));
     const cur = sp.filter(l => t >= l.t - .1).pop();
-    if (!cur || cur.who === 'diyor') ots(MJ, DI, 1, 32);
-    else ots(DI, MJ, -1, 32, .75);
+    if (!cur || cur.who === 'diyor') ots(MJ, DI, 1, 32, .9);
+    else ots(DI, MJ, 1, 32, .9);
     return NS;
   });
   shot(92.04, 102.2, (lt, t) => {
     canteenLife(t);
-    marjonTable(t, { p: sit(t, { armL: [-1.05, -.3, .1], foreL: [-1.9, 0, 0], handL: [0, 0, .3], spine: [.15, 0, 0], head: [.05, 0, .1 * pulse(t, 98.3, 100, .3, .4)] }), gest: .4,
-      face: { look: [-.15, 0], smile: t > 98.2 ? .85 : .45, brow: .3 } });
-    diyorTable(t, { face: { look: [.6, 0], smile: t > 99.8 ? .8 : .4 } });
+    diyorTable(t, { at: t < 99.9 ? V(-2.75, 1.25, -.05) : undefined, face: { smile: t > 99.8 ? .8 : .4 } });
+    marjonTable(t, { at: V(-2.75, 1.25, -.05), p: sit(t, { armL: [-1.05, -.3, .1], foreL: [-1.9, 0, 0], handL: [0, 0, .3], spine: [.15, 0, 0], head: [.05, 0, .1 * pulse(t, 98.3, 100, .3, .4)] }), gest: .4,
+      face: { smile: t > 98.2 ? .85 : .45, brow: .3 } });
     // «А ты как думаешь, Тимур?» — пауза — «он просто держит обещания»
     const stop = E.inOutSine(P(t, 92.6, .4));
-    timurTable(t, { freeze: stop, gest: .3, face: { look: [0, t < 95.5 ? -.3 : .05], smile: t > 98.3 ? .6 : .15, brow: .2 } });
+    timurTable(t, { freeze: stop, gest: .3, at: t > 95.5 ? headW(MJ) : undefined, face: { look: [0, t < 95.5 ? -.3 : .05], smile: t > 98.3 ? .6 : .15, brow: .2 } });
     if (t < 94.6) ots(TI, MJ, 1, 32);
     else if (t < 98.4) { const k = E.inOutSine(P(t, 94.6, 3.8)); close(TI, [.18, .02, lerp(1.15, .78, k)], lerp(32, 28, k)); }
     else if (t < 99.95) close(MJ, [-.2, .02, .85], 28);
@@ -562,17 +654,32 @@ export function buildShots(C) {
   const RS = CR.scene;
   const X0 = -1.25;                                 // шкафчик Диёра
   const TIF = [X0, 0, -1.5], AZF = [X0 + .08, 0, -.42];       // позиции в драке: Тимур спиной к шкафчикам, Азим напротив
+  const FIGHTP = V(X0, 1.45, -.95);
+  /** коридор: пары болтают и смотрят друг на друга, кто-то ходит, пьёт из фонтанчика, роется в шкафчике;
+   *  с t ≥ 118 (конфликт) все оборачиваются на драку, o.wow — «ого!», o.film — снимают на телефоны */
   const corridorLife = (t, o = {}) => {
-    const wow = o.wow || 0, film = o.film || 0;
-    const L = [[0, [-6.5, 0, -1.35], .2, 'talk'], [1, [-5.8, 0, -1.2], -2.6, 'listen'], [2, [5.2, 0, -1.3], -.4, 'lean'], [3, [9.0, 0, -1.25], .3, 'phone'],
-      [4, [-9.5, 0, 1.3], 2.0, 'talk'], [5, [-8.7, 0, 1.6], -1.4, 'listen'], [6, [10.5, 0, 1.4], -2.2, 'talk'], [7, [11.2, 0, .9], 1.1, 'listen'],
-      [10, [3.6, 0, 1.2], -1.9, 'stand'], [11, [-7.6, 0, 1.6], 2.5, 'phone'], [12, [7.4, 0, -1.3], .1, 'lean'], [13, [-7.4, 0, -1.3], .5, 'stand']];
-    L.forEach(([i, p, y, m], j) => {
-      const tgt = [X0, 0, -.9], yy = wow > 0 ? lerp(y, yawTo(p, tgt), clamp(wow * 1.5)) : y;
-      const mm = film > 0 && j % 3 !== 2 ? 'film' : wow > 0 ? (j % 2 ? 'wow' : 'stand') : m;
-      extra(i, RS, p, yy, t, mm, { wide: wow > .5 && j % 2 === 0, smile: wow > 0 ? .1 : .3 });
+    const wow = o.wow || 0, film = o.film || 0, tense = t > 118.2;
+    const L = [[0, [-6.5, 0, -1.35], .2, 'talk', 1], [1, [-5.8, 0, -1.2], -2.6, 'listen', 0], [2, [5.2, 0, -1.3], -.4, 'lean'], [3, [9.0, 0, -1.25], .3, 'phone'],
+      [4, [-9.5, 0, 1.3], 2.0, 'talk', 5], [5, [-8.7, 0, 1.6], -1.4, 'listen', 4], [6, [10.5, 0, 1.4], -2.2, 'talk', 7], [7, [11.2, 0, .9], 1.1, 'laugh', 6],
+      [10, [3.6, 0, 1.2], -1.9, 'stand'], [11, [-7.6, 0, 1.6], 2.5, 'phone'], [12, [7.4, 0, -1.3], .1, 'lean'], [13, [-7.4, 0, -1.3], .5, 'stand'],
+      [19, [-12.4, 0, .9], 1.6, 'talk', 20], [20, [-11.5, 0, 1.2], -1.9, 'listen', 19], [21, [18.4, 0, -1.4], 2.8, 'stand'], [22, [17.6, 0, -1.2], -2.6, 'talk', 21]];
+    const mateAt = id => { const r = L.find(q => q[0] === id); return V(r[1][0], 1.55, r[1][2]); };
+    L.forEach(([i, p, y, m, mate], j) => {
+      const yy = wow > 0 || tense ? lerp(y, yawTo(p, [X0, 0, -.9]), clamp((tense ? .55 : 0) + wow)) : y;
+      const mm = film > 0 && j % 3 !== 2 ? 'film' : wow > 0 ? (j % 4 === 1 ? 'cheer' : j % 2 ? 'wow' : 'stand') : tense && m === 'talk' ? 'listen' : m;
+      const at = tense || wow > 0 ? FIGHTP : mate != null ? mateAt(mate) : false;
+      extra(i, RS, p, yy, t, mm, { wide: wow > .5 && j % 2 === 0, smile: wow > 0 ? .15 : .3, at, atK: .85 });
       if (mm === 'film' || mm === 'phone') hold(phones[1 + (j % 8)], ST(i), 'R', [0, -.1, .045], [-.3, 0, 0]);
     });
+    // ходят по коридору; когда начинается конфликт — останавливаются и смотрят
+    for (const [i, a, b, sp, ph] of [[14, [-15, 0, .6], [14, 0, .9], 1.15, 0], [15, [13, 0, .4], [-14, 0, .2], 1.0, 7], [16, [-3, 0, 2.0], [15, 0, 2.0], .9, 3], [17, [16, 0, -.6], [2, 0, -.4], 1.1, 11]]) {
+      const c = stroll(i, RS, a, b, Math.min(t, 118.2), sp, ph);
+      if (tense) { c.root.rotation.y = lerp(c.root.rotation.y, yawTo(c.root.position.toArray(), [X0, 0, -.9]), clamp((t - 118.2) * 1.5)); c.pose(wow > 0 ? LIFE.wow(t, i) : film > 0 && i % 2 ? LIFE.film(t, i) : LIFE.listen(t, i));
+        face(c, 's', t, { seed: i % 5, at: FIGHTP, wide: wow > .5 }); if (film > 0 && i % 2) hold(phones[i % 8 + 1], c, 'R', [0, -.1, .045], [-.3, 0, 0]); }
+    }
+    // роется в шкафчике; пьёт из фонтанчика
+    extra(18, RS, [8.6, 0, -1.45], tense ? -2.4 : Math.PI, t, tense ? 'listen' : (tt, s) => ({ ...LIFE.stand(tt, s), armR: [-1.4, .1, .1], foreR: [-.6 + .2 * Math.sin(tt * 3), 0, 0], armL: [-.6, 0, .2], foreL: [-1.2, 0, 0], head: [.2, 0, 0] }), { at: tense ? FIGHTP : false });
+    extra(23, RS, [12.6, 0, -1.25], tense ? -2.2 : Math.PI, t, tense ? 'listen' : (tt, s) => ({ ...POSE.stand(tt), spine: [.75, 0, 0], head: [-.3, 0, 0], armR: [-.9, 0, .2], foreR: [-.6, 0, 0] }), { at: tense ? FIGHTP : false });
     CR.doorD.rotation.y = -1.7; CR.doorM.rotation.y = -1.5;
   };
   // дружки Азима
@@ -582,26 +689,27 @@ export function buildShots(C) {
     place(ST(9), RS, o.p9 || [X0 + 2.3, 0, -.75], o.y9 ?? -1.6); ST(9).pose(o.pose9 || LIFE.lean(t, 2)); face(ST(9), 's', t, { seed: 4, smile: o.smile ?? .5, wide: o.wide });
   };
   const marjonLocker = (t, o = {}) => {
-    place(MJ, RS, o.p || [6.2, 0, -1.4], o.yaw ?? Math.PI); MJ.pose(o.pose || { ...POSE.stand(t), armL: [-1.2, -.3, .2], foreL: [-.6, 0, 0], head: [.2, 0, 0] }); face(MJ, 'marjon', t, { seed: 3, smile: .3, ...o.face });
+    place(MJ, RS, o.p || [6.2, 0, -1.4], o.yaw ?? Math.PI); MJ.pose(o.pose || { ...POSE.stand(t), armL: [-1.2, -.3, .2], foreL: [-.6 + .25 * Math.sin(t * 2), 0, 0], head: [.2, 0, 0] });
+    face(MJ, 'marjon', t, { seed: 3, smile: .3, at: o.at !== undefined ? o.at : t > 117.6 ? FIGHTP : V(6.2, 1.45, -2.0), atK: .9, ...o.face });
   };
   shot(108, 113.84, (lt, t) => {
     corridorLife(t);
     marjonLocker(t, { yaw: kf(t, [[108, Math.PI], [111.0, Math.PI], [111.8, Math.PI + 1.2]]), face: { look: [.6, 0] } });
     // Диёр у шкафчика; Азим с дружками входит справа и хлопает ладонью по дверце
-    const r = walk(AZ, RS, [[9.5, 0, .1], [3.0, 0, -.2], [X0 + .1, 0, -.6]], t, 107.4, 1.45, { walkPose: POSE.heavyWalk, endYaw: Math.PI });
+    const r = walk(AZ, RS, [[9.5, 0, .1], [3.0, 0, -.2], [X0 + .1, 0, -.6]], t, 103.6, 1.45, { walkPose: POSE.heavyWalk, endYaw: Math.PI });
     const slam = E.outCubic(P(t, 111.4, .18));
     if (r.done) { AZ.pose(talking({ ...POSE.stand(t), spine: [.15, 0, 0], armL: [-1.4 * slam, -.5 * slam, .35], foreL: [-.5 * slam, 0, 0], gripL: .1 }, 'azim', t, .8, 'R'));
       if (slam > 0) ikArm(AZ, 'L', V(X0 - .45, 1.78, -1.95), V(-.5, -.3, .4), slam); }
-    face(AZ, 'azim', t, { seed: 5, squint: .75, smile: .5, brow: -.4, energy: .3 }); AZ.gum.visible = true;
-    walk(ST(8), RS, [[11, 0, .5], [X0 + 1.7, 0, .35]], t, 107.6, 1.5, { endYaw: -2.0 }); face(ST(8), 's', t, { seed: 1, smile: .6 });
-    walk(ST(9), RS, [[10.4, 0, 1.0], [X0 + 2.3, 0, -.75]], t, 107.2, 1.6, { endYaw: -1.6, end: tt => LIFE.lean(tt, 2) }); face(ST(9), 's', t, { seed: 4, smile: .5 });
+    face(AZ, 'azim', t, { seed: 5, squint: .75, smile: .5, brow: -.4, energy: .3, at: r.done ? V(X0, 1.55, -1.5) : undefined, mouth: talkK('azim', t) > 0 ? undefined : .15 + .1 * Math.sin(t * 7) }); AZ.gum.visible = true;
+    walk(ST(8), RS, [[11, 0, .5], [X0 + 1.7, 0, .35]], t, 104.4, 1.5, { endYaw: -2.0 }); face(ST(8), 's', t, { seed: 1, smile: .6 });
+    walk(ST(9), RS, [[10.4, 0, 1.0], [X0 + 2.3, 0, -.75]], t, 104.8, 1.6, { endYaw: -1.6, end: tt => LIFE.lean(tt, 2) }); face(ST(9), 's', t, { seed: 4, smile: .5 });
     const turn = E.inOutSine(P(t, 110.2, .5)), flinch = springAt(t, 111.5, -.06);
     place(DI, RS, [X0, 0, -1.5], lerp(Math.PI, 0, turn));
     DI.pose({ ...POSE.stand(t), armL: [-.7 * (1 - turn), 0, .15], foreL: [-1.2 * (1 - turn), 0, 0], spine: [-.1 * turn + flinch, 0, 0], head: [-.1 * turn, 0, 0] });
-    face(DI, 'diyor', t, { seed: 4, smile: .2 * (1 - turn), wide: slam > .5, brow: .6 * turn, look: [0, .2] });
+    face(DI, 'diyor', t, { seed: 4, smile: .2 * (1 - turn), wide: slam > .5, brow: .6 * turn, at: turn > .5 ? headW(AZ) : V(X0, 1.5, -2.2), atK: .9 });
     if (slam > 0 && t < 111.9) impact(t, 111.58, { zoom: .05, shake: .05 });
     if (t < 110.6) move(t, [[108, [9.5, 1.75, 2.15], [-2, 1.2, -1.3], 44], [110.6, [6.5, 1.65, 1.9], [-1.2, 1.25, -1.0], 40]]);
-    else look([X0 + .6, .82, .75], [X0 - .1, 1.78, -.9], 38);
+    else look([X0 + .75, .95, -1.55], [X0 + .1, 1.8, -.55], 40);
     fadeIn(lt, .4);
     return RS;
   });
@@ -613,12 +721,14 @@ export function buildShots(C) {
     AZ.pose(talking({ ...POSE.stand(t), spine: [.15, 0, 0], armL: [-1.4, -.5, .35], foreL: [-.5, 0, 0], gripL: .1, armR: [-.9 * grab, -.2, .2], foreR: [-1.0, 0, 0], gripR: grab }, 'azim', t, 0));
     ikArm(AZ, 'L', V(X0 - .45, 1.78, -1.95), V(-.5, -.3, .4));
     if (grab > 0) ikArm(AZ, 'R', V(X0, 1.32, -1.32), V(.4, -.6, .4), grab);
-    face(AZ, 'azim', t, { seed: 5, squint: .7, brow: -.6, smile: .2 }); AZ.gum.visible = true;
+    face(AZ, 'azim', t, { seed: 5, squint: .7, brow: -.6, smile: .2, at: V(X0, 1.55, -1.5), mouth: talkK('azim', t) > 0 ? undefined : .1 }); AZ.gum.visible = true;
+    const bub = t > 114.0 && t < 115.2 ? E.outQuad(P(t, 114.0, 1.1)) : 0; AZ.gum.scale.setScalar(1 + 3.2 * bub);
+    if (t > 115.2 && t < 115.6) comic('ЧПОК', 1250, 280, t - 115.2, { size: .3, dur: .4, burst: false, color: '#ff8ab8' });
     place(DI, RS, [X0, 0, -1.5], 0); DI.pose(talking({ ...POSE.stand(t), spine: [-.12 - .08 * grab, 0, 0], armL: [-.4, 0, .4], foreL: [-1.2, 0, 0], head: [-.1, 0, 0] }, 'diyor', t, .8, 'R'));
-    face(DI, 'diyor', t, { seed: 4, brow: .7, wide: grab > .5, look: [0, .25] });
+    face(DI, 'diyor', t, { seed: 4, brow: .7, wide: grab > .5, at: headW(AZ) });
     walk(TI, RS, [[-11, 0, .6], [X0 - 1.15, 0, -.55]], t, 109.3, 1.25, { endYaw: .9 });
-    face(TI, 'timur', t, { brow: -.2, look: [.4, .1] });
-    if (t < 115.81) ots(AZ, DI, 1, 34, .6);
+    face(TI, 'timur', t, { brow: -.2, at: headW(AZ), atK: .6 });
+    if (t < 115.81) ots(AZ, DI, 1, 34, 1.0, .12, .55);
     else look([-5.6, 1.5, 1.4], [X0 - .3, 1.3, -.9], 40);
     return RS;
   });
@@ -630,20 +740,20 @@ export function buildShots(C) {
     const ap = [X0 + .1, 0, lerp(-.6, AZF[2], off)];
     place(AZ, RS, ap, Math.PI);
     AZ.pose({ ...POSE.stand(t), spine: [.15 - .15 * off, 0, 0], armL: [-1.4 * (1 - off), -.5, .35], foreL: [-.5, 0, 0], armR: [-.9, -.2, .2], foreR: [-1.0, 0, 0], gripR: 1 - off });
-    face(AZ, 'azim', t, { seed: 5, squint: .8, brow: -.7 }); AZ.gum.visible = true;
+    face(AZ, 'azim', t, { seed: 5, squint: .8, brow: -.7, at: V(X0 - .8, 1.6, -.9) }); AZ.gum.visible = true;
     place(TI, RS, tp, lerp(.9, 0, step));
     TI.pose(talking({ ...POSE.stand(t), armL: [-1.1 * take * (1 - step * .8), -.2, .1], foreL: [-.6, 0, 0], gripL: .9 * take }, 'timur', t, .5, 'R'));
     if (take > 0 && step < 1) { AZ.root.updateMatrixWorld(true); ikArm(TI, 'L', handW(AZ, 'R'), V(-.4, -.6, .3), take * (1 - step)); }
-    face(TI, 'timur', t, { brow: -.3, squint: .85, look: [.3, .15] });
+    face(TI, 'timur', t, { brow: -.3, squint: .85, at: headW(AZ), atK: .9 });
     if (take < .5) ikArm(AZ, 'R', V(X0, 1.32, -1.32), V(.4, -.6, .4), 1 - off);
-    place(DI, RS, [lerp(X0, X0 + 1.05, step), 0, lerp(-1.5, -1.35, step)], lerp(0, -.9, step)); DI.pose({ ...POSE.stand(t), spine: [-.1, 0, 0] }); face(DI, 'diyor', t, { seed: 4, brow: .7, look: [-.5, .1] });
+    place(DI, RS, [lerp(X0, X0 + 1.05, step), 0, lerp(-1.5, -1.35, step)], lerp(0, -.9, step)); DI.pose({ ...POSE.stand(t), spine: [-.1, 0, 0] }); face(DI, 'diyor', t, { seed: 4, brow: .7, at: FIGHTP });
     if (t < 120.4) close(TI, [.15, -.18, .9], 32, [0, -.02, 0]);
     else look([-4.3, 1.45, -.95], [X0, 1.35, -.95], 38);
     return RS;
   });
   const fightBase = (t, o = {}) => {
     corridorLife(t, o); cronies(t, o.cr || {});
-    place(DI, RS, [X0 + 1.05, 0, -1.35], -.9); DI.pose(talking({ ...POSE.stand(t), spine: [-.06, 0, 0], ...o.di }, 'diyor', t, .8)); face(DI, 'diyor', t, { seed: 4, brow: .7, look: [-.4, .1], ...o.dif });
+    place(DI, RS, [X0 + 1.05, 0, -1.35], -.9); DI.pose(talking({ ...POSE.stand(t), spine: [-.06, 0, 0], ...o.di }, 'diyor', t, .8)); face(DI, 'diyor', t, { seed: 4, brow: .7, at: FIGHTP, ...o.dif });
   };
   shot(120.63, 128.15, (lt, t) => {
     // «Ты кто такой вообще?» — тычет пальцем; «Тот, кто обычно опаздывает…»
@@ -654,8 +764,8 @@ export function buildShots(C) {
     const poke = pulse(t, 121.6, 123.4, .2, .3);
     AZ.pose(talking(blend({ ...POSE.stand(t), spine: [.12, 0, 0] }, POSE.pointFinger(t), poke), 'azim', t, .7, 'L'));
     if (poke > .3) ikArm(AZ, 'R', V(TIF[0], 1.3, TIF[2] + .22), V(.4, -.6, .3), poke);
-    face(AZ, 'azim', t, { seed: 5, squint: .7, brow: -.6, smile: t < 124 ? .5 : 0 }); AZ.gum.visible = true;
-    place(TI, RS, TIF, 0); TI.pose(talking({ ...POSE.stand(t), spine: [-.02, 0, 0] }, 'timur', t, .45, 'L')); face(TI, 'timur', t, { brow: -.25, squint: .9, smile: t > 125.6 ? .25 : 0, look: [0, .15] });
+    face(AZ, 'azim', t, { seed: 5, squint: .7, brow: -.6, smile: t < 124 ? .5 : 0, at: V(TIF[0], 1.58, TIF[2]), mouth: talkK('azim', t) > 0 ? undefined : .12 + .1 * Math.sin(t * 7) }); AZ.gum.visible = true;
+    place(TI, RS, TIF, 0); TI.pose(talking({ ...POSE.stand(t), spine: [-.02, 0, 0] }, 'timur', t, .45, 'L')); face(TI, 'timur', t, { brow: -.25, squint: .9, smile: t > 125.6 ? .25 : 0, at: V(AZF[0], 1.78, AZF[2]), atK: .9 });
     if (t < 124.0) look([-4.3, 1.48, -.95], [X0, 1.38, -.95], 38);
     else if (t < 126.0) ots(AZ, TI, 1, 30, .55);
     else if (t < 127.4) close(MJ, [-.3, .02, 1.1], 32);
@@ -671,8 +781,8 @@ export function buildShots(C) {
     let ap = blend({ ...POSE.stand(t), spine: [.12, 0, 0] }, { ...POSE.stand(t), spine: [.35, 0, 0], armL: [-1.45, 0, .1], armR: [-1.45, 0, .1], foreL: [-.2, 0, 0], foreR: [-.2, 0, 0], gripL: 0, gripR: 0, legL: [-.4, 0, .1], legR: [.4, 0, .1], hy: -.06 }, push);
     ap = blend(ap, { ...POSE.stand(t), armL: [-1.0, -.3, .2], armR: [-1.0, .3, .2], foreL: [-1.3, 0, 0], foreR: [-1.3, 0, 0], handL: [0, 0, -.6], handR: [0, 0, .6], gripL: 0, gripR: 0, head: [.4, 0, 0] }, lookH);
     ap = blend(ap, HEAVY.windUp, wind);
-    AZ.pose(ap); face(AZ, 'azim', t, { seed: 5, brow: lookH > .3 ? .8 : -.8, wide: lookH > .3, squint: lookH > .3 ? 1 : .7, look: lookH > .3 ? [0, -.6] : [0, .1] }); AZ.gum.visible = true;
-    place(TI, RS, TIF, 0); TI.pose({ ...POSE.stand(t) }); face(TI, 'timur', t, { brow: -.2, squint: .9, look: [0, .15] });
+    AZ.pose(ap); face(AZ, 'azim', t, { seed: 5, brow: lookH > .3 ? .8 : -.8, wide: lookH > .3, squint: lookH > .3 ? 1 : .7, look: lookH > .3 ? [0, -.6] : [0, .1], at: lookH > .3 ? undefined : V(TIF[0], 1.58, TIF[2]) }); AZ.gum.visible = true;
+    place(TI, RS, TIF, 0); TI.pose({ ...POSE.stand(t) }); face(TI, 'timur', t, { brow: -.2, squint: .9, at: V(AZF[0], 1.78, AZF[2]) });
     squash(TI, springAt(t, 128.35, -.015));
     if (lookH > .5) comic('?!', 1250, 330, t - 128.85, { size: .45, dur: .7, burst: false, color: '#ffffff' });
     if (t < 129.4) look([-4.3, 1.48, -.95], [X0, 1.35, -.95], 38);
@@ -749,12 +859,12 @@ export function buildShots(C) {
     AZ.J.head.add(stars); stars.position.set(0, .34 * AZ.d.k, 0); stars.visible = true; starS.forEach((s, i) => { const a = t * 4 + i * Math.PI / 2; s.position.set(Math.cos(a) * .2, .02 * Math.sin(a * 2), Math.sin(a) * .2); });
     // Маржон подходит ближе
     const mjK = E.inOutSine(P(t, 136.6, 1.0));
-    marjonLocker(t, { p: [lerp(3.6, 1.4, mjK), 0, lerp(-.8, -.55, mjK)], yaw: Math.PI + 1.35, pose: mjK > 0 && mjK < 1 ? POSE.walk(gait(mjK * 2.2, .68, .9)) : talking(POSE.stand(t), 'marjon', t, .4), face: { brow: .6, look: [.5, 0], smile: t > 141 ? .45 : 0 } });
+    marjonLocker(t, { p: [lerp(3.6, 1.4, mjK), 0, lerp(-.8, -.55, mjK)], yaw: Math.PI + 1.35, at: t < 143.6 ? V(X0, 1.58, -1.5) : undefined, pose: mjK > 0 && mjK < 1 ? POSE.walk(gait(mjK * 2.2, .68, .9)) : talking(POSE.stand(t), 'marjon', t, .4), face: { brow: .6, smile: t > 141 ? .45 : 0 } });
     // Тимур: «Он… поскользнулся. Пол мокрый.» — показывает на табличку; потом уходит с Диёром
     const pointK = pulse(t, 139.6, 141.6, .3, .4);
     if (t < 143.6) {
       place(TI, RS, TIF, kf(t, [[136.4, 0], [139.4, 0], [139.8, .55], [141.6, .55], [142.2, -.6]]));
-      TI.pose(blend(talking(POSE.stand(t), 'timur', t, .4), POSE.pointFinger(t), pointK)); face(TI, 'timur', t, { smile: t > 139 ? .45 : .1, brow: .3, look: [.3, -.2 * pointK] });
+      TI.pose(blend(talking(POSE.stand(t), 'timur', t, .4), POSE.pointFinger(t), pointK)); face(TI, 'timur', t, { smile: t > 139 ? .45 : .1, brow: .3, at: pointK > .3 ? V(X0 + .75, .3, 1.95) : t < 137.9 ? headW(MJ) : headW(DI), atK: .8 });
     } else {
       walk(TI, RS, [[TIF[0], 0, TIF[2]], [X0 - 2, 0, -.3], [-11, 0, .2]], t, 143.6, 1.3);
       walk(DI, RS, [[X0 + 1.05, 0, -1.35], [X0 - 1.2, 0, -.2], [-12, 0, -.1]], t, 143.9, 1.4);
@@ -765,12 +875,14 @@ export function buildShots(C) {
     else if (t < 137.93) close(MJ, [-.2, .02, .9], 30);
     else if (t < 139.32) close(DI, [-.25, .02, .95], 30);
     else if (t < 141.88) look([X0 - 1.7, 1.45, 1.2], [X0 + .3, 1.0, .1], 42);
-    else if (t < 143.6) close(AZ, [.25, -.25, .85], 32, [0, -.02, 0]);
+    else if (t < 143.6) close(AZ, [.35, -.05, 1.55], 34, [0, -.08, 0]);
     else {   // Маржон смотрит им вслед — достаёт скетчбук
       const k = E.inOutSine(P(t, 145.5, 1));
       MJ.pose({ ...POSE.stand(t), armL: [-1.1 * k, -.2, .15], foreL: [-1.2 * k, 0, 0], handL: [0, 0, .4 * k], armR: [-1.0 * k, .3, .15], foreR: [-1.4 * k + .1 * Math.sin(t * 9) * k, 0, 0], head: [.25 * k, .3 * (1 - k), 0] });
       MJ.sketch.visible = k > .3; MJ.root.rotation.y = Math.PI + 1.35 - .3 * (1 - k);
-      const mh = headW(MJ); look(mh.clone().add(V(.45, .15, .7)).toArray(), mh.clone().add(V(-1.6, -.5, -.2)).toArray(), 36);
+      face(MJ, 'marjon', t, { seed: 3, smile: .55, at: k > .5 ? handW(MJ, 'L') : TI.root.visible ? headW(TI) : undefined, atK: .9 });
+      if (t < 148.2) look([2.7, 1.7, -1.35], [-2, 1.25, 0], 40);
+      else { close(MJ, [-.35, .05, 1.0], 30, [0, -.1, 0]); MJ.sketch.lookAt(cam.position); }
     }
     fadeOut(lt, 15.58, .7);
     return RS;
@@ -794,8 +906,10 @@ export function buildShots(C) {
   shot(152, 156.3, (lt, t) => {
     Z.setTime('sunset');
     // автобус «42» отъезжает, Тимур в наушниках идёт домой
-    Z.bus.visible = true; Z.bus.position.set(lerp(21, 70, E.inQuad(P(t, 152.3, 4.5))), 0, 23.3); Z.bus.rotation.y = Math.PI / 2;
+    Z.bus.visible = true; Z.bus.position.set(lerp(21, -45, E.inQuad(P(t, 152.3, 4.8))), 0, 21.4); Z.bus.rotation.y = -Math.PI / 2;
+    yardLife(t, { watch: headW(TI) });
     walk(TI, ZS, [[22.4, 0, 18.0], [12, 0, 17.4], [7, 0, 15.4]], t, 153.0, 1.15);
+    TI.J.head.rotation.x += .07 * Math.sin(t * Math.PI * 2 * 1.05); TI.J.neck.rotation.z = .05 * Math.sin(t * Math.PI * 1.05);   // кивает в такт музыке
     hold(phonesH, TI, 'R'); TI.J.head.add(phonesH); phonesH.position.set(0, 0, 0); phonesH.rotation.set(0, 0, 0); phonesH.visible = true;
     face(TI, 'timur', t, { smile: .35, look: [0, -.1] });
     extra(12, ZS, [24.5, 0, 17.9], -1.2, t, 'phone'); hold(phones[2], ST(12), 'R', [0, -.1, .04], [-.3, 0, 0]);
@@ -806,33 +920,35 @@ export function buildShots(C) {
   shot(156.3, 160.35, (lt, t) => {
     Z.setTime('sunset');
     const r = walk(TI, ZS, [[22.4, 0, 18.0], [12, 0, 17.4], [7, 0, 15.4], [3.6, 0, 9.5], [3.3, 0, 7.4]], t, 153.0, 1.15, { end: tt => POSE.stand(tt) });
+    if (!r.done) { TI.J.head.rotation.x += .07 * Math.sin(t * Math.PI * 2 * 1.05); TI.J.neck.rotation.z = .05 * Math.sin(t * Math.PI * 1.05); }
     TI.J.head.add(phonesH); phonesH.position.set(0, 0, 0); phonesH.visible = true;
-    face(TI, 'timur', t, { smile: .35, look: [.4, 0] });
+    face(TI, 'timur', t, { smile: .35, at: t > 159.2 ? V(6.9, 1.5, 4.6) : undefined, atK: .7 });
+    Z.scareAt = 158.7; yardLife(t, { watch: headW(TI) });
     // Маржон с пакетом из «Продуктов» идёт к своему подъезду
     walk(MJ, ZS, [[16, 0, 12.5], [9.5, 0, 6.6], [6.9, 0, 4.6]], t, 152.2, 1.12, { endYaw: -2.0 });
     MJ.pose({ ...MJ.J && (t < 160 ? POSE.walk(gait(Math.max(0, t - 152.2) * 1.12, .68, .9)) : POSE.stand(t)), armR: [-.15, .1, .25], foreR: [-.4, 0, 0], gripR: 1 });
-    hold(Z.bag, MJ, 'R', [0, -.1, 0]); face(MJ, 'marjon', t, { seed: 3, smile: .3 });
+    hold(Z.bag, MJ, 'R', [0, -.1, 0]); face(MJ, 'marjon', t, { seed: 3, smile: .3, at: Math.sin(t * .6) > .3 ? V(-24, 1, 10) : undefined, atK: .6 });
     // дети на качелях
     const tp = TI.root.position;
     look([tp.x - 2.6, 1.55, tp.z + 3.4], [tp.x + .2, 1.25, tp.z - .5], 40);
     return ZS;
   });
   shot(160.35, 162.2, (lt, t) => {
-    Z.setTime('sunset');
+    Z.setTime('sunset'); yardLife(t, { watch: V(6.6, 1.2, 4.7) });
     const k = pulse(t, 160.4, 162.15, .2, .25); sense(t, k, 160.35);
     // пакет рвётся, апельсины летят; Тимур в два прыжка рядом и ловит их все
     place(MJ, ZS, [6.9, 0, 4.6], -2.0);
     const oops = E.outBack(P(t, TEAR, .4));
-    MJ.pose({ ...POSE.stand(t), armR: [-.3 - .9 * oops, .1, .25], foreR: [-.4 - .6 * oops, 0, 0], gripR: 1, armL: [-1.2 * oops, -.3, .4], foreL: [-1.2, 0, 0], spine: [-.1 * oops, 0, 0] });
-    face(MJ, 'marjon', t, { seed: 3, wide: t > TEAR + .1, mouth: t > TEAR + .1 ? .5 : 0, brow: .7 * oops });
-    hold(Z.bag, MJ, 'R', [0, -.1, 0], [.3 * oops, 0, .4 * oops]);
+    MJ.pose({ ...POSE.stand(t), armR: [-.3 - .4 * oops, .1, .25], foreR: [-.4 - .3 * oops, 0, 0], gripR: 1, armL: [-1.0 * oops, -.3, .4], foreL: [-1.2, 0, 0], spine: [.15 * oops, 0, 0], hy: -.04 * oops });
+    face(MJ, 'marjon', t, { seed: 3, wide: t > TEAR + .1, mouth: t > TEAR + .1 ? .5 : 0, brow: .7 * oops, at: t > TEAR ? V(6.75, .3, 4.6) : undefined });
+    hold(Z.bag, MJ, 'R', [0, -.1, 0], [.5 * oops, 0, .9 * oops]);
     const dash = E.outCubic(P(t, 160.7, .25));
     const tpos = [lerp(3.3, 6.25, dash), 0, lerp(7.4, 4.75, dash)];
     place(TI, ZS, tpos, lerp(2.4, 1.15, dash));
     TI.J.head.add(phonesH); phonesH.visible = true;
     const juggle = P(t, 160.95, 1.0);
     TI.pose(t < 160.7 ? POSE.stand(t) : t < 160.95 ? POSE.run(t * 1.5, 2) : blend({ ...POSE.stand(t), armL: [-1.3 + .4 * Math.sin(t * 16), -.2, .2], foreL: [-.8, 0, 0], armR: [-1.3 + .4 * Math.sin(t * 16 + 2), .2, .2], foreR: [-.8, 0, 0], hy: -.06 }, POSE.hold(), E.inOutSine(P(t, 161.75, .3))));
-    face(TI, 'timur', t, { brow: .3, look: [.2, -.2], noBlink: true });
+    face(TI, 'timur', t, { brow: .3, noBlink: true, at: Z.oranges[3].position.clone(), atK: .8 });
     for (let i = 0; i < 7; i++) {
       const o = Z.oranges[i]; o.visible = t > TEAR;
       if (!o.visible) continue;
@@ -844,18 +960,48 @@ export function buildShots(C) {
     }
     if (t > TEAR && t < TEAR + .5) comic('ТРЕСЬ!', 1350, 300, t - TEAR, { size: .4, rot: .1, dur: .5, color: '#ffffff' });
     if (t > 161.75) comic('ХОП!', 380, 250, t - 161.75, { size: .45, rot: -.1, dur: .45 });
+    Z.scareAt = 158.7;
     look([3.6, 1.3, 3.0], [6.6, .9, 4.6], 42);
     return ZS;
   });
+  // жизнь двора: бабушки на лавочке у подъезда Тимура (обсуждают всех, кто проходит), дети на качелях и с мячом
+  const ball = prop(mesh(new THREE.SphereGeometry(.11, 14, 10), toon(0xf2f2ee), { outline: .004 }));
+  mesh(new THREE.SphereGeometry(.112, 6, 4), toon(0x1a1a1a, { wireframe: true }), { parent: ball });
+  const yardLife = (t, o = {}) => {
+    if (t > 158.7) Z.scareAt = 158.7;   // голуби вспорхнули, когда Тимур прошёл мимо
+    const watch = o.watch;
+    for (const [c, x, sd] of [[ch.granny0, -7.15, 0], [ch.granny1, -6.35, 1]]) {
+      place(c, ZS, [x, 0, 2.42], 0);
+      const tp = POSE.talk(t * .8 + sd * 3);
+      c.pose(sit(t + sd, { armL: talkK('x', t) ? tp.armL : [-.75, .2, .1], foreL: [-1.3, 0, 0], armR: [-.75, -.2, .1], foreR: [-1.3, 0, 0], spine: [.12, (sd ? -1 : 1) * .15, 0],
+        ...(Math.sin(t * .9 + sd * 2) > .2 ? { armL: tp.armL, foreL: tp.foreL, handL: tp.handL } : {}) }));
+      const other = sd ? V(-7.15, 1.05, 2.42) : V(-6.35, 1.05, 2.42);
+      face(c, 's', t, { seed: 2 + sd, smile: .35, at: watch && Math.sin(t * .5 + sd) > -.4 ? watch : other, atK: .85, mk: Math.sin(t * .9 + sd * 2) > .2 ? .35 : 0, energy: .2 });
+    }
+    // качели: дети сидят и раскачиваются вместе с сиденьем
+    Z.swings.forEach((sw, i) => {
+      const c = ST(20 + i); sw.updateMatrixWorld(true);
+      const seatW = sw.localToWorld(V(0, -1.98, 0));
+      place(c, ZS, [seatW.x, seatW.y - .33, seatW.z], 0); c.root.scale.setScalar(.72);
+      c.root.rotation.x = sw.rotation.x;
+      c.pose(sit(t + i, { armL: [-2.5, 0, .25], foreL: [-.3, 0, 0], armR: [-2.5, 0, .25], foreR: [-.3, 0, 0], grip: 1, shinL: [1.55 - .6 * Math.sin(t * 1.9 + i * 2), 0, 0], shinR: [1.55 - .6 * Math.sin(t * 1.9 + i * 2), 0, 0] }));
+      face(c, 's', t, { seed: i, smile: .8, energy: .5 });
+    });
+    // мальчишки гоняют мяч у горки
+    const kx = -22.8 + 1.6 * Math.sin(t * 1.1), kz = 12.2 + .8 * Math.sin(t * .7);
+    const k1 = ST(22); place(k1, ZS, [kx, 0, kz], Math.cos(t * 1.1) > 0 ? 1.5 : -1.6); k1.root.scale.setScalar(.7); k1.pose(POSE.run(t * 1.3, 1.8)); face(k1, 's', t, { seed: 3, smile: .7 });
+    const k2 = ST(23); place(k2, ZS, [-19.6, 0, 11.4], -1.3); k2.root.scale.setScalar(.72); k2.pose(LIFE.cheer(t, 2)); face(k2, 's', t, { seed: 4, smile: .8, at: V(kx, .6, kz) });
+    put(ball, ZS, [kx + .45 * Math.cos(t * 1.1), .11 + .5 * Math.abs(Math.sin(t * 5.2)), kz + .2], [t * 6, t * 3, 0]);
+  };
   // разговор у подъезда и на лавочке
   const pileOnBench = () => Z.oranges.forEach((o, i) => put(o, ZS, [7.75 + (i % 3) * .1, .53 + Math.floor(i / 3) * .08, 2.36 + ((i >> 1) % 2) * .08]));
   shot(162.2, 165.6, (lt, t) => {
-    Z.setTime('sunset');
+    Z.setTime('sunset'); yardLife(t, { watch: V(6.6, 1.3, 4.7) });
     place(MJ, ZS, [6.9, 0, 4.6], -2.0); MJ.pose(talking({ ...POSE.stand(t), armR: [-.3, .1, .25], foreR: [-.4, 0, 0], gripR: 1 }, 'marjon', t, 1, 'L'));
     hold(Z.bag, MJ, 'R', [0, -.1, 0]);
-    face(MJ, 'marjon', t, { seed: 3, smile: .6, look: [-.2, .1], brow: .3 });
-    place(TI, ZS, [6.25, 0, 4.75], 1.15); TI.pose(POSE.hold()); TI.J.head.add(phonesH); phonesH.visible = true;
-    face(TI, 'timur', t, { smile: .3, look: [0, -.2], brow: .2 });
+    place(TI, ZS, [6.25, 0, 4.75], 1.15); TI.pose(POSE.hold());
+    face(MJ, 'marjon', t, { seed: 3, smile: .6, brow: .3, at: headW(TI) });
+    face(TI, 'timur', t, { smile: .3, brow: .2, at: Math.sin(t * 1.3) > .4 ? Z.oranges[4].position.clone() : headW(MJ), atK: .8 });
     Z.oranges.forEach((o, i) => put(o, ZS, orangePile(i, TI).toArray()));
     look([8.9, 1.55, 6.9], [6.55, 1.3, 4.65], 38);
     return ZS;
@@ -863,21 +1009,24 @@ export function buildShots(C) {
   const benchSit = (t, o = {}) => {
     place(TI, ZS, BENCH[0], 0); place(MJ, ZS, BENCH[1], 0);
     const lean = o.lean ?? 0;
-    TI.pose(talking(o.tp || sit(t, { armL: [-.5, 0, .2], foreL: [-1.0, 0, 0], armR: [-.5, 0, .2], foreR: [-1.0, 0, 0], head: [.15, .45 * (o.tLook ?? .5), 0], spine: [.15, .1, 0] }), 'timur', t, .5, 'R'));
-    MJ.pose(talking(o.mp || sit(t, { spine: [.05 + .1 * lean, -.25 - .2 * lean, 0], head: [0, -.5 * (o.mLook ?? 1), 0], armL: [-.6, 0, .15], foreL: [-1.2, 0, 0], armR: [-.6, 0, .15], foreR: [-1.2, 0, 0] }), 'marjon', t, .8, 'R'));
-    face(TI, 'timur', t, { smile: .3, ...o.tf }); face(MJ, 'marjon', t, { seed: 3, smile: .55, ...o.mf });
+    const swingL = .18 * Math.sin(t * 2.4), fid = Math.max(0, Math.sin(t * .7)) ** 3;   // Маржон болтает ногами, Тимур теребит пальцы
+    TI.pose(talking(o.tp || sit(t, { armL: [-.55, .1, .15], foreL: [-1.15 - .1 * fid, 0, 0], armR: [-.55, -.1, .15], foreR: [-1.15 - .1 * fid * Math.sin(t * 9), 0, 0], head: [.12, 0, 0], spine: [.15, .1, 0] }), 'timur', t, .5, 'R'));
+    MJ.pose(talking(o.mp || sit(t, { spine: [.05 + .1 * lean, -.25 - .2 * lean, 0], armL: [-.6, 0, .15], foreL: [-1.2, 0, 0], armR: [-.6, 0, .15], foreR: [-1.2, 0, 0], shinL: [1.55 + swingL, 0, 0], shinR: [1.55 - swingL, 0, 0] }), 'marjon', t, .8, 'R'));
+    TI.root.updateMatrixWorld(true); MJ.root.updateMatrixWorld(true);
+    const hT = headW(TI), hM = headW(MJ);
+    face(TI, 'timur', t, { smile: .3, at: o.tAt || hM, atK: o.tLook ?? .5, ...o.tf }); face(MJ, 'marjon', t, { seed: 3, smile: .55, at: o.mAt || hT, atK: o.mLook ?? .9, ...o.mf });
     pileOnBench();
-    TI.J.head.add(phonesH); phonesH.position.set(0, 0, -.06); phonesH.rotation.set(-1.25, 0, 0); phonesH.visible = true;   // наушники на шее
+    phonesH.visible = false;   // наушники сняты — разговор важнее музыки
   };
   const singleT = (k = 0) => close(TI, [.48, .02, lerp(1.05, .85, k)], lerp(30, 27, k), [.05, -.06, 0]);
   const singleM = (k = 0) => close(MJ, [-.48, .02, lerp(1.05, .85, k)], lerp(30, 27, k), [-.05, -.06, 0]);
   shot(165.6, 182.16, (lt, t) => {
-    Z.setTime('sunset');
+    Z.setTime('sunset'); yardLife(t, { watch: V(6.8, 1.2, 2.4) });
     const shy = pulse(t, 172.0, 175.6, .4, .5), lean = pulse(t, 176.0, 182.5, .5, .5);
     benchSit(t, { tLook: talkK('timur', t) > 0 && shy < .3 ? .9 : .35, mLook: 1, lean,
       tp: shy > 0 ? sit(t, { armR: [-.5 - .8 * shy, .3, .3], foreR: [-1.0 - .9 * shy, 0, 0], handR: [0, 0, .4], armL: [-.5, 0, .2], foreL: [-1.0, 0, 0], head: [.3 * shy, .2, 0], spine: [.2, .1, 0] }) : undefined,
-      tf: { look: [shy > .3 ? -.2 : .6, shy > .3 ? -.5 : 0], smile: t > 180.4 ? .6 : .3, brow: .2 + .3 * shy },
-      mf: { look: [-.7, 0], smile: t > 176 ? .7 : .45, brow: .3 + .3 * lean } });
+      tAt: shy > .3 ? V(6.6, .3, 3.4) : undefined, tf: { smile: t > 180.4 ? .6 : .3, brow: .2 + .3 * shy },
+      mf: { smile: t > 176 ? .7 : .45, brow: .3 + .3 * lean } });
     const cur = C.lines.filter(l => l.t - .1 <= t && ['t10', 'm8', 't11', 'm9', 't12', 'm10'].includes(l.id)).pop();
     if (!cur || cur.who === 'timur') singleT(cur?.id === 't11' ? E.inOutSine(P(t, 172.15, 3.5)) : 0);
     else singleM(cur.id === 'm10' ? E.inOutSine(P(t, 180.4, 1.6)) : 0);
@@ -885,13 +1034,14 @@ export function buildShots(C) {
     return ZS;
   });
   shot(182.16, 194.89, (lt, t) => {
-    Z.setTime('sunset');
+    Z.setTime('sunset'); yardLife(t, { watch: V(6.8, 1.2, 2.4) });
     // «Эм-Джей»: Тимур рисует буквы в воздухе, Маржон показывает свой комикс
     const draw = pulse(t, 187.0, 190.2, .3, .3), show = pulse(t, 189.6, 192.6, .4, .4), up = E.inOutSine(P(t, 192.6, .8));
     benchSit(t, { tLook: .9,
       tp: draw > 0 ? sit(t, { armR: [-1.7, .1, .2], foreR: [-.4, 0, 0], handR: [-.3 + .4 * Math.sin(t * 6), 0, .3 * Math.sin(t * 4)], gripR: .9, head: [.05, .5, 0], spine: [.1, .15, 0] }) : undefined,
       mp: up > 0 ? blend(sit(t), { ...POSE.stand(t), armR: [-.3, .1, .25], foreR: [-.4, 0, 0], gripR: 1 }, up) : show > 0 ? sit(t, { armL: [-1.25, .3, .2], foreL: [-1.0, 0, 0], handL: [0, 0, .7], spine: [.05, -.45, 0], head: [.1, -.6, 0], armR: [-.6, 0, .15], foreR: [-1.2, 0, 0] }) : undefined,
-      tf: { smile: t > 186.7 ? .55 : .3, look: [.6, 0], brow: .4 }, mf: { look: [-.7, 0], smile: t > 191.3 ? .8 : .5, brow: t > 185 && t < 186.7 ? .7 : .3 } });
+      tAt: draw > .3 ? handW(TI, 'R') : undefined, mAt: show > .3 ? handW(MJ, 'L') : draw > .3 ? handW(TI, 'R') : undefined,
+      tf: { smile: t > 186.7 ? .55 : .3, brow: .4 }, mf: { smile: t > 191.3 ? .8 : .5, brow: t > 185 && t < 186.7 ? .7 : .3 } });
     MJ.sketch.visible = show > .3;
     if (up > 0) { MJ.root.position.y = 0; hold(Z.bag, MJ, 'R', [0, -.1, 0]); }
     if (draw > 0) { comic('M', 520, 250, t - 187.4, { size: .55, rot: -.05, dur: 2.8, burst: false, color: '#ffd23d' }); comic('J', 1400, 250, t - 188.6, { size: .55, rot: .05, dur: 1.6, burst: false, color: '#7ff8ff' }); }
@@ -903,7 +1053,7 @@ export function buildShots(C) {
     return ZS;
   });
   shot(194.89, 205, (lt, t) => {
-    Z.setTime('sunset');
+    Z.setTime('sunset'); yardLife(t, { watch: V(6.8, 1.2, 2.4) });
     // мама из окна; Маржон уходит в подъезд; «До завтра… Эм-Джей»; ладонь прилипает к стене
     const win = E.inOutSine(P(t, 194.6, .5));
     Z.momSash.rotation.y = -1.2 * win; Z.momSil.visible = t > 194.7 && t < 198.5; Z.momRoom.material.color.setScalar(1 + .3 * win);
@@ -912,7 +1062,7 @@ export function buildShots(C) {
     else if (r.done) { const wave = pulse(t, 199.5, 201.5, .3, .3); MJ.pose(talking({ ...POSE.stand(t), armR: [-.3, .1, .25], foreR: [-.4, 0, 0], gripR: 1, armL: [-2.5 * wave, 0, .3], foreL: [-.6 + .3 * Math.sin(t * 12) * wave, 0, 0] }, 'marjon', t, 0)); }
     hold(Z.bag, MJ, 'R', [0, -.1, 0]);
     if (t > 201.9) MJ.root.visible = false;
-    face(MJ, 'marjon', t, { seed: 3, smile: .7, look: t < 197.5 ? [0, .7] : [.4, 0] });
+    face(MJ, 'marjon', t, { seed: 3, smile: .7, at: t < 197.4 ? V(10.5, 5.3, 0) : t > 198.9 ? V(6.5, 1.55, 2.9) : undefined, atK: .9 });
     Z.oranges.forEach((o, i) => { if (t < 196.6) put(o, ZS, [7.75 + (i % 3) * .1, .53 + Math.floor(i / 3) * .08, 2.36 + ((i >> 1) % 2) * .08]); });
     // Тимур
     const jump = Math.max(0, Math.sin(Math.PI * P(t, 202.25, .5))), stick = pulse(t, 202.8, 203.85, .05, .02), pull = pulse(t, 203.1, 203.85, .2, .02), pop = t > 203.85;
@@ -925,12 +1075,11 @@ export function buildShots(C) {
     if (pop) tp = blend({ ...POSE.stand(t), armR: [-.9, .3, .3], foreR: [-1.4, 0, 0], handR: [.2 * Math.sin(t * 20), 0, 0], spine: [-.1, 0, 0], head: [0, .6 * Math.sin(t * 3), 0] }, POSE.walk(t - 204.4), E.inOutSine(P(t, 204.4, .4)));
     TI.pose(talking(tp, 'timur', t, .3));
     if (stick > 0) ikArm(TI, 'R', V(6.0 - .05 * pull, 2.02, .03), V(.5, -.6, .4), 1);
-    face(TI, 'timur', t, { smile: t > 200.5 ? .9 : .5, look: t < 197.6 ? [0, .7] : [-.3, 0], wide: stick > 0 && pull > .3, brow: stick > 0 ? .8 : .3 });
-    TI.J.head.add(phonesH); phonesH.position.set(0, 0, -.06); phonesH.rotation.set(-1.25, 0, 0); phonesH.visible = true;
+    face(TI, 'timur', t, { smile: t > 200.5 ? .9 : .5, wide: stick > 0 && pull > .3, brow: stick > 0 ? .8 : .3, at: t < 197.4 ? V(10.5, 5.3, 0) : t < 202 ? (MJ.root.visible ? headW(MJ) : V(4.6, 1.5, .5)) : t > 203.9 ? V(-2, 1.5, 6) : undefined, atK: .9 });
     if (pop && t < 204.4) comic('ЧПОК!', 1280, 300, t - 203.85, { size: .5, rot: .1, dur: .55 });
     // монтаж
     if (t < 197.2) look([9.6, 1.0, 8.6], [10.0, 4.6, 0], 40);
-    else if (t < 200.76) ots(TI, MJ, 1, 36, 1.5, .3, .75);
+    else if (t < 200.76) look([5.3, 1.5, 4.7], [4.6, 1.35, .8], 36);
     else if (t < 202.1) close(TI, [-.35, .02, .95], 30);
     else look([8.0, 1.5, 3.1], [5.8, 1.35, .4], 40);
     fadeOut(lt, 10.11, .5);
@@ -941,13 +1090,13 @@ export function buildShots(C) {
      СЦЕНА 6. Кухня, вечер (205 – 216.5) и двор в сумерках (216.5 – 221)
      ================================================================ */
   shot(205, 216.5, (lt, t) => {
-    dedAt(t, { sip: pulse(t, 205.0, 205.7, .3, .3), p: { head: [0, .25, 0] }, face: { look: [.55, .1], smile: t > 209.5 ? .8 : .35, brow: t > 209.6 && t < 212 ? .5 : 0 } });
+    dedAt(t, { sip: pulse(t, 205.0, 205.7, .3, .3), at: V(.55, 1.2, .25), face: { smile: t > 209.5 ? .8 : .35, brow: t > 209.6 && t < 212 ? .5 : 0 } });
     // Тимур мечтательно смотрит в окно, подперев щёку
     place(TI, K, [.55, 0, .25], Math.PI);
     const dream = sit(t, { armR: [-1.1, .3, .1], foreR: [-2.1, 0, 0], handR: [0, 0, .4], spine: [.25, 0, 0], head: [-.05, -.35, .15] });
     const startle = pulse(t, 212.0, 213.2, .15, .4);
     TI.pose(talking(blend(dream, sit(t, { spine: [0, 0, 0], armL: [-.7, 0, .2], foreL: [-1.3, 0, 0] }), startle), 'timur', t, .6));
-    face(TI, 'timur', t, { smile: .85 - .5 * startle, look: [-.6 * (1 - startle), .3 * (1 - startle)], squint: .85, brow: .3 + .4 * startle });
+    face(TI, 'timur', t, { smile: .85 - .5 * startle, squint: .85, brow: .3 + .4 * startle, at: startle > .2 || talkK('timur', t) > .3 ? headW(DE) : V(1.4, 1.75, -2.98), atK: .8 });
     if (t < 208.5) look([-1.9, 1.5, .95], [.15, 1.0, -.6], 42);
     else if (t < 209.7) close(TI, [.3, .02, .9], 30);
     else if (t < 212.1) close(DE, [.25, .02, 1.0], 30);

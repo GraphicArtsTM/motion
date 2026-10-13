@@ -16,6 +16,43 @@ const plane = (w, h, map, o = {}) => new THREE.Mesh(new THREE.PlaneGeometry(w, h
 /* солнце следует за точкой, куда смотрит камера (тени на видеокарте) */
 const aimable = (scene, sun) => { const off = sun.position.clone().sub(sun.target.position); scene.userData.aim = f => { sun.position.copy(f).add(off); sun.target.position.copy(f); }; };
 
+
+/* ---------- атмосфера: лучи света из окон, пылинки в них, блики ламп на полу ---------- */
+const beamTex = (() => { const c = document.createElement('canvas'); c.width = 64; c.height = 256; const g = c.getContext('2d');
+  const gr = g.createLinearGradient(0, 0, 0, 256); gr.addColorStop(0, 'rgba(255,240,205,.9)'); gr.addColorStop(1, 'rgba(255,240,205,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 256);
+  const gx = g.createLinearGradient(0, 0, 64, 0); gx.addColorStop(0, 'rgba(0,0,0,1)'); gx.addColorStop(.2, 'rgba(0,0,0,0)'); gx.addColorStop(.8, 'rgba(0,0,0,0)'); gx.addColorStop(1, 'rgba(0,0,0,1)');
+  g.globalCompositeOperation = 'destination-out'; g.fillStyle = gx; g.fillRect(0, 0, 64, 256);
+  const t = new THREE.CanvasTexture(c); return t; })();
+const glossTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d');
+  const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,.9)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c); })();
+/** луч: от окна (top, центр верхней кромки) вниз-внутрь к полу (bottom); w — ширина */
+function beam(scene, top, bottom, w, k = .09) {
+  const a = new THREE.Vector3(...top), b = new THREE.Vector3(...bottom), len = a.distanceTo(b);
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, len), new THREE.MeshBasicMaterial({ map: beamTex, transparent: true, opacity: k, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false }));
+  m.position.copy(a).lerp(b, .5); m.lookAt(b); m.rotateX(Math.PI / 2);
+  m.renderOrder = 3; scene.add(m); return m;
+}
+/** пылинки, медленно плывущие в объёме box = [x0, x1, y0, y1, z0, z1] */
+function dust(scene, box, n = 260) {
+  const pos = new Float32Array(n * 3), seed = [], r = rng(n * 13 + Math.round(box[0] * 7));
+  for (let i = 0; i < n; i++) seed.push([r(), r(), r(), r() * 6]);
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const pts = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xfff0c8, size: .018, transparent: true, opacity: .75, depthWrite: false, blending: THREE.AdditiveBlending }));
+  pts.frustumCulled = false; scene.add(pts);
+  return t => { for (let i = 0; i < n; i++) { const [a, b, c, p] = seed[i];
+    pos[i * 3] = box[0] + (box[1] - box[0]) * ((a + Math.sin(t * .05 + p) * .02 + t * .004) % 1);
+    pos[i * 3 + 1] = box[2] + (box[3] - box[2]) * ((b + Math.sin(t * .11 + p * 2) * .03 + 1) % 1);
+    pos[i * 3 + 2] = box[4] + (box[5] - box[4]) * ((c + Math.cos(t * .07 + p) * .02 + 1) % 1); }
+    geo.attributes.position.needsUpdate = true; };
+}
+const gloss = (scene, x, z, sx = 1.2, sz = .5, k = .14) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(sx, sz), new THREE.MeshBasicMaterial({ map: glossTex, transparent: true, opacity: k, depthWrite: false, blending: THREE.AdditiveBlending }));
+  m.rotation.x = -Math.PI / 2; m.position.set(x, .007, z); scene.add(m); return m; };
+const plant = (scene, x, z, s = 1, pot = 0xc87a4a) => { const g = new THREE.Group(); g.position.set(x, 0, z); g.scale.setScalar(s); scene.add(g);
+  mesh(new THREE.CylinderGeometry(.2, .15, .38, 14), toon(pot), { pos: [0, .19, 0], outline: .01, parent: g });
+  for (let i = 0; i < 7; i++) { const a = i * .9; mesh(new THREE.SphereGeometry(.13, 8, 6), toon([0x3f8a4a, 0x5aa85a, 0x2f7040][i % 3]), { pos: [Math.cos(a) * .14, .5 + (i % 3) * .12, Math.sin(a) * .14], scale: [1, 1.5, .5], rot: [Math.cos(a) * .5, a, Math.sin(a) * .5], outline: .005, parent: g }); }
+  return g; };
+
 /* вид из окна: небо, деревья, дома — днём (k = 1) */
 function windowView(seed = 1) {
   return tex(512, 384, (g, w, h) => {
@@ -137,6 +174,26 @@ function makeCorridor() {
   scene.add(new THREE.HemisphereLight(0xeaf2ff, 0x8a7a60, 1.0));
   const sun = new THREE.DirectionalLight(0xfff0d6, 1.6); sun.position.set(-6, 9, 14); sun.target.position.set(0, 0, 0); scene.add(sun, sun.target); S.sun = sun; aimable(scene, sun);
   scene.fog = new THREE.Fog(0xdfe6ee, 26, 60);
+  // витрина с кубками, скамейки, растения, огнетушитель, вентиляция
+  const tc = new THREE.Group(); tc.position.set(19.6, 0, -2.2); scene.add(tc);
+  mesh(rb(2.0, 2.1, .5), toon(0x7a4a2a), { pos: [0, 1.05, 0], outline: .015, parent: tc });
+  mesh(new THREE.BoxGeometry(1.8, 1.5, .02), new THREE.MeshBasicMaterial({ color: 0xcfe8ff, transparent: true, opacity: .25 }), { pos: [0, 1.3, .26], outline: false, parent: tc });
+  for (let r = 0; r < 2; r++) { mesh(new THREE.BoxGeometry(1.8, .03, .4), toon(0xe8e2d4), { pos: [0, .75 + r * .7, .02], outline: false, parent: tc });
+    for (let i = 0; i < 4; i++) { const cup = new THREE.Group(); cup.position.set(-.65 + i * .43, .77 + r * .7, .05); tc.add(cup);
+      mesh(new THREE.CylinderGeometry(.08, .03, .14, 12), toon(i % 3 ? 0xe8b83a : 0xc8c8d0), { pos: [0, .2, 0], outline: .004, parent: cup });
+      mesh(new THREE.CylinderGeometry(.015, .015, .1, 6), toon(0xe8b83a), { pos: [0, .08, 0], outline: false, parent: cup });
+      mesh(new THREE.BoxGeometry(.12, .04, .1), toon(0x3a2a1a), { pos: [0, .02, 0], outline: false, parent: cup }); } }
+  for (const x of [-7.2, 11.2]) { const b = new THREE.Group(); b.position.set(x, 0, 2.05); scene.add(b);
+    mesh(rb(1.8, .06, .4), toon(0x9a6a3a), { pos: [0, .45, 0], outline: .008, parent: b });
+    for (const lx of [-.75, .75]) mesh(new THREE.BoxGeometry(.06, .45, .36), toon(0x3a3f48), { pos: [lx, .225, 0], outline: false, parent: b }); }
+  plant(scene, -20.9, -1.9, 1.1); plant(scene, -20.9, 1.9, 1.0, 0x5a8aa8); plant(scene, 13.4, -1.85, .9);
+  mesh(new THREE.CylinderGeometry(.08, .08, .45, 12), toon(0xd8302a), { pos: [16.55, .9, -2.32], outline: .006, parent: scene });
+  mesh(new THREE.BoxGeometry(.25, .25, .01), toon(0xd8302a), { pos: [16.55, 1.45, -2.49], outline: false, parent: scene });
+  for (let x = -16; x <= 16; x += 8) mesh(new THREE.BoxGeometry(.6, .03, .3), toon(0xbfc4cc), { pos: [x, 3.29, -1.6], outline: .004, parent: scene });
+  // блики ламп на натёртом полу, лучи из окон, пылинки
+  for (let x = -18; x <= 18; x += 4) gloss(scene, x, -.2, 1.6, .7, .12);
+  for (let x = -18; x <= 18; x += 4.5) beam(scene, [x - .2, 2.7, 2.55], [x - .7, 0, 1.1], 3.0, .12);
+  S.update = dust(scene, [-20, 20, .2, 2.9, -.5, 2.4], 420);
   return S;
 }
 
@@ -164,7 +221,7 @@ function makeClassroom() {
   // доска с формулами
   const boardT = tex(1024, 400, (g, w, h) => {
     g.fillStyle = '#24493a'; g.fillRect(0, 0, w, h);
-    g.fillStyle = 'rgba(255,255,255,.07)'; for (let i = 0; i < 30; i++) g.fillRect(Math.random() * w, Math.random() * h, 120, 10);
+    g.fillStyle = 'rgba(255,255,255,.07)'; const r = rng(4); for (let i = 0; i < 30; i++) g.fillRect(r() * w, r() * h, 120, 10);
     g.fillStyle = '#f4f4ec'; g.font = '700 64px Rubik'; g.fillText('F = m · a', 60, 110);
     g.font = '500 38px Rubik'; g.fillText('Задача №7. Автобус m = 10 т висит над рекой.', 60, 190);
     g.fillText('Какая сила нужна, чтобы его удержать?', 60, 240);
@@ -206,6 +263,25 @@ function makeClassroom() {
   for (const x of [-2.6, 0, 2.6]) for (const z of [-2, 1.6]) mesh(new THREE.BoxGeometry(1.2, .05, .35), glow(0xfff8e8, 1.4), { pos: [x, 3.24, z], outline: false, parent: scene });
   // бумажный комок (полёт — режиссура)
   S.paper = mesh(new THREE.IcosahedronGeometry(.045, 1), toon(0xf6f4ee), { outline: .004, parent: scene }); S.paper.visible = false;
+  // таблица Менделеева и карта на западной стене, растения на подоконнике, жалюзи, рюкзаки на стульях, проектор
+  const pt = tex(512, 300, (g, w, h) => { g.fillStyle = '#f4f2ea'; g.fillRect(0, 0, w, h); g.fillStyle = '#1a1a1a'; g.font = '800 22px Rubik'; g.fillText('ПЕРИОДИЧЕСКАЯ СИСТЕМА', 120, 26);
+    const C = ['#f2a0a0', '#f2d08a', '#a0d8a0', '#a0c8f2', '#d0b0f0', '#f0f0a0'];
+    for (let r = 0; r < 7; r++) for (let c = 0; c < 18; c++) { if (r === 0 && c > 0 && c < 17) continue; if (r < 3 && c > 1 && c < 12) continue;
+      g.fillStyle = C[(c + r) % 6]; g.fillRect(14 + c * 27, 40 + r * 35, 25, 33); g.fillStyle = '#333'; g.font = '600 10px Rubik'; g.fillText(String(r * 18 + c + 1), 17 + c * 27, 52 + r * 35); } });
+  const ptp = plane(2.4, 1.4, pt); ptp.position.set(-5.09, 1.95, -1.2); ptp.rotation.y = Math.PI / 2; scene.add(ptp);
+  const mp = tex(400, 240, (g, w, h) => { g.fillStyle = '#9fd0f0'; g.fillRect(0, 0, w, h); g.fillStyle = '#b8d88a'; for (const [x, y, rx, ry] of [[90, 80, 60, 40], [110, 170, 30, 50], [210, 80, 70, 45], [230, 160, 35, 45], [330, 90, 50, 35], [340, 190, 30, 20]]) { g.beginPath(); g.ellipse(x, y, rx, ry, .3, 0, 7); g.fill(); }
+    g.strokeStyle = '#6a4a2a'; g.lineWidth = 8; g.strokeRect(0, 0, w, h); });
+  const mpp = plane(1.6, .96, mp); mpp.position.set(-5.09, 2.0, 2.2); mpp.rotation.y = Math.PI / 2; scene.add(mpp);
+  for (const z of [-3.6, -.6, 2.4]) plant(scene, 4.95, z, .55, [0xc87a4a, 0xe8e2d4, 0x5a8aa8][Math.abs(z | 0) % 3]).position.y = .92;
+  for (const z of [-3, 0, 3]) for (let i = 0; i < 6; i++) mesh(new THREE.BoxGeometry(.03, .06, 2.6), toon(0xe8e4dc), { pos: [5.0, 2.72 - i * .08, z], outline: false, parent: scene });
+  S.desks.forEach((d, i) => { if (i % 3 === 1) return; const bp = new THREE.Group(); bp.position.set(d.x + (i % 2 ? .32 : -.32), .5, d.z + .78); scene.add(bp);
+    mesh(rb(.28, .34, .14, .04), toon([0x2f6fb0, 0xd8402c, 0x2f8a4a, 0xf2c94c, 0x6a4a8a][i % 5]), { outline: .005, parent: bp });
+    mesh(rb(.2, .12, .04, .02), toon(0x1a1d24), { pos: [0, -.06, .08], outline: false, parent: bp }); });
+  mesh(rb(.4, .12, .3), toon(0xe8e4dc), { pos: [0, 3.18, .5], outline: .006, parent: scene });
+  mesh(new THREE.CylinderGeometry(.06, .06, .02, 12), toon(0x1a1a1a), { pos: [0, 3.15, .34], rot: [Math.PI / 2, 0, 0], outline: false, parent: scene });
+  for (const z of [-3, 0, 3]) beam(scene, [5.1, 2.6, z], [2.6, 0, z + .5], 2.4, .12);
+  for (const z of [-2, 1.6]) for (const x of [-2.6, 0, 2.6]) gloss(scene, x, z, 1.1, .5, .08);
+  S.update = dust(scene, [-4.8, 4.8, .3, 3.0, -4.3, 4.3], 300);
   scene.add(new THREE.HemisphereLight(0xeaf2ff, 0x9a8a70, 1.45));
   const sun = new THREE.DirectionalLight(0xfff0d6, 2.1); sun.position.set(14, 8, 3); sun.target.position.set(0, 0, 0); scene.add(sun, sun.target); S.sun = sun; aimable(scene, sun);
   return S;
@@ -301,6 +377,23 @@ function makeCanteen() {
     mesh(new THREE.ConeGeometry(.35, .3, 16, 1, true), toon(0x2f6b4f, { side: THREE.DoubleSide }), { pos: [x, 2.7, z], outline: .006, parent: scene });
     mesh(new THREE.SphereGeometry(.12, 10, 8), glow(0xfff1c8, 2.2), { pos: [x, 2.6, z], outline: false, parent: scene });
   }
+  // салфетницы, бутылки, вазы с фруктами, стопка подносов, баннер, растения, часы
+  S.tables.forEach(({ x, z }, i) => {
+    mesh(rb(.12, .1, .06, .01), toon(0xc9ced6), { pos: [x + .6, .85, z], outline: .003, parent: scene });
+    mesh(new THREE.BoxGeometry(.08, .07, .02), toon(0xffffff), { pos: [x + .6, .9, z], outline: false, parent: scene });
+    mesh(new THREE.CylinderGeometry(.03, .03, .2, 10), new THREE.MeshBasicMaterial({ color: 0x9fd8ff, transparent: true, opacity: .55 }), { pos: [x - .8, .9, z + .1], outline: .003, parent: scene });
+    if (i % 2 === 0) { mesh(new THREE.CylinderGeometry(.14, .1, .06, 14), toon(0xf4f2ea), { pos: [x + 1.3, .82, z], outline: .004, parent: scene });
+      for (let k = 0; k < 4; k++) mesh(new THREE.SphereGeometry(.045, 8, 6), toon([0xe0402a, 0xf2c63a, 0x8ac040, 0xf08a1a][k]), { pos: [x + 1.3 + Math.cos(k * 1.6) * .06, .87, z + Math.sin(k * 1.6) * .06], outline: .003, parent: scene }); }
+  });
+  for (let i = 0; i < 9; i++) mesh(rb(.42, .02, .3), toon([0xe0874a, 0x1d4fa0, 0x2f8a4a][i % 3]), { pos: [4.9, 1.04 + i * .025, -5.3], rot: [0, (i % 3 - 1) * .05, 0], outline: .003, parent: scene });
+  const ban = tex(512, 96, (g, w, h) => { g.fillStyle = '#2f6b4f'; g.fillRect(0, 0, w, h); g.fillStyle = '#ffd23d'; g.font = '900 40px Unbounded'; g.textAlign = 'center'; g.fillText('ПРИЯТНОГО АППЕТИТА!', w / 2, 62); });
+  const bp = plane(5.0, .94, ban); bp.position.set(0, 3.2, -6.08); scene.add(bp);
+  plant(scene, -7.6, 5.6, 1.1); plant(scene, 7.6, 5.6, 1.0, 0x5a8aa8); plant(scene, -7.6, -5.6, 1.0);
+  const ck = tex(128, 128, (g) => { g.fillStyle = '#fff'; g.beginPath(); g.arc(64, 64, 60, 0, 7); g.fill(); g.strokeStyle = '#222'; g.lineWidth = 5; g.stroke(); g.lineWidth = 6; g.beginPath(); g.moveTo(64, 64); g.lineTo(64, 26); g.moveTo(64, 64); g.lineTo(84, 90); g.stroke(); });
+  const cl = plane(.5, .5, ck, { basic: true }); cl.position.set(-4.5, 2.9, 6.08); cl.rotation.y = Math.PI; scene.add(cl);
+  for (const z of [-4, 0, 4]) beam(scene, [-8.1, 3.0, z], [-5.4, 0, z + .5], 3.2, .11);
+  for (const x of [-3.2, 2.8]) for (const z of [-2.2, .8, 3.8]) gloss(scene, x, z + 1.5, 1.0, .5, .06);
+  S.update = dust(scene, [-7.8, 7.8, .3, 3.4, -5.8, 5.8], 300);
   scene.add(new THREE.HemisphereLight(0xeaf2ff, 0x8a7a60, .95));
   const sun = new THREE.DirectionalLight(0xfff0d6, 1.6); sun.position.set(-14, 9, 4); sun.target.position.set(0, 0, 0); scene.add(sun, sun.target); S.sun = sun; aimable(scene, sun);
   const warm = new THREE.PointLight(0xffd8a0, 2.5, 14, 1.4); warm.position.set(0, 3, 0); scene.add(warm);
@@ -308,5 +401,8 @@ function makeCanteen() {
 }
 
 export function makeSchool() {
-  return { corridor: makeCorridor(), classroom: makeClassroom(), canteen: makeCanteen() };
+  const R = { corridor: makeCorridor(), classroom: makeClassroom(), canteen: makeCanteen() };
+  // пылинки движутся только в той сцене, которая сейчас в кадре
+  R.update = (t, scene) => { for (const S of [R.corridor, R.classroom, R.canteen]) if (S.scene === scene) S.update?.(t); };
+  return R;
 }

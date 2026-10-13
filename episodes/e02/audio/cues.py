@@ -152,6 +152,9 @@ for i in range(int((130.3 - 109.6) / (BEAT / 2))):                 # напря�
         add('drums', taiko(1.0, 58), t0, .45, rev=.3)
 chord('Dm', 109.6, 8.0, 'pad', .025)
 add('fx', impact(.8, 1.0), 111.58, .55, pan=-.2)                    # ладонь по шкафчику
+add('fx', fft_filter(noise(int(.06 * SR)) * np.exp(-tt(int(.06 * SR)) * 60), lo=800, hi=5000), 115.2, .35)   # лопнул пузырь жвачки
+for k in range(2):
+    add('fx', fft_filter(noise(int(.4 * SR)) * np.exp(-tt(int(.4 * SR)) * 8), lo=1500, hi=6000), 66.8 + k * 21.3, .04, pan=.6)   # подносы
 add('fx', metal_groan(.8, 120), 111.6, .1)
 chord('F', 118.3, 2.4, 'strings', .05, oct=0)                      # «Не давай ему»
 add('fx', thud(.6), 128.35, .45)                                   # толчок — Тимур не сдвинулся
@@ -217,6 +220,18 @@ add('fx', thud(.5), 201.9, .3, pan=-.3, rev=.3)                    # дверь 
 add('fx', splat(), 202.8, .25)                                     # ладонь прилипла
 add('fx', fft_filter(np.sin(2 * np.pi * np.cumsum(np.linspace(900, 260, int(.12 * SR))) / SR) * np.exp(-tt(int(.12 * SR)) * 25), lo=150), 203.85, .5)   # ЧПОК
 melody([77, 81, 84], 204.0, BEAT / 3, 'pluck', .08)
+
+# двор живёт: скрип качелей, мяч, смех детей, голуби вспорхнули, бабушки шепчутся
+for k in range(16):
+    tk = 152.5 + k * 3.3
+    add('amb', fft_filter(np.sin(2 * np.pi * np.cumsum(np.linspace(700, 520, int(.35 * SR))) / SR) * np.exp(-tt(int(.35 * SR)) * 6), lo=300, hi=3000), tk, .025, pan=-.7, rev=.3)
+for k in range(30):
+    add('amb', thud(.25), 152.7 + k * .6 + (k % 3) * .05, .05, pan=-.6, rev=.2)
+add('amb', walla(52, 1.3, 31), 152.4, .035, pan=-.6, rev=.3)
+for k in range(9):                                                   # хлопанье крыльев
+    n = int(.5 * SR); flap = (np.sin(2 * np.pi * (14 + k) * tt(n)) > .3) * fft_filter(noise(n), lo=600, hi=5000) * np.exp(-tt(n) * 3)
+    add('fx', flap, 158.7 + k * .06, .12, pan=-.3 + k * .05, rev=.3)
+add('amb', walla(30, .1, 33) * .5, 164.0, .02, pan=-.8, rev=.4)
 
 # ---------------- 205–221 Кухня вечером, сумерки ----------------
 add('amb', room_tone(16, 100, 900), 205, .1)
