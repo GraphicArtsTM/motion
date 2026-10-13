@@ -994,7 +994,7 @@ export function buildShots(C) {
       face(TI, 'timur', t, { smile: .5 }); face(DI, 'diyor', t, { seed: 4, smile: .7, look: [.4, 0] });
     }
     // монтаж
-    if (t < 137.12) look([4.8, 1.65, 1.0], [X0, 1.2, -.3], 44);
+    if (t < 137.12) look([XF + 2.1, 1.6, -1.65], [XF - 1.4, 1.35, 1.4], 46);   // реакция: лица толпы со стороны шкафчиков
     else if (t < 137.93) close(MJ, [-.2, .02, .9], 30);
     else if (t < 139.32) close(DI, [-.25, .02, .95], 30);
     else if (t < 141.88) look([XF + .9, 1.55, 2.15], [XF + 2.3, .85, -.9], 46);
