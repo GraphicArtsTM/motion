@@ -21,6 +21,7 @@ namespace Shatranj.Core
         public bool showCoordinates = true;
         public bool autoRotate = true;
         public bool cinematicCamera = true;
+        public bool postFx = true;
         public int battleMode = (int)BattleMode.Full;
         public int timeOfDay = (int)TimeOfDay.Sunset;
         public int quality = 2;

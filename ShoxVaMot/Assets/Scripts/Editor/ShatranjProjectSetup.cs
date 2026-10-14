@@ -33,6 +33,7 @@ namespace Shatranj.EditorTools
             {
                 if (EditorApplication.isPlayingOrWillChangePlaymode) return;
                 EnsureAdsDefine();
+                EnsurePostFxRefs();
                 if (Application.isBatchMode) return;
                 if (SessionState.GetBool(DoneKey, false)) return;
                 SessionState.SetBool(DoneKey, true);
@@ -52,6 +53,7 @@ namespace Shatranj.EditorTools
             EnsureMaterial();
             EnsureScene();
             EnsureAdsDefine();
+            EnsurePostFxRefs();
             if (forcePlayer || !File.Exists(MarkerPath))
             {
                 ConfigurePlayer();
@@ -62,25 +64,60 @@ namespace Shatranj.EditorTools
             if (verbose) Debug.Log("[Shox va Mot] Проект настроен. Откройте Assets/Scenes/Main.unity и нажмите Play.");
         }
 
-        const string AdsDefine = "SHOX_UNITY_ADS";
-
         /// <summary>
-        /// Если установлен пакет Unity Ads (com.unity.ads), включаем символ SHOX_UNITY_ADS,
-        /// чтобы скомпилировался код рекламы; если пакет удалён — выключаем.
+        /// Символы компиляции по установленным пакетам: SHOX_UNITY_ADS (com.unity.ads)
+        /// и SHOX_POSTFX (com.unity.postprocessing). Без пакета код просто не компилируется.
         /// </summary>
         public static void EnsureAdsDefine()
         {
-            bool hasAds = false;
+            EnsureDefine("SHOX_UNITY_ADS", "UnityEngine.Advertisements.Advertisement");
+            EnsureDefine("SHOX_POSTFX", "UnityEngine.Rendering.PostProcessing.PostProcessLayer");
+        }
+
+        static bool TypeExists(string fullName)
+        {
             foreach (var asm in System.AppDomain.CurrentDomain.GetAssemblies())
-                if (asm.GetType("UnityEngine.Advertisements.Advertisement", false) != null) { hasAds = true; break; }
+                if (asm.GetType(fullName, false) != null) return true;
+            return false;
+        }
+
+        static void EnsureDefine(string define, string typeName)
+        {
+            bool present = TypeExists(typeName);
             foreach (var group in new[] { BuildTargetGroup.Android, BuildTargetGroup.iOS, BuildTargetGroup.Standalone })
             {
                 string defs = PlayerSettings.GetScriptingDefineSymbolsForGroup(group);
                 var list = new System.Collections.Generic.List<string>(defs.Split(new[] { ';' }, System.StringSplitOptions.RemoveEmptyEntries));
-                bool has = list.Contains(AdsDefine);
-                if (hasAds == has) continue;
-                if (hasAds) list.Add(AdsDefine); else list.Remove(AdsDefine);
+                bool has = list.Contains(define);
+                if (present == has) continue;
+                if (present) list.Add(define); else list.Remove(define);
                 PlayerSettings.SetScriptingDefineSymbolsForGroup(group, string.Join(";", list.ToArray()));
+            }
+        }
+
+        const string PostFxRefsPath = "Assets/Resources/ShoxPostFxRefs.asset";
+        const string PostFxResourcesPath = "Packages/com.unity.postprocessing/PostProcessing/PostProcessResources.asset";
+
+        /// <summary>Ассет-ссылка на ресурсы Post Processing (чтобы шейдеры попали в сборку).</summary>
+        static void EnsurePostFxRefs()
+        {
+            var res = AssetDatabase.LoadAssetAtPath<Object>(PostFxResourcesPath);
+            if (res == null) return;
+            var refs = AssetDatabase.LoadAssetAtPath<ScriptableObject>(PostFxRefsPath);
+            if (refs == null)
+            {
+                refs = ScriptableObject.CreateInstance("ShoxPostFxRefs");
+                if (refs == null) return;
+                Directory.CreateDirectory("Assets/Resources");
+                AssetDatabase.CreateAsset(refs, PostFxRefsPath);
+            }
+            var so = new SerializedObject(refs);
+            var prop = so.FindProperty("resources");
+            if (prop != null && prop.objectReferenceValue != res)
+            {
+                prop.objectReferenceValue = res;
+                so.ApplyModifiedPropertiesWithoutUndo();
+                EditorUtility.SetDirty(refs);
             }
         }
 

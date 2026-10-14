@@ -74,6 +74,7 @@ namespace Shatranj.Core
             { "amb.sunset", new[] { "Shom", "Закат", "Sunset" } },
             { "amb.night", new[] { "Tun", "Ночь", "Night" } },
             { "set.quality", new[] { "Grafika", "Графика", "Graphics" } },
+            { "set.postfx", new[] { "Post-effektlar (nur, rang)", "Пост-эффекты (свечение, цвет)", "Post effects (glow, color)" } },
             { "q.low", new[] { "Past", "Низкая", "Low" } },
             { "q.med", new[] { "O'rta", "Средняя", "Medium" } },
             { "q.high", new[] { "Yuqori", "Высокая", "High" } },

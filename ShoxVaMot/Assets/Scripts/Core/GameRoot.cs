@@ -80,6 +80,7 @@ namespace Shatranj.Core
             UI.Loading.SetProgress(0.65f);
             yield return null;
 
+            PostFx.Setup(Rig.Cam);
             Env.Apply((Ambience)Settings.timeOfDay, Settings.quality);
             IconRenderer.RenderAll();
             Showcase = ShowcaseStage.Create(transform);
@@ -209,6 +210,7 @@ namespace Shatranj.Core
         public void ApplyVisualSettings()
         {
             if (Env != null) Env.Apply((Ambience)Settings.timeOfDay, Settings.quality);
+            PostFx.Apply(Settings.postFx, Settings.quality, (Ambience)Settings.timeOfDay);
             if (Board != null) Board.SetCoordinatesVisible(Settings.showCoordinates);
             Settings.Save();
         }

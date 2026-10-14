@@ -208,6 +208,7 @@ namespace Shatranj.UI
             UIKit.OptionRow(content, Loc.T("set.vibration"), onOff, s.vibration ? 0 : 1, i => { s.vibration = i == 0; s.Save(); });
             UIKit.OptionRow(content, Loc.T("set.ambience"), new[] { Loc.T("amb.day"), Loc.T("amb.sunset"), Loc.T("amb.night") }, s.timeOfDay, i => { s.timeOfDay = i; Game.ApplyVisualSettings(); });
             UIKit.OptionRow(content, Loc.T("set.quality"), new[] { Loc.T("q.low"), Loc.T("q.med"), Loc.T("q.high") }, s.quality, i => { s.quality = i; Game.ApplyVisualSettings(); });
+            UIKit.OptionRow(content, Loc.T("set.postfx"), onOff, s.postFx ? 0 : 1, i => { s.postFx = i == 0; Game.ApplyVisualSettings(); });
 
             UIKit.Btn(footer, Loc.T("common.back"), () => OnBack(), BtnStyle.Primary, -1);
         }
