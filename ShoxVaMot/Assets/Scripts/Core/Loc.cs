@@ -20,7 +20,7 @@ namespace Shatranj.Core
             { "common.ok", new[] { "Yaxshi", "ОК", "OK" } },
             { "common.start", new[] { "Jangni boshlash", "В бой!", "To battle!" } },
             { "common.soon", new[] { "Tez kunda", "Скоро", "Coming soon" } },
-            { "common.on", new[] { "Yoq", "Вкл", "On" } },
+            { "common.on", new[] { "Yoniq", "Вкл", "On" } },
             { "common.off", new[] { "O'chiq", "Выкл", "Off" } },
             { "version", new[] { "Versiya", "Версия", "Version" } },
 
@@ -32,6 +32,46 @@ namespace Shatranj.Core
             { "menu.museum", new[] { "Afrosiyob muzeyi", "Музей Афросиаба", "Afrosiyob Museum" } },
             { "menu.stats", new[] { "Statistika", "Статистика", "Statistics" } },
             { "menu.exit", new[] { "Chiqish", "Выход", "Exit" } },
+            { "menu.about", new[] { "O'yin haqida", "Об игре", "About" } },
+
+            // ---------------------------------------------------------------- Об игре
+            { "about.desc", new[] {
+                "Shox va Mot — o'zbek uslubidagi 3D shaxmat. Har bir dona — qilichli yog'och qahramon, har bir urish — haqiqiy jang. O'yin Samarqand, Buxoro va Xiva ustalari an'analaridan ilhomlangan.",
+                "Shox va Mot — 3D-шахматы в узбекском стиле. Каждая фигура — деревянный воин с саблей, каждое взятие — настоящий поединок. Игра вдохновлена мастерами Самарканда, Бухары и Хивы.",
+                "Shox va Mot is 3D chess in Uzbek style. Every piece is a wooden warrior with a sabre, every capture is a real duel. Inspired by the masters of Samarkand, Bukhara and Khiva." } },
+            { "about.team", new[] { "Jamoa", "Команда", "Team" } },
+            { "about.role.studio", new[] { "Studiya", "Студия", "Studio" } },
+            { "about.role.lead", new[] { "Muallif va dizayner", "Автор и дизайнер", "Author & designer" } },
+            { "about.role.ai", new[] { "Sun'iy intellekt yordamchisi", "ИИ-соразработчик", "AI co-developer" } },
+            { "about.contacts", new[] { "Biz bilan bog'laning", "Связаться с нами", "Contact us" } },
+            { "about.rate", new[] { "O'yinni baholash ★★★★★", "Оценить игру ★★★★★", "Rate the game ★★★★★" } },
+            { "about.share", new[] { "Do'stlarga ulashish", "Поделиться с друзьями", "Share with friends" } },
+            { "about.share.text", new[] { "Shox va Mot — o'zbekcha 3D shaxmat! Keling, bir partiya o'ynaymiz:", "Shox va Mot — узбекские 3D-шахматы! Давай сыграем партию:", "Shox va Mot — Uzbek 3D chess! Let's play a game:" } },
+            { "about.privacy", new[] { "Maxfiylik siyosati", "Политика конфиденциальности", "Privacy policy" } },
+            { "about.notset", new[] { "Havola hali qo'shilmagan", "Ссылка ещё не добавлена", "Link not set yet" } },
+            { "about.fact.t", new[] { "Bilasizmi?", "А вы знаете?", "Did you know?" } },
+            { "about.fact.0", new[] {
+                "1977-yilda Samarqanddagi Afrosiyobda topilgan fil suyagidan yasalgan 7 ta shaxmat donasi dunyodagi eng qadimiylaridan biri hisoblanadi.",
+                "Семь шахматных фигур из слоновой кости, найденных в 1977 году на Афросиабе в Самарканде, считаются одними из древнейших в мире.",
+                "Seven ivory chessmen found in 1977 at Afrosiyob in Samarkand are among the oldest in the world." } },
+            { "about.fact.1", new[] {
+                "Rivoyatlarga ko'ra, Amir Temur kattalashtirilgan «Temur shaxmati»ni o'ynagan — uning doskasida 110 ta katak bo'lgan.",
+                "По преданию, Амир Темур играл в увеличенные «шахматы Тимура» — на доске из 110 клеток.",
+                "According to tradition, Amir Temur played the enlarged “Tamerlane chess” on a board of 110 squares." } },
+            { "about.fact.2", new[] {
+                "«Shoh mot» — forscha «shoh ojiz qoldi» degani. Shaxmatdagi «mot» so'zi aynan shundan kelgan.",
+                "«Шах мат» по-персидски значит «шах беспомощен» — отсюда и слово «мат».",
+                "“Shah mat” is Persian for “the king is helpless” — that is where “checkmate” comes from." } },
+            { "about.fact.3", new[] {
+                "Qadimiy shatranjda Fil — haqiqiy jangovar fil, Farzin esa — shohning vaziri bo'lgan. O'zbek tilida donalar hanuz shunday ataladi.",
+                "В древнем шатрандже Фил был настоящим боевым слоном, а Фарзин — визирем шаха. По-узбекски фигуры так называются до сих пор.",
+                "In ancient shatranj the Fil was a real war elephant and the Farzin was the shah's vizier. In Uzbek the pieces still carry these names." } },
+            { "about.tech.t", new[] { "Qanday yaratilgan", "Как это сделано", "How it's made" } },
+            { "about.tech", new[] {
+                "Barcha 3D modellar, naqshlar, mehmonxona, musiqa (dutor, doira, nay) va ovozlar o'yin ichida kod orqali yaratiladi — tayyor rasm va audio fayllar ishlatilmagan.",
+                "Все 3D-модели, узоры, мехмонхона, музыка (дутар, дойра, най) и звуки создаются кодом прямо в игре — готовые картинки и аудиофайлы не используются.",
+                "All 3D models, patterns, the guest hall, music (dutar, doira, nay) and sounds are generated by code in-game — no ready-made images or audio files." } },
+            { "about.thanks", new[] { "O'ynaganingiz uchun rahmat! Rahmat — ustalarga!", "Спасибо, что играете! Рахмат — мастерам!", "Thank you for playing! Rahmat to the masters!" } },
             { "confirm.exit", new[] { "O'yindan chiqasizmi?", "Выйти из игры?", "Quit the game?" } },
 
             // ---------------------------------------------------------------- Новая игра
@@ -39,6 +79,7 @@ namespace Shatranj.Core
             { "mode.pvp", new[] { "Ikki o'yinchi", "Два игрока", "Two players" } },
             { "mode.pvp.desc", new[] { "Bitta qurilmada, navbatma-navbat", "На одном устройстве, по очереди", "One device, taking turns" } },
             { "mode.ai", new[] { "Kompyuterga qarshi", "Против компьютера", "Versus computer" } },
+            { "mode.online", new[] { "Onlayn o'yin", "Онлайн-игра", "Online" } },
             { "ng.variant", new[] { "Qoidalar", "Правила", "Rules" } },
             { "variant.classic", new[] { "Klassik shaxmat", "Классические шахматы", "Classic chess" } },
             { "variant.afrosiyob", new[] { "Qadimiy shatranj", "Древний шатрандж", "Ancient shatranj" } },

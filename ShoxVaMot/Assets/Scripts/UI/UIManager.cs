@@ -74,6 +74,7 @@ namespace Shatranj.UI
         public NewGameScreen NewGame;
         public SettingsScreen Settings;
         public RulesScreen Rules;
+        public AboutScreen About;
         public MuseumScreen Museum;
         public StatsScreen Stats;
         public HudScreen Hud;
@@ -116,6 +117,7 @@ namespace Shatranj.UI
             NewGame = Add(new NewGameScreen(), screensRoot);
             Settings = Add(new SettingsScreen(), screensRoot);
             Rules = Add(new RulesScreen(), screensRoot);
+            About = Add(new AboutScreen(), screensRoot);
             Museum = Add(new MuseumScreen(), screensRoot);
             Stats = Add(new StatsScreen(), screensRoot);
             Hud = Add(new HudScreen(), screensRoot);

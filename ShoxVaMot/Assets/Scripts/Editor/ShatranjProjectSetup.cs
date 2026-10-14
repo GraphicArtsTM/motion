@@ -34,6 +34,7 @@ namespace Shatranj.EditorTools
                 if (EditorApplication.isPlayingOrWillChangePlaymode) return;
                 EnsureAdsDefine();
                 EnsurePostFxRefs();
+                CleanAlwaysIncludedShaders();
                 if (Application.isBatchMode) return;
                 if (SessionState.GetBool(DoneKey, false)) return;
                 SessionState.SetBool(DoneKey, true);
@@ -54,6 +55,7 @@ namespace Shatranj.EditorTools
             EnsureScene();
             EnsureAdsDefine();
             EnsurePostFxRefs();
+            CleanAlwaysIncludedShaders();
             if (forcePlayer || !File.Exists(MarkerPath))
             {
                 ConfigurePlayer();
@@ -92,6 +94,37 @@ namespace Shatranj.EditorTools
                 if (present == has) continue;
                 if (present) list.Add(define); else list.Remove(define);
                 PlayerSettings.SetScriptingDefineSymbolsForGroup(group, string.Join(";", list.ToArray()));
+            }
+        }
+
+        /// <summary>
+        /// Убирает из Always Included Shaders внутренние шейдеры Unity («Library/unity default resources»,
+        /// например GUI/Text Shader) — с ними сборка падает: «HideFlags.DontSave but is included in the build».
+        /// </summary>
+        public static void CleanAlwaysIncludedShaders()
+        {
+            var gs = AssetDatabase.LoadAssetAtPath<GraphicsSettings>("ProjectSettings/GraphicsSettings.asset");
+            if (gs == null) return;
+            var so = new SerializedObject(gs);
+            var arr = so.FindProperty("m_AlwaysIncludedShaders");
+            if (arr == null) return;
+            bool changed = false;
+            for (int i = arr.arraySize - 1; i >= 0; i--)
+            {
+                var el = arr.GetArrayElementAtIndex(i);
+                var obj = el.objectReferenceValue;
+                string path = obj != null ? AssetDatabase.GetAssetPath(obj) : null;
+                bool bad = obj == null || path == "Library/unity default resources" || obj.name == "GUI/Text Shader";
+                if (!bad) continue;
+                el.objectReferenceValue = null;
+                arr.DeleteArrayElementAtIndex(i);
+                changed = true;
+            }
+            if (changed)
+            {
+                so.ApplyModifiedPropertiesWithoutUndo();
+                AssetDatabase.SaveAssets();
+                Debug.Log("[Shox va Mot] Из Always Included Shaders убраны внутренние шейдеры Unity.");
             }
         }
 
@@ -212,19 +245,7 @@ namespace Shatranj.EditorTools
             if (gs == null) return;
             var so = new SerializedObject(gs);
 
-            var arr = so.FindProperty("m_AlwaysIncludedShaders");
-            foreach (var name in new[] { "GUI/Text Shader", "Sprites/Default", "UI/Default" })
-            {
-                var sh = Shader.Find(name);
-                if (sh == null || arr == null) continue;
-                bool found = false;
-                for (int i = 0; i < arr.arraySize; i++)
-                    if (arr.GetArrayElementAtIndex(i).objectReferenceValue == sh) { found = true; break; }
-                if (found) continue;
-                arr.InsertArrayElementAtIndex(arr.arraySize);
-                arr.GetArrayElementAtIndex(arr.arraySize - 1).objectReferenceValue = sh;
-            }
-
+            // Sprites/Default и UI/Default уже есть в списке Always Included по умолчанию — ничего не добавляем
             // туман включается кодом во время игры — не даём сборке вырезать его варианты шейдеров
             var fogStrip = so.FindProperty("m_FogStripping");
             if (fogStrip != null) fogStrip.intValue = 1;
@@ -280,6 +301,7 @@ namespace Shatranj.EditorTools
         public int callbackOrder { get { return 0; } }
         public void OnPreprocessBuild(BuildReport report)
         {
+            ShatranjProjectSetup.CleanAlwaysIncludedShaders();
             if (AssetDatabase.LoadAssetAtPath<Material>("Assets/Resources/ShatranjStandardBump.mat") == null)
                 ShatranjProjectSetup.Setup(false);
         }

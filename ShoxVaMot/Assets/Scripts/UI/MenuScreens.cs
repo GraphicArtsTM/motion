@@ -96,6 +96,10 @@ namespace Shatranj.UI
             var lrt = (RectTransform)lang.transform;
             UIKit.Place(lrt, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-24, -24), new Vector2(250, 84));
 
+            // зеркально, в левом верхнем углу — «Об игре»
+            var about = UIKit.Btn(Root, Loc.T("menu.about"), () => UI.Show(UI.About), BtnStyle.Ghost, -1, 32);
+            UIKit.Place((RectTransform)about.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24, -24), new Vector2(250, 84));
+
             var ver = UIKit.Label(Root, Loc.T("version") + " " + Application.version, 26, new Color(1, 1, 1, 0.45f));
             UIKit.Place(ver.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0, 30), new Vector2(800, 40));
         }
@@ -127,14 +131,17 @@ namespace Shatranj.UI
             Page(Loc.T("menu.newgame"), out content, out footer);
 
             UIKit.Heading(content, Loc.T("ng.mode"), 44);
+            var pvp = UIKit.Btn(content, Loc.T("mode.pvp") + "\n<size=28>" + Loc.T("mode.pvp.desc") + "</size>", null, BtnStyle.Primary, 150, 42);
+            pvp.onClick.AddListener(() => { });
             var modes = UIKit.Rect(content, "modes");
-            UIKit.Layout(modes, 170);
+            UIKit.Layout(modes, 150);
             var h = UIKit.HList(modes.gameObject, 20f);
             h.childForceExpandWidth = true;
-            var pvp = UIKit.Btn(modes, Loc.T("mode.pvp") + "\n<size=28>" + Loc.T("mode.pvp.desc") + "</size>", null, BtnStyle.Primary, -1, 40);
-            var ai = UIKit.Btn(modes, Loc.T("mode.ai") + "\n<size=28><color=#2BB3B1>" + Loc.T("common.soon") + "</color></size>", null, BtnStyle.Secondary, -1, 40);
+            string soon = "\n<size=28><color=#2BB3B1>" + Loc.T("common.soon") + "</color></size>";
+            var ai = UIKit.Btn(modes, Loc.T("mode.ai") + soon, null, BtnStyle.Secondary, -1, 36);
             ai.interactable = false;
-            pvp.onClick.AddListener(() => { });
+            var online = UIKit.Btn(modes, Loc.T("mode.online") + soon, null, BtnStyle.Secondary, -1, 36);
+            online.interactable = false;
 
             UIKit.Heading(content, Loc.T("ng.variant"), 44);
             UIKit.OptionRow(content, Loc.T("ng.variant"), new[] { Loc.T("variant.classic"), Loc.T("variant.afrosiyob") }, cfg.variant, i =>
