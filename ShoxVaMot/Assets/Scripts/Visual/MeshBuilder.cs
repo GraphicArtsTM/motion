@@ -10,9 +10,13 @@ namespace Shatranj.Visual
     public static class MeshBuilder
     {
         static readonly Dictionary<string, Mesh> cache = new Dictionary<string, Mesh>();
-        static Mesh sphere, cube, cylinder, capsule;
+        static Mesh sphere, sphereMid, sphereLow, cube, cylinder, capsule;
 
-        public static Mesh Sphere { get { return sphere != null ? sphere : (sphere = Lathe("sphere", SphereProfile(1f, 14), 20)); } }
+        public static Mesh Sphere { get { return sphere != null ? sphere : (sphere = Lathe("sphere", SphereProfile(1f, 10), 16)); } }
+        /// <summary>Сфера средней детализации (головы, плечи) — 192 треугольника.</summary>
+        public static Mesh SphereMid { get { return sphereMid != null ? sphereMid : (sphereMid = Lathe("sphere.mid", SphereProfile(1f, 8), 12)); } }
+        /// <summary>Облегчённая сфера для мелких деталей (глаза, заклёпки, ягоды) — 120 треугольников.</summary>
+        public static Mesh SphereLow { get { return sphereLow != null ? sphereLow : (sphereLow = Lathe("sphere.low", SphereProfile(1f, 6), 10)); } }
         public static Mesh Cube { get { return cube != null ? cube : (cube = BuildCube()); } }
         public static Mesh Cylinder { get { return cylinder != null ? cylinder : (cylinder = Lathe("cyl", new[] { new Vector2(0, 0), new Vector2(1, 0), new Vector2(1, 0), new Vector2(1, 1), new Vector2(1, 1), new Vector2(0, 1) }, 20)); } }
         public static Mesh Capsule { get { return capsule != null ? capsule : (capsule = Lathe("capsule", CapsuleProfile(1f, 2f, 6), 16)); } }

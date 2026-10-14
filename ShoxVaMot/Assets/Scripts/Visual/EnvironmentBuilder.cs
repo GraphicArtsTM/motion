@@ -35,6 +35,9 @@ namespace Shatranj.Visual
             // стены и потолок не отбрасывают тени, чтобы солнце из окон доставало до доски
             foreach (var r in room.GetComponentsInChildren<MeshRenderer>())
                 r.shadowCastingMode = ShadowCastingMode.Off;
+            // утварь на столе тоже без теней: тени отбрасывают только доска и фигуры
+            foreach (var r in table.GetComponentsInChildren<MeshRenderer>())
+                r.shadowCastingMode = ShadowCastingMode.Off;
             foreach (var r in room.GetComponentsInChildren<MeshRenderer>())
                 if (r.sharedMaterial == InteriorBuilder.WindowGlow) r.receiveShadows = false;
 
@@ -297,31 +300,57 @@ namespace Shatranj.Visual
             RefreshReflections();
         }
 
+        /// <summary>
+        /// Уровни графики под телефоны: Низкая — без теней и попиксельных фонарей, 30 FPS, рендер 540p;
+        /// Средняя — жёсткие тени, один попиксельный фонарь, 720p; Высокая — мягкие тени, 900p.
+        /// Интерфейс при этом остаётся чётким (Canvas масштабируется отдельно).
+        /// </summary>
         public void ApplyQuality(int q)
         {
+            int shortSide;
             switch (q)
             {
                 case 0:
                     sun.shadows = LightShadows.None;
                     QualitySettings.antiAliasing = 0;
-                    QualitySettings.pixelLightCount = 1;
+                    QualitySettings.pixelLightCount = 0;
+                    shortSide = 540;
                     break;
                 case 1:
                     sun.shadows = LightShadows.Hard;
-                    QualitySettings.shadowResolution = ShadowResolution.Medium;
+                    QualitySettings.shadowResolution = ShadowResolution.Low;
                     QualitySettings.antiAliasing = 2;
-                    QualitySettings.pixelLightCount = 2;
+                    QualitySettings.pixelLightCount = 1;
+                    shortSide = 720;
                     break;
                 default:
                     sun.shadows = LightShadows.Soft;
-                    QualitySettings.shadowResolution = ShadowResolution.High;
-                    QualitySettings.antiAliasing = 4;
-                    QualitySettings.pixelLightCount = 3;
+                    QualitySettings.shadowResolution = ShadowResolution.Medium;
+                    QualitySettings.antiAliasing = 2;
+                    QualitySettings.pixelLightCount = 2;
+                    shortSide = 900;
                     break;
             }
             QualitySettings.shadows = q == 0 ? ShadowQuality.Disable : ShadowQuality.All;
-            QualitySettings.shadowDistance = 38f;
+            QualitySettings.shadowDistance = q == 1 ? 26f : 32f;
             QualitySettings.shadowCascades = 1;
+            QualitySettings.softParticles = false;
+            Application.targetFrameRate = q == 0 ? 30 : 60;
+            if (probe != null) probe.resolution = q == 0 ? 64 : 128;
+            SetRenderResolution(shortSide);
+        }
+
+        /// <summary>Рендер в пониженном разрешении на телефонах — главный выигрыш по FPS.</summary>
+        static void SetRenderResolution(int shortSide)
+        {
+#if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
+            int nw = Display.main.systemWidth, nh = Display.main.systemHeight;
+            int nShort = Mathf.Min(nw, nh), nLong = Mathf.Max(nw, nh);
+            if (nShort <= 0) return;
+            float k = Mathf.Min(1f, shortSide / (float)nShort);
+            int w = Mathf.RoundToInt(nShort * k), h = Mathf.RoundToInt(nLong * k);
+            if (Screen.width != w || Screen.height != h) Screen.SetResolution(w, h, true);
+#endif
         }
     }
 

@@ -14,16 +14,16 @@ namespace Shatranj.Core
     /// </summary>
     public static class AdsConfig
     {
-        public const string AndroidGameId = "YOUR_ANDROID_GAME_ID";
+        public const string AndroidGameId = "800397695";
         public const string IosGameId = "YOUR_IOS_GAME_ID";
-        public const string AndroidInterstitial = "Interstitial_Android";
+        public const string AndroidInterstitial = "BP_Interstitial_Android";
         public const string IosInterstitial = "Interstitial_iOS";
         public const bool TestMode = true;
 
         /// <summary>Минимальная пауза между показами (сек). 0 — реклама перед каждой партией.</summary>
         public const float MinSecondsBetweenAds = 0f;
         /// <summary>Сколько ждать загрузки ролика, прежде чем начать партию без рекламы.</summary>
-        public const float LoadWaitSeconds = 3f;
+        public const float LoadWaitSeconds = 5f;
     }
 
     /// <summary>
@@ -132,6 +132,7 @@ namespace Shatranj.Core
 #if SHOX_UNITY_ADS
         public void OnInitializationComplete()
         {
+            Debug.Log("[Ads] Unity Ads инициализирован, Game ID " + GameId + (AdsConfig.TestMode ? " (тестовый режим)" : ""));
             initialized = true;
             Load();
         }
@@ -143,6 +144,7 @@ namespace Shatranj.Core
 
         public void OnUnityAdsAdLoaded(string placementId)
         {
+            Debug.Log("[Ads] Реклама загружена: " + placementId);
             loading = false;
             loaded = true;
         }
@@ -151,7 +153,9 @@ namespace Shatranj.Core
         {
             loading = false;
             loaded = false;
-            Debug.LogWarning("[Ads] Не удалось загрузить: " + error + " " + message);
+            Debug.LogWarning("[Ads] Не удалось загрузить «" + placementId + "»: " + error + " " + message);
+            // повторим попытку чуть позже (нет сети, нет показа и т.п.)
+            Invoke("Load", 20f);
         }
 
         public void OnUnityAdsShowFailure(string placementId, UnityAdsShowError error, string message)

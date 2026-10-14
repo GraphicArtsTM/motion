@@ -61,7 +61,8 @@ namespace Shatranj.Visual
 
         static Transform Ball(Transform p, Material m, Vector3 c, Vector3 radii)
         {
-            return Part(p, MeshBuilder.Sphere, m, c, Vector3.zero, radii);
+            float big = Mathf.Max(radii.x, Mathf.Max(radii.y, radii.z));
+            return Part(p, big < 0.3f ? MeshBuilder.SphereLow : MeshBuilder.Sphere, m, c, Vector3.zero, radii);
         }
 
         static Transform Turned(Transform p, string key, Material m, Vector3 pos, Vector2[] profile, int seg = 24, bool flat = false, float uRep = 1f, float scale = 1f)
@@ -72,7 +73,7 @@ namespace Shatranj.Visual
 
         static Transform Ring(Transform p, Material m, Vector3 c, float R, float r, Vector3 euler = default(Vector3))
         {
-            return Part(p, MeshBuilder.Torus(R, r, 28, 8), m, c, euler, Vector3.one);
+            return Part(p, MeshBuilder.Torus(R, r, 20, 6), m, c, euler, Vector3.one);
         }
 
         /// <summary>Точки равносторонней стрельчатой арки шириной w (начало — в точке опоры слева).</summary>

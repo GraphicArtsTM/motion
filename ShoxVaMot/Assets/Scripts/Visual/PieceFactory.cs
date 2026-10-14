@@ -90,12 +90,22 @@ namespace Shatranj.Visual
 
         static Transform Ball(Transform p, Material m, Vector3 c, Vector3 radii, Vector3 euler = default(Vector3))
         {
-            return Part(p, "ball", MeshBuilder.Sphere, m, c, euler, radii);
+            float big = Mathf.Max(radii.x, Mathf.Max(radii.y, radii.z));
+            var mesh = big <= 0.045f ? MeshBuilder.SphereLow : big <= 0.13f ? MeshBuilder.SphereMid : MeshBuilder.Sphere;
+            var t = Part(p, "ball", mesh, m, c, euler, radii);
+            if (big <= 0.03f) NoShadow(t);
+            return t;
         }
 
         static Transform Ball(Transform p, Material m, Vector3 c, float r)
         {
-            return Part(p, "ball", MeshBuilder.Sphere, m, c, Vector3.zero, Vector3.one * r);
+            return Ball(p, m, c, Vector3.one * r);
+        }
+
+        /// <summary>Мелкие детали не отбрасывают тень — заметно дешевле на телефоне.</summary>
+        static void NoShadow(Transform t)
+        {
+            t.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         }
 
         static Transform Cyl(Transform p, Material m, Vector3 basePos, float r, float h, Vector3 euler = default(Vector3))
@@ -105,12 +115,16 @@ namespace Shatranj.Visual
 
         static Transform Box(Transform p, Material m, Vector3 c, Vector3 size, Vector3 euler = default(Vector3))
         {
-            return Part(p, "box", MeshBuilder.Cube, m, c, euler, size);
+            var t = Part(p, "box", MeshBuilder.Cube, m, c, euler, size);
+            if (Mathf.Max(size.x, Mathf.Max(size.y, size.z)) < 0.04f) NoShadow(t);
+            return t;
         }
 
         static Transform Ring(Transform p, Material m, Vector3 c, float R, float r, Vector3 euler = default(Vector3))
         {
-            return Part(p, "ring", MeshBuilder.Torus(R, r, 28, 8), m, c, euler, Vector3.one);
+            var t = Part(p, "ring", MeshBuilder.Torus(R, r, R > 0.15f ? 24 : R > 0.06f ? 16 : 12, r > 0.02f ? 6 : 4), m, c, euler, Vector3.one);
+            if (r <= 0.012f) NoShadow(t);
+            return t;
         }
 
         static Transform Turned(Transform p, string key, Material m, Vector3 pos, Vector2[] profile, int seg = 24, float start = 0f, float sweep = 360f, bool flat = false, float uRepeat = 1f)
@@ -124,7 +138,7 @@ namespace Shatranj.Visual
         {
             float len = Vector3.Distance(a, b) + 2f * r;
             string key = "limb." + Mathf.Round(r * 1000f) + "." + Mathf.Round(len * 1000f);
-            var mesh = MeshBuilder.Cached(key, () => MeshBuilder.Lathe(key, MeshBuilder.CapsuleProfile(r, len, 4), 12));
+            var mesh = MeshBuilder.Cached(key, () => MeshBuilder.Lathe(key, MeshBuilder.CapsuleProfile(r, len, 3), 9));
             Vector3 dir = (b - a).normalized;
             var t = Part(p, "limb", mesh, m, a - dir * r, Vector3.zero, Vector3.one);
             t.localRotation = Quaternion.FromToRotation(Vector3.up, dir);
