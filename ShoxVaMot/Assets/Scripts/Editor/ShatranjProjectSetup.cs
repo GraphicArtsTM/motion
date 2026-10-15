@@ -1,5 +1,7 @@
 using System.IO;
+using System.Text.RegularExpressions;
 using UnityEditor;
+using UnityEditor.Android;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
 using UnityEditor.SceneManagement;
@@ -76,7 +78,12 @@ namespace Shatranj.EditorTools
         {
             EnsureDefine("SHOX_UNITY_ADS", "UnityEngine.Advertisements.Advertisement");
             EnsureDefine("SHOX_POSTFX", "UnityEngine.Rendering.PostProcessing.PostProcessLayer");
+            // рекламе нужен интернет — разрешение INTERNET всегда в манифесте
+            if (AdsPackageInstalled && !PlayerSettings.Android.forceInternetPermission)
+                PlayerSettings.Android.forceInternetPermission = true;
         }
+
+        public static bool AdsPackageInstalled { get { return TypeExists("UnityEngine.Advertisements.Advertisement"); } }
 
         static bool TypeExists(string fullName)
         {
@@ -325,12 +332,57 @@ namespace Shatranj.EditorTools
     }
 
     /// <summary>Перед любой сборкой убеждаемся, что проект настроен.</summary>
+    /// <summary>
+    /// Пакет Unity Ads 4.x не содержит Android-библиотеку: её должен скачать Mobile Dependency Resolver.
+    /// Если он не установлен или не сработал, в APK нет SDK и реклама навсегда «инициализируется».
+    /// Поэтому после генерации Gradle-проекта зависимость добавляется напрямую (если её там ещё нет).
+    /// </summary>
+    public class ShoxAdsGradle : IPostGenerateGradleAndroidProject
+    {
+        public const string AdsDependency = "com.unity3d.ads:unity-ads:4.19.0";
+
+        // после Mobile Dependency Resolver: если он уже добавил SDK, ничего не делаем
+        public int callbackOrder { get { return 1000; } }
+
+        public void OnPostGenerateGradleAndroidProject(string path)
+        {
+            if (!ShatranjProjectSetup.AdsPackageInstalled) return;
+            string gradle = Path.Combine(path, "build.gradle");
+            if (!File.Exists(gradle))
+            {
+                Debug.LogWarning("[Shox va Mot] Не найден " + gradle + " — Unity Ads SDK не добавлен.");
+                return;
+            }
+            string text = File.ReadAllText(gradle);
+            if (text.Contains("unity-ads"))
+            {
+                Debug.Log("[Shox va Mot] Unity Ads SDK уже есть в Gradle-проекте.");
+                return;
+            }
+            string libs = Path.Combine(path, "libs");
+            if (Directory.Exists(libs))
+                foreach (var f in Directory.GetFiles(libs))
+                    if (Path.GetFileName(f).Contains("unity-ads")) return;
+
+            var m = Regex.Match(text, @"^dependencies\s*\{", RegexOptions.Multiline);
+            if (!m.Success)
+            {
+                Debug.LogWarning("[Shox va Mot] В " + gradle + " нет блока dependencies — Unity Ads SDK не добавлен.");
+                return;
+            }
+            text = text.Insert(m.Index + m.Length, "\n    implementation '" + AdsDependency + "' // Shox va Mot: Unity Ads Android SDK");
+            File.WriteAllText(gradle, text);
+            Debug.Log("[Shox va Mot] В Gradle добавлен Unity Ads SDK: " + AdsDependency);
+        }
+    }
+
     public class ShatranjPreBuild : IPreprocessBuildWithReport
     {
         public int callbackOrder { get { return 0; } }
         public void OnPreprocessBuild(BuildReport report)
         {
             ShatranjProjectSetup.CleanAlwaysIncludedShaders();
+            if (ShatranjProjectSetup.AdsPackageInstalled) PlayerSettings.Android.forceInternetPermission = true;
             if (AssetDatabase.LoadAssetAtPath<Material>("Assets/Resources/ShatranjStandardBump.mat") == null)
                 ShatranjProjectSetup.Setup(false);
         }

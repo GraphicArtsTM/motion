@@ -28,9 +28,12 @@ namespace Shatranj.Core
     /// <summary>
     /// Межстраничная реклама Unity Ads перед началом партии.
     ///
-    /// Важно для Android: SDK вызывает обработчики (OnInitializationComplete, OnUnityAdsAdLoaded…)
-    /// из Java-потока, а не из главного потока Unity. Поэтому обработчики здесь только ставят флажки,
-    /// а все вызовы Unity и SDK делаются в Update() главного потока.
+    /// Обработчики SDK только ставят флажки, а все вызовы SDK (Load, Show) делаются в Update()
+    /// главного потока. Если ответ об инициализации потерялся, Update раз в секунду сам проверяет
+    /// Advertisement.isInitialized.
+    ///
+    /// Android-библиотеку Unity Ads (com.unity3d.ads:unity-ads) при сборке добавляет в Gradle
+    /// редакторский скрипт ShoxAdsGradle (Editor/ShatranjProjectSetup.cs).
     /// </summary>
     public class AdsManager : MonoBehaviour
 #if SHOX_UNITY_ADS
@@ -43,8 +46,8 @@ namespace Shatranj.Core
         // флажки, которые выставляют обработчики SDK из любого потока
         volatile bool initialized, initFailed, loaded, loadFailed, showDone;
         volatile string lastError = "";
-        bool initRequested, loading, showing, busy;
-        float lastShown = -9999f, retryAt = -1f;
+        bool initRequested, loading, showing, busy, warnedSlow;
+        float lastShown = -9999f, retryAt = -1f, initStart, nextPoll;
 #pragma warning restore 0649, 0414, 0169
 
         public static AdsManager Create(Transform parent)
@@ -89,8 +92,11 @@ namespace Shatranj.Core
 #if SHOX_UNITY_ADS
                 if (I == null) return "Ads: нет менеджера";
                 if (!Configured) return "Ads: не задан Game ID";
-                return "Ads " + GameId + " / " + AdUnit + (AdsConfig.TestMode ? " (test)" : "") +
-                       "\ninit: " + (I.initialized ? "OK" : I.initFailed ? "ОШИБКА" : I.initRequested ? "идёт…" : "нет") +
+                string sdk = SdkVersion;
+                if (sdk == "UnsupportedPlatformVersion")
+                    return "Ads: Android-библиотеки Unity Ads нет в APK.\nПересоберите проект (Shox va Mot → Build Android APK) — см. README, раздел «Реклама».";
+                return "Ads " + GameId + " / " + AdUnit + (AdsConfig.TestMode ? " (test)" : "") + ", SDK " + sdk +
+                       "\ninit: " + (I.initialized ? "OK" : I.initFailed ? "ОШИБКА" : I.initRequested ? "идёт " + Mathf.RoundToInt(Time.realtimeSinceStartup - I.initStart) + " с…" : "нет") +
                        ", ролик: " + (I.loaded ? "загружен" : I.loading ? "грузится…" : "нет") +
                        (string.IsNullOrEmpty(I.lastError) ? "" : "\n" + I.lastError);
 #else
@@ -98,6 +104,17 @@ namespace Shatranj.Core
 #endif
             }
         }
+
+#if SHOX_UNITY_ADS
+        static string SdkVersion
+        {
+            get
+            {
+                try { return Advertisement.version; }
+                catch (Exception e) { return "? (" + e.Message + ")"; }
+            }
+        }
+#endif
 
         void Start()
         {
@@ -113,6 +130,16 @@ namespace Shatranj.Core
                 return;
             }
             initRequested = true;
+            initStart = Time.realtimeSinceStartup;
+            // в тестовом режиме SDK пишет подробный лог (adb logcat -s UnityAds)
+            if (AdsConfig.TestMode) Advertisement.debugMode = true;
+            string sdk = SdkVersion;
+            Debug.Log("[Ads] Инициализация: Game ID " + GameId + ", SDK " + sdk + (AdsConfig.TestMode ? ", тестовый режим" : ""));
+            if (sdk == "UnsupportedPlatformVersion")
+            {
+                Debug.LogError("[Ads] Android-библиотеки Unity Ads нет в APK — реклама не загрузится. Пересоберите проект (см. README).");
+                lastError = "нет Android SDK в APK";
+            }
             if (Advertisement.isInitialized) initialized = true;
             else Advertisement.Initialize(GameId, AdsConfig.TestMode, this);
 #endif
@@ -121,7 +148,28 @@ namespace Shatranj.Core
         void Update()
         {
 #if SHOX_UNITY_ADS
-            if (!initialized) return;
+            if (!initialized)
+            {
+                if (!initRequested || initFailed) return;
+                float now = Time.realtimeSinceStartup;
+                // запасной путь: если ответ SDK потерялся, узнаём об инициализации сами
+                if (now >= nextPoll)
+                {
+                    nextPoll = now + 1f;
+                    if (Advertisement.isInitialized)
+                    {
+                        initialized = true;
+                        Debug.Log("[Ads] SDK инициализирован (проверка isInitialized)");
+                    }
+                }
+                if (!initialized && !warnedSlow && now - initStart > 20f)
+                {
+                    warnedSlow = true;
+                    Debug.LogWarning("[Ads] SDK не инициализировался за 20 с. Проверьте интернет, VPN, блокировщики рекламы " +
+                                     "и «Частный DNS» в настройках телефона. Подробности: adb logcat -s UnityAds");
+                }
+                if (!initialized) return;
+            }
             // загрузка ролика — только из главного потока
             if (loadFailed)
             {

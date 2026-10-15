@@ -1,0 +1,4 @@
+<!-- Не даём сборке (Managed Stripping) вырезать код Unity Ads: обработчики из Java вызываются через reflection. -->
+<linker>
+  <assembly fullname="UnityEngine.Advertisements" preserve="all" ignoreIfMissing="1" />
+</linker>
