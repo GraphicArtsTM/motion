@@ -3,3 +3,13 @@ video/out/stills/
 video/out/frames.mp4
 video/out/music.wav
 video/out/build.log
+maxway-reel/src/
+maxway-reel/work/
+maxway-reel/out/frames.mp4
+maxway-reel/out/frames.mp4.parts/
+maxway-reel/out/music.wav
+maxway-reel/out/stills/
+maxway-reel/out/sheet.jpg
+maxway-reel/out/render.log
+__pycache__/
+maxway-reel/out/*_original-audio.mp4
