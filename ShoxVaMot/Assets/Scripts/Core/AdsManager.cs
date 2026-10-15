@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using UnityEngine;
+using UnityEngine.Networking;
 #if SHOX_UNITY_ADS
 using UnityEngine.Advertisements;
 #endif
@@ -46,7 +47,8 @@ namespace Shatranj.Core
         // флажки, которые выставляют обработчики SDK из любого потока
         volatile bool initialized, initFailed, loaded, loadFailed, showDone;
         volatile string lastError = "";
-        bool initRequested, loading, showing, busy, warnedSlow;
+        bool initRequested, loading, showing, busy, warnedSlow, probing;
+        string netReport = "";
         float lastShown = -9999f, retryAt = -1f, initStart, nextPoll;
 #pragma warning restore 0649, 0414, 0169
 
@@ -98,6 +100,7 @@ namespace Shatranj.Core
                 return "Ads " + GameId + " / " + AdUnit + (AdsConfig.TestMode ? " (test)" : "") + ", SDK " + sdk +
                        "\ninit: " + (I.initialized ? "OK" : I.initFailed ? "ОШИБКА" : I.initRequested ? "идёт " + Mathf.RoundToInt(Time.realtimeSinceStartup - I.initStart) + " с…" : "нет") +
                        ", ролик: " + (I.loaded ? "загружен" : I.loading ? "грузится…" : "нет") +
+                       "\nсеть: " + Reachability + (string.IsNullOrEmpty(I.netReport) ? "" : "; " + I.netReport) +
                        (string.IsNullOrEmpty(I.lastError) ? "" : "\n" + I.lastError);
 #else
                 return "Ads: пакет com.unity.ads не подключён (нет SHOX_UNITY_ADS)";
@@ -167,6 +170,7 @@ namespace Shatranj.Core
                     warnedSlow = true;
                     Debug.LogWarning("[Ads] SDK не инициализировался за 20 с. Проверьте интернет, VPN, блокировщики рекламы " +
                                      "и «Частный DNS» в настройках телефона. Подробности: adb logcat -s UnityAds");
+                    if (!probing) StartCoroutine(ProbeNetwork());
                 }
                 if (!initialized) return;
             }
@@ -185,6 +189,45 @@ namespace Shatranj.Core
             }
             if (loaded) loading = false;
 #endif
+        }
+
+        static string Reachability
+        {
+            get
+            {
+                switch (Application.internetReachability)
+                {
+                    case NetworkReachability.ReachableViaLocalAreaNetwork: return "Wi-Fi";
+                    case NetworkReachability.ReachableViaCarrierDataNetwork: return "мобильная";
+                    default: return "НЕТ ИНТЕРНЕТА";
+                }
+            }
+        }
+
+        /// <summary>
+        /// Диагностика: доходят ли запросы до серверов Unity Ads. Если Google отвечает, а Unity Ads — нет,
+        /// их блокирует сеть: «Частный DNS», VPN, блокировщик рекламы, роутер или провайдер.
+        /// </summary>
+        IEnumerator ProbeNetwork()
+        {
+            probing = true;
+            string[] names = { "google", "unityads" };
+            string[] urls = { "https://www.google.com/generate_204", "https://config.unityads.unity3d.com/" };
+            var sb = new System.Text.StringBuilder();
+            for (int i = 0; i < urls.Length; i++)
+            {
+                using (var req = UnityWebRequest.Get(urls[i]))
+                {
+                    req.timeout = 10;
+                    yield return req.SendWebRequest();
+                    bool reached = req.responseCode > 0;
+                    if (sb.Length > 0) sb.Append(", ");
+                    sb.Append(names[i]).Append(reached ? " OK (" + req.responseCode + ")" : " НЕДОСТУПЕН (" + req.error + ")");
+                }
+            }
+            netReport = sb.ToString();
+            Debug.Log("[Ads] Проверка сети: " + Reachability + "; " + netReport);
+            probing = false;
         }
 
         /// <summary>Показать рекламу (если она готова), затем выполнить действие.</summary>
