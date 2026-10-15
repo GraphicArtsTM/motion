@@ -18,6 +18,7 @@ import cv2
 import numpy as np
 
 import assets as A
+import grade as grading
 from timeline import (BEAT, CUTS, DUR, FPS, H, K3_OFF, T_BREAK0, T_BREAK1, T_CARD0, T_CARD1,
                       T_DROP, T_DVA, T_LAND, T_WHIP, T_ZOOM0, W)
 
@@ -220,28 +221,8 @@ class Clip:
 # ---------------------------------------------------------------- цвет
 
 
-def make_grade():
-    x = np.arange(256) / 255.0
-    s = x * x * (3 - 2 * x)                 # мягкая S-кривая
-    y = 0.015 + 0.975 * (x + (s - x) * 0.38)
-    return y.astype(np.float32)
-
-
-GRADE = make_grade()
 _yy, _xx = np.mgrid[0:H, 0:W].astype(np.float32)
 VIGNETTE = (1 - 0.32 * np.clip(((_xx - W / 2) / (W * 0.75)) ** 2 + ((_yy - H * 0.45) / (H * 0.62)) ** 2, 0, 1) ** 1.4)[..., None]
-
-
-def grade(img, sat=1.12, warm=0.0):
-    idx = np.clip(img * 255, 0, 255).astype(np.uint8)
-    out = GRADE[idx]
-    luma = out[..., 0:1] * 0.114 + out[..., 1:2] * 0.587 + out[..., 2:3] * 0.299
-    out = luma + (out - luma) * sat
-    if warm:
-        out[..., 2] *= 1 + warm
-        out[..., 0] *= 1 - warm
-    out *= VIGNETTE
-    return out
 
 
 # ---------------------------------------------------------------- заголовок
@@ -249,10 +230,18 @@ def grade(img, sat=1.12, warm=0.0):
 HW, HH = 1080, 380
 
 
-class Header:
-    """3D-заголовок «MAXWAY, / ПОСМОТРИТЕ, ЧТО Я СДЕЛАЛ!» с побуквенной анимацией."""
+TITLES = {
+    'reklama': 'Я СДЕЛАЛ ВАМ РЕКЛАМУ',
+    'posmotrite': 'ПОСМОТРИТЕ, ЧТО Я СДЕЛАЛ!',
+    'rabota': 'ВОЗЬМЁТЕ МЕНЯ НА РАБОТУ?',
+}
 
-    def __init__(self):
+
+class Header:
+    """3D-заголовок «MAXWAY, / <фраза>» с побуквенной анимацией."""
+
+    def __init__(self, title='reklama', layout='full'):
+        self.layout = layout
         f1 = A.font('Unbounded-900', 128)
         word = 'MAXWAY,'
         total = f1.getlength(word)
@@ -281,8 +270,10 @@ class Header:
         cw, ch_ = min(ww - sx0, HW - dx0), min(hh - sy0, HH - dy0)
         fm[dy0:dy0 + ch_, dx0:dx0 + cw] = face_all[sy0:sy0 + ch_, sx0:sx0 + cw]
         self.face = fm
-        f2 = A.font('Rubik-900', 58)
-        self.pill, self.words, box = A.pill_text_layers('ПОСМОТРИТЕ, ЧТО Я СДЕЛАЛ!', f2, depth=10, padx=38, pady=20)
+        text = TITLES.get(title, title)
+        size = min(66, int(58 * 880 / A.font('Rubik-900', 58).getlength(text)))
+        f2 = A.font('Rubik-900', size)
+        self.pill, self.words, box = A.pill_text_layers(text, f2, depth=10, padx=38, pady=20)
         self.pill_c = (HW / 2, 262)
         ph, pw = self.pill.shape[:2]
         self.pill_anchor = (box[0] + box[2] / 2, box[1] + box[3] / 2)
@@ -344,14 +335,14 @@ class Header:
     def layer(self, T):
         """Возвращает премультиплированный BGRA-слой во весь кадр (или None)."""
         if T < T_WHIP:
-            t0, S, top, alpha = 0.0, 1.0, 196, 1.0
+            t0, S, top, alpha = 0.0, 0.92, 248, 1.0
         elif T < T_ZOOM0:
             k = ease_io((T - T_WHIP) / 0.35)
-            t0, S, top, alpha = 0.0, lerp(1.0, 0.86, k), lerp(196, 176, k), 1.0
+            t0, S, top, alpha = 0.0, lerp(0.92, 0.8, k), lerp(248, 258, k), 1.0
         elif T < T_LAND:
             k = ease_in((T - T_ZOOM0) / 0.4, 2)
-            t0, S, top, alpha = 0.0, 0.86 * (1 + 1.1 * k), 176 - 160 * k, 1 - k
-        elif T < T_CARD0 + 0.2:
+            t0, S, top, alpha = 0.0, 0.8 * (1 + 1.1 * k), 258 - 200 * k, 1 - k
+        elif self.layout == 'full' or T < T_CARD0 + 0.2:
             return None
         else:
             t0, S, top, alpha = T_CARD0 + 0.3, 0.86, 176, 1.0
@@ -385,11 +376,12 @@ def comp_rgba(dst, src):
 
 
 class Edit:
-    def __init__(self, src, track):
+    def __init__(self, src, track, title='reklama', layout='full'):
+        self.layout = layout
         self.c1 = Clip(os.path.join(src, 'IMG_6290.mp4'))
         self.c2 = Clip(os.path.join(src, 'IMG_6298.mp4'))
         self.k3 = Clip(os.path.join(src, 'k3.mp4'))
-        self.header = Header()
+        self.header = Header(title, layout)
         tr = json.load(open(track))
         q = np.array([r['quad'] if r['quad'] is not None else [[np.nan] * 2] * 4 for r in tr], np.float64)
         # заполняем пропуски и сглаживаем трек (окно 7 кадров)
@@ -447,7 +439,7 @@ class Edit:
 
     def selfie(self, T):
         s = 1.95 + T
-        fr = grade(self.c1.at(s), sat=1.1, warm=0.01)
+        fr = grading.grade(self.c1.at(s), 'selfie')
         z = 1.03 + 0.012 * T
         if T >= 1.95:
             z += 0.07 * ease_out((T - 1.95) / 0.16, 4) - 0.025 * ease_io((T - 2.1) / 0.6)
@@ -477,7 +469,7 @@ class Edit:
     def monitor_raw(self, T):
         """Кадр монитора с влётом в окно композиции (без размытия движения)."""
         s = self.c2_time(T)
-        fr = grade(self.c2.at(s), sat=1.08)
+        fr = grading.grade(self.c2.at(s), 'monitor')
         q = self.quad_at(s)
         full = np.float32([[0, 0], [W, 0], [W, H], [0, H]])
         e = ease_in((T - T_ZOOM0) / (T_LAND - T_ZOOM0), 3) if T > T_ZOOM0 else 0.0
@@ -547,7 +539,7 @@ class Edit:
         cv2.addWeighted(ov, a, img, 1 - a, 0, img)
 
     def fullscreen(self, T):
-        fr = self.k3.at(T - K3_OFF)
+        fr = self.k3.at(min(T - K3_OFF, 29.99))
         hits = [(T_LAND, 1.0), (T_DVA, 0.55), (T_DROP, 1.35)]
         e = sum(w * math.exp(-(T - t0) * 9) for t0, w in hits if T >= t0)
         sx, sy = shake(T, 26 * e)
@@ -671,7 +663,7 @@ class Edit:
             # нарастающая белая засветка к приземлению
             wf = smooth(T_LAND - 0.12, T_LAND, T)
             fr = fr + (1 - fr) * wf * 0.75
-        elif T < T_CARD0:
+        elif T < T_CARD0 or self.layout == 'full':
             fr = self.fullscreen(T)
         else:
             fr = self.card(T)
@@ -685,7 +677,7 @@ class Edit:
 
 
 def worker(args, f0, f1, path):
-    ed = Edit(args.src, args.track)
+    ed = Edit(args.src, args.track, args.title, args.layout)
     cmd = ['ffmpeg', '-y', '-loglevel', 'error', '-f', 'rawvideo', '-pix_fmt', 'bgr24', '-s', f'{W}x{H}',
            '-r', str(FPS), '-i', '-', '-c:v', 'libx264', '-preset', 'medium', '-crf', '12', '-pix_fmt', 'yuv420p',
            '-color_primaries', 'bt709', '-color_trc', 'bt709', '-colorspace', 'bt709', path]
@@ -708,9 +700,11 @@ def main():
     ap.add_argument('--workers', type=int, default=4)
     ap.add_argument('--stills', default='')
     ap.add_argument('--range', default='')
+    ap.add_argument('--title', default='reklama', help='reklama | posmotrite | rabota | свой текст')
+    ap.add_argument('--layout', default='full', help='full — кадр 3 на весь экран, card — 3D-карточка')
     args = ap.parse_args()
     if args.stills:
-        ed = Edit(args.src, args.track)
+        ed = Edit(args.src, args.track, args.title, args.layout)
         os.makedirs('out/stills', exist_ok=True)
         for s in args.stills.split(','):
             T = float(s)

@@ -13,3 +13,9 @@ maxway-reel/out/sheet.jpg
 maxway-reel/out/render.log
 __pycache__/
 maxway-reel/out/*_original-audio.mp4
+maxway-reel/out/tail.mp4*
+maxway-reel/out/intro_*
+maxway-reel/out/concat_*.txt
+maxway-reel/out/maxway-reel_*.mp4
+maxway-reel/out/st_*/
+maxway-reel/work_sdr
