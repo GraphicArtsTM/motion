@@ -18,7 +18,6 @@ import cv2
 import numpy as np
 
 import assets as A
-import grade as grading
 from timeline import (BEAT, CUTS, DUR, FPS, H, K3_OFF, T_BREAK0, T_BREAK1, T_CARD0, T_CARD1,
                       T_DROP, T_DVA, T_LAND, T_WHIP, T_ZOOM0, W)
 
@@ -170,8 +169,9 @@ def project_plane(w, h, cx, cy, rx, ry, rz, f=2600.0):
 class Clip:
     """Последовательное чтение кадров с кешем и подмешиванием соседних кадров."""
 
-    def __init__(self, path):
+    def __init__(self, path, offset=0.0):
         self.path = path
+        self.offset = offset   # время источника, с которого начинается файл
         self.cap = None
         self.pos = -1
         self.cache = {}
@@ -207,7 +207,7 @@ class Clip:
 
     def at(self, s):
         """Кадр на время s (секунды источника), с подмешиванием между кадрами."""
-        x = s * self.fps
+        x = (s - self.offset) * self.fps
         i0 = int(math.floor(x))
         k = x - i0
         a = self._read(i0)
@@ -231,9 +231,9 @@ HW, HH = 1080, 380
 
 
 TITLES = {
-    'reklama': 'Я СДЕЛАЛ ВАМ РЕКЛАМУ',
+    'posmotreli': 'ВЫ ПОСМОТРЕЛИ ЭТО?',
     'posmotrite': 'ПОСМОТРИТЕ, ЧТО Я СДЕЛАЛ!',
-    'rabota': 'ВОЗЬМЁТЕ МЕНЯ НА РАБОТУ?',
+    'reklama': 'Я СДЕЛАЛ ВАМ РЕКЛАМУ',
 }
 
 
@@ -378,8 +378,9 @@ def comp_rgba(dst, src):
 class Edit:
     def __init__(self, src, track, title='reklama', layout='full'):
         self.layout = layout
-        self.c1 = Clip(os.path.join(src, 'IMG_6290.mp4'))
-        self.c2 = Clip(os.path.join(src, 'IMG_6298.mp4'))
+        # пластины уже с цветокоррекцией из 10-битного исходника (grade.py)
+        self.c1 = Clip(os.path.join(src, 'IMG_6290_graded.mp4'), offset=1.6)
+        self.c2 = Clip(os.path.join(src, 'IMG_6298_graded.mp4'))
         self.k3 = Clip(os.path.join(src, 'k3.mp4'))
         self.header = Header(title, layout)
         tr = json.load(open(track))
@@ -439,7 +440,7 @@ class Edit:
 
     def selfie(self, T):
         s = 1.95 + T
-        fr = grading.grade(self.c1.at(s), 'selfie')
+        fr = self.c1.at(s)
         z = 1.03 + 0.012 * T
         if T >= 1.95:
             z += 0.07 * ease_out((T - 1.95) / 0.16, 4) - 0.025 * ease_io((T - 2.1) / 0.6)
@@ -469,7 +470,7 @@ class Edit:
     def monitor_raw(self, T):
         """Кадр монитора с влётом в окно композиции (без размытия движения)."""
         s = self.c2_time(T)
-        fr = grading.grade(self.c2.at(s), 'monitor')
+        fr = self.c2.at(s)
         q = self.quad_at(s)
         full = np.float32([[0, 0], [W, 0], [W, H], [0, H]])
         e = ease_in((T - T_ZOOM0) / (T_LAND - T_ZOOM0), 3) if T > T_ZOOM0 else 0.0
@@ -700,7 +701,7 @@ def main():
     ap.add_argument('--workers', type=int, default=4)
     ap.add_argument('--stills', default='')
     ap.add_argument('--range', default='')
-    ap.add_argument('--title', default='reklama', help='reklama | posmotrite | rabota | свой текст')
+    ap.add_argument('--title', default='reklama', help='posmotreli | posmotrite | reklama | свой текст')
     ap.add_argument('--layout', default='full', help='full — кадр 3 на весь экран, card — 3D-карточка')
     args = ap.parse_args()
     if args.stills:

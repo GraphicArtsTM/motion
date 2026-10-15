@@ -9,11 +9,14 @@ set -euo pipefail
 cd "$(dirname "$0")"
 mkdir -p out work/sdr
 
-# 1) iPhone пишет в HDR (HLG, BT.2020) — переводим в SDR BT.709 с тонмаппингом Hable
-TM="zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p"
-for n in IMG_6290 IMG_6298; do
-  [ -f work/sdr/$n.mp4 ] || ffmpeg -y -loglevel error -i src/$n.MOV -vf "$TM,fps=60" -c:v libx264 -crf 12 -preset veryfast -g 30 -an work/sdr/$n.mp4
+# 1) iPhone пишет в HDR (HLG, BT.2020). Цветокоррекция из 10-битного исходника → «пластины»
+#    (grade.py); отдельно 8-битная SDR-копия монитора — только для трекинга
+for spec in "IMG_6290 selfie 1.6 5.3" "IMG_6298 monitor"; do
+  set -- $spec
+  [ -f work/sdr/$1_graded.mp4 ] || python3 grade.py src/$1.MOV $2 work/sdr/$1_graded.mp4 ${3:+--ss $3} ${4:+--to $4}
 done
+TM="zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p"
+[ -f work/sdr/IMG_6298.mp4 ] || ffmpeg -y -loglevel error -i src/IMG_6298.MOV -vf "$TM,fps=60" -c:v libx264 -crf 12 -preset veryfast -g 30 -an work/sdr/IMG_6298.mp4
 [ -f work/sdr/k3.mp4 ] || ffmpeg -y -loglevel error -i src/k3.mp4 -c:v copy -an work/sdr/k3.mp4
 
 # 2) трекинг окна композиции After Effects на мониторе
@@ -23,7 +26,7 @@ done
 python3 music.py out/music.wav
 
 # 4) монтаж: хвост 6–35 с общий, вступление 0–6 с — на каждый вариант текста
-TITLES="${TITLES:-reklama posmotrite rabota}"
+TITLES="${TITLES:-posmotreli posmotrite reklama}"
 python3 edit.py --src work/sdr --track track_6298.json --range 6:35 --out out/tail.mp4 --workers "${WORKERS:-4}"
 for t in $TITLES; do
   python3 edit.py --src work/sdr --track track_6298.json --title "$t" --range 0:6 --out out/intro_$t.mp4 --workers "${WORKERS:-4}"
