@@ -19,3 +19,6 @@ maxway-reel/out/concat_*.txt
 maxway-reel/out/maxway-reel_*.mp4
 maxway-reel/out/st_*/
 maxway-reel/work_sdr
+maxway-reel/tools/
+maxway-reel/.venv/
+maxway-reel/out/music.wav

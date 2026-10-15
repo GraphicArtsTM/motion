@@ -221,8 +221,29 @@ class Clip:
 # ---------------------------------------------------------------- цвет
 
 
+def make_grade():
+    x = np.arange(256) / 255.0
+    s = x * x * (3 - 2 * x)                 # мягкая S-кривая
+    y = 0.015 + 0.975 * (x + (s - x) * 0.38)
+    return y.astype(np.float32)
+
+
+GRADE = make_grade()
 _yy, _xx = np.mgrid[0:H, 0:W].astype(np.float32)
 VIGNETTE = (1 - 0.32 * np.clip(((_xx - W / 2) / (W * 0.75)) ** 2 + ((_yy - H * 0.45) / (H * 0.62)) ** 2, 0, 1) ** 1.4)[..., None]
+
+
+def grade(img, sat=1.12, warm=0.0):
+    """Цветокоррекция версии 1: мягкая S-кривая, насыщенность, тепло, виньетка."""
+    idx = np.clip(img * 255, 0, 255).astype(np.uint8)
+    out = GRADE[idx]
+    luma = out[..., 0:1] * 0.114 + out[..., 1:2] * 0.587 + out[..., 2:3] * 0.299
+    out = luma + (out - luma) * sat
+    if warm:
+        out[..., 2] *= 1 + warm
+        out[..., 0] *= 1 - warm
+    out *= VIGNETTE
+    return out
 
 
 # ---------------------------------------------------------------- заголовок
@@ -378,9 +399,8 @@ def comp_rgba(dst, src):
 class Edit:
     def __init__(self, src, track, title='reklama', layout='full'):
         self.layout = layout
-        # пластины уже с цветокоррекцией из 10-битного исходника (grade.py)
-        self.c1 = Clip(os.path.join(src, 'IMG_6290_graded.mp4'), offset=1.6)
-        self.c2 = Clip(os.path.join(src, 'IMG_6298_graded.mp4'))
+        self.c1 = Clip(os.path.join(src, 'IMG_6290.mp4'))
+        self.c2 = Clip(os.path.join(src, 'IMG_6298.mp4'))
         self.k3 = Clip(os.path.join(src, 'k3.mp4'))
         self.header = Header(title, layout)
         tr = json.load(open(track))
@@ -440,7 +460,7 @@ class Edit:
 
     def selfie(self, T):
         s = 1.95 + T
-        fr = self.c1.at(s)
+        fr = grade(self.c1.at(s), sat=1.1, warm=0.01)
         z = 1.03 + 0.012 * T
         if T >= 1.95:
             z += 0.07 * ease_out((T - 1.95) / 0.16, 4) - 0.025 * ease_io((T - 2.1) / 0.6)
@@ -470,7 +490,7 @@ class Edit:
     def monitor_raw(self, T):
         """Кадр монитора с влётом в окно композиции (без размытия движения)."""
         s = self.c2_time(T)
-        fr = self.c2.at(s)
+        fr = grade(self.c2.at(s), sat=1.08)
         q = self.quad_at(s)
         full = np.float32([[0, 0], [W, 0], [W, H], [0, H]])
         e = ease_in((T - T_ZOOM0) / (T_LAND - T_ZOOM0), 3) if T > T_ZOOM0 else 0.0
