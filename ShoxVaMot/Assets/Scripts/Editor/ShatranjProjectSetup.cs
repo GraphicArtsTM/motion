@@ -34,6 +34,7 @@ namespace Shatranj.EditorTools
                 if (EditorApplication.isPlayingOrWillChangePlaymode) return;
                 EnsureAdsDefine();
                 EnsurePostFxRefs();
+                EnsureAboutInfo();
                 CleanAlwaysIncludedShaders();
                 if (Application.isBatchMode) return;
                 if (SessionState.GetBool(DoneKey, false)) return;
@@ -55,6 +56,7 @@ namespace Shatranj.EditorTools
             EnsureScene();
             EnsureAdsDefine();
             EnsurePostFxRefs();
+            EnsureAboutInfo();
             CleanAlwaysIncludedShaders();
             if (forcePlayer || !File.Exists(MarkerPath))
             {
@@ -152,6 +154,33 @@ namespace Shatranj.EditorTools
                 so.ApplyModifiedPropertiesWithoutUndo();
                 EditorUtility.SetDirty(refs);
             }
+        }
+
+        // ------------------------------------------------------------------ «Об игре»
+
+        const string AboutInfoPath = "Assets/Resources/AboutInfo.asset";
+
+        /// <summary>Файл с командой и ссылками для экрана «Об игре» (создаётся один раз, дальше — ваши правки).</summary>
+        static ScriptableObject EnsureAboutInfo()
+        {
+            var info = AssetDatabase.LoadAssetAtPath<ScriptableObject>(AboutInfoPath);
+            if (info != null) return info;
+            info = ScriptableObject.CreateInstance("AboutInfo");
+            if (info == null) return null;
+            Directory.CreateDirectory("Assets/Resources");
+            AssetDatabase.CreateAsset(info, AboutInfoPath);
+            AssetDatabase.SaveAssets();
+            return info;
+        }
+
+        [MenuItem("Shox va Mot/Об игре (контакты и команда)", priority = 10)]
+        public static void EditAboutInfo()
+        {
+            var info = EnsureAboutInfo();
+            if (info == null) return;
+            Selection.activeObject = info;
+            EditorGUIUtility.PingObject(info);
+            EditorApplication.ExecuteMenuItem("Window/General/Inspector");
         }
 
         static void EnsureMaterial()

@@ -8,9 +8,8 @@ using UnityEngine.Advertisements;
 namespace Shatranj.Core
 {
     /// <summary>
-    /// Настройки рекламы. Game ID и Ad Unit ID берутся в Unity Dashboard → Monetization (Unity Ads).
-    /// Пока стоят заглушки, реклама не запрашивается и игра запускается сразу.
-    /// Перед публикацией поставьте TestMode = false.
+    /// Настройки рекламы. Game ID и ID рекламного блока — из Unity Dashboard → Monetization → Placements.
+    /// Перед публикацией в Google Play поставьте TestMode = false.
     /// </summary>
     public static class AdsConfig
     {
@@ -22,15 +21,16 @@ namespace Shatranj.Core
 
         /// <summary>Минимальная пауза между показами (сек). 0 — реклама перед каждой партией.</summary>
         public const float MinSecondsBetweenAds = 0f;
-        /// <summary>Сколько ждать загрузки ролика, прежде чем начать партию без рекламы.</summary>
-        public const float LoadWaitSeconds = 5f;
+        /// <summary>Сколько ждать инициализации и загрузки ролика, прежде чем начать партию без рекламы.</summary>
+        public const float LoadWaitSeconds = 7f;
     }
 
     /// <summary>
     /// Межстраничная реклама Unity Ads перед началом партии.
-    /// Код рекламы компилируется только при наличии пакета com.unity.ads
-    /// (символ SHOX_UNITY_ADS выставляет редакторский скрипт автоматически),
-    /// поэтому проект собирается и без него.
+    ///
+    /// Важно для Android: SDK вызывает обработчики (OnInitializationComplete, OnUnityAdsAdLoaded…)
+    /// из Java-потока, а не из главного потока Unity. Поэтому обработчики здесь только ставят флажки,
+    /// а все вызовы Unity и SDK делаются в Update() главного потока.
     /// </summary>
     public class AdsManager : MonoBehaviour
 #if SHOX_UNITY_ADS
@@ -39,10 +39,13 @@ namespace Shatranj.Core
     {
         public static AdsManager I { get; private set; }
 
-#pragma warning disable 0649, 0414 // без пакета Unity Ads часть полей не используется
-        bool initialized, loaded, loading, showing, busy;
-#pragma warning restore 0649, 0414
-        float lastShown = -9999f;
+#pragma warning disable 0649, 0414, 0169 // без пакета Unity Ads часть полей не используется
+        // флажки, которые выставляют обработчики SDK из любого потока
+        volatile bool initialized, initFailed, loaded, loadFailed, showDone;
+        volatile string lastError = "";
+        bool initRequested, loading, showing, busy;
+        float lastShown = -9999f, retryAt = -1f;
+#pragma warning restore 0649, 0414, 0169
 
         public static AdsManager Create(Transform parent)
         {
@@ -54,27 +57,85 @@ namespace Shatranj.Core
 
         static string GameId
         {
-            get { return Application.platform == RuntimePlatform.IPhonePlayer ? AdsConfig.IosGameId : AdsConfig.AndroidGameId; }
+            get
+            {
+#if UNITY_IOS
+                return AdsConfig.IosGameId;
+#else
+                return AdsConfig.AndroidGameId;
+#endif
+            }
         }
 
         static string AdUnit
         {
-            get { return Application.platform == RuntimePlatform.IPhonePlayer ? AdsConfig.IosInterstitial : AdsConfig.AndroidInterstitial; }
+            get
+            {
+#if UNITY_IOS
+                return AdsConfig.IosInterstitial;
+#else
+                return AdsConfig.AndroidInterstitial;
+#endif
+            }
         }
 
         static bool Configured { get { return !GameId.StartsWith("YOUR_"); } }
+
+        /// <summary>Короткий отчёт о состоянии рекламы (скрытая диагностика в «Об игре»).</summary>
+        public static string Status
+        {
+            get
+            {
+#if SHOX_UNITY_ADS
+                if (I == null) return "Ads: нет менеджера";
+                if (!Configured) return "Ads: не задан Game ID";
+                return "Ads " + GameId + " / " + AdUnit + (AdsConfig.TestMode ? " (test)" : "") +
+                       "\ninit: " + (I.initialized ? "OK" : I.initFailed ? "ОШИБКА" : I.initRequested ? "идёт…" : "нет") +
+                       ", ролик: " + (I.loaded ? "загружен" : I.loading ? "грузится…" : "нет") +
+                       (string.IsNullOrEmpty(I.lastError) ? "" : "\n" + I.lastError);
+#else
+                return "Ads: пакет com.unity.ads не подключён (нет SHOX_UNITY_ADS)";
+#endif
+            }
+        }
 
         void Start()
         {
 #if SHOX_UNITY_ADS
             if (!Configured)
             {
-                Debug.Log("[Ads] Unity Ads подключён, но Game ID не задан (AdsConfig). Реклама отключена.");
+                Debug.Log("[Ads] Game ID не задан (AdsConfig). Реклама отключена.");
                 return;
             }
-            if (!Advertisement.isSupported) return;
-            if (Advertisement.isInitialized) { initialized = true; Load(); }
+            if (!Advertisement.isSupported)
+            {
+                lastError = "Платформа не поддерживается";
+                return;
+            }
+            initRequested = true;
+            if (Advertisement.isInitialized) initialized = true;
             else Advertisement.Initialize(GameId, AdsConfig.TestMode, this);
+#endif
+        }
+
+        void Update()
+        {
+#if SHOX_UNITY_ADS
+            if (!initialized) return;
+            // загрузка ролика — только из главного потока
+            if (loadFailed)
+            {
+                loadFailed = false;
+                loading = false;
+                retryAt = Time.realtimeSinceStartup + 15f;
+            }
+            if (!loaded && !loading && !showing && Time.realtimeSinceStartup >= retryAt)
+            {
+                loading = true;
+                retryAt = -1f;
+                Advertisement.Load(AdUnit, this);
+            }
+            if (loaded) loading = false;
 #endif
         }
 
@@ -89,7 +150,7 @@ namespace Shatranj.Core
         {
             if (busy) return;
             bool cooldown = Time.realtimeSinceStartup - lastShown < AdsConfig.MinSecondsBetweenAds;
-            if (!initialized || cooldown)
+            if (!initRequested || initFailed || cooldown)
             {
                 if (then != null) then();
                 return;
@@ -100,67 +161,62 @@ namespace Shatranj.Core
         IEnumerator ShowRoutine(Action then)
         {
             busy = true;
-            if (!loaded && !loading) Load();
-            for (float t = 0; t < AdsConfig.LoadWaitSeconds && !loaded; t += Time.unscaledDeltaTime) yield return null;
 #if SHOX_UNITY_ADS
+            // ждём и инициализацию, и загрузку — на телефоне первая загрузка занимает несколько секунд
+            for (float t = 0; t < AdsConfig.LoadWaitSeconds && !loaded && !initFailed; t += Time.unscaledDeltaTime) yield return null;
             if (loaded)
             {
                 loaded = false;
+                showDone = false;
                 showing = true;
                 AudioListener.pause = true;
                 Advertisement.Show(AdUnit, this);
-                for (float t = 0; t < 120f && showing; t += Time.unscaledDeltaTime) yield return null;
+                for (float t = 0; t < 120f && !showDone; t += Time.unscaledDeltaTime) yield return null;
                 showing = false;
                 AudioListener.pause = false;
                 lastShown = Time.realtimeSinceStartup;
-                Load();
             }
+            else Debug.Log("[Ads] Ролик не успел загрузиться — партия начинается без рекламы. " + Status);
 #endif
             busy = false;
+            yield return null;
             if (then != null) then();
         }
 
-        void Load()
-        {
 #if SHOX_UNITY_ADS
-            if (!initialized || loading) return;
-            loading = true;
-            Advertisement.Load(AdUnit, this);
-#endif
-        }
+        // ---- обработчики SDK: могут прийти из Java-потока, поэтому только флажки и Debug.Log
 
-#if SHOX_UNITY_ADS
         public void OnInitializationComplete()
         {
-            Debug.Log("[Ads] Unity Ads инициализирован, Game ID " + GameId + (AdsConfig.TestMode ? " (тестовый режим)" : ""));
             initialized = true;
-            Load();
+            Debug.Log("[Ads] Инициализация OK, Game ID " + AdsConfig.AndroidGameId);
         }
 
         public void OnInitializationFailed(UnityAdsInitializationError error, string message)
         {
+            initFailed = true;
+            lastError = "init: " + error + " " + message;
             Debug.LogWarning("[Ads] Ошибка инициализации: " + error + " " + message);
         }
 
         public void OnUnityAdsAdLoaded(string placementId)
         {
-            Debug.Log("[Ads] Реклама загружена: " + placementId);
-            loading = false;
             loaded = true;
+            Debug.Log("[Ads] Ролик загружен: " + placementId);
         }
 
         public void OnUnityAdsFailedToLoad(string placementId, UnityAdsLoadError error, string message)
         {
-            loading = false;
             loaded = false;
+            loadFailed = true;
+            lastError = "load «" + placementId + "»: " + error + " " + message;
             Debug.LogWarning("[Ads] Не удалось загрузить «" + placementId + "»: " + error + " " + message);
-            // повторим попытку чуть позже (нет сети, нет показа и т.п.)
-            Invoke("Load", 20f);
         }
 
         public void OnUnityAdsShowFailure(string placementId, UnityAdsShowError error, string message)
         {
-            showing = false;
+            lastError = "show: " + error + " " + message;
+            showDone = true;
             Debug.LogWarning("[Ads] Ошибка показа: " + error + " " + message);
         }
 
@@ -170,7 +226,7 @@ namespace Shatranj.Core
 
         public void OnUnityAdsShowComplete(string placementId, UnityAdsShowCompletionState showCompletionState)
         {
-            showing = false;
+            showDone = true;
         }
 #endif
 
