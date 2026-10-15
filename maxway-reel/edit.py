@@ -221,6 +221,26 @@ class Clip:
 # ---------------------------------------------------------------- цвет
 
 
+# Кадр 3 в безопасной зоне: Instagram на высоких iPhone срезает ~50 px с каждой стороны,
+# поэтому ролик Maxway идёт на 90 %, а поля дорисованы продолжением его же фона.
+SAFE_SCALE, SAFE_DY = 0.90, 10
+_sw, _sh = int(round(W * SAFE_SCALE)), int(round(H * SAFE_SCALE))
+_sx0, _sy0 = (W - _sw) // 2, (H - _sh) // 2 + SAFE_DY
+SAFE_QUAD = np.float32([[_sx0, _sy0], [_sx0 + _sw, _sy0], [_sx0 + _sw, _sy0 + _sh], [_sx0, _sy0 + _sh]])
+_safe_m = np.zeros((H, W), np.float32)
+_safe_m[_sy0:_sy0 + _sh, _sx0:_sx0 + _sw] = 1
+SAFE_MASK = cv2.GaussianBlur(_safe_m, (0, 0), 2.5)[..., None]
+
+
+def safe_fit(img):
+    """Уменьшает кадр до безопасной зоны; поля — растянутый край + размытие (как продолжение фона)."""
+    sm = cv2.resize(img, (_sw, _sh), interpolation=cv2.INTER_AREA)
+    pad = cv2.copyMakeBorder(sm, _sy0, H - _sh - _sy0, _sx0, W - _sw - _sx0, cv2.BORDER_REPLICATE)
+    q = cv2.resize(pad, (W // 4, H // 4), interpolation=cv2.INTER_AREA)
+    bg = cv2.resize(cv2.GaussianBlur(q, (0, 0), 4.5), (W, H), interpolation=cv2.INTER_LINEAR)
+    return pad * SAFE_MASK + bg * (1 - SAFE_MASK)
+
+
 def make_grade():
     x = np.arange(256) / 255.0
     s = x * x * (3 - 2 * x)                 # мягкая S-кривая
@@ -252,16 +272,15 @@ HW, HH = 1080, 380
 
 
 TITLES = {
-    'posmotreli': 'ВЫ ПОСМОТРЕЛИ ЭТО?',
     'posmotrite': 'ПОСМОТРИТЕ, ЧТО Я СДЕЛАЛ!',
-    'reklama': 'Я СДЕЛАЛ ВАМ РЕКЛАМУ',
+    'uz': 'SIZ BUNI KO\u2018RDINGIZMI?',
 }
 
 
 class Header:
     """3D-заголовок «MAXWAY, / <фраза>» с побуквенной анимацией."""
 
-    def __init__(self, title='reklama', layout='full'):
+    def __init__(self, title='posmotrite', layout='full'):
         self.layout = layout
         f1 = A.font('Unbounded-900', 128)
         word = 'MAXWAY,'
@@ -397,7 +416,7 @@ def comp_rgba(dst, src):
 
 
 class Edit:
-    def __init__(self, src, track, title='reklama', layout='full'):
+    def __init__(self, src, track, title='posmotrite', layout='full'):
         self.layout = layout
         self.c1 = Clip(os.path.join(src, 'IMG_6290.mp4'))
         self.c2 = Clip(os.path.join(src, 'IMG_6298.mp4'))
@@ -498,7 +517,7 @@ class Edit:
         pre = 0.04 * ease_io((T - 4.4) / 0.9) if T < T_ZOOM0 + 0.1 else 0.04
         c = q.mean(0)
         qz = c + (q - c) * 1.0
-        d = q + (full - q) * e
+        d = q + (SAFE_QUAD - q) * e        # приземляемся сразу в безопасную зону
         if e < 1:
             Mp = cv2.getRotationMatrix2D((float(c[0]), float(c[1])), 0, 1 + pre * (1 - e))
             d = (np.hstack([d, np.ones((4, 1), np.float32)]) @ Mp.T).astype(np.float32)
@@ -560,7 +579,7 @@ class Edit:
         cv2.addWeighted(ov, a, img, 1 - a, 0, img)
 
     def fullscreen(self, T):
-        fr = self.k3.at(min(T - K3_OFF, 29.99))
+        fr = safe_fit(self.k3.at(min(T - K3_OFF, 29.99)))
         hits = [(T_LAND, 1.0), (T_DVA, 0.55), (T_DROP, 1.35)]
         e = sum(w * math.exp(-(T - t0) * 9) for t0, w in hits if T >= t0)
         sx, sy = shake(T, 26 * e)
@@ -721,7 +740,7 @@ def main():
     ap.add_argument('--workers', type=int, default=4)
     ap.add_argument('--stills', default='')
     ap.add_argument('--range', default='')
-    ap.add_argument('--title', default='reklama', help='posmotreli | posmotrite | reklama | свой текст')
+    ap.add_argument('--title', default='posmotrite', help='posmotrite | uz | свой текст')
     ap.add_argument('--layout', default='full', help='full — кадр 3 на весь экран, card — 3D-карточка')
     args = ap.parse_args()
     if args.stills:

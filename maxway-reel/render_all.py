@@ -1,7 +1,7 @@
 """Полная сборка трёх версий рилса одной командой (Windows / macOS / Linux).
 
     python render_all.py                    # всё: исходники → монтаж → 3 видео в out/
-    python render_all.py --titles reklama   # только одна версия
+    python render_all.py --titles uz         # только одна версия
     python render_all.py --workers 8        # число потоков рендера (по умолчанию — все ядра)
 
 Если исходников нет в src/, они скачиваются с Google Drive (ссылки из задания).
@@ -24,9 +24,8 @@ OUT = HERE / 'out'
 PY = sys.executable
 
 TITLES = {
-    'posmotreli': 'MAXWAY, ВЫ ПОСМОТРЕЛИ ЭТО?',
     'posmotrite': 'MAXWAY, ПОСМОТРИТЕ, ЧТО Я СДЕЛАЛ!',
-    'reklama': 'MAXWAY, Я СДЕЛАЛ ВАМ РЕКЛАМУ',
+    'uz': 'MAXWAY, SIZ BUNI KO\u2018RDINGIZMI?',
 }
 
 # исходники: имя в src/ -> (id файла на Google Drive, это zip-архив с дублями?)
