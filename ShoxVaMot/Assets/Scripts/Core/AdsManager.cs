@@ -253,8 +253,11 @@ namespace Shatranj.Core
         {
             busy = true;
 #if SHOX_UNITY_ADS
-            // ждём и инициализацию, и загрузку — на телефоне первая загрузка занимает несколько секунд
-            for (float t = 0; t < AdsConfig.LoadWaitSeconds && !loaded && !initFailed; t += Time.unscaledDeltaTime) yield return null;
+            // ждём и инициализацию, и загрузку — на телефоне первая загрузка занимает несколько секунд.
+            // Если SDK не инициализировался за 15 с после запуска (нет связи с Unity Ads), игрока не задерживаем.
+            bool stuck = !initialized && Time.realtimeSinceStartup - initStart > 15f;
+            float wait = stuck ? 0f : AdsConfig.LoadWaitSeconds;
+            for (float t = 0; t < wait && !loaded && !initFailed; t += Time.unscaledDeltaTime) yield return null;
             if (loaded)
             {
                 loaded = false;
