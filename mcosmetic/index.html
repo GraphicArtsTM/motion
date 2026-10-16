@@ -18,7 +18,9 @@ html,body{margin:0;width:1080px;height:1920px;overflow:hidden;background:#C0288B
 #root{position:relative;width:1080px;height:1920px;overflow:hidden;background:var(--hot)}
 .full{position:absolute;inset:0;pointer-events:none}
 .a{position:absolute;left:0;top:0;transform-origin:50% 50%;will-change:transform,opacity}
-.sc{position:absolute;inset:0;display:none}
+.sc{position:absolute;inset:0;display:none;z-index:3}
+#prods{z-index:2}
+#s2{z-index:1}
 #cam{position:absolute;inset:0;transform-origin:50% 50%}
 
 /* ---------- фон: лучи как на постере ---------- */
@@ -42,6 +44,10 @@ html,body{margin:0;width:1080px;height:1920px;overflow:hidden;background:#C0288B
   box-shadow:calc(var(--so) * -1) var(--so) 0 var(--shc)}
 .card.mar{background:linear-gradient(160deg,#9A1149 0%,#7A0C3A 100%)}
 .card.wht{background:linear-gradient(170deg,#FFFFFF 0%,#F6EEF4 100%);--shc:#6A0B33}
+.card:not(.cal){overflow:hidden}
+.gl{position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:0;
+  background:linear-gradient(112deg,rgba(255,255,255,0) 38%,rgba(255,255,255,.5) 47%,rgba(255,255,255,.12) 52%,rgba(255,255,255,0) 60%);background-size:320% 100%}
+.card.wht .gl{background-image:linear-gradient(112deg,rgba(255,200,230,0) 38%,rgba(255,170,215,.45) 47%,rgba(255,200,230,0) 60%)}
 .card.mag{background:linear-gradient(160deg,#D21A6A 0%,#B01258 100%);--shc:#5E0A2C;border:3px solid rgba(255,214,234,.55)}
 .mask{-webkit-mask-repeat:no-repeat;-webkit-mask-size:contain;-webkit-mask-position:center;mask-repeat:no-repeat;mask-size:contain;mask-position:center}
 .m-full{-webkit-mask-image:url(assets/logo-full.png);mask-image:url(assets/logo-full.png)}
@@ -84,8 +90,8 @@ html,body{margin:0;width:1080px;height:1920px;overflow:hidden;background:#C0288B
 #bWord{width:880px;height:133px;background:#fff}
 .word{font-weight:900;text-transform:uppercase;white-space:nowrap;letter-spacing:-.01em}
 #wSizga{font-size:84px;color:#FFE6F3;letter-spacing:.12em}
-#wMaxsus{font-size:118px;color:var(--brand);padding:8px 36px 14px;border-radius:26px}
-#wNarx{font-size:118px;color:#fff;padding:8px 36px 14px;border-radius:26px}
+#wMaxsus{font-size:108px;color:var(--brand);padding:8px 36px 14px;border-radius:26px}
+#wNarx{font-size:108px;color:#fff;padding:8px 36px 14px;border-radius:26px}
 
 .prod{width:auto;filter:drop-shadow(-14px 22px 18px rgba(70,4,40,.38))}
 .badge{width:118px;height:118px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#FF5C9A,#D8115E 70%);
@@ -97,19 +103,20 @@ html,body{margin:0;width:1080px;height:1920px;overflow:hidden;background:#C0288B
 #wAssort{font-size:88px;color:var(--rose);padding:10px 40px 18px}
 
 /* сцена 5: -50% */
-#big{width:960px;height:520px}
-#big .pct{position:absolute;left:120px;top:58px;font-weight:900;font-size:300px;letter-spacing:-.05em;color:#FCEFF6;line-height:1;white-space:nowrap}
-#big .do{position:absolute;left:62px;top:196px;font-weight:800;font-size:68px;color:#FCEFF6;line-height:1}
-#big .gacha{position:absolute;right:72px;top:46px;font-weight:800;font-size:72px;color:#FCEFF6;letter-spacing:.02em}
-#big .min{position:absolute;left:58px;top:282px;width:86px;height:40px;border-radius:8px;background:#FCEFF6}
+#big{width:940px;height:440px;display:flex;align-items:center;justify-content:center}
+#big .row{display:flex;align-items:center;gap:22px;margin-top:46px}
+#big .doCol{display:flex;flex-direction:column;align-items:center;gap:16px;margin-top:-10px}
+#big .do{font-weight:800;font-size:62px;color:#FCEFF6;line-height:1;letter-spacing:.02em}
+#big .min{width:104px;height:40px;border-radius:10px;background:#FCEFF6}
+#big .pw{position:relative}
+#big .pct{display:block;font-weight:900;font-size:290px;letter-spacing:-.04em;color:#FCEFF6;line-height:.74;white-space:nowrap;font-variant-numeric:tabular-nums}
+#big .gacha{position:absolute;right:4px;top:-92px;font-weight:800;font-size:68px;color:#FCEFF6;letter-spacing:.04em;line-height:1}
 #wCheg{font-size:96px;color:var(--rose);padding:12px 46px 20px}
 
 /* сцена 6 */
 #disc{width:960px;height:220px;display:flex;flex-direction:column;justify-content:center;padding-left:52px}
 #disc .d1{font-weight:800;font-size:46px;color:#fff;white-space:nowrap}
 #disc .d2{font-weight:600;font-size:42px;color:#FFE0EE;white-space:nowrap;margin-top:6px}
-#kar{width:980px;text-align:center;font-weight:800;font-size:62px;line-height:1.18;color:#fff}
-#kar .w{display:inline-block;margin:0 .14em}
 #shelf{width:1000px;height:40px;border-radius:20px;background:linear-gradient(180deg,rgba(255,255,255,.75),rgba(255,214,236,.35));
   box-shadow:0 18px 30px rgba(80,4,40,.35)}
 
@@ -130,6 +137,10 @@ html,body{margin:0;width:1080px;height:1920px;overflow:hidden;background:#C0288B
 
 /* частицы */
 .flw{width:120px;height:120px}
+.shock{width:400px;height:400px;border-radius:50%;border:14px solid rgba(255,244,250,.9)}
+#revRing{width:100px;height:100px;border-radius:50%;border:26px solid #fff;opacity:0}
+#oShine{width:900px;height:113px;background:linear-gradient(105deg,rgba(255,255,255,0) 40%,rgba(255,170,220,1) 50%,rgba(255,255,255,0) 60%);background-size:300% 100%}
+#tap{width:120px;height:120px;border-radius:50%;border:8px solid #fff;z-index:5}
 .glint{width:90px;height:90px}
 .conf{width:22px;height:34px;border-radius:5px}
 </style>
@@ -185,9 +196,8 @@ html,body{margin:0;width:1080px;height:1920px;overflow:hidden;background:#C0288B
     <!-- сцена 5: −50% -->
     <div class="sc" id="s5">
       <div class="a card mar" id="big">
-        <div class="do">ДО</div><div class="min"></div>
-        <div class="pct" id="pct">50%</div>
-        <div class="gacha">GACHA</div>
+        <div class="row"><div class="doCol"><div class="do">ДО</div><div class="min"></div></div>
+        <div class="pw"><div class="gacha">GACHA</div><div class="pct" id="pct">50%</div></div></div>
       </div>
       <div class="a word card wht" id="wCheg">CHEGIRMALAR!</div>
     </div>
@@ -198,7 +208,6 @@ html,body{margin:0;width:1080px;height:1920px;overflow:hidden;background:#C0288B
         <div class="d1">*cheklangan assortiment uchun</div>
         <div class="d2">на ограниченный ассортимент</div>
       </div>
-      <div class="a" id="kar"><span class="w">Taklif</span><span class="w">faqat</span><span class="w">mahsulot</span><br><span class="w">mavjud</span><span class="w">boʻlganda</span><span class="w">amalda</span></div>
       <div class="a" id="shelf"></div>
     </div>
 
@@ -218,16 +227,18 @@ html,body{margin:0;width:1080px;height:1920px;overflow:hidden;background:#C0288B
     <!-- сцена 7: финал -->
     <div class="sc" id="s7">
       <div class="a mask m-full" id="oLogo"></div>
+      <div class="a mask m-full" id="oShine"></div>
+      <div class="a" id="tap"></div>
       <div class="a word card wht" id="oMega">MEGA CHEGIRMA</div>
       <div class="a" id="oDates">HAR OYNING<span class="pill">25-26</span>KUNLARI</div>
-      <div class="a" id="oSticker"><i>GACHA</i><b>-50%</b></div>
+      <div class="a" id="oSticker"><i>GACHA</i><b>−50%</b></div>
       <div class="a" id="oSite"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.6 3.8 5.6 3.8 9s-1.2 6.4-3.8 9M12 3c-2.6 2.6-3.8 5.6-3.8 9s1.2 6.4 3.8 9"/></svg>mcosmetic.uz</div>
       <div class="a" id="fine">Aksiya tashkilotchisi «SFERA VOSTOK» MChJ XK. Tashkilotchi aksiya oʻtkazish muddatlari va qoidalarini oldindan xabardor qilmasdan, bir tomonlama tartibda oʻzgartirish huquqiga ega. Aksiyaning batafsil shartlari www.mcosmetic.uz saytida joylashtirilgan.</div>
     </div>
   </div>
 
   <!-- частицы поверх -->
-  <div class="full" id="fx"></div>
+  <div class="full" id="fx"><div class="a" id="revRing"></div></div>
   <div class="full" id="vig"></div>
   <div class="full" id="dark"></div>
   <div class="full" id="flash"></div>

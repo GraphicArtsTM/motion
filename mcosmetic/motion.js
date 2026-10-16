@@ -67,7 +67,7 @@ function S(el, o) {
   if (f || el.dataset.f) { el.style.filter = f || ''; el.dataset.f = f ? 1 : ''; }
 }
 const so = (el, v) => el.style.setProperty('--so', v.toFixed(1) + 'px');
-const show = (el, on) => { el.style.display = on ? 'block' : 'none'; };
+const show = (el, on, disp = 'block') => { el.style.display = on ? disp : 'none'; };
 
 /* ---------- графика: цветок с постера, блик ---------- */
 let gid = 0;
@@ -89,16 +89,25 @@ const GLINT = '<svg viewBox="0 0 100 100" width="100%" height="100%" style="over
 const el = {};
 for (const id of ['root', 'cam', 'rays', 'raysGlow', 'magenta', 'magRays', 'logoCard', 's2', 's3', 's4', 's5', 's6', 's7',
   'cal25', 'cal26', 'blk', 'hl', 'hlMega', 'hlCheg', 'bIcon', 'bWord', 'wSizga', 'wMaxsus', 'wNarx', 'wChek', 'wAssort',
-  'big', 'pct', 'wCheg', 'disc', 'kar', 'shelf', 'oLogo', 'oMega', 'oDates', 'oSticker', 'oSite', 'fine',
-  'fx', 'bgFlowers', 'flash', 'dark', 'grain', 'vig']) el[id] = document.getElementById(id);
+  'big', 'pct', 'wCheg', 'disc', 'shelf', 'oLogo', 'oShine', 'tap', 'oMega', 'oDates', 'oSticker', 'oSite', 'fine',
+  'fx', 'revRing', 'bgFlowers', 'flash', 'dark', 'grain', 'vig']) el[id] = document.getElementById(id);
 
 function splitChars(node) {
   const txt = node.textContent; node.textContent = '';
   return [...txt].map(c => { const s = document.createElement('span'); s.className = c === ' ' ? 'sp' : 'ch'; s.textContent = c === ' ' ? '' : c; node.appendChild(s); return s; });
 }
 const chMega = splitChars(el.hlMega), chCheg = splitChars(el.hlCheg);
-const karW = [...el.kar.querySelectorAll('.w')];
-const KAR_T = [10.16, 10.48, 10.82, 11.22, 11.48, 11.9];   // слова диктора (голос + 1,0 с)
+
+/* блик, пробегающий по карточке после удара */
+const GL = {};
+for (const id of ['logoCard', 'hl', 'blk', 'wMaxsus', 'wNarx', 'wChek', 'wAssort', 'big', 'wCheg', 'disc', 'oMega']) {
+  const g = document.createElement('div'); g.className = 'gl'; el[id].appendChild(g); GL[id] = g;
+}
+function gloss(id, t, t0, d = .7) {
+  const p = P(t, t0, d), g = GL[id];
+  g.style.opacity = p > 0 && p < 1 ? 1 : 0;
+  g.style.backgroundPosition = lerp(135, -35, E.inOutCubic(p)).toFixed(1) + '% 0';
+}
 
 const PRODS = ['pLip', 'pPump', 'pPerf', 'pTube', 'pSerum', 'pBrush', 'pDryer'].map(id => document.getElementById(id));
 const PH = [400, 430, 330, 380, 380, 380, 360];          // высоты из CSS
@@ -115,11 +124,11 @@ const AMB = [];
     AMB.push({ d, x, y, s, ph: r() * 6.28, sp: .4 + r() * .5, rot: r() * 90, vr: (r() - .5) * 30, blur: s > 200 ? 3 : 0 });
   }
 }
-/* всплески цветов на ударах */
+/* всплески цветов на ударах (за надписями) */
 const BURSTS = [
-  { t: 0.6, x: 540, y: 800, n: 8, v: 1700 }, { t: 1.6, x: 540, y: 1250, n: 5, v: 1200 }, { t: 2.6, x: 740, y: 1250, n: 5, v: 1200 },
-  { t: 3.6, x: 540, y: 1060, n: 6, v: 1500 }, { t: 4.1, x: 540, y: 760, n: 7, v: 1500 }, { t: 8.1, x: 540, y: 900, n: 10, v: 2200 },
-  { t: 9.04, x: 540, y: 1330, n: 5, v: 1300 }, { t: 12.6, x: 540, y: 760, n: 8, v: 1800 }];
+  { t: 0.6, x: 540, y: 820, n: 8, v: 1700 }, { t: 1.6, x: 540, y: 1300, n: 5, v: 1200 }, { t: 2.6, x: 760, y: 1300, n: 5, v: 1200 },
+  { t: 3.6, x: 540, y: 1040, n: 6, v: 1500 }, { t: 4.1, x: 540, y: 720, n: 7, v: 1500 }, { t: 8.1, x: 540, y: 900, n: 10, v: 2200 },
+  { t: 9.04, x: 540, y: 1330, n: 5, v: 1300 }, { t: 12.6, x: 540, y: 700, n: 8, v: 1800 }];
 const PARTS = [];
 {
   const r = rng(5);
@@ -141,9 +150,13 @@ const CONF = [];
     CONF.push({ d, t0: rain ? 12.6 + r() * .5 : 8.1, rain, a: r() * Math.PI * 2, v: 900 + r() * 1500, x0: r() * W, vr: (r() - .5) * 900, fl: 4 + r() * 6, ph: r() * 6, sw: 30 + r() * 60 });
   }
 }
+/* ударные волны */
+const SHOCKS = [[0.6, 540, 820, 1], [3.6, 540, 1040, .8], [8.1, 540, 900, 1.3], [9.04, 540, 1330, .6], [12.65, 540, 690, 1]].map(([t, x, y, k]) => {
+  const d = document.createElement('div'); d.className = 'a shock'; el.fx.appendChild(d); return { d, t, x, y, k };
+});
 /* блики-звёздочки */
-const GLINTS = [[4.45, 300, 640, 120], [4.62, 830, 870, 90], [4.85, 700, 560, 70], [5.7, 880, 1400, 80], [8.42, 880, 660, 120], [8.58, 190, 1120, 90],
-  [9.3, 820, 1250, 80], [11.2, 300, 1330, 80], [11.6, 780, 1300, 70], [13.15, 930, 620, 110], [13.45, 140, 760, 80], [14.1, 610, 600, 70], [14.8, 880, 1250, 90]].map(([t, x, y, s]) => {
+const GLINTS = [[4.45, 300, 600, 120], [4.62, 830, 830, 90], [4.85, 700, 520, 70], [5.75, 860, 1350, 80], [8.42, 900, 700, 120], [8.58, 160, 1080, 90],
+  [9.3, 850, 1290, 80], [10.9, 880, 470, 90], [11.5, 170, 1000, 80], [13.15, 930, 620, 110], [13.45, 140, 760, 80], [14.1, 610, 600, 70], [14.8, 880, 1250, 90], [15.4, 300, 640, 80]].map(([t, x, y, s]) => {
   const d = document.createElement('div'); d.className = 'a glint'; d.innerHTML = GLINT; d.style.width = d.style.height = s + 'px'; el.fx.appendChild(d);
   return { d, t, x, y };
 });
@@ -157,7 +170,7 @@ const GLINTS = [[4.45, 300, 640, 120], [4.62, 830, 870, 90], [4.85, 700, 560, 70
 }
 
 /* ---------- камера: тряска и «пинок» на ударах ---------- */
-const HITS = [[0.6, 26], [0.85, 16], [1.6, 12], [2.6, 12], [3.6, 18], [4.1, 14], [8.1, 38], [9.04, 18], [12.6, 22]];
+const HITS = [[0.6, 26], [0.85, 16], [1.6, 12], [2.6, 12], [3.6, 18], [4.1, 14], [8.1, 38], [9.04, 18], [12.65, 22]];
 function camAt(t) {
   let x = 0, y = 0, r = 0, s = 1;
   HITS.forEach(([h, a], i) => {
@@ -189,240 +202,271 @@ const RAY_ANG = [];
 const rayAng = t => RAY_ANG[clamp(Math.round(t * 240), 0, RAY_ANG.length - 1)];
 
 /* ---------- раскладки товаров по сценам ---------- */
+const mixO = (a, b, k) => ({ x: lerp(a.x, b.x, k), y: lerp(a.y, b.y, k), r: lerp(a.r, b.r, k), s: lerp(a.s, b.s, k), o: lerp(a.o, b.o, k) });
+// S2: ряд товаров под блоком «HAR 25-26» (3,6–4,1), затем уходят вниз вместе с рывком камеры
+const ROW2 = { 2: 0, 3: 1, 4: 2, 5: 3, 0: 4, 1: 5 };
 // S3: товары обрамляют слова
-const L3 = [[105, 1330, -12, .8], [975, 1320, 12, .8], [270, 1650, -8, .9], [810, 1660, 9, .88], [540, 2400, 0, .8], [1300, 1500, 0, .8], [-300, 1500, 0, .8]];
+const L3 = [[105, 1330, -12, .8], [975, 1320, 12, .8], [270, 1650, -8, .9], [810, 1660, 9, .88]];
 const FROM3 = [[-260, 1100, -60], [1340, 1000, 60], [-260, 1900, -40], [1340, 1950, 50]];
+// S6: полка
+const SHELF = [1, 4, 0, 2, 3, 5, -1];   // слот для каждого товара (-1 — уходит)
+
 function prodLayout(i, t) {
   const r = rng(100 + i);
   const ph = r() * 6.28;
   const bob = Math.sin(t * 2.1 + ph) * 14, sway = Math.sin(t * 1.6 + ph) * 3;
+  const hid = { x: 540, y: 2400, r: 0, s: .6, o: 0 };
+  let o = hid;
+  // S2: ряд снизу
+  if (t >= 3.5 && t < 4.1 && i in ROW2) {
+    const slot = ROW2[i];
+    const tgt = { x: 115 + slot * 170, y: 1470 - PH[i] * .58 / 2 + bob * .5, r: (slot - 2.5) * 3, s: .58, o: 1 };
+    const k = E.outBackS(P(t, 3.6 + slot * .04, .45));
+    o = mixO({ x: tgt.x, y: 2150, r: (slot - 2.5) * 12, s: .58, o: 1 }, tgt, k);
+    if (t < 3.6 + slot * .04) o.o = 0;
+  }
   // S3
-  let o = { x: L3[i][0], y: L3[i][1] + bob, r: L3[i][2] + sway, s: L3[i][3], o: 1 };
-  if (i < 4) {
-    const k = E.outBack(P(t, 4.5 + i * .09, .55));
-    const f = FROM3[i];
-    o.x = lerp(f[0], o.x, k); o.y = lerp(f[1], o.y, k); o.r = lerp(f[2], o.r, k);
+  if (t >= 4.1 && i < 4) {
+    const k = E.outBack(P(t, 4.5 + i * .09, .55)), f = FROM3[i];
+    const tgt = { x: L3[i][0], y: L3[i][1] + bob, r: L3[i][2] + sway, s: L3[i][3], o: 1 };
+    o = mixO({ x: f[0], y: f[1], r: f[2], s: tgt.s, o: 1 }, tgt, k);
     if (t < 4.5 + i * .09) o.o = 0;
-  } else o.o = 0;
+  } else if (t >= 4.1) o = hid;
   // S4: карусель
   if (t >= 6.8) {
-    const d = t - 6.85;
+    const d = Math.max(0, t - 6.85);
     const scroll = 260 * d + 180 * d * d;
-    const cx = 540 + (i - 3) * 300 + 420 - scroll;
-    const tgt = { x: cx, y: 1330 + Math.sin(t * 5 + i) * 10, r: Math.sin(t * 6 + i * 1.3) * 6, s: .74, o: 1 };
+    const tgt = { x: 540 + (i - 3) * 330 + 380 - scroll, y: 1250 + Math.sin(t * 5 + i) * 10, r: Math.sin(t * 6 + i * 1.3) * 6, s: .9, o: 1 };
     const k = E.outExpo(P(t, 6.85 + i * .03, .45));
-    const src = i < 4 ? o : { x: 1300 + i * 120, y: 1330, r: 20, s: .74, o: 1 };
-    o = { x: lerp(src.x, tgt.x, k), y: lerp(src.y, tgt.y, k), r: lerp(src.r, tgt.r, k), s: lerp(src.s, tgt.s, k), o: 1 };
+    const src = i < 4 ? o : { x: 1300 + i * 120, y: 1250, r: 20, s: .9, o: 1 };
+    o = mixO(src, tgt, k);
     // имплозия к центру
     const im = E.inExpo(P(t, 7.82, .28));
     o.x = lerp(o.x, 540, im); o.y = lerp(o.y, 960, im); o.s *= 1 - .85 * im; o.r += 200 * im;
   }
-  // S5: орбита вокруг −50%
+  // S5: орбита вокруг −50% (за карточкой)
   if (t >= 8.1) {
     const d = t - 8.1;
     const th = i / 7 * Math.PI * 2 - Math.PI / 2 + d * .55 + .3;
-    const ox = 540 + 500 * Math.cos(th), oy = 930 + 720 * Math.sin(th);
+    const ox = 540 + 500 * Math.cos(th), oy = 930 + 650 * Math.sin(th);
     const k = E.outExpo(P(t, 8.1, .7));
     o = { x: lerp(540, ox, k), y: lerp(960, oy, k), r: lerp(400, Math.sin(t * 3 + i) * 10, k), s: lerp(.1, .66 + .06 * Math.sin(th), k), o: 1 };
   }
   // S6: полка
   if (t >= 10.0) {
-    const order = [5, 0, 2, 3, 4, 1, 6];
-    const slot = order.indexOf(i);
-    const sc = .56;
-    const tgt = { x: 100 + slot * 147, y: 1548 - PH[i] * sc / 2 + Math.sin(t * 2 + i) * 3, r: 0, s: sc, o: 1 };
-    const k = E.outBack(P(t, 10.05 + slot * .05, .6));
-    o = { x: lerp(o.x, tgt.x, k), y: lerp(o.y, tgt.y, k), r: lerp(o.r, tgt.r, k), s: lerp(o.s, tgt.s, k), o: 1 };
+    const slot = SHELF[i];
+    const sc = .66;
+    const tgt = slot < 0 ? { x: 1400, y: 1500, r: 40, s: .6, o: 1 } : { x: 115 + slot * 170, y: 1612 - PH[i] * sc / 2 + Math.sin(t * 2 + i) * 3, r: 0, s: sc, o: 1 };
+    const k = slot < 0 ? E.inOutCubic(P(t, 10.05, .5)) : E.outBack(P(t, 10.1 + slot * .05, .6));
+    o = mixO(o, tgt, k);
   }
   // S7: две позиции по бокам, остальные уходят вниз
-  if (t >= 12.5) {
+  if (t >= 12.4) {
     const keep = { 0: [118, 1240, -12, .78], 1: [968, 1215, 12, .78] }[i];
-    const k = E.outExpo(P(t, 12.55 + i * .03, .7));
     if (keep) {
-      const tgt = { x: keep[0], y: keep[1] + bob * .6, r: keep[2] + sway, s: keep[3] };
-      o = { x: lerp(o.x, tgt.x, k), y: lerp(o.y, tgt.y, k), r: lerp(o.r, tgt.r, k), s: lerp(o.s, tgt.s, k), o: 1 };
+      const k = E.outExpo(P(t, 12.55 + i * .03, .7));
+      o = mixO(o, { x: keep[0], y: keep[1] + bob * .6, r: keep[2] + sway, s: keep[3], o: 1 }, k);
     } else {
-      const k2 = E.inCubic(P(t, 12.45 + i * .02, .35));
-      o.y += 900 * k2; o.r += 40 * k2; o.o = 1 - k2;
+      const k2 = E.inCubic(P(t, 12.4 + i * .02, .3));
+      o.y += 900 * k2; o.r += 40 * k2; o.o *= 1 - k2;
     }
   }
   return o;
+}
+
+/* круговое раскрытие пурпурного фона с белой кромкой */
+function reveal(t, t0) {
+  const rr = tw(t, t0, .5, 0, 1650, E.outCubic);
+  return { rr, clip: 'circle(' + rr.toFixed(1) + 'px at 540px 760px)' };
 }
 
 /* ---------- кадр ---------- */
 function renderAt(t) {
   /* фон */
   const ra = rayAng(t);
-  const rayC = { x: 540, y: kf(t, [[0, 1010], [1.1, 1010], [1.5, 1060], [3.5, 1060], [3.8, 1000], [8.0, 960], [8.1, 900], [10.1, 900], [10.5, 980]]) };
-  const bloom = kf(t, [[0, .15], [0.6, 1, E.outExpo]]);
+  const rayC = { x: 540, y: kf(t, [[0, 1010], [1.1, 1010], [1.5, 1080], [3.5, 1080], [3.8, 1040], [8.0, 960], [8.1, 900], [10.1, 900], [10.6, 1300]]) };
+  const bloom = kf(t, [[0, .7], [0.6, 1, E.outExpo]]);
   S(el.rays, { x: rayC.x, y: rayC.y, r: ra, s: bloom });
   S(el.raysGlow, { x: rayC.x, y: rayC.y, s: 1 + .06 * beatPulse(t, 8) * (t > 8.1 && t < 12.6 ? 1 : .3) });
 
   // пурпурный фон бренда: сцена 3 (круг из центра → уезжает вверх) и финал
-  let magO = 0, clip = 'none', magY = 0;
-  if (t >= 3.95 && t < 7.2) {
+  let magO = 0, clip = 'none', magY = 0, ring = null;
+  if (t >= 3.9 && t < 7.2) {
     magO = 1;
-    const rr = tw(t, 3.95, .45, 0, 1500, E.outCubic);
-    clip = 'circle(' + rr.toFixed(1) + 'px at 540px 760px)';
+    const rv = reveal(t, 3.9); clip = rv.clip; ring = { rr: rv.rr, k: P(t, 3.9, .5) };
     magY = -1980 * E.inOutExpo(P(t, 6.82, .4));
   }
-  if (t >= 12.55) {
+  if (t >= 12.5) {
     magO = 1;
-    const rr = tw(t, 12.55, .5, 0, 1600, E.outCubic);
-    clip = 'circle(' + rr.toFixed(1) + 'px at 540px 760px)';
+    const rv = reveal(t, 12.5); clip = rv.clip; ring = { rr: rv.rr, k: P(t, 12.5, .5) };
   }
   el.magenta.style.opacity = magO; el.magenta.style.clipPath = clip;
   el.magenta.style.transform = 'translateY(' + magY.toFixed(1) + 'px)';
   S(el.magRays, { x: 540, y: 760, r: -ra * .6 });
+  if (ring && ring.k < 1) {
+    const d = 2 * ring.rr + 30;
+    el.revRing.style.width = el.revRing.style.height = d.toFixed(0) + 'px';
+    S(el.revRing, { x: 540, y: 760, o: 1 - E.inQuad(ring.k) });
+  } else el.revRing.style.visibility = 'hidden';
 
   /* камера */
   const c = camAt(t);
-  // переход 3,85–4,1: рывок камеры вперёд
-  const whip = P(t, 3.85, .25);
-  const zoomOut = t < 4.1 ? E.inExpo(whip) : 0;
+  // переход 3,85–4,1: рывок камеры вперёд в «пурпурный» круг
+  const zoomOut = t < 4.1 ? E.inExpo(P(t, 3.85, .25)) : 0;
   el.cam.style.transform = 'translate(' + c.x.toFixed(2) + 'px,' + c.y.toFixed(2) + 'px) rotate(' + c.r.toFixed(3) + 'deg) scale(' + (c.s + 1.6 * zoomOut).toFixed(4) + ')';
   el.cam.style.filter = zoomOut > .05 ? 'blur(' + (zoomOut * 14).toFixed(1) + 'px)' : '';
 
   /* плашка логотипа (сцены 1–2) */
-  show(el.logoCard, t < 4.15);
-  if (t < 4.15) {
-    const k = E.outBackS(P(t, 0.18, .55));
-    S(el.logoCard, { x: 540, y: lerp(-160, 330, k), r: lerp(-8, -2, k) + bump(t, 0.6, 2, 18, 8), s: 1 });
-    so(el.logoCard, 18 * E.outExpo(P(t, 0.45, .4)));
+  const on1 = t < 4.1;
+  show(el.logoCard, on1, 'flex');
+  if (on1) {
+    const k = E.outBackS(P(t, 0.0, .5));
+    S(el.logoCard, { x: 540, y: lerp(250, 330, k), r: lerp(-6, -2, k) + bump(t, 0.6, 2, 18, 8), s: lerp(.86, 1, k) });
+    so(el.logoCard, 18 * E.outExpo(P(t, 0.2, .4)));
+    gloss('logoCard', t, 0.35, .8);
   }
 
   /* ---------- сцена 2 ---------- */
-  show(el.s2, t >= 0.5 && t < 4.15);
-  if (t >= 0.5 && t < 4.15) {
+  const on2 = t >= 0.5 && t < 4.1;
+  show(el.s2, on2);
+  if (on2) {
     // MEGA CHEGIRMA: удар, потом уезжает наверх
     const k1 = E.outExpo(P(t, 0.6, .35));
     const up = E.inOutCubic(P(t, 1.1, .45));
-    const hy = lerp(820, 650, up), hs = lerp(1, .72, up);
-    S(el.hl, { x: 540, y: hy, r: -3 + bump(t, 0.6, 4, 16, 7) + bump(t, 0.85, -2, 16, 7), s: hs * lerp(2.4, 1, k1) * (1 + .035 * bump(t, 3.6, 1, 22, 9)), o: P(t, 0.6, .06), b: 20 * (1 - k1) });
+    S(el.hl, { x: 540, y: lerp(820, 660, up), r: -3 + bump(t, 0.6, 4, 16, 7) + bump(t, 0.85, -2, 16, 7), s: lerp(1, .8, up) * lerp(2.4, 1, k1) * (1 + .035 * bump(t, 3.6, 1, 22, 9)), o: P(t, 0.6, .06), b: 20 * (1 - k1) });
     so(el.hl, 22 * E.outBack(P(t, 0.7, .35)));
+    gloss('hl', t, 1.0, .7);
     chMega.forEach((ch, i) => { const k = E.outBackS(P(t, 0.6 + i * .035, .4)); ch.style.transform = 'translateY(' + lerp(120, 0, k).toFixed(1) + 'px) scale(' + lerp(.2, 1, Math.min(1, k)).toFixed(3) + ')'; ch.style.opacity = P(t, .6 + i * .035, .08); });
     chCheg.forEach((ch, i) => { const k = E.outBackS(P(t, 0.85 + i * .028, .4)); ch.style.transform = 'translateY(' + lerp(120, 0, k).toFixed(1) + 'px) scale(' + lerp(.2, 1, Math.min(1, k)).toFixed(3) + ')'; ch.style.opacity = P(t, .85 + i * .028, .08); });
 
-    // календари «25» и «26»
+    // календари «25» и «26»: перелистываются, потом сжимаются в плашку «25-26»
     const merge = E.inOutExpo(P(t, 3.35, .3));
     const c25in = E.outBack(P(t, 1.6, .5)), c26in = E.outBack(P(t, 2.6, .5));
     const spread = E.outExpo(P(t, 2.6, .5));
     S(el.cal25, {
-      x: lerp(lerp(540, 330, spread), 430, merge), y: lerp(lerp(1500, 1250, c25in), 930, merge) + Math.sin(t * 3) * 6,
+      x: lerp(lerp(540, 325, spread), 455, merge), y: lerp(lerp(1600, 1300, c25in), 985, merge) + Math.sin(t * 3) * 6,
       rx: lerp(-95, 0, Math.min(1, c25in)), r: lerp(0, -7, spread) + bump(t, 1.6, 4, 14, 6),
-      s: lerp(1, .26, merge), o: P(t, 1.6, .08) * (1 - P(t, 3.55, .08)),
+      s: lerp(1.12, .22, merge), o: P(t, 1.6, .08) * (1 - P(t, 3.55, .08)),
     });
     S(el.cal26, {
-      x: lerp(750, 470, merge), y: lerp(lerp(1500, 1250, c26in), 930, merge) + Math.sin(t * 3 + 1) * 6,
+      x: lerp(760, 495, merge), y: lerp(lerp(1600, 1300, c26in), 985, merge) + Math.sin(t * 3 + 1) * 6,
       rx: lerp(-95, 0, Math.min(1, c26in)), r: 7 + bump(t, 2.6, -4, 14, 6),
-      s: lerp(1, .26, merge), o: P(t, 2.6, .08) * (1 - P(t, 3.55, .08)),
+      s: lerp(1.12, .22, merge), o: P(t, 2.6, .08) * (1 - P(t, 3.55, .08)),
     });
     so(el.cal25, 16); so(el.cal26, 16);
 
     // блок HAR 25-26 KUNLARI
     const kb = E.outBackS(P(t, 3.55, .45));
-    S(el.blk, { x: 540, y: 1010, r: lerp(10, -2, kb), s: lerp(.3, 1, kb), o: P(t, 3.55, .06) });
+    S(el.blk, { x: 540, y: 1040, r: lerp(10, -2, kb), s: lerp(.3, 1, kb), o: P(t, 3.55, .06) });
     so(el.blk, 20 * E.outExpo(P(t, 3.7, .3)));
+    gloss('blk', t, 3.7, .6);
   }
 
   /* ---------- сцена 3: бренд ---------- */
-  show(el.s3, t >= 4.0 && t < 7.2);
-  if (t >= 4.0 && t < 7.2) {
-    const out = E.inOutExpo(P(t, 6.82, .4));
-    const oy = -1980 * out;
-    const ki = E.outBackS(P(t, 4.1, .55));
-    S(el.bIcon, { x: 540, y: 600 + oy, r: lerp(-200, 0, E.outExpo(P(t, 4.1, .6))), s: lerp(0, 1, ki) * (1 + .05 * bump(t, 5.6, 1, 20, 8)), o: P(t, 4.1, .05) });
-    const kw = E.outExpo(P(t, 4.22, .5));
+  const on3 = t >= 4.0 && t < 7.2;
+  show(el.s3, on3);
+  if (on3) {
+    const oy = -1980 * E.inOutExpo(P(t, 6.82, .4));
+    const ki = E.outBackS(P(t, 4.05, .5));
+    S(el.bIcon, { x: 540, y: 600 + oy, r: lerp(-200, 0, E.outExpo(P(t, 4.05, .55))), s: lerp(.15, 1, ki) * (1 + .05 * bump(t, 5.6, 1, 20, 8)), o: P(t, 4.05, .04) });
+    const kw = E.outExpo(P(t, 4.15, .5));
     el.bWord.style.clipPath = 'inset(0 ' + (100 * (1 - kw)).toFixed(2) + '% 0 0)';
-    S(el.bWord, { x: lerp(500, 540, kw), y: 845 + oy, o: P(t, 4.22, .05) });
+    S(el.bWord, { x: lerp(500, 540, kw), y: 845 + oy, o: P(t, 4.15, .05) });
     // слова: SIZGA → MAXSUS → NARXLAR
-    const w = (node, t0, y, from) => {
+    const w = (node, t0, y, from, rEnd) => {
       const k = E.outBackS(P(t, t0, .42));
-      S(node, { x: lerp(from, 540, E.outExpo(P(t, t0, .4))), y: y + oy, r: lerp(from > 540 ? 12 : -12, node === el.wSizga ? 0 : (node === el.wNarx ? 2 : -2), k), s: lerp(.4, 1, k) * (1 + .03 * bump(t, t0 + .5, 1, 20, 6)), o: P(t, t0, .06) });
+      S(node, { x: lerp(from, 540, E.outExpo(P(t, t0, .4))), y: y + oy, r: lerp(from > 540 ? 12 : -12, rEnd, k), s: lerp(.4, 1, k) * (1 + .03 * bump(t, t0 + .5, 1, 20, 6)), o: P(t, t0, .06) });
       if (node !== el.wSizga) so(node, 16 * E.outExpo(P(t, t0 + .1, .3)));
     };
-    w(el.wSizga, 4.96, 1035, 540);
-    w(el.wMaxsus, 5.32, 1180, -400);
-    w(el.wNarx, 5.64, 1345, 1480);
+    w(el.wSizga, 4.96, 1035, 540, 0);
+    w(el.wMaxsus, 5.32, 1180, -400, -2);
+    w(el.wNarx, 5.64, 1345, 1480, 2);
+    gloss('wMaxsus', t, 5.5, .6); gloss('wNarx', t, 5.85, .6);
   }
 
   /* ---------- сцена 4: cheklangan assortimentga ---------- */
-  show(el.s4, t >= 6.85 && t < 8.15);
-  if (t >= 6.85 && t < 8.15) {
+  const on4 = t >= 6.85 && t < 8.15;
+  show(el.s4, on4);
+  if (on4) {
     const im = E.inExpo(P(t, 7.82, .28));
     const k1 = E.outBackS(P(t, 6.94, .45)), k2 = E.outBackS(P(t, 7.56, .42));
     const jit = 1 + .03 * E.inQuad(P(t, 7.3, .6)) * Math.sin(t * 90);
-    S(el.wChek, { x: lerp(540, 540, im), y: lerp(lerp(560, 760, k1), 960, im), r: lerp(-14, -3, k1), s: lerp(.3, 1, k1) * (1 - .9 * im) * jit, o: P(t, 6.94, .06) });
-    S(el.wAssort, { x: lerp(lerp(1500, 540, E.outExpo(P(t, 7.56, .4))), 540, im), y: lerp(925, 960, im), r: lerp(10, 2, k2), s: lerp(.4, 1, k2) * (1 - .9 * im) * jit, o: P(t, 7.56, .06) });
+    S(el.wChek, { x: 540, y: lerp(lerp(460, 660, k1), 960, im), r: lerp(-14, -3, k1), s: lerp(.3, 1, k1) * (1 - .9 * im) * jit, o: P(t, 6.94, .06) });
+    S(el.wAssort, { x: lerp(lerp(1500, 540, E.outExpo(P(t, 7.56, .4))), 540, im), y: lerp(825, 960, im), r: lerp(10, 2, k2), s: lerp(.4, 1, k2) * (1 - .9 * im) * jit, o: P(t, 7.56, .06) });
     so(el.wChek, 16 * E.outExpo(P(t, 7.0, .3))); so(el.wAssort, 16 * E.outExpo(P(t, 7.62, .3)));
+    gloss('wChek', t, 7.1, .6); gloss('wAssort', t, 7.68, .5);
   }
 
-  /* ---------- сцена 5: −50% ---------- */
-  show(el.s5, t >= 8.05 && t < 12.65);
-  if (t >= 8.05 && t < 12.65) {
+  /* ---------- сцена 5: −50% (карточка остаётся и в сцене 6) ---------- */
+  const on5 = t >= 8.05 && t < 12.7;
+  show(el.s5, on5);
+  if (on5) {
     const k = E.outExpo(P(t, 8.1, .3));
     const shrink = E.inOutCubic(P(t, 10.1, .5));
-    const outro = E.inExpo(P(t, 12.4, .25));
+    const outro = E.inExpo(P(t, 12.28, .26));
     const pulse = t < 10.1 ? .025 * beatPulse(t, 10) : 0;
     S(el.big, {
-      x: 540, y: lerp(900, 560, shrink) - 600 * outro, r: lerp(-4, -3, shrink) + bump(t, 8.1, 6, 18, 6),
-      s: lerp(3.2, 1, k) * lerp(1, .62, shrink) * (1 + pulse), o: P(t, 8.08, .05) * (1 - outro), b: 24 * (1 - k),
+      x: 540, y: lerp(900, 600, shrink) - 700 * outro, r: lerp(-4, -3, shrink) + bump(t, 8.1, 6, 18, 6),
+      s: lerp(3.2, 1, k) * lerp(1, .78, shrink) * (1 + pulse), o: P(t, 8.08, .05), b: 24 * (1 - k),
     });
     so(el.big, 26 * E.outBack(P(t, 8.2, .35)));
-    // счётчик 0 → 50
-    const n = Math.round(50 * E.outExpo(P(t, 8.1, .42)));
-    el.pct.textContent = n + '%';
+    gloss('big', t, 8.5, .7);
+    // счётчик 10 → 50 (две цифры — ширина не прыгает)
+    el.pct.textContent = Math.round(10 + 40 * E.outExpo(P(t, 8.1, .42))) + '%';
     // CHEGIRMALAR!
     const kc = E.outBackS(P(t, 9.04, .42)), oc = E.inExpo(P(t, 9.95, .25));
-    S(el.wCheg, { x: 540, y: lerp(1500, 1330, kc) + 500 * oc, r: lerp(12, -3, kc) + bump(t, 9.04, 3, 18, 6), s: lerp(.3, 1, kc) * (1 + .03 * beatPulse(t, 12) * (t > 9.4 ? 1 : 0)), o: P(t, 9.04, .06) * (1 - oc) });
+    S(el.wCheg, { x: 540, y: lerp(1500, 1330, kc) + 600 * oc, r: lerp(12, -3, kc) + bump(t, 9.04, 3, 18, 6), s: lerp(.3, 1, kc) * (1 + .03 * beatPulse(t, 12) * (t > 9.4 ? 1 : 0)), o: P(t, 9.04, .06) * (1 - oc) });
     so(el.wCheg, 18 * E.outExpo(P(t, 9.12, .3)));
+    gloss('wCheg', t, 9.3, .6);
   }
 
   /* ---------- сцена 6: условия ---------- */
-  show(el.s6, t >= 10.05 && t < 12.65);
-  if (t >= 10.05 && t < 12.65) {
-    const outro = E.inExpo(P(t, 12.4, .25));
-    const kd = E.outBackS(P(t, 10.1, .5));
-    S(el.disc, { x: lerp(-600, 540, E.outExpo(P(t, 10.1, .5))), y: 905 - 300 * outro, r: lerp(-10, -2, kd), s: lerp(.6, 1, kd), o: 1 - outro });
-    so(el.disc, 18 * E.outExpo(P(t, 10.2, .35)));
-    S(el.kar, { x: 540, y: 1135 + 300 * outro, o: P(t, 10.1, .2) * (1 - outro) });
-    karW.forEach((w, i) => {
-      const t0 = KAR_T[i] - .05, k = E.outBack(P(t, t0, .3));
-      const on = t >= t0;
-      w.style.opacity = (on ? .45 + .55 * k : .3).toFixed(3);
-      w.style.transform = 'translateY(' + (on ? lerp(18, 0, k) : 18).toFixed(1) + 'px) scale(' + (1 + .12 * Math.exp(-(t - t0) * 7) * (on ? 1 : 0)).toFixed(3) + ')';
-      w.style.color = (i === 2 || i === 3) && on ? '#FFE07A' : '#fff';
-    });
-    const ks = E.outExpo(P(t, 10.05, .5));
-    S(el.shelf, { x: 540, y: 1568 + 600 * outro, sx: ks, o: 1 - outro });
+  const on6 = t >= 10.05 && t < 12.7;
+  show(el.s6, on6);
+  if (on6) {
+    const outro = E.inExpo(P(t, 12.28, .26));
+    const kd = E.outBackS(P(t, 10.3, .5));
+    S(el.disc, { x: lerp(-600, 540, E.outExpo(P(t, 10.3, .5))), y: 1010 - 1400 * outro, r: lerp(-10, -2, kd) + bump(t, 10.6, 1.5, 14, 5), s: lerp(.6, 1, kd), o: 1 - outro });
+    so(el.disc, 18 * E.outExpo(P(t, 10.4, .35)));
+    gloss('disc', t, 10.75, .8);
+    S(el.shelf, { x: 540, y: 1632 + 600 * outro, sx: E.outExpo(P(t, 10.05, .5)) });
   }
 
   /* ---------- товары и стикеры «%» ---------- */
   PRODS.forEach((p, i) => {
     const o = prodLayout(i, t);
-    if (t < 4.4) o.o = 0;
     S(p, o);
     // стикер «%» над товаром в карусели
     const bin = E.outBackS(P(t, 7.0 + i * .06, .35)), bout = E.inExpo(P(t, 7.82, .2));
     const bo = t >= 7.0 && t < 8.1 ? 1 - bout : 0;
-    S(BDG[i], { x: o.x + 70, y: o.y - PH[i] * o.s / 2 - 10, r: -12 + Math.sin(t * 9 + i) * 10, s: bin * (1 - .8 * bout), o: bo * P(t, 7.0 + i * .06, .04) });
+    S(BDG[i], { x: o.x + 80, y: o.y - PH[i] * o.s / 2 - 6, r: -12 + Math.sin(t * 9 + i) * 10, s: bin * (1 - .8 * bout), o: bo * P(t, 7.0 + i * .06, .04) });
   });
 
   /* ---------- сцена 7: финал ---------- */
-  show(el.s7, t >= 12.55);
-  if (t >= 12.55) {
-    const kl = E.outBackS(P(t, 12.65, .6));
-    S(el.oLogo, { x: 540, y: 690, s: lerp(.3, 1, kl) * (1 + .01 * Math.sin(t * 2)), o: P(t, 12.65, .08) });
+  const on7 = t >= 12.55;
+  show(el.s7, on7);
+  if (on7) {
+    const kl = E.outBackS(P(t, 12.58, .6));
+    const breathe = 1 + .012 * Math.sin((t - 12.6) * 2.2);
+    S(el.oLogo, { x: 540, y: 690, s: lerp(.3, 1, kl) * breathe, o: P(t, 12.58, .08) });
+    // блик по логотипу
+    const shP = Math.max(P(t, 13.3, .8) * (t < 14.1 ? 1 : 0), P(t, 14.9, .8));
+    S(el.oShine, { x: 540, y: 690, s: breathe, o: shP > 0 && shP < 1 ? 1 : 0 });
+    el.oShine.style.backgroundPosition = lerp(130, -30, E.inOutCubic(shP)).toFixed(1) + '% 0';
     const km = E.outBackS(P(t, 12.95, .45));
-    S(el.oMega, { x: 540, y: 885, r: lerp(-12, -2, km), s: lerp(.3, 1, km), o: P(t, 12.95, .06) });
+    S(el.oMega, { x: 540, y: 885, r: lerp(-12, -2, km) + 1.2 * Math.sin((t - 13) * 2.6), s: lerp(.3, 1, km), o: P(t, 12.95, .06) });
     so(el.oMega, 16 * E.outExpo(P(t, 13.05, .3)));
+    gloss('oMega', t, 13.25, .7);
     const kd = E.outExpo(P(t, 13.25, .5));
     S(el.oDates, { x: 540, y: lerp(1110, 1050, kd), o: kd });
     const kst = E.outBackS(P(t, 13.55, .5));
-    S(el.oSticker, { x: 870, y: 470, r: lerp(-120, 14, E.outExpo(P(t, 13.55, .6))) + 3 * Math.sin(t * 2.4), s: kst * (1 + .04 * beatPulse(t, 10) * (t > 14 ? 1 : 0)), o: P(t, 13.55, .05) });
+    S(el.oSticker, { x: 870, y: 470, r: lerp(-120, 14, E.outExpo(P(t, 13.55, .6))) + 4 * Math.sin(t * 2.4), s: kst * (1 + .05 * beatPulse(t, 10) * (t > 14 ? 1 : 0)), o: P(t, 13.55, .05) });
+    // кнопка сайта: появление, затем «нажатие» с кольцом
     const kss = E.outBackS(P(t, 13.85, .5));
-    const tap = t > 14.9 ? -.06 * Math.exp(-(t - 14.9) * 8) * Math.sin((t - 14.9) * 20) : 0;
-    S(el.oSite, { x: 540, y: lerp(1400, 1290, kss), s: lerp(.5, 1, kss) + tap, o: P(t, 13.85, .08) });
+    const press = t > 14.9 ? -.07 * Math.exp(-(t - 14.9) * 8) * Math.sin((t - 14.9) * 20) : 0;
+    S(el.oSite, { x: 540, y: lerp(1400, 1290, kss), s: lerp(.5, 1, kss) + press + .015 * Math.sin((t - 14) * 3) * (t > 14.4 ? 1 : 0), o: P(t, 13.85, .08) });
+    const tp = P(t, 14.88, .6);
+    S(el.tap, { x: 540, y: 1290, s: lerp(.4, 3.2, E.outCubic(tp)), o: tp > 0 && tp < 1 ? (1 - tp) * .9 : 0 });
     S(el.fine, { x: 540, y: 1590, o: .9 * P(t, 14.0, .5) });
   }
 
@@ -430,7 +474,7 @@ function renderAt(t) {
   AMB.forEach((a, i) => {
     const vis = t < 4.0 || (t >= 6.9 && t < 12.6);
     const x = a.x + Math.sin(t * a.sp + a.ph) * 30, y = a.y + Math.cos(t * a.sp * .8 + a.ph) * 40 - t * 12;
-    S(a.d, { x, y, r: a.rot + a.vr * t, s: kf(t, [[0, 0], [0.6 + i * .05, 1, E.outBack]]), o: vis ? .9 : 0, b: a.blur });
+    S(a.d, { x, y, r: a.rot + a.vr * t, s: kf(t, [[0, .55], [0.6 + i * .05, 1, E.outBack]]), o: vis ? .9 : 0, b: a.blur });
   });
   PARTS.forEach(p => {
     const d = t - p.b.t;
@@ -453,6 +497,12 @@ function renderAt(t) {
     c.d.style.opacity = clamp((3.2 - d) / .5);
     c.d.style.transform = 'translate(-50%,-50%) translate3d(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px,0) rotate(' + (c.vr * d).toFixed(1) + 'deg) scaleY(' + Math.cos(d * c.fl + c.ph).toFixed(3) + ')';
   });
+  SHOCKS.forEach(s => {
+    const d = t - s.t;
+    if (d < 0 || d > .55) { s.d.style.visibility = 'hidden'; return; }
+    const k = d / .55;
+    S(s.d, { x: s.x, y: s.y, s: s.k * lerp(.2, 3.4, E.outCubic(k)), o: (1 - k) * .85 });
+  });
   GLINTS.forEach(g => {
     const d = t - g.t;
     if (d < 0 || d > .6) { g.d.style.visibility = 'hidden'; return; }
@@ -462,9 +512,9 @@ function renderAt(t) {
 
   /* оверлеи: вспышки, затемнение перед дропом */
   let fl = 0;
-  for (const [h, a] of [[0.6, .75], [3.6, .35], [4.1, .55], [8.1, .95], [12.6, .7]]) if (t >= h) fl = Math.max(fl, a * Math.exp(-(t - h) * 9));
+  for (const [h, a] of [[0.6, .75], [3.6, .35], [4.08, .3], [8.1, .95], [12.62, .35]]) if (t >= h) fl = Math.max(fl, a * Math.exp(-(t - h) * 9));
   el.flash.style.opacity = fl.toFixed(3);
-  el.dark.style.opacity = (t < 0.35 ? .7 * (1 - t / .35) : 0) + .55 * E.inQuad(P(t, 7.8, .3)) * (t < 8.1 ? 1 : 0);
+  el.dark.style.opacity = (.55 * E.inQuad(P(t, 7.8, .3)) * (t < 8.1 ? 1 : 0)).toFixed(3);
   el.grain.style.backgroundPosition = ((t * 997) % 256 | 0) + 'px ' + ((t * 613) % 256 | 0) + 'px';
 }
 
