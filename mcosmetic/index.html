@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<title>M Cosmetic — Mega chegirma</title>
+<style>
+@font-face{font-family:'Montserrat';font-weight:100 900;src:url(fonts/Montserrat-Variable.woff2) format('woff2')}
+
+/* весь ролик рисуется кадр за кадром из motion.js — никаких CSS-анимаций */
+*,*::before,*::after{box-sizing:border-box;transition:none!important;animation:none!important}
+:root{
+  --hot:#EE1766; --hot2:#D80F5E; --lil:#C77BCB; --pale:#F4D7F1;
+  --mar:#8C0F43; --mar2:#560A28; --rose:#B3154F;
+  --brand:#C0288B; --brandD:#8B1D65; --white:#FFFFFF;
+}
+html,body{margin:0;width:1080px;height:1920px;overflow:hidden;background:#C0288B;
+  font-family:'Montserrat',Arial,sans-serif;-webkit-font-smoothing:antialiased;color:#fff}
+#root{position:relative;width:1080px;height:1920px;overflow:hidden;background:var(--hot)}
+.full{position:absolute;inset:0;pointer-events:none}
+.a{position:absolute;left:0;top:0;transform-origin:50% 50%;will-change:transform,opacity}
+.sc{position:absolute;inset:0;display:none}
+#cam{position:absolute;inset:0;transform-origin:50% 50%}
+
+/* ---------- фон: лучи как на постере ---------- */
+.rays{width:3400px;height:3400px;border-radius:50%;
+  background:repeating-conic-gradient(from 0deg,
+    var(--hot) 0deg 7.5deg, var(--lil) 7.5deg 15deg, var(--hot2) 15deg 22.5deg, var(--pale) 22.5deg 30deg)}
+.raysglow{width:3400px;height:3400px;border-radius:50%;
+  background:radial-gradient(circle,rgba(255,236,250,.9) 0,rgba(255,200,236,.45) 9%,rgba(238,23,102,0) 26%,rgba(140,15,67,.0) 40%,rgba(120,8,55,.45) 62%)}
+#magenta{background:var(--brand)}
+#magRays{width:3400px;height:3400px;border-radius:50%;opacity:.55;
+  background:repeating-conic-gradient(from 0deg,rgba(255,255,255,.10) 0deg 6deg,transparent 6deg 15deg)}
+#magGlow{background:radial-gradient(70% 45% at 50% 42%,rgba(255,150,215,.55),rgba(192,40,139,0) 70%),
+  radial-gradient(120% 80% at 50% 50%,transparent 55%,rgba(90,8,58,.55) 100%)}
+#vig{background:radial-gradient(130% 90% at 50% 48%,transparent 58%,rgba(70,4,30,.5) 100%)}
+#grain{opacity:.06;mix-blend-mode:overlay;background-size:256px 256px}
+#flash{opacity:0;background:#FFF2FA}
+#dark{opacity:0;background:#3A0418}
+
+/* ---------- карточки в стиле постера: скругление + сдвинутая «тень-подложка» ---------- */
+.card{border-radius:30px;--so:20px;--shc:var(--mar2);
+  box-shadow:calc(var(--so) * -1) var(--so) 0 var(--shc)}
+.card.mar{background:linear-gradient(160deg,#9A1149 0%,#7A0C3A 100%)}
+.card.wht{background:linear-gradient(170deg,#FFFFFF 0%,#F6EEF4 100%);--shc:#6A0B33}
+.card.mag{background:linear-gradient(160deg,#D21A6A 0%,#B01258 100%);--shc:#5E0A2C;border:3px solid rgba(255,214,234,.55)}
+.mask{-webkit-mask-repeat:no-repeat;-webkit-mask-size:contain;-webkit-mask-position:center;mask-repeat:no-repeat;mask-size:contain;mask-position:center}
+.m-full{-webkit-mask-image:url(assets/logo-full.png);mask-image:url(assets/logo-full.png)}
+.m-icon{-webkit-mask-image:url(assets/logo-icon.png);mask-image:url(assets/logo-icon.png)}
+.m-word{-webkit-mask-image:url(assets/logo-word.png);mask-image:url(assets/logo-word.png)}
+
+.hl{font-weight:900;letter-spacing:-.02em;line-height:.98;white-space:nowrap;text-transform:uppercase}
+.ch{display:inline-block;will-change:transform}
+.sp{display:inline-block;width:.26em}
+.pill{display:inline-block;border-radius:18px;background:var(--mar);color:#fff;padding:.02em .16em .06em;margin:0 .1em}
+
+/* логотип-плашка */
+#logoCard{width:720px;height:136px;display:flex;align-items:center;justify-content:center}
+#logoCard .mask{width:600px;height:76px;background:var(--rose)}
+
+/* MEGA CHEGIRMA */
+#hl{width:960px;height:380px;padding:36px 0 0 58px}
+#hl .row{font-size:150px;color:#FCEFF6}
+#hl .row + .row{margin-top:6px}
+
+/* календари */
+.cal{width:390px;height:470px;border-radius:40px;overflow:visible}
+.cal .band{position:absolute;left:0;right:0;top:0;height:118px;border-radius:40px 40px 0 0;
+  background:linear-gradient(170deg,#A3124D,#7C0C3B);display:flex;align-items:center;justify-content:center;
+  font-weight:800;font-size:44px;letter-spacing:.06em;color:#FFE3F0}
+.cal .ring{position:absolute;top:-26px;width:26px;height:64px;border-radius:13px;background:linear-gradient(90deg,#E9D9E3,#FFFFFF 45%,#CDB7C5);
+  box-shadow:0 4px 0 rgba(60,4,26,.35)}
+.cal .num{position:absolute;left:0;right:0;top:118px;bottom:0;display:flex;align-items:center;justify-content:center;
+  font-weight:900;font-size:268px;letter-spacing:-.04em;color:var(--mar);padding-bottom:14px}
+.cal .lbl{position:absolute;left:0;right:0;bottom:30px;text-align:center;font-weight:700;font-size:30px;letter-spacing:.14em;color:#C26A93}
+
+/* блок HAR 25-26 KUNLARI */
+#blk{width:940px;height:260px;display:flex;flex-direction:column;justify-content:center;padding:0 0 0 46px}
+#blk .l1{font-size:76px;color:var(--rose)}
+#blk .l2{font-size:52px;color:var(--rose);margin-top:14px}
+#blk .pill{border-radius:20px}
+
+/* сцена 3: бренд */
+#bIcon{width:250px;height:250px;background:#fff}
+#bWord{width:880px;height:133px;background:#fff}
+.word{font-weight:900;text-transform:uppercase;white-space:nowrap;letter-spacing:-.01em}
+#wSizga{font-size:84px;color:#FFE6F3;letter-spacing:.12em}
+#wMaxsus{font-size:118px;color:var(--brand);padding:8px 36px 14px;border-radius:26px}
+#wNarx{font-size:118px;color:#fff;padding:8px 36px 14px;border-radius:26px}
+
+.prod{width:auto;filter:drop-shadow(-14px 22px 18px rgba(70,4,40,.38))}
+.badge{width:118px;height:118px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#FF5C9A,#D8115E 70%);
+  border:5px solid #fff;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:64px;color:#fff;
+  box-shadow:0 10px 20px rgba(80,4,36,.35)}
+
+/* сцена 4 */
+#wChek{font-size:104px;color:#fff;padding:10px 40px 18px}
+#wAssort{font-size:88px;color:var(--rose);padding:10px 40px 18px}
+
+/* сцена 5: -50% */
+#big{width:960px;height:520px}
+#big .pct{position:absolute;left:120px;top:58px;font-weight:900;font-size:300px;letter-spacing:-.05em;color:#FCEFF6;line-height:1;white-space:nowrap}
+#big .do{position:absolute;left:62px;top:196px;font-weight:800;font-size:68px;color:#FCEFF6;line-height:1}
+#big .gacha{position:absolute;right:72px;top:46px;font-weight:800;font-size:72px;color:#FCEFF6;letter-spacing:.02em}
+#big .min{position:absolute;left:58px;top:282px;width:86px;height:40px;border-radius:8px;background:#FCEFF6}
+#wCheg{font-size:96px;color:var(--rose);padding:12px 46px 20px}
+
+/* сцена 6 */
+#disc{width:960px;height:220px;display:flex;flex-direction:column;justify-content:center;padding-left:52px}
+#disc .d1{font-weight:800;font-size:46px;color:#fff;white-space:nowrap}
+#disc .d2{font-weight:600;font-size:42px;color:#FFE0EE;white-space:nowrap;margin-top:6px}
+#kar{width:980px;text-align:center;font-weight:800;font-size:62px;line-height:1.18;color:#fff}
+#kar .w{display:inline-block;margin:0 .14em}
+#shelf{width:1000px;height:40px;border-radius:20px;background:linear-gradient(180deg,rgba(255,255,255,.75),rgba(255,214,236,.35));
+  box-shadow:0 18px 30px rgba(80,4,40,.35)}
+
+/* сцена 7: финал */
+#oLogo{width:900px;height:113px;background:#fff}
+#oMega{font-size:84px;color:var(--rose);padding:12px 44px 20px}
+#oDates{font-size:56px;font-weight:800;color:#fff;white-space:nowrap;text-align:center}
+#oDates .pill{background:#fff;color:var(--rose);font-weight:900}
+#oSite{font-size:58px;font-weight:800;color:var(--brand);background:#fff;border-radius:60px;padding:22px 64px 26px;
+  box-shadow:0 14px 0 #8B1D65, 0 24px 40px rgba(60,4,30,.35);white-space:nowrap;display:flex;align-items:center;gap:22px}
+#oSite svg{width:52px;height:52px}
+#oSticker{width:260px;height:260px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#A3124D,#6E0A35 75%);
+  border:7px solid #fff;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;line-height:.9;
+  box-shadow:0 18px 30px rgba(60,4,30,.4)}
+#oSticker b{font-size:104px;font-weight:900;letter-spacing:-.04em}
+#oSticker i{font-style:normal;font-size:40px;font-weight:800;letter-spacing:.06em}
+#fine{width:940px;font-size:21px;line-height:1.38;font-weight:500;color:rgba(255,236,246,.82);text-align:center}
+
+/* частицы */
+.flw{width:120px;height:120px}
+.glint{width:90px;height:90px}
+.conf{width:22px;height:34px;border-radius:5px}
+</style>
+</head>
+<body>
+<div id="root">
+  <!-- фон -->
+  <div class="full" id="bgRays">
+    <div class="a rays" id="rays"></div>
+    <div class="a raysglow" id="raysGlow"></div>
+  </div>
+  <div class="full" id="bgFlowers"></div>
+  <div class="full" id="magenta" style="opacity:0">
+    <div class="a" id="magRays"></div>
+    <div class="full" id="magGlow"></div>
+  </div>
+
+  <div id="cam">
+    <!-- общая плашка логотипа (сцены 1–2) -->
+    <div class="a card wht" id="logoCard"><div class="mask m-full"></div></div>
+
+    <!-- сцена 2: MEGA CHEGIRMA + даты -->
+    <div class="sc" id="s2">
+      <div class="a card wht cal" id="cal25"><span class="ring" style="left:96px"></span><span class="ring" style="right:96px"></span>
+        <div class="band">HAR OY</div><div class="num">25</div></div>
+      <div class="a card wht cal" id="cal26"><span class="ring" style="left:96px"></span><span class="ring" style="right:96px"></span>
+        <div class="band">HAR OY</div><div class="num">26</div></div>
+      <div class="a card wht" id="blk">
+        <div class="hl l1">HAR<span class="pill">25-26</span>KUNLARI</div>
+        <div class="hl l2">КАЖДОГО<span class="pill">25-26ГО</span>ЧИСЛА</div>
+      </div>
+      <div class="a card mar" id="hl">
+        <div class="hl row" id="hlMega">MEGA</div>
+        <div class="hl row" id="hlCheg">CHEGIRMA</div>
+      </div>
+    </div>
+
+    <!-- сцена 3: бренд, «sizga maxsus narxlar» -->
+    <div class="sc" id="s3">
+      <div class="a mask m-icon" id="bIcon"></div>
+      <div class="a mask m-word" id="bWord"></div>
+      <div class="a word" id="wSizga">SIZGA</div>
+      <div class="a word card wht" id="wMaxsus">MAXSUS</div>
+      <div class="a word card mar" id="wNarx">NARXLAR</div>
+    </div>
+
+    <!-- сцена 4: «cheklangan assortimentga» -->
+    <div class="sc" id="s4">
+      <div class="a word card mar" id="wChek">CHEKLANGAN</div>
+      <div class="a word card wht" id="wAssort">ASSORTIMENTGA</div>
+    </div>
+
+    <!-- сцена 5: −50% -->
+    <div class="sc" id="s5">
+      <div class="a card mar" id="big">
+        <div class="do">ДО</div><div class="min"></div>
+        <div class="pct" id="pct">50%</div>
+        <div class="gacha">GACHA</div>
+      </div>
+      <div class="a word card wht" id="wCheg">CHEGIRMALAR!</div>
+    </div>
+
+    <!-- сцена 6: условия -->
+    <div class="sc" id="s6">
+      <div class="a card mag" id="disc">
+        <div class="d1">*cheklangan assortiment uchun</div>
+        <div class="d2">на ограниченный ассортимент</div>
+      </div>
+      <div class="a" id="kar"><span class="w">Taklif</span><span class="w">faqat</span><span class="w">mahsulot</span><br><span class="w">mavjud</span><span class="w">boʻlganda</span><span class="w">amalda</span></div>
+      <div class="a" id="shelf"></div>
+    </div>
+
+    <!-- товары: общие для сцен 3–7 -->
+    <div class="full" id="prods">
+      <img class="a prod" id="pLip" src="assets/p-lipstick.png" style="height:400px">
+      <img class="a prod" id="pPump" src="assets/p-pump.png" style="height:430px">
+      <img class="a prod" id="pPerf" src="assets/p-perfume.png" style="height:330px">
+      <img class="a prod" id="pTube" src="assets/p-tube.png" style="height:380px">
+      <img class="a prod" id="pSerum" src="assets/p-serum.png" style="height:380px">
+      <img class="a prod" id="pBrush" src="assets/p-brush.png" style="height:380px">
+      <img class="a prod" id="pDryer" src="assets/p-dryer.png" style="height:360px">
+      <div class="a badge" id="bdg0">%</div><div class="a badge" id="bdg1">%</div><div class="a badge" id="bdg2">%</div>
+      <div class="a badge" id="bdg3">%</div><div class="a badge" id="bdg4">%</div><div class="a badge" id="bdg5">%</div><div class="a badge" id="bdg6">%</div>
+    </div>
+
+    <!-- сцена 7: финал -->
+    <div class="sc" id="s7">
+      <div class="a mask m-full" id="oLogo"></div>
+      <div class="a word card wht" id="oMega">MEGA CHEGIRMA</div>
+      <div class="a" id="oDates">HAR OYNING<span class="pill">25-26</span>KUNLARI</div>
+      <div class="a" id="oSticker"><i>GACHA</i><b>-50%</b></div>
+      <div class="a" id="oSite"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.6 3.8 5.6 3.8 9s-1.2 6.4-3.8 9M12 3c-2.6 2.6-3.8 5.6-3.8 9s1.2 6.4 3.8 9"/></svg>mcosmetic.uz</div>
+      <div class="a" id="fine">Aksiya tashkilotchisi «SFERA VOSTOK» MChJ XK. Tashkilotchi aksiya oʻtkazish muddatlari va qoidalarini oldindan xabardor qilmasdan, bir tomonlama tartibda oʻzgartirish huquqiga ega. Aksiyaning batafsil shartlari www.mcosmetic.uz saytida joylashtirilgan.</div>
+    </div>
+  </div>
+
+  <!-- частицы поверх -->
+  <div class="full" id="fx"></div>
+  <div class="full" id="vig"></div>
+  <div class="full" id="dark"></div>
+  <div class="full" id="flash"></div>
+  <div class="full" id="grain"></div>
+</div>
+<script src="motion.js"></script>
+</body>
+</html>
