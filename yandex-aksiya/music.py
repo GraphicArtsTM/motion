@@ -1,12 +1,13 @@
-"""Саундтрек к ролику «Brend ruxsatnoma aksiyada»: 18,5 с, 128 BPM, ля гармонический минор.
+"""Саундтрек к ролику «Brend ruxsatnoma aksiyada» (Reels, 30 с): 128 BPM, ля гармонический минор.
 
 Всё синтезируется на numpy, без сэмплов: хаус-грув (бочка, клэп, хэты, дойра),
 офбит-бас с сайдчейном, стабы аккордов, щипковый «дутар» (Karplus–Strong),
 а также звуки, привязанные к событиям в кадре (см. motion.js): проезд машины,
 штампы, барабаны цифр, монеты, шорох документов, тиканье секундомера, звонок.
-Озвучка сюда не входит — её кладёт поверх build.sh, приглушая музыку под голосом.
+Пишет две дорожки: музыку (её build.sh приглушает под голосом) и звуковые эффекты
+отдельно — эффекты не приглушаются, чтобы их было хорошо слышно.
 
-    python3 music.py out/music.wav
+    python3 music.py out/music.wav out/sfx.wav
 """
 import sys
 import wave
@@ -16,13 +17,14 @@ SR = 44100
 BPM = 128
 BEAT = 60 / BPM          # 0,469 с
 BAR = BEAT * 4           # 1,875 с
-DUR = 18.5
+DUR = 30.0
 N = int((DUR + 2.0) * SR)
 
 L = np.zeros(N)
 R = np.zeros(N)
 BUS = {k: [np.zeros(N), np.zeros(N)] for k in ('drums', 'bass', 'music', 'fx')}
-SEND = [np.zeros(N), np.zeros(N)]   # посыл на реверберацию
+SEND = [np.zeros(N), np.zeros(N)]   # посыл на реверберацию (музыка)
+SENDFX = [np.zeros(N), np.zeros(N)]  # посыл на реверберацию (эффекты)
 rs = np.random.default_rng(7)
 
 
@@ -50,8 +52,9 @@ def add(bus, sig, t0, gain=1.0, pan=0.0, rev=0.0):
     b[0][i:i + len(sig)] += sig * gl
     b[1][i:i + len(sig)] += sig * gr
     if rev:
-        SEND[0][i:i + len(sig)] += sig * gl * rev
-        SEND[1][i:i + len(sig)] += sig * gr * rev
+        snd = SENDFX if bus == 'fx' else SEND
+        snd[0][i:i + len(sig)] += sig * gl * rev
+        snd[1][i:i + len(sig)] += sig * gr * rev
 
 
 def fft_filter(x, lo=None, hi=None, order=2):
@@ -284,8 +287,40 @@ def glitch(len_=0.14):
     return fft_filter(x, lo=400, hi=6000)
 
 
+def pop(f=900):
+    """«Поп» появления: синус с быстрым падением высоты."""
+    n = int(0.14 * SR)
+    t = tt(n)
+    ff = f * (0.55 + 1.2 * np.exp(-t * 45))
+    return np.sin(2 * np.pi * np.cumsum(ff) / SR) * np.exp(-t * 28) + fft_filter(noise(n), lo=2500) * np.exp(-t * 220) * 0.25
+
+
+def slap():
+    """Хлопок наклейки/штампа: щелчок + плотный низ."""
+    n = int(0.3 * SR)
+    t = tt(n)
+    body = np.sin(2 * np.pi * np.cumsum(70 + 120 * np.exp(-t * 40)) / SR) * np.exp(-t * 16)
+    crack = fft_filter(noise(n), lo=800, hi=7000) * np.exp(-t * 55)
+    return np.tanh((body * 1.1 + crack * 0.9) * 1.6)
+
+
+def thump():
+    n = int(0.25 * SR)
+    t = tt(n)
+    return np.sin(2 * np.pi * np.cumsum(55 + 90 * np.exp(-t * 30)) / SR) * np.exp(-t * 14) + fft_filter(noise(n), hi=900) * np.exp(-t * 40) * 0.3
+
+
+def sparkle(f0=2600):
+    """Блик: россыпь коротких колокольчиков."""
+    out = np.zeros(int(0.7 * SR))
+    for i, r in enumerate((1, 1.26, 1.5, 2.0, 1.68)):
+        b = bell(f0 * r, 0.5) * 0.4
+        s = int(i * 0.045 * SR)
+        out[s:s + len(b)] += b[:len(out) - s]
+    return out
+
+
 # ---------- аранжировка ----------
-VO = 0.4                                    # озвучка стартует с 0,4 с
 CH = {'Am': [57, 60, 64], 'F': [53, 57, 60], 'Dm': [50, 53, 57], 'E': [52, 56, 59]}
 PROG = ['Am', 'F', 'Dm', 'E']
 KICKS = []
@@ -295,8 +330,8 @@ MEL = [(0, 76, 1), (1, 77, .5), (1.5, 76, .5), (2, 72, 1), (3, 71, 1),
        (12, 69, 1.5), (13.5, 71, .5), (14, 72, 1), (15, 68, 1)]
 
 
-def groove(o, t1, lead=False, arp=True):
-    """Хаус-грув от точки o (сильная доля) до t1."""
+def groove(o, t1, leads=()):
+    """Хаус-грув от точки o (сильная доля) до t1; leads — номера тактов, с которых идёт мелодия."""
     k = 0
     while True:
         tb = o + k * BEAT
@@ -316,7 +351,6 @@ def groove(o, t1, lead=False, arp=True):
         if b == 2:
             add('drums', doira_dum(), tb + BEAT * 0.75, 0.32, pan=0.2)
         add('drums', doira_tak(), tb + BEAT * 0.25, 0.28, pan=-0.35)
-        # офбит-бас
         for h, oc in ((0.5, 0), (0.75, 12)):
             th = tb + h * BEAT
             if th >= t1:
@@ -327,24 +361,18 @@ def groove(o, t1, lead=False, arp=True):
             x = saw_add(mtof(m), n, fc, voices=2, detune=9, maxh=40) * adsr(n, 0.003, 0.08, 0.55, 0.04)
             x += np.sin(2 * np.pi * mtof(m) * tt(n)) * adsr(n, 0.003, 0.16, 0.8, 0.04) * 0.9
             add('bass', x, th, 0.4 if oc == 0 else 0.26)
-        # стабы аккорда на синкопах (шестнадцатые 3 и 6 в такте)
-        for step in ((3,) if b % 2 == 0 else (2,)):
-            ts = tb + step * BEAT / 4
-            if ts >= t1:
-                continue
+        ts = tb + (3 if b % 2 == 0 else 2) * BEAT / 4
+        if ts < t1:
             n = int(0.22 * SR)
             fc = 900 + 3500 * np.exp(-tt(n) * 16)
             for m in CH[c]:
                 x = saw_add(mtof(m + 12), n, fc, voices=3, detune=12, maxh=30) * adsr(n, 0.004, 0.09, 0.3, 0.06)
                 add('music', x, ts, 0.075, pan=rs.uniform(-0.5, 0.5), rev=0.3)
-        # арпеджио дутара восьмыми
-        if arp:
-            tones = [CH[c][0] + 12, CH[c][2] + 12, CH[c][1] + 12, CH[c][0] + 24]
-            for h in range(2):
-                th = tb + h * BEAT / 2
-                if th < t1:
-                    add('music', dutar(mtof(tones[(b * 2 + h) % 4]), 0.4, 0.65, 0.993), th, 0.2, pan=0.35 * (1 if h else -1), rev=0.3)
-        # пэд на такт
+        tones = [CH[c][0] + 12, CH[c][2] + 12, CH[c][1] + 12, CH[c][0] + 24]
+        for h in range(2):
+            th = tb + h * BEAT / 2
+            if th < t1:
+                add('music', dutar(mtof(tones[(b * 2 + h) % 4]), 0.4, 0.65, 0.993), th, 0.2, pan=0.35 * (1 if h else -1), rev=0.3)
         if b == 0:
             ln = min(BAR, t1 - tb)
             for m in CH[c]:
@@ -352,128 +380,131 @@ def groove(o, t1, lead=False, arp=True):
                 x = saw_add(mtof(m + 12), n, 1600, voices=3, detune=16, maxh=22) * adsr(n, 0.06, 0.5, 0.7, 0.3)
                 add('music', x, tb, 0.035, pan=rs.uniform(-0.6, 0.6), rev=0.4)
         k += 1
-    if lead:
+    for lb in leads:
         for bt, m, ln in MEL:
-            ts = o + bt * BEAT
+            ts = o + lb * BAR + bt * BEAT
             if ts < t1:
-                add('music', dutar(mtof(m), ln * BEAT + 0.5, 0.75, 0.9975), ts, 0.34, pan=0.05, rev=0.45)
-                add('music', dutar(mtof(m - 12), ln * BEAT + 0.3, 0.5, 0.996), ts + 0.012, 0.13, pan=-0.3, rev=0.3)
+                add('music', dutar(mtof(m), ln * BEAT + 0.5, 0.75, 0.9975), ts, 0.3, pan=0.05, rev=0.45)
+                add('music', dutar(mtof(m - 12), ln * BEAT + 0.3, 0.5, 0.996), ts + 0.012, 0.12, pan=-0.3, rev=0.3)
 
 
-# — 0–0,4: вход —
-add('fx', riser(0.4, 800, 9000), 0.0, 0.35)
-add('fx', whoosh(0.8, True), 0.0, 0.55, pan=-0.5, rev=0.2)          # машина въезжает
-# — 0,4–9,3: основной грув —
-add('fx', boom(1.6), VO, 0.45)
-add('fx', crash(2.0), VO, 0.25, rev=0.4)
-groove(VO, 9.3, lead=False)
-# — 9,3–10,92: брейк «muddati cheklangan» —
-add('fx', boom(1.6), 9.3, 0.9)
-add('fx', crash(1.8), 9.3, 0.4, rev=0.5)
-add('drums', kick(1.1), 9.3, 0.9); KICKS.append(9.3)
-for k in range(7):
-    tk = 9.3 + k * 0.235
-    add('fx', tock(2400 if k % 2 == 0 else 1900), tk, 0.45, pan=0.2 * (-1) ** k, rev=0.15)
-n = int(1.7 * SR)
+# — 0–18,45: основной грув (мелодия на сцене «foydalanib qoling») —
+add('fx', crash(2.0), 0.0, 0.3, rev=0.4)
+groove(0.0, 18.45, leads=(5,))
+# — 18,45–21,32: брейк «muddati cheklangan»: тиканье секундомера, напряжение, раскатка —
+add('drums', kick(1.1), 18.45, 0.9); KICKS.append(18.45)
+n = int(2.9 * SR)
 for m in CH['E'] + [64]:
-    x = saw_add(mtof(m + 12), n, 900 + 1500 * tt(n) / 1.7, voices=3, detune=18, maxh=24) * adsr(n, 0.2, 0.6, 0.8, 0.2)
-    add('music', x, 9.3, 0.05, pan=rs.uniform(-0.6, 0.6), rev=0.5)
-add('bass', np.sin(2 * np.pi * mtof(28) * tt(n)) * adsr(n, 0.02, 1.0, 0.7, 0.2), 9.3, 0.5)
-add('fx', boom(1.2), 10.16, 0.6)
-add('drums', clap(), 10.16, 0.7, rev=0.4)
-for k in range(12):
-    add('drums', snare(0.25 + 0.75 * k / 11), 10.36 + k * (0.56 / 12), 0.42, pan=0.1 * (-1) ** k)
-add('fx', riser(1.0, 400, 12000), 9.92, 0.5, rev=0.2)
-rc = crash(0.9)[::-1]
-add('fx', rc, 10.92 - len(rc) / SR, 0.45)
-# — 10,92–16,0: второй куплет с мелодией —
-add('fx', boom(1.8), 10.92, 0.9)
-add('fx', crash(2.0), 10.92, 0.5, rev=0.5)
-groove(10.92, 16.0, lead=True)
-rc = crash(0.8)[::-1]
-add('fx', rc, 16.0 - len(rc) / SR, 0.4)
-add('fx', riser(1.0, 500, 11000), 15.0, 0.35, rev=0.2)
-# — 16,0–18,5: финал —
-add('fx', boom(2.4), 16.0, 1.0)
-add('fx', crash(2.4), 16.0, 0.55, rev=0.6)
-groove(16.0, DUR, lead=False, arp=True)
-for i, m in enumerate([69, 72, 76, 81]):
-    add('fx', bell(mtof(m + 12), 1.4), 16.05 + i * 0.07, 0.13, pan=-0.3 + 0.2 * i, rev=0.5)
+    x = saw_add(mtof(m + 12), n, 700 + 1600 * tt(n) / 2.9, voices=3, detune=18, maxh=24) * adsr(n, 0.3, 0.8, 0.8, 0.2)
+    add('music', x, 18.45, 0.05, pan=rs.uniform(-0.6, 0.6), rev=0.5)
+add('bass', np.sin(2 * np.pi * mtof(28) * tt(n)) * adsr(n, 0.02, 1.5, 0.7, 0.2), 18.45, 0.5)
+for k in range(16):
+    add('drums', snare(0.2 + 0.8 * k / 15), 20.57 + k * (0.75 / 16), 0.42, pan=0.1 * (-1) ** k)
+rc = crash(1.0)[::-1]
+add('fx', rc, 21.32 - len(rc) / SR, 0.5)
+# — 21,32–30: финальный дроп —
+add('drums', crash(2.2), 21.32, 0.5, rev=0.5)
+groove(21.32, DUR, leads=(3,))
 
-# ---------- события в кадре ----------
-# сцена 1: буквы, «BIZDA», штамп «AKSIYADA!», уезд машины, шторка
-add('fx', whoosh(0.35, True), 0.7, 0.3, pan=-0.2)
-add('fx', whoosh(0.4, False), 0.98, 0.3, pan=0.4)
-add('fx', whoosh(0.25, True), 1.8, 0.35, pan=-0.4)
-add('fx', boom(1.0), 2.26, 0.6)
-add('drums', clap(), 2.26, 0.8, rev=0.4)
-add('fx', crash(1.2), 2.26, 0.3, rev=0.3)
-add('fx', whoosh(0.5, True), 2.5, 0.5, pan=0.6, rev=0.1)           # машина уезжает
-add('fx', whoosh(0.45, False), 2.66, 0.55, pan=-0.3, rev=0.2)     # шторка
-# сцена 2: «ATIGI», барабаны цифр, монеты, «MING SO'M»
-add('fx', whoosh(0.3, True), 2.9, 0.3, pan=-0.5)
+# ---------- звуковые эффекты (события в кадре, см. motion.js) ----------
+FX = []          # (момент, сигнал, громкость, панорама, ревер)
+def fx(t0, sig, g, pan=0.0, rev=0.15):
+    FX.append((t0, sig, g, pan, rev))
 
 
-def reel_pos(t, fin, stop, st=3.1):
+# сцена 1
+fx(0.0, whoosh(1.3, True), 0.8, -0.6, 0.2)            # такси въезжает
+fx(0.4, pop(820), 0.6)
+for i in range(5):
+    fx(0.62 + i * 0.06 + 0.2, thump(), 0.35, -0.4 + i * 0.2)
+fx(0.88, whoosh(0.45, False), 0.55, 0.5)
+fx(1.86, whoosh(0.35, True), 0.5, -0.4)
+fx(2.3, slap(), 0.9); fx(2.3, boom(1.2), 0.6); fx(2.3, crash(1.4), 0.35, 0, 0.4)
+fx(2.42, sparkle(2400), 0.35, 0.3, 0.5)
+fx(4.05, whoosh(0.6, True), 0.7, 0.6, 0.2)             # такси уезжает
+fx(4.3, whoosh(0.8, False), 0.8, -0.3, 0.2)            # шторка
+# сцена 2
+fx(4.88, whoosh(0.45, False), 0.5, -0.5)
+
+
+def reel_pos(t, fin, stop, st=4.95):
     k = min(max((t - st) / (stop - st), 0), 1)
     return fin * (1 - (1 - k) ** 3)
 
 
 last = -1
-for fin, stop in ((24, 3.6), (34, 3.75), (30, 3.9)):
+for fin, stop in ((24, 5.4), (34, 5.58), (30, 5.78)):
     prev = 0
-    for i in range(int(3.1 * SR / 100), int(stop * SR / 100) + 1):
+    for i in range(int(4.95 * SR / 100), int(stop * SR / 100) + 1):
         tc = i * 100 / SR
         p = int(reel_pos(tc, fin, stop))
         if p != prev:
             prev = p
-            if tc - last > 0.018:
-                add('fx', keytick(), tc, 0.22, pan=rs.uniform(-0.4, 0.4))
+            if tc - last > 0.025:
+                fx(tc, keytick(), 0.16, rs.uniform(-0.4, 0.4), 0.0)
                 last = tc
-    add('fx', click(1500), stop, 0.7)
-    add('fx', click(3600), stop + 0.004, 0.4)
-add('fx', boom(1.2), 3.9, 0.7)
-for i in range(14):
-    add('fx', coin(2300 + 170 * (i % 6)), 3.92 + i * 0.045, 0.08, pan=-0.6 + i * 0.09, rev=0.3)
-add('fx', whoosh(0.25, False), 4.22, 0.3)
-add('drums', clap(), 4.48, 0.6, rev=0.3)
-add('fx', boom(0.8), 4.48, 0.35)
-add('fx', whoosh(0.45, True), 4.75, 0.45, rev=0.2)                  # ирис
-# сцена 3: карточки, плюс, «QOLING!», переход вверх
-add('fx', whoosh(0.35, False), 5.1, 0.35, pan=-0.5)
-add('fx', blip(1320), 5.38, 0.3, rev=0.3)
-add('fx', whoosh(0.35, False), 5.5, 0.35, pan=0.5)
-add('fx', blip(1760), 5.86, 0.22, rev=0.3)
-add('drums', clap(), 6.1, 0.5, rev=0.3)
-add('fx', whoosh(0.4, True), 6.25, 0.5, rev=0.15)
-# сцена 4: листы, «TEZ», «OSON», штамп, глитч
-for i, t0 in enumerate((6.52, 6.64, 6.76)):
-    add('fx', paper(), t0, 0.5, pan=(-0.4, 0.4, 0.0)[i])
-add('fx', bell(mtof(88), 1.2), 7.5, 0.16, pan=-0.3, rev=0.5)
-add('fx', bell(mtof(93), 1.2), 8.04, 0.16, pan=0.3, rev=0.5)
-add('fx', whoosh(0.3, False), 8.4, 0.3, pan=0.5)
-add('fx', boom(0.9), 8.62, 0.6)
-add('drums', snare(1.0), 8.62, 0.5, rev=0.3)
-add('fx', glitch(0.14), 9.16, 0.4)
-# сцена 5: «AKSIYA» / «MUDDATI» влетают
-add('fx', whoosh(0.3, False), 9.3, 0.3, pan=-0.5)
-add('fx', whoosh(0.3, False), 9.76, 0.3, pan=0.5)
-add('fx', whoosh(0.45, False), 10.74, 0.5, pan=0.3, rev=0.2)        # шторка
-# сцена 6: «BATAFSIL», «HOZIROQ», кнопки, тап, звонок, «FAQAT BIZDA!», машина
-add('fx', whoosh(0.3, True), 11.48, 0.3)
-add('fx', whoosh(0.3, True), 12.0, 0.3)
-add('drums', clap(), 12.28, 0.55, rev=0.35)
-add('fx', boom(0.8), 12.78, 0.35)
-add('fx', whoosh(0.4, False), 13.5, 0.4, pan=-0.5)
-add('fx', blip(1480), 13.62, 0.25, rev=0.3)
-add('fx', click(3200), 14.3, 0.6)
-add('fx', blip(1980), 14.32, 0.18, rev=0.3)
-add('fx', whoosh(0.4, False), 14.92, 0.4, pan=0.5)
-add('fx', ringtone(0.42), 15.15, 0.1, rev=0.2)
-add('fx', ringtone(0.42), 15.7, 0.08, rev=0.2)
-add('fx', whoosh(0.8, True), 15.95, 0.5, pan=-0.6, rev=0.2)        # машина въезжает
-for i, t0 in enumerate((16.5, 16.7, 17.6, 17.8)):
-    add('fx', bell(mtof(100 - (i % 2) * 5), 0.6), t0 + 0.25, 0.05, pan=0.3 * (-1) ** i, rev=0.5)
+    fx(stop, click(1500), 0.6, 0, 0.1)
+fx(5.78, boom(1.4), 0.5); fx(5.78, slap(), 0.4)
+for i in range(16):
+    fx(5.8 + i * 0.05, coin(2300 + 170 * (i % 6)), 0.12, -0.6 + i * 0.08, 0.3)
+fx(6.1, thump(), 0.4)
+fx(6.3, slap(), 0.55)
+fx(6.45, whoosh(0.4, True), 0.35, 0.4)
+fx(6.75, sparkle(3000), 0.25, -0.3, 0.5)
+fx(8.35, whoosh(0.7, True), 0.7, 0, 0.25)              # ирис
+# сцена 3
+fx(8.86, pop(700), 0.35, -0.2)
+fx(9.38, pop(860), 0.35, 0.2)
+fx(9.98, slap(), 0.6)
+fx(10.4, whoosh(0.5, False), 0.6, -0.6)
+fx(10.95, pop(1100), 0.6)
+fx(11.25, whoosh(0.5, False), 0.6, 0.6)
+fx(11.6, thump(), 0.4)
+fx(11.95, pop(950), 0.55)
+fx(13.0, whoosh(0.75, True), 0.8, 0, 0.2)              # переход вверх
+# сцена 4
+for i, t0 in enumerate((13.6, 13.78, 13.96)):
+    fx(t0, paper(), 0.8, (-0.4, 0.4, 0.0)[i], 0.1)
+fx(14.36, pop(900), 0.45); fx(14.42, bell(mtof(88), 1.0), 0.3, -0.3, 0.4)
+fx(14.9, pop(1000), 0.45); fx(14.96, bell(mtof(93), 1.0), 0.3, 0.3, 0.4)
+fx(15.3, whoosh(0.45, False), 0.55, 0.5)
+fx(15.82, slap(), 0.95); fx(15.82, boom(1.0), 0.5)
+fx(16.12, whoosh(0.55, True), 0.6, 0, 0.2)
+fx(16.45, pop(800), 0.55)
+fx(16.6, whoosh(0.35, True), 0.4, -0.3)
+fx(17.05, slap(), 0.8)
+for i, m in enumerate((81, 84, 88)):
+    fx(17.3 + i * 0.07, bell(mtof(m), 1.2), 0.25, -0.3 + 0.3 * i, 0.5)
+fx(18.31, glitch(0.14), 0.7)
+# сцена 5
+fx(18.45, boom(1.8), 0.85); fx(18.45, crash(1.6), 0.35, 0, 0.5)
+for k in range(6):
+    fx(18.45 + k * 0.5, tock(2400 if k % 2 == 0 else 1900), 0.7, 0.2 * (-1) ** k, 0.15)
+fx(18.68, whoosh(0.45, False), 0.55, -0.6)
+fx(19.08, whoosh(0.45, False), 0.55, 0.6)
+fx(19.48, slap(), 0.9); fx(19.48, boom(1.0), 0.5)
+fx(20.3, riser(1.02, 400, 12000), 0.6, 0, 0.2)
+fx(21.0, whoosh(0.8, False), 0.8, 0.3, 0.2)            # шторка
+# сцена 6
+fx(21.32, boom(1.8), 0.85)
+fx(21.6, thump(), 0.5)
+fx(22.1, slap(), 0.7)
+fx(22.5, whoosh(0.5, True), 0.5)
+for i in range(7):
+    fx(22.85 + i * 0.05 + 0.2, pop(700 + 60 * i), 0.22, -0.4 + 0.13 * i)
+fx(23.36, slap(), 0.8)
+fx(24.3, whoosh(0.6, False), 0.65, -0.6)
+fx(24.98, click(3200), 0.9); fx(25.0, pop(1300), 0.45)
+fx(25.66, whoosh(0.6, False), 0.65, 0.6)
+fx(25.95, ringtone(0.42), 0.35, 0, 0.2)
+fx(26.5, ringtone(0.42), 0.3, 0, 0.2)
+fx(26.7, whoosh(1.2, True), 0.75, -0.6, 0.2)           # такси въезжает
+fx(26.85, slap(), 0.9); fx(26.85, boom(1.4), 0.6); fx(26.85, crash(1.8), 0.35, 0, 0.5)
+for t0 in (27.8, 28.0, 29.0, 29.2):
+    fx(t0 + 0.2, sparkle(2800), 0.2, 0.3, 0.5)
+
+for t0, sig, g, pan, rv in FX:
+    add('fx', sig, t0, g, pan=pan, rev=rv)
 
 # ---------- сведение ----------
 t = tt(N)
@@ -486,6 +517,8 @@ for k in KICKS:
 for ch in (0, 1):
     BUS['bass'][ch] *= side
     BUS['music'][ch] *= 0.55 + 0.45 * side
+
+
 def reverb(xl, xr, length=2.4, damp=5000):
     n = int(length * SR)
     tr = tt(n)
@@ -501,28 +534,27 @@ def reverb(xl, xr, length=2.4, damp=5000):
     return out
 
 
-rl, rr = reverb(*SEND)
-gains = {'drums': 1.0, 'bass': 0.95, 'music': 0.9, 'fx': 0.85}
-for ch, o in ((0, L), (1, R)):
-    for k, g in gains.items():
-        o += BUS[k][ch] * g
-    o += (rl, rr)[ch] * 0.6
+def master(stems, send, path, drive, tail):
+    lr = [np.zeros(N), np.zeros(N)]
+    rv = reverb(*send)
+    for ch in (0, 1):
+        for k, g in stems.items():
+            lr[ch] += BUS[k][ch] * g
+        lr[ch] += rv[ch] * 0.6
+    mix = np.stack([fft_filter(lr[0], lo=28), fft_filter(lr[1], lo=28)])
+    mix /= np.max(np.abs(mix)) + 1e-9
+    mix = np.tanh(mix * drive) / np.tanh(drive)
+    mix *= np.clip((DUR - t) / tail, 0, 1) ** 2
+    mix = mix[:, :int(DUR * SR)]
+    mix *= 0.89 / np.max(np.abs(mix))
+    pcm = (mix.T * 32767).astype('<i2')
+    with wave.open(path, 'wb') as w:
+        w.setnchannels(2)
+        w.setsampwidth(2)
+        w.setframerate(SR)
+        w.writeframes(pcm.tobytes())
+    print('готово:', path)
 
-mix = np.stack([L, R])
-mix = fft_filter(mix[0], lo=28), fft_filter(mix[1], lo=28)
-mix = np.stack(mix)
-mix /= np.max(np.abs(mix)) + 1e-9
-mix = np.tanh(mix * 1.8) / np.tanh(1.8)       # мягкая сатурация на мастере
-fade = np.clip((DUR - t) / 0.9, 0, 1) ** 2     # затухание к концу ролика
-mix *= fade
-mix = mix[:, :int(DUR * SR)]
-mix *= 0.89 / np.max(np.abs(mix))
 
-out = sys.argv[1] if len(sys.argv) > 1 else 'music.wav'
-pcm = (mix.T * 32767).astype('<i2')
-with wave.open(out, 'wb') as w:
-    w.setnchannels(2)
-    w.setsampwidth(2)
-    w.setframerate(SR)
-    w.writeframes(pcm.tobytes())
-print('готово:', out)
+master({'drums': 1.0, 'bass': 0.95, 'music': 0.9}, SEND, sys.argv[1] if len(sys.argv) > 1 else 'music.wav', 1.8, 1.4)
+master({'fx': 1.0}, SENDFX, sys.argv[2] if len(sys.argv) > 2 else 'sfx.wav', 2.5, 0.4)
