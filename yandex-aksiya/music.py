@@ -364,8 +364,8 @@ def groove(o, t1, lead=False, arp=True):
 add('fx', riser(0.4, 800, 9000), 0.0, 0.35)
 add('fx', whoosh(0.8, True), 0.0, 0.55, pan=-0.5, rev=0.2)          # машина въезжает
 # — 0,4–9,3: основной грув —
-add('fx', boom(1.6), VO, 0.8)
-add('fx', crash(2.0), VO, 0.45, rev=0.4)
+add('fx', boom(1.6), VO, 0.45)
+add('fx', crash(2.0), VO, 0.25, rev=0.4)
 groove(VO, 9.3, lead=False)
 # — 9,3–10,92: брейк «muddati cheklangan» —
 add('fx', boom(1.6), 9.3, 0.9)
