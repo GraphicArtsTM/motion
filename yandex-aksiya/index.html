@@ -63,9 +63,13 @@ html,body{margin:0;width:1080px;height:1920px;overflow:hidden;background:var(--k
 .road .edge.t{top:12px}.road .edge.b{bottom:12px}
 .chkband{height:120px;background:var(--chk);background-size:60px 60px}
 
-/* машина */
-.car{width:840px;height:308px}
-.car svg{width:100%;height:100%;overflow:visible}
+/* брендированная машина (вырезка из макета) */
+.truck{width:800px;height:auto}
+/* фото-карточки галереи */
+.photo{width:820px;background:#fff;padding:14px;border-radius:30px;box-shadow:0 34px 60px -24px rgba(0,0,0,.55)}
+.photo img{display:block;width:100%;border-radius:18px}
+.photo b{position:absolute;left:34px;top:34px;background:var(--k);color:var(--y);font:900 30px/1 var(--dis);
+  letter-spacing:.06em;padding:14px 20px;border-radius:999px}
 
 /* частицы и лучи */
 .pt{position:absolute;left:0;top:0;will-change:transform,opacity}
@@ -160,7 +164,7 @@ html,body{margin:0;width:1080px;height:1920px;overflow:hidden;background:var(--k
     <div class="a" id="s1parts"></div>
     <div class="road" id="s1road" style="top:1640px"><div class="edge t"></div><div class="dash"></div><div class="edge b"></div></div>
     <div class="a" id="s1speed"></div>
-    <div class="a car" id="s1car"></div>
+    <img class="a truck" id="s1car" src="img/truck-cutout.png" alt="">
   </section>
 
   <!-- 2. Atigi 440 ming so'm -->
@@ -177,6 +181,16 @@ html,body{margin:0;width:1080px;height:1920px;overflow:hidden;background:var(--k
     <div class="a" id="s2parts"></div>
   </section>
 
+  <!-- 2б. Mashinangiz shunday brendlanadi — фото брендированных машин -->
+  <section class="sc bgY" id="sg">
+    <div class="diag"></div>
+    <div class="a chkband" id="sgchk" style="width:2600px"></div>
+    <div class="a hl" id="sgh" data-split data-fit="880" style="font-size:150px">Mashinangiz</div>
+    <div class="a tape k" id="sgtape" data-fit="860" style="font-size:80px">SHUNDAY BRENDLANADI!</div>
+    <div class="full" id="sgcards"></div>
+    <div class="a tape" id="sgprice" data-fit="840" style="font-size:66px">BREND RUXSATNOMA — 440 000 SO’M</div>
+  </section>
+
   <!-- 3. Aksiyadan foydalanib qoling + qolganini taksopark to'laydi -->
   <section class="sc bgW" id="s3">
     <div class="a chkband" id="s3chk" style="width:2600px"></div>
@@ -190,7 +204,7 @@ html,body{margin:0;width:1080px;height:1920px;overflow:hidden;background:var(--k
     </div>
     <div class="a plus" id="s3plus">+</div>
     <div class="a card y" id="s3c2">
-      <div class="ico"><svg width="76" height="76" viewBox="0 0 24 24" fill="none" stroke="#FFD80D" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 16v-3.5l2.2-5A2 2 0 0 1 7 6.3h10a2 2 0 0 1 1.8 1.2l2.2 5V16"/><path d="M3 12.5h18"/><rect x="2.5" y="12.5" width="19" height="4.5" rx="1.2"/><circle cx="7" cy="17.5" r="1.8" fill="#FFD80D"/><circle cx="17" cy="17.5" r="1.8" fill="#FFD80D"/><path d="M9.5 6.3V4h5v2.3"/></svg></div>
+      <div class="ico"><svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="#FFD80D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5h11.5V16H2z"/><path d="M13.5 9.5h4.2l3.3 3.6V16h-7.5z"/><circle cx="6" cy="17.3" r="1.9" fill="#111"/><circle cx="17" cy="17.3" r="1.9" fill="#111"/></svg></div>
       <div><div class="lb">Qolgan summani</div><div class="vl" data-fit="600">TAKSOPARK TO’LAYDI!</div></div>
     </div>
     <div class="a slash" id="s3only"><div class="pill" style="font-size:46px;transform:rotate(-3deg)">FAQAT BIZDA!</div></div>
@@ -250,7 +264,7 @@ html,body{margin:0;width:1080px;height:1920px;overflow:hidden;background:var(--k
     <div class="a slash" id="s6only"><div class="tape" style="font-size:76px;transform:rotate(-4deg)">FAQAT BIZDA!</div></div>
     <div class="road" id="s6road" style="top:1660px"><div class="edge t"></div><div class="dash"></div><div class="edge b"></div></div>
     <div class="a" id="s6speed"></div>
-    <div class="a car" id="s6car"></div>
+    <img class="a truck" id="s6car" src="img/truck-cutout.png" alt="">
   </section>
 
 </div>

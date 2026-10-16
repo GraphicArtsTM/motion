@@ -3,6 +3,7 @@
 Исходная озвучка (audio/voice.mp3, 15,6 с) идёт без пауз — для Reels это слишком быстро:
 зритель не успевает прочитать текст. Режем её по тишине между фразами и ставим каждую
 фразу на свою сцену, оставляя паузу, чтобы кадр успел «дочитаться».
+Между ценой и «Aksiyadan foydalanib qoling» — 6,5 с галереи фото брендирования без голоса.
 
     python3 voice.py out/voice.wav
 """
@@ -12,16 +13,16 @@ import wave
 import numpy as np
 
 SR = 48000
-DUR = 30.0
+DUR = 36.2
 # (начало в исходнике, конец в исходнике, момент в ролике) — разрезы приходятся на паузы
 SEGMENTS = [
     (0.00, 2.53, 0.5),     # Endi brend ruxsatnomasi bizda aksiyada
     (2.53, 4.50, 4.8),     # Atigi 440 ming so'mga
-    (4.50, 6.10, 8.8),     # Aksiyadan foydalanib qoling
-    (6.10, 8.86, 13.4),    # Hujjatlaringizni tez va oson rasmiylashtiring
-    (8.86, 10.51, 18.6),   # Aksiya muddati cheklangan
-    (10.51, 13.14, 21.5),  # Batafsil ma'lumot uchun hoziroq murojaat qiling
-    (13.14, 15.60, 24.3),  # Telegramdan yozing yoki qo'ng'iroq qiling
+    (4.50, 6.10, 15.0),    # Aksiyadan foydalanib qoling
+    (6.10, 8.86, 19.6),    # Hujjatlaringizni tez va oson rasmiylashtiring
+    (8.86, 10.51, 24.8),   # Aksiya muddati cheklangan
+    (10.51, 13.14, 27.7),  # Batafsil ma'lumot uchun hoziroq murojaat qiling
+    (13.14, 15.60, 30.5),  # Telegramdan yozing yoki qo'ng'iroq qiling
 ]
 
 src = subprocess.run(['ffmpeg', '-loglevel', 'error', '-i', 'audio/voice.mp3', '-f', 'f32le', '-ac', '1', '-ar', str(SR), '-'],

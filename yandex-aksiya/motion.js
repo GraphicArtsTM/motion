@@ -4,7 +4,10 @@
    разметка слов — Whisper, см. README. */
 'use strict';
 
-const W = 1080, H = 1920, DUR = 30;
+const W = 1080, H = 1920;
+/* Вставка «галереи брендирования» после сцены с ценой: основной таймлайн (старое время)
+   идёт до TA, затем G секунд галерея, затем основной таймлайн продолжается с RESUME. */
+const TA = 8.3, G = 6.5, RESUME = 8.6, SH = TA + G - RESUME, DUR = 30 + SH;   // 36,2 с
 const $ = s => document.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const clamp = (x, a = 0, b = 1) => x < a ? a : x > b ? b : x;
@@ -84,32 +87,6 @@ function fit(el, maxW) {
   while (el.scrollWidth > maxW && fs > 10) { fs -= 1; el.style.fontSize = fs + 'px'; }
 }
 
-function carSVG(id) {
-  const spokes = cx => [0, 72, 144, 216, 288].map(a => `<rect x="${cx - 4}" y="${164 - 24}" width="8" height="24" rx="3" fill="#8d8d8d" transform="rotate(${a} ${cx} 164)"/>`).join('');
-  const wheel = cx => `<g class="wh" data-cx="${cx}"><circle cx="${cx}" cy="164" r="44" fill="#111"/><circle cx="${cx}" cy="164" r="27" fill="#dcdcdc"/>${spokes(cx)}<circle cx="${cx}" cy="164" r="8" fill="#111"/></g>`;
-  return `<svg viewBox="0 0 600 220">
-  <defs><pattern id="chk${id}" width="28" height="28" patternUnits="userSpaceOnUse"><rect width="28" height="28" fill="#fff"/><rect width="14" height="14" fill="#111"/><rect x="14" y="14" width="14" height="14" fill="#111"/></pattern></defs>
-  <ellipse class="shadow" cx="300" cy="210" rx="275" ry="11" fill="rgba(0,0,0,.45)"/>
-  <g class="body">
-    <circle cx="150" cy="164" r="54" fill="#111"/><circle cx="462" cy="164" r="54" fill="#111"/>
-    <path d="M28 150 L28 118 Q30 96 62 90 L148 80 L206 36 Q216 28 236 28 L384 28 Q402 28 414 38 L474 80 L546 92 Q576 98 578 122 L578 150 Q578 160 568 160 L520 160 A58 58 0 0 0 404 160 L208 160 A58 58 0 0 0 92 160 L40 160 Q28 160 28 150 Z" fill="#fff" stroke="#111" stroke-width="6" stroke-linejoin="round"/>
-    <path d="M164 80 L214 42 Q220 38 228 38 L296 38 L296 80 Z" fill="#111"/>
-    <path d="M310 38 L380 38 Q394 38 402 46 L452 80 L310 80 Z" fill="#111"/>
-    <path d="M236 44 L258 44 L228 76 L206 76 Z" fill="rgba(255,255,255,.28)"/>
-    <path d="M334 44 L352 44 L324 76 L306 76 Z" fill="rgba(255,255,255,.24)"/>
-    <rect x="96" y="104" width="420" height="28" fill="url(#chk${id})"/>
-    <path d="M303 84 V158 M200 86 V158 M410 86 V158" stroke="#111" stroke-width="3" opacity=".3"/>
-    <rect x="252" y="90" width="28" height="7" rx="3.5" fill="#111"/><rect x="354" y="90" width="28" height="7" rx="3.5" fill="#111"/>
-    <path d="M552 100 L577 106 L577 120 L556 118 Z" fill="#FFD80D" stroke="#111" stroke-width="3" stroke-linejoin="round"/>
-    <rect x="29" y="100" width="12" height="20" rx="2" fill="#E53935"/>
-    <rect x="512" y="142" width="70" height="14" rx="7" fill="#111"/><rect x="24" y="142" width="62" height="14" rx="7" fill="#111"/>
-    <g transform="translate(300 13)"><rect x="-58" y="-15" width="116" height="31" rx="8" fill="#FFD80D" stroke="#111" stroke-width="5"/>
-      <text x="0" y="9" text-anchor="middle" font-family="Unbounded" font-weight="900" font-size="20" fill="#111">TAXI</text></g>
-  </g>
-  ${wheel(150)}${wheel(462)}
-</svg>`;
-}
-
 const DOC = `<div class="dh">RUXSATNOMA</div><div class="db"><div class="ph"></div>
   <div><div class="ln d"></div><div class="ln"></div><div class="ln s"></div><div class="ln"></div></div>
   <div class="rows"><div class="ln"></div><div class="ln s"></div></div>
@@ -184,13 +161,10 @@ function drawSpeed(ls, t, cx, cy, amt) {
   }
 }
 
-/* ---------- машина ---------- */
-function drawCar(c, t, x, y, dist, tilt) {
-  S(c.el, { x, y });
-  const ang = dist / (44 * 1.4) * 57.2958;
-  c.wh.forEach(g => g.setAttribute('transform', `rotate(${ang.toFixed(2)} ${g.dataset.cx} 164)`));
+/* ---------- брендированная машина (фото-вырезка) ---------- */
+function drawCar(el, t, x, y, tilt, sc = 1) {
   const bob = Math.sin(t * 31) * 1.2 + Math.sin(t * 17) * .8;
-  c.body.setAttribute('transform', `translate(0 ${bob.toFixed(2)}) rotate(${tilt.toFixed(3)} 300 160)`);
+  S(el, { x, y: y + bob, r: tilt, s: sc });
 }
 
 /* ---------- сцены ---------- */
@@ -206,9 +180,14 @@ const CX = 540, CX2 = 520;
 const HITS = [[2.3, 8], [5.78, 11], [6.32, 5], [9.98, 6], [15.85, 8], [18.45, 8], [19.48, 10], [22.85, 6], [26.85, 8]];
 const FLASH = [[2.3, .18], [5.78, .28], [18.45, .25], [26.85, .18]];
 
-function camera(t) {
+/* удары галереи — в реальном времени */
+const HITS_G = [[TA + 1.1, 5], [TA + 2.15, 5], [TA + 3.2, 5], [TA + 4.25, 5], [TA + 5.3, 5]];
+
+function camera(t, to) {
   let x = 0, y = 0, r = 0;
-  for (const [h, a] of HITS) {
+  const hits = to == null ? HITS_G : HITS;
+  if (to != null) t = to;
+  for (const [h, a] of hits) {
     if (t < h || t > h + .8) continue;
     const e = Math.exp(-(t - h) * 8) * a;
     x += Math.sin((t - h) * 55 + h) * e; y += Math.cos((t - h) * 47 + h * 2) * e; r += Math.sin((t - h) * 35) * e * .02;
@@ -216,7 +195,7 @@ function camera(t) {
   const zoom = 1 + .01 * Math.sin(t * .7);
   R.cam.style.transform = `translate(${x.toFixed(2)}px,${y.toFixed(2)}px) rotate(${r.toFixed(3)}deg) scale(${zoom.toFixed(4)})`;
   let f = 0;
-  for (const [h, a] of FLASH) if (t >= h) f = Math.max(f, a * Math.exp(-(t - h) * 10));
+  if (to != null) for (const [h, a] of FLASH) if (t >= h) f = Math.max(f, a * Math.exp(-(t - h) * 10));
   R.flash.style.opacity = f.toFixed(3);
 }
 
@@ -273,7 +252,7 @@ function s1(t) {
   const x = kf(t, [[0, -520], [1.3, 540, E.outCubic], [4.12, 540], [4.62, 1900, E.inCubic]]);
   const tilt = t < 4.1 ? -wob(t, 1.0, 2.5, 10, 4) : -kf(t, [[4.1, 0], [4.25, 2.5, E.outCubic]]);
   R.s1dash.style.transform = `translateX(${(-(t * 900) % 140).toFixed(1)}px)`;
-  drawCar(R.s1car, t, x, 1553, t * 900 + x, tilt);
+  drawCar(R.s1car, t, x, 1500, tilt);
   drawSpeed(R.s1speed, t, x, 1500, t < 1.3 ? 1 - P(t, .4, .9) * .6 : t > 4.1 ? 1 : .4);
 }
 
@@ -310,9 +289,8 @@ function s2(t) {
 /* 3. AKSIYADAN FOYDALANIB QOLING + оплата (8,45 – 13,65) */
 function s3(t) {
   const sc = R.s3;
-  const ir = tw(t, 8.45, .6, 0, 2300, E.inOutCubic);
   const kp = P(t, 13.1, .55);
-  sc.style.clipPath = t < 9.05 ? `circle(${ir.toFixed(1)}px at 540px 760px)` : 'none';
+  sc.style.clipPath = 'none';   // вход в сцену теперь шторкой из галереи
   sc.style.transform = `translateY(${(-H * E.inOutQuart(kp)).toFixed(1)}px)`;
   const pv = Math.sin(Math.PI * kp);
   sc.style.filter = pv > .05 ? `blur(${(pv * 8).toFixed(1)}px)` : 'none';
@@ -428,29 +406,64 @@ function s6(t) {
   R.s6phShine.style.transform = sh(0, 28.0) || sh(0, 29.2) || 'translateX(-300px)';
   // FAQAT BIZDA! + такси
   const ko = P(t, 26.85, .5);
-  S(R.s6only, { x: CX2, y: 1360, s: lerp(1.7, 1, E.outBack(ko)) * (1 + .02 * Math.sin(t * 4)), r: wob(t, 27.2, 2, 12, 4), o: ko * 4 });
+  S(R.s6only, { x: CX2, y: 1335, s: lerp(1.7, 1, E.outBack(ko)) * (1 + .02 * Math.sin(t * 4)), r: wob(t, 27.2, 2, 12, 4), o: ko * 4 });
   const kr = P(t, 21.5, .7);
   R.s6road.style.transform = `translateY(${((1 - E.outExpo(kr)) * 320).toFixed(1)}px)`;
   R.s6dash.style.transform = `translateX(${(-(t * 900) % 140).toFixed(1)}px)`;
   const x = kf(t, [[26.8, -560], [27.9, 540, E.outCubic]]);
-  drawCar(R.s6car, t, x, 1573 + (1 - E.outExpo(kr)) * 320, t * 900 + x, -wob(t, 27.6, 2.5, 10, 4));
+  drawCar(R.s6car, t, x, 1592 + (1 - E.outExpo(kr)) * 320, -wob(t, 27.6, 2.5, 10, 4), .78);
   drawSpeed(R.s6speed, t, x, 1520, t < 27.9 ? 1 : .4);
+}
+
+/* ---------- галерея: «MASHINANGIZ SHUNDAY BRENDLANADI!» (реальное время TA … TA+G) ---------- */
+const CARDS = [
+  { src: 'img/mockup-side.jpg', tag: 'NAMUNA', r: -3 },
+  { src: 'img/photo-labo-side.jpg', tag: 'HAQIQIY FOTO', r: 2.5 },
+  { src: 'img/photo-labo-tent.jpg', tag: 'HAQIQIY FOTO', r: -2 },
+  { src: 'img/photo-labo-box.jpg', tag: 'HAQIQIY FOTO', r: 3 },
+  { src: 'img/photo-cargo-side.jpg', tag: 'HAQIQIY FOTO', r: -1.5 },
+];
+function sg(t) {
+  const g = t - TA;
+  S(R.sgchk, { x: 540 - (t * 120 % 120), y: 1720, r: -5 });
+  S(R.sgh, { x: CX, y: 390 + fl(t, 0, 3) });
+  lettersUp(R.sghCh, t, TA + .3, .04, .55, 140);
+  const kt = P(g, .85, .5);
+  S(R.sgtape, { x: CX, y: 530 + fl(t, .7, 3), s: lerp(1.6, 1, E.outBack(kt)), r: lerp(-10, -3, E.outCubic(kt)), o: kt * 4 });
+  // карточки: каждая влетает справа и ложится сверху стопки, предыдущие уходят назад
+  const t0s = CARDS.map((_, i) => 1.1 + i * 1.05);
+  R.sgCards.forEach((el, i) => {
+    const k = P(g, t0s[i], .7), e = E.outExpo(k);
+    const depth = t0s.reduce((n, tt, j) => n + (j > i ? E.inOutCubic(P(g, tt, .5)) : 0), 0);
+    const c = CARDS[i];
+    S(el, { x: lerp(1500, CX2 + 10, e) - depth * 26, y: 930 + fl(t, i, 4, 1.4) - depth * 34,
+      r: lerp(14, c.r, e) - depth * 2.5, s: 1 - depth * .06, o: k > 0 ? clamp(1.6 - depth * .5) : 0 });
+    el.style.zIndex = 10 + i;
+    el.style.filter = depth > .05 ? `brightness(${(1 - depth * .12).toFixed(3)})` : 'none';
+  });
+  const kb = P(g, 1.7, .6);
+  S(R.sgprice, { x: CX2, y: 1335 + fl(t, 2, 3) + (1 - E.outCubic(kb)) * 60, r: -2, o: kb * 2 });
 }
 
 /* ---------- кадр ---------- */
 function render(t) {
+  const inG = t >= TA && t < TA + G;
+  const to = t < TA ? t : t - SH;                  // время основного таймлайна
   for (const s of scenes) {
-    const on = t >= s.t0 && t < s.t1;
+    const on = !inG && to >= s.t0 && to < s.t1;
     s.el.style.display = on ? 'block' : 'none';
-    if (on) s.fn(t);
+    if (on) s.fn(to);
   }
-  if (!slab(t, 4.62, '#111', '#FFD80D') && !slab(t, 21.32, '#FFD80D', '#111')) R.slab.style.display = 'none';
+  R.sg.style.display = inG ? 'block' : 'none';
+  if (inG) sg(t);
+  if (!slab(t, 4.62, '#111', '#FFD80D') && !slab(t, TA, '#FFD80D', '#111') && !slab(t, TA + G, '#111', '#FFD80D')
+      && !slab(to, 21.32, '#FFD80D', '#111')) R.slab.style.display = 'none';
   // шапка: появляется сразу, инвертируется на тёмных сценах
-  const dark = (t >= 4.62 && t < 8.75) || (t >= 18.45 && t < 21.32);
+  const dark = !inG && ((to >= 4.62 && to < 8.75) || (to >= 18.45 && to < 21.32));
   R.hdr.classList.toggle('inv', dark);
   const kh = P(t, .05, .5);
   S(R.hdr, { x: CX, y: lerp(60, 230, E.outBack(kh)), o: clamp(kh * 3) });
-  camera(t);
+  camera(t, inG ? null : to);
   R.grain.style.backgroundPosition = `${Math.floor(t * 30) * 37 % 256}px ${Math.floor(t * 30) * 91 % 256}px`;
 }
 
@@ -459,7 +472,13 @@ async function init() {
   await Promise.all([...document.fonts].map(f => f.load().catch(() => 0)));
   R.cam = $('#cam'); R.flash = $('#flash'); R.grain = $('#grain'); R.hdr = $('#hdr');
   R.slab = $('#slab'); R.slabA = $('#slabA'); R.slabB = $('#slabB');
-  ['s1', 's2', 's3', 's4', 's5', 's6'].forEach(id => { R[id] = $('#' + id); R[id].style.display = 'block'; });
+  // галерея фото брендирования
+  R.sgCards = CARDS.map(c => {
+    const d = document.createElement('div'); d.className = 'a photo';
+    d.innerHTML = `<img src="${c.src}"><b>${c.tag}</b>`; $('#sgcards').appendChild(d); return d;
+  });
+  await Promise.all($$('img').map(im => im.decode().catch(() => 0)));
+  ['s1', 's2', 's3', 's4', 's5', 's6', 'sg'].forEach(id => { R[id] = $('#' + id); R[id].style.display = 'block'; });
 
   $$('[data-fit]').forEach(el => fit(el, +el.dataset.fit));
   $$('[data-split]').forEach(el => { R[el.id + 'Ch'] = splitChars(el); });
@@ -469,8 +488,6 @@ async function init() {
   R.s1raysBox = $('#s1rays'); R.s1rays = makeRays(R.s1raysBox, 18, '#111');
   R.s1parts = makeParts($('#s1parts'), 40, 11, ['#111', '#fff', '#111', '#FFD80D']);
   R.s1dash = $('#s1road .dash');
-  const car = (id, sp) => { const el = $('#' + id); el.innerHTML = carSVG(id); return { el, wh: $$('.wh', el), body: $('.body', el) }; };
-  R.s1car = car('s1car'); R.s6car = car('s6car');
   R.s1speed = makeSpeed($('#s1speed'), 9, 3, '#111');
   R.s6speed = makeSpeed($('#s6speed'), 9, 5, '#111');
 
@@ -516,7 +533,7 @@ async function init() {
   scene('s3', 8.45, 13.65, s3);
   scene('s4', 13.1, 18.45, s4);
   scene('s5', 18.45, 21.32, s5);
-  scene('s6', 21.32, DUR + .01, s6);
+  scene('s6', 21.32, 30.01, s6);
 }
 
 window.DURATION = DUR;

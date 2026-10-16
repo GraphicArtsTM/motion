@@ -17,7 +17,9 @@ SR = 44100
 BPM = 128
 BEAT = 60 / BPM          # 0,469 с
 BAR = BEAT * 4           # 1,875 с
-DUR = 30.0
+TA, G, RESUME = 8.3, 6.5, 8.6     # галерея фото брендирования (см. motion.js)
+SH = TA + G - RESUME              # на столько сдвигается всё после галереи
+DUR = 30.0 + SH                   # 36,2 с
 N = int((DUR + 2.0) * SR)
 
 L = np.zeros(N)
@@ -388,27 +390,42 @@ def groove(o, t1, leads=()):
                 add('music', dutar(mtof(m - 12), ln * BEAT + 0.3, 0.5, 0.996), ts + 0.012, 0.12, pan=-0.3, rev=0.3)
 
 
-# — 0–18,45: основной грув (мелодия на сцене «foydalanib qoling») —
+def shutter():
+    """Щелчок затвора фотоаппарата."""
+    n = int(0.16 * SR)
+    t = tt(n)
+    a = fft_filter(noise(n), lo=1500, hi=9000) * np.exp(-t * 90)
+    b = np.roll(fft_filter(noise(n), lo=800, hi=6000) * np.exp(-t * 60), int(0.055 * SR))
+    return a * 0.9 + b * 0.7 + np.sin(2 * np.pi * 2600 * t) * np.exp(-t * 200) * 0.3
+
+
+# — 0–18,45(+SH): основной грув, мелодия — на галерее фото —
 add('fx', crash(2.0), 0.0, 0.3, rev=0.4)
-groove(0.0, 18.45, leads=(5,))
+groove(0.0, 18.45 + SH, leads=(5,))
 # — 18,45–21,32: брейк «muddati cheklangan»: тиканье секундомера, напряжение, раскатка —
-add('drums', kick(1.1), 18.45, 0.9); KICKS.append(18.45)
+add('drums', kick(1.1), (18.45 + SH), 0.9); KICKS.append((18.45 + SH))
 n = int(2.9 * SR)
 for m in CH['E'] + [64]:
     x = saw_add(mtof(m + 12), n, 700 + 1600 * tt(n) / 2.9, voices=3, detune=18, maxh=24) * adsr(n, 0.3, 0.8, 0.8, 0.2)
-    add('music', x, 18.45, 0.05, pan=rs.uniform(-0.6, 0.6), rev=0.5)
-add('bass', np.sin(2 * np.pi * mtof(28) * tt(n)) * adsr(n, 0.02, 1.5, 0.7, 0.2), 18.45, 0.5)
+    add('music', x, (18.45 + SH), 0.05, pan=rs.uniform(-0.6, 0.6), rev=0.5)
+add('bass', np.sin(2 * np.pi * mtof(28) * tt(n)) * adsr(n, 0.02, 1.5, 0.7, 0.2), (18.45 + SH), 0.5)
 for k in range(16):
-    add('drums', snare(0.2 + 0.8 * k / 15), 20.57 + k * (0.75 / 16), 0.42, pan=0.1 * (-1) ** k)
+    add('drums', snare(0.2 + 0.8 * k / 15), (20.57 + SH) + k * (0.75 / 16), 0.42, pan=0.1 * (-1) ** k)
 rc = crash(1.0)[::-1]
-add('fx', rc, 21.32 - len(rc) / SR, 0.5)
+add('fx', rc, (21.32 + SH) - len(rc) / SR, 0.5)
 # — 21,32–30: финальный дроп —
-add('drums', crash(2.2), 21.32, 0.5, rev=0.5)
-groove(21.32, DUR, leads=(3,))
+add('drums', crash(2.2), (21.32 + SH), 0.5, rev=0.5)
+groove(21.32 + SH, DUR, leads=(3,))
 
 # ---------- звуковые эффекты (события в кадре, см. motion.js) ----------
 FX = []          # (момент, сигнал, громкость, панорама, ревер)
 def fx(t0, sig, g, pan=0.0, rev=0.15):
+    """Событие в «старом» времени сцен: всё после галереи сдвигается на SH."""
+    FX.append((t0 + (SH if t0 >= 8.5 else 0), sig, g, pan, rev))
+
+
+def gfx(t0, sig, g, pan=0.0, rev=0.15):
+    """Событие галереи — в реальном времени."""
     FX.append((t0, sig, g, pan, rev))
 
 
@@ -451,7 +468,19 @@ fx(6.1, thump(), 0.4)
 fx(6.3, slap(), 0.55)
 fx(6.45, whoosh(0.4, True), 0.35, 0.4)
 fx(6.75, sparkle(3000), 0.25, -0.3, 0.5)
-fx(8.35, whoosh(0.7, True), 0.7, 0, 0.25)              # ирис
+fx(TA - 0.32, whoosh(0.8, False), 0.8, 0.3, 0.2)       # шторка в галерею
+# галерея «Mashinangiz shunday brendlanadi!»
+for i in range(11):
+    gfx(TA + 0.3 + i * 0.04 + 0.2, pop(650 + 40 * i), 0.18, -0.5 + 0.1 * i)
+gfx(TA + 0.85, slap(), 0.75)
+for i in range(5):
+    tc = TA + 1.1 + i * 1.05
+    gfx(tc - 0.1, whoosh(0.5, False), 0.6, 0.6, 0.15)
+    gfx(tc + 0.3, shutter(), 0.8, -0.2 + 0.1 * i, 0.1)
+    gfx(tc + 0.3, thump(), 0.35)
+gfx(TA + 1.7, whoosh(0.4, True), 0.4, -0.4)
+gfx(TA + 1.9, sparkle(2600), 0.25, 0.3, 0.5)
+gfx(TA + G - 0.32, whoosh(0.8, False), 0.8, -0.3, 0.2)  # шторка в «foydalanib qoling»
 # сцена 3
 fx(8.86, pop(700), 0.35, -0.2)
 fx(9.38, pop(860), 0.35, 0.2)

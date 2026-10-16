@@ -1,7 +1,9 @@
-# Yandex Go taksopark — «Brend ruxsatnoma aksiyada» (Instagram Reels, 1080×1920, 30 с, 30 fps)
+# Yandex Go taksopark — «Brend ruxsatnoma aksiyada» (Instagram Reels, 1080×1920, 36 с, 30 fps)
 
-Вертикальный (9:16) моушн-ролик для акции таксопарка: брендовая разрешительная (ruxsatnoma)
-за 440 000 сум, остаток оплачивает таксопарк. Информация взята из старой версии ролика,
+Вертикальный (9:16) моушн-ролик для акции таксопарка: бренд-рухсатнома на брендирование машины
+(Yandex Go Yetkazish) за 440 000 сум, остаток оплачивает таксопарк. Чтобы было понятно, о каком
+брендировании речь, в ролике ездит настоящая брендированная машина (вырезка из макета) и есть
+отдельная сцена с фото брендированных машин (`img/`). Информация взята из старой версии ролика,
 визуал и анимация сделаны заново. Озвучка на узбекском — `audio/voice.mp3` (ElevenLabs).
 
 Готовое видео: `out/yandex-aksiya-reels-1080x1920.mp4`.
@@ -20,16 +22,21 @@
 
 | Время | Голос | Что в кадре |
 |---|---|---|
-| 0–4,6 с | «Endi brend ruxsatnomasi bizda aksiyada» | Такси въезжает, BREND / RUXSATNOMA собираются по буквам, плашка BIZDA, наклейка «AKSIYADA!» |
-| 4,6–8,5 с | «Atigi 440 ming so'mga» | Шторка в чёрное, барабаны цифр докручиваются до 440, конфетти, «MING SO’M», «brend ruxsatnoma uchun» |
-| 8,5–13,1 с | «Aksiyadan foydalanib qoling» | Ирис в белый: «AKSIYADAN FOYDALANIB QOLING!», затем карточки «Siz to’laysiz 440 000 so’m» + «Qolgan summani taksopark to’laydi!», «FAQAT BIZDA!» |
-| 13,1–16,2 с | «Hujjatlaringizni tez va oson rasmiylashtiring» | Документы веером, TEZ ✓ / OSON ✓, «RASMIYLASHTIRING», штамп «TAYYOR ✓» |
-| 16,2–18,4 с | — | Условие: «SHARTI: bizning taksoparkda ISHLASH KIFOYA!» |
-| 18,4–21,3 с | «Aksiya muddati cheklangan» | Предупредительные ленты, секундомер истекает, «AKSIYA MUDDATI CHEKLANGAN!» |
-| 21,3–30 с | «Batafsil ma'lumot uchun hoziroq murojaat qiling. Telegramdan yozing yoki qo'ng'iroq qiling» | «HOZIROQ MUROJAAT QILING!», кнопка Telegram @YANDEXDASTURCHI с тапом, кнопка +998 90 375 44 06 со звонком, такси и «FAQAT BIZDA!»; финал держится ~3 с |
+| 0–4,6 с | «Endi brend ruxsatnomasi bizda aksiyada» | Брендированная машина въезжает, BREND / RUXSATNOMA собираются по буквам, плашка BIZDA, наклейка «AKSIYADA!» |
+| 4,6–8,3 с | «Atigi 440 ming so'mga» | Шторка в чёрное, барабаны цифр докручиваются до 440, конфетти, «MING SO’M», «brend ruxsatnoma uchun» |
+| 8,3–14,8 с | — (мелодия) | «MASHINANGIZ SHUNDAY BRENDLANADI!»: стопка фото — макет и 4 реальных фото брендированных машин, «Brend ruxsatnoma — 440 000 so’m» |
+| 14,8–19,3 с | «Aksiyadan foydalanib qoling» | Ирис в белый: «AKSIYADAN FOYDALANIB QOLING!», затем карточки «Siz to’laysiz 440 000 so’m» + «Qolgan summani taksopark to’laydi!», «FAQAT BIZDA!» |
+| 19,3–22,4 с | «Hujjatlaringizni tez va oson rasmiylashtiring» | Документы веером, TEZ ✓ / OSON ✓, «RASMIYLASHTIRING», штамп «TAYYOR ✓» |
+| 22,4–24,6 с | — | Условие: «SHARTI: bizning taksoparkda ISHLASH KIFOYA!» |
+| 24,6–27,5 с | «Aksiya muddati cheklangan» | Предупредительные ленты, секундомер истекает, «AKSIYA MUDDATI CHEKLANGAN!» |
+| 27,5–36,2 с | «Batafsil ma'lumot uchun hoziroq murojaat qiling. Telegramdan yozing yoki qo'ng'iroq qiling» | «HOZIROQ MUROJAAT QILING!», кнопка Telegram @YANDEXDASTURCHI с тапом, кнопка +998 90 375 44 06 со звонком, машина и «FAQAT BIZDA!»; финал держится ~3 с |
 
-Моменты фраз — в `voice.py` (`SEGMENTS`); слова размечены Whisper. При замене голоса поправьте
-`SEGMENTS`, тайминги сцен в `motion.js` и события `fx(...)` в `music.py`.
+Моменты фраз — в `voice.py` (`SEGMENTS`); слова размечены Whisper. Сцены в `motion.js` написаны
+в «основном» времени, а галерея вставлена между ними: `TA`, `G`, `RESUME` (в `motion.js` и `music.py`)
+задают, где она начинается, сколько длится и с какого момента продолжается основной таймлайн.
+При замене голоса поправьте `SEGMENTS`, тайминги сцен в `motion.js` и события `fx(...)` в `music.py`.
+
+Фото в `img/` обрезаны (без водяных знаков по краям); `truck-cutout.png` — машина из макета без фона.
 
 ## Звук
 
@@ -37,7 +44,7 @@
 
 - `out/music.wav` — хаус 128 BPM в ля гармоническом миноре: бочка, клэп, хэты, дойра, офбит-бас
   с сайдчейном, стабы, щипковый «дутар», мелодия; брейк с тиканьем на сцене «muddati cheklangan».
-- `out/sfx.wav` — эффекты под каждое событие в кадре: проезд такси, «поп» появления, хлопки наклеек
+- `out/sfx.wav` — эффекты под каждое событие в кадре: проезд машины, «поп» появления, щелчок затвора на каждом фото, хлопки наклеек
   и штампов, удары, щелчки барабанов цифр, монеты, шорох листов, колокольчики TEZ/OSON, глитч,
   тиканье секундомера, тап по кнопке, звонок, блики.
 
