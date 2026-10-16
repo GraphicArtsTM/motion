@@ -467,7 +467,8 @@ for i in range(16):
 fx(6.1, thump(), 0.4)
 fx(6.3, slap(), 0.55)
 fx(6.45, whoosh(0.4, True), 0.35, 0.4)
-fx(6.75, sparkle(3000), 0.25, -0.3, 0.5)
+fx(6.42, slap(), 0.6)                                   # «TO'LANG!»
+fx(6.95, sparkle(3000), 0.25, -0.3, 0.5)
 fx(TA - 0.32, whoosh(0.8, False), 0.8, 0.3, 0.2)       # шторка в галерею
 # галерея «Mashinangiz shunday brendlanadi!»
 for i in range(11):
@@ -481,29 +482,24 @@ for i in range(5):
 gfx(TA + 1.7, whoosh(0.4, True), 0.4, -0.4)
 gfx(TA + 1.9, sparkle(2600), 0.25, 0.3, 0.5)
 gfx(TA + G - 0.32, whoosh(0.8, False), 0.8, -0.3, 0.2)  # шторка в «foydalanib qoling»
-# сцена 3
-fx(8.86, pop(700), 0.35, -0.2)
-fx(9.38, pop(860), 0.35, 0.2)
-fx(9.98, slap(), 0.6)
-fx(10.4, whoosh(0.5, False), 0.6, -0.6)
-fx(10.95, pop(1100), 0.6)
-fx(11.25, whoosh(0.5, False), 0.6, 0.6)
-fx(11.6, thump(), 0.4)
-fx(11.95, pop(950), 0.55)
-fx(13.0, whoosh(0.75, True), 0.8, 0, 0.2)              # переход вверх
-# сцена 4
-for i, t0 in enumerate((13.6, 13.78, 13.96)):
-    fx(t0, paper(), 0.8, (-0.4, 0.4, 0.0)[i], 0.1)
-fx(14.36, pop(900), 0.45); fx(14.42, bell(mtof(88), 1.0), 0.3, -0.3, 0.4)
-fx(14.9, pop(1000), 0.45); fx(14.96, bell(mtof(93), 1.0), 0.3, 0.3, 0.4)
-fx(15.3, whoosh(0.45, False), 0.55, 0.5)
-fx(15.82, slap(), 0.95); fx(15.82, boom(1.0), 0.5)
-fx(16.12, whoosh(0.55, True), 0.6, 0, 0.2)
-fx(16.45, pop(800), 0.55)
-fx(16.6, whoosh(0.35, True), 0.4, -0.3)
-fx(17.05, slap(), 0.8)
+# сцена 3: «qolgan summani — biz to'lab beramiz», карточки оплаты
+fx(8.84, pop(700), 0.35, -0.2)
+fx(9.14, pop(860), 0.35, 0.2)
+fx(10.3, slap(), 0.6)
+fx(11.05, whoosh(0.5, False), 0.6, -0.6)
+fx(11.65, pop(1100), 0.6)
+fx(11.8, whoosh(0.5, False), 0.6, 0.6)
+fx(12.25, thump(), 0.4)
+fx(12.55, pop(950), 0.55)
+fx(13.4, whoosh(0.75, True), 0.8, 0, 0.2)              # переход вверх
+# сцена 4: «yagona shartimiz — bizning taksoparkda ishlashingiz kifoya»
+fx(14.15, pop(800), 0.5)
+fx(15.05, whoosh(0.4, True), 0.45, -0.3)
+for i in range(12):
+    fx(16.12 + i * 0.04 + 0.2, pop(650 + 45 * i), 0.16, -0.5 + 0.09 * i)
+fx(16.72, slap(), 0.85); fx(16.72, boom(1.0), 0.45)
 for i, m in enumerate((81, 84, 88)):
-    fx(17.3 + i * 0.07, bell(mtof(m), 1.2), 0.25, -0.3 + 0.3 * i, 0.5)
+    fx(17.05 + i * 0.07, bell(mtof(m), 1.2), 0.25, -0.3 + 0.3 * i, 0.5)
 fx(18.31, glitch(0.14), 0.7)
 # сцена 5
 fx(18.45, boom(1.8), 0.85); fx(18.45, crash(1.6), 0.35, 0, 0.5)

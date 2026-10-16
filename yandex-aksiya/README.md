@@ -4,13 +4,13 @@
 (Yandex Go Yetkazish) за 440 000 сум, остаток оплачивает таксопарк. Чтобы было понятно, о каком
 брендировании речь, в ролике ездит настоящая брендированная машина (вырезка из макета) и есть
 отдельная сцена с фото брендированных машин (`img/`). Информация взята из старой версии ролика,
-визуал и анимация сделаны заново. Озвучка на узбекском — `audio/voice.mp3` (ElevenLabs).
+визуал и анимация сделаны заново. Озвучка на узбекском — `audio/voice.mp3` (ElevenLabs, 17,4 с).
 
 Готовое видео: `out/yandex-aksiya-reels-1080x1920.mp4`.
 
 ## Под Reels
 
-- **Темп.** Озвучка (15,6 с) записана без пауз, поэтому `voice.py` режет её по тишине между фразами
+- **Темп.** Озвучка (17,4 с) записана без пауз, поэтому `voice.py` режет её по тишине между фразами
   и ставит каждую фразу на свою сцену с паузой. Каждый текст появляется на своём слове и держится
   в кадре 1,5–3 с после того, как сказан. Появления — 0,5–0,8 с, переходы — 0,5–0,8 с, тряска камеры мягкая.
 - **Безопасные зоны.** Весь текст в полосе y 300…1450: сверху ~220 px занимает интерфейс Reels,
@@ -22,14 +22,13 @@
 
 | Время | Голос | Что в кадре |
 |---|---|---|
-| 0–4,6 с | «Endi brend ruxsatnomasi bizda aksiyada» | Брендированная машина въезжает, BREND / RUXSATNOMA собираются по буквам, плашка BIZDA, наклейка «AKSIYADA!» |
-| 4,6–8,3 с | «Atigi 440 ming so'mga» | Шторка в чёрное, барабаны цифр докручиваются до 440, конфетти, «MING SO’M», «brend ruxsatnoma uchun» |
+| 0–4,6 с | «Endi brend ruxsatnomasi bizda aksiyada!» | Брендированная машина въезжает, BREND / RUXSATNOMA собираются по буквам, плашка BIZDA, наклейка «AKSIYADA!» |
+| 4,6–8,3 с | «Atigi 440 ming so'm to'lang,» | Шторка в чёрное, барабаны цифр докручиваются до 440, конфетти, «MING SO’M», «TO’LANG!», «brend ruxsatnoma uchun» |
 | 8,3–14,8 с | — (мелодия) | «MASHINANGIZ SHUNDAY BRENDLANADI!»: стопка фото — макет и 4 реальных фото брендированных машин, «Brend ruxsatnoma — 440 000 so’m» |
-| 14,8–19,3 с | «Aksiyadan foydalanib qoling» | Ирис в белый: «AKSIYADAN FOYDALANIB QOLING!», затем карточки «Siz to’laysiz 440 000 so’m» + «Qolgan summani taksopark to’laydi!», «FAQAT BIZDA!» |
-| 19,3–22,4 с | «Hujjatlaringizni tez va oson rasmiylashtiring» | Документы веером, TEZ ✓ / OSON ✓, «RASMIYLASHTIRING», штамп «TAYYOR ✓» |
-| 22,4–24,6 с | — | Условие: «SHARTI: bizning taksoparkda ISHLASH KIFOYA!» |
-| 24,6–27,5 с | «Aksiya muddati cheklangan» | Предупредительные ленты, секундомер истекает, «AKSIYA MUDDATI CHEKLANGAN!» |
-| 27,5–36,2 с | «Batafsil ma'lumot uchun hoziroq murojaat qiling. Telegramdan yozing yoki qo'ng'iroq qiling» | «HOZIROQ MUROJAAT QILING!», кнопка Telegram @YANDEXDASTURCHI с тапом, кнопка +998 90 375 44 06 со звонком, машина и «FAQAT BIZDA!»; финал держится ~3 с |
+| 14,8–19,7 с | «qolgan summani biz — taksopark — to'lab beramiz.» | Шторка в белый: «QOLGAN SUMMANI BIZ TO’LAB BERAMIZ!», карточки «Siz to’laysiz 440 000 so’m» + «Qolgan summani taksopark to’laydi!», «FAQAT BIZDA!» |
+| 19,7–24,6 с | «Yagona shartimiz — bizning taksoparkda ishlashingiz kifoya.» | «YAGONA SHARTIMIZ: bizning taksoparkda ISHLASHINGIZ KIFOYA!» |
+| 24,6–27,5 с | «Aksiya muddati cheklangan.» | Предупредительные ленты, секундомер истекает, «AKSIYA MUDDATI CHEKLANGAN!» |
+| 27,5–36,2 с | «Batafsil ma'lumot uchun hoziroq murojaat qiling. Telegramdan yozing yoki qo'ng'iroq qiling.» | «HOZIROQ MUROJAAT QILING!», кнопка Telegram @YANDEXDASTURCHI с тапом, кнопка +998 90 375 44 06 со звонком, машина и «FAQAT BIZDA!»; финал держится ~3 с |
 
 Моменты фраз — в `voice.py` (`SEGMENTS`); слова размечены Whisper. Сцены в `motion.js` написаны
 в «основном» времени, а галерея вставлена между ними: `TA`, `G`, `RESUME` (в `motion.js` и `music.py`)
@@ -45,7 +44,7 @@
 - `out/music.wav` — хаус 128 BPM в ля гармоническом миноре: бочка, клэп, хэты, дойра, офбит-бас
   с сайдчейном, стабы, щипковый «дутар», мелодия; брейк с тиканьем на сцене «muddati cheklangan».
 - `out/sfx.wav` — эффекты под каждое событие в кадре: проезд машины, «поп» появления, щелчок затвора на каждом фото, хлопки наклеек
-  и штампов, удары, щелчки барабанов цифр, монеты, шорох листов, колокольчики TEZ/OSON, глитч,
+  и штампов, удары, щелчки барабанов цифр, монеты, колокольчики на «KIFOYA!», глитч,
   тиканье секундомера, тап по кнопке, звонок, блики.
 
 `build.sh` приглушает музыку под голосом, а эффекты кладёт отдельно без приглушения — так их слышно.

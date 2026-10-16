@@ -98,28 +98,6 @@ html,body{margin:0;width:1080px;height:1920px;overflow:hidden;background:var(--k
 .plus{width:110px;height:110px;border-radius:50%;background:var(--y);color:var(--k);font:900 84px/104px var(--dis);text-align:center;
   box-shadow:0 0 0 10px #FBFAF5}
 
-/* документы */
-.doc{width:470px;height:600px;background:var(--w);border-radius:22px;overflow:hidden;
-  box-shadow:0 30px 60px -20px rgba(0,0,0,.45),0 0 0 3px rgba(0,0,0,.06)}
-.doc .dh{height:120px;background:var(--k);position:relative;color:var(--y);font:900 34px/1 var(--dis);letter-spacing:.04em;
-  display:flex;align-items:center;padding:0 30px}
-.doc .dh::after{content:"";position:absolute;left:0;right:0;bottom:0;height:24px;background:var(--chk);background-size:24px 24px}
-.doc .dh{padding-bottom:22px}
-.doc .db{padding:30px;display:grid;grid-template-columns:130px 1fr;gap:24px}
-.doc .ph{height:160px;border-radius:14px;background:#EDEDED;position:relative;overflow:hidden}
-.doc .ph::before{content:"";position:absolute;left:35px;top:28px;width:60px;height:60px;border-radius:50%;background:#C9C9C9}
-.doc .ph::after{content:"";position:absolute;left:15px;top:98px;width:100px;height:90px;border-radius:50px 50px 0 0;background:#C9C9C9}
-.doc .ln{height:16px;border-radius:8px;background:#E3E3E3;margin:10px 0 20px}
-.doc .ln.s{width:60%}.doc .ln.d{background:#BDBDBD;width:80%}
-.doc .rows{grid-column:1/3}
-.doc .qr{width:120px;height:120px;background:var(--chk);background-size:30px 30px;border-radius:8px;opacity:.85}
-.doc .ft{grid-column:1/3;display:flex;justify-content:space-between;align-items:end}
-.doc .sig{width:170px;height:60px}
-.stamp{font:900 64px/1 var(--dis);color:var(--ok);border:9px solid var(--ok);border-radius:22px;padding:18px 30px 16px;
-  letter-spacing:.04em;white-space:nowrap;background:rgba(255,255,255,.55)}
-.chip{display:flex;align-items:center;gap:22px;background:var(--k);color:var(--w);border-radius:999px;padding:18px 44px 18px 20px;
-  font:900 64px/1 var(--dis);white-space:nowrap}
-.chip .ck{width:84px;height:84px;border-radius:50%;background:var(--y);display:grid;place-items:center}
 
 /* предупредительная лента и таймер */
 .warn{width:2200px;height:120px;background:repeating-linear-gradient(-45deg,var(--y) 0 50px,var(--k) 50px 100px);
@@ -177,7 +155,8 @@ html,body{margin:0;width:1080px;height:1920px;overflow:hidden;background:var(--k
     <div class="a hl" id="s2ming" style="font-size:116px;color:var(--w)">MING</div>
     <div class="a hl" id="s2som" style="font-size:116px;color:var(--y)">SO’M</div>
     <div class="a" id="s2under" style="width:820px;height:20px;background:var(--y);border-radius:10px"></div>
-    <div class="a" id="s2for" style="font:800 46px/1 var(--ui);letter-spacing:.14em;color:#fff;white-space:nowrap">BREND RUXSATNOMA UCHUN</div>
+    <div class="a tape y" id="s2tol" style="font-size:96px">TO’LANG!</div>
+    <div class="a" id="s2for" style="font:800 42px/1 var(--ui);letter-spacing:.14em;color:#fff;white-space:nowrap">BREND RUXSATNOMA UCHUN</div>
     <div class="a" id="s2parts"></div>
   </section>
 
@@ -195,9 +174,9 @@ html,body{margin:0;width:1080px;height:1920px;overflow:hidden;background:var(--k
   <section class="sc bgW" id="s3">
     <div class="a chkband" id="s3chk" style="width:2600px"></div>
     <div class="a" id="s3blob" style="width:900px;height:900px;border-radius:50%;background:var(--y)"></div>
-    <div class="a hl" id="s3l1" data-split data-fit="880" style="font-size:120px">Aksiyadan</div>
-    <div class="a hl" id="s3l2" data-split data-fit="880" style="font-size:120px">foydalanib</div>
-    <div class="a tape k" id="s3l3" style="font-size:112px">QOLING!</div>
+    <div class="a hl" id="s3l1" data-split data-fit="880" style="font-size:130px">Qolgan</div>
+    <div class="a hl" id="s3l2" data-split data-fit="880" style="font-size:130px">summani</div>
+    <div class="a tape k" id="s3l3" data-fit="880" style="font-size:96px">BIZ TO’LAB BERAMIZ!</div>
     <div class="a card k" id="s3c1">
       <div class="ico"><svg width="70" height="70" viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="14" rx="3"/><path d="M2.5 10h19"/><path d="M6 6l9-3.5 2 3.5"/><circle cx="17" cy="15" r="1.3" fill="#111"/></svg></div>
       <div><div class="lb">Siz to’laysiz</div><div class="vl">440 000 SO’M</div></div>
@@ -210,21 +189,13 @@ html,body{margin:0;width:1080px;height:1920px;overflow:hidden;background:var(--k
     <div class="a slash" id="s3only"><div class="pill" style="font-size:46px;transform:rotate(-3deg)">FAQAT BIZDA!</div></div>
   </section>
 
-  <!-- 4. Hujjatlaringizni tez va oson rasmiylashtiring + sharti -->
+  <!-- 4. Yagona shartimiz — bizning taksoparkda ishlashingiz kifoya -->
   <section class="sc bgY" id="s4">
     <div class="diag"></div>
     <div class="a chkband" id="s4chk" style="width:2600px"></div>
-    <div class="a hl" id="s4h" data-split data-fit="880" style="font-size:96px">Hujjatlaringizni</div>
-    <div class="a doc" id="s4d1"></div>
-    <div class="a doc" id="s4d2"></div>
-    <div class="a doc" id="s4d3"></div>
-    <div class="a stamp" id="s4stamp">TAYYOR ✓</div>
-    <div class="a chip" id="s4tez"><div class="ck"><svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.6 4.5L19 7"/></svg></div>TEZ</div>
-    <div class="a chip" id="s4oson"><div class="ck"><svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.6 4.5L19 7"/></svg></div>OSON</div>
-    <div class="a tape" id="s4ras" data-fit="820" style="font-size:88px">RASMIYLASHTIRING</div>
-    <div class="a pill" id="s4sh" style="font-size:66px">SHARTI:</div>
+    <div class="a pill" id="s4sh" data-fit="860" style="font-size:62px">YAGONA SHARTIMIZ:</div>
     <div class="a hl" id="s4b1" data-fit="860" style="font-size:84px">Bizning taksoparkda</div>
-    <div class="a hl" id="s4b2" data-split data-fit="860" style="font-size:200px">Ishlash</div>
+    <div class="a hl" id="s4b2" data-split data-fit="880" style="font-size:150px">Ishlashingiz</div>
     <div class="a tape" id="s4b3" style="font-size:130px">KIFOYA!</div>
     <div class="a" id="s4ok" style="width:190px;height:190px;border-radius:50%;background:var(--k);display:grid;place-items:center">
       <svg width="110" height="110" viewBox="0 0 24 24" fill="none" stroke="#FFD80D" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.6 4.5L19 7"/></svg></div>

@@ -87,11 +87,6 @@ function fit(el, maxW) {
   while (el.scrollWidth > maxW && fs > 10) { fs -= 1; el.style.fontSize = fs + 'px'; }
 }
 
-const DOC = `<div class="dh">RUXSATNOMA</div><div class="db"><div class="ph"></div>
-  <div><div class="ln d"></div><div class="ln"></div><div class="ln s"></div><div class="ln"></div></div>
-  <div class="rows"><div class="ln"></div><div class="ln s"></div></div>
-  <div class="ft"><div class="qr"></div><svg class="sig" viewBox="0 0 170 60"><path d="M6 44 C 26 6, 36 60, 52 30 S 78 8, 86 38 S 112 52, 122 22 S 150 30, 164 18" fill="none" stroke="#1d3fa8" stroke-width="4" stroke-linecap="round"/></svg></div></div>`;
-
 const WATCH = `<svg viewBox="0 0 280 310">
   <rect x="122" y="6" width="36" height="26" rx="6" fill="#FFD80D"/><rect x="132" y="28" width="16" height="20" fill="#FFD80D"/>
   <g transform="rotate(42 140 170)"><rect x="128" y="22" width="24" height="18" rx="5" fill="#FFD80D"/></g>
@@ -177,7 +172,7 @@ function scene(id, t0, t1, fn) { scenes.push({ el: $('#' + id), t0, t1, fn }); }
 const CX = 540, CX2 = 520;
 
 /* удары камеры: [момент, сила] — мягкие, только на ключевых акцентах */
-const HITS = [[2.3, 8], [5.78, 11], [6.32, 5], [9.98, 6], [15.85, 8], [18.45, 8], [19.48, 10], [22.85, 6], [26.85, 8]];
+const HITS = [[2.3, 8], [5.78, 11], [6.32, 5], [10.3, 6], [16.72, 8], [18.45, 8], [19.48, 10], [22.85, 6], [26.85, 8]];
 const FLASH = [[2.3, .18], [5.78, .28], [18.45, .25], [26.85, .18]];
 
 /* удары галереи — в реальном времени */
@@ -282,39 +277,41 @@ function s2(t) {
   const ku = P(t, 6.45, .55);
   R.s2under.style.transformOrigin = '0 50%';
   S(R.s2under, { x: CX, y: 1170, sx: E.outExpo(ku), o: ku > 0 ? 1 : 0 });
-  const kf2 = P(t, 6.75, .6);
-  S(R.s2for, { x: CX, y: 1260 + (1 - E.outCubic(kf2)) * 40, o: kf2 * .9 });
+  const kt = P(t, 6.42, .5);
+  S(R.s2tol, { x: CX, y: 1290 + fl(t, 1.6, 3), s: lerp(1.7, 1, E.outBack(kt)), r: lerp(-10, -3, E.outCubic(kt)), o: kt * 4 });
+  const kf2 = P(t, 6.95, .6);
+  S(R.s2for, { x: CX, y: 1415 + (1 - E.outCubic(kf2)) * 40, o: kf2 * .9 });
 }
 
-/* 3. AKSIYADAN FOYDALANIB QOLING + оплата (8,45 – 13,65) */
+/* 3. QOLGAN SUMMANI BIZ — TAKSOPARK — TO'LAB BERAMIZ + оплата (8,45 – 14,05) */
 function s3(t) {
   const sc = R.s3;
-  const kp = P(t, 13.1, .55);
-  sc.style.clipPath = 'none';   // вход в сцену теперь шторкой из галереи
+  const kp = P(t, 13.5, .55);
+  sc.style.clipPath = 'none';   // вход в сцену — шторкой из галереи
   sc.style.transform = `translateY(${(-H * E.inOutQuart(kp)).toFixed(1)}px)`;
   const pv = Math.sin(Math.PI * kp);
   sc.style.filter = pv > .05 ? `blur(${(pv * 8).toFixed(1)}px)` : 'none';
 
   S(R.s3chk, { x: 540 - (t * 120 % 120), y: 1720, r: -5, o: tw(t, 9.2, .8, 0, 1) });
   S(R.s3blob, { x: 920 + Math.sin(t * 1.1) * 20, y: 330, s: tw(t, 8.6, .8, .2, 1, E.outBack) });
-  S(R.s3l1, { x: CX, y: 420 + fl(t, 0, 3) }); lettersUp(R.s3l1Ch, t, 8.86);
-  S(R.s3l2, { x: CX, y: 555 + fl(t, .6, 3) }); lettersUp(R.s3l2Ch, t, 9.38);
-  const k3 = P(t, 9.98, .5);
+  S(R.s3l1, { x: CX, y: 420 + fl(t, 0, 3) }); lettersUp(R.s3l1Ch, t, 8.84);
+  S(R.s3l2, { x: CX, y: 555 + fl(t, .6, 3) }); lettersUp(R.s3l2Ch, t, 9.14);
+  const k3 = P(t, 10.3, .5);
   S(R.s3l3, { x: CX, y: 715 + fl(t, 1.2, 3), s: lerp(1.6, 1, E.outBack(k3)), r: lerp(-12, -4, E.outCubic(k3)), o: k3 * 4 });
-  const c1 = P(t, 10.4, .7);
+  const c1 = P(t, 11.15, .7);
   S(R.s3c1, { x: lerp(-700, CX2, E.outExpo(c1)), y: 965 + fl(t, 2, 4), r: (1 - E.outExpo(c1)) * -6, o: c1 > 0 ? 1 : 0 });
-  const kpl = P(t, 10.95, .5);
+  const kpl = P(t, 11.65, .5);
   S(R.s3plus, { x: CX2, y: 1115, s: E.outBack(kpl), r: (1 - E.outCubic(kpl)) * 180, o: kpl > 0 ? 1 : 0 });
-  const c2 = P(t, 11.25, .7);
-  S(R.s3c2, { x: lerp(1700, CX2, E.outExpo(c2)), y: 1265 + fl(t, 3, 4), r: (1 - E.outExpo(c2)) * 6, o: c2 > 0 ? 1 : 0, s: 1 + wob(t, 11.6, .03, 12, 4) });
-  const ko = P(t, 11.95, .5);
+  const c2 = P(t, 11.9, .7);
+  S(R.s3c2, { x: lerp(1700, CX2, E.outExpo(c2)), y: 1265 + fl(t, 3, 4), r: (1 - E.outExpo(c2)) * 6, o: c2 > 0 ? 1 : 0, s: 1 + wob(t, 12.25, .03, 12, 4) });
+  const ko = P(t, 12.55, .5);
   S(R.s3only, { x: CX2, y: 1430, s: E.outBack(ko), o: ko > 0 ? 1 : 0 });
 }
 
-/* 4. HUJJATLARINGIZNI TEZ VA OSON RASMIYLASHTIRING → SHARTI (13,1 – 18,45) */
+/* 4. YAGONA SHARTIMIZ — BIZNING TAKSOPARKDA ISHLASHINGIZ KIFOYA (13,5 – 18,45) */
 function s4(t) {
   const sc = R.s4;
-  const kp = P(t, 13.1, .55);
+  const kp = P(t, 13.5, .55);
   const pv = Math.sin(Math.PI * kp);
   let gx = 0, gsk = 0;
   if (t > 18.33) { const r = rng(Math.floor(t * 60)); gx = (r() - .5) * 50; gsk = (r() - .5) * 8; }
@@ -322,32 +319,13 @@ function s4(t) {
   sc.style.filter = pv > .05 ? `blur(${(pv * 8).toFixed(1)}px)` : t > 18.33 ? 'contrast(1.3) saturate(1.4)' : 'none';
 
   S(R.s4chk, { x: 540 + (t * 120 % 120) - 120, y: 1720, r: 4 });
-  // часть А: документы
-  const L = leave(t, 16.15);
-  S(R.s4h, { x: CX, y: 400 + L.dy, o: L.o });
-  lettersUp(R.s4hCh, t, 13.5, .03, .55, 120);
-  [[R.s4d3, 13.6, -9, -60, 16], [R.s4d2, 13.78, 8, 60, 8], [R.s4d1, 13.96, -2, 0, 0]].forEach(([el, t0, r, dx, dy], i) => {
-    const k = P(t, t0, .8), e = E.outExpo(k);
-    S(el, { x: CX + dx * e, y: lerp(1900, 750 + dy, e) + fl(t, i, 5, 1.5) + L.dy, r: lerp(r + 30 * (i % 2 ? 1 : -1), r, e) + wob(t, 15.85, i === 2 ? 1 : .5, 14, 5),
-      s: .82 * (1 + (i === 2 ? wob(t, 15.85, .03, 18, 6) : 0)), o: k > 0 ? L.o : 0 });
-  });
-  const ks = P(t, 15.82, .32);
-  S(R.s4stamp, { x: CX + 40, y: 860 + fl(t, 2, 5, 1.5) + L.dy, s: lerp(2.4, .85, E.outCubic(ks)), r: -14, o: Math.min(ks * 5, L.o) });
-  const kz = P(t, 14.36, .55), ko = P(t, 14.9, .55);
-  const gap = 36, tot = R.tezW + gap + R.osonW, x0 = CX2 - tot / 2;
-  S(R.s4tez, { x: x0 + R.tezW / 2, y: 1110 + L.dy, s: E.outBack(kz), r: (1 - E.outCubic(kz)) * -16, o: kz > 0 ? L.o : 0 });
-  S(R.s4oson, { x: x0 + R.tezW + gap + R.osonW / 2, y: 1110 + L.dy, s: E.outBack(ko), r: (1 - E.outCubic(ko)) * 16, o: ko > 0 ? L.o : 0 });
-  const kr = P(t, 15.3, .6);
-  S(R.s4ras, { x: lerp(1500, CX2, E.outExpo(kr)), y: 1250 + L.dy, r: -2, sk: (1 - E.outExpo(kr)) * -18, o: kr > 0 ? L.o : 0 });
-
-  // часть Б: условие акции
-  const k1 = P(t, 16.45, .5), k2 = P(t, 16.6, .6), k4 = P(t, 17.05, .55), k5 = P(t, 17.3, .5);
-  S(R.s4sh, { x: CX, y: 500 + fl(t, 0, 3), s: E.outBack(k1), r: -3, o: k1 > 0 ? 1 : 0 });
-  S(R.s4b1, { x: CX, y: 650 + fl(t, .5, 3) + (1 - E.outCubic(k2)) * 60, o: k2 * 2 });
-  S(R.s4b2, { x: CX, y: 810 + fl(t, 1, 3) });
-  lettersUp(R.s4b2Ch, t, 16.8, .05, .6, 160);
-  S(R.s4b3, { x: CX, y: 1000 + fl(t, 1.5, 4), s: lerp(1.6, 1, E.outBack(k4)), r: lerp(-10, -4, E.outCubic(k4)), o: k4 * 4 });
-  S(R.s4ok, { x: CX2, y: 1230 + fl(t, 2, 5), s: E.outBack(k5) * (1 + .03 * Math.sin(t * 4)), r: (1 - E.outCubic(k5)) * -90, o: k5 > 0 ? 1 : 0 });
+  const k1 = P(t, 14.15, .55), k2 = P(t, 15.1, .6), k4 = P(t, 16.72, .55), k5 = P(t, 17.05, .5);
+  S(R.s4sh, { x: CX, y: 470 + fl(t, 0, 3), s: E.outBack(k1), r: -3, o: k1 > 0 ? 1 : 0 });
+  S(R.s4b1, { x: CX, y: 640 + fl(t, .5, 3) + (1 - E.outCubic(k2)) * 60, o: k2 * 2 });
+  S(R.s4b2, { x: CX, y: 800 + fl(t, 1, 3) });
+  lettersUp(R.s4b2Ch, t, 16.12, .04, .55, 160);
+  S(R.s4b3, { x: CX, y: 990 + fl(t, 1.5, 4), s: lerp(1.6, 1, E.outBack(k4)), r: lerp(-10, -4, E.outCubic(k4)), o: k4 * 4 });
+  S(R.s4ok, { x: CX2, y: 1220 + fl(t, 2, 5), s: E.outBack(k5) * (1 + .03 * Math.sin(t * 4)), r: (1 - E.outCubic(k5)) * -90, o: k5 > 0 ? 1 : 0 });
 }
 
 /* 5. AKSIYA MUDDATI CHEKLANGAN (18,45 – 21,32) */
@@ -508,8 +486,6 @@ async function init() {
   // S3
   $('#s3c1').style.display = 'flex';
   // S4
-  ['#s4d1', '#s4d2', '#s4d3'].forEach(s => { $(s).innerHTML = DOC; });
-  R.tezW = $('#s4tez').offsetWidth; R.osonW = $('#s4oson').offsetWidth;
   // S5
   $('#s5watch').innerHTML = WATCH;
   R.prog = $('#s5watch .prog'); R.hand = $('#s5watch .hand');
@@ -530,8 +506,8 @@ async function init() {
 
   scene('s1', 0, 4.62, s1);
   scene('s2', 4.62, 9.1, s2);
-  scene('s3', 8.45, 13.65, s3);
-  scene('s4', 13.1, 18.45, s4);
+  scene('s3', 8.45, 14.05, s3);
+  scene('s4', 13.5, 18.45, s4);
   scene('s5', 18.45, 21.32, s5);
   scene('s6', 21.32, 30.01, s6);
 }
