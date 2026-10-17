@@ -67,7 +67,7 @@ namespace UzbekKombat
             bool blocked = def.IsBlockingAgainst(move.level);
             bool lastHit = move.hits <= 1 || idx >= move.hits - 1;
 
-            if (!blocked && def.HasArmor)
+            if (!blocked && (def.HasArmor || (def.enhanced && def.state == FState.Attack && def.move != null && def.move.kind == MoveKind.Special && def.moveFrame < def.move.startup + 2 && def.armorHitsLeft-- > 0)))
             {
                 float ad = move.damage * att.def.damageMult * 0.6f;
                 def.ApplyDamage(ad, att, false);
@@ -98,7 +98,15 @@ namespace UzbekKombat
 
             bool counter = def.InStartup;
             float scale = Mathf.Max(0.35f, Mathf.Pow(0.9f, def.comboHits));
-            float dmg = move.damage * att.def.damageMult * scale / def.def.defenseMult * (counter ? 1.15f : 1f);
+            float dmg = move.damage * att.def.damageMult * scale / def.def.defenseMult * (counter ? 1.15f : 1f) * (att.enhanced ? 1.35f : 1f);
+            // Majaqlovchi zarba (Krushing Blow): kuchli zarba qarshi-zarba sifatida tushsa — har usul uchun bir marta
+            bool krush = counter && !att.krushUsed.Contains(move.id) && def.comboHits == 0 &&
+                         (move.id == "HP" || move.id == "HK" || move.id == "cHP" || (move.kind == MoveKind.Special && move.damage >= 80));
+            if (krush)
+            {
+                att.krushUsed.Add(move.id);
+                dmg *= 1.5f;
+            }
             Vector2 knock = move.knockback;
             bool launchNow = move.launch || (move.lastHitLaunch && lastHit);
             if (move.lastHitLaunch && lastHit) knock = new Vector2(2f, 9f);
@@ -114,7 +122,8 @@ namespace UzbekKombat
             att.meter = Mathf.Min(FightConst.MaxMeter, att.meter + move.meterGain);
             if (!launchNow && !move.knockdown && !move.sweep) CornerPush(att, def, knock.x);
             move.onHit?.Invoke(att, def);
-            m.OnHitLanded(att, def, move, counter, dmg);
+            m.OnHitLanded(att, def, move, counter && !krush, dmg);
+            if (krush) m.OnKrushingBlow(att, def, point);
         }
 
         static MoveData CloneWithLaunch(MoveData m)

@@ -33,6 +33,7 @@ namespace UzbekKombat
         Color skyTop, skyHor, skyBot, sunCol, ambSky, ambEq, ambGround, fogCol;
         float sunIntensity;
 
+        Material mGrass, mWater;
         Material mEarth, mPaving, mPlaster, mBrick, mWood, mDoor, mGirih, mBorder, mSuzani, mCarpet, mLeaves, mMountain, mVC, mGlow, mDark, mTileVC;
 
         public static Arena Build(ArenaPreset preset)
@@ -63,7 +64,13 @@ namespace UzbekKombat
             mBorder = Mat.Toon(Color.white, TextureFactory.TileBorder(), 0.25f, null, 0.4f);
             mSuzani = Mat.Toon(Color.white, TextureFactory.Suzani(), 0.1f);
             mCarpet = Mat.Toon(Color.white, TextureFactory.Carpet(), 0.05f);
-            mLeaves = Mat.Toon(Color.white, TextureFactory.Leaves(), 0.2f);
+            mLeaves = Mat.Instance(Mat.Toon(Color.white, TextureFactory.Leaves(), 0.2f));
+            mLeaves.SetFloat("_WindStrength", 0.12f);
+            mGrass = Mat.Instance(Mat.Toon(Color.white, null, 0.15f));
+            mGrass.SetFloat("_WindStrength", 1.4f);
+            var ws = Shader.Find("UzbekKombat/Water");
+            mWater = ws != null && ws.isSupported ? new Material(ws) : Mat.Toon(ColorUtil.Hex("#3a7f95"), TextureFactory.Water(), 0.5f);
+            mWater.SetTexture("_MainTex", TextureFactory.Ripples());
             mMountain = Mat.Toon(Color.white, TextureFactory.Mountain(), 0.0f);
             mVC = Mat.Toon(Color.white, null, 0.2f);
             mTileVC = Mat.Toon(Color.white, null, 0.35f, null, 0.5f);
@@ -79,6 +86,8 @@ namespace UzbekKombat
             BuildTrees();
             BuildProps();
             BuildMountains();
+            BuildAryk();
+            BuildGrass();
 
             foreach (var kv in builders)
             {
@@ -156,6 +165,10 @@ namespace UzbekKombat
             RenderSettings.ambientEquatorColor = Color.Lerp(ambEq, ColorUtil.Hex("#401818"), dark);
             RenderSettings.ambientGroundColor = Color.Lerp(ambGround, ColorUtil.Hex("#180808"), dark);
             RenderSettings.fogColor = Color.Lerp(fogCol, ColorUtil.Hex("#3a0e0a"), dark);
+            // Metall va suv aksi uchun global muhit ranglari
+            Shader.SetGlobalColor("_UKEnvTop", Color.Lerp(skyTop, ColorUtil.Hex("#3a0a0a"), dark) * 1.1f);
+            Shader.SetGlobalColor("_UKEnvHorizon", Color.Lerp(skyHor, ColorUtil.Hex("#a02818"), dark));
+            Shader.SetGlobalColor("_UKEnvGround", Color.Lerp(ambGround, ColorUtil.Hex("#200808"), dark));
             if (sun)
             {
                 sun.color = Color.Lerp(sunCol, ColorUtil.Hex("#ff7050"), dark);
@@ -540,6 +553,74 @@ namespace UzbekKombat
             }
             wh.Cylinder(Vector3.zero, 0.15f, 0.15f, -0.1f, 0.1f, 8);
             wh.ResetTransform();
+        }
+
+        // ---------------- Ariq (suv kanali) ----------------
+        void BuildAryk()
+        {
+            float z = 3.35f, w = 0.75f, x0 = -26f, x1 = 26f;
+            var wm = MB(mWater);
+            wm.AddQuad(new Vector3(x0, 0.03f, z - w / 2), new Vector3(x0, 0.03f, z + w / 2), new Vector3(x1, 0.03f, z + w / 2), new Vector3(x1, 0.03f, z - w / 2), Vector2.zero, new Vector2(x1 - x0, w));
+            // Loy qirg'oqlar
+            var bank = MB(mVC).SetColor(ColorUtil.Hex("#8a6a4a"));
+            bank.Box(new Vector3(0, 0.06f, z - w / 2 - 0.12f), new Vector3(x1 - x0, 0.12f, 0.24f));
+            bank.Box(new Vector3(0, 0.06f, z + w / 2 + 0.12f), new Vector3(x1 - x0, 0.12f, 0.24f));
+            var r = new System.Random(41);
+            var st = MB(mVC);
+            for (int i = 0; i < 70; i++)
+            {
+                float x = x0 + (float)r.NextDouble() * (x1 - x0);
+                float side = r.NextDouble() < 0.5 ? -1 : 1;
+                st.SetColor(Color.Lerp(ColorUtil.Hex("#8c8270"), ColorUtil.Hex("#b8ac94"), (float)r.NextDouble()));
+                st.Sphere(new Vector3(x, 0.1f, z + side * (w / 2 + 0.1f)), new Vector3(0.12f, 0.07f, 0.1f) * (0.6f + (float)r.NextDouble() * 0.8f), 3, 6);
+            }
+            // Yog'och ko'prikcha
+            var wd = MB(mWood);
+            for (int i = 0; i < 6; i++) wd.Box(new Vector3(-1.6f + i * 0.17f, 0.14f, z), new Vector3(0.15f, 0.05f, w + 0.6f), 1f);
+            wd.Box(new Vector3(-1.2f, 0.1f, z - w / 2 - 0.25f), new Vector3(1.2f, 0.08f, 0.1f), 1f);
+            wd.Box(new Vector3(-1.2f, 0.1f, z + w / 2 + 0.25f), new Vector3(1.2f, 0.08f, 0.1f), 1f);
+        }
+
+        // ---------------- O't va lolalar ----------------
+        void BuildGrass()
+        {
+            var r = new System.Random(55);
+            var g = MB(mGrass);
+            Color[] greens = { ColorUtil.Hex("#4f7a2c"), ColorUtil.Hex("#6b8f34"), ColorUtil.Hex("#3d6a2a"), ColorUtil.Hex("#8a9a3c") };
+            void Tuft(Vector3 c, float size)
+            {
+                int n = 5 + r.Next(5);
+                for (int i = 0; i < n; i++)
+                {
+                    float a = (float)r.NextDouble() * Mathf.PI * 2;
+                    Vector3 b = c + new Vector3(Mathf.Cos(a), 0, Mathf.Sin(a)) * 0.08f * size;
+                    float h = (0.18f + (float)r.NextDouble() * 0.22f) * size;
+                    Vector3 lean = new Vector3(Mathf.Cos(a), 0, Mathf.Sin(a)) * h * 0.35f;
+                    Vector3 side = new Vector3(-Mathf.Sin(a), 0, Mathf.Cos(a)) * 0.025f * size;
+                    g.SetColor(greens[r.Next(greens.Length)]);
+                    Vector3 tip = b + Vector3.up * h + lean;
+                    g.AddTriangle(b - side, tip, b + side);
+                    g.AddTriangle(b + side, tip, b - side);
+                }
+            }
+            // Devor tagida, ariq bo'yida, daraxtlar atrofida, oldingi chekkada
+            for (int i = 0; i < 120; i++) Tuft(new Vector3(-20 + (float)r.NextDouble() * 40, 0, 5.75f + (float)r.NextDouble() * 0.35f), 1f + (float)r.NextDouble() * 0.6f);
+            for (int i = 0; i < 160; i++) Tuft(new Vector3(-24 + (float)r.NextDouble() * 48, 0.06f, 3.35f + (r.NextDouble() < 0.5 ? -0.62f : 0.62f) + ((float)r.NextDouble() - 0.5f) * 0.2f), 1.1f);
+            for (int i = 0; i < 90; i++) Tuft(new Vector3(-20 + (float)r.NextDouble() * 40, 0, -2.95f - (float)r.NextDouble() * 1.8f), 0.9f + (float)r.NextDouble() * 0.8f);
+            for (int i = 0; i < 30; i++) Tuft(new Vector3(8.5f + ((float)r.NextDouble() - 0.5f) * 3f, 0, 5.2f + ((float)r.NextDouble() - 0.5f) * 2f), 1.2f);
+            // Lolalar (qizil lola — bahor ramzi)
+            var fl = MB(mVC);
+            for (int i = 0; i < 60; i++)
+            {
+                bool front = i % 3 == 0;
+                Vector3 p = front ? new Vector3(-18 + (float)r.NextDouble() * 36, 0, -3.1f - (float)r.NextDouble() * 1.5f)
+                                  : new Vector3(-20 + (float)r.NextDouble() * 40, 0, 5.7f + (float)r.NextDouble() * 0.3f);
+                if (Mathf.Abs(p.x) < 1.2f && front) continue;
+                float h = 0.25f + (float)r.NextDouble() * 0.15f;
+                fl.SetColor(ColorUtil.Hex("#3d6a2a")).Cylinder(p, 0.008f, 0.006f, 0, h, 4, false);
+                Color petal = r.NextDouble() < 0.75 ? ColorUtil.Hex("#d0202a") : ColorUtil.Hex("#f0c020");
+                fl.SetColor(petal).Lathe(new[] { new Vector2(0, h - 0.01f), new Vector2(0.03f, h + 0.01f), new Vector2(0.032f, h + 0.05f), new Vector2(0.018f, h + 0.07f) }, 6, p);
+            }
         }
 
         // ---------------- Tog'lar ----------------

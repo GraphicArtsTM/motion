@@ -313,6 +313,14 @@ namespace UzbekKombat
             return Color.Lerp(c, ColorUtil.Hex("#2a4a22"), n2 > 0.7f ? 0.5f : 0);
         });
 
+        /// <summary>Suv to'lqinlari uchun ikki kanalli shovqin (R, G).</summary>
+        public static Texture2D Ripples() => Make("ripples", 128, 128, (u, v) =>
+        {
+            float a = Noise.FbmTiled(u * 4, v * 4, 4, 4, 131);
+            float b = Noise.FbmTiled(u * 6 + 3, v * 6, 6, 4, 132);
+            return new Color(a, b, 0.5f, 1);
+        });
+
         public static Texture2D Water() => Make("water", 128, 128, (u, v) =>
         {
             float n = Noise.FbmTiled(u * 6, v * 6, 6, 4, 121);

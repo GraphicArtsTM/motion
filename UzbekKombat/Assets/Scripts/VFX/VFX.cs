@@ -276,6 +276,7 @@ namespace UzbekKombat
         MaterialPropertyBlock mpb;
         public Color auraColor;
         public float aura;
+        Transform blob;
         static readonly int EmissionId = Shader.PropertyToID("_EmissionColor");
 
         public void Init(Fighter fighter)
@@ -295,6 +296,25 @@ namespace UzbekKombat
             foreach (var r in all) if (!r.name.StartsWith("glow_") && !(r is ParticleSystemRenderer)) list.Add(r);
             renderers = list.ToArray();
             mpb = new MaterialPropertyBlock();
+            // Kontakt soyasi (oyoq ostida yumshoq qorong'i dog')
+            var mb = new MeshBuilder();
+            mb.AddQuad(new Vector3(-0.5f, 0, -0.5f), new Vector3(-0.5f, 0, 0.5f), new Vector3(0.5f, 0, 0.5f), new Vector3(0.5f, 0, -0.5f), Vector2.zero, Vector2.one);
+            var go = mb.Build("ContactShadow", transform.parent, Mat.Alpha(TextureFactory.SoftDot(), new Color(0.05f, 0.03f, 0.04f, 0.55f)), false);
+            go.GetComponent<MeshRenderer>().receiveShadows = false;
+            blob = go.transform;
+        }
+
+        void LateUpdate()
+        {
+            if (blob == null || f == null || f.rig == null) return;
+            bool vis = f.rig.gameObject.activeInHierarchy;
+            blob.gameObject.SetActive(vis);
+            if (!vis) return;
+            Vector3 hips = f.rig[Bone.Hips].position;
+            float h = Mathf.Max(0, f.transform.position.y);
+            float s = (f.state == FState.Knockdown || f.state == FState.KO ? 1.9f : 1.15f) / (1f + h * 0.5f);
+            blob.position = new Vector3(hips.x, 0.035f, hips.z);
+            blob.localScale = new Vector3(s, 1, s * 0.75f);
         }
 
         static Transform MakeTip(Transform parent, Vector3 p)
@@ -351,6 +371,7 @@ namespace UzbekKombat
         void OnDestroy()
         {
             foreach (var t in trails.Values) if (t) Destroy(t.gameObject);
+            if (blob) Destroy(blob.gameObject);
         }
     }
 }

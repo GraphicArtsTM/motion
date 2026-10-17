@@ -95,6 +95,19 @@ namespace UzbekKombat
             }
             self.blockHeldAI = false;
 
+            // Zarba ostida navbat bekor
+            if (self.state == FState.Hitstun || self.state == FState.Juggle || self.state == FState.Knockdown || self.state == FState.Thrown) queue.Clear();
+            // Otishdan qutulish
+            if (self.state == FState.Thrown && self.stateFrame < 9 && R() < 0.05f * difficulty) return Make(self, 5, Btn.Throw, Btn.None);
+            // Yiqilgandan keyin: dumalash yoki tez turish
+            if (self.state == FState.Knockdown && self.stateFrame == 11 + difficulty)
+            {
+                float c = R();
+                if (c < 0.3f) return Make(self, 4, Btn.None, Btn.None);
+                if (c < 0.45f) return Make(self, 6, Btn.None, Btn.None);
+                if (c < 0.7f) return Make(self, 8, Btn.None, Btn.None);
+            }
+
             if (queue.Count > 0)
             {
                 var q = queue.Dequeue();
@@ -282,7 +295,8 @@ namespace UzbekKombat
             var sp = self.def.specials.Find(s => s.moveId == id && !self.def.Get(s.moveId).air);
             if (sp == null) return;
             foreach (var m in sp.motion) { queue.Enqueue((m, Btn.None, Btn.None)); queue.Enqueue((m, Btn.None, Btn.None)); }
-            queue.Enqueue((sp.motion[sp.motion.Length - 1], sp.button, Btn.None));
+            bool enhance = difficulty >= 1 && self.meter >= FightConst.EnhanceCost + (self.meter >= FightConst.SuperCost ? 0 : 50) && R() < 0.15f + difficulty * 0.1f;
+            queue.Enqueue((sp.motion[sp.motion.Length - 1], sp.button | (enhance ? Btn.Block : Btn.None), Btn.None));
             queue.Enqueue((5, Btn.None, Btn.None));
         }
 

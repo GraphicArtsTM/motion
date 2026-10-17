@@ -86,10 +86,12 @@ namespace UzbekKombat
             var c = new AnimClip(name, false, grounded);
             float s = Mathf.Max(1, startup);
             c.F(0, ready);
-            c.F(s * 0.6f, windup, Ease.OutQuad);
-            c.F(s, strike, Ease.OutExpo);
-            c.F(s + active, follow ?? strike, Ease.OutQuad);
-            c.F(s + active + recovery, ready, Ease.InOutQuad);
+            c.F(s * 0.62f, windup, Ease.OutCubic);                 // tayyorgarlik (anticipation)
+            c.F(s, strike, Ease.OutExpo);                          // keskin zarba
+            Pose f = follow ?? strike;
+            c.F(s + active, f, Ease.OutQuad);                      // davomi (follow-through)
+            c.F(s + active + recovery * 0.4f, Pose.Lerp(f, ready, 0.55f), Ease.OutCubic); // og'irlik bilan qaytish
+            c.F(s + active + recovery, ready, Ease.InOutQuad);     // o'rnashish
             return c;
         }
     }

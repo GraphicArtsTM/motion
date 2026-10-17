@@ -18,6 +18,13 @@ namespace UzbekKombat
                 signatureFx = HitFx.Gold,
             };
             d.buildVisual = CharacterVisuals.BuildTemur;
+            d.bounceAmp = 0.011f; d.bounceRate = 3.2f;
+            d.introLine = "Adolatsiz kuch — bo'ron, adolatli kuch — qal'a.";
+            d.vsLines["jaloliddin"] = "Jasoratingni bilaman, Manguberdi. Ko'rsat-chi!";
+            d.vsLines["ulugbek"] = "Nabiram, kitobni qo'y — bugun qilich gapiradi.";
+            d.vsLines["chingiz"] = "Dasht bo'roni ham Turon tog'iga urilib to'xtaydi.";
+            d.vsLines["temur"] = "Soyam ham menga bo'ysunadi.";
+            d.winLines = new[] { "Kuch — adolatdadir.", "Saltanat tinch — dushman yengildi.", "Bu g'alaba — Turon xalqiniki." };
             var p = PoseLib.Temur();
             d.anims = PoseLib.BuildBase(p);
             var cfg = new NormalsCfg { reach = 1.25f, power = 1.0f, speed = 0.92f, hpOverhead = true, trailColor = new Color(1f, 0.8f, 0.45f, 0.95f) };

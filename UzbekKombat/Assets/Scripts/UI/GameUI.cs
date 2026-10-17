@@ -394,8 +394,10 @@ namespace UzbekKombat
             if (d.finisherInput != null) Row(d.finisherName, Notation(d.finisherInput) + "  (TUGAT UNI!)", new Color(1f, 0.4f, 0.35f));
             Header("UMUMIY");
             Row("Otish", "O  (yaqin masofada)", Color.white);
+            Row("Kuchaytirish", "maxsus usul + BLOK  [1 bo'lak]", Color.white);
             Row("Uzish (Breaker)", "→ + BLOK  [2 bo'lak, kombo ostida]", Color.white);
-            Row("Yugurish / Orqaga sakrash", "→ →  /  ← ←", Color.white);
+            Row("Yugurish / Orqaga sakrash", "→ → (ushlab)  /  ← ←", Color.white);
+            Row("Yiqilgandan keyin", "← / → dumalash, ↑ tez turish", Color.white);
             Text(new Rect(r.x, r.yMax - 50, r.width, 40), "TAB / ESC — yopish", 20, new Color(1, 1, 1, 0.7f), TextAnchor.MiddleCenter, 1);
         }
 
@@ -441,7 +443,7 @@ namespace UzbekKombat
         {
             var m = gm.match;
             if (m == null) return;
-            Tex(new Rect(0, 0, W, H), vignette, new Color(1, 1, 1, 0.55f));
+            Tex(new Rect(0, 0, W, H), vignette, new Color(1, 1, 1, 0.25f));
             if (m.darken > 0.01f) Box(new Rect(0, 0, W, H), new Color(0, 0, 0, m.darken));
             if (gm.showHitboxes) DrawBoxes(m);
 
@@ -484,6 +486,17 @@ namespace UzbekKombat
                 Text(new Rect(0, ay - size * 0.6f, W, size * 1.2f), an.text, size, new Color(an.color.r, an.color.g, an.color.b, outT), TextAnchor.MiddleCenter, an.big ? 6 : 4);
                 ay += size * 1.05f;
             }
+            // Subtitr (qahramon gapi)
+            if (!string.IsNullOrEmpty(m.subtitle))
+            {
+                float st = now - m.subtitleTime;
+                if (st < 2.2f)
+                {
+                    float sa = Mathf.Clamp01(st / 0.25f) * Mathf.Clamp01((2.2f - st) / 0.3f);
+                    Box(new Rect(W / 2 - 620, H - 230, 1240, 64), new Color(0, 0, 0, 0.45f * sa));
+                    Text(new Rect(W / 2 - 620, H - 230, 1240, 64), m.subtitle, 32, new Color(m.subtitleColor.r, m.subtitleColor.g, m.subtitleColor.b, sa), TextAnchor.MiddleCenter, 2, FontStyle.Italic);
+                }
+            }
             // Chaqnash
             float ft = now - m.flashTime;
             if (ft < m.flashDur) Box(new Rect(0, 0, W, H), new Color(m.flashColor.r, m.flashColor.g, m.flashColor.b, (1 - ft / m.flashDur) * 0.7f));
@@ -494,6 +507,8 @@ namespace UzbekKombat
 
         void HealthBar(Fighter f, Rect r, bool mirror)
         {
+            // Zarba olganda panel titraydi
+            if (f.flashTimer > 0) { float k = f.flashTimer * 60f; r.x += Random.Range(-k, k); r.y += Random.Range(-k, k) * 0.5f; }
             // Bezakli ramka
             Box(new Rect(r.x - 6, r.y - 6, r.width + 12, r.height + 12), new Color(0.05f, 0.03f, 0.02f, 0.85f));
             Tex(new Rect(r.x - 4, r.y - 4, r.width + 8, r.height + 8), gold, Color.white);
@@ -536,7 +551,7 @@ namespace UzbekKombat
                 Frame(sr, Pal.Gold.WithA(0.7f), 1.5f);
             }
             bool full = f.meter >= FightConst.MaxMeter;
-            string label = full ? "SUPER TAYYOR: HP + HK" : "QAHRAMONLIK  " + f.Bars + "/3";
+            string label = full ? "SUPER TAYYOR: HP + HK" : "QAHRAMONLIK  " + f.Bars + "/3" + (f.Bars >= 1 ? "  •  KUCHAYTIRISH" : "");
             Color lc = full ? new Color(1f, 0.85f, 0.3f, 0.6f + 0.4f * Mathf.Sin(Time.unscaledTime * 8)) : new Color(0.8f, 0.9f, 1f, 0.9f);
             Text(new Rect(r.x, r.y - 36, r.width, 30), label, 22, lc, mirror ? TextAnchor.MiddleRight : TextAnchor.MiddleLeft, 1.5f);
         }
@@ -660,9 +675,11 @@ namespace UzbekKombat
                 "• Blok — tugmani ushlang. Cho'kib blok past zarbalarni to'xtatadi.",
                 "• Yuqoridan (overhead) zarbalarni faqat tik turib bloklang.",
                 "• Kombo: LP, LP, HP kabi zanjirlar; normal zarbani maxsus usul bilan bekor qiling.",
-                "• → → yugurish,  ← ← orqaga sakrash.",
+                "• → → yugurish (ushlab turing),  ← ← orqaga sakrash.",
+                "• Maxsus usul + BLOK — kuchaytirilgan usul (1 bo'lak): ko'proq zarar, zirh.",
+                "• Qarshi zarba sifatida kuchli zarba — MAJAQLOVCHI ZARBA (+50%).",
                 "• Qahramonlik shkalasi 3 bo'lak to'lsa: HP + HK — SUPER zarba.",
-                "• Kombo ostida → + BLOK — Uzish (2 bo'lak).",
+                "• Kombo ostida → + BLOK — Uzish (2 bo'lak).  Yiqilganda ← / → dumalash.",
                 "• Hal qiluvchi raundda raqib gandiraklasa — 'TUGAT UNI!':",
                 "   qahramonning yakuniy zarba kombinatsiyasini kiriting.",
                 "• Raqib havoda — juggle kombolar davom etadi.",

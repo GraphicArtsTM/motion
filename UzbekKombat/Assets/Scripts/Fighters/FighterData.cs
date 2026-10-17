@@ -142,6 +142,13 @@ namespace UzbekKombat
         public float damageMult = 1f, defenseMult = 1f;
         public float juggleWeight = 1f;
         public float dashSpeed = 7.5f;
+        public float runSpeed = 6.2f;
+
+        // Jonlilik: jang turishidagi ritm va gaplar
+        public float bounceAmp = 0.015f, bounceRate = 4.5f;
+        public string introLine;
+        public string[] winLines;
+        public readonly System.Collections.Generic.Dictionary<string, string> vsLines = new System.Collections.Generic.Dictionary<string, string>();
 
         public Func<Transform, Rig> buildVisual;
         public AnimSet anims = new AnimSet();

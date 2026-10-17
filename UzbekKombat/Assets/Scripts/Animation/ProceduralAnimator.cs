@@ -32,6 +32,11 @@ namespace UzbekKombat
         public bool breathing = true;
         public float breathAmount = 1f;
 
+        // Xarakter "jonliligi": jang turishidagi tebranish (har bir qahramonda o'z ritmi)
+        public float bounceAmp = 0.015f, bounceRate = 4.5f;
+        public float bounceTarget;       // 0..1 — Fighter belgilaydi (idle/walk holatida 1)
+        float bounceW, bouncePhase;
+        public float fatigue;            // 0..1 — sog'liq kam bo'lsa charchoq
         Vector3 flinch, flinchVel;   // zarba silkinishi (spring)
         float shake;                  // titrash (zarba olganda)
 
@@ -99,12 +104,25 @@ namespace UzbekKombat
             var b = rig.bones;
             for (int i = 0; i < Rig.BoneCount; i++) b[i].localRotation = outRot[i];
 
-            // Nafas olish
+            // Nafas olish (charchaganda chuqurroq va tezroq)
             if (breathing)
             {
-                float br = Mathf.Sin(Time.time * 2.4f) * 1.6f * breathAmount;
-                b[(int)Bone.Chest].localRotation *= Quaternion.Euler(br, 0, 0);
-                b[(int)Bone.Head].localRotation *= Quaternion.Euler(-br * 0.6f, 0, 0);
+                float rate = 2.4f + fatigue * 2.2f;
+                float br = Mathf.Sin(Time.time * rate) * (1.6f + fatigue * 3f) * breathAmount;
+                b[(int)Bone.Chest].localRotation *= Quaternion.Euler(br + fatigue * 6f, 0, 0);
+                b[(int)Bone.Head].localRotation *= Quaternion.Euler(-br * 0.6f - fatigue * 3f, 0, 0);
+            }
+            // Jang turishidagi "prujina" — ritmik tebranish
+            bounceW = Mathf.MoveTowards(bounceW, bounceTarget, dt * 4f);
+            bouncePhase += dt * bounceRate;
+            float bob = 0;
+            if (bounceW > 0.001f)
+            {
+                float sN = Mathf.Sin(bouncePhase);
+                bob = -(sN * sN) * 2f * bounceAmp * bounceW * (1f - fatigue * 0.5f);
+                b[(int)Bone.Spine].localRotation *= Quaternion.Euler(sN * 1.5f * bounceW, 0, Mathf.Sin(bouncePhase * 0.5f) * 1.2f * bounceW);
+                b[(int)Bone.UpperArmR].localRotation *= Quaternion.Euler(sN * 3f * bounceW, 0, 0);
+                b[(int)Bone.UpperArmL].localRotation *= Quaternion.Euler(-sN * 3f * bounceW, 0, 0);
             }
 
             // Silkinish
@@ -129,6 +147,17 @@ namespace UzbekKombat
             b[(int)Bone.Hips].localRotation = hipRot;
 
             if (groundLock && Current.grounded && groundBlend > 0) GroundAdjust();
+            // Tebranish yer moslashuvidan keyin: tizzalar bukiladi, chanoq pasayadi
+            float drop = Mathf.Min(0f, bob) - fatigue * 0.025f;
+            if (drop < -0.0005f)
+            {
+                b[(int)Bone.Hips].position += Vector3.up * drop * rig.scale;
+                float kneeDeg = -drop * 260f;
+                b[(int)Bone.ThighL].localRotation *= Quaternion.Euler(-kneeDeg * 0.5f, 0, 0);
+                b[(int)Bone.ShinL].localRotation *= Quaternion.Euler(kneeDeg, 0, 0);
+                b[(int)Bone.ThighR].localRotation *= Quaternion.Euler(-kneeDeg * 0.5f, 0, 0);
+                b[(int)Bone.ShinR].localRotation *= Quaternion.Euler(kneeDeg, 0, 0);
+            }
         }
 
         /// <summary>Eng past kontakt nuqtasini yer sathiga moslash (oyoq "suzib" yurmasligi uchun).</summary>

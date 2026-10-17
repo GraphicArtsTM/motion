@@ -18,6 +18,13 @@ namespace UzbekKombat
                 signatureFx = HitFx.Wind,
             };
             d.buildVisual = CharacterVisuals.BuildJaloliddin;
+            d.bounceAmp = 0.024f; d.bounceRate = 6.8f;
+            d.introLine = "Vatan uchun jangga tayyorman!";
+            d.vsLines["chingiz"] = "Sind daryosi seni ham kutmoqda, Chingiz!";
+            d.vsLines["temur"] = "Sohibqiron, qilichlarimiz bir-birini tanisin.";
+            d.vsLines["ulugbek"] = "Yulduzlaring tezligimni o'lchay olarmikan?";
+            d.vsLines["jaloliddin"] = "O'zim bilan jang — eng og'ir jang.";
+            d.winLines = new[] { "Taslim bo'lmadim, bo'lmayman ham!", "Xorazm sheri hamon tik!", "Tezlik — qalqondan kuchli." };
             var p = PoseLib.Jaloliddin();
             d.anims = PoseLib.BuildBase(p);
             var cfg = new NormalsCfg { reach = 1.08f, power = 0.95f, speed = 1.15f, weaponTrail = Trail.WeaponR, heavyTrail = Trail.WeaponR | Trail.WeaponL, trailColor = new Color(0.6f, 0.95f, 1f, 0.95f) };

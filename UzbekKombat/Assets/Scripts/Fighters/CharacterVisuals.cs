@@ -39,6 +39,19 @@ namespace UzbekKombat
             return g.mb;
         }
 
+        /// <summary>Dinamik (tebranuvchi) qism: pivot — ota-ona lokal nuqtasi, tip — pivotdan nisbiy.</summary>
+        public MeshBuilder Dangle(Transform parent, string name, Vector3 pivot, Vector3 tip, float stiffness = 0.08f, float gravity = 2.5f, float maxAngle = 55f, float damping = 0.18f)
+        {
+            var t = new GameObject(name).transform;
+            t.SetParent(parent, false);
+            t.localPosition = pivot;
+            var sb = t.gameObject.AddComponent<SpringBone>();
+            sb.tipLocal = tip; sb.stiffness = stiffness; sb.gravity = gravity; sb.maxAngle = maxAngle; sb.damping = damping;
+            var mb = On(t);
+            mb.SetTransform(-pivot);
+            return mb;
+        }
+
         public void Finish()
         {
             var outlineMat = Mat.Outline(outline);
@@ -81,6 +94,12 @@ namespace UzbekKombat
         public static readonly Color Burgundy = ColorUtil.Hex("#6a1f2b");
         public static readonly Color Mongol = ColorUtil.Hex("#7a4a2a");
         public static readonly Color Emerald = ColorUtil.Hex("#1fbf7a");
+        // Metall variantlar (vertex alfa < 1 — shaderda yaltirash va aks)
+        public static readonly Color MSteel = Metal(ColorUtil.Hex("#b9bec8"), 0.25f);
+        public static readonly Color MSteelDark = Metal(ColorUtil.Hex("#6c7280"), 0.45f);
+        public static readonly Color MGold = Metal(ColorUtil.Hex("#d9a441"), 0.4f);
+        public static readonly Color MGoldDark = Metal(ColorUtil.Hex("#a57a2a"), 0.55f);
+        public static Color Metal(Color c, float a = 0.3f) => new Color(c.r, c.g, c.b, a);
     }
 
     public static class CharacterVisuals
@@ -121,7 +140,16 @@ namespace UzbekKombat
             // Chopon etagi (chanoqqa biriktirilgan)
             float flare = o.robeFlare <= 0 ? 1f : o.robeFlare;
             var robeFn = o.robeFn ?? ((u, v) => o.robe);
-            k[Bone.Hips].Lathe(new[] { new Vector2(0.175f * bw, 0.14f), new Vector2(0.19f * bw, 0.02f), new Vector2(0.23f * bw * flare, -0.2f), new Vector2(0.25f * bw * flare, -0.3f) }, 18, Vector3.zero, 1.05f, 0.85f, true, (u, v) => robeFn(u, 1 - v));
+            k[Bone.Hips].Lathe(new[] { new Vector2(0.175f * bw, 0.14f), new Vector2(0.19f * bw, 0.02f) }, 20, Vector3.zero, 1.05f, 0.85f, true, (u, v) => robeFn(u, 1 - v * 0.1f));
+            var skirt = new[] { new Vector2(0.19f * bw, 0.02f), new Vector2(0.215f * bw * flare, -0.1f), new Vector2(0.235f * bw * flare, -0.22f), new Vector2(0.25f * bw * flare, -0.31f) };
+            System.Func<float, float, float, Func<float, float, Color>> part = (st, sw, _) => (u, v) => robeFn(Mathf.Repeat((st + u * sw) / 360f, 1f), 0.9f - v * 0.9f);
+            // Old va orqa etaklar — tebranadi; yon bo'laklar — qattiq
+            k.Dangle(k.rig[Bone.Hips], "SkirtFront", new Vector3(0, 0.02f, 0.15f * bw), new Vector3(0, -0.32f, 0.06f), 0.1f, 2.2f, 50f)
+                .Lathe(skirt, 10, Vector3.zero, 1.05f, 0.85f, true, part(-62f, 124f, 0), -62f, 124f);
+            k.Dangle(k.rig[Bone.Hips], "SkirtBack", new Vector3(0, 0.02f, -0.14f * bw), new Vector3(0, -0.32f, -0.06f), 0.08f, 2.4f, 55f)
+                .Lathe(skirt, 10, Vector3.zero, 1.05f, 0.85f, true, part(118f, 124f, 0), 118f, 124f);
+            k[Bone.Hips].Lathe(skirt, 4, Vector3.zero, 1.05f, 0.85f, true, part(62f, 56f, 0), 62f, 56f);
+            k[Bone.Hips].Lathe(skirt, 4, Vector3.zero, 1.05f, 0.85f, true, part(242f, 56f, 0), 242f, 56f);
             // Qorin
             k[Bone.Spine].SetColor(o.shirt).Lathe(new[] { new Vector2(0.15f * bw, -0.03f), new Vector2(0.153f * bw, 0.1f), new Vector2(0.16f * bw, 0.23f) }, 12, Vector3.zero, 1.05f, 0.76f, false, o.chestFn != null ? (u, v) => o.chestFn(u, v * 0.4f) : (Func<float, float, Color>)null);
             // Kamar (belbog')
@@ -130,7 +158,7 @@ namespace UzbekKombat
             // Ko'krak
             float sx = 1.12f * s.shoulders, sz = 0.74f;
             var chestFn = o.chestFn ?? ((u, v) => o.chest);
-            k[Bone.Chest].Lathe(new[] { new Vector2(0.158f * bw, -0.03f), new Vector2(0.18f * bw, 0.06f), new Vector2(0.2f * bw, 0.15f), new Vector2(0.19f * bw, 0.22f), new Vector2(0.14f * bw, 0.275f), new Vector2(0.06f, 0.295f), new Vector2(0, 0.3f) }, 16, Vector3.zero, sx, sz * bw, false, chestFn);
+            k[Bone.Chest].Lathe(new[] { new Vector2(0.158f * bw, -0.03f), new Vector2(0.18f * bw, 0.06f), new Vector2(0.2f * bw, 0.15f), new Vector2(0.19f * bw, 0.22f), new Vector2(0.14f * bw, 0.275f), new Vector2(0.06f, 0.295f), new Vector2(0, 0.3f) }, 22, Vector3.zero, sx, sz * bw, false, chestFn);
             // Yelka bo'g'imlari
             k[Bone.Chest].SetColor(o.sleeve).Sphere(new Vector3(-0.19f * s.shoulders, 0.2f, 0), new Vector3(0.075f, 0.07f, 0.075f) * bw, 6, 10);
             k[Bone.Chest].SetColor(o.sleeve).Sphere(new Vector3(0.19f * s.shoulders, 0.2f, 0), new Vector3(0.075f, 0.07f, 0.075f) * bw, 6, 10);
@@ -185,8 +213,12 @@ namespace UzbekKombat
         static void BuildHead(BodyKit k, Color skin)
         {
             var h = k[Bone.Head].SetColor(skin);
-            h.Sphere(new Vector3(0, 0.125f, 0.0f), new Vector3(0.096f, 0.12f, 0.105f), 8, 14);
-            h.Sphere(new Vector3(0, 0.07f, 0.03f), new Vector3(0.078f, 0.06f, 0.078f), 6, 12); // jag'
+            h.Sphere(new Vector3(0, 0.125f, 0.0f), new Vector3(0.096f, 0.12f, 0.105f), 10, 18);
+            h.Sphere(new Vector3(0, 0.07f, 0.03f), new Vector3(0.078f, 0.06f, 0.078f), 7, 14); // jag'
+            // Yonoq suyaklari va qosh usti — yuzga hajm
+            h.Sphere(new Vector3(-0.045f, 0.11f, 0.075f), new Vector3(0.03f, 0.022f, 0.025f), 4, 8);
+            h.Sphere(new Vector3(0.045f, 0.11f, 0.075f), new Vector3(0.03f, 0.022f, 0.025f), 4, 8);
+            h.Sphere(new Vector3(0, 0.158f, 0.088f), new Vector3(0.07f, 0.018f, 0.02f), 4, 10);
             // Quloqlar
             h.Sphere(new Vector3(-0.095f, 0.12f, -0.005f), new Vector3(0.018f, 0.03f, 0.022f), 4, 6);
             h.Sphere(new Vector3(0.095f, 0.12f, -0.005f), new Vector3(0.018f, 0.03f, 0.022f), 4, 6);
@@ -194,12 +226,20 @@ namespace UzbekKombat
             h.SetTransform(new Vector3(0, 0.12f, 0.1f), Quaternion.Euler(-12, 0, 0));
             h.Lathe(new[] { new Vector2(0.018f, -0.035f), new Vector2(0.012f, 0.0f), new Vector2(0.006f, 0.03f), new Vector2(0, 0.032f) }, 6, Vector3.zero, 1.1f, 1.2f);
             h.ResetTransform();
-            // Ko'zlar
+            // Ko'zlar — alohida transform (ko'z qisish uchun)
+            var eyes = new GameObject("Eyes").transform;
+            eyes.SetParent(k.rig[Bone.Head], false);
+            eyes.localPosition = new Vector3(0, 0.138f, 0.09f);
+            var e = k.On(eyes);
             foreach (var sx in new[] { -1f, 1f })
             {
-                h.SetColor(Pal.White).Sphere(new Vector3(sx * 0.036f, 0.138f, 0.088f), new Vector3(0.017f, 0.011f, 0.01f), 4, 8);
-                h.SetColor(Pal.Black).Sphere(new Vector3(sx * 0.036f, 0.138f, 0.096f), new Vector3(0.008f, 0.009f, 0.006f), 4, 6);
+                e.SetColor(Pal.White).Sphere(new Vector3(sx * 0.036f, 0, -0.002f), new Vector3(0.018f, 0.012f, 0.01f), 5, 10);
+                e.SetColor(ColorUtil.Hex("#3a2614")).Sphere(new Vector3(sx * 0.036f, 0, 0.006f), new Vector3(0.009f, 0.01f, 0.006f), 4, 8);
+                e.SetColor(Pal.Black).Sphere(new Vector3(sx * 0.036f, 0, 0.009f), new Vector3(0.005f, 0.006f, 0.004f), 3, 6);
             }
+            var face = k.rig.gameObject.AddComponent<FaceRig>();
+            face.eyes = eyes;
+            face.rig = k.rig;
             h.SetColor(skin.Mul(0.7f)).Box(new Vector3(0, 0.078f, 0.1f), new Vector3(0.035f, 0.006f, 0.01f));
         }
 
@@ -338,7 +378,7 @@ namespace UzbekKombat
         {
             mb.SetTransform(new Vector3(0.1f, 0.0f, -0.05f), Quaternion.Euler(0, 0, 25));
             mb.SetColor(c).Cylinder(Vector3.zero, 0.05f, 0.06f, -0.3f, 0.12f, 8);
-            mb.SetColor(Pal.Gold).Cylinder(Vector3.zero, 0.062f, 0.062f, 0.08f, 0.12f, 8);
+            mb.SetColor(Pal.MGold).Cylinder(Vector3.zero, 0.062f, 0.062f, 0.08f, 0.12f, 8);
             for (int i = 0; i < 5; i++)
             {
                 float a = i * 1.2f;
@@ -355,54 +395,56 @@ namespace UzbekKombat
             var shape = new BodyShape { height = 1.03f, shoulders = 1.1f, bulk = 1.12f };
             var rig = Rig.Create(parent, shape, "Temur");
             var k = new BodyKit(rig);
-            Color[] chaponC = { Pal.Crimson, Pal.Crimson, Pal.CrimsonDark, Pal.Gold, Pal.Crimson, Pal.CrimsonDark };
-            var robe = Trim(Ikat(chaponC, 2f), Pal.Gold, 0.035f, 0.07f);
+            Color[] chaponC = { Pal.Crimson, Pal.Crimson, Pal.CrimsonDark, Pal.MGold, Pal.Crimson, Pal.CrimsonDark };
+            var robe = Trim(Ikat(chaponC, 2f), Pal.MGold, 0.035f, 0.07f);
             // Plastinka-zirh (lamellar)
             Func<float, float, Color> armor = (u, v) =>
             {
-                if (v > 0.86f) return Pal.Gold;
+                if (v > 0.86f) return Pal.MGold;
                 int row = Mathf.FloorToInt(v * 9);
                 bool edge = Frac(v * 9) < 0.18f;
                 bool slit = Frac(u * 28 + (row % 2) * 0.5f) < 0.12f;
-                if (row == 4 && !edge) return Pal.Gold;
-                if (edge) return Pal.SteelDark;
-                return slit ? Pal.SteelDark : Pal.Steel;
+                if (row == 4 && !edge) return Pal.MGold;
+                if (edge) return Pal.MSteelDark;
+                return slit ? Pal.MSteelDark : Pal.MSteel;
             };
             var o = new Outfit
             {
-                skin = Pal.Skin, shirt = Pal.Steel, sleeve = Pal.Crimson, trousers = ColorUtil.Hex("#2b2230"),
-                boots = Pal.LeatherDark, belt = Pal.Gold, beltBuckle = Pal.Emerald, robe = Pal.Crimson,
-                robeFn = robe, chestFn = armor, sleeveFn = (u, v) => v < 0.12f ? Pal.Gold : Pal.Crimson,
-                bracers = true, bracerColor = Pal.Steel, bootsTall = true, robeFlare = 1.08f
+                skin = Pal.Skin, shirt = Pal.MSteel, sleeve = Pal.Crimson, trousers = ColorUtil.Hex("#2b2230"),
+                boots = Pal.LeatherDark, belt = Pal.MGold, beltBuckle = Pal.Emerald, robe = Pal.Crimson,
+                robeFn = robe, chestFn = armor, sleeveFn = (u, v) => v < 0.12f ? Pal.MGold : Pal.Crimson,
+                bracers = true, bracerColor = Pal.MSteel, bootsTall = true, robeFlare = 1.08f
             };
             BuildBody(k, shape, o);
             Brows(k, Pal.Hair, 16f, 1.3f);
             Beard(k, ColorUtil.Hex("#2a1d16"), 1.0f, 0.9f);
             // Dubulg'a (sharqona o'tkir uchli)
             var h = k[Bone.Head];
-            h.SetColor(Pal.Steel).Lathe(new[] { new Vector2(0.113f, 0.180f), new Vector2(0.12f, 0.225f), new Vector2(0.112f, 0.270f), new Vector2(0.085f, 0.320f), new Vector2(0.045f, 0.360f), new Vector2(0.014f, 0.415f), new Vector2(0, 0.455f) }, 16, Vector3.zero, 1, 1.05f, false,
-                (u, v) => v < 0.18f ? Pal.Gold : (Frac(u * 8) < 0.08f ? Pal.Gold : Pal.Steel));
-            h.SetColor(Pal.Gold).Torus(new Vector3(0, 0.185f, 0), 0.118f, 0.012f, 18, 5, 1.05f);
+            h.SetColor(Pal.MSteel).Lathe(new[] { new Vector2(0.113f, 0.180f), new Vector2(0.12f, 0.225f), new Vector2(0.112f, 0.270f), new Vector2(0.085f, 0.320f), new Vector2(0.045f, 0.360f), new Vector2(0.014f, 0.415f), new Vector2(0, 0.455f) }, 16, Vector3.zero, 1, 1.05f, false,
+                (u, v) => v < 0.18f ? Pal.MGold : (Frac(u * 8) < 0.08f ? Pal.MGold : Pal.MSteel));
+            h.SetColor(Pal.MGold).Torus(new Vector3(0, 0.185f, 0), 0.118f, 0.012f, 18, 5, 1.05f);
             // Burun himoyasi
-            h.SetColor(Pal.Steel).Box(new Vector3(0, 0.15f, 0.122f), new Vector3(0.018f, 0.135f, 0.012f));
+            h.SetColor(Pal.MSteel).Box(new Vector3(0, 0.15f, 0.122f), new Vector3(0.018f, 0.09f, 0.012f));
             // Halqali to'r (aventail) — orqa va yonlar
             h.Lathe(new[] { new Vector2(0.116f, 0.185f), new Vector2(0.13f, 0.105f), new Vector2(0.15f, 0.015f), new Vector2(0.17f, -0.035f) }, 14, Vector3.zero, 1, 1.05f, true,
-                (u, v) => Frac(u * 30 + v * 4) < 0.5f ? Pal.SteelDark : Pal.Steel, 55f, 250f);
+                (u, v) => Frac(u * 30 + v * 4) < 0.5f ? Pal.MSteelDark : Pal.MSteel, 55f, 250f);
             // Pat (qizil)
-            h.SetColor(Pal.Crimson).Lathe(new[] { new Vector2(0.02f, 0.445f), new Vector2(0.03f, 0.515f), new Vector2(0.012f, 0.605f), new Vector2(0, 0.645f) }, 8);
+            k.Dangle(rig[Bone.Head], "Plume", new Vector3(0, 0.44f, 0), new Vector3(0, 0.2f, -0.02f), 0.22f, 1.2f, 40f, 0.12f).SetColor(Pal.Crimson)
+                .Lathe(new[] { new Vector2(0.02f, 0.445f), new Vector2(0.034f, 0.52f), new Vector2(0.02f, 0.6f), new Vector2(0.006f, 0.66f), new Vector2(0, 0.67f) }, 8);
             // Yelka zirhlari
             foreach (var b in new[] { Bone.UpperArmL, Bone.UpperArmR })
             {
                 var m = k[b];
-                m.SetColor(Pal.Steel).Lathe(new[] { new Vector2(0, 0.07f), new Vector2(0.06f, 0.065f), new Vector2(0.095f, 0.02f), new Vector2(0.105f, -0.05f), new Vector2(0.1f, -0.1f) }, 12, Vector3.zero, 1, 1, true,
-                    (u, v) => Frac(v * 3) < 0.25f ? Pal.Gold : Pal.Steel);
+                m.SetColor(Pal.MSteel).Lathe(new[] { new Vector2(0, 0.07f), new Vector2(0.06f, 0.065f), new Vector2(0.095f, 0.02f), new Vector2(0.105f, -0.05f), new Vector2(0.1f, -0.1f) }, 12, Vector3.zero, 1, 1, true,
+                    (u, v) => Frac(v * 3) < 0.25f ? Pal.MGold : Pal.MSteel);
             }
             // Plashch (orqada)
-            k[Bone.Chest].Lathe(new[] { new Vector2(0.17f, 0.27f), new Vector2(0.24f, 0.05f), new Vector2(0.3f, -0.35f), new Vector2(0.34f, -0.72f) }, 12, new Vector3(0, 0, -0.02f), 1.15f, 0.7f, true,
-                (u, v) => v < 0.05f ? Pal.Gold : Pal.CrimsonDark, 120f, 120f);
+            k.Dangle(rig[Bone.Chest], "Cape", new Vector3(0, 0.27f, -0.13f), new Vector3(0, -0.95f, -0.12f), 0.05f, 3f, 50f, 0.14f)
+                .Lathe(new[] { new Vector2(0.17f, 0.27f), new Vector2(0.24f, 0.05f), new Vector2(0.3f, -0.35f), new Vector2(0.35f, -0.72f), new Vector2(0.36f, -0.78f) }, 14, new Vector3(0, 0, -0.02f), 1.15f, 0.7f, true,
+                (u, v) => v < 0.05f || v > 0.95f ? Pal.MGold : Pal.CrimsonDark, 115f, 130f);
             // Qilich
             var grip = MountRot(rig.mountR, 50f);
-            Saber(k, grip, 0.82f, ColorUtil.Hex("#dfe3ea"), Pal.Gold, Pal.LeatherDark, out rig.weaponBaseR, out rig.weaponTipR);
+            Saber(k, grip, 0.82f, Pal.Metal(ColorUtil.Hex("#dfe3ea"), 0.15f), Pal.MGold, Pal.LeatherDark, out rig.weaponBaseR, out rig.weaponTipR);
             // Kamarda qin
             var hb = k[Bone.Hips];
             hb.SetTransform(new Vector3(-0.17f, 0.02f, -0.05f), Quaternion.Euler(55, 0, -10));
@@ -419,7 +461,7 @@ namespace UzbekKombat
             var shape = new BodyShape { height = 1.0f, shoulders = 1.02f, bulk = 0.98f, legLength = 1.03f };
             var rig = Rig.Create(parent, shape, "Jaloliddin");
             var k = new BodyKit(rig);
-            Color[] cs = { Pal.Teal, Pal.White, Pal.Teal, Pal.Indigo, Pal.Teal, Pal.Gold };
+            Color[] cs = { Pal.Teal, Pal.White, Pal.Teal, Pal.Indigo, Pal.Teal, Pal.MGold };
             var robe = Trim(Stripes(cs), Pal.Indigo, 0.03f, 0.06f);
             Func<float, float, Color> vest = (u, v) =>
             {
@@ -427,12 +469,12 @@ namespace UzbekKombat
                 if (du < 0.05f) return Pal.Teal;          // old ochiq qism
                 if (v > 0.85f) return Pal.LeatherDark;
                 bool rivet = Frac(u * 20) < 0.15f && Frac(v * 8) < 0.2f;
-                return rivet ? Pal.Gold : Pal.Leather;
+                return rivet ? Pal.MGold : Pal.Leather;
             };
             var o = new Outfit
             {
                 skin = Pal.Skin, shirt = Pal.Leather, sleeve = Pal.Teal, trousers = ColorUtil.Hex("#26303a"),
-                boots = Pal.Leather, belt = Pal.Indigo, beltBuckle = Pal.Gold, robe = Pal.Teal, robeFn = robe,
+                boots = Pal.Leather, belt = Pal.Indigo, beltBuckle = Pal.MGold, robe = Pal.Teal, robeFn = robe,
                 chestFn = vest, sleeveFn = (u, v) => Stripes(cs)(u, v), bracers = true, bracerColor = Pal.Leather, bootsTall = true, robeFlare = 0.95f
             };
             BuildBody(k, shape, o);
@@ -440,18 +482,19 @@ namespace UzbekKombat
             Beard(k, Pal.Hair, 0.95f, 0.4f);
             var h = k[Bone.Head];
             // Dubulg'a + salla o'rami
-            h.SetColor(Pal.Steel).Lathe(new[] { new Vector2(0.11f, 0.190f), new Vector2(0.112f, 0.240f), new Vector2(0.09f, 0.300f), new Vector2(0.05f, 0.340f), new Vector2(0.015f, 0.380f), new Vector2(0, 0.400f) }, 14);
+            h.SetColor(Pal.MSteel).Lathe(new[] { new Vector2(0.11f, 0.190f), new Vector2(0.112f, 0.240f), new Vector2(0.09f, 0.300f), new Vector2(0.05f, 0.340f), new Vector2(0.015f, 0.380f), new Vector2(0, 0.400f) }, 14);
             h.SetColor(Pal.White).Torus(new Vector3(0, 0.195f, 0), 0.118f, 0.03f, 18, 6, 1.05f);
             h.SetColor(Pal.White).Torus(new Vector3(0, 0.230f, -0.005f), 0.108f, 0.026f, 18, 6, 1.05f);
-            h.SetColor(Pal.Teal).Sphere(new Vector3(0, 0.215f, 0.125f), new Vector3(0.03f, 0.070f, 0.015f), 4, 8);
-            h.SetColor(Pal.Gold).Sphere(new Vector3(0, 0.215f, 0.135f), 0.012f, 4, 6);
+            h.SetColor(Pal.Teal).Sphere(new Vector3(0, 0.215f, 0.125f), new Vector3(0.03f, 0.03f, 0.015f), 4, 8);
+            h.SetColor(Pal.MGold).Sphere(new Vector3(0, 0.215f, 0.135f), 0.012f, 4, 6);
             // Salla dumi (orqada osilgan)
-            h.SetColor(Pal.White).Capsule(new Vector3(0, 0.210f, -0.11f), new Vector3(0.02f, -0.040f, -0.16f), 0.03f, 0.022f, 6);
+            k.Dangle(rig[Bone.Head], "TurbanTail", new Vector3(0, 0.21f, -0.11f), new Vector3(0.02f, -0.26f, -0.05f), 0.06f, 3f, 65f).SetColor(Pal.White)
+                .Capsule(new Vector3(0, 0.210f, -0.11f), new Vector3(0.02f, -0.06f, -0.16f), 0.032f, 0.024f, 6);
             // Qo'sh qilich
             var gripR = MountRot(rig.mountR, 50f);
-            Saber(k, gripR, 0.72f, ColorUtil.Hex("#e8ecf2"), Pal.Gold, Pal.Indigo, out rig.weaponBaseR, out rig.weaponTipR);
+            Saber(k, gripR, 0.72f, Pal.Metal(ColorUtil.Hex("#e8ecf2"), 0.15f), Pal.MGold, Pal.Indigo, out rig.weaponBaseR, out rig.weaponTipR);
             var gripL = MountRot(rig.mountL, 50f);
-            Saber(k, gripL, 0.72f, ColorUtil.Hex("#e8ecf2"), Pal.Gold, Pal.Indigo, out rig.weaponBaseL, out rig.weaponTipL);
+            Saber(k, gripL, 0.72f, Pal.Metal(ColorUtil.Hex("#e8ecf2"), 0.15f), Pal.MGold, Pal.Indigo, out rig.weaponBaseL, out rig.weaponTipL);
             k.Finish();
             rig.gameObject.AddComponent<CharacterProps>();
             return rig;
@@ -467,34 +510,35 @@ namespace UzbekKombat
             Func<float, float, Color> starRobe = (u, v) =>
             {
                 float du = Mathf.Min(u, 1 - u);
-                if (du < 0.035f || v < 0.05f) return Pal.Gold;
+                if (du < 0.035f || v < 0.05f) return Pal.MGold;
                 bool star = Frac(u * 14 + Mathf.Floor(v * 9) * 0.5f) < 0.14f && Frac(v * 9) < 0.18f;
                 return star ? ColorUtil.Hex("#f2d27a") : Pal.Indigo;
             };
             var o = new Outfit
             {
                 skin = Pal.SkinLight, shirt = Pal.White, sleeve = Pal.Indigo, trousers = Pal.Indigo,
-                boots = ColorUtil.Hex("#2a1e14"), belt = Pal.Gold, beltBuckle = ColorUtil.Hex("#3fa0e0"), robe = Pal.Indigo, robeFn = starRobe,
-                chestFn = (u, v) => { float du = Mathf.Min(u, 1 - u); return du < 0.04f ? Pal.Gold : du < 0.09f ? Pal.White : starRobe(u, v); },
-                sleeveFn = (u, v) => v < 0.1f ? Pal.Gold : Pal.Indigo, robeLong = true, bootsTall = false, robeFlare = 1.12f
+                boots = ColorUtil.Hex("#2a1e14"), belt = Pal.MGold, beltBuckle = ColorUtil.Hex("#3fa0e0"), robe = Pal.Indigo, robeFn = starRobe,
+                chestFn = (u, v) => { float du = Mathf.Min(u, 1 - u); return du < 0.04f ? Pal.MGold : du < 0.09f ? Pal.White : starRobe(u, v); },
+                sleeveFn = (u, v) => v < 0.1f ? Pal.MGold : Pal.Indigo, robeLong = true, bootsTall = false, robeFlare = 1.12f
             };
             BuildBody(k, shape, o);
             Brows(k, Pal.HairGrey, 6f, 1f);
             Beard(k, Pal.HairGrey, 0.95f, 0.7f);
             var h = k[Bone.Head];
             // Katta oq salla
-            h.SetColor(Pal.White).Sphere(new Vector3(0, 0.300f, -0.005f), new Vector3(0.13f, 0.150f, 0.13f), 6, 14);
+            h.SetColor(Pal.White).Sphere(new Vector3(0, 0.300f, -0.005f), new Vector3(0.13f, 0.11f, 0.13f), 6, 14);
             for (int i = 0; i < 3; i++)
                 h.SetColor(i % 2 == 0 ? Pal.White : ColorUtil.Hex("#e2dac6")).Torus(new Vector3(0, 0.2f + i * 0.04f, 0), 0.13f - i * 0.008f, 0.036f, 20, 6, 1.02f);
             h.SetColor(Pal.Indigo).Lathe(new[] { new Vector2(0.06f, 0.370f), new Vector2(0.04f, 0.410f), new Vector2(0, 0.420f) }, 8);
             // Zumrad marjon va pat (jig'a)
-            h.SetColor(Pal.Gold).Sphere(new Vector3(0, 0.260f, 0.15f), new Vector3(0.035f, 0.080f, 0.015f), 4, 8);
+            h.SetColor(Pal.MGold).Sphere(new Vector3(0, 0.260f, 0.15f), new Vector3(0.035f, 0.04f, 0.015f), 4, 8);
             var g = k.Glow(rig[Bone.Head], Pal.Emerald);
             g.SetColor(Pal.Emerald).Sphere(new Vector3(0, 0.260f, 0.163f), 0.018f, 4, 8);
-            h.SetColor(Pal.White).Capsule(new Vector3(0, 0.290f, 0.15f), new Vector3(0.02f, 0.440f, 0.1f), 0.012f, 0.004f, 5);
+            k.Dangle(rig[Bone.Head], "Feather", new Vector3(0, 0.29f, 0.15f), new Vector3(0.02f, 0.15f, -0.05f), 0.25f, 1f, 35f, 0.1f).SetColor(Pal.White)
+                .Capsule(new Vector3(0, 0.290f, 0.15f), new Vector3(0.02f, 0.440f, 0.1f), 0.012f, 0.004f, 5);
             // Hassa (usturlobli)
             var grip = MountRot(rig.mountR, 0f);
-            Staff(k, grip, ColorUtil.Hex("#5a3a1e"), Pal.Gold, ColorUtil.Hex("#7fc8ff"), out rig.weaponBaseR, out rig.weaponTipR);
+            Staff(k, grip, ColorUtil.Hex("#5a3a1e"), Pal.MGold, ColorUtil.Hex("#7fc8ff"), out rig.weaponBaseR, out rig.weaponTipR);
             // Kitob (belda)
             k[Bone.Hips].SetColor(ColorUtil.Hex("#6a2a1a")).Box(new Vector3(0.17f, 0.0f, 0.04f), new Vector3(0.04f, 0.14f, 0.11f));
             k.Finish();
@@ -512,14 +556,14 @@ namespace UzbekKombat
             Func<float, float, Color> deel = (u, v) =>
             {
                 float lap = 0.08f + v * 0.1f;
-                if (Mathf.Abs(u - lap) < 0.025f) return Pal.Gold;
+                if (Mathf.Abs(u - lap) < 0.025f) return Pal.MGold;
                 if (v < 0.06f) return Pal.Fur;
                 return Frac(v * 20) < 0.08f ? ColorUtil.Hex("#5e2a1f") : Pal.Burgundy;
             };
             Func<float, float, Color> lamellar = (u, v) =>
             {
                 float lap = 0.08f + v * 0.15f;
-                if (Mathf.Abs(u - lap) < 0.03f) return Pal.Gold;
+                if (Mathf.Abs(u - lap) < 0.03f) return Pal.MGold;
                 int row = Mathf.FloorToInt(v * 8);
                 if (Frac(v * 8) < 0.2f) return Pal.LeatherDark;
                 return Frac(u * 26 + (row % 2) * 0.5f) < 0.15f ? Pal.LeatherDark : ColorUtil.Hex("#7a4a26");
@@ -527,7 +571,7 @@ namespace UzbekKombat
             var o = new Outfit
             {
                 skin = Pal.SkinDark, shirt = ColorUtil.Hex("#7a4a26"), sleeve = Pal.Burgundy, trousers = ColorUtil.Hex("#2e2620"),
-                boots = Pal.LeatherDark, belt = ColorUtil.Hex("#2b1a12"), beltBuckle = Pal.Gold, robe = Pal.Burgundy, robeFn = deel,
+                boots = Pal.LeatherDark, belt = ColorUtil.Hex("#2b1a12"), beltBuckle = Pal.MGold, robe = Pal.Burgundy, robeFn = deel,
                 chestFn = lamellar, sleeveFn = (u, v) => v < 0.12f ? Pal.Fur : Pal.Burgundy, bracers = true, bracerColor = Pal.LeatherDark, bootsTall = true, robeFlare = 1.1f
             };
             BuildBody(k, shape, o);
@@ -537,22 +581,24 @@ namespace UzbekKombat
             var h = k[Bone.Head];
             // Mo'ynali qalpoq
             h.SetColor(Pal.Burgundy).Lathe(new[] { new Vector2(0.112f, 0.195f), new Vector2(0.118f, 0.245f), new Vector2(0.095f, 0.315f), new Vector2(0.05f, 0.365f), new Vector2(0, 0.380f) }, 14, Vector3.zero, 1, 1, false,
-                (u, v) => Frac(u * 6) < 0.06f ? Pal.Gold : Pal.Burgundy);
+                (u, v) => Frac(u * 6) < 0.06f ? Pal.MGold : Pal.Burgundy);
             h.SetColor(Pal.Fur).Torus(new Vector3(0, 0.200f, 0), 0.122f, 0.042f, 18, 6, 1.05f);
-            h.SetColor(Pal.Gold).Sphere(new Vector3(0, 0.390f, 0), 0.025f, 4, 8);
-            h.SetColor(Pal.Crimson).Capsule(new Vector3(0, 0.405f, 0), new Vector3(0, 0.475f, -0.03f), 0.01f, 0.025f, 6);
+            h.SetColor(Pal.MGold).Sphere(new Vector3(0, 0.390f, 0), 0.025f, 4, 8);
+            k.Dangle(rig[Bone.Head], "Tassel", new Vector3(0, 0.39f, 0), new Vector3(0, -0.08f, -0.03f), 0.06f, 3f, 70f).SetColor(Pal.Crimson)
+                .Capsule(new Vector3(0, 0.39f, -0.01f), new Vector3(0, 0.31f, -0.05f), 0.006f, 0.028f, 6);
             // Quloqchinlar
             h.SetColor(Pal.Fur).Box(new Vector3(-0.112f, 0.12f, -0.035f), new Vector3(0.025f, 0.11f, 0.06f));
             h.SetColor(Pal.Fur).Box(new Vector3(0.112f, 0.12f, -0.035f), new Vector3(0.025f, 0.11f, 0.06f));
             // O'rilgan sochlar
             foreach (var sx in new[] { -1f, 1f })
-                h.SetColor(Pal.Hair).Capsule(new Vector3(sx * 0.09f, 0.1f, -0.07f), new Vector3(sx * 0.1f, -0.13f, -0.06f), 0.02f, 0.012f, 6);
+                k.Dangle(rig[Bone.Head], "Braid", new Vector3(sx * 0.09f, 0.12f, -0.07f), new Vector3(sx * 0.01f, -0.25f, 0.01f), 0.07f, 3f, 60f).SetColor(Pal.Hair)
+                    .Capsule(new Vector3(sx * 0.09f, 0.1f, -0.07f), new Vector3(sx * 0.1f, -0.13f, -0.06f), 0.02f, 0.012f, 6);
             // Qilich + kamon orqada + o'qdon
             var grip = MountRot(rig.mountR, 50f);
-            Saber(k, grip, 0.78f, ColorUtil.Hex("#d6dae0"), ColorUtil.Hex("#b08a40"), Pal.LeatherDark, out rig.weaponBaseR, out rig.weaponTipR);
+            Saber(k, grip, 0.78f, Pal.Metal(ColorUtil.Hex("#d6dae0"), 0.15f), Pal.Metal(ColorUtil.Hex("#b08a40"), 0.45f), Pal.LeatherDark, out rig.weaponBaseR, out rig.weaponTipR);
             var props = rig.gameObject.AddComponent<CharacterProps>();
-            var bowBack = Bow(rig.mountBack, new Vector3(0, -0.02f, -0.04f), Quaternion.Euler(0, 90, 35), ColorUtil.Hex("#6a3a1c"), Pal.Gold);
-            var bowHand = Bow(rig.mountL, new Vector3(0, 0, 0.02f), Quaternion.Euler(90, 0, 0) * Quaternion.Euler(0, 180, 0), ColorUtil.Hex("#6a3a1c"), Pal.Gold);
+            var bowBack = Bow(rig.mountBack, new Vector3(0, -0.02f, -0.04f), Quaternion.Euler(0, 90, 35), ColorUtil.Hex("#6a3a1c"), Pal.MGold);
+            var bowHand = Bow(rig.mountL, new Vector3(0, 0, 0.02f), Quaternion.Euler(90, 0, 0) * Quaternion.Euler(0, 180, 0), ColorUtil.Hex("#6a3a1c"), Pal.MGold);
             bowHand.SetActive(false);
             props.items["bowBack"] = bowBack;
             props.items["bowHand"] = bowHand;

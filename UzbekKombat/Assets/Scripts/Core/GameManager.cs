@@ -85,6 +85,7 @@ namespace UzbekKombat
             if (arena != null && arena.preset == p) return;
             if (arena != null) Destroy(arena.gameObject);
             arena = Arena.Build(p);
+            if (cam != null && cam.post != null) cam.post.Preset(p);
         }
 
         void Update()

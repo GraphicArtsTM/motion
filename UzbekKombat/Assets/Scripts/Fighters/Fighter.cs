@@ -5,7 +5,7 @@ namespace UzbekKombat
 {
     public enum FState
     {
-        Intro, Idle, Walk, Crouch, Block, CrouchBlock, JumpSquat, Air, Landing, Dash, Attack,
+        Intro, Idle, Walk, Crouch, Block, CrouchBlock, JumpSquat, Air, Landing, Dash, Run, Roll, Attack,
         Blockstun, Hitstun, Juggle, Knockdown, GetUp, Throwing, Thrown, Dizzy, Victory, Defeat, Cinematic, KO
     }
 
@@ -20,6 +20,8 @@ namespace UzbekKombat
         public const float BreakerCost = 200f;
         public const int KnockdownFrames = 38;
         public const int GetUpFrames = 26;
+        public const float EnhanceCost = 100f;
+        public const int RollFrames = 26;
     }
 
     /// <summary>
@@ -88,6 +90,12 @@ namespace UzbekKombat
         public bool counterHitFlag;
         public bool blockHeldAI; // AI uchun
         public InputFrame lastInput;
+        public bool enhanced;                // kuchaytirilgan maxsus usul (1 bo'lak)
+        public int armorHitsLeft;
+        public readonly HashSet<string> krushUsed = new HashSet<string>();
+        public FaceRig face;
+        int rollDir;
+        int stepTimer;
 
         // Dizzy/finisher
         public bool canFinish;
@@ -111,6 +119,9 @@ namespace UzbekKombat
             anim.rig = rig;
             fx = gameObject.AddComponent<FighterVisualFx>();
             fx.Init(this);
+            anim.bounceAmp = def.bounceAmp;
+            anim.bounceRate = def.bounceRate;
+            face = rig.GetComponent<FaceRig>();
             anim.Play(def.anims.idle, 0);
         }
 
@@ -143,8 +154,11 @@ namespace UzbekKombat
             if (rig != null) rig.gameObject.SetActive(true);
             buf.Clear();
             ApplyFacing();
+            enhanced = false;
+            krushUsed.Clear();
             anim.Play(def.anims.idle, 0.1f);
             fx.StopTrails();
+            foreach (var sb in rig.GetComponentsInChildren<SpringBone>(true)) sb.ResetSim();
             transform.position = new Vector3(pos.x, pos.y, 0);
         }
 
@@ -196,6 +210,12 @@ namespace UzbekKombat
                 case FState.Dash:
                     DashTick();
                     break;
+                case FState.Run:
+                    RunTick(inp, dir);
+                    break;
+                case FState.Roll:
+                    RollTick();
+                    break;
                 case FState.Attack:
                     AttackTick(inp);
                     break;
@@ -219,6 +239,13 @@ namespace UzbekKombat
                 case FState.Knockdown:
                     vel.x = Mathf.MoveTowards(vel.x, 0, 30f / 60f);
                     invul = 2;
+                    if (!isKO && match.FightActive && stateFrame >= 10 && !canFinish)
+                    {
+                        // Uyg'onish variantlari: orqaga/oldinga dumalash, tez turish
+                        if (dir == 4 || dir == 1 || dir == 7) { StartRoll(-1); break; }
+                        if (dir == 6 || dir == 3 || dir == 9) { StartRoll(1); break; }
+                        if (dir == 8 || FreshPress(Btn.LP | Btn.HP | Btn.LK | Btn.HK | Btn.Block, 3) >= 0) { StartGetUp(true); break; }
+                    }
                     if (!isKO && stateFrame >= FightConst.KnockdownFrames && match.FightActive) StartGetUp();
                     break;
                 case FState.GetUp:
@@ -273,7 +300,7 @@ namespace UzbekKombat
             bool up = dir == 7 || dir == 8 || dir == 9;
             if (comboHits > 0 && stateFrame > 2) { comboHits = 0; comboDamage = 0; juggleHits = 0; }
 
-            if (TryCommands(inp, false)) return;
+            if (TryCommands(inp, false, stateFrame <= 3 ? 8 : 3)) return;
 
             bool blockHeld = inp.Held(Btn.Block) || blockHeldAI;
             if (blockHeld)
@@ -365,19 +392,19 @@ namespace UzbekKombat
 
         void Consume(int ago) { lastConsumedFrame = Mathf.Max(lastConsumedFrame, frameCounter - ago); }
 
-        bool TryCommands(InputFrame inp, bool air)
+        bool TryCommands(InputFrame inp, bool air, int buffer = 3)
         {
             if (!air && TrySuper()) return true;
-            if (TrySpecials(air, 4)) return true;
+            if (TrySpecials(air, buffer + 1)) return true;
             if (!air)
             {
-                int t = FreshPress(Btn.Throw, 3);
+                int t = FreshPress(Btn.Throw, buffer);
                 if (t >= 0) { Consume(t); if (StartMove(def.Get("throw"))) return true; }
             }
-            return TryNormals(air);
+            return TryNormals(air, buffer);
         }
 
-        bool TryNormals(bool air)
+        bool TryNormals(bool air, int buffer = 3)
         {
             Btn[] order = { Btn.HP, Btn.HK, Btn.LP, Btn.LK };
             int dir = buf.Dir(0);
@@ -386,7 +413,7 @@ namespace UzbekKombat
             bool back = dir == 4 || dir == 7;
             foreach (var b in order)
             {
-                int ago = FreshPress(b, 3);
+                int ago = FreshPress(b, buffer);
                 if (ago < 0) continue;
                 string n = b.ToString();
                 string id = air ? "j" + n : down ? "c" + n : fwd && def.Get("f" + n) != null ? "f" + n : back && def.Get("b" + n) != null ? "b" + n : n;
@@ -468,10 +495,27 @@ namespace UzbekKombat
             if (!m.keepMomentum && !m.air) vel.x = 0;
             if (m.air) vel.x *= 0.95f;
             anim.Play(m.clip, m.kind == MoveKind.Normal ? 0.04f : 0.06f);
-            SynthAudio.Play(Sfx.None);
+            enhanced = false;
+            if (m.kind == MoveKind.Special && m.id != "counterHit" && m.id != "lassoPull" && FreshPress(Btn.Block, 5) >= 0) TryEnhance();
             m.onStart?.Invoke(this);
             if (m.kind == MoveKind.Special && match != null) match.OnSpecialStart(this, m);
             return true;
+        }
+
+        /// <summary>Kuchaytirilgan maxsus usul: Blok tugmasi bilan, 1 bo'lak sarflaydi — ko'proq zarar, zirh, tezroq snaryad.</summary>
+        void TryEnhance()
+        {
+            if (enhanced || meter < FightConst.EnhanceCost || move == null || move.kind != MoveKind.Special) return;
+            int ago = FreshPress(Btn.Block, 6);
+            if (ago >= 0) Consume(ago);
+            meter -= FightConst.EnhanceCost;
+            enhanced = true;
+            armorHitsLeft = 1;
+            fx.aura = 1f;
+            fx.auraColor = def.energyColor;
+            VFX.Burst(rig.Pos(Bone.Chest), def.energyColor, 0.6f);
+            SynthAudio.Play(Sfx.Magic, 0.8f, 1.3f);
+            match?.Announce("KUCHAYTIRILDI!", 0.7f, def.energyColor);
         }
 
         public void ForceMove(string id)
@@ -499,6 +543,8 @@ namespace UzbekKombat
             var m = move;
             moveFrame++;
             int f = moveFrame;
+            if (!enhanced && m.kind == MoveKind.Special && f <= 6 && m.id != "counterHit" && m.id != "lassoPull" && FreshPress(Btn.Block, 2) >= 0) TryEnhance();
+            if (enhanced && f > m.startup + m.active + 4) fx.aura = Mathf.Max(0, fx.aura - 0.1f);
 
             // Siljish
             if (m.moveEnd >= 0 && f >= m.moveStart && f <= m.moveEnd)
@@ -563,6 +609,7 @@ namespace UzbekKombat
             if (f >= m.TotalFrames)
             {
                 m.onEnd?.Invoke(this);
+                if (enhanced) { enhanced = false; fx.aura = 0; }
                 if (m.air && !Grounded)
                 {
                     move = null;
@@ -616,14 +663,59 @@ namespace UzbekKombat
             int len = jumpDir > 0 ? 14 : 16;
             float k = 1f - Mathf.Clamp01(stateFrame / (float)len);
             vel.x = jumpDir * def.dashSpeed * (0.35f + 0.65f * k) * facing * (jumpDir > 0 ? 1f : 0.9f);
-            if (stateFrame >= len) ToNeutral();
+            if (stateFrame >= len)
+            {
+                int d = buf.Dir(0);
+                if (jumpDir > 0 && (d == 6 || d == 9 || d == 3) && !(lastInput.Held(Btn.Block) || blockHeldAI))
+                {
+                    SetState(FState.Run);
+                    anim.Play(def.anims.run, 0.1f);
+                }
+                else ToNeutral();
+            }
         }
 
-        void StartGetUp()
+        void RunTick(InputFrame inp, int dir)
+        {
+            bool fwd = dir == 6 || dir == 9 || dir == 3;
+            if (!fwd || dir == 3) { vel.x *= 0.5f; ToNeutral(); return; }
+            if (TryCommands(inp, false, 3))
+            {
+                // yugurishdan zarba — kichik inersiya saqlanadi
+                if (state == FState.Attack && move != null && move.kind == MoveKind.Normal) vel.x = facing * def.runSpeed * 0.45f;
+                return;
+            }
+            if (dir == 9) { jumpDir = 1; SetState(FState.JumpSquat); anim.Play(def.anims.jumpSquat, 0.04f); return; }
+            vel.x = facing * def.runSpeed;
+            if (stateFrame % 11 == 0) { fx.Dust(0.35f); SynthAudio.Play(Sfx.Land, 0.15f, 1.6f); }
+        }
+
+        void StartRoll(int d)
+        {
+            SetState(FState.Roll);
+            rollDir = d;
+            invul = FightConst.RollFrames;
+            anim.Play(def.anims.rollBack, 0.06f);
+            SynthAudio.Play(Sfx.WhooshLight, 0.5f, 0.8f);
+            fx.Dust(0.8f);
+        }
+
+        void RollTick()
+        {
+            invul = 2;
+            float t = stateFrame / (float)FightConst.RollFrames;
+            vel.x = rollDir * facing * Mathf.Lerp(5.5f, 0.5f, t);
+            float spinT = Mathf.Clamp01((t - 0.12f) / 0.55f);
+            anim.spin = Quaternion.Euler(-rollDir * Mathf.SmoothStep(0, 1, spinT) * 360f, 0, 0);
+            if (stateFrame >= FightConst.RollFrames) { anim.spin = Quaternion.identity; juggleHits = 0; ToNeutral(); }
+        }
+
+        void StartGetUp(bool quick = false)
         {
             SetState(FState.GetUp);
-            anim.Play(def.anims.getUp, 0.08f);
+            anim.Play(def.anims.getUp, 0.08f, quick ? 0.12f : 0f, quick ? 1.4f : 1f);
             invul = FightConst.GetUpFrames;
+            if (quick) stateFrame = 10;
             juggleHits = 0;
         }
 
@@ -793,12 +885,16 @@ namespace UzbekKombat
                 return;
             }
             SetState(FState.Hitstun);
-            stun = m.hitstun + (counter ? 4 : 0);
+            stun = Mathf.Max(8, m.hitstun + (counter ? 4 : 0) - Mathf.Max(0, comboHits - 4));
             vel = new Vector2(attacker.facing * knock.x, 0);
             var a = def.anims;
-            AnimClip c = crouching ? a.hitCrouch : m.level == HitLevel.Low ? a.hitLow : (m.hitbox.y > 1.2f ? a.hitHigh : a.hitMid);
+            bool heavy = m.hitstop >= 9 || dmg >= 80;
+            AnimClip c = crouching ? a.hitCrouch : m.level == HitLevel.Low ? a.hitLow :
+                heavy && a.hitHeavy != null ? a.hitHeavy :
+                m.hitbox.y > 1.2f ? (Random.value < 0.5f && a.hitHigh2 != null ? a.hitHigh2 : a.hitHigh) : a.hitMid;
+            face?.Squeeze(0.25f);
             anim.Play(c, 0.03f, 0, Mathf.Max(0.6f, c.Length / Mathf.Max(0.1f, stun / 60f)));
-            anim.Flinch(new Vector3(-12, 0, 0), 1f);
+            anim.Flinch(new Vector3(-12, Random.Range(-8f, 8f), Random.Range(-6f, 6f)), heavy ? 1.6f : 1f);
         }
 
         /// <summary>Havoga uchish (juggle). v.x — hujumchidan uzoqlashish tezligi.</summary>
@@ -896,7 +992,7 @@ namespace UzbekKombat
         void UpdateFacingIfAllowed()
         {
             if (opp == null) return;
-            if (!(IsNeutral || state == FState.Landing || state == FState.Intro || state == FState.Dizzy || (state == FState.Attack && moveFrame <= 1 && Grounded))) return;
+            if (!(IsNeutral || state == FState.Run || state == FState.Landing || state == FState.Intro || state == FState.Dizzy || (state == FState.Attack && moveFrame <= 1 && Grounded))) return;
             if (!Grounded) return;
             float dx = opp.pos.x - pos.x;
             if (Mathf.Abs(dx) < 0.05f) return;
@@ -926,6 +1022,7 @@ namespace UzbekKombat
         {
             float s = rig != null ? rig.shape.height : 1f;
             if (state == FState.Knockdown || state == FState.KO) return new Rect(pos.x - 0.8f, pos.y, 1.6f, 0.4f);
+            if (state == FState.Roll) return new Rect(pos.x - 0.4f, pos.y, 0.8f, 0.8f);
             if (crouching || state == FState.Crouch || state == FState.CrouchBlock) return new Rect(pos.x - 0.36f, pos.y, 0.72f, 1.15f * s);
             if (!Grounded) return new Rect(pos.x - 0.35f, pos.y + 0.25f, 0.7f, 1.45f * s);
             return new Rect(pos.x - 0.33f, pos.y, 0.66f, 1.85f * s);
@@ -1005,6 +1102,17 @@ namespace UzbekKombat
                                  !(state == FState.Attack && move != null && (move.air || !anim.Current.grounded)) && state != FState.Air && state != FState.Cinematic;
             anim.groundLock = groundedState || (state == FState.Cinematic && cineGroundLock && Grounded);
             anim.groundY = 0;
+            bool calm = state == FState.Idle || state == FState.Intro;
+            anim.bounceTarget = calm ? 1f : state == FState.Walk ? 0.5f : state == FState.Block ? 0.3f : 0f;
+            float hf = HealthFrac;
+            anim.fatigue = (state == FState.Idle || state == FState.Walk || state == FState.Crouch || state == FState.Block) && hf < 0.3f && health > 0 ? (0.3f - hf) / 0.3f : 0f;
+            if (face != null)
+            {
+                if (opp != null && opp.rig != null && face.lookTarget == null) face.lookTarget = opp.rig[Bone.Head];
+                bool look = IsNeutral || state == FState.Attack || state == FState.Air || state == FState.Landing || state == FState.Dash || state == FState.Run || state == FState.Blockstun;
+                face.lookWeight = Mathf.MoveTowards(face.lookWeight, look ? 1f : 0f, Time.deltaTime * 4f);
+            }
+            if (state == FState.Walk && !(hitstop > 0) && ++stepTimer % 22 == 0) { fx.Dust(0.18f); }
             anim.Tick(Time.deltaTime);
             fx.Tick();
         }

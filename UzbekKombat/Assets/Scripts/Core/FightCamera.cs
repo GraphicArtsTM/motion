@@ -9,6 +9,7 @@ namespace UzbekKombat
     public class FightCamera : MonoBehaviour
     {
         public Camera cam;
+        public PostFX post;
         public Fighter a, b;
         public enum Mode { Fight, Shot, Orbit, Free }
         public Mode mode = Mode.Orbit;
@@ -41,12 +42,20 @@ namespace UzbekKombat
             go.AddComponent<AudioListener>();
             var fc = go.AddComponent<FightCamera>();
             fc.cam = c;
+            fc.post = go.AddComponent<PostFX>();
             fc.pos = new Vector3(0, 2, -9);
             fc.look = new Vector3(0, 1.2f, 0);
             return fc;
         }
 
-        public void Shake(float amount) { shake = Mathf.Min(1.2f, Mathf.Max(shake, amount)); }
+        public void Shake(float amount)
+        {
+            shake = Mathf.Min(1.2f, Mathf.Max(shake, amount));
+            if (post) post.Kick(amount * 2.5f);
+        }
+
+        /// <summary>Kuchli zarbada qisqa yaqinlashish (zoom punch).</summary>
+        public void Punch(float amount) { zoomPunch = Mathf.Max(zoomPunch, amount); }
 
         public void Shot(Vector3 p, Vector3 l, float f, float blend)
         {

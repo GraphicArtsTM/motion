@@ -19,6 +19,13 @@ namespace UzbekKombat
                 signatureFx = HitFx.Star,
             };
             d.buildVisual = CharacterVisuals.BuildUlugbek;
+            d.bounceAmp = 0.008f; d.bounceRate = 2.6f;
+            d.introLine = "Har bir harakatingni yulduzlar allaqachon hisoblagan.";
+            d.vsLines["temur"] = "Bobojon, ilm ham qilich kabi o'tkir.";
+            d.vsLines["chingiz"] = "Osmon jadvalida sening yulduzing so'nmoqda.";
+            d.vsLines["jaloliddin"] = "Tezliging chaqmoqdek, ammo yorug'lik tezroq.";
+            d.vsLines["ulugbek"] = "Ko'zgudagi yulduz — haqiqiysi emas.";
+            d.winLines = new[] { "Ilm — yulduzlar kabi abadiydir.", "Hisob-kitob aniq chiqdi.", "Zij'ga yangi g'alaba yulduzi qo'shildi." };
             var p = PoseLib.Ulugbek();
             d.anims = PoseLib.BuildBase(p);
             var cfg = new NormalsCfg { reach = 1.4f, power = 0.95f, speed = 0.95f, fx = HitFx.Blunt, hit = Sfx.HitLight, hitHeavy = Sfx.HitHeavy, trailColor = new Color(0.6f, 0.8f, 1f, 0.9f) };

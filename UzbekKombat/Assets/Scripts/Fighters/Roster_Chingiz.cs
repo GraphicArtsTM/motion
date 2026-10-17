@@ -19,6 +19,13 @@ namespace UzbekKombat
                 signatureFx = HitFx.Arrow,
             };
             d.buildVisual = CharacterVisuals.BuildChingiz;
+            d.bounceAmp = 0.018f; d.bounceRate = 4.6f;
+            d.introLine = "Dasht faqat kuchlini taniydi!";
+            d.vsLines["jaloliddin"] = "Bu safar daryo seni qutqarmaydi.";
+            d.vsLines["temur"] = "Temirni ham sindirish mumkin.";
+            d.vsLines["ulugbek"] = "Yulduz sanagan qo'l kamon tortolmaydi.";
+            d.vsLines["chingiz"] = "Ikki bo'ri — bitta dasht.";
+            d.winLines = new[] { "Dasht g'olibni tanidi.", "Ko'k bo'ri hech qachon ochiqmaydi.", "Yana bir qabila bo'ysundi." };
             var p = PoseLib.Chingiz();
             d.anims = PoseLib.BuildBase(p);
             var cfg = new NormalsCfg { reach = 1.12f, power = 1.03f, speed = 1.0f, trailColor = new Color(1f, 0.85f, 0.6f, 0.9f) };

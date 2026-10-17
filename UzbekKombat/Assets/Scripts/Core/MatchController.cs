@@ -77,6 +77,7 @@ namespace UzbekKombat
         {
             Time.fixedDeltaTime = 1f / 60f;
             round = 1;
+            firstHitDone = false;
             f1.roundsWon = f2.roundsWon = 0;
             f1.meter = f2.meter = mode == GameMode.Training ? FightConst.MaxMeter : 0;
             StartCoroutine(RoundIntro(true));
@@ -113,6 +114,7 @@ namespace UzbekKombat
                 cam.Cut(new Vector3(-2.4f + 1.4f, 1.5f, -3.2f), new Vector3(-2.4f, 1.35f, 0), 34);
                 cam.Shot(new Vector3(-2.4f + 0.9f, 1.6f, -2.7f), new Vector3(-2.4f, 1.45f, 0), 32, 2.2f);
                 Announce(f1.def.name, 2.0f, f1.def.mainColor.Mul(1.6f), false);
+                Say(f1, f2);
                 SynthAudio.Play(Sfx.Gong, 0.7f);
                 yield return new WaitForSeconds(2.2f);
                 f2.anim.Play(f2.def.anims.intro, 0.05f);
@@ -120,6 +122,7 @@ namespace UzbekKombat
                 cam.Cut(new Vector3(2.4f - 1.4f, 1.5f, -3.2f), new Vector3(2.4f, 1.35f, 0), 34);
                 cam.Shot(new Vector3(2.4f - 0.9f, 1.6f, -2.7f), new Vector3(2.4f, 1.45f, 0), 32, 2.2f);
                 Announce(f2.def.name, 2.0f, f2.def.mainColor.Mul(1.6f), false);
+                Say(f2, f1);
                 SynthAudio.Play(Sfx.Gong, 0.7f, 1.1f);
                 yield return new WaitForSeconds(2.2f);
                 arena?.Cheer(1f);
@@ -251,10 +254,28 @@ namespace UzbekKombat
         // ======================= Hodisalar =======================
         public Projectile SpawnProjectile(ProjectileSpec spec, Fighter owner, Vector2 pos, Vector2 vel)
         {
+            if (owner != null && owner.enhanced && spec.damage > 0)
+            {
+                spec.damage *= 1.35f;
+                spec.hitstun += 6;
+                spec.color = Color.Lerp(spec.color, Color.white, 0.35f);
+                spec.size *= 1.15f;
+                vel *= 1.25f;
+            }
             var p = Projectile.Spawn(spec, owner, pos, vel);
             p.transform.SetParent(transform, true);
             projectiles.Add(p);
             return p;
+        }
+
+        /// <summary>Jang oldidan qahramon gapi (subtitr).</summary>
+        public string subtitle; public float subtitleTime; public Color subtitleColor;
+        public void Subtitle(string text, Color c) { subtitle = text; subtitleTime = Time.unscaledTime; subtitleColor = c; }
+
+        void Say(Fighter who, Fighter to)
+        {
+            string line = who.def.vsLines.TryGetValue(to.def.id, out var l) ? l : who.def.introLine;
+            if (!string.IsNullOrEmpty(line)) Subtitle("«" + line + "»", who.def.mainColor.Mul(1.6f));
         }
 
         public void Announce(string text, float dur, Color c, bool big = false)
@@ -295,8 +316,20 @@ namespace UzbekKombat
 
         public void OnBlock(Fighter att, Fighter def) { }
 
+        bool firstHitDone;
+        static readonly (int hits, string text)[] Praise = { (4, "YAXSHI!"), (6, "AJOYIB!"), (9, "AFSONAVIY!"), (12, "SOHIBQIRONA!") };
+
         public void OnHitLanded(Fighter att, Fighter def, MoveData m, bool counter, float dmg)
         {
+            if (!firstHitDone && mode != GameMode.Training && phase == MatchPhase.Fight)
+            {
+                firstHitDone = true;
+                Announce("BIRINCHI ZARBA!", 1.1f, new Color(1f, 0.55f, 0.3f));
+                att.meter = Mathf.Min(FightConst.MaxMeter, att.meter + 25);
+            }
+            foreach (var pr in Praise)
+                if (def.comboHits == pr.hits) { Announce(pr.text, 0.9f, Color.Lerp(Pal.Gold, Color.white, pr.hits / 14f)); SynthAudio.Play(Sfx.Crowd, 0.35f + pr.hits * 0.03f); }
+            if (m.hitstop >= 9 || dmg >= 90) cam.Punch(0.35f);
             if (def.comboHits >= 2)
             {
                 comboOwner = att;
@@ -309,7 +342,34 @@ namespace UzbekKombat
             if (counter && m.kind != MoveKind.Special) Announce("QARSHI ZARBA!", 0.6f, new Color(1f, 0.6f, 0.3f));
         }
 
-        public void OnThrowLanded(Fighter att, Fighter def) { arena?.Cheer(0.5f); }
+        public void OnThrowLanded(Fighter att, Fighter def) { arena?.Cheer(0.5f); cam.Punch(0.4f); }
+
+        /// <summary>Majaqlovchi zarba: sekinlashuv, kamera yaqinlashuvi, rangsizlanish va nur.</summary>
+        public void OnKrushingBlow(Fighter att, Fighter def, Vector3 point)
+        {
+            Announce("MAJAQLOVCHI ZARBA!", 1.4f, new Color(1f, 0.3f, 0.2f), true);
+            SlowMo(0.12f, 0.75f);
+            cam.Punch(1.6f);
+            cam.Shake(0.6f);
+            if (cam.post) { cam.post.Kick(3f); StartCoroutine(Desat(0.7f)); }
+            SynthAudio.Play(Sfx.Shatter, 0.9f, 0.8f);
+            SynthAudio.Play(Sfx.HitHeavy, 1f, 0.7f);
+            VFX.Burst(point, new Color(1f, 0.5f, 0.3f), 1.2f);
+            def.flashTimer = 0.4f; def.flashColor = new Color(1f, 0.85f, 0.7f);
+            arena?.Cheer(1f);
+        }
+
+        IEnumerator Desat(float seconds)
+        {
+            float t = 0;
+            while (t < seconds)
+            {
+                t += Time.unscaledDeltaTime;
+                if (cam.post) cam.post.desaturate = 0.75f * (1 - t / seconds);
+                yield return null;
+            }
+            if (cam.post) cam.post.desaturate = 0;
+        }
 
         // ======================= KO =======================
         public void OnKO(Fighter loser, Fighter winner)
@@ -333,6 +393,8 @@ namespace UzbekKombat
             koResolving = true;
             phase = MatchPhase.KO;
             SlowMo(0.25f, 1.2f);
+            cam.Punch(1.2f);
+            if (cam.post) StartCoroutine(Desat(1.3f));
             ScreenFlash(Color.white, 0.2f);
             SynthAudio.Play(Sfx.Boom, 0.8f, 0.8f);
             f1.inputEnabled = f2.inputEnabled = false;
@@ -467,7 +529,7 @@ namespace UzbekKombat
                 matchOver = true;
                 matchWinner = w;
                 winnerText = w.def.name;
-                winnerQuote = w.def.quote;
+                winnerQuote = w.def.winLines != null && w.def.winLines.Length > 0 ? "«" + w.def.winLines[Random.Range(0, w.def.winLines.Length)] + "»" : w.def.quote;
                 cam.Orbit(w.rig.Pos(Bone.Chest), 4.2f, 0.4f, 9f, -90f + (w.facing > 0 ? 20 : -20), 34f);
                 onMatchOver?.Invoke(this);
                 yield break;

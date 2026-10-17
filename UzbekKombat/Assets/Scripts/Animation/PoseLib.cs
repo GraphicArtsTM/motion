@@ -256,6 +256,33 @@ namespace UzbekKombat
             a.intro = new AnimClip("intro").K(0, c.introA ?? st).K(0.7f, c.introA ?? st, Ease.Linear).K(1.2f, c.introB ?? st, Ease.InOutCubic).K(1.9f, c.introB ?? st, Ease.Linear).K(2.4f, st, Ease.InOutQuad);
             a.intro.next = a.idle;
             a.cinematicHold = new AnimClip("hold", true).K(0, st);
+
+            // Yugurish (→ → ushlab turilsa)
+            Pose rA = st.Clone().H(0, -0.04f, 0.06f).S(Bone.Spine, 22, 4, 0).S(Bone.Chest, 12, 6, 0).S(Bone.Head, -22, -20, 0)
+                .S(Bone.ThighL, -70, -20, -4).S(Bone.ShinL, 60).S(Bone.FootL, 0).S(Bone.ThighR, 40, -10, 5).S(Bone.ShinR, 90).S(Bone.FootR, -20)
+                .A(Bone.UpperArmR, 20).A(Bone.UpperArmL, -25);
+            Pose rB = st.Clone().H(0, 0.02f, 0.06f).S(Bone.Spine, 22, 4, 0).S(Bone.Chest, 12, 6, 0).S(Bone.Head, -22, -20, 0)
+                .S(Bone.ThighL, 30, -20, -4).S(Bone.ShinL, 95).S(Bone.FootL, -25).S(Bone.ThighR, -65, -10, 5).S(Bone.ShinR, 60).S(Bone.FootR, 0)
+                .A(Bone.UpperArmR, -25).A(Bone.UpperArmL, 20);
+            a.run = new AnimClip("run", true).K(0, rA).K(0.19f, rB, Ease.InOutQuad).K(0.38f, rA, Ease.InOutQuad);
+
+            // Dumalash (yiqilgandan keyin) — aylanish kodda (spin), bu yerda tugilgan holat
+            Pose ball = JumpTuck(st).H(0, -0.45f, 0).S(Bone.Spine, 40).S(Bone.Chest, 25).S(Bone.Head, 20, -10, 0)
+                .S(Bone.UpperArmR, -60, 0, 20).S(Bone.ForeArmR, -120).S(Bone.UpperArmL, -60, 0, -20).S(Bone.ForeArmL, -120);
+            a.rollBack = new AnimClip("rollBack").K(0, ly).K(0.1f, ball, Ease.OutQuad).K(0.3f, ball, Ease.Linear).K(0.42f, kn, Ease.OutQuad).K(0.55f, st, Ease.OutCubic);
+            a.rollBack.next = a.idle;
+            a.rollFwd = a.rollBack;
+
+            // Zarba reaksiyalari — variantlar
+            Pose hh2 = hh.Clone().S(Bone.Chest, -10, 40, -10).S(Bone.Neck, -6, 20, 0).S(Bone.Head, -14, 30, -18).S(Bone.UpperArmR, -30, 0, 60).S(Bone.UpperArmL, 30, 0, -20);
+            a.hitHigh2 = new AnimClip("hitHigh2").K(0, st).K(0.05f, hh2, Ease.OutExpo).K(0.2f, hh2.Clone().A(Bone.Chest, 5), Ease.Linear).K(0.42f, st, Ease.InOutQuad);
+            Pose heavy = hm.Clone().H(0, -0.2f, -0.12f).S(Bone.Spine, 30, 10, 0).S(Bone.Chest, 26, 16, 0).S(Bone.Head, 18, -10, 0)
+                .S(Bone.ThighL, -10, -28, -4).S(Bone.ShinL, 70).S(Bone.ThighR, 20, -14, 5).S(Bone.ShinR, 80).S(Bone.FootR, -60);
+            Pose stagger = st.Clone().H(0, -0.12f, -0.15f).S(Bone.Spine, -16, 10, 0).S(Bone.Chest, -14, 20, 0).S(Bone.Head, -10, -20, 0)
+                .S(Bone.ThighL, -10, -28, -4).S(Bone.ShinL, 30).S(Bone.ThighR, 36, -14, 5).S(Bone.ShinR, 50).S(Bone.FootR, -50)
+                .S(Bone.UpperArmR, 10, 0, 50).S(Bone.ForeArmR, -30).S(Bone.UpperArmL, 5, 0, -45).S(Bone.ForeArmL, -30);
+            a.hitHeavy = new AnimClip("hitHeavy").K(0, st).K(0.06f, heavy, Ease.OutExpo).K(0.22f, stagger, Ease.InOutQuad).K(0.38f, stagger.Clone().A(Bone.Spine, 6), Ease.Linear).K(0.6f, st, Ease.InOutQuad);
+            a.stagger = a.hitHeavy;
             a.taunt = a.victory;
             return a;
         }
