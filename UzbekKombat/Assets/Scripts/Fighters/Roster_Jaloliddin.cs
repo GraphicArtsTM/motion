@@ -17,7 +17,7 @@ namespace UzbekKombat
                 walkFwd = 2.9f, walkBack = 2.4f, jumpVel = 12f, jumpX = 3.9f, damageMult = 0.92f, juggleWeight = 0.95f, dashSpeed = 8.4f,
                 signatureFx = HitFx.Wind,
             };
-            d.buildVisual = CharacterVisuals.BuildJaloliddin;
+            d.buildVisual = t => FbxPuppet.Build("jaloliddin", CharacterVisuals.BuildJaloliddin, t);
             d.bounceAmp = 0.024f; d.bounceRate = 6.8f;
             d.introLine = "Vatan uchun jangga tayyorman!";
             d.vsLines["chingiz"] = "Sind daryosi seni ham kutmoqda, Chingiz!";

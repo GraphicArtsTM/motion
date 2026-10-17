@@ -18,7 +18,7 @@ namespace UzbekKombat
                 walkFwd = 2.4f, walkBack = 2.2f, jumpVel = 11.2f, jumpX = 3.4f, damageMult = 0.95f, juggleWeight = 1f, dashSpeed = 7f,
                 signatureFx = HitFx.Star,
             };
-            d.buildVisual = CharacterVisuals.BuildUlugbek;
+            d.buildVisual = t => FbxPuppet.Build("ulugbek", CharacterVisuals.BuildUlugbek, t);
             d.bounceAmp = 0.008f; d.bounceRate = 2.6f;
             d.introLine = "Har bir harakatingni yulduzlar allaqachon hisoblagan.";
             d.vsLines["temur"] = "Bobojon, ilm ham qilich kabi o'tkir.";

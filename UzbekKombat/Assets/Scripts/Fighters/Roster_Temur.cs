@@ -17,7 +17,7 @@ namespace UzbekKombat
                 walkFwd = 2.3f, walkBack = 1.9f, jumpVel = 11f, jumpX = 3.2f, damageMult = 1.1f, juggleWeight = 1.15f, dashSpeed = 6.8f,
                 signatureFx = HitFx.Gold,
             };
-            d.buildVisual = CharacterVisuals.BuildTemur;
+            d.buildVisual = t => FbxPuppet.Build("temur", CharacterVisuals.BuildTemur, t);
             d.bounceAmp = 0.011f; d.bounceRate = 3.2f;
             d.introLine = "Adolatsiz kuch — bo'ron, adolatli kuch — qal'a.";
             d.vsLines["jaloliddin"] = "Jasoratingni bilaman, Manguberdi. Ko'rsat-chi!";

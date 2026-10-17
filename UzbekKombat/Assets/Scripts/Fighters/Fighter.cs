@@ -94,6 +94,9 @@ namespace UzbekKombat
         public int armorHitsLeft;
         public readonly HashSet<string> krushUsed = new HashSet<string>();
         public FaceRig face;
+        public FbxPuppet puppet;
+        string hitSlot = "hitHigh";
+        int stunTotal = 1;
         int rollDir;
         int stepTimer;
 
@@ -122,6 +125,8 @@ namespace UzbekKombat
             anim.bounceAmp = def.bounceAmp;
             anim.bounceRate = def.bounceRate;
             face = rig.GetComponent<FaceRig>();
+            puppet = rig.GetComponent<FbxPuppet>();
+            if (puppet != null && !puppet.HasModel) puppet = null;
             anim.Play(def.anims.idle, 0);
         }
 
@@ -894,6 +899,8 @@ namespace UzbekKombat
                 heavy && a.hitHeavy != null ? a.hitHeavy :
                 m.hitbox.y > 1.2f ? (Random.value < 0.5f && a.hitHigh2 != null ? a.hitHigh2 : a.hitHigh) : a.hitMid;
             face?.Squeeze(0.25f);
+            stunTotal = Mathf.Max(1, stun);
+            hitSlot = c == a.hitCrouch || c == a.hitLow ? "hitLow" : c == a.hitHeavy ? "hitHeavy" : c == a.hitMid ? "hitMid" : "hitHigh";
             anim.Play(c, 0.03f, 0, Mathf.Max(0.6f, c.Length / Mathf.Max(0.1f, stun / 60f)));
             anim.Flinch(new Vector3(-12, Random.Range(-8f, 8f), Random.Range(-6f, 6f)), heavy ? 1.6f : 1f);
         }
@@ -1125,10 +1132,82 @@ namespace UzbekKombat
             }
             if (state == FState.Walk && !(hitstop > 0) && ++stepTimer % 22 == 0) { fx.Dust(0.18f); }
             anim.Tick(Time.deltaTime);
+            if (puppet != null) DrivePuppet();
             fx.Tick();
         }
 
         public bool cineGroundLock = true;
+
+        // ======================= FBX model (mocap kliplari) =======================
+        static readonly Dictionary<string, string[]> moveFallback = new Dictionary<string, string[]>
+        {
+            { "LP", new[] { "LP" } }, { "LP2", new[] { "LP2", "LP" } }, { "HP", new[] { "HP" } }, { "str3", new[] { "HP" } }, { "str4", new[] { "HK" } },
+            { "LK", new[] { "LK" } }, { "HK", new[] { "HK" } }, { "hk2", new[] { "HK" } }, { "lk2", new[] { "HK", "LK" } },
+            { "cLP", new[] { "cLP" } }, { "cHP", new[] { "cHP" } }, { "cLK", new[] { "cLK" } }, { "cHK", new[] { "cHK" } },
+            { "jLP", new[] { "jP" } }, { "jHP", new[] { "jP" } }, { "jLK", new[] { "jK" } }, { "jHK", new[] { "jK", "jP" } },
+            { "throw", new[] { "throw" } }, { "super", new[] { "super", "HP" } },
+        };
+
+        float airTimeTotal => 2f * def.jumpVel / FightConst.Gravity;
+
+        void DrivePuppet()
+        {
+            var p = puppet;
+            p.grounded = Grounded && state != FState.Juggle && state != FState.Air && state != FState.Thrown;
+            float secs = stateFrame / 60f;
+            switch (state)
+            {
+                case FState.Idle:
+                case FState.Intro when anim.Current == def.anims.idle:
+                    if (anim.Current == def.anims.fidget && p.Has("taunt")) p.Request("taunt", anim.NormalizedTime, true, false);
+                    else p.Request("idle", Time.time, false, true);
+                    break;
+                case FState.Intro: p.Request(p.First("intro", "idle"), anim.NormalizedTime, true, false); break;
+                case FState.Walk: p.Request(walkSign > 0 ? "walkF" : p.First("walkB", "walkF"), Time.time * (walkSign > 0 ? 1 : 1), false, true); break;
+                case FState.Crouch: p.Request(p.First("crouch"), Time.time, false, true); break;
+                case FState.Block: p.Request("block", Time.time, false, true); break;
+                case FState.CrouchBlock: p.Request(p.First("crouchBlock", "crouch"), Time.time, false, true); break;
+                case FState.Blockstun: p.Request(crouching ? p.First("crouchBlock", "crouch") : p.First("blockHit", "block"), Mathf.Clamp01(stateFrame / 12f), true, false); break;
+                case FState.JumpSquat:
+                case FState.Air:
+                    {
+                        float t = state == FState.JumpSquat ? 0 : Mathf.Clamp01(jumpFrame / 60f / airTimeTotal);
+                        p.Request(jumpDir != 0 ? p.First("jumpF", "jump") : "jump", t, true, false);
+                        break;
+                    }
+                case FState.Landing: p.Request(p.First("land", "idle"), Mathf.Clamp01(stateFrame / 8f), true, false); break;
+                case FState.Dash: p.Request(jumpDir > 0 ? p.First("dashF", "run") : p.First("dashB", "walkB"), Mathf.Clamp01(stateFrame / 15f), true, jumpDir > 0 && !p.Has("dashF")); break;
+                case FState.Run: p.Request("run", Time.time, false, true); break;
+                case FState.Attack:
+                    {
+                        string slot = null;
+                        if (move != null)
+                        {
+                            if (moveFallback.TryGetValue(move.id, out var list)) slot = p.First(list);
+                            if (slot == null) slot = p.First(move.id, SpecialSlot(move.id));
+                        }
+                        if (slot != null) p.RequestAttack(slot, moveFrame + 0.5f, move.startup, move.TotalFrames);
+                        else p.ClearRequest();
+                        break;
+                    }
+                case FState.Throwing: p.Request("throw", Mathf.Clamp01(stateFrame / 50f), true, false); break;
+                case FState.Hitstun: p.Request(p.First(hitSlot, "hitHigh", "hitMid"), Mathf.Clamp01(stateFrame / (float)stunTotal), true, false); break;
+                case FState.Juggle: p.Request(p.First("juggle", "knockdown"), Mathf.Clamp01(secs / 1.4f) * 0.7f, true, false); break;
+                case FState.Knockdown:
+                case FState.KO: p.Request(p.First("lying", "knockdown"), p.Has("lying") ? Time.time : 1f, !p.Has("lying"), p.Has("lying")); break;
+                case FState.GetUp: p.Request("getUp", Mathf.Clamp01(stateFrame / (float)FightConst.GetUpFrames), true, false); break;
+                case FState.Dizzy: p.Request("dizzy", Time.time, false, true); break;
+                case FState.Victory: p.Request(p.First("victory", "taunt"), Mathf.Clamp01(secs / 2.5f), true, false); break;
+                case FState.Defeat: p.Request("defeat", Mathf.Clamp01(secs / 2f), true, false); break;
+                default: p.ClearRequest(); break; // Thrown, Roll, Cinematic — protsedural
+            }
+        }
+
+        string SpecialSlot(string moveId)
+        {
+            int i = def.specials.FindIndex(s => s.moveId == moveId);
+            return i >= 0 ? "special" + (i + 1) : null;
+        }
         public bool cinePhysics;
     }
 }

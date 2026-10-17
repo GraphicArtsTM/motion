@@ -146,6 +146,8 @@ namespace UzbekKombat
                 an.breathing = false;
                 an.Play(d.anims.idle, 0);
                 an.Tick(0.01f);
+                var pup = rig.GetComponent<FbxPuppet>();
+                if (pup != null && pup.HasModel) { pup.grounded = true; pup.Request("idle", 0.3f, false, true); pup.ApplyNow(); }
                 Vector3 head = rig.Pos(Bone.Head) + Vector3.up * 0.1f;
                 camGo.transform.position = head + new Vector3(0.5f, 0.02f, 1.35f);
                 camGo.transform.LookAt(head + Vector3.down * 0.12f);

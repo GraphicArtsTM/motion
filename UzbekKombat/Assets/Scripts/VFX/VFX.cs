@@ -178,6 +178,7 @@ namespace UzbekKombat
     /// <summary>
     /// Qurol izi: tig' asosi va uchi orasida lenta (ribbon) mesh — professional "swoosh" effekti.
     /// </summary>
+    [DefaultExecutionOrder(800)]
     public class SwordTrail : MonoBehaviour
     {
         public Transform baseT, tipT;
