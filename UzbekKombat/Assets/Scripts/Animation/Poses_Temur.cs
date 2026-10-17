@@ -83,6 +83,9 @@ namespace UzbekKombat
                 .S(Bone.UpperArmR, -60, -45, 14).S(Bone.ForeArmR, -48).S(Bone.HandR, -24)
                 .S(Bone.UpperArmL, -30, 20, -40).S(Bone.ForeArmL, -20).S(Bone.HandL, -40);
             // G'alaba
+            // Fidget: qilich tig'iga nazar tashlaydi, yelkalarini yozadi
+            c["fidget"] = st.Clone().S(Bone.Head, 10, 10, 0).S(Bone.Neck, 6, 4, 0).ArmR(-75, -105, -120, 10, 30);
+            c["fidget2"] = st.Clone().S(Bone.Head, 6, 18, 0).S(Bone.Chest, -6, 14, 0).ArmR(-80, -95, -100, 20, 34);
             c.victoryA = st.Clone().H(0, -0.02f, 0).S(Bone.Spine, -4, 10, 0).S(Bone.Chest, -10, 20, 0).S(Bone.Head, -18, -16, 0)
                 .S(Bone.UpperArmR, -176, 0, 14).S(Bone.ForeArmR, -6).S(Bone.HandR, 34)
                 .S(Bone.UpperArmL, 12, 0, -34).S(Bone.ForeArmL, -95).S(Bone.HandL, 20)

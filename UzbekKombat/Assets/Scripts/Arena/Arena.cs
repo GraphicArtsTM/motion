@@ -108,15 +108,15 @@ namespace UzbekKombat
         {
             if (preset == ArenaPreset.Sunset)
             {
-                skyTop = ColorUtil.Hex("#3b4f8f"); skyHor = ColorUtil.Hex("#f2a35e"); skyBot = ColorUtil.Hex("#6b4a3a");
-                sunCol = ColorUtil.Hex("#ffd2a0"); sunIntensity = 1.25f;
-                ambSky = ColorUtil.Hex("#8c86a8"); ambEq = ColorUtil.Hex("#9a7a68"); ambGround = ColorUtil.Hex("#4a3a30");
-                fogCol = ColorUtil.Hex("#d9a07a");
+                skyTop = ColorUtil.Hex("#36498a"); skyHor = ColorUtil.Hex("#e8955a"); skyBot = ColorUtil.Hex("#5a3e30");
+                sunCol = ColorUtil.Hex("#ffd8b0"); sunIntensity = 1.15f;
+                ambSky = ColorUtil.Hex("#6f78a0"); ambEq = ColorUtil.Hex("#806458"); ambGround = ColorUtil.Hex("#3a2c24");
+                fogCol = ColorUtil.Hex("#c08a6a");
             }
             else
             {
                 skyTop = ColorUtil.Hex("#070b22"); skyHor = ColorUtil.Hex("#2a3466"); skyBot = ColorUtil.Hex("#141420");
-                sunCol = ColorUtil.Hex("#9fb4ff"); sunIntensity = 0.55f;
+                sunCol = ColorUtil.Hex("#9fb4ff"); sunIntensity = 0.5f;
                 ambSky = ColorUtil.Hex("#2c3460"); ambEq = ColorUtil.Hex("#2a2840"); ambGround = ColorUtil.Hex("#151420");
                 fogCol = ColorUtil.Hex("#1c2246");
             }
@@ -145,7 +145,7 @@ namespace UzbekKombat
             rim.transform.SetParent(transform, false);
             rim.type = LightType.Directional;
             rim.color = preset == ArenaPreset.Sunset ? ColorUtil.Hex("#ffb070") : ColorUtil.Hex("#6080ff");
-            rim.intensity = preset == ArenaPreset.Sunset ? 0.45f : 0.35f;
+            rim.intensity = preset == ArenaPreset.Sunset ? 0.3f : 0.3f;
             rim.shadows = LightShadows.None;
             rim.transform.rotation = Quaternion.Euler(20, 200, 0);
         }
@@ -682,6 +682,7 @@ namespace UzbekKombat
                         tris.AddRange(new[] { a, b, c, b, d, c });
                         tris.AddRange(new[] { a + n, c + n, b + n, b + n, c + n, d + n });
                     }
+                if (QualitySettings.activeColorSpace == ColorSpace.Linear) for (int ci = 0; ci < colors.Length; ci++) colors[ci] = colors[ci].linear;
                 mesh.vertices = verts; mesh.uv = uvs; mesh.colors = colors; mesh.SetTriangles(tris, 0);
                 mesh.RecalculateNormals();
                 mesh.MarkDynamic();

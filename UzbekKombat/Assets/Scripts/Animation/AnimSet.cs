@@ -7,6 +7,6 @@ namespace UzbekKombat
             hitHigh, hitMid, hitLow, hitCrouch, blockHit, crouchBlockHit,
             juggle, knockFall, lying, getUp, dizzy, victory, intro, defeat,
             throwGrab, thrown, throwBreak, taunt, cinematicHold,
-            run, rollBack, rollFwd, hitHigh2, hitHeavy, stagger, wakeAttack;
+            run, rollBack, rollFwd, hitHigh2, hitHeavy, stagger, wakeAttack, fidget;
     }
 }

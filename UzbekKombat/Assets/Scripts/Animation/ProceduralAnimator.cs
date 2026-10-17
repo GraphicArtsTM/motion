@@ -37,6 +37,10 @@ namespace UzbekKombat
         public float bounceTarget;       // 0..1 — Fighter belgilaydi (idle/walk holatida 1)
         float bounceW, bouncePhase;
         public float fatigue;            // 0..1 — sog'liq kam bo'lsa charchoq
+        public bool footIK;              // oyoqlarni yerga "mixlash" (foot locking + 2 suyakli IK)
+
+        struct FootLock { public bool locked; public Vector3 pos; public float w; public Vector3 prevModel; }
+        readonly FootLock[] feet = new FootLock[2];
         Vector3 flinch, flinchVel;   // zarba silkinishi (spring)
         float shake;                  // titrash (zarba olganda)
 
@@ -147,6 +151,7 @@ namespace UzbekKombat
             b[(int)Bone.Hips].localRotation = hipRot;
 
             if (groundLock && Current.grounded && groundBlend > 0) GroundAdjust();
+            SolveFeet(dt);
             // Tebranish yer moslashuvidan keyin: tizzalar bukiladi, chanoq pasayadi
             float drop = Mathf.Min(0f, bob) - fatigue * 0.025f;
             if (drop < -0.0005f)
@@ -159,6 +164,86 @@ namespace UzbekKombat
                 b[(int)Bone.ShinR].localRotation *= Quaternion.Euler(kneeDeg, 0, 0);
             }
         }
+
+        // ======================= Oyoq IK =======================
+        Quaternion ModelRot(int bone)
+        {
+            Quaternion q = Quaternion.identity;
+            var chain = rig.bones;
+            int i = bone;
+            // ota-onalar zanjiri (chanoqqacha)
+            Quaternion acc = chain[i].localRotation;
+            while (Rig.Parent[i] >= 0) { i = Rig.Parent[i]; acc = chain[i].localRotation * acc; }
+            return acc;
+        }
+
+        void SolveFeet(float dt)
+        {
+            for (int side = 0; side < 2; side++)
+            {
+                int th = side == 0 ? (int)Bone.ThighL : (int)Bone.ThighR;
+                int sh = th + 1, ft = th + 2;
+                var b = rig.bones;
+                var model = rig.model;
+                Vector3 ankle = b[ft].position;
+                Vector3 ankleModel = model.InverseTransformPoint(ankle);
+                float animSpeed = dt > 0 ? (ankleModel - feet[side].prevModel).magnitude / dt : 0;
+                feet[side].prevModel = ankleModel;
+                float s = rig.scale;
+                float h = ankle.y - groundY - 0.08f * s;
+                ref FootLock fl = ref feet[side];
+                bool can = footIK && groundLock && Current != null && Current.grounded;
+                if (!fl.locked && can && h < 0.035f * s && animSpeed < 0.7f)
+                {
+                    fl.locked = true;
+                    fl.pos = ankle;
+                }
+                if (fl.locked)
+                {
+                    Vector3 d = fl.pos - ankle; d.y = 0;
+                    if (!can || h > 0.07f * s || d.magnitude > 0.32f * s) fl.locked = false;
+                }
+                fl.w = Mathf.MoveTowards(fl.w, fl.locked ? 1f : 0f, dt * (fl.locked ? 12f : 7f));
+                if (fl.w <= 0.001f) continue;
+                Vector3 targetW = new Vector3(fl.pos.x, ankle.y, fl.pos.z);
+                targetW = Vector3.Lerp(ankle, targetW, fl.w);
+                if ((targetW - ankle).sqrMagnitude < 1e-7f) continue;
+                TwoBoneIK(th, sh, ft, model.InverseTransformPoint(targetW));
+            }
+        }
+
+        void TwoBoneIK(int ia, int ib, int ic, Vector3 t)
+        {
+            var b = rig.bones;
+            var model = rig.model;
+            Vector3 a = model.InverseTransformPoint(b[ia].position);
+            Vector3 bb = model.InverseTransformPoint(b[ib].position);
+            Vector3 c = model.InverseTransformPoint(b[ic].position);
+            Quaternion aG = ModelRot(ia), bG = ModelRot(ib), cG = ModelRot(ic);
+            const float eps = 0.001f;
+            float lab = (bb - a).magnitude, lcb = (bb - c).magnitude;
+            float lat = Mathf.Clamp((t - a).magnitude, eps, lab + lcb - eps);
+            float acab0 = Mathf.Acos(Mathf.Clamp(Vector3.Dot((c - a).normalized, (bb - a).normalized), -1f, 1f));
+            float babc0 = Mathf.Acos(Mathf.Clamp(Vector3.Dot((a - bb).normalized, (c - bb).normalized), -1f, 1f));
+            float acat0 = Mathf.Acos(Mathf.Clamp(Vector3.Dot((c - a).normalized, (t - a).normalized), -1f, 1f));
+            float acab1 = Mathf.Acos(Mathf.Clamp((lcb * lcb - lab * lab - lat * lat) / (-2f * lab * lat), -1f, 1f));
+            float babc1 = Mathf.Acos(Mathf.Clamp((lat * lat - lab * lab - lcb * lcb) / (-2f * lab * lcb), -1f, 1f));
+            Vector3 axis0 = Vector3.Cross(c - a, bb - a);
+            if (axis0.sqrMagnitude < 1e-8f) axis0 = aG * Vector3.left;
+            axis0.Normalize();
+            Vector3 axis1 = Vector3.Cross(c - a, t - a);
+            bool hasAxis1 = axis1.sqrMagnitude > 1e-10f;
+            axis1 = hasAxis1 ? axis1.normalized : axis0;
+            Quaternion r0 = Quaternion.AngleAxis((acab1 - acab0) * Mathf.Rad2Deg, Quaternion.Inverse(aG) * axis0);
+            Quaternion r1 = Quaternion.AngleAxis((babc1 - babc0) * Mathf.Rad2Deg, Quaternion.Inverse(bG) * axis0);
+            Quaternion r2 = hasAxis1 ? Quaternion.AngleAxis(acat0 * Mathf.Rad2Deg, Quaternion.Inverse(aG) * axis1) : Quaternion.identity;
+            b[ia].localRotation = b[ia].localRotation * r0 * r2;
+            b[ib].localRotation = b[ib].localRotation * r1;
+            // Oyoq panjasi yo'nalishini saqlash
+            b[ic].localRotation = Quaternion.Inverse(ModelRot(ib)) * cG;
+        }
+
+        public void ResetFeet() { feet[0] = default; feet[1] = default; }
 
         /// <summary>Eng past kontakt nuqtasini yer sathiga moslash (oyoq "suzib" yurmasligi uchun).</summary>
         void GroundAdjust()

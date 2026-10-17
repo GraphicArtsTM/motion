@@ -66,6 +66,7 @@ namespace UzbekKombat
             Time.fixedDeltaTime = 1f / 60f;
 
             SynthAudio.Create();
+            Shader.SetGlobalTexture("_UKDetailTex", TextureFactory.Detail());
             VFX.Init();
             cam = FightCamera.Create();
             cam.transform.SetParent(transform, false);

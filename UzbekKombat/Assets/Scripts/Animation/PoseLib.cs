@@ -187,7 +187,12 @@ namespace UzbekKombat
         {
             var a = new AnimSet();
             Pose st = c.stance, st2 = c.stance2 ?? c.stance;
-            a.idle = new AnimClip("idle", true).K(0, st).K(0.75f, st2, Ease.InOutQuad).K(1.5f, st, Ease.InOutQuad);
+            // Jonli turish: og'irlik oldinga-orqaga ko'chadi, gavda biroz buriladi, qo'llar tebranadi
+            Pose shiftF = st.Clone().HA(0, -0.012f, 0.035f).A(Bone.Hips, 0, -3, 0).A(Bone.Chest, 2, -4, 0).A(Bone.Head, 0, 4, 0)
+                .A(Bone.ShinL, 6).A(Bone.ThighL, -3).A(Bone.ShinR, -3).A(Bone.ThighR, -2).A(Bone.UpperArmR, -3).A(Bone.UpperArmL, -4).A(Bone.ForeArmL, -4);
+            Pose shiftB = st2.Clone().HA(0, -0.006f, -0.03f).A(Bone.Hips, 0, 3, 0).A(Bone.Chest, -1, 5, 0).A(Bone.Head, 0, -3, 0)
+                .A(Bone.ShinR, 6).A(Bone.ThighR, 3).A(Bone.ShinL, -2).A(Bone.UpperArmR, 3).A(Bone.ForeArmR, -4).A(Bone.UpperArmL, 2);
+            a.idle = new AnimClip("idle", true).K(0, st).K(0.45f, shiftF, Ease.InOutQuad).K(0.9f, st2, Ease.InOutQuad).K(1.4f, shiftB, Ease.InOutQuad).K(1.9f, st, Ease.InOutQuad);
 
             Pose wA = c.walkA ?? st.Clone().S(Bone.ThighL, -44, -28, -4).S(Bone.ShinL, 26).S(Bone.FootL, 14).S(Bone.ThighR, 24, -14, 5).S(Bone.ShinR, 30).S(Bone.FootR, -44).HA(0, 0.02f, 0);
             Pose wB = c.walkB ?? st.Clone().S(Bone.ThighL, -22, -28, -4).S(Bone.ShinL, 34).S(Bone.FootL, -10).S(Bone.ThighR, -12, -14, 5).S(Bone.ShinR, 70).S(Bone.FootR, -30).HA(0, -0.02f, 0);
@@ -256,6 +261,12 @@ namespace UzbekKombat
             a.intro = new AnimClip("intro").K(0, c.introA ?? st).K(0.7f, c.introA ?? st, Ease.Linear).K(1.2f, c.introB ?? st, Ease.InOutCubic).K(1.9f, c.introB ?? st, Ease.Linear).K(2.4f, st, Ease.InOutQuad);
             a.intro.next = a.idle;
             a.cinematicHold = new AnimClip("hold", true).K(0, st);
+            if (c.named.ContainsKey("fidget"))
+            {
+                Pose f1 = c["fidget"], f2 = c.named.ContainsKey("fidget2") ? c["fidget2"] : c["fidget"];
+                a.fidget = new AnimClip("fidget").K(0, st).K(0.35f, f1, Ease.OutCubic).K(0.8f, f2, Ease.InOutQuad).K(1.15f, f1, Ease.InOutQuad).K(1.6f, st, Ease.InOutQuad);
+                a.fidget.next = a.idle;
+            }
 
             // Yugurish (→ → ushlab turilsa)
             Pose rA = st.Clone().H(0, -0.04f, 0.06f).S(Bone.Spine, 22, 4, 0).S(Bone.Chest, 12, 6, 0).S(Bone.Head, -22, -20, 0)

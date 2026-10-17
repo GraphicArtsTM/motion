@@ -55,6 +55,7 @@ namespace UzbekKombat.EditorTools
             PlayerSettings.defaultScreenWidth = 1920;
             PlayerSettings.defaultScreenHeight = 1080;
             PlayerSettings.runInBackground = true;
+            if (PlayerSettings.colorSpace != ColorSpace.Linear) PlayerSettings.colorSpace = ColorSpace.Linear; // realistik yoritish
             if ((created || openScene) && EditorSceneManager.GetActiveScene().path != ScenePath)
                 EditorSceneManager.OpenScene(ScenePath);
             if (created) Debug.Log("[O'zbek Jangi] Main.unity yaratildi. Play tugmasini bosing!");

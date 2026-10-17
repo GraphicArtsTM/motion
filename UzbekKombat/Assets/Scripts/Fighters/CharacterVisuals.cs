@@ -27,7 +27,7 @@ namespace UzbekKombat
 
         public MeshBuilder On(Transform t)
         {
-            if (!solid.TryGetValue(t, out var mb)) solid[t] = mb = new MeshBuilder();
+            if (!solid.TryGetValue(t, out var mb)) solid[t] = mb = new MeshBuilder { classifySkin = true, bakeAO = 1f };
             mb.ResetTransform();
             return mb;
         }
@@ -162,8 +162,11 @@ namespace UzbekKombat
             // Yelka bo'g'imlari
             k[Bone.Chest].SetColor(o.sleeve).Sphere(new Vector3(-0.19f * s.shoulders, 0.2f, 0), new Vector3(0.075f, 0.07f, 0.075f) * bw, 6, 10);
             k[Bone.Chest].SetColor(o.sleeve).Sphere(new Vector3(0.19f * s.shoulders, 0.2f, 0), new Vector3(0.075f, 0.07f, 0.075f) * bw, 6, 10);
-            // Bo'yin
-            k[Bone.Neck].SetColor(o.skin).Cylinder(Vector3.zero, 0.055f, 0.05f, -0.02f, 0.12f, 10);
+            // Trapetsiya mushaklari (bo'yindan yelkaga) va bo'yin
+            Color trap = chestFn(0.5f, 0.97f);
+            k[Bone.Chest].SetColor(trap).Sphere(new Vector3(-0.09f * s.shoulders, 0.255f, -0.015f), new Vector3(0.1f, 0.05f, 0.075f) * bw, 5, 10);
+            k[Bone.Chest].SetColor(trap).Sphere(new Vector3(0.09f * s.shoulders, 0.255f, -0.015f), new Vector3(0.1f, 0.05f, 0.075f) * bw, 5, 10);
+            k[Bone.Neck].SetColor(o.skin).Lathe(new[] { new Vector2(0, -0.03f), new Vector2(0.062f, -0.02f), new Vector2(0.056f, 0.05f), new Vector2(0.05f, 0.12f), new Vector2(0, 0.13f) }, 14, Vector3.zero, 1.05f, 1f);
             // Bosh
             BuildHead(k, o.skin);
 
@@ -174,14 +177,22 @@ namespace UzbekKombat
                 Bone fa = side < 0 ? Bone.ForeArmL : Bone.ForeArmR;
                 Bone hd = side < 0 ? Bone.HandL : Bone.HandR;
                 float al = s.armLength;
-                k[ua].SetColor(o.sleeve).Lathe(new[] { new Vector2(0, 0.03f), new Vector2(0.06f * bw, 0.02f), new Vector2(0.068f * bw, -0.08f), new Vector2(0.06f * bw, -0.29f * al), new Vector2(0, -0.31f * al) }, 10, Vector3.zero, 1, 1, false, o.sleeveFn);
-                k[fa].SetColor(o.sleeve).Lathe(new[] { new Vector2(0, 0.02f), new Vector2(0.056f * bw, 0.01f), new Vector2(0.058f * bw, -0.1f), new Vector2(0.05f * bw, -0.24f * al), new Vector2(0, -0.25f * al) }, 10, Vector3.zero, 1, 1, false, o.sleeveFn);
+                k[ua].SetColor(o.sleeve).Lathe(new[] { new Vector2(0, 0.03f), new Vector2(0.06f * bw, 0.02f), new Vector2(0.068f * bw, -0.08f), new Vector2(0.06f * bw, -0.29f * al), new Vector2(0, -0.31f * al) }, 14, Vector3.zero, 1, 1, false, o.sleeveFn);
+                k[fa].SetColor(o.sleeve).Lathe(new[] { new Vector2(0, 0.02f), new Vector2(0.056f * bw, 0.01f), new Vector2(0.058f * bw, -0.1f), new Vector2(0.05f * bw, -0.24f * al), new Vector2(0, -0.25f * al) }, 14, Vector3.zero, 1, 1, false, o.sleeveFn);
                 if (o.bracers)
                     k[fa].SetColor(o.bracerColor).Cylinder(Vector3.zero, 0.066f * bw, 0.058f * bw, -0.24f * al, -0.08f, 10, true);
-                // Musht
+                // Musht: kaft, to'rt barmoq bo'g'imlari (dasta o'qi Z bo'ylab), bosh barmoq
                 var h = k[hd].SetColor(o.skin);
-                h.Box(new Vector3(0, -0.06f, 0.005f), new Vector3(0.075f, 0.1f, 0.09f));
-                h.Box(new Vector3(0, -0.035f, 0.05f), new Vector3(0.05f, 0.04f, 0.035f)); // bosh barmoq
+                h.Sphere(new Vector3(0, -0.045f, 0.0f), new Vector3(0.036f, 0.045f, 0.045f), 5, 10);   // kaft
+                for (int fi = 0; fi < 4; fi++)
+                {
+                    float fz = 0.03f - fi * 0.019f;
+                    float fr = fi == 3 ? 0.0095f : 0.011f;
+                    h.SetColor(fi % 2 == 0 ? o.skin : o.skin.Mul(0.96f));
+                    h.Capsule(new Vector3(side * 0.03f, -0.075f, fz), new Vector3(side * 0.005f, -0.105f, fz), fr, fr, 7);   // proksimal bo'g'im
+                    h.Capsule(new Vector3(side * 0.005f, -0.105f, fz), new Vector3(-side * 0.02f, -0.09f, fz), fr * 0.95f, fr * 0.85f, 6); // bukilgan uch
+                }
+                h.SetColor(o.skin).Capsule(new Vector3(-side * 0.015f, -0.035f, 0.035f), new Vector3(-side * 0.012f, -0.075f, 0.052f), 0.013f, 0.011f, 6); // bosh barmoq
             }
 
             // Oyoqlar
@@ -191,12 +202,12 @@ namespace UzbekKombat
                 Bone sh = side < 0 ? Bone.ShinL : Bone.ShinR;
                 Bone ft = side < 0 ? Bone.FootL : Bone.FootR;
                 float ll = s.legLength;
-                k[th].SetColor(o.trousers).Lathe(new[] { new Vector2(0, 0.04f), new Vector2(0.095f * bw, 0.03f), new Vector2(0.1f * bw, -0.1f), new Vector2(0.075f * bw, -0.45f * ll), new Vector2(0, -0.47f * ll) }, 10);
+                k[th].SetColor(o.trousers).Lathe(new[] { new Vector2(0, 0.04f), new Vector2(0.095f * bw, 0.03f), new Vector2(0.1f * bw, -0.1f), new Vector2(0.088f * bw, -0.3f * ll), new Vector2(0.075f * bw, -0.45f * ll), new Vector2(0, -0.47f * ll) }, 14);
                 // Chopon bo'laklari — tizzagacha (yoki to'piqqacha)
                 float robeLen = o.robeLong ? 0.52f : 0.42f;
                 k[th].Lathe(new[] { new Vector2(0.115f * bw, 0.02f), new Vector2(0.13f * bw * flare, -0.2f), new Vector2(0.15f * bw * flare, -robeLen * ll) }, 12, Vector3.zero, 1, 1, true,
                     (u, v) => robeFn(u, 0.5f - v * 0.5f));
-                k[sh].SetColor(o.trousers).Lathe(new[] { new Vector2(0, 0.03f), new Vector2(0.07f * bw, 0.02f), new Vector2(0.065f * bw, -0.15f), new Vector2(0.05f, -0.43f * ll), new Vector2(0, -0.44f * ll) }, 10);
+                k[sh].SetColor(o.trousers).Lathe(new[] { new Vector2(0, 0.03f), new Vector2(0.07f * bw, 0.02f), new Vector2(0.065f * bw, -0.15f), new Vector2(0.05f, -0.43f * ll), new Vector2(0, -0.44f * ll) }, 14);
                 if (o.robeLong)
                     k[sh].Lathe(new[] { new Vector2(0.14f * bw, 0.05f), new Vector2(0.155f * bw, -0.15f), new Vector2(0.17f * bw, -0.33f * ll) }, 12, Vector3.zero, 1, 1, true, (u, v) => robeFn(u, v * 0.1f));
                 // Etik
@@ -222,7 +233,16 @@ namespace UzbekKombat
             // Quloqlar
             h.Sphere(new Vector3(-0.095f, 0.12f, -0.005f), new Vector3(0.018f, 0.03f, 0.022f), 4, 6);
             h.Sphere(new Vector3(0.095f, 0.12f, -0.005f), new Vector3(0.018f, 0.03f, 0.022f), 4, 6);
+            // Ko'z chuqurchalari (soya), lablar, burun teshiklari
+            foreach (var sx in new[] { -1f, 1f })
+            {
+                h.SetColor(skin.Mul(0.8f)).Sphere(new Vector3(sx * 0.036f, 0.139f, 0.083f), new Vector3(0.026f, 0.019f, 0.012f), 4, 10);
+                h.SetColor(skin.Mul(0.55f)).Sphere(new Vector3(sx * 0.008f, 0.093f, 0.116f), new Vector3(0.005f, 0.003f, 0.004f), 3, 5);
+            }
+            h.SetColor(new Color(skin.r * 0.78f, skin.g * 0.5f, skin.b * 0.45f)).Sphere(new Vector3(0, 0.074f, 0.103f), new Vector3(0.022f, 0.006f, 0.009f), 4, 10);
+            h.SetColor(new Color(skin.r * 0.85f, skin.g * 0.58f, skin.b * 0.5f)).Sphere(new Vector3(0, 0.066f, 0.1f), new Vector3(0.018f, 0.006f, 0.009f), 4, 10);
             // Burun
+            h.SetColor(skin);
             h.SetTransform(new Vector3(0, 0.12f, 0.1f), Quaternion.Euler(-12, 0, 0));
             h.Lathe(new[] { new Vector2(0.018f, -0.035f), new Vector2(0.012f, 0.0f), new Vector2(0.006f, 0.03f), new Vector2(0, 0.032f) }, 6, Vector3.zero, 1.1f, 1.2f);
             h.ResetTransform();

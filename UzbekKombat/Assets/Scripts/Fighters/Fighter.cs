@@ -159,6 +159,7 @@ namespace UzbekKombat
             anim.Play(def.anims.idle, 0.1f);
             fx.StopTrails();
             foreach (var sb in rig.GetComponentsInChildren<SpringBone>(true)) sb.ResetSim();
+            anim.ResetFeet();
             transform.position = new Vector3(pos.x, pos.y, 0);
         }
 
@@ -1102,6 +1103,16 @@ namespace UzbekKombat
                                  !(state == FState.Attack && move != null && (move.air || !anim.Current.grounded)) && state != FState.Air && state != FState.Cinematic;
             anim.groundLock = groundedState || (state == FState.Cinematic && cineGroundLock && Grounded);
             anim.groundY = 0;
+            anim.footIK = anim.groundLock && state != FState.Run && state != FState.Dash && state != FState.Roll && state != FState.GetUp &&
+                          state != FState.Knockdown && state != FState.KO && state != FState.Juggle && state != FState.Cinematic;
+            // Yurish animatsiyasi tezligi haqiqiy tezlikka mos (oyoq sirpanmasligi uchun)
+            if (state == FState.Walk) anim.speed = Mathf.Clamp(Mathf.Abs(vel.x) / 2.3f, 0.6f, 1.6f);
+            // Uzoq turib qolsa — xarakterli harakat (fidget)
+            if (state == FState.Idle && stateFrame > 200 && def.anims.fidget != null && anim.Current == def.anims.idle && Random.value < 0.004f && hitstop == 0)
+            {
+                anim.Play(def.anims.fidget, 0.15f);
+                stateFrame = 0;
+            }
             bool calm = state == FState.Idle || state == FState.Intro;
             anim.bounceTarget = calm ? 1f : state == FState.Walk ? 0.5f : state == FState.Block ? 0.3f : 0f;
             float hf = HealthFrac;

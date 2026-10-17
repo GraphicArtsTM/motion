@@ -11,10 +11,10 @@ namespace UzbekKombat
     {
         static readonly Dictionary<string, Texture2D> cache = new Dictionary<string, Texture2D>();
 
-        static Texture2D Make(string key, int w, int h, System.Func<float, float, Color> fn, bool mip = true, TextureWrapMode wrap = TextureWrapMode.Repeat, FilterMode filter = FilterMode.Bilinear)
+        static Texture2D Make(string key, int w, int h, System.Func<float, float, Color> fn, bool mip = true, TextureWrapMode wrap = TextureWrapMode.Repeat, FilterMode filter = FilterMode.Bilinear, bool linear = false)
         {
             if (cache.TryGetValue(key, out var t) && t != null) return t;
-            t = new Texture2D(w, h, TextureFormat.RGBA32, mip) { name = key, wrapMode = wrap, filterMode = filter, anisoLevel = 4 };
+            t = new Texture2D(w, h, TextureFormat.RGBA32, mip, linear) { name = key, wrapMode = wrap, filterMode = filter, anisoLevel = 4 };
             var px = new Color32[w * h];
             for (int y = 0; y < h; y++)
                 for (int x = 0; x < w; x++)
@@ -88,50 +88,117 @@ namespace UzbekKombat
             return new Color(1, 1, 1, Mathf.Clamp01(a + core * 0.5f));
         }, false, TextureWrapMode.Clamp);
 
-        // ---------------- Arena ----------------
-        /// <summary>Tuproq (hovli yeri).</summary>
-        public static Texture2D Earth() => Make("earth", 256, 256, (u, v) =>
+        /// <summary>
+        /// Personajlar uchun detal teksturasi (linear, o'rtacha 0.5):
+        /// R — mato to'qimasi (tanda-arqoq + tola), G — mayda shovqin (teri g'ovaklari, metall chiziqlari), B — eskirish/dog'lar.
+        /// </summary>
+        public static Texture2D Detail() => Make("detail", 256, 256, (u, v) =>
         {
-            float n = Noise.FbmTiled(u * 8, v * 8, 8, 5, 11);
-            float n2 = Noise.FbmTiled(u * 32, v * 32, 32, 3, 12);
-            Color a = ColorUtil.Hex("#9a7652"), b = ColorUtil.Hex("#c69c6d"), c = ColorUtil.Hex("#7d5a3c");
+            float warp = Mathf.Sin(u * 64 * Mathf.PI * 2) * 0.5f + 0.5f;
+            float weft = Mathf.Sin(v * 64 * Mathf.PI * 2) * 0.5f + 0.5f;
+            bool over = (Mathf.FloorToInt(u * 64) + Mathf.FloorToInt(v * 64)) % 2 == 0;
+            float weave = over ? warp : weft;
+            float fib = Noise.ValueTiled(u * 128, v * 16, 128, 141) * 0.5f + Noise.ValueTiled(u * 16, v * 128, 16, 142) * 0.5f;
+            float big = Noise.FbmTiled(u * 4, v * 4, 4, 4, 143);
+            float r = 0.5f + (weave - 0.5f) * 0.16f + (fib - 0.5f) * 0.12f + (big - 0.5f) * 0.18f;
+            float pores = Noise.ValueTiled(u * 96, v * 96, 96, 144);
+            float brushed = Noise.ValueTiled(u * 6, v * 160, 6, 145);
+            float g = 0.5f + (pores - 0.5f) * 0.1f + (brushed - 0.5f) * 0.1f + (big - 0.5f) * 0.12f;
+            float wear = Noise.FbmTiled(u * 8, v * 8, 8, 4, 146);
+            return new Color(r, g, wear, 1);
+        }, true, TextureWrapMode.Repeat, FilterMode.Trilinear, true);
+
+        // ---------------- Arena ----------------
+        static float Voronoi(float x, float y, int period, int seed, out float cellId)
+        {
+            int xi = Mathf.FloorToInt(x), yi = Mathf.FloorToInt(y);
+            float best = 9, second = 9; cellId = 0;
+            for (int j = -1; j <= 1; j++)
+                for (int i = -1; i <= 1; i++)
+                {
+                    int cx = xi + i, cy = yi + j;
+                    float px = cx + Noise.ValueTiled(cx * 1.37f + 0.5f, cy * 2.11f + 0.5f, period * 4, seed);
+                    float py = cy + Noise.ValueTiled(cx * 3.17f + 0.5f, cy * 1.73f + 0.5f, period * 4, seed + 1);
+                    float d = (px - x) * (px - x) + (py - y) * (py - y);
+                    if (d < best) { second = best; best = d; cellId = Noise.Rand01(Noise.Mod(cx, period) * 131 + Noise.Mod(cy, period), seed); }
+                    else if (d < second) second = d;
+                }
+            return Mathf.Sqrt(second) - Mathf.Sqrt(best);
+        }
+
+        /// <summary>Tuproq — zichlangan hovli yeri: toshchalar, yoriqlar, nam dog'lar.</summary>
+        public static Texture2D Earth() => Make("earth", 512, 512, (u, v) =>
+        {
+            float n = Noise.FbmTiled(u * 6, v * 6, 6, 5, 11);
+            float n2 = Noise.FbmTiled(u * 24, v * 24, 24, 3, 12);
+            float grain = Noise.ValueTiled(u * 256, v * 256, 256, 13);
+            Color a = ColorUtil.Hex("#8a6a4c"), b = ColorUtil.Hex("#b08a62"), dark = ColorUtil.Hex("#6a4e36");
             Color col = Color.Lerp(a, b, n);
-            col = Color.Lerp(col, c, Mathf.Clamp01((n2 - 0.6f) * 3f));
-            float pebble = Noise.ValueTiled(u * 64, v * 64, 64, 13);
-            if (pebble > 0.86f) col = Color.Lerp(col, ColorUtil.Hex("#d8c0a0"), 0.5f);
+            col = Color.Lerp(col, dark, Mathf.Clamp01((n2 - 0.55f) * 2.5f) * 0.6f);
+            col *= 0.92f + grain * 0.16f;
+            // Toshchalar (voronoi hujayralari)
+            float edge = Voronoi(u * 40, v * 40, 40, 14, out float id);
+            if (id > 0.82f && edge > 0.18f)
+            {
+                Color pebble = Color.Lerp(ColorUtil.Hex("#9a9184"), ColorUtil.Hex("#c8bca8"), id * 3 - 2.4f);
+                float sh = Mathf.Clamp01((edge - 0.18f) * 6f);
+                col = Color.Lerp(col, pebble * (0.85f + sh * 0.25f), sh);
+            }
+            // Yoriqlar
+            float cr = Mathf.Abs(Noise.FbmTiled(u * 5, v * 5, 5, 4, 15) - 0.5f);
+            if (cr < 0.012f) col *= 0.6f + cr * 25f;
             return col;
         });
 
-        /// <summary>Paxsa / xom g'isht devor, somon izlari bilan.</summary>
-        public static Texture2D MudBrick() => Make("mudbrick", 256, 256, (u, v) =>
+        /// <summary>Paxsa / xom g'isht: qirralari yumaloq, somon tolalari, eroziya chuqurchalari, chuqur choklar.</summary>
+        public static Texture2D MudBrick() => Make("mudbrick", 512, 512, (u, v) =>
         {
             float rows = 8, cols = 4;
             float ry = v * rows;
             int row = Mathf.FloorToInt(ry);
             float rx = u * cols + (row % 2) * 0.5f;
-            float fx = rx - Mathf.Floor(rx), fy = ry - row;
-            float mortar = (fx < 0.04f || fx > 0.96f || fy < 0.07f || fy > 0.93f) ? 1 : 0;
+            int colI = Mathf.FloorToInt(rx);
+            float fx = rx - colI, fy = ry - row;
+            float jitter = (Noise.ValueTiled(u * 40, v * 40, 40, 20) - 0.5f) * 0.03f;
+            float ex = Mathf.Min(fx, 1 - fx) / 0.5f, ey = Mathf.Min(fy, 1 - fy) / 0.5f;
+            float edge = Mathf.Min(ex * 4f, ey * 2f) + jitter * 10;
+            float mortarK = Mathf.Clamp01(1 - (edge - 0.12f) * 8f);
             float n = Noise.FbmTiled(u * 16, v * 16, 16, 4, 21);
-            float straw = Noise.ValueTiled(u * 128, v * 24, 128, 22) > 0.8f ? 1 : 0;
-            Color brick = Color.Lerp(ColorUtil.Hex("#b48a5e"), ColorUtil.Hex("#d1ab7c"), n);
-            brick = Color.Lerp(brick, ColorUtil.Hex("#e3c99a"), straw * 0.35f);
-            float tint = Noise.ValueTiled(Mathf.Floor(rx) * 3.1f, row * 1.7f, 64, 23);
-            brick *= 0.92f + tint * 0.12f;
-            Color mort = ColorUtil.Hex("#8f6c4b");
-            return Color.Lerp(brick, mort, mortar * 0.8f);
+            float tint = Noise.Rand01(Noise.Mod(colI, 8) * 17 + row, 23);
+            Color brick = Color.Lerp(ColorUtil.Hex("#a67f56"), ColorUtil.Hex("#c9a174"), n * 0.7f + tint * 0.3f);
+            // Somon
+            float straw = Noise.ValueTiled(u * 200, v * 30, 200, 22);
+            if (straw > 0.83f) brick = Color.Lerp(brick, ColorUtil.Hex("#e0c58e"), (straw - 0.83f) * 4f);
+            // Eroziya chuqurchalari
+            float pit = Noise.ValueTiled(u * 64, v * 64, 64, 24);
+            if (pit > 0.88f) brick *= 0.75f;
+            // Yumaloq qirra yoritilishi: yuqori chet yorug', pastki chet soya
+            float bevelTop = Mathf.Clamp01(1 - (1 - fy) / 0.12f), bevelBot = Mathf.Clamp01(1 - fy / 0.12f);
+            brick *= 1 + bevelTop * 0.12f - bevelBot * 0.22f;
+            Color mort = ColorUtil.Hex("#6e5238") * (0.8f + n * 0.3f);
+            return Color.Lerp(brick, mort, mortarK);
         });
 
-        /// <summary>Suvalgan loy devor (ganch emas, loy suvoq).</summary>
-        public static Texture2D Plaster() => Make("plaster", 256, 256, (u, v) =>
+        /// <summary>Loy suvoq: dog'lar, yomg'ir oqimi izlari, yoriqlar.</summary>
+        public static Texture2D Plaster() => Make("plaster", 512, 512, (u, v) =>
         {
-            float n = Noise.FbmTiled(u * 6, v * 6, 6, 5, 31);
-            float crack = Mathf.Abs(Noise.FbmTiled(u * 10, v * 10, 10, 3, 32) - 0.5f) < 0.012f ? 1 : 0;
-            Color c = Color.Lerp(ColorUtil.Hex("#c9a77c"), ColorUtil.Hex("#e0c497"), n);
-            return Color.Lerp(c, ColorUtil.Hex("#8a6a4a"), crack * 0.6f);
+            float n = Noise.FbmTiled(u * 5, v * 5, 5, 5, 31);
+            float fine = Noise.ValueTiled(u * 180, v * 180, 180, 33);
+            Color c = Color.Lerp(ColorUtil.Hex("#bf9c74"), ColorUtil.Hex("#dcbf94"), n);
+            c *= 0.94f + fine * 0.1f;
+            // Vertikal oqim izlari
+            float streak = Noise.ValueTiled(u * 60, v * 3, 60, 34);
+            c *= 1 - Mathf.Clamp01((streak - 0.7f) * 2f) * 0.18f * (1 - v);
+            // Ko'chgan suvoq (ichidan g'isht ko'rinadi)
+            float chip = Noise.FbmTiled(u * 4 + 7, v * 4, 4, 4, 35);
+            if (chip > 0.72f) c = Color.Lerp(c, ColorUtil.Hex("#9a7452"), Mathf.Clamp01((chip - 0.72f) * 12f));
+            float crack = Mathf.Abs(Noise.FbmTiled(u * 9, v * 9, 9, 3, 32) - 0.5f);
+            if (crack < 0.008f) c *= 0.55f + crack * 40f;
+            return c;
         });
 
-        /// <summary>Pishiq g'isht yo'lak ("archa" naqsh).</summary>
-        public static Texture2D BrickPaving() => Make("paving", 256, 256, (u, v) =>
+        /// <summary>Pishiq g'isht yo'lak ("archa" naqsh): har g'isht o'z rangi, qirra soyasi, choklarda tuproq.</summary>
+        public static Texture2D BrickPaving() => Make("paving", 512, 512, (u, v) =>
         {
             float s = 8f;
             float x = u * s, y = v * s;
@@ -140,12 +207,24 @@ namespace UzbekKombat
             bool horiz = ((ix + iy) & 1) == 0;
             float half = horiz ? fy : fx;
             float along = horiz ? fx : fy;
-            float mortar = (half > 0.47f && half < 0.53f) || along < 0.04f || along > 0.96f || half < 0.03f || half > 0.97f ? 1 : 0;
+            int sub = half > 0.5f ? 1 : 0;
+            float h2 = half > 0.5f ? (half - 0.5f) * 2 : half * 2;
+            float e = Mathf.Min(Mathf.Min(h2, 1 - h2) * 0.5f, Mathf.Min(along, 1 - along));
+            float j = (Noise.ValueTiled(u * 64, v * 64, 64, 40) - 0.5f) * 0.02f;
+            float mortarK = Mathf.Clamp01(1 - (e + j - 0.035f) * 30f);
             float n = Noise.FbmTiled(u * 24, v * 24, 24, 3, 41);
-            float tint = Noise.ValueTiled(ix * 2 + (half > 0.5f ? 1 : 0), iy * 2, 64, 42);
-            Color b = Color.Lerp(ColorUtil.Hex("#a85b3a"), ColorUtil.Hex("#c9835a"), tint);
-            b *= 0.85f + n * 0.3f;
-            return Color.Lerp(b, ColorUtil.Hex("#6e4a35"), mortar * 0.85f);
+            float tint = Noise.Rand01(ix * 7 + iy * 13 + sub * 3, 42);
+            Color b = Color.Lerp(ColorUtil.Hex("#9a5236"), ColorUtil.Hex("#c47e54"), tint);
+            b = Color.Lerp(b, ColorUtil.Hex("#7a4632"), Mathf.Clamp01((n - 0.6f) * 2f));
+            b *= 0.86f + Noise.ValueTiled(u * 300, v * 300, 300, 43) * 0.18f;
+            // Qirra yoritilishi
+            float bevel = Mathf.Clamp01(1 - e / 0.07f);
+            b *= 1 - bevel * 0.18f;
+            // Ishqalanib silliqlangan markaz (ko'p yurilgan)
+            float worn = Noise.FbmTiled(u * 3, v * 3, 3, 3, 44);
+            b = Color.Lerp(b, b * 1.12f + new Color(0.03f, 0.02f, 0.01f), Mathf.Clamp01((worn - 0.5f) * 2f) * 0.4f);
+            Color dirt = ColorUtil.Hex("#5a4232") * (0.8f + n * 0.4f);
+            return Color.Lerp(b, dirt, mortarK);
         });
 
         /// <summary>Ko'k koshin — sakkiz qirrali yulduzli girih naqsh (Samarqand uslubi).</summary>
@@ -266,12 +345,20 @@ namespace UzbekKombat
             return c * (0.92f + Noise.Value(u * 300, v * 600, 71) * 0.1f);
         });
 
-        /// <summary>Yog'och (o'ymakor ustun va to'sinlar uchun).</summary>
-        public static Texture2D Wood() => Make("wood", 128, 256, (u, v) =>
+        /// <summary>Yog'och: tolalar, yillik halqalar, sharlar (tugunlar), eskirgan qoramtir chiziqlar.</summary>
+        public static Texture2D Wood() => Make("wood", 256, 512, (u, v) =>
         {
-            float grain = Mathf.Sin((u * 20f + Noise.FbmTiled(u * 4, v * 2, 4, 3, 81) * 6f) * Mathf.PI);
-            Color a = ColorUtil.Hex("#6b4226"), b = ColorUtil.Hex("#94643b");
-            return Color.Lerp(a, b, grain * 0.5f + 0.5f) * (0.9f + Noise.Value(u * 64, v * 128, 82) * 0.15f);
+            float warp = Noise.FbmTiled(u * 4, v * 2, 4, 3, 81);
+            float grain = Mathf.Sin((u * 26f + warp * 7f) * Mathf.PI);
+            float fine = Noise.ValueTiled(u * 120, v * 12, 120, 83);
+            Color a = ColorUtil.Hex("#5e3a20"), b = ColorUtil.Hex("#94643b");
+            Color c = Color.Lerp(a, b, grain * 0.35f + 0.5f + (fine - 0.5f) * 0.3f);
+            // Tugunlar
+            float kx = u - 0.5f, ky = (v * 2) % 1 - 0.5f;
+            float knot = Mathf.Sqrt(kx * kx * 4 + ky * ky);
+            if (knot < 0.12f) c = Color.Lerp(ColorUtil.Hex("#3a2010"), c, knot / 0.12f);
+            c *= 0.9f + Noise.ValueTiled(u * 64, v * 128, 64, 82) * 0.15f;
+            return c;
         });
 
         /// <summary>O'ymakor eshik (yog'och panellar + naqsh).</summary>

@@ -61,6 +61,9 @@ namespace UzbekKombat
             // Shamol qadami (teleport)
             c["step_s"] = cr.Clone().H(0, -0.45f, 0).S(Bone.Spine, 34, 0, 0).S(Bone.Chest, 16, 0, 0).S(Bone.Head, -30, -20, 0)
                 .ArmR(30, -20, 150, 0, 30).ArmL(30, -20, 150, 0, -30);
+            // Fidget: qilichni aylantiradi
+            c["fidget"] = st.Clone().ArmR(-95, -40, 40, 30, 40).S(Bone.Head, 4, -10, 0);
+            c["fidget2"] = st.Clone().ArmR(-90, -60, -170, 40, 40).S(Bone.Head, 2, -14, 0);
             // G'alaba / kirish
             c.victoryA = st.Clone().H(0, 0.0f, 0).S(Bone.Spine, -4, 0, 0).S(Bone.Chest, -8, 16, 0).S(Bone.Head, -14, -20, 0)
                 .ArmR(-170, -10, -110, -10, 30).ArmL(-170, -10, -70, 10, -30)
@@ -130,6 +133,9 @@ namespace UzbekKombat
                 .S(Bone.ThighL, -16, -28, -4).S(Bone.ShinL, 12).S(Bone.ThighR, 10, -14, 5).S(Bone.ShinR, 12);
             // Zij halqasi (qaytaruvchi)
             c["ring_s"] = BlockBody().S(Bone.Hips, 0, 30, 0).ArmR(-50, -40, -80, -20, 20, M).FistL(-95, -4, 20, -8).S(Bone.HandL, -60);
+            // Fidget: osmonga qaraydi, hassani yerga uradi
+            c["fidget"] = st.Clone().S(Bone.Neck, -12, 0, 0).S(Bone.Head, -24, -10, 0).FistL(-40, -110, 30, -10);
+            c["fidget2"] = st.Clone().HA(0, 0.01f, 0).ArmR(-20, -50, -92, -10, 14, M).S(Bone.Head, -10, -20, 0);
             // G'alaba / kirish
             c.victoryA = st.Clone().S(Bone.Spine, -6, 4, 0).S(Bone.Chest, -10, 16, 0).S(Bone.Neck, -10, 0, 0).S(Bone.Head, -26, -20, 0)
                 .ArmR(-170, -6, -92, -10, 20, M).FistL(-40, -120, 30, -10)
@@ -206,6 +212,9 @@ namespace UzbekKombat
             c["wolf_s"] = st.Clone().H(0, 0.05f, 0.12f).S(Bone.Hips, -10, 10, 0).S(Bone.Spine, 22, 0, 0).S(Bone.Chest, 12, 0, 0).S(Bone.Head, -30, -10, 0)
                 .S(Bone.ThighR, -100, -10, 6).S(Bone.ShinR, 120).S(Bone.ThighL, 30, -20, -4).S(Bone.ShinL, 50)
                 .ArmR(30, -40, 100, 0, 20).FistL(10, -60, 0, -20);
+            // Fidget: bo'ynini qisirlatadi, mushtini tugadi
+            c["fidget"] = st.Clone().S(Bone.Neck, 0, 0, 16).S(Bone.Head, -10, -20, 18).FistL(-80, -125, 20, -14);
+            c["fidget2"] = st.Clone().S(Bone.Neck, 0, 0, -16).S(Bone.Head, -10, -28, -18).FistL(-85, -120, 10, -14);
             // G'alaba / kirish
             c.victoryA = st.Clone().H(0, -0.02f, 0).S(Bone.Spine, -6, 4, 0).S(Bone.Chest, -12, 20, 0).S(Bone.Neck, -8, 0, 0).S(Bone.Head, -26, -20, 0)
                 .FistL(-170, -20, 10, -20).ArmR(-30, -40, 20, 0, 30)

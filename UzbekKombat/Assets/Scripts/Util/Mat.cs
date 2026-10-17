@@ -37,7 +37,8 @@ namespace UzbekKombat
                 m.SetTexture("_MainTex", tex);
                 if (tiling.HasValue) m.SetTextureScale("_MainTex", tiling.Value);
             }
-            if (m.HasProperty("_RimStrength")) m.SetFloat("_RimStrength", rim);
+            if (m.HasProperty("_RimStrength")) m.SetFloat("_RimStrength", rim * 0.5f);
+            if (tex != null && m.HasProperty("_DetailStrength")) m.SetFloat("_DetailStrength", 0.35f);
             if (m.HasProperty("_Specular")) m.SetFloat("_Specular", spec);
             if (emission.HasValue)
             {
@@ -52,7 +53,8 @@ namespace UzbekKombat
 
         public static Material Outline(float width = 0.012f, Color? col = null)
         {
-            Color c = col ?? new Color(0.07f, 0.04f, 0.03f, 1);
+            width *= 0.45f; // realistik ko'rinish uchun ingichka kontur
+            Color c = col ?? new Color(0.1f, 0.06f, 0.05f, 1);
             string key = $"outline_{width:F4}_{ColorUtility.ToHtmlStringRGBA(c)}";
             if (cache.TryGetValue(key, out var m) && m) return m;
             m = new Material(OutlineShader) { name = key };

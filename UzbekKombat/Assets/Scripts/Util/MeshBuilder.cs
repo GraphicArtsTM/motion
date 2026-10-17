@@ -18,6 +18,8 @@ namespace UzbekKombat
 
         public Color color = Color.white;
         public Matrix4x4 matrix = Matrix4x4.identity;
+        public bool classifySkin;       // personaj meshlari: teri ranglarini aniqlash (UV2.y)
+        public float bakeAO;            // pastga qaragan yuzalarni qoraytirish (0..1)
 
         public int VertexCount => verts.Count;
 
@@ -309,7 +311,7 @@ namespace UzbekKombat
         public void Append(MeshBuilder other)
         {
             int baseIdx = verts.Count;
-            for (int i = 0; i < other.verts.Count; i++)
+            for (int i = 0; i < other.verts.Count && i < other.cols.Count; i++)
             {
                 verts.Add(matrix.MultiplyPoint3x4(other.verts[i]));
                 norms.Add(matrix.MultiplyVector(other.norms[i]).normalized);
@@ -319,6 +321,12 @@ namespace UzbekKombat
             foreach (int t in other.tris) tris.Add(t + baseIdx);
         }
 
+        static bool IsSkin(Color c)
+        {
+            Color.RGBToHSV(c, out float h, out float s, out float v);
+            return h > 0.035f && h < 0.1f && s > 0.25f && s < 0.62f && v > 0.5f && v < 0.92f;
+        }
+
         public Mesh ToMesh(string name = "ProcMesh")
         {
             var mesh = new Mesh { name = name };
@@ -326,7 +334,26 @@ namespace UzbekKombat
             mesh.SetVertices(verts);
             mesh.SetNormals(norms);
             mesh.SetUVs(0, uvs);
-            mesh.SetColors(cols);
+            // Material parametrlari: UV2.x — metall, UV2.y — teri. Vertex rang — Linear fazoga.
+            bool linear = QualitySettings.activeColorSpace == ColorSpace.Linear;
+            var uv2 = new List<Vector2>(cols.Count);
+            var outCols = new List<Color>(cols.Count);
+            for (int i = 0; i < cols.Count; i++)
+            {
+                Color c = cols[i];
+                float metal = Mathf.Clamp01(1f - c.a);
+                bool skin = classifySkin && metal < 0.01f && IsSkin(c);
+                uv2.Add(new Vector2(metal, skin ? 1 : 0));
+                if (bakeAO > 0)
+                {
+                    float down = Mathf.Max(0, -norms[i].y);
+                    c = c * (1f - bakeAO * down * 0.45f);
+                }
+                c.a = 1;
+                outCols.Add(linear ? c.linear : c);
+            }
+            mesh.SetUVs(1, uv2);
+            mesh.SetColors(outCols);
             mesh.SetTriangles(tris, 0);
             mesh.RecalculateBounds();
             return mesh;
