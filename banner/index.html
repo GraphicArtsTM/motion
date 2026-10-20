@@ -29,18 +29,18 @@
   }
   .stage > * { position: absolute; }
 
-  /* главный корпус университета внутри арки */
+  /* ночной Регистан внутри арки */
   .photo {
     inset: 0;
-    background: url(img/uwed-building.jpg) 50% 100% / 1500px auto no-repeat;
+    background: url(img/registan-night.jpg) 50% 100% / 1500px auto no-repeat;
     clip-path: path('M 330 1034 V 430 C 330 250, 690 150, 960 96 C 1230 150, 1590 250, 1590 430 V 1034 Z');
-    -webkit-mask-image: linear-gradient(180deg, transparent 38%, rgba(0,0,0,.6) 70%, #000 100%);
-            mask-image: linear-gradient(180deg, transparent 38%, rgba(0,0,0,.6) 70%, #000 100%);
-    opacity: .5;
+    -webkit-mask-image: linear-gradient(180deg, transparent 34%, rgba(0,0,0,.65) 66%, #000 100%);
+            mask-image: linear-gradient(180deg, transparent 34%, rgba(0,0,0,.65) 66%, #000 100%);
+    opacity: .62;
   }
   .photo-tint {
     inset: 0; clip-path: path('M 330 1034 V 430 C 330 250, 690 150, 960 96 C 1230 150, 1590 250, 1590 430 V 1034 Z');
-    background: linear-gradient(180deg, rgba(6,23,42,0) 55%, rgba(6,23,42,.75) 100%);
+    background: linear-gradient(180deg, rgba(6,23,42,0) 58%, rgba(6,23,42,.55) 76%, rgba(6,23,42,.92) 100%);
   }
 
   .ornament { inset: 0; width: 1920px; height: 1080px; }
@@ -77,7 +77,7 @@
 
   .divider { position: absolute; left: 50%; width: 520px; margin-left: -260px; height: 30px; }
   .divider.top { top: 268px; }
-  .divider.bottom { top: 800px; }
+  .divider.bottom { top: 826px; width: 760px; margin-left: -380px; }
 
   .title {
     position: absolute; left: 0; right: 0; top: 322px;
@@ -97,10 +97,31 @@
     -webkit-background-clip: text; background-clip: text; color: transparent;
     filter: drop-shadow(0 4px 12px rgba(0,0,0,.55));
   }
-  .date {
-    position: absolute; left: 0; right: 0; top: 850px;
-    font: 500 17px/1 'Montserrat', sans-serif; letter-spacing: .34em; text-transform: uppercase; color: var(--gold);
+
+  /* ниши-михрабы по бокам: портрет Навои и его рукопись */
+  .niche { top: 196px; width: 220px; height: 440px; }
+  .niche.left { left: 82px; }
+  .niche.right { left: 1618px; }
+  .niche .pic {
+    position: absolute; inset: 0; background-size: cover; background-position: 50% 30%;
+    clip-path: path('M0 440 V120 C0 60 64 28 110 0 C156 28 220 60 220 120 V440 Z');
+    box-shadow: inset 0 0 40px rgba(0,0,0,.5);
   }
+  .niche.left .pic { background-image: url(img/navoi-portrait.jpg); background-position: 50% 18%; }
+  .niche.right .pic { background-image: url(img/navoi-manuscript.jpg); background-position: 50% 45%; }
+  .niche .shade {
+    position: absolute; inset: 0; clip-path: path('M0 440 V120 C0 60 64 28 110 0 C156 28 220 60 220 120 V440 Z');
+    background: radial-gradient(120% 80% at 50% 40%, rgba(0,0,0,0) 55%, rgba(6,23,42,.55) 100%);
+  }
+  .niche svg { position: absolute; left: -14px; top: -18px; width: 248px; height: 476px; overflow: visible; }
+  .niche .crown { position: absolute; left: 50%; top: -96px; width: 96px; margin-left: -48px; filter: drop-shadow(0 3px 6px rgba(0,0,0,.4)); }
+  .niche .cap {
+    position: absolute; left: -40px; right: -40px; top: 466px; text-align: center;
+    font: 600 14px/1 'Montserrat', sans-serif; letter-spacing: .3em; text-transform: uppercase; color: var(--gold);
+  }
+
+  /* мотивы сюзане */
+  .pomegranate { position: absolute; left: 50%; top: 772px; width: 136px; margin-left: -68px; filter: drop-shadow(0 4px 10px rgba(0,0,0,.5)); }
 </style>
 </head>
 <body>
@@ -163,6 +184,9 @@
     <use href="#rosette" x="1590" y="430" transform="translate(1590 430) scale(.62) translate(-1590 -430)"/>
   </svg>
 
+  <div class="niche left"><div class="pic"></div><div class="shade"></div><svg viewBox="-14 -18 248 476"><path d="M0 440 V120 C0 60 64 28 110 0 C156 28 220 60 220 120 V440 Z" fill="none" stroke="url(#gold)" stroke-width="3"/><path d="M-10 450 V118 C-10 52 58 16 110 -12 C162 16 230 52 230 118 V450 Z" fill="none" stroke="url(#gold)" stroke-width="1.2" opacity=".8"/></svg><img class="crown" src="img/motif-palmette.png" alt=""><div class="cap">Alisher Navoiy</div></div>
+  <div class="niche right"><div class="pic"></div><div class="shade"></div><svg viewBox="-14 -18 248 476"><path d="M0 440 V120 C0 60 64 28 110 0 C156 28 220 60 220 120 V440 Z" fill="none" stroke="url(#gold)" stroke-width="3"/><path d="M-10 450 V118 C-10 52 58 16 110 -12 C162 16 230 52 230 118 V450 Z" fill="none" stroke="url(#gold)" stroke-width="1.2" opacity=".8"/></svg><img class="crown" src="img/motif-palmette.png" alt=""><div class="cap">Navoiy qoʻlyozmasi</div></div>
+
   <div class="flagset left"><div class="inner"><div class="pole"></div><img src="img/flag-wave.png" alt=""><div class="finial"></div></div></div>
   <div class="flagset right"><div class="inner"><div class="pole"></div><img src="img/flag-wave.png" alt=""><div class="finial"></div></div></div>
 
@@ -198,11 +222,11 @@
     <p class="sub">nomli bayram tadbirimizga</p>
     <p class="welcome">Xush kelibsiz!</p>
 
-    <svg class="divider bottom" viewBox="0 0 520 30">
-      <path d="M40 15H236M284 15H480" stroke="url(#goldH)" stroke-width="1.2"/>
-      <polygon points="260.0,6.0 261.5,11.3 266.4,8.6 263.7,13.5 269.0,15.0 263.7,16.5 266.4,21.4 261.5,18.7 260.0,24.0 258.5,18.7 253.6,21.4 256.3,16.5 251.0,15.0 256.3,13.5 253.6,8.6 258.5,11.3" fill="#d2b06a"/>
+    <svg class="divider bottom" viewBox="0 0 760 30">
+      <path d="M0 15H290M470 15H760" stroke="url(#goldH)" stroke-width="1.6"/>
+      <circle cx="296" cy="15" r="3" fill="#d2b06a"/><circle cx="464" cy="15" r="3" fill="#d2b06a"/>
     </svg>
-    <p class="date">21-oktabr · Oʻzbek tili bayrami kuni</p>
+    <img class="pomegranate" src="img/motif-pomegranate.png" alt="">
   </div>
 </div>
 </body>
