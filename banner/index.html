@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<title>O‘zbek tili bayrami — JIDU</title>
+<style>
+  @font-face { font-family: 'Cormorant Garamond'; src: url(fonts/CormorantGaramond.ttf); font-weight: 300 700; }
+  @font-face { font-family: 'Cormorant Garamond'; src: url(fonts/CormorantGaramond-Italic.ttf); font-weight: 300 700; font-style: italic; }
+  @font-face { font-family: 'Montserrat'; src: url(fonts/Montserrat.ttf); font-weight: 100 900; }
+  @font-face { font-family: 'Seal'; src: url(fonts/LiberationSerif-Regular.ttf); font-weight: 400; }
+  @font-face { font-family: 'Seal'; src: url(fonts/LiberationSerif-Bold.ttf); font-weight: 700; }
+
+  :root {
+    --navy-0: #071a2e;
+    --navy-1: #0d2a48;
+    --navy-2: #143a5e;
+    --ink: #f3f1ec;
+    --mist: #b9c7d6;
+    --gold: #c8a96a;
+    --gold-soft: rgba(200, 169, 106, .55);
+    --wine: #89011a;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--navy-0); }
+
+  .stage {
+    position: relative; width: 1920px; height: 1080px; overflow: hidden;
+    background:
+      radial-gradient(1200px 900px at 28% 46%, var(--navy-2) 0%, var(--navy-1) 45%, var(--navy-0) 100%);
+    color: var(--ink);
+  }
+
+  /* фото главного корпуса университета справа, уходит в фон */
+  .photo {
+    position: absolute; top: 0; right: 0; width: 1060px; height: 1080px;
+    background: url(img/uwed-building.jpg) 46% 50% / cover no-repeat;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, rgba(0,0,0,.55) 30%, #000 62%);
+            mask-image: linear-gradient(90deg, transparent 0%, rgba(0,0,0,.55) 30%, #000 62%);
+    opacity: .62;
+  }
+  .photo::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(180deg, rgba(7,26,46,.55) 0%, rgba(7,26,46,0) 30%, rgba(7,26,46,0) 62%, rgba(7,26,46,.85) 100%);
+  }
+
+  /* тонкая паспарту-рамка */
+  .frame { position: absolute; inset: 40px; border: 1px solid var(--gold-soft); pointer-events: none; }
+  .frame::before { content: ''; position: absolute; inset: 8px; border: 1px solid rgba(200,169,106,.22); }
+
+  .content { position: absolute; left: 150px; top: 148px; width: 1060px; }
+
+  .uni { display: flex; align-items: center; gap: 34px; }
+  .seal { width: 184px; height: 184px; flex: none; filter: drop-shadow(0 6px 18px rgba(0,0,0,.35)); }
+  .uni-name {
+    font: 600 21px/1.55 'Montserrat', sans-serif; letter-spacing: .2em; text-transform: uppercase;
+    color: var(--ink);
+  }
+  .uni-name small {
+    display: block; margin-top: 10px; font-weight: 500; font-size: 15px; letter-spacing: .32em; color: var(--gold);
+  }
+
+  .rule { display: flex; align-items: center; gap: 14px; margin: 64px 0 44px; }
+  .rule i { display: block; height: 1px; background: var(--gold); }
+  .rule i:first-child { width: 120px; }
+  .rule b { width: 7px; height: 7px; transform: rotate(45deg); border: 1px solid var(--gold); }
+  .rule i:last-child { width: 36px; opacity: .6; }
+
+  .title {
+    font: 600 70px/1.12 'Cormorant Garamond', serif; letter-spacing: .002em; color: var(--ink);
+    text-wrap: balance;
+  }
+  .title .q { color: var(--gold); }
+  .sub {
+    margin-top: 26px; font: italic 500 40px/1.2 'Cormorant Garamond', serif; color: var(--mist); letter-spacing: .01em;
+  }
+  .welcome {
+    margin-top: 58px; font: 600 118px/1 'Cormorant Garamond', serif; letter-spacing: .075em; text-transform: uppercase;
+    color: var(--gold);
+  }
+
+  /* лента цветов государственного флага по нижнему краю */
+  .flag { position: absolute; left: 0; right: 0; bottom: 0; height: 14px; display: flex; flex-direction: column; }
+  .flag span { flex: none; }
+  .flag .b { height: 4px; background: #0099b5; }
+  .flag .r { height: 1px; background: #ce1126; }
+  .flag .w { height: 3px; background: #fff; }
+  .flag .g { height: 5px; background: #1eb53a; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="photo"></div>
+  <div class="frame"></div>
+
+  <div class="content">
+    <div class="uni">
+      <svg class="seal" viewBox="0 0 1091 1091" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" role="img" aria-label="Jahon iqtisodiyoti va diplomatiya universiteti">
+  <defs>
+    <!-- кольцо по часовой, от ~7 до ~5 часов; базовая линия r=456 -->
+    <path id="ringPath" d="M 277.5 914.4 A 456 456 0 1 1 813.5 914.4"/>
+    <!-- нижние надписи против часовой, чтобы читались прямо -->
+    <path id="yearPath" d="M 115.1 794 A 497 497 0 0 0 975.9 794"/>
+    <path id="cityPath" d="M 211.2 738.5 A 386 386 0 0 0 879.8 738.5"/>
+  </defs>
+  <circle cx="545.5" cy="545.5" r="541" fill="#89011a"/>
+  <circle cx="545.5" cy="545.5" r="413" fill="#fff"/>
+  <image href="img/seal-inner.png" x="134.5" y="134.5" width="822" height="822"/>
+  <g font-family="Seal" font-weight="700" fill="#fff" font-size="58">
+    <text><textPath href="#ringPath" startOffset="50%" text-anchor="middle" textLength="2150" lengthAdjust="spacing">JAHON IQTISODIYOTI VA DIPLOMATIYA UNIVERSITETI</textPath></text>
+    <text><textPath href="#yearPath" startOffset="50%" text-anchor="middle" letter-spacing="2">1992</textPath></text>
+  </g>
+  <text font-family="Seal" font-weight="700" fill="#1d3557" font-size="45"><textPath href="#cityPath" startOffset="50%" text-anchor="middle" textLength="306" lengthAdjust="spacing">TOSHKENT</textPath></text>
+</svg>
+      <div class="uni-name">Jahon iqtisodiyoti va<br>diplomatiya universiteti<small>Toshkent · 1992</small></div>
+    </div>
+
+    <div class="rule"><i></i><b></b><i></i></div>
+
+    <h1 class="title"><span class="q">“</span>O‘zbek tili — ma’naviyatimiz poydevori, do‘stlik va hamkorlik elchisi<span class="q">”</span></h1>
+    <p class="sub">nomli bayram tadbirimizga</p>
+    <p class="welcome">Xush kelibsiz!</p>
+  </div>
+
+  <div class="flag"><span class="b"></span><span class="r"></span><span class="w"></span><span class="r"></span><span class="g"></span></div>
+</div>
+</body>
+</html>
