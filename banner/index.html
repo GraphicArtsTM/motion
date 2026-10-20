@@ -2,7 +2,7 @@
 <html lang="uz">
 <head>
 <meta charset="utf-8">
-<title>O‘zbek tili bayrami — JIDU</title>
+<title>Oʻzbek tili bayrami — JIDU</title>
 <style>
   @font-face { font-family: 'Cormorant Garamond'; src: url(fonts/CormorantGaramond.ttf); font-weight: 300 700; }
   @font-face { font-family: 'Cormorant Garamond'; src: url(fonts/CormorantGaramond-Italic.ttf); font-weight: 300 700; font-style: italic; }
@@ -11,90 +11,164 @@
   @font-face { font-family: 'Seal'; src: url(fonts/LiberationSerif-Bold.ttf); font-weight: 700; }
 
   :root {
-    --navy-0: #071a2e;
-    --navy-1: #0d2a48;
-    --navy-2: #143a5e;
-    --ink: #f3f1ec;
-    --mist: #b9c7d6;
-    --gold: #c8a96a;
-    --gold-soft: rgba(200, 169, 106, .55);
-    --wine: #89011a;
+    --navy-0: #06172a;
+    --navy-1: #0b2742;
+    --navy-2: #15406a;
+    --ink: #f5f1e8;
+    --mist: #c3cfdc;
+    --gold: #d2b06a;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--navy-0); }
 
   .stage {
-    position: relative; width: 1920px; height: 1080px; overflow: hidden;
+    position: relative; width: 1920px; height: 1080px; overflow: hidden; color: var(--ink);
     background:
-      radial-gradient(1200px 900px at 28% 46%, var(--navy-2) 0%, var(--navy-1) 45%, var(--navy-0) 100%);
-    color: var(--ink);
+      radial-gradient(900px 620px at 50% 44%, rgba(40, 92, 145, .55) 0%, rgba(21, 64, 106, 0) 70%),
+      radial-gradient(1500px 1000px at 50% 40%, var(--navy-2) 0%, var(--navy-1) 48%, var(--navy-0) 100%);
   }
+  .stage > * { position: absolute; }
 
-  /* фото главного корпуса университета справа, уходит в фон */
+  /* главный корпус университета внутри арки */
   .photo {
-    position: absolute; top: 0; right: 0; width: 1060px; height: 1080px;
-    background: url(img/uwed-building.jpg) 46% 50% / cover no-repeat;
-    -webkit-mask-image: linear-gradient(90deg, transparent 0%, rgba(0,0,0,.55) 30%, #000 62%);
-            mask-image: linear-gradient(90deg, transparent 0%, rgba(0,0,0,.55) 30%, #000 62%);
-    opacity: .62;
+    inset: 0;
+    background: url(img/uwed-building.jpg) 50% 100% / 1500px auto no-repeat;
+    clip-path: path('M 330 1034 V 430 C 330 250, 690 150, 960 96 C 1230 150, 1590 250, 1590 430 V 1034 Z');
+    -webkit-mask-image: linear-gradient(180deg, transparent 38%, rgba(0,0,0,.6) 70%, #000 100%);
+            mask-image: linear-gradient(180deg, transparent 38%, rgba(0,0,0,.6) 70%, #000 100%);
+    opacity: .5;
   }
-  .photo::after {
-    content: ''; position: absolute; inset: 0;
-    background: linear-gradient(180deg, rgba(7,26,46,.55) 0%, rgba(7,26,46,0) 30%, rgba(7,26,46,0) 62%, rgba(7,26,46,.85) 100%);
-  }
-
-  /* тонкая паспарту-рамка */
-  .frame { position: absolute; inset: 40px; border: 1px solid var(--gold-soft); pointer-events: none; }
-  .frame::before { content: ''; position: absolute; inset: 8px; border: 1px solid rgba(200,169,106,.22); }
-
-  .content { position: absolute; left: 150px; top: 148px; width: 1060px; }
-
-  .uni { display: flex; align-items: center; gap: 34px; }
-  .seal { width: 184px; height: 184px; flex: none; filter: drop-shadow(0 6px 18px rgba(0,0,0,.35)); }
-  .uni-name {
-    font: 600 21px/1.55 'Montserrat', sans-serif; letter-spacing: .2em; text-transform: uppercase;
-    color: var(--ink);
-  }
-  .uni-name small {
-    display: block; margin-top: 10px; font-weight: 500; font-size: 15px; letter-spacing: .32em; color: var(--gold);
+  .photo-tint {
+    inset: 0; clip-path: path('M 330 1034 V 430 C 330 250, 690 150, 960 96 C 1230 150, 1590 250, 1590 430 V 1034 Z');
+    background: linear-gradient(180deg, rgba(6,23,42,0) 55%, rgba(6,23,42,.75) 100%);
   }
 
-  .rule { display: flex; align-items: center; gap: 14px; margin: 64px 0 44px; }
-  .rule i { display: block; height: 1px; background: var(--gold); }
-  .rule i:first-child { width: 120px; }
-  .rule b { width: 7px; height: 7px; transform: rotate(45deg); border: 1px solid var(--gold); }
-  .rule i:last-child { width: 36px; opacity: .6; }
+  .ornament { inset: 0; width: 1920px; height: 1080px; }
+
+  /* флаги на древках по нижним углам */
+  .flagset { top: 772px; width: 420px; height: 520px; filter: drop-shadow(0 16px 24px rgba(0,0,0,.5)); }
+  .flagset.left  { left: 104px; transform-origin: 18px 100%;  transform: rotate(-6deg); }
+  .flagset.right { right: 104px; transform-origin: 402px 100%; transform: rotate(6deg); }
+  .flagset .inner { position: absolute; inset: 0; }
+  .flagset.right .inner { transform: scaleX(-1); }
+  .pole {
+    position: absolute; left: 12px; top: 20px; width: 11px; bottom: 0; border-radius: 6px;
+    background: linear-gradient(90deg, #7d5d26 0%, #f3e0a6 40%, #c9a45c 62%, #6e5120 100%);
+  }
+  .finial {
+    position: absolute; left: 4px; top: 0; width: 27px; height: 27px; border-radius: 50%;
+    background: radial-gradient(circle at 36% 32%, #fff6d6 0%, #e6c77e 30%, #a57c34 72%, #6b4d1c 100%);
+  }
+  .flagset img { position: absolute; left: 20px; top: 14px; width: 400px; }
+  .crest { left: 0; right: 0; top: 0; height: 1080px; text-align: center; }
+  .seal {
+    position: absolute; left: 50%; top: 18px; width: 172px; height: 172px; margin-left: -86px;
+    filter: drop-shadow(0 8px 22px rgba(0,0,0,.5));
+  }
+  .seal-halo {
+    position: absolute; left: 50%; top: 6px; width: 196px; height: 196px; margin-left: -98px; border-radius: 50%;
+    background: var(--navy-1); box-shadow: 0 0 0 1.5px rgba(210,176,106,.85), 0 0 0 7px var(--navy-1), 0 0 0 8px rgba(210,176,106,.5);
+  }
+
+  .uni {
+    position: absolute; left: 0; right: 0; top: 232px;
+    font: 600 19px/1 'Montserrat', sans-serif; letter-spacing: .3em; text-transform: uppercase; color: var(--ink);
+  }
+
+  .divider { position: absolute; left: 50%; width: 520px; margin-left: -260px; height: 30px; }
+  .divider.top { top: 268px; }
+  .divider.bottom { top: 800px; }
 
   .title {
-    font: 600 70px/1.12 'Cormorant Garamond', serif; letter-spacing: .002em; color: var(--ink);
-    text-wrap: balance;
+    position: absolute; left: 0; right: 0; top: 322px;
+    font: 600 66px/1.16 'Cormorant Garamond', serif; color: var(--ink); letter-spacing: .004em;
+    text-shadow: 0 2px 16px rgba(0,0,0,.35);
   }
   .title .q { color: var(--gold); }
+  .title .ok { margin-right: -.05em; }
   .sub {
-    margin-top: 26px; font: italic 500 40px/1.2 'Cormorant Garamond', serif; color: var(--mist); letter-spacing: .01em;
+    position: absolute; left: 0; right: 0; top: 500px;
+    font: italic 500 42px/1 'Cormorant Garamond', serif; color: var(--mist); letter-spacing: .01em;
   }
   .welcome {
-    margin-top: 58px; font: 600 118px/1 'Cormorant Garamond', serif; letter-spacing: .075em; text-transform: uppercase;
-    color: var(--gold);
+    position: absolute; left: 0; right: 0; top: 586px;
+    font: 700 138px/1.1 'Cormorant Garamond', serif; letter-spacing: .07em; text-transform: uppercase;
+    background: linear-gradient(180deg, #fbf0c9 0%, #e6c97f 30%, #b88b3c 50%, #e9cf8a 68%, #f7e6b4 82%, #b48a43 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 4px 12px rgba(0,0,0,.55));
   }
-
-  /* лента цветов государственного флага по нижнему краю */
-  .flag { position: absolute; left: 0; right: 0; bottom: 0; height: 14px; display: flex; flex-direction: column; }
-  .flag span { flex: none; }
-  .flag .b { height: 4px; background: #0099b5; }
-  .flag .r { height: 1px; background: #ce1126; }
-  .flag .w { height: 3px; background: #fff; }
-  .flag .g { height: 5px; background: #1eb53a; }
+  .date {
+    position: absolute; left: 0; right: 0; top: 850px;
+    font: 500 17px/1 'Montserrat', sans-serif; letter-spacing: .34em; text-transform: uppercase; color: var(--gold);
+  }
 </style>
 </head>
 <body>
 <div class="stage">
   <div class="photo"></div>
-  <div class="frame"></div>
+  <div class="photo-tint"></div>
 
-  <div class="content">
-    <div class="uni">
-      <svg class="seal" viewBox="0 0 1091 1091" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" role="img" aria-label="Jahon iqtisodiyoti va diplomatiya universiteti">
+  <svg class="ornament" viewBox="0 0 1920 1080" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#8f6d31"/><stop offset=".3" stop-color="#ead39a"/>
+        <stop offset=".55" stop-color="#c39c55"/><stop offset=".78" stop-color="#f3e2ad"/><stop offset="1" stop-color="#9c7a3b"/>
+      </linearGradient>
+      <linearGradient id="goldH" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#c39c55" stop-opacity="0"/><stop offset=".25" stop-color="#e6cd90"/>
+        <stop offset=".5" stop-color="#f6e7b8"/><stop offset=".75" stop-color="#e6cd90"/><stop offset="1" stop-color="#c39c55" stop-opacity="0"/>
+      </linearGradient>
+      <!-- гирих: восьмиконечные звёзды хатам с переплетением -->
+      <pattern id="girih" width="120" height="120" patternUnits="userSpaceOnUse">
+        <g fill="none" stroke="#d2b06a" stroke-width="1.6" stroke-linejoin="round">
+          <polygon points="60.0,22.0 66.5,44.3 86.9,33.1 75.7,53.5 98.0,60.0 75.7,66.5 86.9,86.9 66.5,75.7 60.0,98.0 53.5,75.7 33.1,86.9 44.3,66.5 22.0,60.0 44.3,53.5 33.1,33.1 53.5,44.3"/>
+          <polygon points="60.0,38.0 64.6,48.9 75.6,44.4 71.1,55.4 82.0,60.0 71.1,64.6 75.6,75.6 64.6,71.1 60.0,82.0 55.4,71.1 44.4,75.6 48.9,64.6 38.0,60.0 48.9,55.4 44.4,44.4 55.4,48.9"/>
+          <path d="M98 60H120M0 60H22M60 98V120M60 0V22"/>
+          <path d="M87 87L106 106M33 33L14 14M87 33L106 14M33 87L14 106"/>
+          <polygon points="0.0,-14.0 3.1,-7.4 9.9,-9.9 7.4,-3.1 14.0,0.0 7.4,3.1 9.9,9.9 3.1,7.4 0.0,14.0 -3.1,7.4 -9.9,9.9 -7.4,3.1 -14.0,0.0 -7.4,-3.1 -9.9,-9.9 -3.1,-7.4"/><polygon points="120.0,-14.0 123.1,-7.4 129.9,-9.9 127.4,-3.1 134.0,0.0 127.4,3.1 129.9,9.9 123.1,7.4 120.0,14.0 116.9,7.4 110.1,9.9 112.6,3.1 106.0,0.0 112.6,-3.1 110.1,-9.9 116.9,-7.4"/>
+          <polygon points="0.0,106.0 3.1,112.6 9.9,110.1 7.4,116.9 14.0,120.0 7.4,123.1 9.9,129.9 3.1,127.4 0.0,134.0 -3.1,127.4 -9.9,129.9 -7.4,123.1 -14.0,120.0 -7.4,116.9 -9.9,110.1 -3.1,112.6"/><polygon points="120.0,106.0 123.1,112.6 129.9,110.1 127.4,116.9 134.0,120.0 127.4,123.1 129.9,129.9 123.1,127.4 120.0,134.0 116.9,127.4 110.1,129.9 112.6,123.1 106.0,120.0 112.6,116.9 110.1,110.1 116.9,112.6"/>
+          <circle cx="60" cy="60" r="44"/>
+        </g>
+      </pattern>
+      <clipPath id="outside" clip-rule="evenodd">
+        <path clip-rule="evenodd" d="M 46 46 H 1874 V 1034 H 46 Z M 330 1034 V 430 C 330 250, 690 150, 960 96 C 1230 150, 1590 250, 1590 430 V 1034 Z"/>
+      </clipPath>
+      <radialGradient id="fadeEdge" cx=".5" cy=".42" r=".7">
+        <stop offset=".35" stop-color="#fff" stop-opacity=".1"/><stop offset="1" stop-color="#fff" stop-opacity=".42"/>
+      </radialGradient>
+      <mask id="girihMask"><rect width="1920" height="1080" fill="url(#fadeEdge)"/></mask>
+      <g id="rosette">
+        <circle r="30" fill="#0b2742" stroke="url(#gold)" stroke-width="2"/>
+        <circle r="23" fill="none" stroke="url(#gold)" stroke-width="1"/>
+        <polygon points="0.0,-21.0 3.4,-8.3 14.8,-14.8 8.3,-3.4 21.0,0.0 8.3,3.4 14.8,14.8 3.4,8.3 0.0,21.0 -3.4,8.3 -14.8,14.8 -8.3,3.4 -21.0,0.0 -8.3,-3.4 -14.8,-14.8 -3.4,-8.3" fill="url(#gold)"/>
+        <circle r="4.5" fill="#0b2742"/>
+      </g>
+    </defs>
+
+    <!-- орнамент в пазухах арки и по бокам -->
+    <rect width="1920" height="1080" fill="url(#girih)" clip-path="url(#outside)" mask="url(#girihMask)"/>
+
+    <!-- арка: двойная золотая линия -->
+    <path d="M 330 1034 V 430 C 330 250, 690 150, 960 96 C 1230 150, 1590 250, 1590 430 V 1034" fill="none" stroke="url(#gold)" stroke-width="3"/>
+    <path d="M 346 1034 V 430 C 346 260, 696 166, 960 114 C 1224 166, 1574 260, 1574 430 V 1034" fill="none" stroke="url(#gold)" stroke-width="1.2" opacity=".75"/>
+
+    <!-- рамка -->
+    <rect x="30" y="30" width="1860" height="1020" fill="none" stroke="url(#gold)" stroke-width="2.5"/>
+    <rect x="46" y="46" width="1828" height="988" fill="none" stroke="url(#gold)" stroke-width="1" opacity=".7"/>
+    <use href="#rosette" x="38" y="38"/><use href="#rosette" x="1882" y="38"/>
+    <use href="#rosette" x="38" y="1042"/><use href="#rosette" x="1882" y="1042"/>
+
+    <!-- точки опоры арки -->
+    <use href="#rosette" x="330" y="430" transform="translate(330 430) scale(.62) translate(-330 -430)"/>
+    <use href="#rosette" x="1590" y="430" transform="translate(1590 430) scale(.62) translate(-1590 -430)"/>
+  </svg>
+
+  <div class="flagset left"><div class="inner"><div class="pole"></div><img src="img/flag-wave.png" alt=""><div class="finial"></div></div></div>
+  <div class="flagset right"><div class="inner"><div class="pole"></div><img src="img/flag-wave.png" alt=""><div class="finial"></div></div></div>
+
+  <div class="crest">
+    <div class="seal-halo"></div>
+    <svg class="seal" viewBox="0 0 1091 1091" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" role="img" aria-label="Jahon iqtisodiyoti va diplomatiya universiteti">
   <defs>
     <!-- кольцо по часовой, от ~7 до ~5 часов; базовая линия r=456 -->
     <path id="ringPath" d="M 277.5 914.4 A 456 456 0 1 1 813.5 914.4"/>
@@ -111,17 +185,25 @@
   </g>
   <text font-family="Seal" font-weight="700" fill="#1d3557" font-size="45"><textPath href="#cityPath" startOffset="50%" text-anchor="middle" textLength="306" lengthAdjust="spacing">TOSHKENT</textPath></text>
 </svg>
-      <div class="uni-name">Jahon iqtisodiyoti va<br>diplomatiya universiteti<small>Toshkent · 1992</small></div>
-    </div>
+    <div class="uni">Jahon iqtisodiyoti va diplomatiya universiteti</div>
 
-    <div class="rule"><i></i><b></b><i></i></div>
+    <svg class="divider top" viewBox="0 0 520 30">
+      <path d="M0 15H228M292 15H520" stroke="url(#goldH)" stroke-width="1.4"/>
+      <path d="M244 15H276" stroke="#d2b06a" stroke-width="1"/>
+      <polygon points="260.0,3.0 262.1,9.9 268.5,6.5 265.1,12.9 272.0,15.0 265.1,17.1 268.5,23.5 262.1,20.1 260.0,27.0 257.9,20.1 251.5,23.5 254.9,17.1 248.0,15.0 254.9,12.9 251.5,6.5 257.9,9.9" fill="#d2b06a"/>
+      <circle cx="236" cy="15" r="2.4" fill="#d2b06a"/><circle cx="284" cy="15" r="2.4" fill="#d2b06a"/>
+    </svg>
 
-    <h1 class="title"><span class="q">“</span>O‘zbek tili — ma’naviyatimiz poydevori, do‘stlik va hamkorlik elchisi<span class="q">”</span></h1>
+    <h1 class="title"><span class="q">“</span>O<span class="ok">ʻ</span>zbek tili – maʼnaviyatimiz poydevori,<br>do<span class="ok">ʻ</span>stlik va hamkorlik elchisi<span class="q">”</span></h1>
     <p class="sub">nomli bayram tadbirimizga</p>
     <p class="welcome">Xush kelibsiz!</p>
-  </div>
 
-  <div class="flag"><span class="b"></span><span class="r"></span><span class="w"></span><span class="r"></span><span class="g"></span></div>
+    <svg class="divider bottom" viewBox="0 0 520 30">
+      <path d="M40 15H236M284 15H480" stroke="url(#goldH)" stroke-width="1.2"/>
+      <polygon points="260.0,6.0 261.5,11.3 266.4,8.6 263.7,13.5 269.0,15.0 263.7,16.5 266.4,21.4 261.5,18.7 260.0,24.0 258.5,18.7 253.6,21.4 256.3,16.5 251.0,15.0 256.3,13.5 253.6,8.6 258.5,11.3" fill="#d2b06a"/>
+    </svg>
+    <p class="date">21-oktabr · Oʻzbek tili bayrami kuni</p>
+  </div>
 </div>
 </body>
 </html>
