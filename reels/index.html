@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>M Cosmetic — Reels «до / после»</title>
+<style>
+@font-face{font-family:'Unbounded';font-weight:600;src:url(../video/fonts/Unbounded-600.ttf)}
+@font-face{font-family:'Unbounded';font-weight:800;src:url(../video/fonts/Unbounded-800.ttf)}
+@font-face{font-family:'Unbounded';font-weight:900;src:url(../video/fonts/Unbounded-900.ttf)}
+@font-face{font-family:'Rubik';font-weight:500;src:url(../video/fonts/Rubik-500.ttf)}
+@font-face{font-family:'Rubik';font-weight:700;src:url(../video/fonts/Rubik-700.ttf)}
+@font-face{font-family:'Rubik';font-weight:800;src:url(../video/fonts/Rubik-800.ttf)}
+
+:root{
+  --pink:#FF2E93; --pink-dk:#B8125F; --pink-deep:#6E0B3B; --plum:#2A0618;
+  --gold:#FFD27A; --red:#FF3B3B; --ice:#BFD3E6;
+  --dis:'Unbounded',sans-serif; --ui:'Rubik',sans-serif;
+}
+/* весь ролик рисуется кадр за кадром из motion.js — никаких CSS-анимаций */
+*,*::before,*::after{transition:none!important;animation:none!important;box-sizing:border-box}
+html,body{margin:0;width:1080px;height:1920px;overflow:hidden;background:#000;color:#fff;
+  font-family:var(--ui);-webkit-font-smoothing:antialiased}
+#root{position:relative;width:1080px;height:1920px;overflow:hidden;background:#000}
+.full{position:absolute;inset:0;pointer-events:none}
+.a{position:absolute;left:0;top:0;transform-origin:50% 50%;will-change:transform,opacity}
+#cam{position:absolute;inset:0;transform-origin:50% 50%}
+#bg{position:absolute;inset:0;width:1080px;height:1920px;object-fit:cover}
+canvas{position:absolute;inset:0;width:1080px;height:1920px}
+
+/* ---------- голограмма ---------- */
+#stage{position:absolute;inset:0;perspective:1500px}
+.scr{position:absolute;left:0;top:0;transform-style:preserve-3d;display:none}
+.scr .layer{position:absolute;inset:0;border-radius:inherit}
+.scr .body{overflow:hidden;background:#000}
+.scr .body img,.shard img,.slice img{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover}
+.scr .scan{background:repeating-linear-gradient(0deg,rgba(255,255,255,.07) 0 2px,transparent 2px 5px);mix-blend-mode:overlay}
+.scr .glass{background:linear-gradient(115deg,rgba(255,255,255,.34) 0%,rgba(255,255,255,.06) 28%,transparent 42%,transparent 70%,rgba(255,255,255,.10) 100%);mix-blend-mode:screen}
+.scr .rim{border:3px solid rgba(255,255,255,.85)}
+.scr .edge{background:#111}
+.slice{position:absolute;inset:0;overflow:hidden;display:none}
+.shard{position:absolute;left:0;top:0;overflow:hidden;display:none;will-change:transform}
+
+/* подписи у голограмм */
+.chip{position:absolute;left:0;top:0;display:flex;align-items:center;gap:16px;padding:16px 26px 16px 16px;border-radius:26px;
+  white-space:nowrap;transform-origin:50% 50%}
+.chip .n{width:62px;height:62px;border-radius:18px;display:grid;place-items:center;font:900 36px/1 var(--dis)}
+.chip .big{font:900 34px/1.05 var(--dis);letter-spacing:-.02em}
+.chip .sm{font:600 22px/1.2 var(--ui);opacity:.85;margin-top:6px}
+.chip.old{background:rgba(36,44,54,.82);border:2px solid rgba(191,211,230,.45);box-shadow:0 18px 40px rgba(0,0,0,.35)}
+.chip.old .n{background:#5B6775;color:#E8EEF4}
+.chip.new{background:linear-gradient(135deg,#FF4FA7 0%,#E0157A 55%,#A80D59 100%);border:2px solid rgba(255,255,255,.7);
+  box-shadow:0 18px 50px rgba(224,21,122,.55),0 0 0 6px rgba(255,46,147,.18)}
+.chip.new .n{background:#fff;color:var(--pink-dk)}
+.chip svg{width:30px;height:30px;vertical-align:-5px;margin-left:6px}
+
+#stamp{font:900 76px/1 var(--dis);color:var(--red);padding:14px 26px 18px;border:9px solid var(--red);border-radius:22px;
+  white-space:nowrap;letter-spacing:-.03em;background:rgba(255,255,255,.88);box-shadow:0 12px 40px rgba(120,0,0,.45);
+  text-shadow:0 2px 0 rgba(120,0,0,.25)}
+#badge{width:150px;height:150px;border-radius:50%;display:grid;place-items:center;
+  background:radial-gradient(circle at 35% 30%,#FFF4CF 0%,#FFD27A 38%,#F09A1C 100%);
+  box-shadow:0 0 0 8px #fff,0 0 60px 10px rgba(255,210,122,.75),0 18px 40px rgba(0,0,0,.35)}
+#badge svg{width:92px;height:92px}
+
+/* ---------- заголовок ---------- */
+#title{position:absolute;left:0;top:0;width:1080px;text-align:center}
+#tag{display:inline-flex;align-items:center;gap:14px;padding:14px 34px 16px 16px;border-radius:999px;
+  background:linear-gradient(100deg,#FF4FA7,#E0157A 55%,#9E0B55);font:800 50px/1 var(--ui);letter-spacing:-.01em;
+  box-shadow:0 14px 40px rgba(158,11,85,.45),inset 0 2px 0 rgba(255,255,255,.4)}
+#tag .at{width:64px;height:64px;border-radius:50%;background:#fff;color:var(--pink-dk);display:grid;place-items:center;font:900 40px/1 var(--dis)}
+.tl{font:900 92px/1 var(--dis);letter-spacing:-.045em;white-space:nowrap;color:#fff}
+.x3d{text-shadow:0 1px 0 #F2D6E4,0 2px 0 #E6B4CD,0 3px 0 #D88BB2,0 4px 0 #C96598,0 5px 0 #B8467F,0 6px 0 #A32F6A,
+  0 7px 0 #8B1E57,0 8px 0 #731447,0 9px 0 #5C0E39,0 10px 0 #4A0A2E,0 22px 26px rgba(40,4,22,.55),0 40px 60px rgba(40,4,22,.35)}
+.w{display:inline-block;will-change:transform}
+.hi{display:inline-block;padding:8px 22px 14px;margin-left:8px;border-radius:22px;
+  background:linear-gradient(100deg,#FF4FA7,#E0157A 60%,#A80D59);box-shadow:0 14px 0 #5C0E39,0 26px 40px rgba(40,4,22,.5)}
+
+/* ---------- финал ---------- */
+#outro{display:none}
+#obg{position:absolute;inset:-40px;width:1160px;height:2000px;object-fit:cover}
+#oshade{background:radial-gradient(90% 60% at 50% 45%,rgba(60,4,32,.35),rgba(20,2,12,.86) 100%),linear-gradient(180deg,rgba(255,46,147,.25),rgba(0,0,0,0) 40%)}
+.card{position:absolute;left:0;top:0;width:360px;height:640px;border-radius:30px;transform-style:preserve-3d}
+.card .body{position:absolute;inset:0;border-radius:30px;overflow:hidden;background:#000}
+.card img{width:100%;height:100%;object-fit:cover}
+.card .num{position:absolute;left:-26px;top:-30px;width:96px;height:96px;border-radius:28px;display:grid;place-items:center;
+  font:900 54px/1 var(--dis);transform:translateZ(30px)}
+.card .mark{position:absolute;right:-30px;top:-34px;width:110px;height:110px;border-radius:50%;display:grid;place-items:center;transform:translateZ(40px)}
+.card .mark svg{width:64px;height:64px}
+#card1 .body{border:4px solid rgba(191,211,230,.6)}
+#card1 .num{background:#5B6775;color:#fff}
+#card1 .mark{background:var(--red);box-shadow:0 0 0 7px #fff,0 14px 30px rgba(0,0,0,.4)}
+#card2 .body{border:5px solid #fff;box-shadow:0 0 0 6px var(--pink),0 0 80px 10px rgba(255,46,147,.7)}
+#card2 .num{background:#fff;color:var(--pink-dk);box-shadow:0 10px 26px rgba(0,0,0,.35)}
+#card2 .mark{background:radial-gradient(circle at 35% 30%,#FFF4CF,#FFD27A 40%,#F09A1C);box-shadow:0 0 0 7px #fff,0 0 50px rgba(255,210,122,.8)}
+#otag{font:800 46px/1 var(--ui)}
+#oq{font:900 88px/1 var(--dis);letter-spacing:-.045em;white-space:nowrap}
+#oc{font:700 44px/1.1 var(--ui);white-space:nowrap;padding:20px 36px;border-radius:999px;background:#fff;color:var(--pink-deep);
+  box-shadow:0 16px 40px rgba(0,0,0,.4)}
+#oc b{color:var(--pink)}
+
+/* ---------- пост ---------- */
+#full{display:none;position:absolute;left:0;top:0;width:1080px;height:1920px;object-fit:cover}
+#leak{opacity:0;mix-blend-mode:screen;background:radial-gradient(60% 40% at 15% 20%,rgba(255,120,190,.9),transparent 70%),radial-gradient(50% 35% at 90% 80%,rgba(255,190,120,.8),transparent 70%)}
+#vig{background:radial-gradient(130% 90% at 50% 48%,transparent 58%,rgba(10,0,6,.55) 100%)}
+#grain{opacity:.06;mix-blend-mode:overlay}
+#flash{opacity:0;background:#fff}
+#fade{opacity:0;background:#000}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <!-- RGB-расслоение: каналы разъезжаются по горизонтали -->
+    <filter id="rgb" x="-5%" y="-5%" width="110%" height="110%" color-interpolation-filters="sRGB">
+      <feColorMatrix in="SourceGraphic" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="r"/>
+      <feOffset in="r" id="rgbR" dx="0" dy="0" result="r2"/>
+      <feColorMatrix in="SourceGraphic" type="matrix" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="g"/>
+      <feColorMatrix in="SourceGraphic" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="b"/>
+      <feOffset in="b" id="rgbB" dx="0" dy="0" result="b2"/>
+      <feComposite in="r2" in2="g" operator="arithmetic" k2="1" k3="1" result="rg"/>
+      <feComposite in="rg" in2="b2" operator="arithmetic" k2="1" k3="1"/>
+    </filter>
+    <!-- направленный моушн-блюр для вайпа -->
+    <filter id="mblur" x="-10%" y="0%" width="120%" height="100%">
+      <feGaussianBlur id="mblurG" in="SourceGraphic" stdDeviation="0 0"/>
+    </filter>
+  </defs>
+</svg>
+
+<div id="root">
+  <div id="cam">
+    <img id="bg" alt="">
+    <canvas id="fxBack" width="1080" height="1920"></canvas>
+    <div id="stage">
+      <!-- голограмма над ладонью: одна на «старое», одна на «новое» видео -->
+      <div class="scr" id="scrOld">
+        <div class="layer edge" style="transform:translateZ(-14px)"></div>
+        <div class="layer edge" style="transform:translateZ(-10px)"></div>
+        <div class="layer edge" style="transform:translateZ(-6px)"></div>
+        <div class="layer edge" style="transform:translateZ(-2px)"></div>
+        <div class="layer body"><img alt=""></div>
+        <div class="layer scan"></div>
+        <div class="layer glass"></div>
+        <div class="layer rim"></div>
+      </div>
+      <div class="scr" id="scrNew">
+        <div class="layer edge" style="transform:translateZ(-14px)"></div>
+        <div class="layer edge" style="transform:translateZ(-10px)"></div>
+        <div class="layer edge" style="transform:translateZ(-6px)"></div>
+        <div class="layer edge" style="transform:translateZ(-2px)"></div>
+        <div class="layer body"><img alt=""></div>
+        <div class="layer scan"></div>
+        <div class="layer glass"></div>
+        <div class="layer rim"></div>
+      </div>
+      <div class="scr" id="shards"></div>
+    </div>
+    <canvas id="fxFront" width="1080" height="1920"></canvas>
+    <div class="chip old a" id="chipOld"><div class="n">1</div><div><div class="big">СТАРОЕ</div><div class="sm">видео от компании</div></div></div>
+    <div class="chip new a" id="chipNew"><div class="n">2</div><div><div class="big">МОЁ</div><div class="sm">сделал сам<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.6 4.5L19 7"/></svg></div></div></div>
+    <div class="a" id="stamp">✕ НЕ ТО</div>
+    <div class="a" id="badge"><svg viewBox="0 0 24 24" fill="none" stroke="#7A2A00" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.6 4.5L19 7"/></svg></div>
+  </div>
+
+  <img id="full" alt="">
+
+  <div id="outro" class="full">
+    <img id="obg" alt="">
+    <div class="full" id="oshade"></div>
+    <div class="full" style="perspective:1600px">
+      <div class="card" id="card1"><div class="body"><img alt=""></div><div class="num">1</div>
+        <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></div></div>
+      <div class="card" id="card2"><div class="body"><img alt=""></div><div class="num">2</div>
+        <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#7A2A00" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.6 4.5L19 7"/></svg></div></div>
+    </div>
+    <div class="a" id="otag"><span id="otagIn" style="display:inline-flex;align-items:center;gap:14px;padding:14px 34px 16px 16px;border-radius:999px;background:linear-gradient(100deg,#FF4FA7,#E0157A 55%,#9E0B55);box-shadow:0 14px 40px rgba(158,11,85,.45)"><span style="width:60px;height:60px;border-radius:50%;background:#fff;color:#B8125F;display:grid;place-items:center;font:900 38px/1 var(--dis)">@</span><span class="handle"></span></span></div>
+    <div class="a x3d" id="oq">КАКОЙ ЛУЧШЕ?</div>
+    <div class="a" id="oc"><b>1</b> или <b>2</b>? Пиши в комментариях</div>
+  </div>
+
+  <div id="title" class="a">
+    <div id="tagWrap" class="w"><div id="tag"><span class="at">@</span><span class="handle"></span></div></div>
+    <div class="tl x3d" id="l1" style="margin-top:26px"><span class="w">ПОСМОТРИТЕ,</span></div>
+    <div class="tl x3d" id="l2" style="margin-top:14px"><span class="w" id="l2a">ЧТО Я</span><span class="w hi" id="l2b">СДЕЛАЛ!</span></div>
+  </div>
+
+  <canvas id="fxTop" width="1080" height="1920"></canvas>
+  <div class="full" id="leak"></div>
+  <div class="full" id="vig"></div>
+  <div class="full" id="grain"></div>
+  <div class="full" id="flash"></div>
+  <div class="full" id="fade"></div>
+</div>
+
+<script src="hands.js"></script>
+<script src="motion.js"></script>
+</body>
+</html>
