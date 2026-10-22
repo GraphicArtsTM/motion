@@ -12,7 +12,7 @@ const TAKE_N = 1183, OLD_N = 353, NEW_N = 960;
 
 /* ---------- монтаж (секунды ролика) ---------- */
 const HOLO_OLD = 1.5;     // голограмма со старым видео над левой ладонью
-const STAMP = 4.0;        // «BU EMAS»
+const STAMP = 4.0;        // «G‘ALATI»
 const SHATTER = 5.0;      // экран разлетается
 const WHIP = 5.5;         // вайп к правой руке (0,5 с)
 const HOLO_NEW = 6.0;     // голограмма с новым видео над правой ладонью
@@ -22,7 +22,9 @@ const FLY = 8.0;          // экран отрывается от ладони �
 const LAND = 9.0;         // новое видео на весь экран (сильная доля)
 const NEW_END = N0 + 16;  // 22,378 — новое видео закончилось
 const OUT = 22.4;         // финал «1 или 2?»
-const DUR = 25.5;
+const WIN = 25.0;         // карточка «2» выходит вперёд (сильная доля)
+const FINAL = 27.0;       // последний удар, дальше — затемнение
+const DUR = 29.0;
 
 const $ = s => document.querySelector(s);
 const clamp = (x, a = 0, b = 1) => x < a ? a : x > b ? b : x;
@@ -97,7 +99,7 @@ function takeTime(t) {
   if (t < WHIP) return 1.0 + t;
   if (t < HOLO_NEW) return lerp(9.0, 11.4, E.inOutCubic(P(t, WHIP, HOLO_NEW - WHIP)));
   if (t < OUT) return 11.4 + (t - HOLO_NEW);
-  return 17.2 + (t - OUT) * 0.8;
+  return 17.2 + (t - OUT) * 0.38;
 }
 /* ладонь по трекингу: [x, y, размер кисти, верх пальцев] */
 const hand = s => window.HANDS[clamp(Math.round(s * TAKE_FPS), 0, window.HANDS.length - 1)];
@@ -451,23 +453,23 @@ async function renderAt(t) {
     shock(gF, rc.x + rc.w / 2, rc.y + rc.h / 2, t, SHATTER, 520, ICE, 0.45, 18);
   } else shardsBox.style.display = 'none';
 
-  /* подпись «1 · ESKI» и линия-выноска к экрану */
+  /* подпись «1 · ESKISI» и линия-выноска к экрану */
   if (rcOld && t < SHATTER + 0.2) {
     const k = E.outBackS(P(t, 2.0, 0.4)), out = P(t, SHATTER - 0.05, 0.2);
-    const x = rcOld.x - 200, y = rcOld.y + 140;
+    const x = rcOld.x - 185, y = rcOld.y + 140;
     S($('#chipOld'), { x, y: y + 30 * (1 - k), s: (0.6 + 0.4 * k) * (1 - 0.4 * out), o: P(t, 2.0, 0.12) * (1 - out), r: -3 + 3 * k });
     const a = P(t, 2.15, 0.3) * (1 - out);
     if (a > 0) {
       gF.save();
       gF.strokeStyle = `rgba(255,255,255,${0.85 * a})`; gF.lineWidth = 3; gF.setLineDash([10, 8]);
-      gF.beginPath(); gF.moveTo(x + 165, y); gF.lineTo(lerp(x + 165, rcOld.x + 14, a), y); gF.stroke();
+      gF.beginPath(); gF.moveTo(x + 150, y); gF.lineTo(lerp(x + 150, rcOld.x + 14, a), y); gF.stroke();
       gF.setLineDash([]); gF.fillStyle = `rgba(255,255,255,${a})`;
       gF.beginPath(); gF.arc(rcOld.x + 14, y, 7 * a, 0, Math.PI * 2); gF.fill();
       gF.restore();
     }
   } else S($('#chipOld'), { o: 0 });
 
-  /* штамп «BU EMAS» */
+  /* штамп «G‘ALATI» */
   if (rcOld && t >= STAMP && t < SHATTER + 0.2) {
     const k = P(t, STAMP, 0.16), out = P(t, SHATTER, 0.15);
     S($('#stamp'), { x: Math.min(rcOld.x + rcOld.w / 2, 790) + 6 * Math.sin(t * 60) * hit(t, STAMP, 10), y: rcOld.y + rcOld.h * 0.46,
@@ -504,7 +506,7 @@ async function renderAt(t) {
     flowers(gF, live.x + live.w / 2, live.y + live.h * 0.5, t, N0 + 0.12, 53, 10, 520, 1.7, live.w, live.h * 0.6);
     sparkles(gF, live, P(t, N0, 0.5) * (1 - P(t, FLY, 0.3)), t, 11, 22);
 
-    /* подпись «2 · MENIKI» */
+    /* подпись «2 · YANGISI» */
     const k = E.outBackS(P(t, 6.5, 0.4)), out = P(t, FLY, 0.25);
     S($('#chipNew'), { x: live.x + live.w + 185, y: live.y + live.h - 70 + 30 * (1 - k), s: (0.6 + 0.4 * k) * (1 - 0.3 * out),
       o: P(t, 6.5, 0.12) * (1 - out), r: 3 - 3 * k, b: 12 * out });
@@ -544,6 +546,11 @@ async function renderAt(t) {
     flare(gT, W / 2, H / 2, t, LAND, '255,235,245', 1300, 0.6);
     flowers(gT, W / 2, H / 2, t, LAND, 61, 26, 1500, 1.6);
   } else full.style.display = 'none';
+  /* плашка «YANGISI ✓» в первые секунды полного кадра — понятно, чьё это видео */
+  {
+    const k = E.outBackS(P(t, LAND + 0.3, 0.45)), out = E.inCubic(P(t, LAND + 2.6, 0.35));
+    S($('#fullTag'), { x: lerp(-200, 215, k) - 420 * out, y: 225, s: 1, r: -3, o: t >= LAND && t < OUT ? P(t, LAND + 0.3, 0.1) : 0 });
+  }
 
   /* ---- финал «1 или 2?» ---- */
   const outro = $('#outro');
@@ -561,10 +568,12 @@ async function renderAt(t) {
     c2.style.left = lerp(0, T2.x, k2) + 'px'; c2.style.top = lerp(0, T2.y, k2) + 'px';
     c2.style.width = lerp(W, T2.w, k2) + 'px'; c2.style.height = lerp(H, T2.h, k2) + 'px';
     const bob2 = Math.sin(t * 2.2) * 8 * k2;
-    c2.style.transform = `translateY(${bob2.toFixed(2)}px) rotateY(${(-10 * k2 + 3 * Math.sin(t * 1.4) * k2).toFixed(2)}deg) rotateX(${(4 * k2).toFixed(2)}deg)`;
+    const win = E.outBackS(P(t, WIN, 0.5));
+    const pulse = 0.05 * hit(t, FINAL, 6);
+    c2.style.transform = `translateX(${(-40 * win).toFixed(2)}px) translateY(${bob2.toFixed(2)}px) rotateY(${(-10 * k2 + 3 * Math.sin(t * 1.4) * k2 + 6 * win).toFixed(2)}deg) rotateX(${(4 * k2).toFixed(2)}deg) scale(${(1 + 0.1 * win + pulse).toFixed(4)})`;
     c2.querySelector('.body').style.borderRadius = c2.style.borderRadius = (30 * k2).toFixed(1) + 'px';
     c2.querySelector('.body').style.borderWidth = (5 * k2).toFixed(2) + 'px';
-    img(c2.querySelector('img'), t < OUT + 0.55 ? newSrc(t - N0) : newSrc(2.6 + (t - OUT - 0.55)));
+    img(c2.querySelector('img'), t < OUT + 0.55 ? newSrc(t - N0) : newSrc(2.6 + ((t - OUT - 0.55) % 12)));
     const m2 = E.outBackS(P(t, 24.0, 0.4));
     c2.querySelector('.num').style.opacity = P(t, OUT + 0.5, 0.15);
     c2.querySelector('.mark').style.transform = `translateZ(40px) scale(${(m2 + 0.001).toFixed(3)}) rotate(${lerp(-60, 0, m2).toFixed(1)}deg)`;
@@ -573,25 +582,37 @@ async function renderAt(t) {
     const c1 = $('#card1'), k1 = E.outBack(P(t, 22.7, 0.6));
     c1.style.left = '120px'; c1.style.top = '700px';
     const bob1 = Math.sin(t * 2.0 + 1.3) * 8;
-    c1.style.transform = `translate3d(${lerp(-700, 0, k1).toFixed(1)}px,${bob1.toFixed(1)}px,${lerp(-900, -120, k1).toFixed(1)}px) rotateY(${lerp(70, 14, k1).toFixed(2)}deg) rotateZ(${(-2 * k1).toFixed(2)}deg)`;
+    const back = E.outCubic(P(t, WIN, 0.6));          // старое уходит в тень
+    c1.style.transform = `translate3d(${(lerp(-700, 0, k1) - 30 * back).toFixed(1)}px,${bob1.toFixed(1)}px,${(lerp(-900, -120, k1) - 200 * back).toFixed(1)}px) rotateY(${(lerp(70, 14, k1) + 8 * back).toFixed(2)}deg) rotateZ(${(-2 * k1).toFixed(2)}deg)`;
     c1.style.opacity = P(t, 22.7, 0.15);
     const x1 = P(t, 23.5, 0.3);
-    c1.style.filter = `grayscale(${(0.85 * x1).toFixed(3)}) brightness(${(1 - 0.25 * x1).toFixed(3)})`;
-    img(c1.querySelector('img'), oldSrc(1.0 + ((t - 22.7) % 9)));
+    c1.style.filter = `grayscale(${(0.85 * x1).toFixed(3)}) brightness(${(1 - 0.25 * x1 - 0.2 * back).toFixed(3)})`;
+    img(c1.querySelector('img'), oldSrc(1.0 + ((t - 22.7) % 10)));
     const m1 = E.outBackS(P(t, 23.5, 0.35));
     c1.querySelector('.mark').style.transform = `translateZ(40px) scale(${(m1 + 0.001).toFixed(3)}) rotate(${lerp(60, 0, m1).toFixed(1)}deg)`;
 
     S($('#otag'), { x: 540, y: 300, s: E.outBackS(P(t, 22.9, 0.4)) + 0.001, o: P(t, 22.9, 0.1) });
     const kq = P(t, 23.0, 0.35);
     S($('#oq'), { x: 540, y: 470 + 6 * Math.sin(t * 2.6), s: lerp(1.9, 1, E.outExpo(kq)), o: Math.min(1, kq * 4), b: 14 * (1 - E.outExpo(kq)) });
-    const kc = E.outBackS(P(t, 24.25, 0.45));
-    S($('#oc'), { x: 540, y: 1470 + 40 * (1 - kc), s: 0.7 + 0.3 * kc, o: P(t, 24.25, 0.12) });
+    // подписи под карточками
+    const l1 = E.outBackS(P(t, 23.25, 0.4)), l2 = E.outBackS(P(t, 23.4, 0.4));
+    S($('#lab1'), { x: 300 - 30 * back, y: 1385 + 30 * (1 - l1), s: (0.6 + 0.4 * l1) * (1 - 0.12 * back), o: P(t, 23.25, 0.1) * (1 - 0.35 * back) });
+    S($('#lab2'), { x: 780 - 40 * win, y: 1370 + 30 * (1 - l2) + 36 * win, s: (0.6 + 0.4 * l2) * (1 + 0.08 * win + pulse), o: P(t, 23.4, 0.1) });
+    const kc = E.outBackS(P(t, 24.5, 0.45));
+    S($('#oc'), { x: 540, y: 1520 + 40 * (1 - kc), s: (0.7 + 0.3 * kc) * (1 + 0.08 * hit(t, FINAL, 5)), o: P(t, 24.5, 0.12) });
+    $('#outro').style.transform = `scale(${(1 + 0.035 * E.inOutCubic(P(t, FINAL, DUR - FINAL))).toFixed(4)})`;
 
     sparkles(gT, { x: 600, y: 650, w: 360, h: 640 }, P(t, 24.0, 0.4), t, 17, 20);
     flowers(gT, 960, 640, t, 24.0, 67, 14, 650, 1.5);
     burst(gT, 960, 640, t, 24.0, 41, 40, GOLD, 900, 0.8);
     shock(gT, 960, 640, t, 24.0, 300, GOLD, 0.5, 14);
     burst(gT, 470, 690, t, 23.5, 43, 22, '255,59,59', 600, 0.6);
+    // победитель: дождь цветов, волна и блик
+    flowers(gT, 540, -60, t, WIN, 71, 26, 500, 2.6, 1100, 80);
+    shock(gT, 740, 970, t, WIN, 520, PINK, 0.6, 18);
+    flare(gT, 740, 970, t, WIN, '255,200,230', 900, 0.5);
+    flowers(gT, 740, 970, t, FINAL, 73, 20, 1100, 1.8);
+    burst(gT, 740, 970, t, FINAL, 79, 50, GOLD, 1400, 0.9);
   } else outro.style.display = 'none';
 
   /* ---- заголовок ---- */
@@ -616,12 +637,12 @@ async function renderAt(t) {
   flowers(gT, 540, 520, t, 1.06, 47, 22, 900, 1.9, 600, 60);
 
   const flash = 0.85 * hit(t, 0, 14) + 0.5 * hit(t, 1.06, 16) + 0.9 * hit(t, SHATTER, 18) + 0.6 * hit(t, HOLO_NEW + 0.12, 12)
-    + 1.0 * hit(t, LAND, 10) + 0.5 * hit(t, OUT + 0.55, 14);
+    + 1.0 * hit(t, LAND, 10) + 0.5 * hit(t, OUT + 0.55, 14) + 0.25 * hit(t, WIN, 12) + 0.35 * hit(t, FINAL, 10);
   $('#flash').style.opacity = clamp(flash);
   $('#leak').style.opacity = clamp(0.9 * Math.exp(-Math.pow((t - (WHIP + 0.3)) / 0.35, 2)) + 0.7 * hit(t, LAND, 3) + 0.4 * hit(t, 22.9, 3));
   const fr = Math.floor(t * 30);
   $('#grain').style.backgroundPosition = `${Math.floor(hash(fr) * 256)}px ${Math.floor(hash(fr + 99) * 256)}px`;
-  $('#fade').style.opacity = 0;
+  $('#fade').style.opacity = E.inOutCubic(P(t, DUR - 0.8, 0.8));      // плавное затемнение в конце
 
   await Promise.all(pending);
 }
