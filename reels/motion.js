@@ -1,4 +1,4 @@
-/* M Cosmetic — Reels «старое видео / моё видео», 1080×1920.
+/* M Cosmetic — Reels «старое видео / моё видео», 1080×1920, узбекская версия.
    Всё движение детерминировано: renderAt(t) рисует кадр для момента t (секунды).
    Темп — 120 BPM нового видео: его доли приходятся на 0,122 + 0,5·n с от начала,
    а само видео стартует на 6,378 с, поэтому доли ролика лежат ровно на 0, 0,5, 1, …
@@ -6,13 +6,13 @@
 'use strict';
 
 const W = 1080, H = 1920;
-const HANDLE = 'mcosmetics';            // отметка бренда в заголовке и финале
+const HANDLE = 'mcosmetic_uz';            // отметка бренда в заголовке и финале
 const TAKE_FPS = 60000 / 1001;          // дубль с телефона, 59,94 к/с
 const TAKE_N = 1183, OLD_N = 353, NEW_N = 960;
 
 /* ---------- монтаж (секунды ролика) ---------- */
 const HOLO_OLD = 1.5;     // голограмма со старым видео над левой ладонью
-const STAMP = 4.0;        // «НЕ ТО»
+const STAMP = 4.0;        // «BU EMAS»
 const SHATTER = 5.0;      // экран разлетается
 const WHIP = 5.5;         // вайп к правой руке (0,5 с)
 const HOLO_NEW = 6.0;     // голограмма с новым видео над правой ладонью
@@ -314,6 +314,64 @@ function shock(g, x, y, t, t0, maxR, col, life = 0.55, lw = 26) {
   g.restore();
 }
 
+/* 3D-цветы M Cosmetic: пятилепестковые, кувыркаются в полёте (поворот по Y — сжатие по ширине) */
+function flower(g, x, y, R, rot, flip, a) {
+  if (a <= 0.003) return;
+  g.save();
+  g.translate(x, y);
+  g.rotate(rot);
+  g.scale(Math.max(0.08, Math.abs(Math.cos(flip))), 1);
+  g.globalAlpha = a;
+  const back = Math.cos(flip) < 0;            // изнанка лепестков темнее
+  for (let i = 0; i < 5; i++) {
+    g.rotate(Math.PI * 2 / 5);
+    const gr = g.createLinearGradient(0, 0, 0, -R);
+    gr.addColorStop(0, back ? '#B8125F' : '#FF3D9A');
+    gr.addColorStop(1, back ? '#E05596' : '#FFC3E0');
+    g.fillStyle = gr;
+    g.beginPath();
+    g.ellipse(0, -R * 0.52, R * 0.34, R * 0.5, 0, 0, Math.PI * 2);
+    g.fill();
+  }
+  g.fillStyle = '#FFE7A8';
+  g.beginPath(); g.arc(0, 0, R * 0.17, 0, Math.PI * 2); g.fill();
+  g.restore();
+}
+
+/* разлёт цветов из точки: скорость, лёгкая гравитация, парение */
+function flowers(g, x, y, t, t0, seed, n, spd = 700, life = 2.2, sx = 0, sy = 0) {
+  const dt = t - t0;
+  if (dt < 0 || dt > life) return;
+  const r = rng(seed);
+  for (let i = 0; i < n; i++) {
+    const a = r() * Math.PI * 2, v = spd * (0.3 + r() * 0.7), R = 14 + r() * 22;
+    const ox = (r() - .5) * sx, oy = (r() - .5) * sy;
+    const d = v * (1 - Math.exp(-dt * 2.6)) / 2.6;
+    const px = x + ox + Math.cos(a) * d + Math.sin(dt * (2 + r() * 2) + i) * 26;
+    const py = y + oy + Math.sin(a) * d * 0.8 + 160 * dt * dt;
+    const k = Math.min(1, dt * 8) * (1 - P(dt, life * 0.65, life * 0.35));
+    flower(g, px, py, R, r() * 6 + dt * (r() - .5) * 5, r() * 6 + dt * (3 + r() * 5), k);
+  }
+}
+
+/* анаморфный блик: тонкая горизонтальная полоса света */
+function flare(g, x, y, t, t0, col, w = 1100, life = 0.45) {
+  const dt = t - t0;
+  if (dt < 0 || dt > life) return;
+  const k = Math.pow(1 - dt / life, 1.6);
+  g.save();
+  g.globalCompositeOperation = 'lighter';
+  for (const [hh, a] of [[60, 0.25], [14, 0.6], [4, 1]]) {
+    const gr = g.createLinearGradient(x - w, 0, x + w, 0);
+    gr.addColorStop(0, `rgba(${col},0)`);
+    gr.addColorStop(0.5, `rgba(${col},${a * k})`);
+    gr.addColorStop(1, `rgba(${col},0)`);
+    g.fillStyle = gr;
+    g.beginPath(); g.ellipse(x, y, w * (0.6 + 0.4 * dt / life), hh * k + 1, 0, 0, Math.PI * 2); g.fill();
+  }
+  g.restore();
+}
+
 const ICE = '175,210,240', PINK = '255,46,147', GOLD = '255,210,122';
 
 /* ---------- кадр ---------- */
@@ -344,7 +402,7 @@ async function renderAt(t) {
   if (t >= HOLO_OLD && t < WHIP + 0.1) rcOld = holoRect(t, s, 'old');
   if (oldOn) {
     const pw = powerOn(t, HOLO_OLD);
-    const u = t - HOLO_OLD;
+    const u = t - HOLO_OLD + 0.45;                  // без белого вступления старого ролика
     img(oldImg, oldSrc(u));
     const gl = t >= STAMP ? Math.min(1, 0.35 + 0.65 * (t - STAMP)) : 0;      // сила глитча
     const fr = Math.floor(t * 15), rr = rng(fr * 31 + 5);
@@ -369,6 +427,7 @@ async function renderAt(t) {
     });
     drawBeam(gB, rcOld, ICE, pw.on ? Math.min(1, P(t, HOLO_OLD, 0.3)) * (burstOn ? 0.5 : 1) : 0, t);
     drawMotes(gF, rcOld, ICE, P(t, HOLO_OLD + 0.3, 0.4), t, 3);
+    flare(gF, rcOld.x + rcOld.w / 2, rcOld.y + rcOld.h, t, HOLO_OLD + 0.12, ICE, 700);
   } else scrOld.style.display = 'none';
 
   /* осколки */
@@ -376,7 +435,7 @@ async function renderAt(t) {
     const rc = holoRect(SHATTER, takeTime(SHATTER), 'old'), dt = t - SHATTER;
     placeScreen(shardsBox, rc, { ry: -17, rx: 4, oy: 50 });
     shardsBox.style.overflow = 'visible';
-    const src = oldSrc(SHATTER - HOLO_OLD);
+    const src = oldSrc(SHATTER - HOLO_OLD + 0.45);
     for (const sh of SHARDS) {
       sh.el.style.display = 'block';
       img(sh.im, src);
@@ -386,13 +445,13 @@ async function renderAt(t) {
       const ang = sh.w * dt;
       sh.el.style.transform = `translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,${z.toFixed(1)}px) rotate3d(${sh.ax[0].toFixed(3)},${sh.ax[1].toFixed(3)},${sh.ax[2].toFixed(3)},${ang.toFixed(1)}deg)`;
       sh.el.style.opacity = 1 - P(dt, 0.4, 0.5);
-      sh.el.style.filter = `grayscale(.8) brightness(${(1 + 1.5 * hit(dt, 0, 14)).toFixed(3)})`;
+      sh.el.style.filter = `grayscale(.35) brightness(${(1.1 + 2.2 * hit(dt, 0, 10)).toFixed(3)})`;
     }
     burst(gF, rc.x + rc.w / 2, rc.y + rc.h / 2, t, SHATTER, 77, 60, ICE, 1300, 0.7);
     shock(gF, rc.x + rc.w / 2, rc.y + rc.h / 2, t, SHATTER, 520, ICE, 0.45, 18);
   } else shardsBox.style.display = 'none';
 
-  /* подпись «1 · СТАРОЕ» и линия-выноска к экрану */
+  /* подпись «1 · ESKI» и линия-выноска к экрану */
   if (rcOld && t < SHATTER + 0.2) {
     const k = E.outBackS(P(t, 2.0, 0.4)), out = P(t, SHATTER - 0.05, 0.2);
     const x = rcOld.x - 200, y = rcOld.y + 140;
@@ -408,12 +467,12 @@ async function renderAt(t) {
     }
   } else S($('#chipOld'), { o: 0 });
 
-  /* штамп «НЕ ТО» */
+  /* штамп «BU EMAS» */
   if (rcOld && t >= STAMP && t < SHATTER + 0.2) {
     const k = P(t, STAMP, 0.16), out = P(t, SHATTER, 0.15);
-    S($('#stamp'), { x: rcOld.x + rcOld.w / 2 + 6 * Math.sin(t * 60) * hit(t, STAMP, 10), y: rcOld.y + rcOld.h * 0.46,
+    S($('#stamp'), { x: Math.min(rcOld.x + rcOld.w / 2, 790) + 6 * Math.sin(t * 60) * hit(t, STAMP, 10), y: rcOld.y + rcOld.h * 0.46,
       s: lerp(3.2, 0.82, E.outExpo(k)) * (1 + 0.5 * out), r: -14, o: Math.min(1, k * 3) * (1 - out), b: 10 * (1 - k) });
-    burst(gF, rcOld.x + rcOld.w / 2, rcOld.y + rcOld.h * 0.46, t, STAMP + 0.08, 12, 26, '255,59,59', 700, 0.5);
+    burst(gF, Math.min(rcOld.x + rcOld.w / 2, 790), rcOld.y + rcOld.h * 0.46, t, STAMP + 0.08, 12, 26, '255,59,59', 700, 0.5);
   } else S($('#stamp'), { o: 0 });
 
   /* ---- голограмма «новое» ---- */
@@ -441,9 +500,11 @@ async function renderAt(t) {
     const beamK = Math.min(1, P(t, HOLO_NEW, 0.3)) * (1 - P(t, FLY + 0.1, 0.3));
     drawBeam(gB, live, PINK, beamK, t);
     drawMotes(gF, live, GOLD, P(t, HOLO_NEW + 0.3, 0.4) * (1 - P(t, FLY, 0.3)), t, 5);
+    flare(gF, live.x + live.w / 2, live.y + live.h, t, HOLO_NEW + 0.12, PINK, 800);
+    flowers(gF, live.x + live.w / 2, live.y + live.h * 0.5, t, N0 + 0.12, 53, 10, 520, 1.7, live.w, live.h * 0.6);
     sparkles(gF, live, P(t, N0, 0.5) * (1 - P(t, FLY, 0.3)), t, 11, 22);
 
-    /* подпись «2 · МОЁ» */
+    /* подпись «2 · MENIKI» */
     const k = E.outBackS(P(t, 6.5, 0.4)), out = P(t, FLY, 0.25);
     S($('#chipNew'), { x: live.x + live.w + 185, y: live.y + live.h - 70 + 30 * (1 - k), s: (0.6 + 0.4 * k) * (1 - 0.3 * out),
       o: P(t, 6.5, 0.12) * (1 - out), r: 3 - 3 * k, b: 12 * out });
@@ -480,6 +541,8 @@ async function renderAt(t) {
     full.style.filter = k > 0.04 ? 'url(#rgb)' : 'none';
     shock(gT, W / 2, H / 2, t, LAND, 1300, '255,255,255', 0.6, 40);
     burst(gT, W / 2, H / 2, t, LAND, 31, 90, GOLD, 2400, 1.0);
+    flare(gT, W / 2, H / 2, t, LAND, '255,235,245', 1300, 0.6);
+    flowers(gT, W / 2, H / 2, t, LAND, 61, 26, 1500, 1.6);
   } else full.style.display = 'none';
 
   /* ---- финал «1 или 2?» ---- */
@@ -525,6 +588,7 @@ async function renderAt(t) {
     S($('#oc'), { x: 540, y: 1470 + 40 * (1 - kc), s: 0.7 + 0.3 * kc, o: P(t, 24.25, 0.12) });
 
     sparkles(gT, { x: 600, y: 650, w: 360, h: 640 }, P(t, 24.0, 0.4), t, 17, 20);
+    flowers(gT, 960, 640, t, 24.0, 67, 14, 650, 1.5);
     burst(gT, 960, 640, t, 24.0, 41, 40, GOLD, 900, 0.8);
     shock(gT, 960, 640, t, 24.0, 300, GOLD, 0.5, 14);
     burst(gT, 470, 690, t, 23.5, 43, 22, '255,59,59', 600, 0.6);
@@ -548,6 +612,9 @@ async function renderAt(t) {
   }
 
   /* ---- пост ---- */
+  /* цветы разлетаются из «KO‘RDINGIZMI?» */
+  flowers(gT, 540, 520, t, 1.06, 47, 22, 900, 1.9, 600, 60);
+
   const flash = 0.85 * hit(t, 0, 14) + 0.5 * hit(t, 1.06, 16) + 0.9 * hit(t, SHATTER, 18) + 0.6 * hit(t, HOLO_NEW + 0.12, 12)
     + 1.0 * hit(t, LAND, 10) + 0.5 * hit(t, OUT + 0.55, 14);
   $('#flash').style.opacity = clamp(flash);
