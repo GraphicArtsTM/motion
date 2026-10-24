@@ -5,6 +5,7 @@ const { chromium } = require(process.env.PW || 'playwright');
   const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1243/chrome-linux64/chrome' });
   const page = await browser.newPage({ viewport: { width: +w, height: +h }, deviceScaleFactor: 1 });
   await page.goto('file://' + require('path').resolve(inp));
+  await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(300);
   await page.screenshot({ path: out, omitBackground: transp === '1', clip: { x: 0, y: 0, width: +w, height: +h } });
   await browser.close();

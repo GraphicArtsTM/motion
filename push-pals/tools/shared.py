@@ -85,3 +85,63 @@ def matchstick(x1, y1, x2, y2, w, stick, head, ink=True, hl=None):
   <ellipse cx="{L+w*0.2}" cy="0" rx="{w*1.05}" ry="{w*0.82}" fill="{head}" {sw}/>
   <ellipse cx="{L}" cy="{-w*0.3}" rx="{w*0.35}" ry="{w*0.18}" fill="#fff" opacity="0.25"/>
 </g>'''
+
+
+# ---------- scene helpers (backgrounds / mockups) ----------
+def scene_defs(light_x=170, light_y=120, light_r=1250):
+    wood = ''.join(f'''<filter id="wood{i}" x="0" y="0" width="100%" height="100%">
+  <feTurbulence type="fractalNoise" baseFrequency="0.0035 0.09" numOctaves="5" seed="{s}"/>
+  <feColorMatrix type="matrix" values="0.27 0 0 0 0.040  0.14 0 0 0 0.012  0.06 0 0 0 0.002  0 0 0 0 1"/>
+</filter>''' for i, s in enumerate([11, 23, 37, 51, 64]))
+    return filters() + wood + f'''
+<filter id="grain" x="0" y="0" width="100%" height="100%">
+  <feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="2" seed="5"/><feColorMatrix type="saturate" values="0"/>
+</filter>
+<filter id="blurFar"><feGaussianBlur stdDeviation="7"/></filter>
+<filter id="blurMid"><feGaussianBlur stdDeviation="3.5"/></filter>
+<filter id="glow" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="18"/></filter>
+<filter id="glowWide" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="34"/></filter>
+<radialGradient id="candleLight" cx="{light_x}" cy="{light_y}" r="{light_r}" gradientUnits="userSpaceOnUse">
+  <stop offset="0" stop-color="#F2C46B" stop-opacity="0.75"/>
+  <stop offset="0.35" stop-color="#E0A04A" stop-opacity="0.22"/>
+  <stop offset="1" stop-color="#E0A04A" stop-opacity="0"/>
+</radialGradient>
+<radialGradient id="vignette" cx="0.45" cy="0.45" r="0.8">
+  <stop offset="0.35" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#070301" stop-opacity="0.88"/>
+</radialGradient>
+<radialGradient id="brass" cx="0.35" cy="0.3" r="0.8">
+  <stop offset="0" stop-color="#F6DC92"/><stop offset="0.45" stop-color="#C99A42"/><stop offset="1" stop-color="#7A5420"/>
+</radialGradient>
+<linearGradient id="brassV" x1="0" y1="0" x2="1" y2="0">
+  <stop offset="0" stop-color="#8A6226"/><stop offset="0.3" stop-color="#E9C979"/><stop offset="0.55" stop-color="#C99A42"/><stop offset="1" stop-color="#6E4A1C"/>
+</linearGradient>
+<linearGradient id="tin" x1="0" y1="0" x2="1" y2="0">
+  <stop offset="0" stop-color="#6F6A62"/><stop offset="0.28" stop-color="#D8D2C4"/><stop offset="0.5" stop-color="#A9A296"/><stop offset="1" stop-color="#57524B"/>
+</linearGradient>
+<pattern id="hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(35)">
+  <line x1="0" y1="0" x2="0" y2="5" stroke="#2F5487" stroke-width="0.9" opacity="0.55"/>
+</pattern>'''
+
+def table(W, H, planks=((-20, 230), (210, 250), (460, 240), (700, 230), (930, 140))):
+    out = []
+    for i, (y, h) in enumerate(planks):
+        out.append(f'<rect x="0" y="{y}" width="{W}" height="{h}" filter="url(#wood{i % 5})"/>')
+        out.append(f'<rect x="0" y="{y}" width="{W}" height="{h}" fill="#000" opacity="{0.06*(i%3)}"/>')
+        out.append(f'<line x1="0" y1="{y+h-1}" x2="{W}" y2="{y+h-1}" stroke="#120803" stroke-width="3"/>')
+        out.append(f'<line x1="0" y1="{y+h+1.5}" x2="{W}" y2="{y+h+1.5}" stroke="#9a6a40" stroke-width="1" opacity="0.35"/>')
+    return ''.join(out)
+
+def finish(W, H):
+    """Candle light, vignette and film grain over the whole scene."""
+    return (f'<rect width="{W}" height="{H}" fill="url(#candleLight)" opacity="0.6" style="mix-blend-mode:soft-light"/>'
+            f'<rect width="{W}" height="{H}" fill="url(#candleLight)" opacity="0.28" style="mix-blend-mode:screen"/>'
+            f'<rect width="{W}" height="{H}" fill="url(#vignette)"/>'
+            f'<rect width="{W}" height="{H}" filter="url(#grain)" opacity="0.10" style="mix-blend-mode:overlay"/>')
+
+def page(svg, bg='transparent', fonts=True):
+    import base64, os, re
+    d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fonts')
+    css = open(os.path.join(d, 'fonts.css')).read() if fonts else ''
+    css = re.sub(r"url\('fonts/([^']+)'\)", lambda m: "url(data:font/woff2;base64,%s)" % base64.b64encode(open(os.path.join(d, m.group(1)), 'rb').read()).decode(), css)
+    return (f'<!doctype html><html><head><meta charset="utf-8"><style>{css}html,body{{margin:0;background:{bg}}}svg{{display:block}}</style></head>'
+            f'<body>{svg}</body></html>')
