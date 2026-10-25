@@ -3,3 +3,11 @@ video/out/stills/
 video/out/frames.mp4
 video/out/music.wav
 video/out/build.log
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+taxopark-referral-bot/.env
