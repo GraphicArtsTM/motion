@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from src.core.billing.accruals import count_accruals, create_accrual_if_not_exists, initial_accrual_status
 from src.core.billing.bonus_rules import best_bonus_rule
@@ -53,15 +54,16 @@ async def period_of(ctx: Ctx, dt: Any) -> Period | None:
 
 
 async def open_period(ctx: Ctx, code: str) -> Period:
-    """A4. Идемпотентно: период создаётся один раз, снимок — один раз."""
+    """A4. Идемпотентно и безопасно при параллельных вызовах: период создаётся один раз
+    (INSERT … ON CONFLICT), снимок — под блокировкой строки периода."""
+    starts, ends = period_bounds(code)
+    await ctx.session.execute(
+        pg_insert(Period).values(code=code, starts_at=starts, ends_at=ends, status="open",
+                                 threshold_points_x100=ctx.settings.int("qualification_threshold_points_x100"),
+                                 default_coefficient_x100=ctx.settings.int("default_tariff_coefficient_x100"))
+        .on_conflict_do_nothing(index_elements=["code"]))
     p = await get_period(ctx, code, for_update=True)
-    if p is None:
-        starts, ends = period_bounds(code)
-        p = Period(code=code, starts_at=starts, ends_at=ends, status="open",
-                   threshold_points_x100=ctx.settings.int("qualification_threshold_points_x100"),
-                   default_coefficient_x100=ctx.settings.int("default_tariff_coefficient_x100"))
-        ctx.session.add(p)
-        await ctx.session.flush()
+    assert p is not None
     if not await has_snapshot(ctx, p.id):
         await take_snapshot(ctx, p)
     await ctx.session.commit()

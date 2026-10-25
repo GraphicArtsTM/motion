@@ -221,3 +221,17 @@ async def cancel_accrual_by_admin(ctx: Ctx, actor: User, accrual_id: int, reason
     await audit_log(ctx, actor.id, "accrual_cancelled", "accrual", accrual_id,
                     new_value={"amount": amount, "reason": reason})
     return amount
+
+
+async def release_accrual_by_admin(ctx: Ctx, actor: User, accrual_id: int) -> int:
+    """Выпуск начисления из холда (превышение бюджета, проверка) — роль finance."""
+    from src.core.billing.accruals import release_accrual
+    require_role(actor.role, "finance")
+    acc = await ctx.session.get(Accrual, accrual_id)
+    if acc is None:
+        raise NotFound("accrual", accrual_id)
+    if acc.status != "hold":
+        raise BusinessError("err.invalid_accrual_state")
+    amount = await release_accrual(ctx, acc)
+    await audit_log(ctx, actor.id, "accrual_released", "accrual", accrual_id, new_value={"amount": acc.amount})
+    return amount

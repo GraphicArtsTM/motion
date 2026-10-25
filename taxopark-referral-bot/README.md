@@ -1,0 +1,114 @@
+# Реферальный бот таксопарка Яндекс Go
+
+Telegram-бот реферальной программы по ТЗ v6.0. Водитель приглашает друга по персональной ссылке; друг
+регистрируется, автоматически проверяется по базе водителей парка и проходит модерацию. За каждый месяц, в
+котором друг набирает план в баллах (по умолчанию 300 баллов, баллы = Σ коэффициентов тарифов заказов),
+пригласивший получает бонус (по умолчанию 30 000 сум) в кошелёк бота и выводит его на баланс Яндекс Про одной кнопкой.
+
+Все суммы, пороги и коэффициенты — в БД и редактируются из админки (R3).
+
+## Состав
+
+| Компонент | Где | Что делает |
+|---|---|---|
+| Ядро | `src/core/` | Вся бизнес-логика (R6): регистрация и автопроверка (A2), модерация (A3), атрибуция (A1), баллы (A5), периоды и снимки (A4), закрытие (A6), пересчёт (A17), кошелёк и долг (A9), вывод со сверкой (A10/A11), антифрод, симулятор (A15), уведомления (A18) |
+| Telegram-бот | `src/bot/` | aiogram 3: регистрация (FSM), все экраны раздела 7, access-gate и terms-gate, Telegram-админка, доставка уведомлений из outbox |
+| Веб | `src/web.py`, `src/admin/` | `/health`, вебхук Telegram (проверка `secret_token`), admin API (RBAC, 2FA), SQLAdmin (просмотр) |
+| Воркеры | `src/workers/` | ARQ: все задачи раздела 11 по расписанию Asia/Tashkent, выводы, блокировки `job_locks` |
+| Fleet | `src/integrations/fleet/` | `FleetProvider` + реализации `api`, `csv`, `manual`, `mock`; три класса ошибок; circuit breaker |
+| БД | `alembic/`, `src/db/` | Схема раздела 10 (+ дополнения из DECISIONS.md), сиды Приложения 18.1 |
+| Локали | `src/locales/{uz_latn,uz_cyrl,ru}` | Fluent, 343 строки на каждом языке |
+
+## Быстрый старт (продакшен)
+
+```bash
+cp .env.example .env            # заполнить BOT_TOKEN, FLEET_*, ADMIN_*, пароли
+docker compose up -d            # postgres, redis, migrate (alembic upgrade head), web, worker, nginx
+docker compose run --rm web python -m scripts.create_admin \
+    --telegram-id 123456789 --login boss --password '…' --role superadmin   # напечатает ссылку для 2FA
+```
+
+1. **Сначала Шаг 0**: `docker compose run --rm web python -m scripts.api_recon` — сверить Fleet API с
+   `API_SCHEMA.md` (см. ниже «Что осталось сделать»).
+2. В админке выбрать категорию транзакции: `POST /admin/api/settings/fleet-categories/load`, затем
+   `PUT /admin/api/settings/fleet_transaction_category_id`.
+3. Задать `park_contacts`, проверить тексты условий, включить вебхук (`WEBHOOK_URL`) — он ставится при старте.
+
+> ⚠️ **ПД граждан Узбекистана** (номера ВУ и их фото) по закону РУз должны храниться на серверах на территории
+> Узбекистана, база — зарегистрирована в уполномоченном органе (14.2 п.1).
+
+## Разработка
+
+```bash
+python -m venv .venv && . .venv/bin/activate && pip install -r requirements-dev.txt
+export DATABASE_URL=postgresql+asyncpg://postgres@localhost:5432/referral_test
+alembic upgrade head
+python -m src.bot.main                    # бот в режиме polling + доставка уведомлений
+uvicorn src.web:app --reload              # admin API: http://localhost:8000/docs
+arq src.workers.settings.WorkerSettings   # фоновые задачи
+```
+
+Для работы без Fleet API: настройка `fleet_provider = mock` (данные в памяти) или `csv`
+(`FLEET_CSV_DIR` с `drivers.csv`, `orders.csv`, `cars.csv`).
+
+## Тесты
+
+```bash
+python -m pytest -q --cov=src             # 180+ тестов: ядро, бот (e2e на фейковом Telegram API), API, воркеры
+python scripts/check_coverage.py          # R11: billing/referral/onboarding/scoring ≥ 85%
+RUN_LOAD=1 python -m pytest tests/e2e/test_load.py -s     # TC-110, нагрузка
+SOURCE_URL=… RESTORE_URL=… scripts/backup_restore_check.sh  # TC-111, бэкап и восстановление
+ruff check src tests scripts
+```
+
+Тестам нужен PostgreSQL (`DATABASE_URL`, база пересоздаётся миграциями). Соответствие тестов кейсам раздела 16 —
+`docs/test_cases.md`. Покрытие на момент сдачи: billing 94%, referral 94%, onboarding 92%, scoring 96%.
+
+Жёсткие правила проверяются автотестами: R1/R3/R6/R13 — `tests/unit/test_static_rules.py` (поиск хардкодов
+`300/30000/3.0/10/50`, float в деньгах, изменения балансов вне ядра, устаревшего метода транзакций);
+R5/R15 — инварианты кошелька после каждого сценария вывода (`assert_wallet_invariants`); TC-109 — полнота локалей.
+
+## Роли и Telegram-админка
+
+Роли: `driver`, `operator`, `moderator`, `finance`, `admin`, `superadmin`, `readonly` (8.1). ID из
+`ADMIN_TELEGRAM_IDS` получают `superadmin` при первом сообщении боту. Карточки заявок, алерты и обращения
+приходят в `ADMIN_NOTIFY_CHAT_ID`.
+
+| Команда / действие | Роль |
+|---|---|
+| `/admin` — сводка: заявки, выводы, обращения | operator+ |
+| Кнопки на карточке заявки: принять с рефералкой / без / отклонить (причина из справочника или своя), фото ВУ | moderator+ |
+| Выводы: отправить через Fleet, «выплачено вручную» (с фото-подтверждением), отмена с возвратом | finance+ |
+| Ответ водителю — reply на сообщение с обращением; закрыть обращение; детализация оспаривания | operator+ |
+| `/find <телефон / ФИО / ВУ / TG ID / код / profile_id>` | operator+ |
+| `/broadcast <текст>` — экстренная рассылка подтверждённым водителям | admin+ |
+
+Веб-панель: admin API (`/admin/api/*`, Postman — `docs/postman_collection.json`) и просмотр таблиц SQLAdmin
+(`/admin`). Инструкция администратора — `docs/admin_guide.md`, водителя — `docs/driver_guide.md`.
+
+## План реализации (Раздел 15) — статус
+
+| Шаг | Статус |
+|---|---|
+| 0. Разведка API | ⚠️ **не выполнен** — нет доступа к реальному парку; есть скрипт `scripts/api_recon.py` и чек-лист в `API_SCHEMA.md` |
+| 1–3. Каркас, модели/миграции, настройки | ✅ docker-compose, Alembic, structlog JSON, Sentry, `/health`, CI; `alembic upgrade head` с нуля (TC-112); SettingsService с кешем |
+| 4. Локализация и условия | ✅ 3 локали, terms-gate, версии условий |
+| 5. Слой Fleet | ✅ 4 провайдера, ошибки, ретраи, breaker, A12 (mapping полей ждёт Шага 0) |
+| 6–8. Регистрация, модерация, рефералка | ✅ |
+| 9–12. Заказы, периоды, биллинг, кошелёк | ✅ включая A17, долг, бюджет, welcome-бонус и достижения (выключены, реализованы, покрыты тестами) |
+| 13–15. Экраны, уведомления, Telegram-админка | ✅ |
+| 16. Веб-панель | ✅ admin API + SQLAdmin (без отдельного React-фронтенда — D-21) |
+| 17. Антифрод | ✅ 14 правил, скоринг, реакции, clawback |
+| 18. Стабилизация | ✅ нагрузка (TC-110), бэкап/восстановление (TC-111); ⏳ пилот на 30–50 водителях — у заказчика |
+
+## Что осталось сделать до запуска
+
+1. **Шаг 0** — прогнать `scripts/api_recon.py` на реальном парке, заполнить `API_SCHEMA.md`, при расхождениях
+   поправить `src/integrations/fleet/api.py`. Особенно критично: есть ли тариф в заказах (иначе грузовые заказы не
+   отличить от легковых) и поддерживает ли создание транзакции `X-Idempotency-Token`.
+2. Вычитка узбекских текстов носителем языка (кириллица получена транслитерацией — D-20).
+3. Юридическая проверка текста условий v1 и регистрация базы ПД.
+4. Налоговый режим выплат — вопрос к бухгалтерии (реестр выводов выгружается в XLSX).
+5. Пилот на 30–50 водителях.
+
+Решения по неописанным деталям — `DECISIONS.md`. История — `CHANGELOG.md`.

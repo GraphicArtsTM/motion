@@ -40,7 +40,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         bot, dp = make_bot(), build_dispatcher()
         state.update(bot=bot, dp=dp)
         if cfg.webhook_url:
-            await bot.set_webhook(cfg.webhook_url, secret_token=cfg.webhook_secret or None,
+            await bot.set_webhook(cfg.webhook_url, secret_token=cfg.webhook_secret or None, max_connections=40,
                                   allowed_updates=dp.resolve_used_update_types())
         state["sender"] = asyncio.create_task(run_dispatcher(bot, stop))
     yield

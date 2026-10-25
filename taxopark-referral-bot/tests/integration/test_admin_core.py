@@ -68,3 +68,18 @@ async def test_reports_build(ctx, name):
     await counted_referral(ctx)
     head, rows = await REPORTS[name](ctx)
     assert head and isinstance(rows, list)
+
+
+async def test_release_budget_hold(ctx):
+    from src.core.admin.users import release_accrual_by_admin
+    from src.core.billing.accruals import create_accrual_if_not_exists
+    from tests.factories import assert_wallet_invariants
+    fin = await create_user(ctx, role="finance")
+    u = await create_user(ctx)
+    acc = await create_accrual_if_not_exists(ctx, user_id=u.id, idempotency_key="bh", type="referral", amount=30000,
+                                             status="hold")
+    assert await release_accrual_by_admin(ctx, fin, acc.id) == 30000
+    with pytest.raises(BusinessError):
+        await release_accrual_by_admin(ctx, fin, acc.id)
+    await ctx.session.commit()
+    await assert_wallet_invariants(ctx, u.id)

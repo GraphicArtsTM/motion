@@ -594,6 +594,11 @@ async def accrual_cancel(accrual_id: int, body: ReasonIn, ctx: Ctx = Depends(get
     return {"cancelled": await users_admin.cancel_accrual_by_admin(ctx, user, accrual_id, body.reason)}
 
 
+@router.post("/accruals/{accrual_id}/release")
+async def accrual_release(accrual_id: int, ctx: Ctx = Depends(get_ctx), user: User = Depends(require("finance"))) -> Any:
+    return {"released": await users_admin.release_accrual_by_admin(ctx, user, accrual_id)}
+
+
 # ── рассылки ─────────────────────────────────────────────────────────────────
 @router.get("/broadcasts")
 async def broadcasts(ctx: Ctx = Depends(get_ctx), _: User = Depends(require("admin", write=False))) -> Any:

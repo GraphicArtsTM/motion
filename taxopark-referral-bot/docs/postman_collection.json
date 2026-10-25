@@ -1,0 +1,2062 @@
+{
+  "info": {
+    "name": "Taxopark Referral — Admin API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://bot.example.uz"
+    },
+    {
+      "key": "token",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "accruals",
+      "item": [
+        {
+          "name": "Accruals",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/accruals",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "accruals"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Accrual Cancel",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/accruals/{accrual_id}/cancel",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "accruals",
+                "{accrual_id}",
+                "cancel"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Accrual Release",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/accruals/{accrual_id}/release",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "accruals",
+                "{accrual_id}",
+                "release"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "approvals",
+      "item": [
+        {
+          "name": "Approvals",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/approvals",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "approvals"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Decide",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/approvals/{request_id}/decide",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "approvals",
+                "{request_id}",
+                "decide"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"decision\": \"<string>\",\n  \"reason\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "audit",
+      "item": [
+        {
+          "name": "Audit",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/audit",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "audit"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "auth",
+      "item": [
+        {
+          "name": "Auth Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"<string>\",\n  \"password\": \"<string>\",\n  \"totp\": \"<value>\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "broadcasts",
+      "item": [
+        {
+          "name": "Broadcasts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/broadcasts",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "broadcasts"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Broadcast Create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/broadcasts",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "broadcasts"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"<string>\",\n  \"text\": \"<string>\",\n  \"segment\": {},\n  \"media\": \"<value>\",\n  \"buttons\": \"<value>\",\n  \"scheduled_at\": \"<value>\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Broadcast Start",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/broadcasts/{bid}/start",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "broadcasts",
+                "{bid}",
+                "start"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Broadcast Test",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/broadcasts/{bid}/test",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "broadcasts",
+                "{bid}",
+                "test"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Broadcast Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/broadcasts/{bid}/stats",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "broadcasts",
+                "{bid}",
+                "stats"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "dashboard",
+      "item": [
+        {
+          "name": "Get Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/dashboard",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "dashboard"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "drivers",
+      "item": [
+        {
+          "name": "License Photos",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/drivers/{user_id}/license-photos",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "drivers",
+                "{user_id}",
+                "license-photos"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Drivers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/drivers",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "drivers"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Driver Card",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/drivers/{user_id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "drivers",
+                "{user_id}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Driver Access",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/drivers/{user_id}/access-status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "drivers",
+                "{user_id}",
+                "access-status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"value\": \"<value>\",\n  \"reason\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Driver Payout Block",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/drivers/{user_id}/payout-block",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "drivers",
+                "{user_id}",
+                "payout-block"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"value\": \"<value>\",\n  \"reason\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Driver Adjustment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/drivers/{user_id}/adjustment",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "drivers",
+                "{user_id}",
+                "adjustment"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": \"<integer>\",\n  \"reason\": \"<string>\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Driver Debt",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/drivers/{user_id}/debt-writeoff",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "drivers",
+                "{user_id}",
+                "debt-writeoff"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": \"<integer>\",\n  \"reason\": \"<string>\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Driver Note",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/drivers/{user_id}/note",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "drivers",
+                "{user_id}",
+                "note"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"<string>\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Driver Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/drivers/{user_id}/message",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "drivers",
+                "{user_id}",
+                "message"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"<string>\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Driver Role",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/drivers/{user_id}/role",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "drivers",
+                "{user_id}",
+                "role"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"value\": \"<value>\",\n  \"reason\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Driver Link",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/drivers/{user_id}/link-profile",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "drivers",
+                "{user_id}",
+                "link-profile"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"driver_profile_id\": \"<string>\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Driver Unlink",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/drivers/{user_id}/unlink-profile",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "drivers",
+                "{user_id}",
+                "unlink-profile"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Driver Referral",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/drivers/{user_id}/referral",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "drivers",
+                "{user_id}",
+                "referral"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"referrer_code\": \"<string>\",\n  \"counted\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Driver Forget",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/drivers/{user_id}/personal-data",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "drivers",
+                "{user_id}",
+                "personal-data"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "fraud",
+      "item": [
+        {
+          "name": "Fraud Queue",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/fraud",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "fraud"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Fraud Resolve",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/fraud/{flag_id}/resolve",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "fraud",
+                "{flag_id}",
+                "resolve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"confirm_fraud\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Fraud Whitelist",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/fraud/whitelist",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "fraud",
+                "whitelist"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"<integer>\",\n  \"reason\": \"<string>\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "me",
+      "item": [
+        {
+          "name": "Me",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "me"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "periods",
+      "item": [
+        {
+          "name": "Periods",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/periods",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "periods"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Recalc",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/periods/{code}/recalculate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "periods",
+                "{code}",
+                "recalculate"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"<string>\",\n  \"preview\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Close",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/periods/{code}/close",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "periods",
+                "{code}",
+                "close"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "referrals",
+      "item": [
+        {
+          "name": "Referrals",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/referrals",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "referrals"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Referral Counted",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/referrals/{referral_id}/counted",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "referrals",
+                "{referral_id}",
+                "counted"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"value\": \"<value>\",\n  \"reason\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Referral Bulk",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/referrals/bulk-counted",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "referrals",
+                "bulk-counted"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"referral_ids\": \"<array>\",\n  \"value\": \"<boolean>\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Referral Unlink",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/referrals/{referral_id}/unlink",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "referrals",
+                "{referral_id}",
+                "unlink"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "reports",
+      "item": [
+        {
+          "name": "Report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/reports/{name}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "reports",
+                "{name}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "rules",
+      "item": [
+        {
+          "name": "Rules",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/rules",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "rules"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Put Tariff",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/rules/tariffs/{code}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "rules",
+                "tariffs",
+                "{code}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"<value>\",\n  \"coefficient_x100\": \"<value>\",\n  \"is_active\": \"<value>\",\n  \"sort_order\": \"<value>\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Del Tariff",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/rules/tariffs/{code}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "rules",
+                "tariffs",
+                "{code}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Add Bonus Rule",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/rules/bonus",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "rules",
+                "bonus"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"recipient\": \"<string>\",\n  \"min_percent\": \"<integer>\",\n  \"bonus_uzs\": \"<integer>\",\n  \"is_active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Put Bonus Rule",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/rules/bonus/{rule_id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "rules",
+                "bonus",
+                "{rule_id}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"recipient\": \"<string>\",\n  \"min_percent\": \"<integer>\",\n  \"bonus_uzs\": \"<integer>\",\n  \"is_active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Del Bonus Rule",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/rules/bonus/{rule_id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "rules",
+                "bonus",
+                "{rule_id}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Put Milestone",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/rules/milestones/{code}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "rules",
+                "milestones",
+                "{code}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"<string>\",\n  \"required_count\": \"<integer>\",\n  \"reward_uzs\": \"<integer>\",\n  \"is_active\": false,\n  \"sort_order\": 100\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Del Milestone",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/rules/milestones/{milestone_id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "rules",
+                "milestones",
+                "{milestone_id}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Enable Ms",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/rules/milestones/enable",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "rules",
+                "milestones",
+                "enable"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mode\": \"from_now\",\n  \"confirm\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Disable Ms",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/rules/milestones/disable",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "rules",
+                "milestones",
+                "disable"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Welcome Toggle",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/rules/welcome",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "rules",
+                "welcome"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"enabled\": \"<boolean>\",\n  \"max_periods\": \"<value>\",\n  \"confirm\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Simulate Rules",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/rules/simulate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "rules",
+                "simulate"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"period\": \"<string>\",\n  \"draft\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Simulate Base",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/rules/simulate/base/{period}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "rules",
+                "simulate",
+                "base",
+                "{period}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Apply Current",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/rules/apply-current",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "rules",
+                "apply-current"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "settings",
+      "item": [
+        {
+          "name": "Get Settings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/settings",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "settings"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Put Setting",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/settings/{key}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "settings",
+                "{key}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"value\": \"<value>\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Fleet Categories",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/settings/fleet-categories/load",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "settings",
+                "fleet-categories",
+                "load"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "terms",
+      "item": [
+        {
+          "name": "List Terms",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/terms",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "terms"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Terms",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/terms",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "terms"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text_ru\": \"<string>\",\n  \"text_uz_latn\": \"<string>\",\n  \"text_uz_cyrl\": \"<string>\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Publish Terms",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/terms/{terms_id}/publish",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "terms",
+                "{terms_id}",
+                "publish"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Terms Not Accepted",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/terms/not-accepted",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "terms",
+                "not-accepted"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "tickets",
+      "item": [
+        {
+          "name": "Tickets",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/tickets",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "tickets"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Ticket",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/tickets/{tid}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "tickets",
+                "{tid}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Ticket Reply",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/tickets/{tid}/reply",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "tickets",
+                "{tid}",
+                "reply"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"<string>\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Ticket Close",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/tickets/{tid}/close",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "tickets",
+                "{tid}",
+                "close"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "withdrawals",
+      "item": [
+        {
+          "name": "Withdrawals",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/withdrawals",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "withdrawals"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Wd Approve",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/withdrawals/{wid}/approve",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "withdrawals",
+                "{wid}",
+                "approve"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Wd Paid",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/withdrawals/{wid}/paid",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "withdrawals",
+                "{wid}",
+                "paid"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"proof_file_id\": \"<string>\",\n  \"reference\": \"<value>\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Wd Cancel",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/withdrawals/{wid}/cancel",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "withdrawals",
+                "{wid}",
+                "cancel"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Wd Retry",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/api/withdrawals/{wid}/retry",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "api",
+                "withdrawals",
+                "{wid}",
+                "retry"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
