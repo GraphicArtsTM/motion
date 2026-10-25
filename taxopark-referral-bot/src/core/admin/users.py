@@ -204,3 +204,20 @@ async def delete_personal_data(ctx: Ctx, actor: User, user_id: int) -> None:
     user.access_status = "blocked"
     user.consent_at = None
     await audit_log(ctx, actor.id, "personal_data_deleted", "user", user_id)
+
+
+async def cancel_accrual_by_admin(ctx: Ctx, actor: User, accrual_id: int, reason: str) -> int:
+    """Аннулирование начисления (8.3 «Начисления»). Уже выведенное — только через корректировку."""
+    from src.core.billing.accruals import cancel_accrual
+    require_role(actor.role, "admin")
+    if not reason.strip():
+        raise BusinessError("err.reason_required")
+    acc = await ctx.session.get(Accrual, accrual_id)
+    if acc is None:
+        raise NotFound("accrual", accrual_id)
+    if acc.status not in ("available", "hold"):
+        raise BusinessError("err.invalid_accrual_state")
+    amount = await cancel_accrual(ctx, acc, f"admin: {reason}")
+    await audit_log(ctx, actor.id, "accrual_cancelled", "accrual", accrual_id,
+                    new_value={"amount": amount, "reason": reason})
+    return amount

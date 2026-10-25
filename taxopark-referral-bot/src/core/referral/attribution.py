@@ -122,8 +122,9 @@ async def set_is_counted(ctx: Ctx, referral_id: int, counted: bool, actor_id: in
     old = ref.is_counted
     ref.is_counted = counted
     if counted and ref.status in ("rejected", "registered", "pending_approval", "expired"):
-        from src.db.models import Driver
         from sqlalchemy import select
+
+        from src.db.models import Driver
         has_driver = await ctx.session.scalar(select(Driver.id).where(Driver.user_id == ref.referred_user_id))
         ref.status = "hired" if has_driver else "registered"
         ref.rejected_reason = None

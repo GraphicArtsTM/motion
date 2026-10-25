@@ -9,7 +9,8 @@ from typing import Any
 from aiogram import Bot
 from aiogram.client.session.base import BaseSession
 from aiogram.methods import TelegramMethod
-from aiogram.types import CallbackQuery, Chat, Contact, Message, PhotoSize, Update, User as TgUser
+from aiogram.types import CallbackQuery, Chat, Contact, Message, PhotoSize, Update
+from aiogram.types import User as TgUser
 
 _ids = itertools.count(1000)
 

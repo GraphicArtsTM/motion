@@ -10,7 +10,14 @@ from src.core.billing.periods import close_period, open_period
 from src.core.billing.withdrawal import request_withdrawal
 from src.core.fraud.engine import run_fraud_check
 from src.db.models import Accrual, DriverOnlineTime, FraudFlag, Referral, User
-from tests.factories import add_orders, assert_wallet_invariants, counted_referral, current, run_queue, with_profile
+from tests.factories import (
+    add_orders,
+    assert_wallet_invariants,
+    counted_referral,
+    current,
+    run_queue,
+    with_profile,
+)
 
 
 async def _flags(ctx):
@@ -116,7 +123,7 @@ async def test_clawback_after_payout_tc107(ctx, clock):
 
 
 async def test_same_car_and_velocity(ctx):
-    from tests.factories import add_profile, link, create_user
+    from tests.factories import add_profile, create_user, link
     referrer = await create_user(ctx)
     p = await add_profile(ctx, car_id="car-1")
     await link(ctx, referrer, p)

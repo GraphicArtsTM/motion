@@ -347,6 +347,7 @@ err-terms_all_languages_required = Текст условий нужен на в�
 err-terms_already_published = Эта версия уже опубликована.
 err-unknown_setting = Неизвестная настройка { $key }.
 err-use_milestones_toggle = Награды включаются отдельным тумблером с выбором режима.
+err-invalid_accrual_state = Начисление уже выведено или аннулировано — используйте корректировку.
 err-withdrawal_already_paid = Транзакция найдена в Fleet — вывод отмечен как выполненный.
 
 reject_reason-not_connected = профиль Яндекс Про не подключён к парку
@@ -455,3 +456,4 @@ admin-alert-withdrawal_verifying_stuck = ⏳ Вывод #{ $withdrawal_id } ({ $
 admin-alert-job_failed = ❗️ Фоновая задача { $job } упала: { $error }
 admin-alert-health = 🩺 Проблема со здоровьем системы: { $problems }
 admin-alert-terms_not_accepted = 📄 Новую версию условий ещё не приняли { $count } водителей.
+digest-monthly = 📬 Итоги за { $month }: друзей, выполнивших план, — { $friends }. Новый месяц начался — приглашайте друзей и напоминайте им о плане!

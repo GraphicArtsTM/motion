@@ -99,7 +99,7 @@ def check_burst(orders: list[Order], coefs: dict[str, int], default: int, thresh
     window = timedelta(days=days)
     start = 0
     acc = 0
-    for end, o in enumerate(orders):
+    for o in orders:
         acc += coefs.get(o.tariff_class or "unknown", default)
         while orders[start].ended_at and o.ended_at and o.ended_at - orders[start].ended_at >= window:
             acc -= coefs.get(orders[start].tariff_class or "unknown", default)

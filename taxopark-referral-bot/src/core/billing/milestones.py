@@ -8,7 +8,10 @@ from sqlalchemy import exists, select
 
 from src.core.admin.audit import audit_log
 from src.core.admin.roles import require_role
-from src.core.billing.qualification import count_distinct_qualified_referrals_lifetime, users_with_counted_referrals
+from src.core.billing.qualification import (
+    count_distinct_qualified_referrals_lifetime,
+    users_with_counted_referrals,
+)
 from src.core.context import Ctx
 from src.core.errors import BusinessError
 from src.db.models import Milestone, SettingsHistory, User, UserMilestone

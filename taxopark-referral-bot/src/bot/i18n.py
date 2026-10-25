@@ -62,8 +62,8 @@ class Translator:
             for path in sorted((locales_dir / lang).glob("*.ftl")):
                 resource = FluentResource(path.read_text(encoding="utf-8"))
                 bundle.add_resource(resource)
-                ids.update(getattr(entry, "id").name for entry in resource.body
-                           if hasattr(entry, "id") and hasattr(getattr(entry, "id"), "name"))
+                ids.update(entry.id.name for entry in resource.body
+                           if hasattr(entry, "id") and hasattr(entry.id, "name"))
             self.bundles[lang] = bundle
             self.messages[lang] = ids
 

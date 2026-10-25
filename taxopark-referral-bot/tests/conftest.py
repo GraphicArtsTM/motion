@@ -12,12 +12,12 @@ os.environ.setdefault("TZ_DISPLAY", "Asia/Tashkent")
 os.environ.setdefault("ENVIRONMENT", "test")
 
 import pytest
+from alembic.config import Config
 from sqlalchemy import create_engine, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from alembic import command
-from alembic.config import Config
 from src.config import get_config
 from src.core.clock import FrozenClock, display_tz
 from src.core.context import Ctx, RecordingQueue, make_ctx

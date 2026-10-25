@@ -23,6 +23,7 @@ from src.core.support.tickets import add_user_message, create_dispute, create_ti
 from src.db.models import Accrual, Period, User, Withdrawal
 
 router = Router(name="wallet")
+HISTORY_SIZE = 15
 
 
 async def wallet_text(ctx: Ctx, user: User, t: Any) -> tuple[str, Any]:
@@ -123,9 +124,9 @@ async def history(cb: CallbackQuery, **data: Any) -> None:
     ctx, user, t = data["ctx"], data["user"], data["t"]
     accs = (await ctx.session.execute(select(Accrual).where(
         Accrual.user_id == user.id, Accrual.parent_accrual_id.is_(None), Accrual.status != "cancelled")
-        .order_by(Accrual.created_at.desc()).limit(15))).scalars().all()
+        .order_by(Accrual.created_at.desc()).limit(HISTORY_SIZE))).scalars().all()
     wds = (await ctx.session.execute(select(Withdrawal).where(Withdrawal.user_id == user.id)
-                                     .order_by(Withdrawal.requested_at.desc()).limit(10))).scalars().all()
+                                     .order_by(Withdrawal.requested_at.desc()).limit(HISTORY_SIZE))).scalars().all()
     items: list[tuple[Any, str]] = []
     for a in accs:
         items.append((a.created_at, t("wallet.history_accrual", date={"__date__": a.created_at.isoformat()},

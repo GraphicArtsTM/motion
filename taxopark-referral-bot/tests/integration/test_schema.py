@@ -29,8 +29,8 @@ def test_checks_and_partial_index(sync_engine):
 
 
 def test_audit_log_is_immutable(sync_engine):
-    from sqlalchemy import text
     import pytest
+    from sqlalchemy import text
     with sync_engine.begin() as conn:
         conn.execute(text("INSERT INTO audit_log (action) VALUES ('x')"))
     with pytest.raises(Exception):

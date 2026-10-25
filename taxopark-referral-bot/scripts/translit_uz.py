@@ -1,4 +1,6 @@
-import re, sys
+import re
+import sys
+
 PROTECT = {"welcome", "Telegram", "WhatsApp", "Instagram", "QR", "QR-kod", "Fleet", "API", "SQL", "SELECT",
            "REHIRE", "Clawback", "ID", "TG", "AB1234567", "profile_id", "Go", "24/7", "Pro'ga", "reply"}
 REPL_PRE = [("Yandex Pro'sini", "Яндекс Про иловасини"), ("Yandex Pro'ga", "Яндекс Про'га"), ("Yandex Pro", "Яндекс Про"),

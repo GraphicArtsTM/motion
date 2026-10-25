@@ -347,6 +347,7 @@ err-terms_all_languages_required = Шартлар матни учала тилд
 err-terms_already_published = Бу таҳрир аллақачон эълон қилинган.
 err-unknown_setting = Номаълум созлама { $key }.
 err-use_milestones_toggle = Мукофотлар режим танланадиган алоҳида тугма билан ёқилади.
+err-invalid_accrual_state = Ҳисоб аллақачон ечилган ёки бекор қилинган — тузатишдан фойдаланинг.
 err-withdrawal_already_paid = Транзаксия Флеет'да топилди — ечиш бажарилган деб белгиланди.
 
 reject_reason-not_connected = Яндекс Про профили паркка уланмаган
@@ -455,3 +456,4 @@ admin-alert-withdrawal_verifying_stuck = ⏳ #{ $withdrawal_id } ечиш ({ $am
 admin-alert-job_failed = ❗️ { $job } фон вазифаси ишдан чиқди: { $error }
 admin-alert-health = 🩺 Тизим ҳолатида муаммо: { $problems }
 admin-alert-terms_not_accepted = 📄 Шартларнинг янги таҳририни ҳали { $count } та ҳайдовчи қабул қилмаган.
+digest-monthly = 📬 { $month } якунлари: режани бажарган дўстлар — { $friends }. Янги ой бошланди — дўстларингизни таклиф қилинг ва уларга режа ҳақида эслатинг!

@@ -12,7 +12,15 @@ from src.core.admin.audit import audit_log
 from src.core.admin.roles import require_role
 from src.core.context import Ctx
 from src.core.errors import BusinessError
-from src.db.models import Broadcast, BroadcastRecipient, Driver, NotificationOutbox, ParkDriverProfile, Referral, User
+from src.db.models import (
+    Broadcast,
+    BroadcastRecipient,
+    Driver,
+    NotificationOutbox,
+    ParkDriverProfile,
+    Referral,
+    User,
+)
 
 
 async def create_broadcast(ctx: Ctx, actor: User, *, title: str, text_: str, segment: dict[str, Any] | None = None,
@@ -54,6 +62,7 @@ async def resolve_segment(ctx: Ctx, segment: dict[str, Any]) -> list[int]:
         q = q.where(User.id.in_(cnt))
     if segment.get("active_since_days") is not None:
         from datetime import timedelta
+
         from src.db.models import Order
         border = ctx.now() - timedelta(days=int(segment["active_since_days"]))
         q = q.where(User.id.in_(select(Driver.user_id).join(Order, Order.driver_profile_id == Driver.driver_profile_id)

@@ -11,7 +11,15 @@ from sqlalchemy import func, literal_column, select
 from src.core.admin.dashboard import FUNNEL, channels_report, funnel_from_rows
 from src.core.clock import to_local
 from src.core.context import Ctx
-from src.db.models import AuditLog, DriverOnlineTime, OrderDailyStat, Qualification, Referral, User, Withdrawal
+from src.db.models import (
+    AuditLog,
+    DriverOnlineTime,
+    OrderDailyStat,
+    Qualification,
+    Referral,
+    User,
+    Withdrawal,
+)
 
 MONTH_FMT = literal_column("'YYYY-MM'")
 Report = tuple[list[str], list[list[Any]]]

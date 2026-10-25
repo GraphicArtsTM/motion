@@ -14,7 +14,12 @@ from src.db.models import ApiSyncLog, ParkDriverProfile
 from src.integrations.fleet.api import ApiFleetProvider
 from src.integrations.fleet.base import FleetDriverProfile
 from src.integrations.fleet.circuit import CircuitBreaker
-from src.integrations.fleet.errors import CircuitOpenError, NonRetryableFleetError, RetryableFleetError, UnknownOutcomeError
+from src.integrations.fleet.errors import (
+    CircuitOpenError,
+    NonRetryableFleetError,
+    RetryableFleetError,
+    UnknownOutcomeError,
+)
 
 
 def _p(i, **kw):

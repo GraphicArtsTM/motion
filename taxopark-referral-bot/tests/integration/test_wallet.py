@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import timedelta
 
 import pytest
 from sqlalchemy import func, select
@@ -18,9 +17,16 @@ from src.core.billing.withdrawal import (
 )
 from src.core.context import RecordingQueue, make_ctx
 from src.core.errors import BusinessError
-from src.db.models import Accrual, User, Withdrawal
 from src.core.onboarding.registration import flag_fraud
-from tests.factories import assert_wallet_invariants, counted_referral, create_user, outbox_keys, run_queue, with_profile
+from src.db.models import Accrual, User, Withdrawal
+from tests.factories import (
+    assert_wallet_invariants,
+    counted_referral,
+    create_user,
+    outbox_keys,
+    run_queue,
+    with_profile,
+)
 
 
 async def credit(ctx, user, amount, n=1):

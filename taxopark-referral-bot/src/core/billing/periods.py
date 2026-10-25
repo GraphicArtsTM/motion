@@ -10,7 +10,11 @@ from sqlalchemy import select
 from src.core.billing.accruals import count_accruals, create_accrual_if_not_exists, initial_accrual_status
 from src.core.billing.bonus_rules import best_bonus_rule
 from src.core.billing.budget import BudgetTracker, period_spent
-from src.core.billing.milestones import active_milestones_ordered_asc, record_user_milestone, user_has_milestone
+from src.core.billing.milestones import (
+    active_milestones_ordered_asc,
+    record_user_milestone,
+    user_has_milestone,
+)
 from src.core.billing.qualification import (
     count_distinct_qualified_referrals_lifetime,
     qualifications_for_referrer,

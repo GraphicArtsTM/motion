@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import timedelta
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from src.core.admin.broadcasts import create_broadcast, refresh_stats, start_broadcast
 from src.core.admin.dashboard import channels_report, dashboard

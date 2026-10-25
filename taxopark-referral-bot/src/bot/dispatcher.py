@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import timedelta
+
 import structlog
 from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramRetryAfter

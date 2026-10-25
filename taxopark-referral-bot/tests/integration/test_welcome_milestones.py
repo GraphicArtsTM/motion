@@ -12,7 +12,7 @@ from src.core.billing.periods import close_period, open_period
 from src.core.clock import next_code
 from src.core.errors import BusinessError, PermissionDenied
 from src.core.simulation.simulator import compare
-from src.db.models import Accrual, BonusRule, Milestone, Qualification, Referral, User, UserMilestone
+from src.db.models import Accrual, BonusRule, Milestone, Qualification, User
 from tests.factories import add_orders, counted_referral, create_user, current, outbox_keys
 
 

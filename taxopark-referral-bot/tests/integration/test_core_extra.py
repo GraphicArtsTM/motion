@@ -7,7 +7,12 @@ from datetime import timedelta
 import pytest
 from sqlalchemy import select
 
-from src.core.billing.accruals import cancel_accrual, create_accrual_if_not_exists, release_holds, sum_accruals
+from src.core.billing.accruals import (
+    cancel_accrual,
+    create_accrual_if_not_exists,
+    release_holds,
+    sum_accruals,
+)
 from src.core.billing.bonus_rules import (
     best_rule,
     delete_rule,
@@ -17,7 +22,13 @@ from src.core.billing.bonus_rules import (
     welcome_bonus_amount,
 )
 from src.core.billing.debt import create_correction, write_off_debt
-from src.core.billing.milestones import all_milestones, disable_milestones, enable_milestones, upsert_milestone, user_milestones
+from src.core.billing.milestones import (
+    all_milestones,
+    disable_milestones,
+    enable_milestones,
+    upsert_milestone,
+    user_milestones,
+)
 from src.core.billing.reconciliation import reconcile_withdrawals, retry_pending_withdrawals
 from src.core.billing.wallet import recalc_user_balances, sha256, wallet_totals
 from src.core.billing.withdrawal import (
@@ -32,7 +43,7 @@ from src.core.onboarding.validation import format_phone, mask_phone, short_name,
 from src.core.referral.attribution import admin_link_referral, admin_unlink_referral, set_is_counted
 from src.core.referral.matching import admin_link_profile, admin_unlink_profile
 from src.core.scoring.coefficients import delete_tariff, register_tariff_if_unknown, upsert_tariff
-from src.db.models import Accrual, Driver, Referral, User, Withdrawal
+from src.db.models import Accrual, User, Withdrawal
 from tests.factories import (
     add_profile,
     assert_wallet_invariants,

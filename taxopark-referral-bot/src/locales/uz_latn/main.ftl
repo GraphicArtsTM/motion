@@ -347,6 +347,7 @@ err-terms_all_languages_required = Shartlar matni uchala tilda ham kerak.
 err-terms_already_published = Bu tahrir allaqachon e'lon qilingan.
 err-unknown_setting = Noma'lum sozlama { $key }.
 err-use_milestones_toggle = Mukofotlar rejim tanlanadigan alohida tugma bilan yoqiladi.
+err-invalid_accrual_state = Hisob allaqachon yechilgan yoki bekor qilingan — tuzatishdan foydalaning.
 err-withdrawal_already_paid = Tranzaksiya Fleet'da topildi — yechish bajarilgan deb belgilandi.
 
 reject_reason-not_connected = Yandex Pro profili parkka ulanmagan
@@ -455,3 +456,4 @@ admin-alert-withdrawal_verifying_stuck = ⏳ #{ $withdrawal_id } yechish ({ $amo
 admin-alert-job_failed = ❗️ { $job } fon vazifasi ishdan chiqdi: { $error }
 admin-alert-health = 🩺 Tizim holatida muammo: { $problems }
 admin-alert-terms_not_accepted = 📄 Shartlarning yangi tahririni hali { $count } ta haydovchi qabul qilmagan.
+digest-monthly = 📬 { $month } yakunlari: rejani bajargan do'stlar — { $friends }. Yangi oy boshlandi — do'stlaringizni taklif qiling va ularga reja haqida eslating!

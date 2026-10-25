@@ -59,7 +59,7 @@ async def consent_no(cb: CallbackQuery, **data: Any) -> None:
 
 @router.callback_query(F.data == "consent:yes", flags={"screen": "registration"})
 async def consent_yes(cb: CallbackQuery, **data: Any) -> None:
-    ctx, user, t = data["ctx"], data["user"], data["t"]
+    ctx, user = data["ctx"], data["user"]
     user.consent_at = ctx.now()
     await ctx.session.commit()
     from src.bot.handlers.common import show_terms

@@ -33,6 +33,7 @@ from src.db.models import User
 from src.runtime import open_ctx
 
 router = Router(name="menu")
+QR_BOX_SIZE = 12
 COUNT_SUFFIX = re.compile(r"\s*\(\d+\)$")
 
 
@@ -77,7 +78,7 @@ async def my_link(message: Message, **data: Any) -> None:
 
 
 def qr_png(url: str) -> bytes:
-    img = qrcode.make(url, box_size=10, border=2)
+    img = qrcode.make(url, box_size=QR_BOX_SIZE, border=2)
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return buf.getvalue()
@@ -216,7 +217,7 @@ async def rating(message: Message, **data: Any) -> None:
 # ── 🎁 Промо-материалы ───────────────────────────────────────────────────────
 @router.message(MenuButton("btn.menu-promo"), flags={"screen": "promo"})
 async def promo(message: Message, **data: Any) -> None:
-    ctx, user, t = data["ctx"], data["user"], data["t"]
+    user, t = data["user"], data["t"]
     await message.answer(t("promo.title"))
     for i, tag in enumerate(("tg", "wa", "ig"), start=1):
         await message.answer(t(f"promo.text-{i}", link=ref_link(user.referral_code, tag)),

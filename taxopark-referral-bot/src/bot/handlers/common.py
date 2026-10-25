@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message, ReplyKeyboardMarkup, ReplyKeyboardRemove, TelegramObject
+from aiogram.types import (
+    CallbackQuery,
+    InlineKeyboardMarkup,
+    Message,
+    ReplyKeyboardMarkup,
+    ReplyKeyboardRemove,
+    TelegramObject,
+)
 
 from src.bot.keyboards.menu import inline, language_kb, limited_menu, main_menu
 from src.bot.render import current_terms_obj, terms_text

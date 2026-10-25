@@ -54,7 +54,11 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "ASYNC"]
-ignore = ["E501", "B008"]
+ignore = ["E501", "B008", "B905", "ASYNC240"]
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/translit_uz.py" = ["E702", "B023"]
+"tests/**" = ["ASYNC109", "B017", "F841"]
 
 [tool.mypy]
 python_version = "3.11"
