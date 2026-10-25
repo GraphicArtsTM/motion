@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Настройка бота таксопарка</title>
+<style>
+  :root { --bg:#f4f5f7; --card:#fff; --text:#1d2129; --muted:#6b7280; --line:#e5e7eb; --accent:#ffcc00;
+          --accent-text:#1d2129; --ok:#15803d; --bad:#b91c1c; --warn:#b45309; --code:#f3f4f6; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#111317; --card:#1b1e24; --text:#e8eaed; --muted:#9aa0a6; --line:#2c3038; --code:#262a31;
+            --ok:#4ade80; --bad:#f87171; --warn:#fbbf24; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  main { max-width:860px; margin:0 auto; padding:24px 16px 80px; }
+  h1 { font-size:24px; margin:8px 0 4px; } h2 { font-size:18px; margin:0 0 4px; }
+  .lead { color:var(--muted); margin:0 0 20px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:20px; margin:0 0 16px; }
+  .step { display:inline-flex; width:26px; height:26px; border-radius:50%; background:var(--accent); color:var(--accent-text);
+          align-items:center; justify-content:center; font-weight:700; margin-right:8px; font-size:14px; }
+  label { display:block; font-weight:600; margin:14px 0 4px; }
+  .hint { color:var(--muted); font-size:13px; margin:4px 0 0; }
+  input[type=text], input[type=password], input[type=number], textarea, select {
+    width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--text); font:inherit; }
+  textarea { min-height:110px; font-family:ui-monospace,Consolas,monospace; font-size:13px; }
+  .row { display:grid; grid-template-columns:1fr 1fr; gap:12px; } @media (max-width:640px){ .row{grid-template-columns:1fr;} }
+  button { border:0; border-radius:8px; padding:10px 16px; font:inherit; font-weight:600; cursor:pointer;
+           background:var(--code); color:var(--text); margin-top:12px; }
+  button.primary { background:var(--accent); color:var(--accent-text); }
+  button.big { width:100%; padding:16px; font-size:17px; }
+  button:disabled { opacity:.6; cursor:wait; }
+  .status { margin-top:10px; font-size:14px; } .ok{color:var(--ok);} .bad{color:var(--bad);} .warn{color:var(--warn);}
+  details { margin-top:10px; } summary { cursor:pointer; color:var(--muted); }
+  ol { padding-left:20px; margin:8px 0; } code { background:var(--code); padding:1px 5px; border-radius:4px; font-size:13px; }
+  table { width:100%; border-collapse:collapse; margin-top:12px; font-size:14px; }
+  th, td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-weight:600; font-size:12px; text-transform:uppercase; }
+  .pill { display:inline-block; padding:1px 8px; border-radius:99px; font-size:12px; border:1px solid var(--line); }
+  .choice { display:flex; gap:10px; align-items:flex-start; padding:10px 12px; border:1px solid var(--line); border-radius:8px; margin-top:8px; cursor:pointer; }
+  .choice input { margin-top:4px; }
+  .list { margin-top:8px; } .list label { font-weight:400; margin:4px 0; display:flex; gap:8px; align-items:center; }
+  .qr { display:flex; gap:16px; align-items:center; flex-wrap:wrap; margin-top:10px; } .qr img { width:180px; height:180px; border-radius:8px; background:#fff; }
+  .done { text-align:center; padding:40px 20px; } .done h2 { font-size:22px; }
+  .err li { color:var(--bad); }
+</style>
+</head>
+<body>
+<main id="app">
+  <h1>🚕 Настройка реферального бота</h1>
+  <p class="lead">Заполните шаги по порядку — каждую часть можно сразу проверить кнопкой. После «Сохранить» окно закроется,
+    а запуск продолжится автоматически. Мастер можно открыть снова в любой момент: <code>setup.bat</code>.</p>
+
+  <section class="card">
+    <h2><span class="step">1</span>Telegram-бот</h2>
+    <details open><summary>Где взять токен</summary><ol>
+      <li>Откройте в Telegram <b>@BotFather</b> → <code>/newbot</code> → придумайте имя и username (на конце <code>bot</code>).</li>
+      <li>BotFather пришлёт токен вида <code>123456789:AAH…</code> — вставьте его ниже.</li>
+      <li>Рекомендуем там же: <code>/setjoingroups</code> → Enable (для админ-чата), <code>/setdescription</code> — описание.</li>
+    </ol></details>
+    <label for="bot_token">Токен бота</label>
+    <input id="bot_token" type="password" placeholder="123456789:AA…" autocomplete="off">
+    <p class="hint" id="bot_token_saved"></p>
+    <button onclick="checkBot()">Проверить токен</button>
+    <div class="status" id="bot_status"></div>
+  </section>
+
+  <section class="card">
+    <h2><span class="step">2</span>Администраторы и админ-чат</h2>
+    <p class="hint">Сюда будут приходить заявки на подключение, выводы, обращения и алерты.</p>
+    <ol>
+      <li>Откройте своего бота в Telegram и отправьте ему <code>/start</code> (каждый администратор — со своего аккаунта).</li>
+      <li>Для общего админ-чата: создайте группу, добавьте туда бота и напишите в группе <code>/start@имя_бота</code>.</li>
+      <li>Нажмите «Найти» — мастер покажет, кто писал боту.</li>
+    </ol>
+    <button onclick="findChats()">Найти</button>
+    <div class="status" id="chats_status"></div>
+    <div class="row">
+      <div><label>Администраторы (Telegram ID)</label><div class="list" id="people"></div>
+        <input id="admin_ids" type="text" placeholder="или вручную: 111111111, 222222222"></div>
+      <div><label>Админ-чат (группа)</label><div class="list" id="groups"></div>
+        <input id="admin_chat_id" type="text" placeholder="или вручную: -1001234567890">
+        <p class="hint">Если не указать — уведомления придут администраторам в личку.</p></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2><span class="step">3</span>API таксопарка (Яндекс Fleet)</h2>
+    <details open><summary>Где взять ключ и какие доступы отметить</summary><ol>
+      <li>Кабинет парка <b>fleet.yandex.ru</b> → <b>Настройки</b> → <b>API</b> (ключи API) → <b>Создать ключ</b>.
+        Создайте <b>отдельный ключ только для бота</b>.</li>
+      <li>Отметьте доступы <b>только к методам из таблицы ниже</b>: обязательные — для работы, желательные — для тарифа по авто,
+        антифрода и карточки водителя. Больше ничего не включайте (создание/изменение профилей и авто, гараж, курьеры, заправки,
+        «[Устаревший]» методы — <b>не нужны</b>).</li>
+      <li>Скопируйте <b>Client ID</b> (вида <code>taxi/park/…</code>), <b>API-ключ</b> и <b>ID парка</b> (есть в адресной строке кабинета и в разделе API).</li>
+    </ol>
+    <table><thead><tr><th>Метод в кабинете</th><th>Доступ</th><th>Зачем</th></tr></thead><tbody id="perm_table"></tbody></table>
+    </details>
+    <div class="choice" onclick="pick('fleet_provider','api')"><input type="radio" name="fleet_provider" value="api" checked>
+      <div><b>Подключить API</b> — проверка друзей по базе, баллы по заказам и автоматический вывод денег.</div></div>
+    <div class="choice" onclick="pick('fleet_provider','manual')"><input type="radio" name="fleet_provider" value="manual">
+      <div><b>Пока без API</b> — бот запустится, но привязку профилей и выплаты администратор делает вручную.</div></div>
+    <div id="fleet_fields">
+      <div class="row">
+        <div><label for="fleet_client_id">Client ID</label><input id="fleet_client_id" type="text" placeholder="taxi/park/…"></div>
+        <div><label for="fleet_park_id">ID парка</label><input id="fleet_park_id" type="text" placeholder="32 символа"></div>
+      </div>
+      <label for="fleet_api_key">API-ключ</label>
+      <input id="fleet_api_key" type="password" autocomplete="off"><p class="hint" id="fleet_key_saved"></p>
+      <details><summary>Адрес API (менять не нужно)</summary>
+        <input id="fleet_base_url" type="text" value="https://fleet-api.taxi.yandex.net"></details>
+      <button onclick="checkFleet()">Проверить доступы ключа</button>
+      <p class="hint">Проверка ничего не меняет в парке: методы чтения вызываются с ограничением в 1 запись, выплата — заведомо
+        неверным запросом без списания денег.</p>
+      <div class="status" id="fleet_status"></div>
+      <table id="fleet_table" hidden><thead><tr><th>Метод</th><th></th><th>Результат</th></tr></thead><tbody></tbody></table>
+      <div id="fleet_facts" class="hint"></div>
+      <div id="cat_block" hidden>
+        <label for="fleet_category_id">Категория транзакции для выплат</label>
+        <select id="fleet_category_id"></select>
+        <p class="hint">Под этой категорией выплаты будут видны в кабинете и в Яндекс Про водителя. Лучше заранее создать в кабинете
+          категорию «Бонус реферальной программы».</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2><span class="step">4</span>Таксопарк и выплаты</h2>
+    <label for="park_contacts">Контакты парка — их видит друг, пока ждёт подключения</label>
+    <textarea id="park_contacts"></textarea>
+    <p class="hint">Можно использовать &lt;b&gt;жирный&lt;/b&gt; и ссылки. Суммы, пороги и коэффициенты меняются потом в админке.</p>
+    <label>Вывод денег водителями</label>
+    <div class="choice" onclick="pick('withdrawal_mode','auto')"><input type="radio" name="withdrawal_mode" value="auto" checked>
+      <div><b>Автоматически</b> — по кнопке «Вывести» деньги сразу уходят на баланс Яндекс Про.</div></div>
+    <div class="choice" onclick="pick('withdrawal_mode','manual')"><input type="radio" name="withdrawal_mode" value="manual">
+      <div><b>С подтверждением менеджера</b> — каждая заявка ждёт кнопки в админ-чате.</div></div>
+  </section>
+
+  <section class="card">
+    <h2><span class="step">5</span>Вход в веб-панель</h2>
+    <p class="hint">Панель: правила программы, симулятор, отчёты, выводы. Вход — логин, пароль и код из приложения
+      Google Authenticator / Яндекс Ключ (двухфакторная защита). Можно пропустить и настроить позже.</p>
+    <div class="row">
+      <div><label for="panel_login">Логин</label><input id="panel_login" type="text" placeholder="admin"></div>
+      <div><label for="panel_password">Пароль (от 8 символов)</label><input id="panel_password" type="password" autocomplete="new-password"></div>
+    </div>
+    <label for="panel_telegram_id">Telegram ID владельца панели</label>
+    <input id="panel_telegram_id" type="text" placeholder="по умолчанию — первый администратор">
+    <button onclick="newTotp()">Включить двухфакторный вход</button>
+    <div class="qr" id="totp_block" hidden>
+      <img id="totp_qr" alt="QR-код для приложения-аутентификатора">
+      <div><p>Отсканируйте QR-код в приложении-аутентификаторе и введите 6 цифр:</p>
+        <input id="totp_code" type="text" inputmode="numeric" maxlength="6" placeholder="000000" style="max-width:160px">
+        <button onclick="verifyTotp()">Подтвердить</button><div class="status" id="totp_status"></div></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2><span class="step">6</span>Где работает бот</h2>
+    <div class="choice" onclick="pick('mode','polling')"><input type="radio" name="mode" value="polling" checked>
+      <div><b>На этом компьютере</b> — домен и HTTPS не нужны. Бот работает, пока включён компьютер и запущен Docker.</div></div>
+    <div class="choice" onclick="pick('mode','webhook')"><input type="radio" name="mode" value="webhook">
+      <div><b>Сервер с доменом</b> — рекомендуемо для работы 24/7. Нужен домен, направленный на сервер (A-запись),
+        порты 80 и 443. Сервер с базой должен находиться в Узбекистане (закон о ПД).</div></div>
+    <div id="domain_block" hidden><label for="domain">Домен</label><input id="domain" type="text" placeholder="bot.example.uz"></div>
+  </section>
+
+  <ul class="err" id="errors"></ul>
+  <button class="primary big" id="save_btn" onclick="save()">💾 Сохранить и запустить</button>
+</main>
+
+<script>
+const PERMS = [
+  ["Получение списка профилей исполнителей","чтение",true,"проверка друга по базе парка"],
+  ["Получение профиля исполнителя","чтение",true,"номер ВУ водителя"],
+  ["Получение списка заказов","чтение",true,"баллы друзей за заказы"],
+  ["Получение списка категорий транзакций","чтение",true,"категория выплат"],
+  ["Создание транзакции на балансе исполнителя (не «[Устаревший]»)","запись",true,"вывод денег водителю"],
+  ["Получение информации о статусе транзакции","чтение",true,"защита от двойной выплаты"],
+  ["Получение списка транзакций по исполнителю","чтение",true,"сверка выплат"],
+  ["Получение списка автомобилей / Получение автомобиля","чтение",false,"тариф по категории авто"],
+  ["Получение времени исполнителя на линии","чтение",false,"антифрод"],
+  ["Получение списка условий работы","чтение",false,"сегменты рассылок"],
+  ["Получение заблокированного баланса водителя","чтение",false,"карточка водителя"],
+];
+const $ = id => document.getElementById(id);
+const state = { bot_username:"", totp_secret:"", totp_ok:false, categories:[], can_payout:true };
+$("perm_table").innerHTML = PERMS.map(p => `<tr><td>${p[0]}</td><td>${p[1]}</td><td>${p[2] ? "<b>обязательно</b> — " : "желательно — "}${p[3]}</td></tr>`).join("");
+
+function pick(name, value) {
+  document.querySelectorAll(`input[name=${name}]`).forEach(r => r.checked = r.value === value);
+  if (name === "fleet_provider") $("fleet_fields").hidden = value !== "api";
+  if (name === "mode") $("domain_block").hidden = value !== "webhook";
+}
+const val = name => (document.querySelector(`input[name=${name}]:checked`) || {}).value;
+function setStatus(id, cls, html) { $(id).className = "status " + cls; $(id).innerHTML = html; }
+async function api(path, body) {
+  const r = await fetch(path, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body || {}) });
+  return r.json();
+}
+async function busy(btn, fn) { btn.disabled = true; try { await fn(); } catch(e) { alert("Ошибка: " + e); } finally { btn.disabled = false; } }
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+async function load() {
+  const c = await (await fetch("/api/current")).json();
+  if (c.bot_token_masked) $("bot_token_saved").textContent = "Сохранён: " + c.bot_token_masked + " — оставьте поле пустым, чтобы не менять.";
+  if (c.fleet_api_key_masked) $("fleet_key_saved").textContent = "Сохранён: " + c.fleet_api_key_masked + " — оставьте поле пустым, чтобы не менять.";
+  state.bot_username = c.bot_username || "";
+  $("admin_ids").value = (c.admin_ids || []).join(", ");
+  $("admin_chat_id").value = c.admin_chat_id || "";
+  $("fleet_client_id").value = c.fleet_client_id || ""; $("fleet_park_id").value = c.fleet_park_id || "";
+  $("fleet_base_url").value = c.fleet_base_url; $("park_contacts").value = c.park_contacts;
+  $("domain").value = c.domain || ""; pick("mode", c.mode); pick("withdrawal_mode", c.withdrawal_mode);
+  state.saved_category = c.fleet_category_id;
+}
+
+async function checkBot() {
+  await busy(event.target, async () => {
+    const r = await api("/api/telegram/check", { token:$("bot_token").value });
+    if (r.ok) { state.bot_username = r.username; setStatus("bot_status","ok",`✅ Бот найден: <b>@${esc(r.username)}</b> (${esc(r.name)})`); }
+    else setStatus("bot_status","bad","❌ " + esc(r.error));
+  });
+}
+
+async function findChats() {
+  await busy(event.target, async () => {
+    const r = await api("/api/telegram/chats", { token:$("bot_token").value });
+    if (!r.ok) return setStatus("chats_status","bad","❌ " + esc(r.error));
+    const current = new Set($("admin_ids").value.split(/[,; ]+/).filter(Boolean));
+    $("people").innerHTML = r.people.map(p => `<label><input type="checkbox" value="${p.id}" ${current.has(String(p.id)) ? "checked" : ""}
+      onchange="syncAdmins()"> ${esc(p.name)} ${p.username ? "@" + esc(p.username) : ""} <span class="pill">${p.id}</span></label>`).join("");
+    $("groups").innerHTML = r.groups.map(g => `<label><input type="radio" name="grp" value="${g.id}" onchange="$('admin_chat_id').value=this.value">
+      ${esc(g.title)} <span class="pill">${g.id}</span></label>`).join("");
+    setStatus("chats_status", r.people.length ? "ok" : "warn",
+      r.people.length ? `Найдено: людей — ${r.people.length}, групп — ${r.groups.length}. Отметьте администраторов.`
+                      : "Пока никто не писал боту. Отправьте боту /start и нажмите «Найти» ещё раз.");
+  });
+}
+function syncAdmins() {
+  $("admin_ids").value = [...document.querySelectorAll("#people input:checked")].map(i => i.value).join(", ");
+}
+
+async function checkFleet() {
+  await busy(event.target, async () => {
+    setStatus("fleet_status","", "⏳ Проверяю 12 методов…");
+    const r = await api("/api/fleet/check", { base_url:$("fleet_base_url").value, client_id:$("fleet_client_id").value,
+                                               api_key:$("fleet_api_key").value, park_id:$("fleet_park_id").value });
+    const icon = { ok:"✅", no_access:"❌", bad_key:"⛔", error:"⚠️", skip:"—" };
+    const tb = $("fleet_table").querySelector("tbody");
+    tb.innerHTML = (r.checks || []).map(c => `<tr><td>${esc(c.title)}<br><span class="hint">${c.required ? "обязательно" : "желательно"} · ${esc(c.why)}</span></td>
+      <td>${icon[c.status]}</td><td class="${c.status === "ok" ? "ok" : c.required ? "bad" : "warn"}">${esc(c.note)}${c.http ? ` <span class="pill">${c.http}</span>` : ""}</td></tr>`).join("");
+    $("fleet_table").hidden = !(r.checks || []).length;
+    const payout = (r.checks || []).find(c => c.op === "create_driver_transaction");
+    state.can_payout = !payout || payout.status === "ok";
+    $("fleet_facts").innerHTML = Object.entries(r.facts || {}).map(([k, v]) =>
+      `${esc(k)}: <b>${v === true ? "есть" : v === false ? "нет ⚠️" : esc(v)}</b>`).join(" · ");
+    state.categories = r.categories || [];
+    $("cat_block").hidden = !state.categories.length;
+    $("fleet_category_id").innerHTML = state.categories.map(c => `<option value="${esc(c.id)}" ${c.id === state.saved_category ? "selected" : ""}>${esc(c.name)}</option>`).join("");
+    let msg = r.ok ? "✅ Ключ работает, обязательные доступы есть." : "❌ " + esc(r.error);
+    if (r.ok && !state.can_payout) msg += "<br>⚠️ Нет доступа к созданию транзакций — вывод денег будет только через менеджера.";
+    if ((r.facts || {})["Тариф (category) в заказах"] === false) msg += "<br>⚠️ В заказах нет тарифа — грузовые заказы будут определяться по категории авто.";
+    setStatus("fleet_status", r.ok ? "ok" : "bad", msg);
+  });
+}
+
+async function newTotp() {
+  await busy(event.target, async () => {
+    const r = await (await fetch("/api/totp/new?login=" + encodeURIComponent($("panel_login").value || "admin"), { method:"POST" })).json();
+    state.totp_secret = r.secret; state.totp_ok = false;
+    $("totp_qr").src = r.qr; $("totp_block").hidden = false; setStatus("totp_status","","");
+  });
+}
+async function verifyTotp() {
+  const r = await api("/api/totp/verify", { secret:state.totp_secret, code:$("totp_code").value });
+  state.totp_ok = r.ok;
+  setStatus("totp_status", r.ok ? "ok" : "bad", r.ok ? "✅ Двухфакторный вход подтверждён" : "❌ Код не подошёл — проверьте время на телефоне");
+}
+
+const ids = s => s.split(/[,; ]+/).map(x => x.trim()).filter(Boolean).map(Number).filter(n => !isNaN(n));
+async function save() {
+  const btn = $("save_btn");
+  await busy(btn, async () => {
+    const body = {
+      bot_token:$("bot_token").value, bot_username:state.bot_username, admin_ids:ids($("admin_ids").value),
+      admin_chat_id: $("admin_chat_id").value.trim() ? Number($("admin_chat_id").value.trim()) : null,
+      mode:val("mode"), domain:$("domain").value,
+      fleet_provider:val("fleet_provider"), fleet_base_url:$("fleet_base_url").value, fleet_client_id:$("fleet_client_id").value,
+      fleet_api_key:$("fleet_api_key").value, fleet_park_id:$("fleet_park_id").value,
+      fleet_category_id:$("fleet_category_id").value || "", fleet_categories:state.categories, can_payout:state.can_payout,
+      withdrawal_mode:val("withdrawal_mode"), park_contacts:$("park_contacts").value,
+      panel_login:$("panel_login").value, panel_password:$("panel_password").value,
+      panel_telegram_id: $("panel_telegram_id").value.trim() ? Number($("panel_telegram_id").value.trim()) : null,
+      totp_secret:state.totp_secret, totp_code:$("totp_code").value,
+    };
+    const r = await api("/api/save", body);
+    if (!r.ok) { $("errors").innerHTML = r.errors.map(e => `<li>${esc(e)}</li>`).join(""); $("errors").scrollIntoView({behavior:"smooth"}); return; }
+    $("app").innerHTML = `<div class="card done"><h2>✅ Настройки сохранены</h2>
+      <p>Окно мастера можно закрыть — запуск продолжится в чёрном окне (setup.bat / start.bat).</p>
+      ${r.bot_link ? `<p>Ваш бот: <a href="${esc(r.bot_link)}" target="_blank">${esc(r.bot_link)}</a></p>` : ""}
+      <p>Веб-панель после запуска: <a href="${esc(r.admin_url)}" target="_blank">${esc(r.admin_url)}</a></p>
+      <p class="hint">Изменить настройки можно в любой момент — снова запустите <code>setup.bat</code>.</p></div>`;
+  });
+}
+load();
+</script>
+</body>
+</html>

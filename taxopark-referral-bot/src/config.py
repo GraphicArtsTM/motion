@@ -7,9 +7,10 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from typing import Annotated
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class AppConfig(BaseSettings):
@@ -19,7 +20,9 @@ class AppConfig(BaseSettings):
     bot_username: str = "taxopark_referral_bot"
     webhook_url: str = ""
     webhook_secret: str = ""
-    admin_telegram_ids: list[int] = Field(default_factory=list)
+    # polling — бот сам опрашивает Telegram (локальный запуск, Windows); webhook — сервер с доменом и HTTPS
+    bot_mode: str = "polling"
+    admin_telegram_ids: Annotated[list[int], NoDecode] = Field(default_factory=list)
     admin_notify_chat_id: int | None = None
 
     database_url: str = "postgresql+asyncpg://referral:referral@postgres:5432/referral"

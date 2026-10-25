@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+config/
+backups/
+deploy/nginx.generated.conf
+.git
+**/__pycache__
+.pytest_cache
+.coverage
+htmlcov
+*.bat

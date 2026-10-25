@@ -11,3 +11,6 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 taxopark-referral-bot/.env
+taxopark-referral-bot/config/
+taxopark-referral-bot/deploy/nginx.generated.conf
+taxopark-referral-bot/backups/

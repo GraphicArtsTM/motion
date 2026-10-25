@@ -1,8 +1,13 @@
-# Развёртывание одной командой: docker compose up -d
-# ВАЖНО (14.2 п.1): сервер с БД должен физически находиться на территории Республики Узбекистан.
+# Запуск одной кнопкой: start.bat (Windows) или ./start.sh. Настройка: setup.bat / ./setup.sh.
+# Профили (задаются мастером в .env через COMPOSE_PROFILES):
+#   polling — бот на этом компьютере, домен не нужен;  webhook — сервер с доменом, nginx + HTTPS.
+# ВАЖНО (14.2 п.1): сервер с базой ПД должен физически находиться на территории Республики Узбекистан.
 x-app: &app
   build: .
-  env_file: .env
+  image: taxopark-referral-bot:latest
+  env_file:
+    - path: .env
+      required: false
   restart: unless-stopped
   depends_on:
     postgres: { condition: service_healthy }
@@ -20,7 +25,7 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U referral"]
       interval: 5s
-      retries: 20
+      retries: 30
 
   redis:
     image: redis:7-alpine
@@ -30,18 +35,23 @@ services:
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
-      retries: 20
+      retries: 30
 
   migrate:
     <<: *app
     restart: "no"
-    command: ["alembic", "upgrade", "head"]
+    # миграции + однократное применение настроек из мастера (config/initial_settings.json)
+    command: ["sh", "-c", "alembic upgrade head && python -m src.bootstrap"]
+    user: root
+    environment: { BOOTSTRAP_DIR: /app/config }
+    volumes: ["./config:/app/config"]
 
   web:
     <<: *app
     depends_on:
       migrate: { condition: service_completed_successfully }
     command: ["uvicorn", "src.web:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--workers", "2"]
+    ports: ["127.0.0.1:8000:8000"]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 30s
@@ -53,18 +63,40 @@ services:
     command: ["arq", "src.workers.settings.WorkerSettings"]
     volumes: [backups:/backups]
 
+  # бот в режиме polling (локальный запуск): опрашивает Telegram и доставляет уведомления
+  bot:
+    <<: *app
+    profiles: [polling]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    command: ["python", "-m", "src.bot.main"]
+
+  # мастер настройки: http://localhost:8765, пишет .env и config/ в папку проекта
+  setup:
+    build: .
+    image: taxopark-referral-bot:latest
+    profiles: [setup]
+    user: root
+    environment: { WORKSPACE: /workspace }
+    working_dir: /app
+    volumes: ["./:/workspace"]
+    ports: ["127.0.0.1:8765:8765"]
+    command: ["python", "-m", "src.setup_wizard"]
+
   nginx:
     image: nginx:1.27-alpine
+    profiles: [webhook]
     restart: unless-stopped
     depends_on: [web]
     ports: ["80:80", "443:443"]
     volumes:
-      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./deploy/nginx.generated.conf:/etc/nginx/conf.d/default.conf:ro
       - letsencrypt:/etc/letsencrypt
       - certbot-www:/var/www/certbot
 
   certbot:
     image: certbot/certbot:v2.11.0
+    profiles: [webhook]
     volumes:
       - letsencrypt:/etc/letsencrypt
       - certbot-www:/var/www/certbot
