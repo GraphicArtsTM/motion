@@ -36,6 +36,14 @@ async def _names(ctx: Ctx, user_ids: list[int]) -> dict[int, str]:
     return {uid: name or "" for uid, name in rows}
 
 
+async def _progress_muted(ctx: Ctx, user_ids: list[int]) -> set[int]:
+    """Пользователи, выключившие уведомления о прогрессе друзей в «⚙️ Настройках»."""
+    if not user_ids:
+        return set()
+    rows = (await ctx.session.execute(select(User.id, User.notification_settings).where(User.id.in_(user_ids)))).all()
+    return {uid for uid, prefs in rows if (prefs or {}).get("progress") is False}
+
+
 async def check_first_rides(ctx: Ctx) -> int:
     """«{name} выполнил первый заказ 🚕» — один раз на реферала."""
     refs = [(r, pid) for r, pid in await referrals_with_profiles(ctx) if pid and r.first_ride_at is None]
@@ -87,7 +95,10 @@ async def progress_notifications(ctx: Ctx) -> int:
     sent = 0
     progress = await _current_progress(ctx)
     names = await _names(ctx, [r.referred_user_id for r, _, _ in progress])
+    muted = await _progress_muted(ctx, [r.referrer_user_id for r, _, _ in progress])
     for ref, _pts, percent in progress:
+        if ref.referrer_user_id in muted:
+            continue
         reached = [t for t in thresholds if percent >= t and percent < 100]
         if not reached:
             continue
