@@ -6,7 +6,7 @@ from collections import Counter
 from datetime import timedelta
 from typing import Any
 
-from sqlalchemy import exists, func, select
+from sqlalchemy import exists, func, literal_column, select
 
 from src.core.admin.audit import audit_log
 from src.core.billing.accruals import cancel_accrual
@@ -169,7 +169,7 @@ async def _check_low_gmv(ctx: Ctx, ref: Referral, orders: list[Order], period: P
     for tariff, prices in by_tariff.items():
         park_sum, park_cnt = (await ctx.session.execute(select(
             func.coalesce(func.sum(Order.price), 0), func.count()).where(
-            func.coalesce(Order.tariff_class, "unknown") == tariff, *eligibility_filters(ctx, period)))).one()
+            func.coalesce(Order.tariff_class, literal_column("'unknown'")) == tariff, *eligibility_filters(ctx, period)))).one()
         if not park_cnt:
             continue
         # avg_driver < avg_park × (100 − low) / 100

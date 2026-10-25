@@ -81,6 +81,11 @@ async def finish_registration(ctx: Ctx, user: User, phone: str, full_name: str, 
         raise BusinessError("err.invalid_name")
     if s.bool("require_license_photo") and not (license_photos[0] and license_photos[1]):
         raise BusinessError("err.license_photo_required")
+    if user.consent_at is None:
+        raise BusinessError("err.consent_required")
+    from src.core.onboarding.terms import has_accepted_current_terms
+    if not await has_accepted_current_terms(ctx, user.id):  # TC-01
+        raise BusinessError("err.terms_not_accepted")
 
     ref = await get_referral_for(ctx, user.id, for_update=True)
     dup_phone = await user_exists_with(ctx, phone=phone_n, exclude=user.id)

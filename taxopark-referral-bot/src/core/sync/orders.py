@@ -82,6 +82,8 @@ async def sync_orders(ctx: Ctx, *, recalc_closed: bool = True) -> dict[str, Any]
         batch = await ctx.fleet.list_orders(from_dt=since, to_dt=now, limit=limit, offset=page * limit)
         if not batch:
             break
+        if all(o.id in seen for o in batch):
+            break  # страница повторяется — защита от бесконечного цикла
         batch = [o for o in batch if o.id not in seen]
         cats = await _car_categories(ctx, batch)
         known = await _known_orders(ctx, [o.id for o in batch])

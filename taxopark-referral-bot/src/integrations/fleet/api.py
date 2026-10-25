@@ -57,6 +57,7 @@ ENDPOINTS = {
     "get_driver_blocked_balance": ("GET", "/v2/parks/contractors/blocked-balance"),
 }
 
+ERROR_SNIPPET = 256
 NON_RETRYABLE = {400, 401, 403, 404, 409, 422}
 SUCCESS_TX_STATUSES = {"success", "completed", "done", "applied"}
 FAILED_TX_STATUSES = {"failed", "rejected", "cancelled", "canceled", "error"}
@@ -97,7 +98,7 @@ def parse_date(value: Any) -> date | None:
     if dt:
         return dt.date()
     try:
-        return date.fromisoformat(str(value)[:10])
+        return date.fromisoformat(str(value)[:len('YYYY-MM-DD')])
     except ValueError:
         return None
 
@@ -268,11 +269,11 @@ class ApiFleetProvider(FleetProvider):
         status = resp.status_code
         if status >= 500 or status == 429:
             self.breaker.record_failure()
-            await self._log(op, status, started, None, resp.text[:300])
+            await self._log(op, status, started, None, resp.text[:ERROR_SNIPPET])
             raise RetryableFleetError(f"Fleet API {status}", status)
         if status >= 400:
             self.breaker.record_success()
-            await self._log(op, status, started, None, resp.text[:300])
+            await self._log(op, status, started, None, resp.text[:ERROR_SNIPPET])
             raise NonRetryableFleetError(f"Fleet API {status}: {resp.text[:200]}", status)
         self.breaker.record_success()
         try:

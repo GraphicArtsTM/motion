@@ -167,6 +167,7 @@ async def run_queue(ctx: Ctx, max_steps: int = 50) -> list[str]:
 
 
 async def outbox_keys(ctx: Ctx, user_id: int | None = None) -> list[str]:
+    await ctx.session.flush()
     q = "SELECT template_key FROM notification_outbox"
     params: dict[str, Any] = {}
     if user_id is not None:

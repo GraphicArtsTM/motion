@@ -41,8 +41,8 @@ async def sync_park_driver_profiles(ctx: Ctx) -> dict[str, int]:
     page, seen, fetched_individually = 0, set(), 0
     while True:
         batch = await ctx.fleet.list_drivers(limit=limit, offset=page * limit)
-        if not batch:
-            break
+        if not batch or all(p.id in seen for p in batch):
+            break  # пусто или страница повторяется — защита от бесконечного цикла
         for p in batch:
             if p.id in seen:  # защита от бесконечного цикла при сломанной пагинации
                 continue
