@@ -8,6 +8,7 @@ const MazeChunk = preload("res://scripts/maze_chunk.gd")
 const MazeCell = preload("res://scripts/maze_cell.gd")
 const ExitDoor = preload("res://scripts/exit_door.gd")
 const ExitPower = preload("res://scripts/exit_power.gd")
+const PropExitDoor = preload("res://scripts/prop_exit_door.gd")
 
 const TARGET := Vector2i(144, -86)
 const CHUNK_SIZE: int = MazeChunk.CHUNK_SIZE
@@ -26,6 +27,9 @@ func _ready() -> void:
 	hud = get_node_or_null(hud_path)
 	# Питание живёт на менеджере: выгрузка чанка с дверью его не теряет
 	power = ExitPower.new()
+	# Меш двери собирается ~60 мс: делаем это на загрузке мира, а не в кадр,
+	# когда подгрузится её чанк (дальше он берётся из кэша PropFactory)
+	(PropExitDoor.build_exit_door()["root"] as Node).free()
 	var chunk_manager = get_node_or_null(chunk_manager_path)
 	if chunk_manager:
 		chunk_manager.chunk_generating.connect(_on_chunk_generating)

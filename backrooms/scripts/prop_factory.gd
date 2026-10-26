@@ -1,95 +1,106 @@
 extends RefCounted
 
-# PropFactory: палитра и примитивы всего реквизита игры. Модели живут рядом:
+# PropFactory: палитра реквизита. Геометрия — в mesh_kit.gd, модели рядом:
 # prop_entity.gd (сущность), prop_locker.gd (шкаф), prop_exit_door.gd (дверь
-# выхода), prop_items.gd (баночка, предохранитель), prop_viewmodel.gd (руки
-# игрока). Поведение (зоны, свет, скрипты) остаётся у владельцев.
+# выхода), prop_items.gd (банка, предохранитель), prop_viewmodel.gd (руки).
+# Внешних текстур нет: фактуру (вмятины, потёртости, ржавчина, морщины,
+# ткань) рисует шум движка, полосы и этикетку — код (prop_textures.gd).
+# Всё кэшируется: текстура и материал создаются один раз на игру.
+
+const PropTextures = preload("res://scripts/prop_textures.gd")
 
 static var _cache := {}
+static var _meshes := {}
+
+# name: [albedo, roughness, metallic, рельеф (вид шума), сила рельефа,
+#        пятна (вид шума), свечение]
+const PALETTE := {
+	"locker_paint": [Color(0.38, 0.4, 0.32), 0.62, 0.2, "dents", 0.25, "wear", 0.0],
+	"locker_inner": [Color(0.05, 0.05, 0.045), 0.9, 0.0, "", 0.0, "", 0.0],
+	"door_paint": [Color(0.3, 0.33, 0.3), 0.6, 0.3, "dents", 0.2, "wear", 0.0],
+	"frame_dark": [Color(0.16, 0.155, 0.145), 0.75, 0.3, "dents", 0.15, "grime", 0.0],
+	"steel": [Color(0.5, 0.5, 0.48), 0.42, 0.8, "scratch", 0.15, "grime", 0.0],
+	"rust": [Color(0.3, 0.15, 0.07), 0.95, 0.1, "dents", 0.6, "grime", 0.0],
+	"brass": [Color(0.55, 0.42, 0.2), 0.35, 0.9, "scratch", 0.25, "grime", 0.0],
+	"rubber": [Color(0.04, 0.04, 0.04), 0.9, 0.0, "", 0.0, "", 0.0],
+	"entity_skin": [Color(0.07, 0.06, 0.053), 0.78, 0.0, "wrinkle", 0.7, "grime", 0.0],
+	"entity_bone": [Color(0.42, 0.37, 0.28), 0.6, 0.0, "dents", 0.4, "grime", 0.0],
+	"entity_eye": [Color(0.9, 0.75, 0.5), 0.2, 0.0, "", 0.0, "", 1.4],
+	"entity_mouth": [Color(0.14, 0.025, 0.02), 0.5, 0.0, "", 0.0, "", 0.15],
+	"skin": [Color(0.55, 0.42, 0.34), 0.62, 0.0, "pores", 0.2, "", 0.1],
+	"nail": [Color(0.66, 0.55, 0.48), 0.35, 0.0, "", 0.0, "", 0.15],
+	"sleeve": [Color(0.2, 0.21, 0.2), 0.9, 0.0, "fabric", 0.6, "", 0.45],
+	"can_metal": [Color(0.62, 0.63, 0.6), 0.28, 0.85, "dents", 0.15, "", 0.0],
+	"ceramic": [Color(0.78, 0.76, 0.7), 0.3, 0.0, "", 0.0, "grime", 0.0],
+	# Банка в руке: руки на своём слое, фонарь их не освещает — металл
+	# слегка светится сам, иначе в темноте кулак держит пустоту
+	"view_metal": [Color(0.62, 0.63, 0.6), 0.4, 0.3, "dents", 0.15, "", 0.12],
+}
 
 
 static func material_named(name: String) -> StandardMaterial3D:
 	if _cache.has(name):
 		return _cache[name]
 	var mat := StandardMaterial3D.new()
-	match name:
-		"olive":
-			mat.albedo_color = Color(0.23, 0.22, 0.18)
-			mat.roughness = 0.7
-			mat.metallic = 0.4
-		"door_gray":
-			mat.albedo_color = Color(0.32, 0.3, 0.24)
-			mat.roughness = 0.6
-			mat.metallic = 0.4
-		"trim_dark":
-			mat.albedo_color = Color(0.09, 0.08, 0.07)
-			mat.roughness = 0.9
-		"frame_dark":
-			mat.albedo_color = Color(0.12, 0.11, 0.1)
-			mat.roughness = 0.8
-		"metal_dark":
-			mat.albedo_color = Color(0.17, 0.17, 0.18)
-			mat.roughness = 0.45
-			mat.metallic = 0.6
-		"rust":
-			mat.albedo_color = Color(0.26, 0.14, 0.08)
-			mat.roughness = 0.95
-			mat.metallic = 0.15
-		"hazard":
-			mat.albedo_color = Color(0.52, 0.4, 0.07)
-			mat.roughness = 0.8
-		"glass_dark":
-			mat.albedo_color = Color(0.04, 0.05, 0.05)
-			mat.roughness = 0.22
-			mat.metallic = 0.35
-		"brass":
-			# Петли, ручки, номерок — единственный тёплый металл в лабиринте
-			mat.albedo_color = Color(0.4, 0.32, 0.15)
-			mat.roughness = 0.45
-			mat.metallic = 0.8
-		"paper":
-			# Этикетка банки: бумага не блестит и слабо светится в темноте
-			mat.albedo_color = Color(0.56, 0.52, 0.4)
-			mat.roughness = 0.95
+	if name == "can_label" or name == "view_label":
+		mat.albedo_texture = PropTextures.label()
+		mat.roughness = 0.8
+		# Высота этикетки 78 мм, а v у тела вращения в метрах: растягиваем
+		mat.uv1_scale = Vector3(1.0, 12.8, 1.0)
+		if name == "view_label":
 			mat.emission_enabled = true
-			mat.emission = Color(0.42, 0.39, 0.3)
-			mat.emission_energy_multiplier = 0.1
-		"entity_dark":
-			mat.albedo_color = Color(0.035, 0.033, 0.03)
-			mat.roughness = 0.85
-		"entity_eye":
-			mat.albedo_color = Color(0.9, 0.75, 0.5)
-			mat.emission_enabled = true
-			mat.emission = Color(1.0, 0.72, 0.42)
-			mat.emission_energy_multiplier = 1.4
-		"can_metal":
-			mat.albedo_color = Color(0.55, 0.56, 0.5)
-			mat.roughness = 0.35
-			mat.metallic = 0.7
-		# Руки игрока (prop_viewmodel): свет в лабиринте тусклый, поэтому
-		# у рукава и кожи слабое своё свечение — руки не тонут в черноте
-		"sleeve":
-			mat.albedo_color = Color(0.22, 0.21, 0.18)
-			mat.roughness = 0.85
-			mat.emission_enabled = true
-			mat.emission = Color(0.19, 0.18, 0.15)
-			mat.emission_energy_multiplier = 0.45
-		"skin":
-			mat.albedo_color = Color(0.5, 0.39, 0.32)
-			mat.roughness = 0.75
-			mat.emission_enabled = true
-			mat.emission = Color(0.4, 0.32, 0.26)
-			mat.emission_energy_multiplier = 0.15
-		# Банка в руке: у снаряда металл бликует, в темноте же он просто чёрный
-		"view_can":
-			mat.albedo_color = Color(0.52, 0.52, 0.46)
-			mat.roughness = 0.5
-			mat.metallic = 0.2
-			mat.emission_enabled = true
-			mat.emission = Color(0.4, 0.4, 0.35)
-			mat.emission_energy_multiplier = 0.1
+			mat.emission_texture = mat.albedo_texture
+			mat.emission_energy_multiplier = 0.12
+	elif name == "hazard":
+		mat.albedo_texture = PropTextures.stripes()
+		mat.roughness = 0.75
+		mat.uv1_triplanar = true
+		mat.uv1_scale = Vector3(2.0, 2.0, 2.0)
+	elif name == "glass_dark":
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.albedo_color = Color(0.05, 0.08, 0.08, 0.55)
+		mat.roughness = 0.05
+		mat.metallic = 0.3
+	elif name == "fuse_glass":
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.albedo_color = Color(0.6, 0.95, 0.7, 0.28)
+		mat.roughness = 0.05
+		mat.emission_enabled = true
+		mat.emission = Color(0.3, 0.8, 0.45)
+		mat.emission_energy_multiplier = 0.4
+	else:
+		_apply(mat, PALETTE[name])
+	if name == "entity_skin":
+		# Силуэт держится на кромке: в темноте видна обводка, а не масса
+		mat.rim_enabled = true
+		mat.rim = 0.45
+		mat.rim_tint = 0.4
+	if name == "locker_inner":
+		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_cache[name] = mat
 	return mat
+
+
+static func _apply(mat: StandardMaterial3D, p: Array) -> void:
+	mat.albedo_color = p[0]
+	mat.roughness = p[1]
+	mat.metallic = p[2]
+	if p[3] != "":
+		mat.normal_enabled = true
+		mat.normal_texture = PropTextures.noise(p[3], true)
+		mat.normal_scale = p[4]
+	if p[5] != "":
+		# Пятна: светлее/темнее по шуму — и в цвете, и в шероховатости
+		mat.albedo_texture = PropTextures.noise(p[5], false)
+		mat.roughness_texture = mat.albedo_texture
+	mat.uv1_triplanar = true
+	mat.uv1_scale = Vector3(1.0, 1.0, 1.0) * (8.0 if p[3] in ["pores", "fabric"] else 2.0)
+	if p[6] > 0.0:
+		mat.emission_enabled = true
+		mat.emission = (p[0] as Color) * 0.8
+		mat.emission_energy_multiplier = p[6]
+		if mat.albedo_texture:
+			mat.emission_texture = mat.albedo_texture
 
 
 # Свечение «на вырост»: свой материал на каждый объект, чтобы его
@@ -103,90 +114,30 @@ static func glow_material(color: Color, energy: float) -> StandardMaterial3D:
 	return mat
 
 
-# --- примитивы ---
-# Всё, что ниже, — один и тот же узел с мешем: отличается только форма.
-# Все модели игры собираются из этих пяти форм, ни одной внешней.
-
-static func _place(parent: Node3D, shape: Mesh, pos: Vector3, mat: Material,
-		rot: Vector3) -> MeshInstance3D:
-	shape.material = mat
-	var mesh_instance := MeshInstance3D.new()
-	mesh_instance.mesh = shape
-	mesh_instance.position = pos
-	mesh_instance.rotation = rot
-	parent.add_child(mesh_instance)
-	return mesh_instance
-
-
-static func box(parent: Node3D, size: Vector3, pos: Vector3, mat: Material,
-		solid: bool = false, rot: Vector3 = Vector3.ZERO) -> MeshInstance3D:
-	var shape := BoxMesh.new()
-	shape.size = size
-	var mesh_instance := _place(parent, shape, pos, mat, rot)
-	if solid:
-		var body := StaticBody3D.new()
-		var shape_node := CollisionShape3D.new()
-		var shape_box := BoxShape3D.new()
-		shape_box.size = size
-		shape_node.shape = shape_box
-		shape_node.position = pos
-		shape_node.rotation = rot
-		body.add_child(shape_node)
-		parent.add_child(body)
-	return mesh_instance
+# Одинаковые модели (шкафы, банки, предохранители) собираются один раз:
+# сборка в GDScript стоит десятки миллисекунд, а меш можно делить между
+# экземплярами. make возвращает MeshInstance3D первой сборки
+static func cached_mesh(key: String, make: Callable) -> MeshInstance3D:
+	if not _meshes.has(key):
+		var built: MeshInstance3D = make.call()
+		# Храним сам меш, не узел: узел первой сборки могут освободить
+		_meshes[key] = [built.mesh, built.name, built.cast_shadow]
+		return built
+	var entry: Array = _meshes[key]
+	var mi := MeshInstance3D.new()
+	mi.mesh = entry[0]
+	mi.name = entry[1]
+	mi.cast_shadow = entry[2]
+	return mi
 
 
-# Усечённый конус; при bottom == top это цилиндр, при top == 0 конус.
-# Раструбы, зубцы, шипы, юбки, ножки — всё это он
-static func taper(parent: Node3D, bottom: float, top: float, height: float,
-		pos: Vector3, mat: Material, rot: Vector3 = Vector3.ZERO) -> MeshInstance3D:
-	var shape := CylinderMesh.new()
-	shape.bottom_radius = bottom
-	shape.top_radius = top
-	shape.height = height
-	return _place(parent, shape, pos, mat, rot)
-
-
-static func cylinder(parent: Node3D, radius: float, height: float, pos: Vector3,
-		mat: Material, rot: Vector3 = Vector3.ZERO) -> MeshInstance3D:
-	return taper(parent, radius, radius, height, pos, mat, rot)
-
-
-# Капсула: конечности, пальцы, стеклянный бочонок. Коробка вблизи
-# читается как обрезок, капсула — как живая кость или палец
-static func capsule(parent: Node3D, radius: float, height: float, pos: Vector3,
-		mat: Material, rot: Vector3 = Vector3.ZERO) -> MeshInstance3D:
-	var shape := CapsuleMesh.new()
-	shape.radius = radius
-	shape.height = maxf(height, radius * 2.0)
-	return _place(parent, shape, pos, mat, rot)
-
-
-static func sphere(parent: Node3D, radius: float, pos: Vector3,
-		mat: Material) -> MeshInstance3D:
-	var shape := SphereMesh.new()
-	shape.radius = radius
-	shape.height = radius * 2.0
-	return _place(parent, shape, pos, mat, Vector3.ZERO)
-
-
-# Тор: кольцо в плоскости XZ. Обручи (рёбра), ободы (крышка банки),
-# штурвал, петли — везде, где нужна скруглённая деталь
-static func torus(parent: Node3D, inner: float, outer: float, pos: Vector3,
-		mat: Material, rot: Vector3 = Vector3.ZERO) -> MeshInstance3D:
-	var shape := TorusMesh.new()
-	shape.inner_radius = inner
-	shape.outer_radius = outer
-	return _place(parent, shape, pos, mat, rot)
-
-
-# Палка между двумя точками: рукав от плеча к кулаку. Подбирать углы
-# Эйлера вручную тут бессмысленно, а так модель читается по координатам
-static func rod(parent: Node3D, radius: float, from: Vector3, to: Vector3,
-		mat: Material) -> MeshInstance3D:
-	var center := (from + to) * 0.5
-	var mesh_instance := cylinder(parent, radius, from.distance_to(to), center, mat)
-	mesh_instance.look_at_from_position(center, to, Vector3.UP)
-	# Цилиндр смотрит по +Y, а look_at наводит -Z: доворачиваем на четверть
-	mesh_instance.rotate_object_local(Vector3.RIGHT, -PI * 0.5)
-	return mesh_instance
+# Невидимый твёрдый короб: коллизия отдельно от красивой геометрии
+static func solid_box(parent: Node3D, size: Vector3, pos: Vector3) -> void:
+	var body := StaticBody3D.new()
+	var shape_node := CollisionShape3D.new()
+	var shape_box := BoxShape3D.new()
+	shape_box.size = size
+	shape_node.shape = shape_box
+	shape_node.position = pos
+	body.add_child(shape_node)
+	parent.add_child(body)

@@ -71,8 +71,8 @@ func _sway(delta: float) -> void:
 			return
 	var chasing: bool = int(host.state) == STATE_CHASE
 	sway_time += delta * (1.8 if chasing else 0.9)
-	# Колебание вокруг нуля: модель стоит ступнями на полу, а не парит
-	body.position.y = sin(sway_time * 1.6) * (0.035 if chasing else 0.02)
+	# Только вверх от пола: качание вокруг нуля утапливало ступни в ковёр
+	body.position.y = (0.5 + 0.5 * sin(sway_time * 1.6)) * (0.035 if chasing else 0.02)
 	body.rotation.z = sin(sway_time * 0.7) * (0.06 if chasing else 0.025)
 	body.rotation.x = sin(sway_time * 1.1) * 0.02 - (0.06 if chasing else 0.0)
 

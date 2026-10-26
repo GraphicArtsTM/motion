@@ -31,7 +31,8 @@ func _ready() -> void:
 	add_child(body)
 
 	var light := OmniLight3D.new()
-	light.position = Vector3(0, 0.6, 0)
+	# Картридж лежит на полу: свет чуть над ним, пятно ложится на ковёр
+	light.position = Vector3(0, 0.35, 0)
 	light.light_color = Color(0.5, 1.0, 0.55)
 	light.light_energy = 1.4
 	light.omni_range = 13.0

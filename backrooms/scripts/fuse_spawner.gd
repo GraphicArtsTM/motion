@@ -10,6 +10,7 @@ extends Node3D
 const MazeChunk = preload("res://scripts/maze_chunk.gd")
 const Fuse = preload("res://scripts/fuse.gd")
 const MazeCell = preload("res://scripts/maze_cell.gd")
+const PropItems = preload("res://scripts/prop_items.gd")
 
 const CHUNK_SIZE: int = MazeChunk.CHUNK_SIZE
 const CELL_METERS: float = MazeChunk.CELL_SIZE
@@ -23,6 +24,11 @@ var collected: Dictionary = {}
 
 func _ready() -> void:
 	items_ref = get_tree().get_first_node_in_group("player_items")
+	# Прогрев мешей предохранителя и банки: собрать на загрузке, а не в игре
+	(PropItems.build_fuse()["root"] as Node).free()
+	var can: Dictionary = PropItems.build_can()
+	(can["root"] as Node).free()
+	(can["shape"] as Node).free()
 	hud_ref = get_tree().get_first_node_in_group("hud")
 
 
