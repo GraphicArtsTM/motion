@@ -39,8 +39,13 @@ def set_queue(queue: TaskQueue) -> None:
 def get_queue() -> TaskQueue:
     global _queue
     if _queue is None:
-        from src.workers.queue import ArqQueue
-        _queue = ArqQueue()
+        from src.config import get_config
+        if get_config().queue_backend == "db":
+            from src.workers.dbqueue import DbQueue
+            _queue = DbQueue()
+        else:
+            from src.workers.queue import ArqQueue
+            _queue = ArqQueue()
     return _queue
 
 

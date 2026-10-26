@@ -10,3 +10,4 @@ deploy/nginx.generated.conf
 .coverage
 htmlcov
 *.bat
+runtime/

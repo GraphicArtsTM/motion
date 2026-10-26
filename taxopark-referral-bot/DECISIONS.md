@@ -171,6 +171,25 @@ SUM(wallet_ledger.amount)`. Чтобы он держался при выводе
 несуществующим ID (400/404 = доступ есть), создание транзакции — заведомо неверным запросом с суммой 0.
 Без доступа к созданию транзакций мастер включает ручной вывод.
 
+**D-45. Запуск без Docker (основной для Windows).** `start.bat` → `scripts/windows/local.ps1`: `uv` ставит
+портативный Python 3.12 и venv, портативный PostgreSQL 16 (официальные сборки EnterpriseDB) запускается из
+`runtime\` на 127.0.0.1:54329. Всё работает одним процессом `python -m src.local` (веб, бот polling, очередь,
+планировщик) с перезапуском упавших частей. Redis заменён: очередь задач — таблица `task_queue`
+(`QUEUE_BACKEND=db`, частичный уникальный индекс по `job_key` вместо `_job_id` ARQ, `FOR UPDATE SKIP LOCKED`),
+расписание — встроенный планировщик по тому же `JOB_SCHEDULE`, состояние диалогов aiogram — таблица `fsm_storage`.
+Задачи — те же функции, что у воркера ARQ, с блокировками `job_locks`. Docker-режим сохранён (`docker\`, `*.sh`).
+
+**D-46. Библиотеки Visual C++** берутся из архива PostgreSQL (каталог pgAdmin), чтобы обычно не требовать установки
+VC++ Runtime с правами администратора; если их не хватает — ставится официальный `vc_redist.x64.exe` (Windows
+спросит разрешение).
+
+**D-47. Кириллица в пути.** PostgreSQL на Windows ненадёжно работает с не-ASCII путями к данным — в этом случае
+`runtime` размещается в `C:\TaxoparkBot\runtime`.
+
+**D-48. Скрипты Windows.** `.bat`-файлы в корне — только ASCII (нет проблем с кодовыми страницами `cmd`), все тексты на
+русском — в `local.ps1` (UTF-8 с BOM, иначе Windows PowerShell 5.1 читает его как ANSI). `$ErrorActionPreference =
+'Continue'` с явной проверкой кодов возврата: в PS 5.1 строка в stderr у psql/initdb при `Stop` обрывает скрипт.
+
 ## Дополнительные ключи настроек (сиды)
 
 `withdrawal_retry_delays_seconds`, `withdrawal_verifying_alert_minutes`, `payout_description`,

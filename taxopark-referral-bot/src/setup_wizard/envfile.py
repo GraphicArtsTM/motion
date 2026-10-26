@@ -9,7 +9,7 @@ SECTIONS: list[tuple[str, list[str]]] = [
     ("Telegram", ["BOT_TOKEN", "BOT_USERNAME", "ADMIN_TELEGRAM_IDS", "ADMIN_NOTIFY_CHAT_ID", "WEBHOOK_URL",
                   "WEBHOOK_SECRET"]),
     ("Яндекс Fleet API", ["FLEET_API_BASE_URL", "FLEET_CLIENT_ID", "FLEET_API_KEY", "FLEET_PARK_ID"]),
-    ("Хранилища (заполнено автоматически)", ["POSTGRES_PASSWORD", "DATABASE_URL", "REDIS_URL"]),
+    ("Хранилища (заполнено автоматически)", ["POSTGRES_PASSWORD", "DATABASE_URL", "REDIS_URL", "QUEUE_BACKEND"]),
     ("Веб-панель", ["ADMIN_SECRET_KEY", "ADMIN_BASE_URL", "PUBLIC_DOMAIN"]),
     ("Прочее", ["SENTRY_DSN", "LOG_LEVEL", "TZ_DISPLAY", "S3_BACKUP_BUCKET", "BACKUP_DIR"]),
 ]
@@ -32,7 +32,7 @@ def read_env(path: Path) -> dict[str, str]:
 
 
 def write_env(path: Path, values: dict[str, str]) -> None:
-    lines = ["# Создано мастером настройки (setup.bat). Можно править вручную; после правки — start.bat.",
+    lines = ["# Создано мастером настройки (setup.bat). Можно править вручную; после правки — stop.bat и start.bat.",
              "# Не публикуйте этот файл: в нём токен бота и ключ API таксопарка.", ""]
     used: set[str] = set()
     for title, keys in SECTIONS:

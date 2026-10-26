@@ -66,7 +66,8 @@ li{{margin:6px 0}}</style></head><body><h1>🚕 Реферальный бот</h
 <div class="c"><h3>Состояние</h3><ul>{checks}</ul></div>
 <div class="c"><h3>Ссылки</h3><ul>{bot}<li><a href="/admin">Просмотр данных (SQLAdmin)</a></li>
 <li><a href="/docs">Admin API — все действия панели</a></li></ul>
-<p>Остановить — <b>stop.bat</b>, журнал — <b>logs.bat</b>, настройки — <b>setup.bat</b>.</p></div></body></html>"""
+<p>Остановить — <b>stop.bat</b>, журнал — <b>logs.bat</b>, настройки — <b>setup.bat</b>,
+резервная копия — <b>backup.bat</b>.</p></div></body></html>"""
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -75,7 +76,8 @@ async def status_page() -> str:
     cfg = get_config()
     async with get_sessionmaker()() as s:
         result = await collect_health(await open_ctx(s))
-    names = {"db": "База данных", "redis": "Redis (очереди)", "fleet_api": "Fleet API"}
+    names = {"db": "База данных", "redis": "Redis (очереди)", "queue": "Очередь задач (в базе)",
+             "fleet_api": "Fleet API"}
     checks = "".join(f"<li>{'✅' if ok else '❌'} {names.get(k, k)}</li>" for k, ok in result.items())
     checks += f"<li>{'✅' if cfg.bot_token else '❌'} Токен бота {'задан' if cfg.bot_token else 'не задан — запустите setup.bat'}</li>"
     checks += f"<li>ℹ️ Режим: {'webhook (сервер)' if cfg.bot_mode == 'webhook' else 'polling (этот компьютер)'}</li>"

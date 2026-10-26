@@ -155,7 +155,7 @@
     </div>
   </section>
 
-  <section class="card">
+  <section class="card" id="where_card">
     <h2><span class="step">6</span>Где работает бот</h2>
     <div class="choice" onclick="pick('mode','polling')"><input type="radio" name="mode" value="polling" checked>
       <div><b>На этом компьютере</b> — домен и HTTPS не нужны. Бот работает, пока включён компьютер и запущен Docker.</div></div>
@@ -211,6 +211,7 @@ async function load() {
   $("fleet_client_id").value = c.fleet_client_id || ""; $("fleet_park_id").value = c.fleet_park_id || "";
   $("fleet_base_url").value = c.fleet_base_url; $("park_contacts").value = c.park_contacts;
   $("domain").value = c.domain || ""; pick("mode", c.mode); pick("withdrawal_mode", c.withdrawal_mode);
+  if (c.local) { $("where_card").hidden = true; pick("mode", "polling"); }  // запуск без Docker — только этот компьютер
   state.saved_category = c.fleet_category_id;
 }
 

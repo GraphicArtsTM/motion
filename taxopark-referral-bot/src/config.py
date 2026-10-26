@@ -27,6 +27,8 @@ class AppConfig(BaseSettings):
 
     database_url: str = "postgresql+asyncpg://referral:referral@postgres:5432/referral"
     redis_url: str = "redis://redis:6379/0"
+    # redis — очередь ARQ и FSM в Redis (Docker); db — всё в PostgreSQL (запуск без Docker, start.bat)
+    queue_backend: str = "redis"
 
     fleet_api_base_url: str = "https://fleet-api.taxi.yandex.net"
     fleet_client_id: str = ""

@@ -14,3 +14,4 @@ taxopark-referral-bot/.env
 taxopark-referral-bot/config/
 taxopark-referral-bot/deploy/nginx.generated.conf
 taxopark-referral-bot/backups/
+taxopark-referral-bot/runtime/

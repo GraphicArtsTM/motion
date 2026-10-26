@@ -14,32 +14,23 @@ from arq.cron import CronJob
 from src.config import get_config
 from src.db import seeds
 from src.workers.queue import redis_settings
+from src.workers.schedule import slots
 from src.workers.tasks.jobs import CRON_JOBS, process_withdrawal, verify_withdrawal
 
-HOURS_IN_DAY = 24
 MINUTES_IN_HOUR = 60
-
-
-def _expand(value: Any, size: int, offset: int = 0) -> Any:
-    if isinstance(value, dict) and "every" in value:
-        return set(range(offset, size, int(value["every"])))
-    return value
 
 
 def build_cron_jobs() -> list[CronJob]:
     jobs = []
-    for name, spec in seeds.JOB_SCHEDULE.items():
-        fn = CRON_JOBS[name]
-        offset = int(spec.get("offset", 0))
-        kwargs: dict[str, Any] = {"name": name, "run_at_startup": name == "ensure_current_period",
-                                  "unique": True, "timeout": seeds.JOB_LOCK_TTL_MINUTES * MINUTES_IN_HOUR}
-        if "day" in spec:
-            kwargs["day"] = spec["day"]
-        if "hour" in spec:
-            kwargs["hour"] = _expand(spec["hour"], HOURS_IN_DAY)
-        kwargs["minute"] = _expand(spec.get("minute", 0), MINUTES_IN_HOUR, offset)
-        kwargs["second"] = 0
-        jobs.append(cron(fn, **kwargs))
+    for slot in slots():
+        kwargs: dict[str, Any] = {"name": slot.name, "run_at_startup": slot.name == "ensure_current_period",
+                                  "unique": True, "timeout": seeds.JOB_LOCK_TTL_MINUTES * MINUTES_IN_HOUR,
+                                  "minute": slot.minutes, "second": 0}
+        if slot.days is not None:
+            kwargs["day"] = slot.days if len(slot.days) > 1 else next(iter(slot.days))
+        if slot.hours is not None:
+            kwargs["hour"] = slot.hours if len(slot.hours) > 1 else next(iter(slot.hours))
+        jobs.append(cron(CRON_JOBS[slot.name], **kwargs))
     return jobs
 
 

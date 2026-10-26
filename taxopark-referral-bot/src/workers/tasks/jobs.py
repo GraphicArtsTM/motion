@@ -69,23 +69,23 @@ async def run_job(name: str, fn: Job, *, lock: bool = True) -> Any:
 
 
 # ── периоды и биллинг ───────────────────────────────────────────────────────
-async def ensure_current_period_job(_: dict[str, Any]) -> Any:
+async def ensure_current_period_job(_: dict[str, Any], *__: Any) -> Any:
     return await run_job("ensure_current_period", lambda c: ensure_current_period(c))
 
 
-async def open_period_job(_: dict[str, Any]) -> Any:
+async def open_period_job(_: dict[str, Any], *__: Any) -> Any:
     return await run_job("open_period", lambda c: ensure_current_period(c))
 
 
-async def close_period_job(_: dict[str, Any]) -> Any:
+async def close_period_job(_: dict[str, Any], *__: Any) -> Any:
     return await run_job("close_period", close_due_periods)
 
 
-async def release_holds_job(_: dict[str, Any]) -> Any:
+async def release_holds_job(_: dict[str, Any], *__: Any) -> Any:
     return await run_job("release_holds", core_release_holds)
 
 
-async def fraud_check_job(_: dict[str, Any]) -> Any:
+async def fraud_check_job(_: dict[str, Any], *__: Any) -> Any:
     async def fn(ctx: Ctx) -> Any:
         period = await ensure_current_period(ctx)
         last = (await ctx.session.execute(select(Period).where(Period.code == prev_code(period.code)))).scalar_one_or_none()
@@ -94,23 +94,23 @@ async def fraud_check_job(_: dict[str, Any]) -> Any:
 
 
 # ── синхронизация ───────────────────────────────────────────────────────────
-async def sync_orders_job(_: dict[str, Any]) -> Any:
+async def sync_orders_job(_: dict[str, Any], *__: Any) -> Any:
     return await run_job("sync_orders", core_sync_orders)
 
 
-async def sync_park_driver_profiles_job(_: dict[str, Any]) -> Any:
+async def sync_park_driver_profiles_job(_: dict[str, Any], *__: Any) -> Any:
     return await run_job("sync_park_driver_profiles", core_sync_profiles)
 
 
-async def sync_driver_online_time_job(_: dict[str, Any]) -> Any:
+async def sync_driver_online_time_job(_: dict[str, Any], *__: Any) -> Any:
     return await run_job("sync_driver_online_time", core_online)
 
 
-async def match_pending_referrals_job(_: dict[str, Any]) -> Any:
+async def match_pending_referrals_job(_: dict[str, Any], *__: Any) -> Any:
     return await run_job("match_pending_referrals", match_pending_users)
 
 
-async def rebuild_daily_stats_job(_: dict[str, Any]) -> Any:
+async def rebuild_daily_stats_job(_: dict[str, Any], *__: Any) -> Any:
     async def fn(ctx: Ctx) -> Any:
         period = await ensure_current_period(ctx)
         await core_rebuild(ctx, period.starts_at)
@@ -126,36 +126,36 @@ async def verify_withdrawal(_: dict[str, Any], withdrawal_id: int, attempt: int 
     return await run_job(f"withdrawal:{withdrawal_id}", lambda c: core_verify(c, withdrawal_id, attempt))
 
 
-async def reconcile_withdrawals_job(_: dict[str, Any]) -> Any:
+async def reconcile_withdrawals_job(_: dict[str, Any], *__: Any) -> Any:
     return await run_job("reconcile_withdrawals", core_reconcile)
 
 
-async def retry_failed_withdrawals_job(_: dict[str, Any]) -> Any:
+async def retry_failed_withdrawals_job(_: dict[str, Any], *__: Any) -> Any:
     return await run_job("retry_failed_withdrawals", retry_pending_withdrawals)
 
 
 # ── рефералы и уведомления ──────────────────────────────────────────────────
-async def expire_referrals_job(_: dict[str, Any]) -> Any:
+async def expire_referrals_job(_: dict[str, Any], *__: Any) -> Any:
     return await run_job("expire_referrals", core_expire)
 
 
-async def progress_notifications_job(_: dict[str, Any]) -> Any:
+async def progress_notifications_job(_: dict[str, Any], *__: Any) -> Any:
     return await run_job("progress_notifications", notif.progress_notifications)
 
 
-async def deadline_reminders_job(_: dict[str, Any]) -> Any:
+async def deadline_reminders_job(_: dict[str, Any], *__: Any) -> Any:
     return await run_job("deadline_reminders", notif.deadline_reminders)
 
 
-async def inactive_friend_alert_job(_: dict[str, Any]) -> Any:
+async def inactive_friend_alert_job(_: dict[str, Any], *__: Any) -> Any:
     return await run_job("inactive_friend_alert", notif.inactive_friend_alert)
 
 
-async def pending_approval_reminder_job(_: dict[str, Any]) -> Any:
+async def pending_approval_reminder_job(_: dict[str, Any], *__: Any) -> Any:
     return await run_job("pending_approval_reminder", core_pending_reminder)
 
 
-async def unknown_tariff_alert_job(_: dict[str, Any]) -> Any:
+async def unknown_tariff_alert_job(_: dict[str, Any], *__: Any) -> Any:
     async def fn(ctx: Ctx) -> int:
         codes = (await ctx.session.execute(select(TariffCoefficient.code).where(
             TariffCoefficient.needs_setup.is_(True)))).scalars().all()
@@ -165,7 +165,7 @@ async def unknown_tariff_alert_job(_: dict[str, Any]) -> Any:
     return await run_job("unknown_tariff_alert", fn)
 
 
-async def terms_acceptance_reminder_job(_: dict[str, Any]) -> Any:
+async def terms_acceptance_reminder_job(_: dict[str, Any], *__: Any) -> Any:
     async def fn(ctx: Ctx) -> int:
         users = await users_not_accepted(ctx)
         for u in users:
@@ -177,7 +177,7 @@ async def terms_acceptance_reminder_job(_: dict[str, Any]) -> Any:
     return await run_job("terms_acceptance_reminder", fn)
 
 
-async def monthly_digest_job(_: dict[str, Any]) -> Any:
+async def monthly_digest_job(_: dict[str, Any], *__: Any) -> Any:
     """1-го числа: дайджест всем подтверждённым водителям (итоги прошедшего месяца)."""
     async def fn(ctx: Ctx) -> int:
         period = await ensure_current_period(ctx)
@@ -194,12 +194,12 @@ async def monthly_digest_job(_: dict[str, Any]) -> Any:
     return await run_job("monthly_digest", fn)
 
 
-async def leaderboard_update_job(_: dict[str, Any]) -> Any:
+async def leaderboard_update_job(_: dict[str, Any], *__: Any) -> Any:
     from src.core.progress.display import leaderboard
     return await run_job("leaderboard_update", lambda c: leaderboard(c))
 
 
-async def run_scheduled_broadcasts_job(_: dict[str, Any]) -> Any:
+async def run_scheduled_broadcasts_job(_: dict[str, Any], *__: Any) -> Any:
     from src.core.admin.broadcasts import refresh_stats, run_scheduled_broadcasts
 
     async def fn(ctx: Ctx) -> int:
@@ -211,7 +211,7 @@ async def run_scheduled_broadcasts_job(_: dict[str, Any]) -> Any:
 
 
 # ── инфраструктура ──────────────────────────────────────────────────────────
-async def db_backup_job(_: dict[str, Any]) -> Any:
+async def db_backup_job(_: dict[str, Any], *__: Any) -> Any:
     """pg_dump + S3, retention 30 дней (RPO 24 ч)."""
     async def fn(ctx: Ctx) -> str:
         cfg = get_config()
@@ -235,7 +235,7 @@ async def db_backup_job(_: dict[str, Any]) -> Any:
     return await run_job("db_backup", fn)
 
 
-async def health_check_job(_: dict[str, Any]) -> Any:
+async def health_check_job(_: dict[str, Any], *__: Any) -> Any:
     from src.health import collect_health
 
     async def fn(ctx: Ctx) -> dict[str, Any]:

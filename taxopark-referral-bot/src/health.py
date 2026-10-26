@@ -17,6 +17,11 @@ async def collect_health(ctx: Ctx) -> dict[str, Any]:
         out["db"] = True
     except Exception:  # noqa: BLE001
         out["db"] = False
+    if get_config().queue_backend == "db":
+        out["queue"] = out["db"]  # очередь в PostgreSQL (запуск без Docker)
+        breaker = getattr(ctx.fleet, "breaker", None)
+        out["fleet_api"] = not breaker.is_open if breaker is not None else True
+        return out
     try:
         from redis.asyncio import from_url
         r = from_url(get_config().redis_url)

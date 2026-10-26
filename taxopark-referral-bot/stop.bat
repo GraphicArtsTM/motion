@@ -1,8 +1,7 @@
 @echo off
-chcp 65001 >nul
+rem Stop the bot and its database. Data is kept.
+rem All messages are in Russian inside scripts\windows\local.ps1 (this file stays ASCII on purpose).
 cd /d "%~dp0"
-title Остановка бота
-echo  Останавливаю бота... Данные сохраняются, следующий start.bat продолжит работу.
-docker compose --profile polling --profile webhook down
-echo  Бот остановлен.
-pause
+set "PSARGS="
+if /i "%~1"=="silent" set "PSARGS=-Silent"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\windows\local.ps1" -Action stop %PSARGS%

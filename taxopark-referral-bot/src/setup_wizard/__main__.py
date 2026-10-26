@@ -11,7 +11,8 @@ from src.setup_wizard.app import app
 
 def main() -> None:
     port = int(os.environ.get("SETUP_PORT", "8765"))
-    server = uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=port, log_level="warning"))
+    host = os.environ.get("SETUP_HOST", "0.0.0.0")  # в Docker порт и так проброшен только на 127.0.0.1
+    server = uvicorn.Server(uvicorn.Config(app, host=host, port=port, log_level="warning"))
     app.state.server = server
     print(f"Мастер настройки открыт: http://localhost:{port}  (закроется сам после сохранения)", flush=True)
     server.run()

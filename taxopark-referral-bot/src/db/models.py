@@ -581,3 +581,31 @@ class FraudWhitelist(Base):
     reason: Mapped[str | None] = mapped_column(Text)
     created_by: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("users.id"))
     created_at: Mapped[datetime] = _now()
+
+
+class TaskQueueItem(Base):
+    """Очередь задач в PostgreSQL (режим без Redis)."""
+
+    __tablename__ = "task_queue"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    func: Mapped[str] = mapped_column(String(64), nullable=False)
+    args: Mapped[Any] = mapped_column(JSONB, nullable=False, server_default="[]")
+    job_key: Mapped[str] = mapped_column(String(200), nullable=False)
+    run_at: Mapped[datetime] = _now()
+    status: Mapped[str] = mapped_column(String(16), nullable=False, server_default="queued")
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    last_error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = _now()
+    finished_at: Mapped[datetime | None] = mapped_column(TS)
+
+
+class FsmState(Base):
+    """Состояние диалогов бота (FSM aiogram) в PostgreSQL (режим без Redis)."""
+
+    __tablename__ = "fsm_storage"
+
+    key: Mapped[str] = mapped_column(String(256), primary_key=True)
+    state: Mapped[str | None] = mapped_column(String(256))
+    data: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+    updated_at: Mapped[datetime] = _now()

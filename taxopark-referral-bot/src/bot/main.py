@@ -19,8 +19,11 @@ from src.config import get_config
 
 def make_storage() -> BaseStorage:
     cfg = get_config()
-    if cfg.environment == "test" or not cfg.redis_url:
+    if cfg.environment == "test":
         return MemoryStorage()
+    if cfg.queue_backend == "db" or not cfg.redis_url:
+        from src.bot.fsm_storage import DbStorage
+        return DbStorage()
     from aiogram.fsm.storage.redis import RedisStorage
     return RedisStorage.from_url(cfg.redis_url)
 

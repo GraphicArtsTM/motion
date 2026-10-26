@@ -28,6 +28,9 @@ NGINX_TEMPLATE = WORKSPACE / "deploy" / "nginx.conf.template"
 NGINX_OUT = WORKSPACE / "deploy" / "nginx.generated.conf"
 PAGE = Path(__file__).with_name("page.html")
 DEFAULT_FLEET_URL = "https://fleet-api.taxi.yandex.net"
+# LOCAL_MODE=1 — запуск без Docker (start.bat): своя база PostgreSQL на 127.0.0.1, очередь в базе, без Redis
+LOCAL_MODE = os.environ.get("LOCAL_MODE") == "1"
+LOCAL_PG_PORT = int(os.environ.get("LOCAL_PG_PORT", "54329"))
 DEFAULT_CONTACTS = ("<b>Таксопарк</b>\nТелефон: +998 __ ___ __ __\nАдрес: ...\nМенеджер: @...\n"
                     "Часы работы: 09:00–18:00")
 
@@ -93,6 +96,7 @@ async def current() -> dict[str, Any]:
         prev = json.loads(applied.read_text(encoding="utf-8")).get("settings", {})
     return {
         "exists": ENV_PATH.exists(),
+        "local": LOCAL_MODE,
         "bot_token_masked": mask(env.get("BOT_TOKEN", "")),
         "bot_username": env.get("BOT_USERNAME", ""),
         "admin_ids": [int(x) for x in env.get("ADMIN_TELEGRAM_IDS", "").replace(";", ",").split(",") if x.strip()],
@@ -147,7 +151,7 @@ async def totp_verify(body: TotpVerifyIn) -> dict[str, bool]:
 def build_env(body: SaveIn, old: dict[str, str]) -> dict[str, str]:
     """Новые значения + сохранение секретов, которые нельзя менять (пароль БД уже записан в том Postgres)."""
     pg_password = old.get("POSTGRES_PASSWORD") or secrets.token_urlsafe(18)
-    webhook = body.mode == "webhook" and body.domain.strip()
+    webhook = body.mode == "webhook" and body.domain.strip() and not LOCAL_MODE
     domain = body.domain.strip().removeprefix("https://").removeprefix("http://").strip("/")
     return {
         "BOT_MODE": "webhook" if webhook else "polling",
@@ -164,8 +168,10 @@ def build_env(body: SaveIn, old: dict[str, str]) -> dict[str, str]:
         "FLEET_API_KEY": body.fleet_api_key.strip() or old.get("FLEET_API_KEY", ""),
         "FLEET_PARK_ID": body.fleet_park_id.strip(),
         "POSTGRES_PASSWORD": pg_password,
-        "DATABASE_URL": f"postgresql+asyncpg://referral:{pg_password}@postgres:5432/referral",
-        "REDIS_URL": "redis://redis:6379/0",
+        "DATABASE_URL": (f"postgresql+asyncpg://referral:{pg_password}@127.0.0.1:{LOCAL_PG_PORT}/referral"
+                         if LOCAL_MODE else f"postgresql+asyncpg://referral:{pg_password}@postgres:5432/referral"),
+        "REDIS_URL": "" if LOCAL_MODE else "redis://redis:6379/0",
+        "QUEUE_BACKEND": "db" if LOCAL_MODE else "redis",
         "ADMIN_SECRET_KEY": old.get("ADMIN_SECRET_KEY") or secrets.token_urlsafe(32),
         "ADMIN_BASE_URL": f"https://{domain}/admin" if webhook else "http://localhost:8000/admin",
         "PUBLIC_DOMAIN": domain if webhook else "",
@@ -173,7 +179,7 @@ def build_env(body: SaveIn, old: dict[str, str]) -> dict[str, str]:
         "LOG_LEVEL": old.get("LOG_LEVEL", "INFO"),
         "TZ_DISPLAY": old.get("TZ_DISPLAY", "Asia/Tashkent"),
         "S3_BACKUP_BUCKET": old.get("S3_BACKUP_BUCKET", ""),
-        "BACKUP_DIR": "/backups",
+        "BACKUP_DIR": "backups" if LOCAL_MODE else "/backups",
     }
 
 
@@ -205,7 +211,7 @@ def validate(body: SaveIn, old: dict[str, str]) -> list[str]:
         errors.append("Укажите токен бота от @BotFather.")
     if not body.admin_ids:
         errors.append("Укажите хотя бы один Telegram ID администратора.")
-    if body.mode == "webhook" and not body.domain.strip():
+    if body.mode == "webhook" and not body.domain.strip() and not LOCAL_MODE:
         errors.append("Для режима «Сервер с доменом» укажите домен.")
     if body.panel_password and len(body.panel_password) < 8:
         errors.append("Пароль веб-панели — не короче 8 символов.")
