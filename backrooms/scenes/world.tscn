@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3 uid="uid://c8x3y7n4qwh5v"]
+[gd_scene load_steps=12 format=3 uid="uid://c8x3y7n4qwh5v"]
 
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="1_player"]
 [ext_resource type="Script" path="res://scripts/chunk_manager.gd" id="2_chunk_manager"]
@@ -8,6 +8,8 @@
 [ext_resource type="Script" path="res://scripts/noise_bus.gd" id="7_noise_bus"]
 [ext_resource type="Script" path="res://scripts/entity_presence.gd" id="8_presence"]
 [ext_resource type="Script" path="res://scripts/ambience_director.gd" id="9_ambience"]
+[ext_resource type="Script" path="res://scripts/entity_stalker.gd" id="10_stalker"]
+[ext_resource type="Script" path="res://scripts/entity_echo.gd" id="11_echo"]
 
 [sub_resource type="Environment" id="Environment_1"]
 background_mode = 1
@@ -95,3 +97,9 @@ hud_path = NodePath("../HUD")
 
 [node name="EntityPresence" type="Node" parent="Entity"]
 script = ExtResource("8_presence")
+
+[node name="EntityStalker" type="Node" parent="Entity"]
+script = ExtResource("10_stalker")
+
+[node name="EntityEcho" type="Node" parent="Entity"]
+script = ExtResource("11_echo")

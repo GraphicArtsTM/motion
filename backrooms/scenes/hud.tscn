@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/hud.gd" id="1_hud"]
 [ext_resource type="Script" path="res://scripts/pause_menu.gd" id="2_pause"]
@@ -7,9 +7,22 @@
 [ext_resource type="Theme" path="res://theme/backrooms_theme.tres" id="5_theme"]
 [ext_resource type="PackedScene" path="res://scenes/bodycam_overlay.tscn" id="6_overlay"]
 [ext_resource type="Script" path="res://scripts/hud_tablet.gd" id="7_tablet"]
+[ext_resource type="Script" path="res://scripts/note_view.gd" id="8_note"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_post"]
 shader = ExtResource("4_post")
+
+[sub_resource type="StyleBoxFlat" id="note_paper"]
+bg_color = Color(0.84, 0.81, 0.71, 0.97)
+border_width_left = 14
+border_color = Color(0.74, 0.7, 0.6, 1)
+content_margin_left = 40.0
+content_margin_top = 28.0
+content_margin_right = 34.0
+content_margin_bottom = 24.0
+shadow_color = Color(0, 0, 0, 0.55)
+shadow_size = 18
+shadow_offset = Vector2(4, 8)
 
 [node name="HUD" type="CanvasLayer" groups=["hud"]]
 script = ExtResource("1_hud")
@@ -98,6 +111,11 @@ layout_mode = 2
 theme_type_variation = &"Value"
 text = "БАНКИ 0"
 
+[node name="Notes" type="Label" parent="Root/InventoryPanel/HBox"]
+layout_mode = 2
+theme_type_variation = &"Value"
+text = "ЗАПИСКИ 0/10"
+
 [node name="Throw" type="Label" parent="Root/InventoryPanel/HBox"]
 layout_mode = 2
 size_flags_vertical = 4
@@ -110,6 +128,65 @@ objective_panel_path = NodePath("../ObjectivePanel")
 inventory_panel_path = NodePath("../InventoryPanel")
 objective_label_path = NodePath("../ObjectivePanel/VBox/Objective")
 cans_label_path = NodePath("../InventoryPanel/HBox/Cans")
+notes_label_path = NodePath("../InventoryPanel/HBox/Notes")
+
+[node name="NoteView" type="PanelContainer" parent="Root"]
+visible = false
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -270.0
+offset_top = -210.0
+offset_right = 270.0
+offset_bottom = 210.0
+grow_horizontal = 2
+grow_vertical = 2
+rotation = -0.012
+pivot_offset = Vector2(270, 210)
+mouse_filter = 2
+theme_override_styles/panel = SubResource("note_paper")
+script = ExtResource("8_note")
+page_label_path = NodePath("VBox/Page")
+title_label_path = NodePath("VBox/Title")
+body_label_path = NodePath("VBox/Body")
+counter_label_path = NodePath("../InventoryPanel/HBox/Notes")
+
+[node name="VBox" type="VBoxContainer" parent="Root/NoteView"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 10
+
+[node name="Page" type="Label" parent="Root/NoteView/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.45, 0.4, 0.32, 1)
+theme_override_font_sizes/font_size = 12
+text = "ЗАПИСКА 1/10 · M.E.G."
+
+[node name="Title" type="Label" parent="Root/NoteView/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.32, 0.08, 0.06, 1)
+theme_override_font_sizes/font_size = 26
+text = "ДЕНЬ 1"
+
+[node name="Body" type="Label" parent="Root/NoteView/VBox"]
+custom_minimum_size = Vector2(460, 0)
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_colors/font_color = Color(0.12, 0.12, 0.17, 1)
+theme_override_constants/line_spacing = 4
+theme_override_font_sizes/font_size = 17
+text = "..."
+autowrap_mode = 3
+
+[node name="Close" type="Label" parent="Root/NoteView/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.45, 0.4, 0.32, 1)
+theme_override_font_sizes/font_size = 12
+text = "F / ESC — УБРАТЬ"
+horizontal_alignment = 2
 
 [node name="Hint" type="Label" parent="Root"]
 unique_name_in_owner = true

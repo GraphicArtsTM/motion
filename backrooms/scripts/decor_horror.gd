@@ -139,7 +139,12 @@ static func _quad(decals: Dictionary, mat: String, c: Vector3, right: Vector3, u
 		a[0].append(c + right * corner[0] + up * corner[1])
 		a[1].append(n)
 		a[2].append(corner[2])
-	a[3].append_array([start, start + 1, start + 2, start, start + 2, start + 3])
+	# Обход — по нормали: у вывернутого квада с двусторонним материалом
+	# Godot переворачивает нормаль, и декаль на полу выходит чёрной
+	if right.cross(up).dot(n) < 0.0:
+		a[3].append_array([start, start + 2, start + 1, start, start + 3, start + 2])
+	else:
+		a[3].append_array([start, start + 1, start + 2, start, start + 2, start + 3])
 
 
 static func _build(decals: Dictionary) -> MeshInstance3D:

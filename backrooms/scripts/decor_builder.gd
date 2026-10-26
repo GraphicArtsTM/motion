@@ -24,8 +24,8 @@ func _ready() -> void:
 	dark_mat = StandardMaterial3D.new()
 	dark_mat.albedo_color = Color(0.16, 0.13, 0.1)
 	dark_mat.roughness = 0.95
-	# Плоские наклейки декора: у половины квадов обход вершин идёт против
-	# нормали, поэтому без отсечения задних граней часть наклеек пропадает
+	# Плоские наклейки декора видны с обеих сторон (обход в _add_centered_quad
+	# теперь по нормали, но перегородки-полоски смотрят в обе стороны)
 	dark_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	glow_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 
@@ -186,5 +186,11 @@ func _add_centered_quad(arrays: Array, center: Vector3, width: float,
 	uvs.append(Vector2(1, 0))
 	for i in 4:
 		normals.append(normal)
-	indices.append_array([start_index, start_index + 1, start_index + 2,
-		start_index, start_index + 2, start_index + 3])
+	# Обход — по нормали: вывернутый квад двусторонний материал рисовал с
+	# перевёрнутой нормалью, и мусор на полу выходил чёрным даже под фонарём
+	if tangent.cross(up).dot(normal) < 0.0:
+		indices.append_array([start_index, start_index + 2, start_index + 1,
+			start_index, start_index + 3, start_index + 2])
+	else:
+		indices.append_array([start_index, start_index + 1, start_index + 2,
+			start_index, start_index + 2, start_index + 3])

@@ -51,7 +51,9 @@ func _process(delta: float) -> void:
 		return
 	# Дерево встало (пауза, смерть) или сущность погасла — замолкаем.
 	# Поэтому узел работает и на паузе: PROCESS_MODE_ALWAYS в _ready.
-	if get_tree().paused or not host.is_physics_processing():
+	# Мозг выключен и пока «Наблюдатель» стоит (entity_stalker.gd) — тогда живём
+	var stopped: bool = not host.is_physics_processing() and not host.get_meta("peeking", false)
+	if get_tree().paused or stopped:
 		if breath.playing:
 			breath.stop()
 		return

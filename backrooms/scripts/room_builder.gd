@@ -179,6 +179,14 @@ func _add_quad(vertices: PackedVector3Array, uvs: PackedVector2Array,
 	for i in 4:
 		normals.append(normal)
 
-	indices.append_array([
-		start_index, start_index + 1, start_index + 2,
-		start_index, start_index + 2, start_index + 3])
+	# Обход по нормали (лицевая грань в Godot — по часовой): у западных стен
+	# и половины торцов он был вывернут, и лучи Jolt (взгляд сущности, её
+	# переброс) проходили сквозь такие стены — тыльные грани луч не видит
+	if axis_u.cross(axis_v).dot(normal) < 0.0:
+		indices.append_array([
+			start_index, start_index + 2, start_index + 1,
+			start_index, start_index + 3, start_index + 2])
+	else:
+		indices.append_array([
+			start_index, start_index + 1, start_index + 2,
+			start_index, start_index + 2, start_index + 3])

@@ -14,6 +14,7 @@ const Darkness = preload("res://scripts/darkness.gd")
 const LampMesh = preload("res://scripts/lamp_mesh.gd")
 const LampFlicker = preload("res://scripts/lamp_flicker.gd")
 const WorldDecay = preload("res://scripts/world_decay.gd")
+const LampHaunt = preload("res://scripts/lamp_haunt.gd")
 
 const WALL_H: float = 2.8
 const LIGHT_ENERGY: float = 1.1
@@ -27,6 +28,10 @@ var chunk_nodes: Dictionary = {}
 
 func _ready() -> void:
 	lamp_shader = load("res://shaders/lamp_panel.gdshader") as Shader
+	# Помехи от сущности: гасит и дёргает лампы рядом с ней (lamp_haunt.gd)
+	var haunt := LampHaunt.new()
+	haunt.lamps = self
+	add_child(haunt)
 
 
 func add_lamps(chunk) -> void:
@@ -79,12 +84,16 @@ func add_lamps(chunk) -> void:
 	hum.play(rng.randf_range(0.0, 1.5))
 	# Больная лампа: жребий после всех прежних, чтобы яркость и гул чанка
 	# остались теми же, что до порчи
+	var flicker: Node = null
 	if not dark and rng.randf() < 0.08 + 0.3 * decay:
-		var flicker := LampFlicker.new()
+		flicker = LampFlicker.new()
 		flicker.setup(light, panel, hum, rng.randi())
 		light.add_child(flicker)
 
-	chunk_nodes[pos] = {"mesh": mesh_instance, "light": light, "hum": hum}
+	# Норма лампы: к ней помехи от сущности возвращают свет, гул и панели
+	chunk_nodes[pos] = {"mesh": mesh_instance, "light": light, "hum": hum, "panel": panel,
+		"dark": dark, "flicker": flicker, "energy": light.light_energy,
+		"brightness": brightness, "hum_db": hum.volume_db}
 
 
 func remove_lamps(chunk_pos: Vector2i) -> void:
