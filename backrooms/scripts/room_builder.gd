@@ -3,6 +3,7 @@ extends Node3D
 # RoomBuilder: пол и потолок — по кваду на чанк, стены — короба
 # толщиной 0.2 м целиком внутри своих ячеек. Совпадающих плоскостей
 # нет (z-fighting невозможен), стыки sealed заходом за пол/потолок.
+# Плинтус и дверные проёмы — room_trim.gd, порча чанка — world_decay.gd.
 
 const MazeChunk = preload("res://scripts/maze_chunk.gd")
 const MazeCell = preload("res://scripts/maze_cell.gd")
@@ -13,107 +14,95 @@ const WALL_THICK: float = 0.2
 const WALL_Y0: float = -0.05
 const WALL_Y1: float = 2.79
 
+const RoomTrim = preload("res://scripts/room_trim.gd")
+const WorldDecay = preload("res://scripts/world_decay.gd")
+const PropFactory = preload("res://scripts/prop_factory.gd")
+
 var wallpaper_material: ShaderMaterial
 var carpet_material: ShaderMaterial
 var ceiling_material: ShaderMaterial
+var baseboard_material: Material
 
 
 func _ready() -> void:
 	_load_materials()
 
 
+# Шейдеры мира и фото-фактура к ним (Poly Haven, CC0, textures/CREDITS.md)
 func _load_materials() -> void:
-	var wallpaper_shader := load("res://shaders/wallpaper.gdshader") as Shader
-	var carpet_shader := load("res://shaders/carpet.gdshader") as Shader
-	var ceiling_shader := load("res://shaders/ceiling.gdshader") as Shader
+	wallpaper_material = _shader_material("wallpaper", {
+		"paper_diff": "decrepit_wallpaper_diff_1k", "paper_nor": "decrepit_wallpaper_nor_gl_1k",
+		"paper_arm": "decrepit_wallpaper_arm_1k"})
+	carpet_material = _shader_material("carpet", {
+		"carpet_diff": "dirty_carpet_diff_1k", "carpet_nor": "dirty_carpet_nor_gl_1k",
+		"carpet_arm": "dirty_carpet_arm_1k"})
+	ceiling_material = _shader_material("ceiling", {
+		"tile_nor": "beige_wall_002_nor_gl_1k", "tile_arm": "beige_wall_002_arm_1k"})
+	baseboard_material = PropFactory.material_named("baseboard")
 
-	wallpaper_material = ShaderMaterial.new()
-	wallpaper_material.shader = wallpaper_shader
-	carpet_material = ShaderMaterial.new()
-	carpet_material.shader = carpet_shader
-	ceiling_material = ShaderMaterial.new()
-	ceiling_material.shader = ceiling_shader
+
+func _shader_material(shader_name: String, textures: Dictionary) -> ShaderMaterial:
+	var mat := ShaderMaterial.new()
+	mat.shader = load("res://shaders/%s.gdshader" % shader_name) as Shader
+	for uniform in textures:
+		mat.set_shader_parameter(uniform, load("res://textures/%s.jpg" % textures[uniform]))
+	return mat
 
 
 func build_chunk_mesh(chunk) -> MeshInstance3D:
 	var mesh_instance := MeshInstance3D.new()
 	var array_mesh := ArrayMesh.new()
-	_add_floor(array_mesh, chunk)
-	_add_ceiling(array_mesh, chunk)
+	var size: float = MazeChunk.CHUNK_SIZE * CELL_SIZE
+	_add_plane(array_mesh, 0.0, Vector3.UP, size, carpet_material)
+	_add_plane(array_mesh, WALL_HEIGHT, Vector3.DOWN, size, ceiling_material)
 	_add_walls(array_mesh, chunk)
+	var trim: Dictionary = RoomTrim.build(chunk)
+	_add_surface(array_mesh, trim["trim"], wallpaper_material)
+	# Коллизия — до плинтуса и наличников: упереться в 2 см отделки нельзя,
+	# а треугольники физики дорогие
+	var collision: Shape3D = array_mesh.create_trimesh_shape()
+	_add_surface(array_mesh, trim["base"], baseboard_material)
 	mesh_instance.mesh = array_mesh
 	mesh_instance.position = chunk.get_world_position()
+	# Порча чанка: её читают шейдеры стен, ковра и потолка (instance uniform)
+	mesh_instance.set_instance_shader_parameter("decay",
+		WorldDecay.at(Vector2i(chunk.chunk_x, chunk.chunk_y), chunk.style))
 	var static_body := StaticBody3D.new()
 	var collision_shape := CollisionShape3D.new()
-	collision_shape.shape = mesh_instance.mesh.create_trimesh_shape()
+	collision_shape.shape = collision
 	static_body.add_child(collision_shape)
 	mesh_instance.add_child(static_body)
 
 	return mesh_instance
 
 
-func _add_floor(array_mesh: ArrayMesh, chunk) -> void:
+# Пол или потолок чанка — один квад; нормаль задаёт и сторону обхода
+func _add_plane(array_mesh: ArrayMesh, y: float, normal: Vector3, size: float,
+		mat: Material) -> void:
+	var arrays: Array = [PackedVector3Array(), PackedVector3Array(), PackedVector2Array(), PackedInt32Array()]
+	var corners: Array = [Vector3(0, y, 0), Vector3(size, y, 0), Vector3(size, y, size), Vector3(0, y, size)]
+	if normal.y < 0.0:
+		corners = [corners[0], corners[3], corners[2], corners[1]]
+	for c in corners:
+		arrays[0].append(c)
+		arrays[1].append(normal)
+		arrays[2].append(Vector2(c.x, c.z) / CELL_SIZE)
+	arrays[3].append_array([0, 1, 2, 0, 2, 3])
+	_add_surface(array_mesh, arrays, mat)
+
+
+# [вершины, нормали, UV, индексы] -> поверхность с материалом (пустые пропускаем)
+func _add_surface(array_mesh: ArrayMesh, data: Array, mat: Material) -> void:
+	if (data[0] as PackedVector3Array).is_empty():
+		return
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
-
-	var vertices := PackedVector3Array()
-	var uvs := PackedVector2Array()
-	var normals := PackedVector3Array()
-	var indices := PackedInt32Array()
-
-	var size: float = MazeChunk.CHUNK_SIZE * CELL_SIZE
-
-	vertices.append(Vector3(0, 0, 0))
-	vertices.append(Vector3(size, 0, 0))
-	vertices.append(Vector3(size, 0, size))
-	vertices.append(Vector3(0, 0, size))
-	uvs.append(Vector2(0, 0))
-	uvs.append(Vector2(size / CELL_SIZE, 0))
-	uvs.append(Vector2(size / CELL_SIZE, size / CELL_SIZE))
-	uvs.append(Vector2(0, size / CELL_SIZE))
-	for i in 4:
-		normals.append(Vector3.UP)
-	indices.append_array([0, 1, 2, 0, 2, 3])
-
-	arrays[Mesh.ARRAY_VERTEX] = vertices
-	arrays[Mesh.ARRAY_TEX_UV] = uvs
-	arrays[Mesh.ARRAY_NORMAL] = normals
-	arrays[Mesh.ARRAY_INDEX] = indices
-
+	arrays[Mesh.ARRAY_VERTEX] = data[0]
+	arrays[Mesh.ARRAY_NORMAL] = data[1]
+	arrays[Mesh.ARRAY_TEX_UV] = data[2]
+	arrays[Mesh.ARRAY_INDEX] = data[3]
 	array_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	array_mesh.surface_set_material(array_mesh.get_surface_count() - 1, carpet_material)
-
-
-func _add_ceiling(array_mesh: ArrayMesh, chunk) -> void:
-	var arrays := []
-	arrays.resize(Mesh.ARRAY_MAX)
-
-	var vertices := PackedVector3Array()
-	var uvs := PackedVector2Array()
-	var normals := PackedVector3Array()
-	var indices := PackedInt32Array()
-
-	var size: float = MazeChunk.CHUNK_SIZE * CELL_SIZE
-
-	vertices.append(Vector3(0, WALL_HEIGHT, 0))
-	vertices.append(Vector3(0, WALL_HEIGHT, size))
-	vertices.append(Vector3(size, WALL_HEIGHT, size))
-	vertices.append(Vector3(size, WALL_HEIGHT, 0))
-	uvs.append(Vector2(0, 0))
-	uvs.append(Vector2(0, size / CELL_SIZE))
-	uvs.append(Vector2(size / CELL_SIZE, size / CELL_SIZE))
-	uvs.append(Vector2(size / CELL_SIZE, 0))
-	for i in 4:
-		normals.append(Vector3.DOWN)
-	indices.append_array([0, 1, 2, 0, 2, 3])
-
-	arrays[Mesh.ARRAY_VERTEX] = vertices
-	arrays[Mesh.ARRAY_TEX_UV] = uvs
-	arrays[Mesh.ARRAY_NORMAL] = normals
-	arrays[Mesh.ARRAY_INDEX] = indices
-
-	array_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	array_mesh.surface_set_material(array_mesh.get_surface_count() - 1, ceiling_material)
+	array_mesh.surface_set_material(array_mesh.get_surface_count() - 1, mat)
 
 
 func _add_walls(array_mesh: ArrayMesh, chunk) -> void:

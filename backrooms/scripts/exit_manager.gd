@@ -76,11 +76,14 @@ func _on_chunk_generating(chunk) -> void:
 					_open_both(cell, neighbor, direction)
 
 
+# Площадь — открытое место: ни стен, ни дверных проёмов
 func _open_both(cell, neighbor, direction) -> void:
 	if cell:
 		cell.remove_wall(direction)
+		cell.doors &= ~direction
 	if neighbor:
 		neighbor.remove_wall(cell.get_opposite_wall(direction))
+		neighbor.doors &= ~cell.get_opposite_wall(direction)
 
 
 func _on_chunk_loaded(chunk_pos: Vector2i) -> void:

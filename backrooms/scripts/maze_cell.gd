@@ -6,6 +6,8 @@ enum Wall { NORTH = 1, EAST = 2, SOUTH = 4, WEST = 8 }
 var x: int
 var y: int
 var walls: int = 15  # Все стены (1111 в бинарном)
+# Дверные проёмы на открытых сторонах — те же биты, что у стен (maze_doors.gd)
+var doors: int = 0
 var visited: bool = false
 
 

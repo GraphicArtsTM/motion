@@ -1,11 +1,12 @@
 extends Node3D
 
-# DecorBuilder: мелочи жизни лабиринта. Строит один меш на чанк:
-# ложное свечение выхода в тупике, царапины на стенах, мусор на полу.
-# Всё статично и детерминировано сидом чанка.
+# DecorBuilder: мелочи жизни лабиринта. Строит один меш на чанк: ложное
+# свечение выхода в тупике, царапины на стенах, мусор на полу; следы
+# хоррора — decor_horror.gd. Всё детерминировано сидом чанка.
 
 const MazeChunk = preload("res://scripts/maze_chunk.gd")
 const MazeCell = preload("res://scripts/maze_cell.gd")
+const DecorHorror = preload("res://scripts/decor_horror.gd")
 
 const CELL_METERS: float = MazeChunk.CELL_SIZE
 
@@ -51,6 +52,7 @@ func build_decor(chunk, world_seed: int) -> void:
 	mesh_instance.mesh = array_mesh
 	mesh_instance.position = chunk.get_world_position()
 	add_child(mesh_instance)
+	DecorHorror.add(mesh_instance, chunk, world_seed)
 	chunk_decor[pos] = mesh_instance
 
 

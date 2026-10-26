@@ -9,6 +9,7 @@ const MazeChunk = preload("res://scripts/maze_chunk.gd")
 const MazeCell = preload("res://scripts/maze_cell.gd")
 const MazeZone = preload("res://scripts/maze_zone.gd")
 const MazePillars = preload("res://scripts/maze_pillars.gd")
+const MazeDoors = preload("res://scripts/maze_doors.gd")
 
 const CHUNK_SIZE: int = MazeChunk.CHUNK_SIZE
 const HALL_ATTEMPTS: int = 20
@@ -26,6 +27,7 @@ func carve(chunk, rng: RandomNumberGenerator, style: int) -> void:
 	_apply_loops(chunk, rng, float(preset["loop"]))
 	_reduce_dead_ends(chunk, rng, float(preset["dead"]))
 	MazePillars.place(chunk, rng, halls, float(preset["pillar"]), blocked)
+	MazeDoors.place(chunk, rng, float(preset.get("doors", 0.3)), halls, blocked)
 
 
 # --- лабиринт ---

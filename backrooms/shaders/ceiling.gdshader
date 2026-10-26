@@ -1,117 +1,87 @@
 shader_type spatial;
 render_mode blend_mix, depth_draw_opaque, cull_back, diffuse_burley, specular_schlick_ggx;
 
-// Цвета потолочных плиток Backrooms
-uniform vec3 tile_color : source_color = vec3(0.922, 0.910, 0.878); // #EBE8E0
-uniform vec3 grid_color : source_color = vec3(0.784, 0.769, 0.729); // #C8C4BA
-uniform vec3 stain_color : source_color = vec3(0.831, 0.812, 0.745); // #D4CFBE
+// Подвесной потолок Backrooms: акустическая плитка в металлической
+// решётке. Сетка привязана к клетке лабиринта (4 м): 3 плитки поперёк и 5
+// вдоль, поэтому центральная плитка всегда под светильником. Рельеф
+// плитки — фото крапчатой штукатурки (Poly Haven, CC0, textures/CREDITS.md).
+// С порчей (decay чанка) на плитках проступают ржавые кольца протечек,
+// плитки желтеют и проседают, а некоторых нет вовсе: на их месте чёрная
+// дыра в перекрытие. Светильник никогда не остаётся без плитки.
 
-// Параметры плиток
-uniform float tile_size : hint_range(0.3, 1.0) = 0.6; // 60см × 60см
-uniform float grid_width : hint_range(0.005, 0.02) = 0.01; // 1см швы
-uniform float stain_coverage : hint_range(0.0, 0.5) = 0.3; // 30% пятен
+uniform sampler2D tile_nor : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D tile_arm : filter_linear_mipmap_anisotropic, repeat_enable;
+uniform vec3 tile_color : source_color = vec3(0.86, 0.84, 0.76);
+uniform vec3 grid_color : source_color = vec3(0.62, 0.6, 0.54);
+uniform vec3 leak_color : source_color = vec3(0.52, 0.38, 0.2);
+uniform vec3 void_color : source_color = vec3(0.012, 0.011, 0.01);
+uniform float cell = 4.0;
+instance uniform float decay : hint_range(0.0, 1.0) = 0.0;
 
-// Hash
+varying vec3 wpos;
+
 float hash(vec2 p) {
 	p = fract(p * vec2(123.34, 456.21));
 	p += dot(p, p + 45.32);
 	return fract(p.x * p.y);
 }
 
-// Noise
-float noise(vec2 p) {
+float vnoise(vec2 p) {
 	vec2 i = floor(p);
 	vec2 f = fract(p);
 	f = f * f * (3.0 - 2.0 * f);
-	
-	float a = hash(i);
-	float b = hash(i + vec2(1.0, 0.0));
-	float c = hash(i + vec2(0.0, 1.0));
-	float d = hash(i + vec2(1.0, 1.0));
-	
-	return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+	return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
+		mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
 }
 
-// FBM
-float fbm(vec2 p, int octaves) {
-	float value = 0.0;
-	float amplitude = 0.5;
-	
-	for (int i = 0; i < octaves; i++) {
-		value += amplitude * noise(p);
-		p *= 2.0;
-		amplitude *= 0.5;
-	}
-	return value;
-}
-
-// Сетка плиток
-float tile_grid(vec2 uv, out vec2 tile_id) {
-	vec2 scaled = uv / tile_size;
-	tile_id = floor(scaled);
-	vec2 tile_uv = fract(scaled);
-	
-	// Швы между плитками
-	float grid_half = grid_width * 0.5 / tile_size;
-	float grid_x = smoothstep(0.0, grid_half, tile_uv.x) * smoothstep(0.0, grid_half, 1.0 - tile_uv.x);
-	float grid_y = smoothstep(0.0, grid_half, tile_uv.y) * smoothstep(0.0, grid_half, 1.0 - tile_uv.y);
-	
-	return grid_x * grid_y;
-}
-
-// Пятна от влаги на плитке
-float moisture_stains(vec2 tile_id, vec2 tile_uv) {
-	// Случайное пятно на плитке
-	float has_stain = step(0.7, hash(tile_id));
-	
-	if (has_stain < 0.5) return 0.0;
-	
-	// Форма пятна (неровная)
-	vec2 stain_center = vec2(hash(tile_id * 1.1), hash(tile_id * 2.3)) * 0.6 + 0.2;
-	float dist = length(tile_uv - stain_center);
-	
-	float stain_shape = fbm(tile_uv * 8.0 + tile_id, 2);
-	float stain = smoothstep(0.4, 0.1, dist + stain_shape * 0.1);
-	
-	return stain;
-}
-
-// Текстура поверхности плитки
-float tile_surface(vec2 uv) {
-	// Мелкие отверстия (минеральная плита)
-	float holes = fbm(uv * 100.0, 4);
-	holes = smoothstep(0.55, 0.65, holes) * 0.08;
-	
-	return holes;
+void vertex() {
+	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 }
 
 void fragment() {
-	vec2 uv = UV * 1.67; // Масштаб для плиток 0.6м
-	
-	vec2 tile_id;
-	float grid = tile_grid(uv, tile_id);
-	
-	// UV внутри плитки
-	vec2 tile_uv = fract(uv / tile_size);
-	
-	// Вариации яркости между плитками
-	float tile_variation = hash(tile_id) * 0.05;
-	
-	// Базовый цвет плитки
-	vec3 color = tile_color + tile_variation;
-	
-	// Пятна от влаги
-	float stains = moisture_stains(tile_id, tile_uv);
-	color = mix(color, stain_color, stains * stain_coverage);
-	
-	// Текстура поверхности
-	float surface = tile_surface(uv);
-	color -= surface;
-	
-	// Сетка (швы)
-	color = mix(grid_color, color, grid);
-	
-	ALBEDO = color;
-	ROUGHNESS = 0.8;
-	METALLIC = 0.0;
+	// Базис рельефа по мировым осям: у плоскости касательных нет
+	TANGENT = normalize((VIEW_MATRIX * vec4(1.0, 0.0, 0.0, 0.0)).xyz);
+	BINORMAL = normalize((VIEW_MATRIX * vec4(0.0, 0.0, 1.0, 0.0)).xyz);
+	vec2 counts = vec2(3.0, 5.0);
+	vec2 g = wpos.xz / cell * counts;
+	vec2 tile_id = floor(g);
+	vec2 in_tile = fract(g);
+	vec2 tile_m = cell / counts;
+	// Решётка: тонкие полосы по краям плитки, в метрах
+	vec2 edge_m = min(in_tile, 1.0 - in_tile) * tile_m;
+	float bar = 1.0 - smoothstep(0.012, 0.02, min(edge_m.x, edge_m.y));
+
+	float r = hash(tile_id + 0.37);
+	// Центральная плитка клетки — под светильником, её не трогаем
+	vec2 in_cell = mod(tile_id, counts);
+	bool lamp_tile = in_cell.x == 1.0 && in_cell.y == 2.0;
+	bool missing = !lamp_tile && r < 0.015 + 0.09 * decay;
+
+	vec2 tuv = wpos.xz * 0.6;
+	vec3 color = tile_color * (0.92 + 0.12 * hash(tile_id + 3.1));
+	// Пожелтение и протечки: кольцо ржавой воды вокруг случайной точки плитки
+	color = mix(color, color * vec3(0.95, 0.88, 0.72), decay * 0.6 * hash(tile_id + 5.5));
+	vec2 leak_c = vec2(hash(tile_id + 1.1), hash(tile_id + 2.2)) * 0.6 + 0.2;
+	float leak_r = 0.18 + 0.25 * hash(tile_id + 4.4);
+	float dist = length((in_tile - leak_c) * tile_m) + 0.05 * vnoise(wpos.xz * 9.0);
+	float has_leak = step(1.0 - (0.04 + 0.4 * decay), hash(tile_id + 8.8));
+	float leak_fill = 1.0 - smoothstep(leak_r * 0.8, leak_r, dist);
+	float leak_ring = leak_fill * smoothstep(leak_r * 0.55, leak_r * 0.85, dist);
+	color = mix(color, leak_color, has_leak * (leak_fill * 0.25 + leak_ring * 0.55));
+	color = mix(color, grid_color, bar);
+
+	vec3 arm = texture(tile_arm, tuv).rgb;
+	if (missing && bar < 0.5) {
+		// Нет плитки: в дыре темно, только кромка соседних чуть видна
+		ALBEDO = void_color + vec3(0.02) * vnoise(wpos.xz * 3.0);
+		ROUGHNESS = 1.0;
+		SPECULAR = 0.0;
+	} else {
+		ALBEDO = color;
+		NORMAL_MAP = texture(tile_nor, tuv).rgb;
+		NORMAL_MAP_DEPTH = mix(0.9, 0.0, bar);
+		AO = arm.r;
+		ROUGHNESS = mix(arm.g, 0.45, bar);
+		METALLIC = bar * 0.4;
+	}
 }

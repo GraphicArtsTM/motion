@@ -9,6 +9,7 @@ const MazeChunk = preload("res://scripts/maze_chunk.gd")
 const MazeCell = preload("res://scripts/maze_cell.gd")
 const MazeZone = preload("res://scripts/maze_zone.gd")
 const MazeCarver = preload("res://scripts/maze_carver.gd")
+const MazeDoors = preload("res://scripts/maze_doors.gd")
 
 const CHUNK_SIZE: int = MazeChunk.CHUNK_SIZE
 const BORDER_MIN: int = 2
@@ -57,19 +58,18 @@ func connect_chunks(chunk1, chunk2, base_seed: int) -> void:
 		var t: int = rng.randi_range(0, CHUNK_SIZE - 1)
 		if not used.has(t):
 			used.append(t)
+	# Западный/северный из пары и восточный/южный — порядок канонический,
+	# поэтому и проёмы (жребий на каждый ряд) одинаковы с обеих сторон
+	var first = chunk1 if dx > 0 or dy > 0 else chunk2
+	var second = chunk2 if dx > 0 or dy > 0 else chunk1
+	var grid: bool = _is_grid(chunk1) or _is_grid(chunk2)
 	for t in used:
-		if dx > 0:
-			MazeCell.open_between(chunk1.get_cell(CHUNK_SIZE - 1, t),
-				chunk2.get_cell(0, t), MazeCell.Wall.EAST)
-		elif dx < 0:
-			MazeCell.open_between(chunk2.get_cell(CHUNK_SIZE - 1, t),
-				chunk1.get_cell(0, t), MazeCell.Wall.EAST)
-		elif dy > 0:
-			MazeCell.open_between(chunk1.get_cell(t, CHUNK_SIZE - 1),
-				chunk2.get_cell(t, 0), MazeCell.Wall.SOUTH)
-		else:
-			MazeCell.open_between(chunk2.get_cell(t, CHUNK_SIZE - 1),
-				chunk1.get_cell(t, 0), MazeCell.Wall.SOUTH)
+		var a = first.get_cell(CHUNK_SIZE - 1, t) if dx != 0 else first.get_cell(t, CHUNK_SIZE - 1)
+		var b = second.get_cell(0, t) if dx != 0 else second.get_cell(t, 0)
+		var dir = MazeCell.Wall.EAST if dx != 0 else MazeCell.Wall.SOUTH
+		MazeCell.open_between(a, b, dir)
+		if rng.randf() < MazeDoors.BORDER_CHANCE and not (grid and MazeCarver.GRID_LINES.has(t)):
+			MazeDoors.mark(a, b, dir)
 
 
 # Сид границы: пара чанков в каноническом порядке, обе стороны получают

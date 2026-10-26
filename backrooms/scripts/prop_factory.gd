@@ -35,6 +35,18 @@ const PALETTE := {
 	# Банка в руке: руки на своём слое, фонарь их не освещает — металл
 	# слегка светится сам, иначе в темноте кулак держит пустоту
 	"view_metal": [Color(0.62, 0.63, 0.6), 0.4, 0.3, "dents", 0.15, "", 0.12],
+	# Мир: плинтус и наличники, упавшая плитка потолка, бумаги, решётки
+	"baseboard": [Color(0.23, 0.19, 0.14), 0.55, 0.0, "dents", 0.15, "grime", 0.0],
+	"ceiling_tile": [Color(0.78, 0.75, 0.66), 0.9, 0.0, "pores", 0.3, "grime", 0.0],
+	"paper": [Color(0.74, 0.71, 0.62), 0.9, 0.0, "", 0.0, "grime", 0.0],
+}
+
+# Декали хоррора: [текстура формы (prop_textures), цвет, шероховатость]
+const DECALS := {
+	"blood": ["handprint", Color(0.2, 0.035, 0.025), 0.45],
+	"drag": ["drag", Color(0.17, 0.04, 0.03), 0.5],
+	"scratch": ["tally", Color(0.07, 0.06, 0.05), 0.9],
+	"puddle": ["puddle", Color(0.02, 0.022, 0.02), 0.03],
 }
 
 
@@ -56,6 +68,16 @@ static func material_named(name: String) -> StandardMaterial3D:
 		mat.roughness = 0.75
 		mat.uv1_triplanar = true
 		mat.uv1_scale = Vector3(2.0, 2.0, 2.0)
+	elif DECALS.has(name):
+		var d: Array = DECALS[name]
+		mat.albedo_texture = PropTextures.decal(d[0])
+		mat.albedo_color = d[1]
+		mat.roughness = d[2]
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		if name == "puddle":
+			mat.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
+			mat.metallic_specular = 0.9
 	elif name == "glass_dark":
 		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		mat.albedo_color = Color(0.05, 0.08, 0.08, 0.55)
