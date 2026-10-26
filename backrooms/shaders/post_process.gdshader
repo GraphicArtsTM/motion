@@ -1,31 +1,42 @@
 shader_type canvas_item;
 
-// Пост-обработка хоррора: цветокоррекция «больного» кадра, телевизор —
-// развёртка, полоса записи, шум головки, бочка объектива, пыль на стекле,
-// виньетка и страх (dread) с сердцебиением. Читает экран, поэтому лежит
-// нижним слоем HUD — интерфейс поверх чистый.
+// Пост-обработка нагрудной камеры: так выглядит запись цифрового бодикама.
+// Широкоугольник «рыбий глаз», цифровая матрица (шум в тенях, лесенка и
+// квадраты сжатия в тёмном, перешарп с ореолами, пересвет ламп), шторка
+// строк на повороте и страх (dread) с сердцебиением и сбоями кодека.
+// Читает экран, поэтому лежит нижним слоем HUD — интерфейс поверх чистый.
 
-uniform float vignette_strength : hint_range(0.0, 1.0) = 0.7;
-uniform float grain_amount : hint_range(0.0, 0.2) = 0.05;
+// Рыбий глаз: 0 — обычная перспектива, 1 — равнопромежуточная проекция.
+// Камера рендерит прямолинейно с углом src_fov (по вертикали, его кормит
+// camera_lens.gd), а шейдер перекладывает кадр так, что углы экрана остаются
+// углами: края сжимаются, центр крупнее, прямые гнутся — главная примета
+uniform float fisheye : hint_range(0.0, 1.0) = 0.75;
+uniform float src_fov : hint_range(30.0, 150.0) = 100.0;
+uniform float vignette_strength : hint_range(0.0, 1.0) = 0.4;
+uniform float grain_amount : hint_range(0.0, 0.2) = 0.035;
 uniform float aberration : hint_range(0.0, 0.01) = 0.0016;
-uniform float scanline_amount : hint_range(0.0, 0.5) = 0.025;
-uniform float lens_dirt : hint_range(0.0, 1.0) = 0.5;
-uniform float barrel : hint_range(0.0, 0.2) = 0.03;
-uniform float saturation : hint_range(0.0, 1.5) = 0.78;
-uniform float contrast : hint_range(0.5, 2.0) = 1.14;
-// 0 — спокойно, 1 — сущность вплотную: кадр ведёт, рвёт и дышит темнотой
+uniform float lens_dirt : hint_range(0.0, 1.0) = 0.35;
+// Перешарп матрицы: светлые ореолы на кромках, как у любой бодикамеры
+uniform float sharpen : hint_range(0.0, 2.0) = 0.7;
+// Квадраты сжатия 8×8 в тёмных ровных местах — кодек экономит на тенях
+uniform float blockiness : hint_range(0.0, 1.0) = 0.55;
+uniform float saturation : hint_range(0.0, 1.5) = 0.8;
+uniform float contrast : hint_range(0.5, 2.0) = 1.08;
+// 0 — спокойно, 1 — сущность вплотную: кадр ведёт, кодек сыпется, тьма дышит
 uniform float dread : hint_range(0.0, 1.0) = 0.0;
 // Оптика нагрудной камеры, кормит camera_lens.gd: motion — насколько кадр
 // уехал за кадр (доли экрана), shutter — перекос строк от поворота
 uniform vec2 motion = vec2(0.0);
 uniform float shutter = 0.0;
 // Усиление матрицы: camera_lens поднимает его на включении камеры, потом
-// даёт едва дышать — так ведёт себя автоусиление дешёвой камеры
+// даёт едва дышать — так ведёт себя автоусиление
 uniform float gain : hint_range(0.5, 4.0) = 1.0;
-// Часы ленты: их ведёт camera_lens только пока игра идёт, поэтому на паузе
-// зерно, полоса и выпадения строк стоят вместе с застывшим кадром
+// Часы записи: их ведёт camera_lens только пока игра идёт, поэтому на паузе
+// шум и сбои стоят вместе с застывшим кадром
 uniform float tape_time = 0.0;
 uniform sampler2D screen_tex : hint_screen_texture, filter_linear, repeat_disable;
+// Тот же экран с мипами: последний уровень — средняя яркость кадра
+uniform sampler2D screen_mip : hint_screen_texture, filter_linear_mipmap, repeat_disable;
 
 float hash(vec2 p) {
 	p = fract(p * vec2(123.34, 456.21));
@@ -33,104 +44,126 @@ float hash(vec2 p) {
 	return fract(p.x * p.y);
 }
 
+// Экранная точка -> откуда брать её из прямолинейного рендера.
+// p — координаты от центра в долях высоты кадра (верх кадра на 0.5)
+vec2 lens_uv(vec2 uv, float aspect, float k) {
+	vec2 p = (uv - vec2(0.5)) * vec2(aspect, 1.0);
+	float r = length(p);
+	if (r < 0.00001 || k <= 0.0) {
+		return uv;
+	}
+	// Фокус прямолинейного рендера и рыбьего глаза, у которого угол
+	// кадра попадает ровно в угол экрана — поля не обрезаются и не чернеют
+	float f_rect = 0.5 / tan(radians(src_fov) * 0.5);
+	float r_corner = 0.5 * sqrt(aspect * aspect + 1.0);
+	float f_fish = r_corner / atan(r_corner / f_rect);
+	float r_src = f_rect * tan(min(r / f_fish, 1.55));
+	p *= mix(r, r_src, k) / r;
+	return p / vec2(aspect, 1.0) + vec2(0.5);
+}
+
+vec3 sample_rgb(vec2 u) {
+	return texture(screen_tex, clamp(u, vec2(0.0), vec2(1.0))).rgb;
+}
+
 void fragment() {
-	vec2 uv = SCREEN_UV;
-	vec2 dir = uv - vec2(0.5);
+	float aspect = SCREEN_PIXEL_SIZE.y / SCREEN_PIXEL_SIZE.x;
+	vec2 px = SCREEN_PIXEL_SIZE;
+	vec2 dir = SCREEN_UV - vec2(0.5);
 	float r2 = dot(dir, dir);
 
 	// Сердцебиение: удар, потом тишина — и снова
 	float beat = pow(0.5 + 0.5 * sin(tape_time * 4.6), 4.0);
 	float tremble = dread * (0.0012 + 0.0018 * beat);
 
-	// Бочка объектива: стекло чуть ведёт и сильнее от страха
-	uv = vec2(0.5) + dir * (1.0 + barrel * (1.0 + dread * 1.5) * r2 * 2.0);
+	// Объектив: под страхом стекло ещё и чуть «дышит» сильнее
+	vec2 uv = lens_uv(SCREEN_UV, aspect, clamp(fisheye + dread * 0.08, 0.0, 1.0));
 	uv += vec2(sin(uv.y * 40.0 + tape_time * 2.3),
 		cos(uv.x * 37.0 + tape_time * 1.7)) * tremble;
 
-	// Телевизор: полоса записи медленно ползёт по кадру и всегда чуть ведёт
-	// строки. Спокойная — на треть силы; под страхом лента рвётся сильнее.
-	// Период по uv.y — целый, поэтому полоса есть в кадре всегда, без провала
-	float tv = 0.3 + dread;
-	float band = fract(uv.y - tape_time * 0.09);
-	float band_line = 1.0 - smoothstep(0.0, 0.035, band);
-	float dropout = step(1.0 - (0.0006 + dread * 0.02),
-		hash(vec2(floor(uv.y * 260.0), floor(tape_time * 18.0))));
-	uv.x += (band_line * tv * 0.004 + dropout * 0.02) * (0.5 + dread);
+	// Сбои кодека под страхом: полосы по 16 строк съезжают целиком —
+	// так рассыпается поток, когда кодек не успевает
+	float band_row = floor(FRAGCOORD.y / 16.0);
+	float glitch = step(1.0 - dread * dread * 0.12,
+		hash(vec2(band_row, floor(tape_time * 12.0))));
+	uv.x += glitch * (hash(vec2(band_row, floor(tape_time * 12.0) + 3.0)) - 0.5) * 0.08;
 
-	// Шум головки внизу кадра: у VHS там всегда рябит, а строки дёргаются.
-	// SCREEN_UV.y = 0 — верх экрана, поэтому «низ» — это y около единицы
-	float head = smoothstep(0.975, 1.0, uv.y);
-	uv.x += head * (hash(vec2(floor(uv.y * 320.0), floor(tape_time * 30.0)))
-		- 0.5) * 0.012;
+	// Шторка: строки матрицы сняты в разное время — на повороте кадр кренит
+	uv.x += shutter * (uv.y - 0.5) * 2.0;
 
-	// Дрожь строк: каждая строка ленты плывёт на доли пикселя
-	uv.x += (hash(vec2(floor(uv.y * 220.0), floor(tape_time * 24.0))) - 0.5) * 0.0012;
-
-	// Шторка: строки кадра сняты в разное время — на повороте кадр кренит
-	uv += vec2(shutter * (uv.y - 0.5) * 2.0, 0.0);
-
-	// Смаз движения и хроматика одним проходом: пять отсчётов вдоль вектора
-	// скорости кадра, а к краям — с расхождением каналов (стекло объектива).
-	// По горизонтали каналы сдвинуты сильнее: у ленты цвет отстаёт от яркости
-	vec2 off = dir * r2 * (aberration + dread * 0.0026) * 40.0
-		+ vec2(0.0012, 0.0) * (0.35 + r2);
+	// Смаз движения: пять отсчётов вдоль вектора скорости кадра
 	vec3 col = vec3(0.0);
 	for (int i = 0; i < 5; i++) {
 		float t = float(i) * 0.25;
-		float w = 1.0 - 0.6 * t;
-		vec2 u = clamp(uv - motion * t, vec2(0.0), vec2(1.0));
-		col.r += texture(screen_tex, clamp(u + off, vec2(0.0), vec2(1.0))).r * w;
-		col.g += texture(screen_tex, u).g * w;
-		col.b += texture(screen_tex, clamp(u - off, vec2(0.0), vec2(1.0))).b * w;
+		col += sample_rgb(uv - motion * t) * (1.0 - 0.6 * t);
 	}
 	col /= 3.5;
 
-	// Больной свет: выцветание, жёлто-зелёный сдвиг, давленые тени и грязь в них
+	// Хроматика к краям широкоугольника: красный и синий одним отсчётом
+	// вне цикла смаза — расхождение каналов видно на кромках, не в смазе
+	vec2 off = dir * r2 * (aberration + dread * 0.0026) * 24.0;
+	vec3 center = sample_rgb(uv);
+	col.r += sample_rgb(uv + off).r - center.r;
+	col.b += sample_rgb(uv - off).b - center.b;
+	if (glitch > 0.5) {
+		col.r = sample_rgb(uv + vec2(0.012, 0.0)).r;
+	}
+
+	// Перешарп: исходник минус размытый — светлые ореолы на кромках
+	vec3 blur = (sample_rgb(uv + vec2(px.x, 0.0) * 1.5) + sample_rgb(uv - vec2(px.x, 0.0) * 1.5)
+		+ sample_rgb(uv + vec2(0.0, px.y) * 1.5) + sample_rgb(uv - vec2(0.0, px.y) * 1.5)) * 0.25;
+	col += (center - blur) * sharpen;
+
 	float lum = dot(col, vec3(0.299, 0.587, 0.114));
+
+	// Квадраты сжатия: в тёмном и ровном кодек сводит блок 8×8 к одному цвету
+	vec2 block_screen = (floor(FRAGCOORD.xy / 8.0) * 8.0 + vec2(4.0)) * px;
+	vec3 block_col = sample_rgb(lens_uv(block_screen, aspect, fisheye));
+	float block_lum = dot(block_col, vec3(0.299, 0.587, 0.114));
+	float flat_dark = (1.0 - smoothstep(0.0, 0.3, lum))
+		* (1.0 - smoothstep(0.0, 0.05, abs(lum - block_lum)));
+	col = mix(col, block_col, flat_dark * blockiness);
+
+	// Цвет цифровой записи под люминесцентными лампами: чуть выцвел, ушёл
+	// в жёлто-зелёный, чёрное молочное — сжатое видео не держит глубоких теней
+	lum = dot(col, vec3(0.299, 0.587, 0.114));
 	col = mix(vec3(lum), col, saturation * mix(1.0, 0.55, dread));
-	col *= vec3(1.06, 1.0, 0.84);
-	col = clamp((col - 0.055) * contrast + 0.02, 0.0, 1.0);
-	float dark = 1.0 - smoothstep(0.0, 0.5, lum);
-	col += vec3(0.005, 0.007, 0.014) * dark;
-	col += vec3(0.02, 0.032, 0.0) * dark * dark;
+	col *= vec3(1.04, 1.02, 0.86);
+	col = (col - 0.5) * contrast + 0.5;
+	col = max(col, vec3(0.0)) * 0.97 + vec3(0.028, 0.03, 0.026);
 
-	// Пересвет от ламп: дешёвый объектив отдаёт яркое узким ореолом.
-	// Порог высокий — туман и светлые стены не должны светиться все разом
-	float halo = pow(smoothstep(0.7, 1.0, lum), 2.0);
-	col += vec3(0.045, 0.04, 0.026) * halo;
+	// Пересвет: матрица клипует лампы в белое и отдаёт ореолом
+	float halo = pow(smoothstep(0.65, 1.0, lum), 2.0);
+	col += vec3(0.06, 0.06, 0.05) * halo;
 
-	// Пыль и разводы на стекле объектива: редкие мягкие пятна
-	vec2 dirt_cell = floor(uv * 9.0);
-	if (hash(dirt_cell) > 0.965) {
-		vec2 inside = fract(uv * 9.0) - vec2(0.5);
-		col *= 1.0 - lens_dirt * 0.3 * smoothstep(0.45, 0.05,
+	// Разводы на стекле: бодикам носят на груди, объектив вечно захватан
+	vec2 dirt_cell = floor(SCREEN_UV * 7.0);
+	if (hash(dirt_cell) > 0.955) {
+		vec2 inside = fract(SCREEN_UV * 7.0) - vec2(0.5);
+		col *= 1.0 - lens_dirt * 0.25 * smoothstep(0.45, 0.05,
 			length(inside * vec2(1.0, 1.6)));
 	}
 
-	// Матрица не тянет тёмное: в тенях появляется лесенка уровней, как на
-	// дешёвой записи. Порог узкий — на тумане и стенах её быть не должно
+	// Лесенка уровней в тенях: восьмибитному потоку их не хватает
 	float shadow = 1.0 - smoothstep(0.0, 0.25, lum);
-	vec3 banded = floor(col * 40.0 + 0.5) / 40.0;
-	col = mix(col, banded, shadow * 0.22);
+	vec3 banded = floor(col * 48.0 + 0.5) / 48.0;
+	col = mix(col, banded, shadow * 0.35);
 
-	// Полоса и низ кадра светятся и шумят поверх картинки — как на ленте
-	col += band_line * tv * 0.035;
-	col += head * (hash(vec2(floor(uv.y * 320.0), floor(tape_time * 30.0)))
-		- 0.5) * 0.12;
-
-	// Развёртка: каждая вторая строка чуть темнее
-	col *= 1.0 - scanline_amount * (0.5 + 0.5 * sin(FRAGCOORD.y * 3.14159));
-
-	// Виньетка сжимается от страха и дышит вместе с ним
-	float vig = smoothstep(1.28, 0.28, length(dir) * 1.35);
-	col *= mix(1.0, vig, clamp(vignette_strength + dread * (0.2 + 0.1 * beat), 0.0, 1.0));
+	// Виньетка широкоугольника; от страха сжимается и дышит
+	float vig = 1.0 - smoothstep(0.35, 1.0, length(dir * vec2(aspect, 1.0)) / (0.5 * aspect + 0.2));
+	col *= mix(1.0, vig, clamp(vignette_strength + dread * (0.25 + 0.1 * beat), 0.0, 1.0));
 	col *= 1.0 - dread * (0.07 + 0.07 * beat);
 
-	// Зерно плёнки оживает каждый кадр и сильнее шумит в тенях
-	float n = hash(FRAGCOORD.xy + vec2(fract(tape_time * 13.0) * 271.0,
-		fract(tape_time * 7.0) * 173.0));
-	float shadow_grain = 1.0 - smoothstep(0.0, 0.6, lum);
-	col += (n - 0.5) * (grain_amount * (0.7 + 1.1 * shadow_grain) + dread * 0.07);
+	// Цифровой шум матрицы: яркостный и цветной, каждый кадр новый. В тенях
+	// и в тёмном кадре (автоусиление тянет сигнал) его заметно больше
+	float avg = dot(textureLod(screen_mip, vec2(0.5), 10.0).rgb, vec3(0.299, 0.587, 0.114));
+	float iso = mix(1.0, 2.4, 1.0 - smoothstep(0.04, 0.2, avg));
+	vec2 seed = FRAGCOORD.xy + vec2(fract(tape_time * 13.0) * 271.0, fract(tape_time * 7.0) * 173.0);
+	float n_luma = hash(seed) - 0.5;
+	vec3 n_chroma = vec3(hash(seed + 17.1), hash(seed + 41.7), hash(seed + 73.3)) - 0.5;
+	float shadow_noise = 0.5 + 1.5 * (1.0 - smoothstep(0.0, 0.5, lum));
+	col += (vec3(n_luma) + n_chroma * 0.7) * grain_amount * shadow_noise * iso
+		+ vec3(n_luma) * dread * 0.06;
 
 	// Автоусиление последним: на включении камеры кадр пересвечен,
 	// потом матрица съезжает в норму

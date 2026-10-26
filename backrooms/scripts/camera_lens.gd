@@ -76,6 +76,9 @@ func _process(delta: float) -> void:
 	shutter = lerpf(shutter, target_shutter, weight)
 	material.set_shader_parameter("motion", motion)
 	material.set_shader_parameter("shutter", shutter)
+	# Рыбий глаз пересчитывается от фактического угла рендера: его меняет
+	# ползунок «Поле зрения», и кадр не должен ни резаться, ни чернеть
+	material.set_shader_parameter("src_fov", camera.fov)
 
 	# Автоусиление: включаемся с пересветом, потом живём с еле заметным
 	# дыханием. Считаем по своему времени, а не по камере — стекло не движется.

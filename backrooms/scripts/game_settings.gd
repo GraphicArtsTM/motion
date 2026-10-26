@@ -14,7 +14,7 @@ static func defaults() -> Dictionary:
 		"sprint_toggle": false,
 		"crouch_toggle": true,
 		"headbob_strength": 1.0,
-		"fov": 90.0,
+		"fov": 100.0,
 		"vsync": true,
 		"fps_limit": 0,
 		"msaa": 2,

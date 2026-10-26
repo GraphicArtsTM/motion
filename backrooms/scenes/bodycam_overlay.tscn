@@ -1,8 +1,14 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/bodycam_overlay.gd" id="1_overlay"]
 
+[sub_resource type="SystemFont" id="SystemFont_osd"]
+font_names = PackedStringArray("Consolas", "DejaVu Sans Mono", "Liberation Mono", "Courier New", "Monospace")
+font_weight = 700
+
 [node name="BodycamOverlay" type="Control"]
+layout_mode = 3
+anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
@@ -10,53 +16,38 @@ grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("1_overlay")
 
-[node name="Rec" type="Label" parent="."]
-offset_left = 34.0
-offset_top = 19.0
-offset_right = 130.0
-offset_bottom = 41.0
-mouse_filter = 2
-theme_override_colors/font_color = Color(0.88, 0.14, 0.11, 0.92)
-theme_override_font_sizes/font_size = 16
-text = "REC"
-
-[node name="CamId" type="Label" parent="."]
-offset_left = 34.0
-offset_top = 45.0
-offset_right = 170.0
-offset_bottom = 63.0
-mouse_filter = 2
-theme_override_colors/font_color = Color(1, 1, 1, 0.4)
-theme_override_font_sizes/font_size = 13
-text = "CAM 01"
-
-[node name="Battery" type="Label" parent="."]
+[node name="Timestamp" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -170.0
-offset_top = 21.0
-offset_right = -34.0
-offset_bottom = 41.0
+offset_left = -420.0
+offset_top = 14.0
+offset_right = -22.0
+offset_bottom = 40.0
 grow_horizontal = 0
-mouse_filter = 2
-theme_override_colors/font_color = Color(1, 1, 1, 0.55)
-theme_override_font_sizes/font_size = 14
-text = "BATT 100%"
+theme_override_colors/font_color = Color(1, 1, 1, 0.94)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
+theme_override_constants/outline_size = 5
+theme_override_fonts/font = SubResource("SystemFont_osd")
+theme_override_font_sizes/font_size = 20
+text = "2026-01-01 T00:00:00Z"
 horizontal_alignment = 2
 
-[node name="Timecode" type="Label" parent="."]
+[node name="DeviceId" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 1
 anchor_left = 1.0
-anchor_top = 1.0
 anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = -190.0
-offset_top = -44.0
-offset_right = -34.0
-offset_bottom = -22.0
+offset_left = -420.0
+offset_top = 38.0
+offset_right = -22.0
+offset_bottom = 64.0
 grow_horizontal = 0
-grow_vertical = 0
-mouse_filter = 2
-theme_override_colors/font_color = Color(1, 1, 1, 0.55)
-theme_override_font_sizes/font_size = 15
-text = "00:00:00"
+theme_override_colors/font_color = Color(1, 1, 1, 0.94)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
+theme_override_constants/outline_size = 5
+theme_override_fonts/font = SubResource("SystemFont_osd")
+theme_override_font_sizes/font_size = 20
+text = "M.E.G. BODY 3 X6000000"
 horizontal_alignment = 2
