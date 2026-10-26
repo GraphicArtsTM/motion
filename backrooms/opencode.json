@@ -1,0 +1,18 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "godot": {
+      "type": "local",
+      "command": ["cmd", "/c", "npx", "-y", "@coding-solo/godot-mcp"],
+      "enabled": true,
+      "timeout": 30000,
+      "environment": {
+        "GODOT_PATH": "C:\\Godot\\Godot_v4.7.1-stable_win64.exe",
+        "DEBUG": "true"
+      }
+    }
+  },
+  "agent": {
+    "plan": { "model": "omniroute/kr/claude-sonnet-4.5" },
+    "build": { "model": "omniroute/kr/claude-sonnet-4.5" }
+  }

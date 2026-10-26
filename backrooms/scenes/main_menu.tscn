@@ -1,0 +1,339 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scripts/main_menu.gd" id="1_menu"]
+[ext_resource type="PackedScene" path="res://scenes/settings_panel.tscn" id="2_settings"]
+[ext_resource type="Theme" path="res://theme/backrooms_theme.tres" id="3_theme"]
+[ext_resource type="Shader" path="res://shaders/menu_backdrop.gdshader" id="4_backdrop"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_backdrop"]
+shader = ExtResource("4_backdrop")
+
+[sub_resource type="Gradient" id="Gradient_rec"]
+offsets = PackedFloat32Array(0, 0.55, 1)
+colors = PackedColorArray(0.9, 0.24, 0.18, 1, 0.9, 0.24, 0.18, 1, 0.9, 0.24, 0.18, 0)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_rec"]
+gradient = SubResource("Gradient_rec")
+width = 32
+height = 32
+fill = 1
+fill_from = Vector2(0.5, 0.5)
+fill_to = Vector2(1, 0.5)
+
+[node name="MainMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("3_theme")
+script = ExtResource("1_menu")
+
+[node name="Backdrop" type="ColorRect" parent="."]
+material = SubResource("ShaderMaterial_backdrop")
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Frame" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 56
+theme_override_constants/margin_top = 36
+theme_override_constants/margin_right = 56
+theme_override_constants/margin_bottom = 30
+
+[node name="Layout" type="VBoxContainer" parent="Frame"]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="Header" type="HBoxContainer" parent="Frame/Layout"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="Brand" type="VBoxContainer" parent="Frame/Layout/Header"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Object" type="Label" parent="Frame/Layout/Header/Brand"]
+layout_mode = 2
+theme_type_variation = &"Eyebrow"
+text = "BODY CAM 01 · ЗАПИСЬ 001"
+
+[node name="Place" type="Label" parent="Frame/Layout/Header/Brand"]
+layout_mode = 2
+theme_type_variation = &"Caption"
+text = "УРОВЕНЬ 0 · ЖЁЛТЫЕ КОМНАТЫ"
+
+[node name="HeaderSpacer" type="Control" parent="Frame/Layout/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Rec" type="HBoxContainer" parent="Frame/Layout/Header"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Dot" type="TextureRect" parent="Frame/Layout/Header/Rec"]
+custom_minimum_size = Vector2(9, 9)
+layout_mode = 2
+size_flags_vertical = 4
+texture = SubResource("GradientTexture2D_rec")
+expand_mode = 1
+stretch_mode = 0
+
+[node name="Label" type="Label" parent="Frame/Layout/Header/Rec"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.86, 0.24, 0.19, 1)
+theme_override_font_sizes/font_size = 14
+text = "REC"
+
+[node name="TopSpacer" type="Control" parent="Frame/Layout"]
+custom_minimum_size = Vector2(0, 24)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Content" type="HBoxContainer" parent="Frame/Layout"]
+layout_mode = 2
+theme_override_constants/separation = 72
+alignment = 1
+
+[node name="Brand" type="VBoxContainer" parent="Frame/Layout/Content"]
+custom_minimum_size = Vector2(500, 0)
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_constants/separation = 0
+
+[node name="Eyebrow" type="Label" parent="Frame/Layout/Content/Brand"]
+layout_mode = 2
+theme_type_variation = &"Eyebrow"
+text = "ПРОТОКОЛ · ЗАСТРЯЛ"
+
+[node name="GapEyebrow" type="Control" parent="Frame/Layout/Content/Brand"]
+custom_minimum_size = Vector2(0, 8)
+layout_mode = 2
+
+[node name="Title" type="Label" parent="Frame/Layout/Content/Brand"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"Title"
+text = "BACKROOMS"
+
+[node name="GapTitle" type="Control" parent="Frame/Layout/Content/Brand"]
+custom_minimum_size = Vector2(0, 4)
+layout_mode = 2
+
+[node name="Subtitle" type="Label" parent="Frame/Layout/Content/Brand"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.66, 0.63, 0.55, 1)
+theme_override_font_sizes/font_size = 19
+text = "Ты застрял здесь. Найди выход, пока тебя не нашли."
+
+[node name="GapRule" type="Control" parent="Frame/Layout/Content/Brand"]
+custom_minimum_size = Vector2(0, 24)
+layout_mode = 2
+
+[node name="Rule" type="ColorRect" parent="Frame/Layout/Content/Brand"]
+custom_minimum_size = Vector2(0, 1)
+layout_mode = 2
+color = Color(0.55, 0.45, 0.24, 0.6)
+
+[node name="GapButtons" type="Control" parent="Frame/Layout/Content/Brand"]
+custom_minimum_size = Vector2(0, 24)
+layout_mode = 2
+
+[node name="Buttons" type="VBoxContainer" parent="Frame/Layout/Content/Brand"]
+custom_minimum_size = Vector2(340, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+theme_override_constants/separation = 10
+
+[node name="StartButton" type="Button" parent="Frame/Layout/Content/Brand/Buttons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(340, 54)
+layout_mode = 2
+theme_type_variation = &"Primary"
+theme_override_font_sizes/font_size = 19
+text = "НАЧАТЬ ЗАБЕГ"
+alignment = 0
+
+[node name="SettingsButton" type="Button" parent="Frame/Layout/Content/Brand/Buttons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(340, 50)
+layout_mode = 2
+text = "НАСТРОЙКИ"
+alignment = 0
+
+[node name="QuitButton" type="Button" parent="Frame/Layout/Content/Brand/Buttons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(340, 50)
+layout_mode = 2
+text = "ВЫЙТИ"
+alignment = 0
+
+[node name="GapFoot" type="Control" parent="Frame/Layout/Content/Brand"]
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+
+[node name="Foot" type="Label" parent="Frame/Layout/Content/Brand"]
+layout_mode = 2
+theme_type_variation = &"Caption"
+text = "Enter — начать · мышь — смотреть"
+
+[node name="Info" type="VBoxContainer" parent="Frame/Layout/Content"]
+custom_minimum_size = Vector2(380, 0)
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_constants/separation = 14
+
+[node name="Task" type="PanelContainer" parent="Frame/Layout/Content/Info"]
+layout_mode = 2
+theme_type_variation = &"Card"
+
+[node name="VBox" type="VBoxContainer" parent="Frame/Layout/Content/Info/Task"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Section" type="Label" parent="Frame/Layout/Content/Info/Task/VBox"]
+layout_mode = 2
+theme_type_variation = &"Section"
+text = "ЗАДАЧА"
+
+[node name="Body" type="Label" parent="Frame/Layout/Content/Info/Task/VBox"]
+layout_mode = 2
+theme_type_variation = &"Body"
+text = "Найти дверь выхода в бесконечном лабиринте. Собрать предохранители, включить питание и не попасться."
+autowrap_mode = 2
+
+[node name="Controls" type="PanelContainer" parent="Frame/Layout/Content/Info"]
+layout_mode = 2
+theme_type_variation = &"Card"
+
+[node name="VBox" type="VBoxContainer" parent="Frame/Layout/Content/Info/Controls"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Section" type="Label" parent="Frame/Layout/Content/Info/Controls/VBox"]
+layout_mode = 2
+theme_type_variation = &"Section"
+text = "УПРАВЛЕНИЕ"
+
+[node name="Grid" type="GridContainer" parent="Frame/Layout/Content/Info/Controls/VBox"]
+layout_mode = 2
+theme_override_constants/h_separation = 14
+theme_override_constants/v_separation = 6
+columns = 2
+
+[node name="KeyWASD" type="Label" parent="Frame/Layout/Content/Info/Controls/VBox/Grid"]
+layout_mode = 2
+theme_type_variation = &"Key"
+text = "WASD"
+
+[node name="ActWASD" type="Label" parent="Frame/Layout/Content/Info/Controls/VBox/Grid"]
+layout_mode = 2
+theme_type_variation = &"Body"
+text = "движение"
+
+[node name="KeyShift" type="Label" parent="Frame/Layout/Content/Info/Controls/VBox/Grid"]
+layout_mode = 2
+theme_type_variation = &"Key"
+text = "Shift"
+
+[node name="ActShift" type="Label" parent="Frame/Layout/Content/Info/Controls/VBox/Grid"]
+layout_mode = 2
+theme_type_variation = &"Body"
+text = "бег"
+
+[node name="KeyCrouch" type="Label" parent="Frame/Layout/Content/Info/Controls/VBox/Grid"]
+layout_mode = 2
+theme_type_variation = &"Key"
+text = "C"
+
+[node name="ActCrouch" type="Label" parent="Frame/Layout/Content/Info/Controls/VBox/Grid"]
+layout_mode = 2
+theme_type_variation = &"Body"
+text = "присед"
+
+[node name="KeyLean" type="Label" parent="Frame/Layout/Content/Info/Controls/VBox/Grid"]
+layout_mode = 2
+theme_type_variation = &"Key"
+text = "Q / E"
+
+[node name="ActLean" type="Label" parent="Frame/Layout/Content/Info/Controls/VBox/Grid"]
+layout_mode = 2
+theme_type_variation = &"Body"
+text = "наклон корпуса"
+
+[node name="KeyUse" type="Label" parent="Frame/Layout/Content/Info/Controls/VBox/Grid"]
+layout_mode = 2
+theme_type_variation = &"Key"
+text = "F"
+
+[node name="ActUse" type="Label" parent="Frame/Layout/Content/Info/Controls/VBox/Grid"]
+layout_mode = 2
+theme_type_variation = &"Body"
+text = "взять / открыть"
+
+[node name="KeyThrow" type="Label" parent="Frame/Layout/Content/Info/Controls/VBox/Grid"]
+layout_mode = 2
+theme_type_variation = &"Key"
+text = "ПКМ"
+
+[node name="ActThrow" type="Label" parent="Frame/Layout/Content/Info/Controls/VBox/Grid"]
+layout_mode = 2
+theme_type_variation = &"Body"
+text = "бросить банку"
+
+[node name="KeyLight" type="Label" parent="Frame/Layout/Content/Info/Controls/VBox/Grid"]
+layout_mode = 2
+theme_type_variation = &"Key"
+text = "L"
+
+[node name="ActLight" type="Label" parent="Frame/Layout/Content/Info/Controls/VBox/Grid"]
+layout_mode = 2
+theme_type_variation = &"Body"
+text = "фонарь"
+
+[node name="KeyPause" type="Label" parent="Frame/Layout/Content/Info/Controls/VBox/Grid"]
+layout_mode = 2
+theme_type_variation = &"Key"
+text = "Esc"
+
+[node name="ActPause" type="Label" parent="Frame/Layout/Content/Info/Controls/VBox/Grid"]
+layout_mode = 2
+theme_type_variation = &"Body"
+text = "пауза"
+
+[node name="BottomSpacer" type="Control" parent="Frame/Layout"]
+custom_minimum_size = Vector2(0, 24)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Footer" type="HBoxContainer" parent="Frame/Layout"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="Version" type="Label" parent="Frame/Layout/Footer"]
+layout_mode = 2
+theme_type_variation = &"Caption"
+text = "v0.1 · backrooms prototype"
+
+[node name="FooterSpacer" type="Control" parent="Frame/Layout/Footer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Build" type="Label" parent="Frame/Layout/Footer"]
+layout_mode = 2
+theme_type_variation = &"Caption"
+text = "GODOT 4.7 · FORWARD+"
+horizontal_alignment = 2
+
+[node name="SettingsPanel" parent="." instance=ExtResource("2_settings")]

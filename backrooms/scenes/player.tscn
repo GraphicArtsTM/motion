@@ -1,0 +1,135 @@
+[gd_scene load_steps=16 format=3 uid="uid://dy0pibuhx2xlb"]
+
+[ext_resource type="Script" path="res://scripts/player_controller.gd" id="1_m3wdo"]
+[ext_resource type="Script" path="res://scripts/stamina_component.gd" id="2_stamina"]
+[ext_resource type="Script" path="res://scripts/bodycam_component.gd" id="3_bodycam"]
+[ext_resource type="Script" path="res://scripts/footstep_component.gd" id="4_footstep"]
+[ext_resource type="Script" path="res://scripts/player_items.gd" id="5_items"]
+[ext_resource type="Script" path="res://scripts/throw_component.gd" id="6_throw"]
+[ext_resource type="Script" path="res://scripts/viewmodel.gd" id="7_viewmodel"]
+[ext_resource type="Script" path="res://scripts/camera_lens.gd" id="8_lens"]
+[ext_resource type="Script" path="res://scripts/camera_look.gd" id="9_look"]
+[ext_resource type="Script" path="res://scripts/mic_component.gd" id="10_mic"]
+[ext_resource type="Script" path="res://scripts/flashlight.gd" id="11_light"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_8x3ys"]
+radius = 0.4
+height = 1.8
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_dust"]
+transparency = 1
+albedo_color = Color(1, 0.95, 0.8, 0.35)
+emission_enabled = true
+emission = Color(1, 0.95, 0.8, 1)
+emission_energy_multiplier = 0.4
+billboard_mode = 1
+
+[sub_resource type="QuadMesh" id="QuadMesh_dust"]
+material = SubResource("StandardMaterial3D_dust")
+size = Vector2(0.02, 0.02)
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_dust"]
+emission_shape = 3
+emission_box_extents = Vector3(8, 1.2, 8)
+direction = Vector3(0, 1, 0)
+spread = 180.0
+initial_velocity_min = 0.02
+initial_velocity_max = 0.08
+gravity = Vector3(0, 0, 0)
+scale_min = 0.6
+scale_max = 1.4
+color = Color(1, 0.95, 0.8, 0.5)
+
+[node name="Player" type="CharacterBody3D" groups=["player"]]
+script = ExtResource("1_m3wdo")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+shape = SubResource("CapsuleShape3D_8x3ys")
+
+[node name="CameraRoot" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.35, 0)
+
+[node name="Camera3D" type="Camera3D" parent="CameraRoot"]
+current = true
+fov = 90.0
+
+[node name="Viewmodel" type="Node3D" parent="CameraRoot/Camera3D"]
+script = ExtResource("7_viewmodel")
+player_path = NodePath("../../../")
+throw_path = NodePath("../../../ThrowComponent")
+footsteps_path = NodePath("../../../FootstepComponent")
+
+[node name="Flashlight" type="SpotLight3D" parent="CameraRoot/Camera3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.14, -0.1, 0)
+light_color = Color(1, 0.94, 0.82, 1)
+light_energy = 0.0
+light_cull_mask = 1
+shadow_enabled = true
+light_volumetric_fog_energy = 0.8
+spot_range = 24.0
+spot_angle = 26.0
+spot_angle_attenuation = 1.2
+spot_attenuation = 0.9
+script = ExtResource("11_light")
+
+[node name="FootstepAudio" type="AudioStreamPlayer3D" parent="."]
+bus = "SFX"
+
+[node name="DustMotes" type="GPUParticles3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+amount = 48
+lifetime = 7.0
+local_coords = false
+process_material = SubResource("ParticleProcessMaterial_dust")
+draw_pass_1 = SubResource("QuadMesh_dust")
+
+[node name="StaminaComponent" type="Node" parent="."]
+script = ExtResource("2_stamina")
+
+[node name="CameraLook" type="Node" parent="."]
+script = ExtResource("9_look")
+player_path = NodePath("..")
+camera_root_path = NodePath("../CameraRoot")
+
+[node name="BodycamComponent" type="Node" parent="."]
+script = ExtResource("3_bodycam")
+player_path = NodePath("..")
+camera_root_path = NodePath("../CameraRoot")
+camera_path = NodePath("../CameraRoot/Camera3D")
+footsteps_path = NodePath("../FootstepComponent")
+
+[node name="CameraLens" type="Node" parent="."]
+script = ExtResource("8_lens")
+camera_path = NodePath("../CameraRoot/Camera3D")
+player_path = NodePath("..")
+bodycam_path = NodePath("../BodycamComponent")
+
+[node name="FootstepComponent" type="Node" parent="." node_paths=PackedStringArray("audio_player")]
+script = ExtResource("4_footstep")
+audio_player = NodePath("../FootstepAudio")
+
+[node name="MicComponent" type="Node" parent="." node_paths=PackedStringArray("rustle_player", "wind_player", "hiss_player")]
+script = ExtResource("10_mic")
+footsteps_path = NodePath("../FootstepComponent")
+player_path = NodePath("..")
+rustle_player = NodePath("Rustle")
+wind_player = NodePath("Wind")
+hiss_player = NodePath("Hiss")
+
+[node name="Rustle" type="AudioStreamPlayer" parent="MicComponent"]
+bus = "Mic"
+
+[node name="Wind" type="AudioStreamPlayer" parent="MicComponent"]
+bus = "Mic"
+
+[node name="Hiss" type="AudioStreamPlayer" parent="MicComponent"]
+bus = "Mic"
+
+[node name="PlayerItems" type="Node" parent="."]
+script = ExtResource("5_items")
+
+[node name="ThrowComponent" type="Node" parent="."]
+script = ExtResource("6_throw")
+camera_path = NodePath("../CameraRoot/Camera3D")
+items_path = NodePath("../PlayerItems")

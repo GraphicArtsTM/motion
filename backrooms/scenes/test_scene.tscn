@@ -1,0 +1,85 @@
+[gd_scene load_steps=10 format=3 uid="uid://bkx8y6n2qwh3v"]
+
+[ext_resource type="PackedScene" path="res://scenes/player.tscn" id="1_b7k8x"]
+[ext_resource type="Shader" path="res://shaders/carpet.gdshader" id="2_carpet"]
+[ext_resource type="Shader" path="res://shaders/wallpaper.gdshader" id="3_wallpaper"]
+[ext_resource type="Shader" path="res://shaders/ceiling.gdshader" id="4_ceiling"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_carpet"]
+shader = ExtResource("2_carpet")
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_wallpaper"]
+shader = ExtResource("3_wallpaper")
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_ceiling"]
+shader = ExtResource("4_ceiling")
+
+[sub_resource type="BoxMesh" id="BoxMesh_floor"]
+material = SubResource("ShaderMaterial_carpet")
+size = Vector3(20, 0.2, 20)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
+size = Vector3(20, 0.2, 20)
+
+[node name="TestScene" type="Node3D"]
+
+[node name="Player" parent="." instance=ExtResource("1_b7k8x")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0)
+
+[node name="Floor" type="StaticBody3D" parent="."]
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Floor"]
+mesh = SubResource("BoxMesh_floor")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Floor"]
+shape = SubResource("BoxShape3D_floor")
+
+[node name="Wall1" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.4, -10)
+material_override = SubResource("ShaderMaterial_wallpaper")
+mesh = SubResource("BoxMesh_floor")
+
+[node name="StaticBody3D" type="StaticBody3D" parent="Wall1"]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Wall1/StaticBody3D"]
+shape = SubResource("BoxShape3D_floor")
+
+[node name="Wall2" type="MeshInstance3D" parent="."]
+transform = Transform3D(-4.37114e-08, 0, 1, 0, 1, 0, -1, 0, -4.37114e-08, 10, 1.4, 0)
+material_override = SubResource("ShaderMaterial_wallpaper")
+mesh = SubResource("BoxMesh_floor")
+
+[node name="StaticBody3D" type="StaticBody3D" parent="Wall2"]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Wall2/StaticBody3D"]
+shape = SubResource("BoxShape3D_floor")
+
+[node name="Wall3" type="MeshInstance3D" parent="."]
+transform = Transform3D(-1, 0, 8.74228e-08, 0, 1, 0, -8.74228e-08, 0, -1, 0, 1.4, 10)
+material_override = SubResource("ShaderMaterial_wallpaper")
+mesh = SubResource("BoxMesh_floor")
+
+[node name="StaticBody3D" type="StaticBody3D" parent="Wall3"]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Wall3/StaticBody3D"]
+shape = SubResource("BoxShape3D_floor")
+
+[node name="Wall4" type="MeshInstance3D" parent="."]
+transform = Transform3D(-4.37114e-08, 0, -1, 0, 1, 0, 1, 0, -4.37114e-08, -10, 1.4, 0)
+material_override = SubResource("ShaderMaterial_wallpaper")
+mesh = SubResource("BoxMesh_floor")
+
+[node name="StaticBody3D" type="StaticBody3D" parent="Wall4"]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Wall4/StaticBody3D"]
+shape = SubResource("BoxShape3D_floor")
+
+[node name="Ceiling" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, -1, 8.74228e-08, 0, -8.74228e-08, -1, 0, 2.9, 0)
+material_override = SubResource("ShaderMaterial_ceiling")
+mesh = SubResource("BoxMesh_floor")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866025, -0.433013, 0.25, 0, 0.5, 0.866025, -0.5, -0.75, 0.433013, 0, 5, 0)
+light_color = Color(1, 0.95, 0.85, 1)
+light_energy = 0.6

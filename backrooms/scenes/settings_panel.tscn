@@ -1,0 +1,562 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/settings_panel.gd" id="1_settings"]
+[ext_resource type="Theme" path="res://theme/backrooms_theme.tres" id="2_theme"]
+
+[node name="SettingsPanel" type="Control"]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+theme = ExtResource("2_theme")
+script = ExtResource("1_settings")
+
+[node name="Dim" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+color = Color(0.015, 0.013, 0.01, 0.8)
+
+[node name="Center" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Card" type="PanelContainer" parent="Center"]
+custom_minimum_size = Vector2(900, 620)
+layout_mode = 2
+theme_type_variation = &"Modal"
+
+[node name="VBox" type="VBoxContainer" parent="Center/Card"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Header" type="HBoxContainer" parent="Center/Card/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="Titles" type="VBoxContainer" parent="Center/Card/VBox/Header"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Eyebrow" type="Label" parent="Center/Card/VBox/Header/Titles"]
+layout_mode = 2
+theme_type_variation = &"Eyebrow"
+text = "СИСТЕМА · КАМЕРА 01"
+
+[node name="Title" type="Label" parent="Center/Card/VBox/Header/Titles"]
+layout_mode = 2
+theme_type_variation = &"H1"
+text = "НАСТРОЙКИ"
+
+[node name="HeaderSpacer" type="Control" parent="Center/Card/VBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Live" type="Label" parent="Center/Card/VBox/Header"]
+layout_mode = 2
+size_flags_vertical = 4
+theme_type_variation = &"Caption"
+text = "ПРИМЕНЯЕТСЯ СРАЗУ"
+
+[node name="Rule" type="ColorRect" parent="Center/Card/VBox"]
+custom_minimum_size = Vector2(0, 1)
+layout_mode = 2
+color = Color(0.55, 0.45, 0.24, 0.45)
+
+[node name="Scroll" type="ScrollContainer" parent="Center/Card/VBox"]
+custom_minimum_size = Vector2(0, 400)
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="Content" type="VBoxContainer" parent="Center/Card/VBox/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 12
+
+[node name="ControlSection" type="PanelContainer" parent="Center/Card/VBox/Scroll/Content"]
+layout_mode = 2
+theme_type_variation = &"Card"
+
+[node name="VBox" type="VBoxContainer" parent="Center/Card/VBox/Scroll/Content/ControlSection"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Head" type="HBoxContainer" parent="Center/Card/VBox/Scroll/Content/ControlSection/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Bar" type="ColorRect" parent="Center/Card/VBox/Scroll/Content/ControlSection/VBox/Head"]
+custom_minimum_size = Vector2(3, 16)
+layout_mode = 2
+size_flags_vertical = 4
+color = Color(0.86, 0.7, 0.38, 0.9)
+
+[node name="Label" type="Label" parent="Center/Card/VBox/Scroll/Content/ControlSection/VBox/Head"]
+layout_mode = 2
+theme_type_variation = &"Section"
+text = "УПРАВЛЕНИЕ"
+
+[node name="SensRow" type="HBoxContainer" parent="Center/Card/VBox/Scroll/Content/ControlSection/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Name" type="Label" parent="Center/Card/VBox/Scroll/Content/ControlSection/VBox/SensRow"]
+custom_minimum_size = Vector2(190, 0)
+layout_mode = 2
+theme_type_variation = &"Body"
+text = "Чувствительность"
+
+[node name="SensSlider" type="HSlider" parent="Center/Card/VBox/Scroll/Content/ControlSection/VBox/SensRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+min_value = 1.0
+max_value = 10.0
+step = 0.5
+value = 3.0
+
+[node name="SensLabel" type="Label" parent="Center/Card/VBox/Scroll/Content/ControlSection/VBox/SensRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(56, 0)
+layout_mode = 2
+theme_type_variation = &"Value"
+text = "3.0"
+horizontal_alignment = 2
+
+[node name="InvertCheck" type="CheckButton" parent="Center/Card/VBox/Scroll/Content/ControlSection/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Инверсия мыши по вертикали"
+alignment = 0
+flat = true
+
+[node name="SprintRow" type="HBoxContainer" parent="Center/Card/VBox/Scroll/Content/ControlSection/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Name" type="Label" parent="Center/Card/VBox/Scroll/Content/ControlSection/VBox/SprintRow"]
+custom_minimum_size = Vector2(190, 0)
+layout_mode = 2
+theme_type_variation = &"Body"
+text = "Бег на Shift"
+
+[node name="SprintMode" type="OptionButton" parent="Center/Card/VBox/Scroll/Content/ControlSection/VBox/SprintRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="CrouchRow" type="HBoxContainer" parent="Center/Card/VBox/Scroll/Content/ControlSection/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Name" type="Label" parent="Center/Card/VBox/Scroll/Content/ControlSection/VBox/CrouchRow"]
+custom_minimum_size = Vector2(190, 0)
+layout_mode = 2
+theme_type_variation = &"Body"
+text = "Присед"
+
+[node name="CrouchMode" type="OptionButton" parent="Center/Card/VBox/Scroll/Content/ControlSection/VBox/CrouchRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="CameraSection" type="PanelContainer" parent="Center/Card/VBox/Scroll/Content"]
+layout_mode = 2
+theme_type_variation = &"Card"
+
+[node name="VBox" type="VBoxContainer" parent="Center/Card/VBox/Scroll/Content/CameraSection"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Head" type="HBoxContainer" parent="Center/Card/VBox/Scroll/Content/CameraSection/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Bar" type="ColorRect" parent="Center/Card/VBox/Scroll/Content/CameraSection/VBox/Head"]
+custom_minimum_size = Vector2(3, 16)
+layout_mode = 2
+size_flags_vertical = 4
+color = Color(0.86, 0.7, 0.38, 0.9)
+
+[node name="Label" type="Label" parent="Center/Card/VBox/Scroll/Content/CameraSection/VBox/Head"]
+layout_mode = 2
+theme_type_variation = &"Section"
+text = "КАМЕРА"
+
+[node name="FovRow" type="HBoxContainer" parent="Center/Card/VBox/Scroll/Content/CameraSection/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Name" type="Label" parent="Center/Card/VBox/Scroll/Content/CameraSection/VBox/FovRow"]
+custom_minimum_size = Vector2(190, 0)
+layout_mode = 2
+theme_type_variation = &"Body"
+text = "Поле зрения"
+
+[node name="FovSlider" type="HSlider" parent="Center/Card/VBox/Scroll/Content/CameraSection/VBox/FovRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+min_value = 75.0
+max_value = 100.0
+step = 1.0
+value = 90.0
+
+[node name="FovLabel" type="Label" parent="Center/Card/VBox/Scroll/Content/CameraSection/VBox/FovRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(56, 0)
+layout_mode = 2
+theme_type_variation = &"Value"
+text = "90"
+horizontal_alignment = 2
+
+[node name="BobRow" type="HBoxContainer" parent="Center/Card/VBox/Scroll/Content/CameraSection/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Name" type="Label" parent="Center/Card/VBox/Scroll/Content/CameraSection/VBox/BobRow"]
+custom_minimum_size = Vector2(190, 0)
+layout_mode = 2
+theme_type_variation = &"Body"
+text = "Тряска камеры"
+
+[node name="BobSlider" type="HSlider" parent="Center/Card/VBox/Scroll/Content/CameraSection/VBox/BobRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+max_value = 100.0
+step = 5.0
+value = 100.0
+
+[node name="BobLabel" type="Label" parent="Center/Card/VBox/Scroll/Content/CameraSection/VBox/BobRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(56, 0)
+layout_mode = 2
+theme_type_variation = &"Value"
+text = "100%"
+horizontal_alignment = 2
+
+[node name="GraphicsSection" type="PanelContainer" parent="Center/Card/VBox/Scroll/Content"]
+layout_mode = 2
+theme_type_variation = &"Card"
+
+[node name="VBox" type="VBoxContainer" parent="Center/Card/VBox/Scroll/Content/GraphicsSection"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Head" type="HBoxContainer" parent="Center/Card/VBox/Scroll/Content/GraphicsSection/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Bar" type="ColorRect" parent="Center/Card/VBox/Scroll/Content/GraphicsSection/VBox/Head"]
+custom_minimum_size = Vector2(3, 16)
+layout_mode = 2
+size_flags_vertical = 4
+color = Color(0.86, 0.7, 0.38, 0.9)
+
+[node name="Label" type="Label" parent="Center/Card/VBox/Scroll/Content/GraphicsSection/VBox/Head"]
+layout_mode = 2
+theme_type_variation = &"Section"
+text = "ГРАФИКА"
+
+[node name="VsyncCheck" type="CheckButton" parent="Center/Card/VBox/Scroll/Content/GraphicsSection/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+button_pressed = true
+text = "Вертикальная синхронизация"
+alignment = 0
+flat = true
+
+[node name="FpsRow" type="HBoxContainer" parent="Center/Card/VBox/Scroll/Content/GraphicsSection/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Name" type="Label" parent="Center/Card/VBox/Scroll/Content/GraphicsSection/VBox/FpsRow"]
+custom_minimum_size = Vector2(190, 0)
+layout_mode = 2
+theme_type_variation = &"Body"
+text = "Лимит FPS"
+
+[node name="FpsMode" type="OptionButton" parent="Center/Card/VBox/Scroll/Content/GraphicsSection/VBox/FpsRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="MsaaRow" type="HBoxContainer" parent="Center/Card/VBox/Scroll/Content/GraphicsSection/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Name" type="Label" parent="Center/Card/VBox/Scroll/Content/GraphicsSection/VBox/MsaaRow"]
+custom_minimum_size = Vector2(190, 0)
+layout_mode = 2
+theme_type_variation = &"Body"
+text = "Сглаживание"
+
+[node name="MsaaMode" type="OptionButton" parent="Center/Card/VBox/Scroll/Content/GraphicsSection/VBox/MsaaRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="DisplayRow" type="HBoxContainer" parent="Center/Card/VBox/Scroll/Content/GraphicsSection/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Name" type="Label" parent="Center/Card/VBox/Scroll/Content/GraphicsSection/VBox/DisplayRow"]
+custom_minimum_size = Vector2(190, 0)
+layout_mode = 2
+theme_type_variation = &"Body"
+text = "Экран"
+
+[node name="DisplayMode" type="OptionButton" parent="Center/Card/VBox/Scroll/Content/GraphicsSection/VBox/DisplayRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ResRow" type="HBoxContainer" parent="Center/Card/VBox/Scroll/Content/GraphicsSection/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Name" type="Label" parent="Center/Card/VBox/Scroll/Content/GraphicsSection/VBox/ResRow"]
+custom_minimum_size = Vector2(190, 0)
+layout_mode = 2
+theme_type_variation = &"Body"
+text = "Разрешение"
+
+[node name="ResMode" type="OptionButton" parent="Center/Card/VBox/Scroll/Content/GraphicsSection/VBox/ResRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="FogRow" type="HBoxContainer" parent="Center/Card/VBox/Scroll/Content/GraphicsSection/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Name" type="Label" parent="Center/Card/VBox/Scroll/Content/GraphicsSection/VBox/FogRow"]
+custom_minimum_size = Vector2(190, 0)
+layout_mode = 2
+theme_type_variation = &"Body"
+text = "Туман"
+
+[node name="FogSlider" type="HSlider" parent="Center/Card/VBox/Scroll/Content/GraphicsSection/VBox/FogRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+max_value = 100.0
+step = 5.0
+value = 40.0
+
+[node name="FogLabel" type="Label" parent="Center/Card/VBox/Scroll/Content/GraphicsSection/VBox/FogRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(56, 0)
+layout_mode = 2
+theme_type_variation = &"Value"
+text = "40%"
+horizontal_alignment = 2
+
+[node name="RadiusRow" type="HBoxContainer" parent="Center/Card/VBox/Scroll/Content/GraphicsSection/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Name" type="Label" parent="Center/Card/VBox/Scroll/Content/GraphicsSection/VBox/RadiusRow"]
+custom_minimum_size = Vector2(190, 0)
+layout_mode = 2
+theme_type_variation = &"Body"
+text = "Дальность чанков"
+
+[node name="RadiusSlider" type="HSlider" parent="Center/Card/VBox/Scroll/Content/GraphicsSection/VBox/RadiusRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+min_value = 1.0
+max_value = 3.0
+step = 1.0
+value = 2.0
+
+[node name="RadiusLabel" type="Label" parent="Center/Card/VBox/Scroll/Content/GraphicsSection/VBox/RadiusRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(56, 0)
+layout_mode = 2
+theme_type_variation = &"Value"
+text = "2"
+horizontal_alignment = 2
+
+[node name="SoundSection" type="PanelContainer" parent="Center/Card/VBox/Scroll/Content"]
+layout_mode = 2
+theme_type_variation = &"Card"
+
+[node name="VBox" type="VBoxContainer" parent="Center/Card/VBox/Scroll/Content/SoundSection"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Head" type="HBoxContainer" parent="Center/Card/VBox/Scroll/Content/SoundSection/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Bar" type="ColorRect" parent="Center/Card/VBox/Scroll/Content/SoundSection/VBox/Head"]
+custom_minimum_size = Vector2(3, 16)
+layout_mode = 2
+size_flags_vertical = 4
+color = Color(0.86, 0.7, 0.38, 0.9)
+
+[node name="Label" type="Label" parent="Center/Card/VBox/Scroll/Content/SoundSection/VBox/Head"]
+layout_mode = 2
+theme_type_variation = &"Section"
+text = "ЗВУК"
+
+[node name="VolRow" type="HBoxContainer" parent="Center/Card/VBox/Scroll/Content/SoundSection/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Name" type="Label" parent="Center/Card/VBox/Scroll/Content/SoundSection/VBox/VolRow"]
+custom_minimum_size = Vector2(190, 0)
+layout_mode = 2
+theme_type_variation = &"Body"
+text = "Общая громкость"
+
+[node name="VolSlider" type="HSlider" parent="Center/Card/VBox/Scroll/Content/SoundSection/VBox/VolRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+max_value = 100.0
+step = 1.0
+value = 80.0
+
+[node name="VolLabel" type="Label" parent="Center/Card/VBox/Scroll/Content/SoundSection/VBox/VolRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(56, 0)
+layout_mode = 2
+theme_type_variation = &"Value"
+text = "80"
+horizontal_alignment = 2
+
+[node name="SfxRow" type="HBoxContainer" parent="Center/Card/VBox/Scroll/Content/SoundSection/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Name" type="Label" parent="Center/Card/VBox/Scroll/Content/SoundSection/VBox/SfxRow"]
+custom_minimum_size = Vector2(190, 0)
+layout_mode = 2
+theme_type_variation = &"Body"
+text = "Эффекты"
+
+[node name="SfxSlider" type="HSlider" parent="Center/Card/VBox/Scroll/Content/SoundSection/VBox/SfxRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+max_value = 100.0
+step = 5.0
+value = 90.0
+
+[node name="SfxLabel" type="Label" parent="Center/Card/VBox/Scroll/Content/SoundSection/VBox/SfxRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(56, 0)
+layout_mode = 2
+theme_type_variation = &"Value"
+text = "90"
+horizontal_alignment = 2
+
+[node name="AmbientRow" type="HBoxContainer" parent="Center/Card/VBox/Scroll/Content/SoundSection/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Name" type="Label" parent="Center/Card/VBox/Scroll/Content/SoundSection/VBox/AmbientRow"]
+custom_minimum_size = Vector2(190, 0)
+layout_mode = 2
+theme_type_variation = &"Body"
+text = "Атмосфера"
+
+[node name="AmbientSlider" type="HSlider" parent="Center/Card/VBox/Scroll/Content/SoundSection/VBox/AmbientRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+max_value = 100.0
+step = 5.0
+value = 75.0
+
+[node name="AmbientLabel" type="Label" parent="Center/Card/VBox/Scroll/Content/SoundSection/VBox/AmbientRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(56, 0)
+layout_mode = 2
+theme_type_variation = &"Value"
+text = "75"
+horizontal_alignment = 2
+
+[node name="EntityRow" type="HBoxContainer" parent="Center/Card/VBox/Scroll/Content/SoundSection/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Name" type="Label" parent="Center/Card/VBox/Scroll/Content/SoundSection/VBox/EntityRow"]
+custom_minimum_size = Vector2(190, 0)
+layout_mode = 2
+theme_type_variation = &"Body"
+text = "Сущность"
+
+[node name="EntitySlider" type="HSlider" parent="Center/Card/VBox/Scroll/Content/SoundSection/VBox/EntityRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+max_value = 100.0
+step = 5.0
+value = 90.0
+
+[node name="EntityLabel" type="Label" parent="Center/Card/VBox/Scroll/Content/SoundSection/VBox/EntityRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(56, 0)
+layout_mode = 2
+theme_type_variation = &"Value"
+text = "90"
+horizontal_alignment = 2
+
+[node name="FooterRule" type="ColorRect" parent="Center/Card/VBox"]
+custom_minimum_size = Vector2(0, 1)
+layout_mode = 2
+color = Color(0.55, 0.45, 0.24, 0.45)
+
+[node name="Footer" type="HBoxContainer" parent="Center/Card/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Note" type="Label" parent="Center/Card/VBox/Footer"]
+layout_mode = 2
+size_flags_vertical = 4
+theme_type_variation = &"Caption"
+text = "Esc — закрыть"
+
+[node name="FooterSpacer" type="Control" parent="Center/Card/VBox/Footer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ResetButton" type="Button" parent="Center/Card/VBox/Footer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(180, 44)
+layout_mode = 2
+text = "СБРОСИТЬ"
+
+[node name="BackButton" type="Button" parent="Center/Card/VBox/Footer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(200, 44)
+layout_mode = 2
+theme_type_variation = &"Primary"
+text = "ГОТОВО"

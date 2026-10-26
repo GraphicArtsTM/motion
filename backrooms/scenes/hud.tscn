@@ -1,0 +1,374 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/hud.gd" id="1_hud"]
+[ext_resource type="Script" path="res://scripts/pause_menu.gd" id="2_pause"]
+[ext_resource type="PackedScene" path="res://scenes/settings_panel.tscn" id="3_settings"]
+[ext_resource type="Shader" path="res://shaders/post_process.gdshader" id="4_post"]
+[ext_resource type="Theme" path="res://theme/backrooms_theme.tres" id="5_theme"]
+[ext_resource type="PackedScene" path="res://scenes/bodycam_overlay.tscn" id="6_overlay"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_post"]
+shader = ExtResource("4_post")
+
+[node name="HUD" type="CanvasLayer" groups=["hud"]]
+script = ExtResource("1_hud")
+
+[node name="Root" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme = ExtResource("5_theme")
+
+[node name="PostProcess" type="ColorRect" parent="Root"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+material = SubResource("ShaderMaterial_post")
+mouse_filter = 2
+
+[node name="BodycamOverlay" parent="Root" instance=ExtResource("6_overlay")]
+
+[node name="Crosshair" type="ColorRect" parent="Root"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -2.0
+offset_top = -2.0
+offset_right = 2.0
+offset_bottom = 2.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(1, 0.97, 0.88, 0.55)
+mouse_filter = 2
+
+[node name="ObjectivePanel" type="PanelContainer" parent="Root"]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -360.0
+offset_top = 24.0
+offset_right = 360.0
+offset_bottom = 24.0
+grow_horizontal = 2
+grow_vertical = 1
+mouse_filter = 2
+theme_type_variation = &"Chip"
+
+[node name="VBox" type="VBoxContainer" parent="Root/ObjectivePanel"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 3
+
+[node name="Caption" type="Label" parent="Root/ObjectivePanel/VBox"]
+layout_mode = 2
+theme_type_variation = &"Caption"
+theme_override_colors/font_color = Color(0.66, 0.55, 0.32, 1)
+text = "ЗАДАЧА"
+horizontal_alignment = 1
+
+[node name="Objective" type="Label" parent="Root/ObjectivePanel/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.9, 0.84, 0.66, 0.95)
+theme_override_font_sizes/font_size = 17
+text = "НАЙДИ ВЫХОД"
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="StaminaBar" type="ProgressBar" parent="Root"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -140.0
+offset_top = -44.0
+offset_right = 140.0
+offset_bottom = -36.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+show_percentage = false
+
+[node name="InventoryPanel" type="PanelContainer" parent="Root"]
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 40.0
+offset_top = -34.0
+offset_right = 40.0
+offset_bottom = -34.0
+grow_horizontal = 1
+grow_vertical = 0
+mouse_filter = 2
+theme_type_variation = &"Chip"
+
+[node name="HBox" type="HBoxContainer" parent="Root/InventoryPanel"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 12
+
+[node name="Cans" type="Label" parent="Root/InventoryPanel/HBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"Value"
+text = "БАНКИ 0"
+
+[node name="Throw" type="Label" parent="Root/InventoryPanel/HBox"]
+layout_mode = 2
+size_flags_vertical = 4
+theme_type_variation = &"Caption"
+text = "ПКМ — бросить"
+
+[node name="Hint" type="Label" parent="Root"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -480.0
+offset_top = -136.0
+offset_right = 480.0
+offset_bottom = -54.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 1, 1, 0.95)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.7)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 19
+text = "..."
+horizontal_alignment = 1
+vertical_alignment = 2
+autowrap_mode = 2
+
+[node name="PauseDim" type="ColorRect" parent="Root"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0, 0, 0, 0.72)
+
+[node name="PauseMenu" type="PanelContainer" parent="Root"]
+process_mode = 3
+visible = false
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+grow_horizontal = 2
+grow_vertical = 2
+custom_minimum_size = Vector2(430, 0)
+theme_type_variation = &"Modal"
+script = ExtResource("2_pause")
+
+[node name="VBox" type="VBoxContainer" parent="Root/PauseMenu"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Eyebrow" type="Label" parent="Root/PauseMenu/VBox"]
+layout_mode = 2
+theme_type_variation = &"Eyebrow"
+text = "ЗАПИСЬ ПРИОСТАНОВЛЕНА"
+horizontal_alignment = 1
+
+[node name="Title" type="Label" parent="Root/PauseMenu/VBox"]
+layout_mode = 2
+theme_type_variation = &"H1"
+text = "ПАУЗА"
+horizontal_alignment = 1
+
+[node name="Rule" type="ColorRect" parent="Root/PauseMenu/VBox"]
+custom_minimum_size = Vector2(0, 1)
+layout_mode = 2
+color = Color(0.55, 0.45, 0.24, 0.45)
+
+[node name="Gap" type="Control" parent="Root/PauseMenu/VBox"]
+custom_minimum_size = Vector2(0, 4)
+layout_mode = 2
+
+[node name="ResumeButton" type="Button" parent="Root/PauseMenu/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 48)
+layout_mode = 2
+theme_type_variation = &"Primary"
+text = "ПРОДОЛЖИТЬ"
+
+[node name="SettingsButton" type="Button" parent="Root/PauseMenu/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 46)
+layout_mode = 2
+text = "НАСТРОЙКИ"
+
+[node name="QuitButton" type="Button" parent="Root/PauseMenu/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 46)
+layout_mode = 2
+text = "В МЕНЮ"
+
+[node name="Foot" type="Label" parent="Root/PauseMenu/VBox"]
+layout_mode = 2
+theme_type_variation = &"Caption"
+text = "Esc — вернуться в игру"
+horizontal_alignment = 1
+
+[node name="DeathScreen" type="PanelContainer" parent="Root"]
+unique_name_in_owner = true
+process_mode = 3
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_type_variation = &"Screen"
+
+[node name="Center" type="CenterContainer" parent="Root/DeathScreen"]
+layout_mode = 2
+
+[node name="Card" type="PanelContainer" parent="Root/DeathScreen/Center"]
+custom_minimum_size = Vector2(640, 0)
+layout_mode = 2
+theme_type_variation = &"DangerCard"
+
+[node name="VBox" type="VBoxContainer" parent="Root/DeathScreen/Center/Card"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Eyebrow" type="Label" parent="Root/DeathScreen/Center/Card/VBox"]
+layout_mode = 2
+theme_type_variation = &"Eyebrow"
+text = "ЗАПИСЬ ПРЕРВАНА"
+horizontal_alignment = 1
+
+[node name="Title" type="Label" parent="Root/DeathScreen/Center/Card/VBox"]
+layout_mode = 2
+theme_type_variation = &"DangerTitle"
+text = "ТЫ УМЕР"
+horizontal_alignment = 1
+
+[node name="DeathReason" type="Label" parent="Root/DeathScreen/Center/Card/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"Body"
+theme_override_colors/font_color = Color(0.72, 0.65, 0.58, 1)
+text = ""
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="Rule" type="ColorRect" parent="Root/DeathScreen/Center/Card/VBox"]
+custom_minimum_size = Vector2(0, 1)
+layout_mode = 2
+color = Color(0.5, 0.2, 0.16, 0.5)
+
+[node name="RestartButton" type="Button" parent="Root/DeathScreen/Center/Card/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(320, 48)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_type_variation = &"Primary"
+text = "ЗАНОВО"
+
+[node name="MenuButton" type="Button" parent="Root/DeathScreen/Center/Card/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(320, 46)
+layout_mode = 2
+size_flags_horizontal = 4
+text = "В МЕНЮ"
+
+[node name="WinScreen" type="PanelContainer" parent="Root"]
+unique_name_in_owner = true
+process_mode = 3
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_type_variation = &"Screen"
+
+[node name="Center" type="CenterContainer" parent="Root/WinScreen"]
+layout_mode = 2
+
+[node name="Card" type="PanelContainer" parent="Root/WinScreen/Center"]
+custom_minimum_size = Vector2(640, 0)
+layout_mode = 2
+theme_type_variation = &"SuccessCard"
+
+[node name="VBox" type="VBoxContainer" parent="Root/WinScreen/Center/Card"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Eyebrow" type="Label" parent="Root/WinScreen/Center/Card/VBox"]
+layout_mode = 2
+theme_type_variation = &"Eyebrow"
+text = "СИГНАЛ НАЙДЕН"
+horizontal_alignment = 1
+
+[node name="WinTitle" type="Label" parent="Root/WinScreen/Center/Card/VBox"]
+layout_mode = 2
+theme_type_variation = &"SuccessTitle"
+text = "ТЫ ВЫБРАЛСЯ"
+horizontal_alignment = 1
+
+[node name="WinReason" type="Label" parent="Root/WinScreen/Center/Card/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"Body"
+theme_override_colors/font_color = Color(0.66, 0.72, 0.66, 1)
+text = ""
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="Rule" type="ColorRect" parent="Root/WinScreen/Center/Card/VBox"]
+custom_minimum_size = Vector2(0, 1)
+layout_mode = 2
+color = Color(0.3, 0.5, 0.32, 0.5)
+
+[node name="WinRestartButton" type="Button" parent="Root/WinScreen/Center/Card/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(320, 48)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_type_variation = &"Primary"
+text = "ЕЩЁ РАЗ"
+
+[node name="WinMenuButton" type="Button" parent="Root/WinScreen/Center/Card/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(320, 46)
+layout_mode = 2
+size_flags_horizontal = 4
+text = "В МЕНЮ"
+
+[node name="SettingsPanel" parent="Root" instance=ExtResource("3_settings")]
+unique_name_in_owner = true
+process_mode = 3
