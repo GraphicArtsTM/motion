@@ -81,7 +81,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	items.add_fuse()
 	AudioBank.play_one_shot(get_tree(), global_position + Vector3(0, 0.6, 0),
 		AudioBank.insert_clunk(), 6.0)
-	hud.show_hint("Предохранитель взят. Теперь найди дверь выхода.", 3.5)
+	# Подсказку «что дальше» даёт спавнер: только он знает, сколько уже собрано
 	picked_up.emit()
 	queue_free()
 

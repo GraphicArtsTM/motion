@@ -7,11 +7,12 @@ extends Node3D
 # этот участок игрок проходит по памяти и по сторонам. Первый стоит
 # в 54 м от старта — на нём механика и объясняется. Собранные не возвращаются.
 
+const MazeChunk = preload("res://scripts/maze_chunk.gd")
 const Fuse = preload("res://scripts/fuse.gd")
 const MazeCell = preload("res://scripts/maze_cell.gd")
 
-const CHUNK_SIZE: int = 8
-const CELL_METERS: float = 4.0
+const CHUNK_SIZE: int = MazeChunk.CHUNK_SIZE
+const CELL_METERS: float = MazeChunk.CELL_SIZE
 const CELLS: Array = [Vector2i(13, -4), Vector2i(66, -37), Vector2i(119, -70)]
 
 var items_ref = null
@@ -55,6 +56,13 @@ func remove_fuses(chunk_pos: Vector2i) -> void:
 func _on_picked_up(id: int) -> void:
 	collected[id] = true
 	placed.erase(id)
+	if hud_ref == null:
+		return
+	if collected.size() >= CELLS.size():
+		hud_ref.show_hint("Все предохранители у тебя. Теперь найди дверь выхода — она гудит низко.", 4.0)
+	else:
+		hud_ref.show_hint("Предохранитель взят (%d/%d). Следующий гудит дальше в лабиринте."
+			% [collected.size(), CELLS.size()], 4.0)
 
 
 # Клетка чанка, где встанет предохранитель: ближайшая к заданной, но
@@ -78,7 +86,7 @@ func _nearest_open(chunk, target: Vector2i, max_walls: int) -> Vector2i:
 	for ly in CHUNK_SIZE:
 		for lx in CHUNK_SIZE:
 			var cell = chunk.get_cell(lx, ly)
-			var walls: int = _wall_count(cell)
+			var walls: int = MazeCell.wall_count(cell)
 			if walls > max_walls:
 				continue
 			if walls + _outer_walls(cell, lx, ly) > max_walls:
@@ -109,14 +117,3 @@ func _outer_walls(cell, lx: int, ly: int) -> int:
 func _chunk_of(cell: Vector2i) -> Vector2i:
 	return Vector2i(floori(float(cell.x) / CHUNK_SIZE),
 		floori(float(cell.y) / CHUNK_SIZE))
-
-
-func _wall_count(cell) -> int:
-	if cell == null:
-		return 99
-	var count := 0
-	var walls: int = cell.walls
-	while walls > 0:
-		count += walls & 1
-		walls = walls >> 1
-	return count

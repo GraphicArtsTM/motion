@@ -25,6 +25,8 @@ var glow_mat: StandardMaterial3D = null
 var lamps: Array = []
 var light: OmniLight3D = null
 var player_inside: bool = false
+# Последняя своя подсказка: гасим только её, чужую строку не трогаем
+var last_hint: String = ""
 
 
 func setup(hud_ref, items_ref, power_ref) -> void:
@@ -155,6 +157,7 @@ func _door_hint() -> String:
 
 func _show_hint(text: String, duration: float = 3.5) -> void:
 	if hud and hud.has_method("show_hint"):
+		last_hint = text
 		hud.show_hint(text, duration)
 
 
@@ -168,4 +171,4 @@ func _on_body_exited(body: Node3D) -> void:
 	if body.is_in_group("player"):
 		player_inside = false
 		if hud and hud.has_method("hide_hint"):
-			hud.hide_hint()
+			hud.hide_hint(last_hint)

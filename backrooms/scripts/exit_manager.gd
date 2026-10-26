@@ -4,13 +4,14 @@ extends Node3D
 # от старта, держит её жизнь вместе с чанком и решает победу.
 # Устройство самой двери, её питание и подсказки — в exit_door.gd.
 
+const MazeChunk = preload("res://scripts/maze_chunk.gd")
 const MazeCell = preload("res://scripts/maze_cell.gd")
 const ExitDoor = preload("res://scripts/exit_door.gd")
 const ExitPower = preload("res://scripts/exit_power.gd")
 
 const TARGET := Vector2i(144, -86)
-const CHUNK_SIZE: int = 8
-const CELL_METERS: float = 4.0
+const CHUNK_SIZE: int = MazeChunk.CHUNK_SIZE
+const CELL_METERS: float = MazeChunk.CELL_SIZE
 
 @export var hud_path: NodePath
 @export var chunk_manager_path: NodePath = NodePath("../ChunkManager")
@@ -88,10 +89,10 @@ func _on_chunk_loaded(chunk_pos: Vector2i) -> void:
 
 func _on_chunk_unloaded(chunk_pos: Vector2i) -> void:
 	if door and _chunk_has_target(chunk_pos):
+		if hud and hud.has_method("hide_hint"):
+			hud.hide_hint(door.last_hint)
 		door.queue_free()
 		door = null
-		if hud and hud.has_method("hide_hint"):
-			hud.hide_hint()
 
 
 func _chunk_has_target(chunk_pos: Vector2i) -> bool:

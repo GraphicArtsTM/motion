@@ -7,7 +7,7 @@ extends Node3D
 const MazeChunk = preload("res://scripts/maze_chunk.gd")
 const MazeCell = preload("res://scripts/maze_cell.gd")
 
-const CELL_METERS: float = 4.0
+const CELL_METERS: float = MazeChunk.CELL_SIZE
 
 var glow_mat: StandardMaterial3D
 var dark_mat: StandardMaterial3D
@@ -83,7 +83,7 @@ func _add_fake_exit(chunk, rng: RandomNumberGenerator, glow: Array) -> void:
 	var dead_ends: Array = []
 	for y in MazeChunk.CHUNK_SIZE:
 		for x in MazeChunk.CHUNK_SIZE:
-			if _wall_count(chunk.get_cell(x, y)) == 3:
+			if MazeCell.wall_count(chunk.get_cell(x, y)) == 3:
 				dead_ends.append(Vector2i(x, y))
 	if dead_ends.is_empty() or rng.randf() > 0.45:
 		return
@@ -148,16 +148,6 @@ func _add_pipes(chunk, rng: RandomNumberGenerator, dark: Array) -> void:
 		_add_centered_quad(dark, center + inward * 0.07, 4.0, 0.14, axis, inward, Vector3.UP)
 		_add_centered_quad(dark, center - inward * 0.07, 4.0, 0.14, axis, -inward, Vector3.UP)
 
-
-func _wall_count(cell) -> int:
-	if cell == null:
-		return 0
-	var count := 0
-	var walls: int = cell.walls
-	while walls > 0:
-		count += walls & 1
-		walls = walls >> 1
-	return count
 
 
 # Угол стены + касательная + нормаль внутрь (как в room_builder).

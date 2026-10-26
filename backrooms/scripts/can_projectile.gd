@@ -34,7 +34,8 @@ func _ready() -> void:
 	sound.volume_db = 2.0
 	add_child(sound)
 	body_entered.connect(_on_body_entered)
-	get_tree().create_timer(LIFETIME).timeout.connect(queue_free)
+	# Таймер с паузой: на паузе банка не должна исчезать
+	get_tree().create_timer(LIFETIME, false).timeout.connect(queue_free)
 
 
 # Бросок закончен, позиция выставлена — только теперь банка «в полёте»

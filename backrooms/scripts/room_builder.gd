@@ -7,7 +7,7 @@ extends Node3D
 const MazeChunk = preload("res://scripts/maze_chunk.gd")
 const MazeCell = preload("res://scripts/maze_cell.gd")
 
-const CELL_SIZE: float = 4.0
+const CELL_SIZE: float = MazeChunk.CELL_SIZE
 const WALL_HEIGHT: float = 2.8
 const WALL_THICK: float = 0.2
 const WALL_Y0: float = -0.05

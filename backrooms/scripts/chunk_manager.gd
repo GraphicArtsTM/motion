@@ -15,6 +15,8 @@ const FuseSpawner = preload("res://scripts/fuse_spawner.gd")
 @export var world_seed: int = 12345
 @export var load_radius: int = 2
 @export var player_path: NodePath = NodePath("../Player")
+# Сколько чанков из очереди строить за кадр: сборка одного ~3–4 мс
+@export var builds_per_frame: int = 1
 
 var player: Node3D
 var generator
@@ -26,6 +28,9 @@ var fuse_spawner
 var chunks: Dictionary = {}
 var chunk_meshes: Dictionary = {}
 var last_player_chunk: Vector2i = Vector2i.MAX
+# Чанки, у которых уже есть данные, но ещё нет узлов: pos -> {chunk, touched}
+var pending: Dictionary = {}
+var pending_order: Array[Vector2i] = []
 
 
 func _ready() -> void:
@@ -45,8 +50,7 @@ func _ready() -> void:
 	add_child(fuse_spawner)
 	
 	if player:
-		last_player_chunk = MazeChunk.world_to_chunk(player.global_position)
-		_update_chunks()
+		force_update()
 	else:
 		push_error("[ChunkManager] Player not found at: " + str(player_path))
 
@@ -57,60 +61,82 @@ func _process(_delta: float) -> void:
 	
 	var player_chunk: Vector2i = MazeChunk.world_to_chunk(player.global_position)
 	
-	if player_chunk != last_player_chunk:
+	# Кадр перехода уже занят расчётом данных новых чанков — строить
+	# начинаем со следующего, чтобы не складывать обе стоимости в один кадр
+	var crossed: bool = player_chunk != last_player_chunk
+	if crossed:
 		last_player_chunk = player_chunk
 		_update_chunks()
+	# Свой чанк игрок ждать не может: под ногами должен быть пол
+	if pending.has(player_chunk):
+		_build_pending(player_chunk)
+	if crossed:
+		return
+	for i in builds_per_frame:
+		if pending_order.is_empty():
+			break
+		_build_pending(pending_order[0])
 
 
+# Данные новых чанков считаются сразу (генерация дешёвая и нужна, чтобы
+# прорубить проходы), а узлы — меш, коллизия, лампы — строятся очередью,
+# ближние первыми. Пока чанк в очереди, его нет в chunks: сущность туда
+# не ходит и не встаёт, а значит не провалится сквозь пол без коллизии
 func _update_chunks() -> void:
 	var player_chunk: Vector2i = last_player_chunk
-	var chunks_to_load: Array[Vector2i] = []
-	var chunks_to_keep: Array[Vector2i] = []
-	
+	var keep: Dictionary = {}
 	for y in range(-load_radius, load_radius + 1):
 		for x in range(-load_radius, load_radius + 1):
-			var chunk_pos: Vector2i = player_chunk + Vector2i(x, y)
-			chunks_to_keep.append(chunk_pos)
-			
-			if not chunks.has(chunk_pos):
-				chunks_to_load.append(chunk_pos)
+			keep[player_chunk + Vector2i(x, y)] = true
 	
-	for chunk_pos in chunks_to_load:
-		_load_chunk(chunk_pos)
-	
-	var chunks_to_unload: Array[Vector2i] = []
 	for chunk_pos in chunks.keys():
-		if not chunks_to_keep.has(chunk_pos):
-			chunks_to_unload.append(chunk_pos)
+		if not keep.has(chunk_pos):
+			_unload_chunk(chunk_pos)
+	for chunk_pos in pending.keys():
+		if not keep.has(chunk_pos):
+			pending.erase(chunk_pos)
+			pending_order.erase(chunk_pos)
 	
-	for chunk_pos in chunks_to_unload:
-		_unload_chunk(chunk_pos)
+	var to_load: Array = []
+	for chunk_pos in keep.keys():
+		if not chunks.has(chunk_pos) and not pending.has(chunk_pos):
+			to_load.append(chunk_pos)
+	to_load.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+		return (a - player_chunk).length_squared() < (b - player_chunk).length_squared())
+	for chunk_pos in to_load:
+		_prepare_chunk(chunk_pos)
 
 
-func _load_chunk(chunk_pos: Vector2i) -> void:
-	if chunks.has(chunk_pos):
-		return
-	
+func _prepare_chunk(chunk_pos: Vector2i) -> void:
 	var chunk = MazeChunk.new(chunk_pos.x, chunk_pos.y)
-	chunks[chunk_pos] = chunk
-	
 	generator.generate_chunk(chunk, world_seed)
 	chunk_generating.emit(chunk)
 	
-	var touched_neighbors: Array[Vector2i] = []
+	# Соседа, у которого уже есть меш, после прорубки прохода надо
+	# перестроить — но лишь когда встанет и этот чанк, иначе проход
+	# откроется в пустоту. Соседей из очереди не трогаем: их меш ещё
+	# не построен и сразу выйдет с проходом
+	var touched: Array[Vector2i] = []
 	for neighbor_offset in [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0)]:
 		var neighbor_pos: Vector2i = chunk_pos + neighbor_offset
 		if chunks.has(neighbor_pos):
 			generator.connect_chunks(chunk, chunks[neighbor_pos], world_seed)
-			touched_neighbors.append(neighbor_pos)
-	
-	_build_chunk_nodes(chunk_pos, chunk)
-	
-	# У соседей данные стен изменились (прорублен проход) —
-	# их меши нужно перестроить, иначе проход останется глухой стеной
-	for neighbor_pos in touched_neighbors:
-		_build_chunk_nodes(neighbor_pos, chunks[neighbor_pos])
-	
+			touched.append(neighbor_pos)
+		elif pending.has(neighbor_pos):
+			generator.connect_chunks(chunk, pending[neighbor_pos]["chunk"], world_seed)
+	pending[chunk_pos] = {"chunk": chunk, "touched": touched}
+	pending_order.append(chunk_pos)
+
+
+func _build_pending(chunk_pos: Vector2i) -> void:
+	var entry: Dictionary = pending[chunk_pos]
+	pending.erase(chunk_pos)
+	pending_order.erase(chunk_pos)
+	chunks[chunk_pos] = entry["chunk"]
+	_build_chunk_nodes(chunk_pos, entry["chunk"])
+	for neighbor_pos in entry["touched"]:
+		if chunks.has(neighbor_pos):
+			_build_chunk_nodes(neighbor_pos, chunks[neighbor_pos])
 	chunk_loaded.emit(chunk_pos)
 
 
@@ -151,7 +177,10 @@ func get_chunk_at_position(world_pos: Vector3):
 	return chunks.get(chunk_pos)
 
 
+# Без очереди: старт мира и смена дальности в настройках строят всё сразу
 func force_update() -> void:
 	if player:
 		last_player_chunk = MazeChunk.world_to_chunk(player.global_position)
 		_update_chunks()
+		while not pending_order.is_empty():
+			_build_pending(pending_order[0])

@@ -15,6 +15,8 @@ const BREATH_FAR_DB: float = -42.0
 const BREATH_NEAR_DB: float = -10.0
 const WHISPER_MIN: float = 7.0
 const WHISPER_MAX: float = 17.0
+# Ужас для HUD (виньетка и зерно) — ближе, чем слышно дыхание
+const HUD_DREAD_RANGE: float = 18.0
 
 var host = null
 var body: Node3D = null
@@ -55,6 +57,7 @@ func _process(delta: float) -> void:
 	_steps()
 	_breath(delta)
 	_voice(delta)
+	_dread()
 
 
 # Силуэт дышит и качается, в погоне наваливается вперёд.
@@ -103,6 +106,17 @@ func _breath(delta: float) -> void:
 			breath.play()
 	elif breath.playing:
 		breath.stop()
+
+
+# Ужас 0..1 в HUD: близость к игроку, а в погоне и на следе — не ниже пола
+func _dread() -> void:
+	if host.hud == null or not host.hud.has_method("set_dread"):
+		return
+	var dist: float = host.global_position.distance_to(player.global_position)
+	var dread: float = clampf(1.0 - dist / HUD_DREAD_RANGE, 0.0, 1.0)
+	var state: int = int(host.state)
+	var floor_dread: float = 0.5 if state == STATE_CHASE else (0.22 if state != 0 else 0.0)
+	host.hud.set_dread(maxf(dread, floor_dread))
 
 
 # Рёв: и когда оно увидело игрока, и когда издалека отвечает на гул двери

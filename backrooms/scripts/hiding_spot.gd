@@ -19,6 +19,8 @@ const ENTER_TIME := 0.55
 const EXIT_TIME := 0.4
 const DOOR_OPEN_ANGLE := -1.8
 const DOOR_SPEED := 8.0
+const HINT_ENTER := "F — спрятаться"
+const HINT_EXIT := "F — выйти"
 
 var state := STATE_IDLE
 var seq_t := 0.0
@@ -72,7 +74,7 @@ func _exit_hide() -> void:
 		player_ref.global_position = _exit_position()
 		player_ref.set_hidden(null)
 	if hud_ref:
-		hud_ref.hide_hint()
+		hud_ref.hide_hint(HINT_EXIT)
 
 
 func hide_global_position() -> Vector3:
@@ -89,7 +91,7 @@ func _enter_hide() -> void:
 	player_ref.face_yaw(global_rotation.y + PI)
 	player_ref.set_hidden(self)
 	if hud_ref:
-		hud_ref.show_hint("F — выйти")
+		hud_ref.show_hint(HINT_EXIT)
 
 
 func _begin_exit() -> void:
@@ -104,7 +106,7 @@ func _finish_exit() -> void:
 	player_ref.global_position = _exit_position()
 	player_ref.set_hidden(null)
 	if hud_ref:
-		hud_ref.hide_hint()
+		hud_ref.hide_hint(HINT_EXIT)
 
 
 func _exit_position() -> Vector3:
@@ -126,14 +128,14 @@ func _on_body_entered(body: Node3D) -> void:
 	if body.is_in_group("player"):
 		player_near = true
 		if hud_ref and not occupied and player_ref and not player_ref.is_hidden():
-			hud_ref.show_hint("F — спрятаться")
+			hud_ref.show_hint(HINT_ENTER)
 
 
 func _on_body_exited(body: Node3D) -> void:
 	if body.is_in_group("player"):
 		player_near = false
 		if hud_ref and not occupied:
-			hud_ref.hide_hint()
+			hud_ref.hide_hint(HINT_ENTER)
 
 
 func _build() -> void:

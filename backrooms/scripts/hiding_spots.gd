@@ -3,12 +3,13 @@ extends Node3D
 # HidingSpots: расставляет по одному шкафу-укрытию на чанк
 # в случайной открытой клетке. Живёт и умирает вместе с чанком.
 
+const MazeChunk = preload("res://scripts/maze_chunk.gd")
 const HidingSpot = preload("res://scripts/hiding_spot.gd")
 const Exit = preload("res://scripts/exit_manager.gd")
 const MazeCell = preload("res://scripts/maze_cell.gd")
 
-const CHUNK_SIZE: int = 8
-const CELL_METERS: float = 4.0
+const CHUNK_SIZE: int = MazeChunk.CHUNK_SIZE
+const CELL_METERS: float = MazeChunk.CELL_SIZE
 
 var spots: Dictionary = {}
 var player_ref = null
@@ -32,7 +33,7 @@ func add_spots(chunk, world_seed: int) -> void:
 	var open_cells: Array = []
 	for ly in CHUNK_SIZE:
 		for lx in CHUNK_SIZE:
-			if _wall_count(chunk.get_cell(lx, ly)) <= 2:
+			if MazeCell.wall_count(chunk.get_cell(lx, ly)) <= 2:
 				open_cells.append(Vector2i(lx, ly))
 	if open_cells.is_empty():
 		return
@@ -86,14 +87,3 @@ func _exit_chunk() -> Vector2i:
 
 func _spawn_chunk() -> Vector2i:
 	return Vector2i.ZERO
-
-
-func _wall_count(cell) -> int:
-	if cell == null:
-		return 99
-	var count := 0
-	var walls: int = cell.walls
-	while walls > 0:
-		count += walls & 1
-		walls = walls >> 1
-	return count

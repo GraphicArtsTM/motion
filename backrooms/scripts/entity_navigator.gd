@@ -7,7 +7,7 @@ extends RefCounted
 const MazeChunk = preload("res://scripts/maze_chunk.gd")
 const MazeCell = preload("res://scripts/maze_cell.gd")
 
-const CELL: float = 4.0
+const CELL: float = MazeChunk.CELL_SIZE
 const CHUNK_SIZE: int = MazeChunk.CHUNK_SIZE
 const DIRECTIONS := [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0)]
 # Предохранитель BFS. Загруженная область при radius=3 — 7×7 чанков = 3136

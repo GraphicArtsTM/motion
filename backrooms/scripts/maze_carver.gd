@@ -5,11 +5,12 @@ extends RefCounted
 # прореживание тупиков. Единственное исключение — колонны: они в
 # maze_pillars.gd, где закрытие клетки проверяется на связность.
 
+const MazeChunk = preload("res://scripts/maze_chunk.gd")
 const MazeCell = preload("res://scripts/maze_cell.gd")
 const MazeZone = preload("res://scripts/maze_zone.gd")
 const MazePillars = preload("res://scripts/maze_pillars.gd")
 
-const CHUNK_SIZE: int = 8
+const CHUNK_SIZE: int = MazeChunk.CHUNK_SIZE
 const HALL_ATTEMPTS: int = 20
 const GRID_LINES: Array = [2, 5]
 

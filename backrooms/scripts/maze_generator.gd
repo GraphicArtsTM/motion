@@ -5,11 +5,12 @@ extends Node
 # сид, порядок и проходы между чанками. Всё — функция координат, а не
 # порядка загрузки: выгруженный и загруженный снова чанк тот же самый.
 
+const MazeChunk = preload("res://scripts/maze_chunk.gd")
 const MazeCell = preload("res://scripts/maze_cell.gd")
 const MazeZone = preload("res://scripts/maze_zone.gd")
 const MazeCarver = preload("res://scripts/maze_carver.gd")
 
-const CHUNK_SIZE: int = 8
+const CHUNK_SIZE: int = MazeChunk.CHUNK_SIZE
 const BORDER_MIN: int = 2
 const BORDER_MAX: int = 4
 

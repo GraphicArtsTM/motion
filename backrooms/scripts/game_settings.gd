@@ -39,6 +39,9 @@ static func load_all() -> Dictionary:
 		if cfg.has_section_key("game", "headbob"):
 			var old = cfg.get_value("game", "headbob", true)
 			data["headbob_strength"] = 1.0 if old else 0.0
+	# Дальность 1 выгружала чанки с маяками на 32–64 м при слышимости 100 м —
+	# по звуку было не дойти. Старое сохранение с 1 поднимаем до 2
+	data["radius"] = clampi(int(data["radius"]), 2, 3)
 	return data
 
 

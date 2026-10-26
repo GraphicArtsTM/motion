@@ -15,7 +15,8 @@ signal stamina_recovered
 var current_stamina: float = 100.0
 var regen_timer: float = 0.0
 var can_sprint: bool = true
-var slow_until_msec: int = 0
+# Остаток изнеможения, с: тикает в _process, поэтому пауза его не съедает
+var slow_timer: float = 0.0
 
 
 func _ready() -> void:
@@ -26,6 +27,8 @@ func _process(delta: float) -> void:
 	# Обновляем таймер восстановления
 	if regen_timer > 0.0:
 		regen_timer -= delta
+	if slow_timer > 0.0:
+		slow_timer -= delta
 
 
 func drain(delta: float) -> void:
@@ -38,7 +41,7 @@ func drain(delta: float) -> void:
 	if current_stamina <= 0.0:
 		current_stamina = 0.0
 		can_sprint = false
-		slow_until_msec = Time.get_ticks_msec() + 2000
+		slow_timer = 2.0
 		stamina_depleted.emit()
 	
 	stamina_changed.emit(current_stamina, max_stamina)
@@ -75,6 +78,6 @@ func get_stamina_percent() -> float:
 
 # Изнеможение: 2 секунды после обнуления скорость ×0.7
 func speed_multiplier() -> float:
-	if Time.get_ticks_msec() < slow_until_msec:
+	if slow_timer > 0.0:
 		return 0.7
 	return 1.0

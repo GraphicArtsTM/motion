@@ -1,25 +1,24 @@
 extends CharacterBody3D
 
 # Entity: хозяин лабиринта. Бродит, слышит шаги и звон банок, видит игрока
-# в конусе, преследует, убивает в упор. Чувства — entity_senses.gd, путь — entity_navigator.gd.
+# в конусе, преследует. Чувства — entity_senses.gd, путь — entity_navigator.gd, хватка — entity_grab.gd.
 
 const Navigator = preload("res://scripts/entity_navigator.gd")
 const EntitySenses = preload("res://scripts/entity_senses.gd")
 const EntityRelocator = preload("res://scripts/entity_relocator.gd")
 const PropEntity = preload("res://scripts/prop_entity.gd")
+const EntityGrab = preload("res://scripts/entity_grab.gd")
 
 enum State { WANDER, INVESTIGATE, CHASE, SEARCH }
 
 const WANDER_SPEED: float = 1.35
 const INVESTIGATE_SPEED: float = 2.3
 const CHASE_SPEED: float = 4.4
-const CATCH_DISTANCE: float = 1.35
 const REPATH_INTERVAL: float = 0.3
 const MEMORY_TIME: float = 5.0
 const SEARCH_TIME: float = 6.0
 const RELOCATE_DISTANCE: float = 100.0
 const TURN_SPEED: float = 7.0
-const DREAD_RANGE: float = 18.0
 const WAYPOINT_EPS: float = 0.55
 
 @export var chunk_manager_path: NodePath = NodePath("../ChunkManager")
@@ -31,6 +30,7 @@ var player = null
 var hud = null
 var chunk_manager = null
 var senses = null
+var grab = null
 var rng := RandomNumberGenerator.new()
 var path: Array = []
 var repath_timer: float = 0.0
@@ -48,6 +48,7 @@ func _ready() -> void:
 	hud = get_node_or_null(hud_path)
 	chunk_manager = get_node_or_null(chunk_manager_path)
 	senses = EntitySenses.new(self, player)
+	grab = EntityGrab.new(self, player, senses)
 	add_child(PropEntity.build_entity())
 	add_child(PropEntity.entity_collider())
 
@@ -60,27 +61,27 @@ func _physics_process(delta: float) -> void:
 	repath_timer -= delta
 	memory_timer -= delta
 	_keep_pressure()
+	grab.tick(delta, state == State.CHASE)
 	_sense()
 	_step_state(delta)
 	_walk(delta)
 	_try_catch()
 
 
-func _process(_delta: float) -> void:
-	if not placed or hud == null or player == null or not hud.has_method("set_dread"):
-		return
-	var dist := global_position.distance_to(player.global_position)
-	var dread := clampf(1.0 - dist / DREAD_RANGE, 0.0, 1.0)
-	var floor_dread := 0.5 if state == State.CHASE else (0.22 if state != State.WANDER else 0.0)
-	hud.set_dread(maxf(dread, floor_dread))
-
-
 func _sense() -> void:
+	# Видел, как игрок залез в шкаф: идёт к шкафу, приманки не слушает
+	if grab.hunting_spot():
+		last_seen = grab.spot_target()
+		memory_timer = MEMORY_TIME
+		state = State.CHASE
+		return
 	var what: Dictionary = senses.perceive()
 	if what.is_empty():
 		return
+	var prev_target: Vector2i = Navigator.world_to_cell(last_seen)
 	last_seen = what["pos"]
 	if what["seen"]:
+		grab.saw_player()
 		memory_timer = MEMORY_TIME
 		if state != State.CHASE:
 			state = State.CHASE
@@ -91,8 +92,10 @@ func _sense() -> void:
 	if state == State.CHASE and not what["bait"]:
 		memory_timer = MEMORY_TIME
 		return
+	# Шаги слышны каждый кадр: новый путь — только если звук ушёл в другую клетку
+	if state != State.INVESTIGATE or Navigator.world_to_cell(last_seen) != prev_target:
+		repath_timer = 0.0
 	state = State.INVESTIGATE
-	repath_timer = 0.0
 
 
 func _step_state(delta: float) -> void:
@@ -128,15 +131,15 @@ func _step_state(delta: float) -> void:
 func _begin_search(seconds: float = SEARCH_TIME) -> void:
 	state = State.SEARCH
 	search_timer = seconds
+	grab.forget_spot()
 	path = Navigator.path_in_band(chunk_manager, global_position, last_seen,
 		1.0, 10.0, rng)
 
 
 func _speed() -> float:
-	match state:
-		State.CHASE: return CHASE_SPEED
-		State.INVESTIGATE: return INVESTIGATE_SPEED
-		_: return WANDER_SPEED
+	if state == State.CHASE:
+		return CHASE_SPEED
+	return INVESTIGATE_SPEED if state == State.INVESTIGATE else WANDER_SPEED
 
 
 func _walk(delta: float) -> void:
@@ -170,15 +173,12 @@ func _walk(delta: float) -> void:
 
 
 func _try_catch() -> void:
-	if not placed or player.is_hidden() or global_position.distance_to(player.global_position) > CATCH_DISTANCE:
-		return
-	if not senses.line_clear(senses.eye_position(),
-			player.global_position + Vector3(0, 1.1, 0)):
+	var reason: String = grab.check()
+	if reason.is_empty():
 		return
 	if hud and hud.has_method("show_death"):
-		hud.show_death("Оно нашло тебя. Не надо было бежать.")
+		hud.show_death(reason)
 	set_physics_process(false)
-	set_process(false)
 
 
 # Сущность нельзя «потерять»: далеко ушла или её клетку выгрузили — переброс ближе к игроку.

@@ -45,8 +45,7 @@ func _ready() -> void:
 
 	# Настройки из файла применяются при старте мира: не только игрок и звук,
 	# но и туман, дальность чанков, VSync/лимит FPS — иначе они «забываются»
-	var data := GameSettings.load_all()
-	GameSettings.apply_all(get_tree(), data)
+	GameSettings.apply_all(get_tree(), GameSettings.load_all())
 
 	stamina_node = get_node_or_null(stamina_path)
 	if stamina_node and stamina_node.has_signal("stamina_changed"):
@@ -81,7 +80,6 @@ func _process(delta: float) -> void:
 		if bar_hide_timer <= 0.0 and stamina_bar.value >= stamina_bar.max_value:
 			stamina_bar.visible = false
 
-	# Подсказки с таймером гаснут сами
 	if hint_label.visible and hint_hide_timer > 0.0:
 		hint_hide_timer -= delta
 		if hint_hide_timer <= 0.0:
@@ -116,8 +114,10 @@ func can_show_hint() -> bool:
 	return not hint_label.visible
 
 
-func hide_hint() -> void:
-	hint_label.visible = false
+# only_text — погасить, только если на строке всё ещё своя подсказка
+func hide_hint(only_text: String = "") -> void:
+	if only_text.is_empty() or hint_label.text == only_text:
+		hint_label.visible = false
 
 
 func _on_fuses_changed(count: int) -> void:

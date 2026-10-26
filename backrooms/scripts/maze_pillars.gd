@@ -5,9 +5,10 @@ extends RefCounted
 # колонна проверяется на связность: соседние колонны могли бы отрезать
 # угол зала, а в отрезанную клетку может попасть предохранитель.
 
+const MazeChunk = preload("res://scripts/maze_chunk.gd")
 const MazeCell = preload("res://scripts/maze_cell.gd")
 
-const CHUNK_SIZE: int = 8
+const CHUNK_SIZE: int = MazeChunk.CHUNK_SIZE
 
 
 static func place(chunk, rng: RandomNumberGenerator, halls: Array, chance: float,
