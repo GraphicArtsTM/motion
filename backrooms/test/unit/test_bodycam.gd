@@ -72,3 +72,37 @@ func test_shake_does_not_touch_intent() -> void:
 	assert_eq(player.look_yaw, 0.3)
 	assert_eq(player.camera_rotation_x, -0.2)
 	assert_ne(camera.rotation.x, 0.0)
+
+
+# Руки принадлежат телу: на рывке мышью кадр уже доехал, а руки ещё в пути
+func test_arms_lag_behind_camera() -> void:
+	var arms = player.get_node("Viewmodel")
+	arms.set_process(false)
+	look._process(1.0 / 60.0)
+	arms._process(1.0 / 60.0)
+	player.look_yaw = deg_to_rad(60.0)
+	for i in 8:
+		look._process(1.0 / 60.0)
+		arms._process(1.0 / 60.0)
+	var cam_yaw: float = rad_to_deg(_view_yaw())
+	var arm_yaw: float = rad_to_deg(arms.arm.x)
+	assert_gt(cam_yaw - arm_yaw, 5.0, "руки должны отставать от кадра")
+	for i in 90:
+		look._process(1.0 / 60.0)
+		arms._process(1.0 / 60.0)
+	assert_almost_eq(rad_to_deg(arms.arm.x), 60.0, 0.5, "и доезжать")
+
+
+# Тряска шагов крутит камеру, но не руки
+func test_arms_ignore_camera_shake() -> void:
+	var arms = player.get_node("Viewmodel")
+	arms.set_process(false)
+	arms._process(1.0 / 60.0)
+	var before: Basis = arms.global_transform.basis
+	shake._on_stepped(5.0, true, false)
+	for i in 10:
+		shake._process(1.0 / 60.0)
+	arms._process(1.0 / 60.0)
+	assert_ne(camera.rotation.x, 0.0)
+	assert_true(arms.global_transform.basis.is_equal_approx(before))
+	assert_true(arms.global_position.is_equal_approx(camera.global_position))

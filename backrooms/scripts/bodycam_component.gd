@@ -1,7 +1,7 @@
 extends Node
 class_name BodycamComponent
 
-# Bodycam: камера привинчена к груди и живёт своей жизнью — высота, качка шага,
+# Bodycam: камера надета на голову, как в Bodycam, и живёт своей жизнью — высота, качка шага,
 # инерция разгона, крен, наклон корпуса, просадка приземления, дыхание и поле
 # зрения. Куда она смотрит — camera_look.gd, чем видит — camera_lens.gd,
 # как её крутит шаг и тело — bodycam_shake.gd.
@@ -13,20 +13,21 @@ class_name BodycamComponent
 @export var shake_path: NodePath
 
 @export_group("Высота")
-# Грудь, а не глаза: мир читается ниже, а сущность кажется выше и страшнее
-@export var stand_height: float = 1.35
-@export var crouch_height: float = 0.85
+# Камера на голове (на уровне глаз, как у Bodycam), в приседе капсула 1.15 м —
+# голова около метра от пола
+@export var stand_height: float = 1.62
+@export var crouch_height: float = 1.0
 @export var height_speed: float = 8.0
 
 @export_group("Поле зрения")
 # Угол прямолинейного рендера по вертикали: рыбий глаз в пост-обработке
-# собирает из него кадр. Зума у нагрудной камеры нет — на бегу угол тот же
+# собирает из него кадр. Зума у носимой камеры нет — на бегу угол тот же
 @export var base_fov: float = 100.0
 
 @export_group("Качка")
 # Частоту качки не задаём: её задаёт сам шаг (длина шага в footstep_component),
 # поэтому камера, звук шагов и руки качаются в одном ритме. Амплитуда — как
-# у груди, а не у головы из шутера: 4 см на шаге, 8 на бегу. Кадр трясёт
+# у настоящей головы, а не у шутерной: 4 см на шаге, 8 на бегу. Кадр трясёт
 # поворотом (bodycam_shake.gd), сдвиг на широкоугольнике почти не виден
 @export var walk_amplitude: float = 0.02
 @export var sprint_amplitude: float = 0.04
@@ -94,7 +95,7 @@ func _process(delta: float) -> void:
 	camera.fov = base_fov
 
 
-# Высота груди, в приседе ниже; просадка приземления — пружина к нулю
+# Высота головы, в приседе ниже; просадка приземления — пружина к нулю
 func _update_height(step: float) -> void:
 	var target: float = crouch_height if player.is_crouching else stand_height
 	height = lerpf(height, target, clampf(height_speed * step, 0.0, 1.0))
@@ -102,7 +103,7 @@ func _update_height(step: float) -> void:
 	camera_root.position.y = height + dip.x
 
 
-# Качка, инерция и дыхание — всё, что живёт внутри нагрудного крепления.
+# Качка, инерция и дыхание — всё, что живёт внутри крепления на голове.
 # Позицию пишем один раз, иначе слагаемые перебивают друг друга
 func _update_body(step: float) -> void:
 	var speed: float = Vector2(player.velocity.x, player.velocity.z).length()
@@ -139,7 +140,7 @@ func _update_body(step: float) -> void:
 	tired = lerpf(tired, low, clampf(2.0 * step, 0.0, 1.0))
 	var drift: float = sin(breath * TAU * 0.25) * 0.012 * tired * shake_strength
 
-	# Смещения собираем в системе корпуса (камера-то привинчена к груди), а
+	# Смещения собираем в системе корпуса (голова идёт вместе с ним), а
 	# camera.position живёт в системе CameraRoot, уже развёрнутой к взгляду:
 	# без пересчёта на резком развороте боковую инерцию уводило вперёд-назад
 	var offset := Vector3(lean * lean_offset + bob_x + inertia.x,

@@ -80,7 +80,6 @@ shadow_enabled = false
 environment = SubResource("Environment_1")
 
 [node name="HUD" parent="." instance=ExtResource("4_hud")]
-stamina_path = NodePath("../Player/StaminaComponent")
 player_path = NodePath("../Player")
 
 [node name="ExitManager" type="Node3D" parent="."]

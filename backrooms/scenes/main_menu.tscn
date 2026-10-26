@@ -302,6 +302,16 @@ layout_mode = 2
 theme_type_variation = &"Body"
 text = "фонарь"
 
+[node name="KeyTablet" type="Label" parent="Frame/Layout/Content/Info/Controls/VBox/Grid"]
+layout_mode = 2
+theme_type_variation = &"Key"
+text = "Tab"
+
+[node name="ActTablet" type="Label" parent="Frame/Layout/Content/Info/Controls/VBox/Grid"]
+layout_mode = 2
+theme_type_variation = &"Body"
+text = "задача и банки"
+
 [node name="KeyPause" type="Label" parent="Frame/Layout/Content/Info/Controls/VBox/Grid"]
 layout_mode = 2
 theme_type_variation = &"Key"

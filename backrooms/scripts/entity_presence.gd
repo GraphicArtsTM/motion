@@ -28,6 +28,8 @@ var sway_time: float = 0.0
 var step_accum: float = 0.0
 var last_state: int = -1
 var whisper_timer: float = 5.0
+# Ужас 0..1 последнего кадра: его читают HUD (виньетка) и руки (дрожь)
+var dread: float = 0.0
 
 
 func _ready() -> void:
@@ -113,10 +115,11 @@ func _dread() -> void:
 	if host.hud == null or not host.hud.has_method("set_dread"):
 		return
 	var dist: float = host.global_position.distance_to(player.global_position)
-	var dread: float = clampf(1.0 - dist / HUD_DREAD_RANGE, 0.0, 1.0)
+	var near: float = clampf(1.0 - dist / HUD_DREAD_RANGE, 0.0, 1.0)
 	var state: int = int(host.state)
 	var floor_dread: float = 0.5 if state == STATE_CHASE else (0.22 if state != 0 else 0.0)
-	host.hud.set_dread(maxf(dread, floor_dread))
+	dread = maxf(near, floor_dread)
+	host.hud.set_dread(dread)
 
 
 # Рёв: и когда оно увидело игрока, и когда издалека отвечает на гул двери

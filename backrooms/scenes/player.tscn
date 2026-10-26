@@ -1,4 +1,4 @@
-[gd_scene load_steps=17 format=3 uid="uid://dy0pibuhx2xlb"]
+[gd_scene load_steps=19 format=3 uid="uid://dy0pibuhx2xlb"]
 
 [ext_resource type="Script" path="res://scripts/player_controller.gd" id="1_m3wdo"]
 [ext_resource type="Script" path="res://scripts/stamina_component.gd" id="2_stamina"]
@@ -12,6 +12,13 @@
 [ext_resource type="Script" path="res://scripts/mic_component.gd" id="10_mic"]
 [ext_resource type="Script" path="res://scripts/flashlight.gd" id="11_light"]
 [ext_resource type="Script" path="res://scripts/bodycam_shake.gd" id="12_shake"]
+[ext_resource type="Script" path="res://scripts/face_redact.gd" id="13_redact"]
+
+[sub_resource type="CameraAttributesPractical" id="CameraAttributes_bodycam"]
+auto_exposure_enabled = true
+auto_exposure_scale = 0.06
+auto_exposure_speed = 0.6
+auto_exposure_min_sensitivity = 30.0
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_8x3ys"]
 radius = 0.4
@@ -49,17 +56,13 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
 shape = SubResource("CapsuleShape3D_8x3ys")
 
 [node name="CameraRoot" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.35, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.62, 0)
 
 [node name="Camera3D" type="Camera3D" parent="CameraRoot"]
+attributes = SubResource("CameraAttributes_bodycam")
 current = true
 fov = 100.0
 
-[node name="Viewmodel" type="Node3D" parent="CameraRoot/Camera3D"]
-script = ExtResource("7_viewmodel")
-player_path = NodePath("../../../")
-throw_path = NodePath("../../../ThrowComponent")
-footsteps_path = NodePath("../../../FootstepComponent")
 
 [node name="Flashlight" type="SpotLight3D" parent="CameraRoot/Camera3D"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.14, -0.1, 0)
@@ -113,6 +116,17 @@ script = ExtResource("8_lens")
 camera_path = NodePath("../CameraRoot/Camera3D")
 player_path = NodePath("..")
 bodycam_path = NodePath("../BodycamComponent")
+
+[node name="Viewmodel" type="Node3D" parent="."]
+script = ExtResource("7_viewmodel")
+player_path = NodePath("..")
+throw_path = NodePath("../ThrowComponent")
+footsteps_path = NodePath("../FootstepComponent")
+camera_path = NodePath("../CameraRoot/Camera3D")
+
+[node name="FaceRedact" type="Node" parent="."]
+script = ExtResource("13_redact")
+camera_path = NodePath("../CameraRoot/Camera3D")
 
 [node name="FootstepComponent" type="Node" parent="." node_paths=PackedStringArray("audio_player")]
 script = ExtResource("4_footstep")

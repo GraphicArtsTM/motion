@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/hud.gd" id="1_hud"]
 [ext_resource type="Script" path="res://scripts/pause_menu.gd" id="2_pause"]
@@ -6,6 +6,7 @@
 [ext_resource type="Shader" path="res://shaders/post_process.gdshader" id="4_post"]
 [ext_resource type="Theme" path="res://theme/backrooms_theme.tres" id="5_theme"]
 [ext_resource type="PackedScene" path="res://scenes/bodycam_overlay.tscn" id="6_overlay"]
+[ext_resource type="Script" path="res://scripts/hud_tablet.gd" id="7_tablet"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_post"]
 shader = ExtResource("4_post")
@@ -35,22 +36,6 @@ material = SubResource("ShaderMaterial_post")
 mouse_filter = 2
 
 [node name="BodycamOverlay" parent="Root" instance=ExtResource("6_overlay")]
-
-[node name="Crosshair" type="ColorRect" parent="Root"]
-layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -2.0
-offset_top = -2.0
-offset_right = 2.0
-offset_bottom = 2.0
-grow_horizontal = 2
-grow_vertical = 2
-color = Color(1, 0.97, 0.88, 0.55)
-mouse_filter = 2
 
 [node name="ObjectivePanel" type="PanelContainer" parent="Root"]
 layout_mode = 1
@@ -88,24 +73,6 @@ text = "НАЙДИ ВЫХОД"
 horizontal_alignment = 1
 autowrap_mode = 2
 
-[node name="StaminaBar" type="ProgressBar" parent="Root"]
-unique_name_in_owner = true
-visible = false
-layout_mode = 1
-anchors_preset = 7
-anchor_left = 0.5
-anchor_top = 1.0
-anchor_right = 0.5
-anchor_bottom = 1.0
-offset_left = -140.0
-offset_top = -44.0
-offset_right = 140.0
-offset_bottom = -36.0
-grow_horizontal = 2
-grow_vertical = 0
-mouse_filter = 2
-show_percentage = false
-
 [node name="InventoryPanel" type="PanelContainer" parent="Root"]
 layout_mode = 1
 anchors_preset = 2
@@ -136,6 +103,13 @@ layout_mode = 2
 size_flags_vertical = 4
 theme_type_variation = &"Caption"
 text = "ПКМ — бросить"
+
+[node name="Tablet" type="Node" parent="Root"]
+script = ExtResource("7_tablet")
+objective_panel_path = NodePath("../ObjectivePanel")
+inventory_panel_path = NodePath("../InventoryPanel")
+objective_label_path = NodePath("../ObjectivePanel/VBox/Objective")
+cans_label_path = NodePath("../InventoryPanel/HBox/Cans")
 
 [node name="Hint" type="Label" parent="Root"]
 unique_name_in_owner = true

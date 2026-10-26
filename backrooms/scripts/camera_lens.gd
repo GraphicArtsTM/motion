@@ -1,6 +1,6 @@
 extends Node
 
-# CameraLens: оптика нагрудной камеры. Смотрит на настоящее движение кадра
+# CameraLens: оптика носимой камеры. Смотрит на настоящее движение кадра
 # (поворот камеры и боковой ход игрока) и подмешивает в пост-обработку смаз
 # движения и перекос строк — как у камеры, висящей на ремне. Про управление
 # ничего не решает, поэтому живёт отдельно от bodycam_component.gd.
@@ -22,6 +22,8 @@ const MAX_STEP: float = 0.05
 const BOOT_TIME: float = 0.7
 const BOOT_GAIN: float = 0.3
 const BREATH_GAIN: float = 0.012
+# Доля тряски, на которую сдвигается рамка корпуса (рад -> доли кадра)
+const BORDER_FOLLOW: float = 0.45
 
 @onready var camera: Camera3D = get_node_or_null(camera_path) as Camera3D
 @onready var player: PlayerController = get_node_or_null(player_path) as PlayerController
@@ -79,6 +81,10 @@ func _process(delta: float) -> void:
 	# Рыбий глаз пересчитывается от фактического угла рендера: его меняет
 	# ползунок «Поле зрения», и кадр не должен ни резаться, ни чернеть
 	material.set_shader_parameter("src_fov", camera.fov)
+	# Рамка корпуса ходит за тряской (наклон и рыскание самой Camera3D —
+	# их пишет bodycam_shake): объектив болтается внутри корпуса
+	material.set_shader_parameter("border_shift",
+		Vector2(-camera.rotation.y, camera.rotation.x) * BORDER_FOLLOW)
 
 	# Автоусиление: включаемся с пересветом, потом живём с еле заметным
 	# дыханием. Считаем по своему времени, а не по камере — стекло не движется.

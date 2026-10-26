@@ -34,6 +34,16 @@ uniform float gain : hint_range(0.5, 4.0) = 1.0;
 // Часы записи: их ведёт camera_lens только пока игра идёт, поэтому на паузе
 // шум и сбои стоят вместе с застывшим кадром
 uniform float tape_time = 0.0;
+// Корпус камеры по краям кадра: тёмная рамка со скруглёнными углами, как
+// в Bodycam. Сдвигается от тряски (border_shift кормит camera_lens) и
+// чуть подсвечивается, когда в кадре светло
+uniform float border_strength : hint_range(0.0, 1.0) = 0.85;
+uniform vec2 border_shift = vec2(0.0);
+// Лицо сущности, как на «отредактированной» записи: центр в координатах
+// прямолинейного рендера и радиус в долях высоты кадра (0 — нет лица).
+// Кормит face_redact.gd
+uniform vec2 face_uv = vec2(0.5);
+uniform float face_r = 0.0;
 uniform sampler2D screen_tex : hint_screen_texture, filter_linear, repeat_disable;
 // Тот же экран с мипами: последний уровень — средняя яркость кадра
 uniform sampler2D screen_mip : hint_screen_texture, filter_linear_mipmap, repeat_disable;
@@ -80,6 +90,16 @@ void fragment() {
 	vec2 uv = lens_uv(SCREEN_UV, aspect, clamp(fisheye + dread * 0.08, 0.0, 1.0));
 	uv += vec2(sin(uv.y * 40.0 + tape_time * 2.3),
 		cos(uv.x * 37.0 + tape_time * 1.7)) * tremble;
+
+	// Лицо сущности — крупными квадратами: все отсчёты ниже берут один
+	// цвет на квадрат. Считаем в пространстве рендера, поэтому квадраты
+	// гнутся вместе с объективом, как на настоящей записи
+	vec2 face_d = (uv - face_uv) * vec2(aspect, 1.0);
+	if (face_r > 0.0 && length(face_d) < face_r) {
+		float cell = max(face_r / 3.5, px.y * 4.0);
+		vec2 q = uv * vec2(aspect, 1.0);
+		uv = (floor(q / cell) + vec2(0.5)) * cell / vec2(aspect, 1.0);
+	}
 
 	// Сбои кодека под страхом: полосы по 16 строк съезжают целиком —
 	// так рассыпается поток, когда кодек не успевает
@@ -149,6 +169,20 @@ void fragment() {
 	vec3 banded = floor(col * 48.0 + 0.5) / 48.0;
 	col = mix(col, banded, shadow * 0.35);
 
+	// Средняя яркость кадра — последний мип экрана: ей подсвечена рамка,
+	// и от неё же зависит, насколько матрица тянет шум
+	float avg = dot(textureLod(screen_mip, vec2(0.5), 10.0).rgb, vec3(0.299, 0.587, 0.114));
+
+	// Корпус камеры: скруглённый прямоугольник чуть шире кадра. В покое
+	// видны только тёмные углы, на тряске рамка заходит в кадр краем
+	vec2 bp = (SCREEN_UV - vec2(0.5) - border_shift) * vec2(aspect, 1.0);
+	vec2 half_size = vec2(aspect * 0.5, 0.5) + vec2(0.012);
+	float corner = 0.16;
+	vec2 bq = abs(bp) - half_size + vec2(corner);
+	float sdf = length(max(bq, vec2(0.0))) + min(max(bq.x, bq.y), 0.0) - corner;
+	float housing = smoothstep(-0.03, 0.006, sdf) * border_strength;
+	col = mix(col, vec3(0.012, 0.011, 0.01) + vec3(0.06, 0.055, 0.045) * avg, housing);
+
 	// Виньетка широкоугольника; от страха сжимается и дышит
 	float vig = 1.0 - smoothstep(0.35, 1.0, length(dir * vec2(aspect, 1.0)) / (0.5 * aspect + 0.2));
 	col *= mix(1.0, vig, clamp(vignette_strength + dread * (0.25 + 0.1 * beat), 0.0, 1.0));
@@ -156,7 +190,6 @@ void fragment() {
 
 	// Цифровой шум матрицы: яркостный и цветной, каждый кадр новый. В тенях
 	// и в тёмном кадре (автоусиление тянет сигнал) его заметно больше
-	float avg = dot(textureLod(screen_mip, vec2(0.5), 10.0).rgb, vec3(0.299, 0.587, 0.114));
 	float iso = mix(1.0, 2.4, 1.0 - smoothstep(0.04, 0.2, avg));
 	vec2 seed = FRAGCOORD.xy + vec2(fract(tape_time * 13.0) * 271.0, fract(tape_time * 7.0) * 173.0);
 	float n_luma = hash(seed) - 0.5;
