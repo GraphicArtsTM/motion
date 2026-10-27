@@ -1,0 +1,257 @@
+# Локализация PUSH PALS: ключ <TAB> русский <TAB> английский. Перенос строки в тексте — обратный слеш и n. Ключи не переводить.
+# --- Общее ---
+ui.ok	Готово	Done
+ui.back	Назад	Back
+ui.cancel	Отмена	Cancel
+ui.yes	Да	Yes
+ui.no	Нет	No
+ui.apply	Применить	Apply
+ui.reset	Сбросить	Reset
+ui.close	Закрыть	Close
+ui.on	Вкл.	On
+ui.off	Выкл.	Off
+ui.loading	Загрузка…	Loading…
+ui.press_any	Нажмите любую кнопку	Press any button
+# --- Главное меню ---
+menu.play	Играть	Play
+menu.online	Онлайн	Online
+menu.settings	Настройки	Settings
+menu.wardrobe	Гардероб	Wardrobe
+menu.collection	Коллекция	Collection
+menu.exit	Выход	Quit
+# --- Пауза и итог ---
+pause.title	Пауза	Paused
+pause.resume	Продолжить	Resume
+pause.restart	Начать заново	Restart
+pause.lobby	В коробок	Back to lobby
+result.title	Уровень пройден!	Level complete!
+result.time	Время {0}	Time {0}
+result.record	Новый рекорд!	New record!
+result.golden	Золотые спички: {0} из {1}	Golden matches: {0} of {1}
+result.burned	Сгорели: {0}	Burnt out: {0}
+# --- Настройки ---
+settings.title	Настройки	Settings
+settings.tab.video	Экран	Display
+settings.tab.sound	Звук	Audio
+settings.tab.controls	Управление	Controls
+settings.tab.access	Доступность	Accessibility
+settings.tab.game	Игра	Game
+settings.language	Язык	Language
+settings.ui_scale	Размер интерфейса	Interface size
+settings.hud	Подсказки на экране	HUD
+settings.hud.full	Все	Full
+settings.hud.minimal	Только нужное	Minimal
+settings.hud.off	Без интерфейса	Off
+settings.resolution	Разрешение	Resolution
+settings.window	Режим окна	Window mode
+settings.window.full	Полный экран	Fullscreen
+settings.window.borderless	Окно без рамки	Borderless
+settings.window.windowed	В окне	Windowed
+settings.fps	Ограничение кадров	Frame limit
+settings.vsync	Вертикальная синхронизация	V-Sync
+settings.quality	Качество эффектов	Effects quality
+settings.master	Общая громкость	Master volume
+settings.music	Музыка	Music
+settings.effects	Звуки	Sound effects
+settings.voice	Голосовой чат	Voice chat
+settings.subtitles	Субтитры	Subtitles
+settings.simple_controls	Простое управление	Simple controls
+settings.shake	Тряска камеры	Camera shake
+settings.player_colors	Цветные метки игроков	Player colour markers
+settings.mouse_sens	Чувствительность прицела мышью	Mouse aim sensitivity
+settings.rebind	Переназначить	Rebind
+settings.rebind_wait	Нажмите клавишу… (Esc — отмена)	Press a key… (Esc to cancel)
+settings.reset_bindings	Сбросить управление	Reset controls
+# --- Действия (подписи для переназначения и подсказок) ---
+action.Move	Ходить	Move
+action.Jump	Прыжок	Jump
+action.GrabLeft	Левая рука	Left hand
+action.GrabRight	Правая рука	Right hand
+action.Headbutt	Боднуть	Headbutt
+action.Relax	Расслабиться	Go limp
+action.Swap	Сменить спичку	Swap match
+action.Emote	Эмоции	Emotes
+action.PushToTalk	Говорить	Push to talk
+action.VoteRestart	Заново (держать)	Restart (hold)
+action.Aim	Прицел	Aim
+# --- Коллекция и шкаф ---
+collection.title	Коллекция	Collection
+collection.golden	Золотые спички	Golden matches
+collection.achievements	Достижения	Achievements
+collection.found	Найдено {0} из {1}	Found {0} of {1}
+hud.golden	Золотая спичка!	Golden match!
+hud.achievement	Достижение: {0}	Achievement: {0}
+wardrobe.title	Гардероб	Wardrobe
+wardrobe.hat	Шапка	Hat
+wardrobe.wood	Дерево	Wood
+wardrobe.matches	Спички	Matches
+# --- Демо набора интерфейса ---
+kit.title	Набор интерфейса	Interface kit
+kit.primary	Главная кнопка	Primary button
+kit.secondary	Обычная кнопка	Secondary button
+kit.disabled	Недоступно	Disabled
+kit.dialog_title	Окно	Dialog
+kit.dialog_body	Панель выезжает, как ящик спичечного коробка.\nПравый клик, Esc или B — назад.	The panel slides out like a matchbox drawer.\nRight click, Esc or B — back.
+kit.tooltip	Подсказка появляется при наведении	A tooltip appears on hover
+kit.list_item	Пункт меню {0}	Menu item {0}
+kit.level	Шарики	Balloons
+kit.player	Игрок {0}	Player {0}
+# --- Этап 17.4: настройки ---
+settings.window.editor	в редакторе — окно Unity	in the editor — Unity window
+settings.fps.unlimited	Без ограничения	Unlimited
+settings.quality.low	Низкое	Low
+settings.quality.medium	Среднее	Medium
+settings.quality.high	Высокое	High
+settings.mic	Микрофон	Microphone
+settings.mic.open	Всегда включён	Always on
+settings.mic.ptt	По кнопке (V / L3)	Push to talk (V / L3)
+settings.mic.off	Выключен	Off
+settings.voice.0	Без звука	Muted
+settings.voice.1	Тише	Quieter
+settings.voice.2	Обычно	Normal
+settings.voice.3	Громче	Louder
+settings.header.keyboard	Клавиатура и мышь — слева, геймпад — справа. Нажмите поле и новую кнопку.	Keyboard & mouse on the left, gamepad on the right. Click a field, then press a new button.
+settings.mouse_note	Прицел мышью с этой скоростью — в игре (HUD, следующий шаг).	Mouse aim speed applies in game (HUD, next step).
+settings.simple_note	Руки держат сами: нажал — схватил, нажал ещё раз — отпустил.	Hands hold by themselves: press to grab, press again to let go.
+settings.markers_note	Цветной треугольник над каждой спичкой.	A coloured marker above each match.
+settings.subtitles_note	Для озвучки — когда она появится.	For voice lines, once they arrive.
+settings.saved	Всё сохраняется само.	Everything saves automatically.
+action.SwitchMatch	Сменить спичку	Swap match
+action.Stiffen	Одеревенеть	Go stiff
+action.Ping	Метка «сюда»	Ping
+action.Menu	Меню (держать — выйти)	Menu (hold to leave)
+# --- Этап 17.4: онлайн ---
+online.title	Онлайн	Online
+online.offline	Не в сети	Offline
+online.steam	Steam: {0}	Steam: {0}
+online.no_steam	Steam не запущен — работает только игра по локальной сети.	Steam is not running — only LAN play is available.
+online.host	Создать игру	Host a game
+online.find	Найти открытые игры	Find open games
+online.join	Войти: {0} ({1}/{2})	Join: {0} ({1}/{2})
+online.code	Код лобби	Lobby code
+online.join_code	Войти по коду	Join by code
+online.local	Без Steam (один ПК / локальная сеть)	Without Steam (one PC / LAN)
+online.local_host	Локальный хост	Local host
+online.local_join	Подключиться	Connect
+online.leave	Выйти из сетевой игры	Leave online game
+online.copy	Копировать	Copy
+online.copied	Скопировано!	Copied!
+online.members	В лобби	In the lobby
+online.friends	Друзья в сети	Friends online
+online.invite	Пригласить	Invite
+online.invite_overlay	Окно приглашений Steam	Steam invite window
+online.refresh	Обновить	Refresh
+online.players	Игроков: {0}	Players: {0}
+online.ping	Пинг: {0} мс	Ping: {0} ms
+online.no_friends	Никого из друзей нет в сети.	No friends online.
+# --- Этап 17.4: карта мира, гардероб, коллекция ---
+map.title	Карта миров	World map
+map.world	Мир {0} · {1}	World {0} · {1}
+map.level	{0}. {1}	{0}. {1}
+map.choose	Выберите уровень	Choose a level
+map.view_only	Уровень выбирает хост.	The host chooses the level.
+map.soon	Скоро	Coming soon
+wardrobe.player	Игрок {0}	Player {0}
+wardrobe.locked	Откроет: {0}	Unlocks with: {0}
+wardrobe.secret	Секрет в лобби	Lobby secret
+wardrobe.note	За золотые спички и достижения открываются шапки и дерево.	Golden matches and achievements unlock hats and woods.
+collection.world	Мир {0} · {1}	World {0} · {1}
+collection.locked	Ещё не открыто	Not unlocked yet
+collection.total	Всего: {0} из {1}	Total: {0} of {1}
+menu.quit_confirm	Выйти из игры?	Quit the game?
+menu.hint_select	Выбрать	Select
+# --- Шапки, дерево, миры и уровни (ключи: hat.N, wood.N, world.N, level.<id>) ---
+hat.0	Без шапки	No hat
+hat.1	Цилиндр	Top hat
+hat.2	Шапка с помпоном	Bobble hat
+hat.3	Корона	Crown
+hat.4	Каска	Hard hat
+hat.5	Праздничный колпак	Party hat
+hat.6	Кепка	Cap
+hat.7	Ушанка	Ushanka
+wood.0	Светлое дерево	Light wood
+wood.1	Тёмное дерево	Dark wood
+wood.2	Берёза	Birch
+wood.3	Полоски	Stripes
+wood.4	Звёздочка	Little star
+world.1	Кухонный стол	Kitchen Table
+world.2	День рождения	Birthday Party
+level.w1_1	Первые шаги	First Steps
+level.w1_2	Вместе	Together
+level.w1_3	Огонь	Fire
+level.w1_4	Сахарница	Sugar Bowl
+level.w1_5	Варенье	Jam
+level.w1_6	Хлебница	Bread Box
+level.w2_1	Шарики	Balloons
+level.w2_2	Подарки	Presents
+level.w2_3	Торт	Cake
+online.found_hint	Здесь появятся открытые игры. В игру друга входите через Steam: «Присоединиться» в списке друзей или по приглашению.	Open games will appear here. To join a friend, use Steam: "Join game" in your friends list, or an invite.
+online.hosting_hint	Игра создана! Дай друзьям код или пригласи их через Steam, потом жми «В коробок» — там вы и встретитесь.	Game created! Give friends the code or invite them via Steam, then press "To the box" — that's where you'll meet.
+online.host_hint	Ты хост. Друзья входят по коду или приглашению Steam.	You're the host. Friends join with the code or a Steam invite.
+online.client_hint	Ты в игре у друга. Уровень и настройки выбирает хост.	You're in a friend's game. The host chooses the level and settings.
+online.to_box	В коробок	To the box
+# --- Этап 17.5: «Предатель» ---
+traitor.gone	ушедший игрок	a player who left
+traitor.need_people	«Предатель»: нужно от {0} людей — этот уровень обычный.	Traitor: needs {0}+ people — this level is a normal one.
+traitor.task.burn	пусть сгорят хотя бы {0} спички	get at least {0} matches burnt out
+traitor.task.falls	пусть друзья упадут в пропасть {0} раза	make friends fall into a pit {0} times
+traitor.task.stuns	пусть друзья оглушатся {0} раза (толкай, роняй)	get friends stunned {0} times (push, drop them)
+traitor.task.slow	задержи команду: пусть уровень идёт дольше {0}	stall the team: make the level last longer than {0}
+traitor.you_traitor	Ты — ПРЕДАТЕЛЬ	You are the TRAITOR
+traitor.you_traitor_text	Тайная задача: {0}.\nМешай незаметно — после уровня все голосуют, кто предатель.	Secret task: {0}.\nSabotage quietly — after the level everyone votes for the traitor.
+traitor.you_honest	Ты — честная спичка	You are an honest match
+traitor.you_honest_text	Среди вас предатель с тайной задачей. Пройдите уровень и вычислите его!	There is a traitor with a secret task among you. Finish the level and find them!
+traitor.secret	Тайно: {0}\nсейчас {1}	Secretly: {0}\nnow {1}
+traitor.vote_title	Кто предатель?	Who is the traitor?
+traitor.vote_hint	Обсуждайте — сейчас вас слышно всем.	Talk it over — everyone can hear you now.
+traitor.voted	Голос отдан. Ждём остальных…	Vote cast. Waiting for the others…
+traitor.result_title	Голосование окончено	Voting is over
+traitor.was	Предатель — {0}!	The traitor was {0}!
+traitor.task_done	Тайная задача: {0} — ВЫПОЛНЕНА	Secret task: {0} — DONE
+traitor.task_failed	Тайная задача: {0} — провалена	Secret task: {0} — failed
+traitor.guessed	Угадали (+1): {0}	Guessed right (+1): {0}
+traitor.nobody	Никто не угадал	Nobody guessed
+traitor.caught	Предателя поймали! Предателю: +{0}	The traitor was caught! Traitor: +{0}
+traitor.escaped	Предатель ускользнул! Предателю: +{0}	The traitor got away! Traitor: +{0}
+traitor.score	Счёт:	Score:
+# --- Этап 17.5: пауза, итог, HUD, загрузка ---
+pause.host	Настройки игры (хост)	Game settings (host)
+pause.quit	Выйти из игры	Quit game
+pause.main_menu	Главное меню	Main menu
+pause.main_menu_confirm	Выйти в главное меню?	Leave to the main menu?
+pause.leave_online	Ты выйдешь из сетевой игры. Если ты хост — игра закончится у всех.	You'll leave the online game. If you're the host, it ends for everyone.
+pause.note_online	Игра по сети не останавливается.	Online games don't pause.
+pause.note_local	Друзья тем временем играют дальше.	Your friends keep playing meanwhile.
+result.world	Мир {0} · {1}	World {0} · {1}
+result.next	Дальше: {0}	Next: {0}
+result.world_done	Мир пройден! В коробок	World complete! To the box
+result.lobby	В коробок	To the box
+result.auto	Дальше через {0} с	Continuing in {0} s
+result.waiting_host	Ждём хоста…	Waiting for the host…
+result.new_golden	новых: {0}	new: {0}
+result.all_found	все найдены!	all found!
+result.some_hidden	остальные ещё спрятаны	the rest are still hidden
+result.record_was	рекорд {0}	record {0}
+result.world_golden	Золотых спичек в мире: {0} из {1}	Golden matches in this world: {0} of {1}
+result.new_items	Новое в шкафу: {0}	New in the wardrobe: {0}
+result.waiting_vote	Сначала — голосование «Предателя»	First — the Traitor vote
+hud.restart	Заново: {0} из {1} держат	Restart: {0} of {1} holding
+hud.time	{0}	{0}
+loading.title	Загрузка…	Loading…
+tip.1	Чиркни головой о тёрку коробка — и неси огонь друзьям.	Strike your head on the matchbox striker — and carry the fire to friends.
+tip.2	Держи кнопку руки — держишь предмет. Друга тоже можно схватить.	Hold a hand button to hold things. You can grab friends too.
+tip.3	Упал или сгорел — вернёшься к последнему открытому коробку.	Fell or burnt out? You'll come back at the last open matchbox.
+tip.4	Золотые спички спрятаны: ищи за дверями, в трубах и на высоких полках.	Golden matches are hidden: look behind doors, in pipes and on high shelves.
+tip.5	Лёгкий парит, если держать прыжок в воздухе.	Light glides if you hold jump in the air.
+tip.6	Тяжёлый проламывает печенье, прыгнув сверху.	Heavy smashes cookies by jumping on them.
+tip.7	Вода гасит огонь. Сушиться — у свечи или у друга с огнём.	Water puts fire out. Dry off near a candle or a burning friend.
+# --- Цели уровней (ключ goal.<id>) ---
+goal.w1_1	Дойдите до двери-выхода: ходить, прыгать, хватать, лазать. В конце — смена спички.	Reach the exit door: walk, jump, grab, climb. At the end — swap matches.
+goal.w1_2	Помогайте друг другу: толкайте вместе, подсаживайте, перелетайте.	Help each other: push together, give a boost, fly across.
+goal.w1_3	Зажгите спички о коробок и пронесите огонь до конца.	Light up on the matchbox and carry the fire to the end.
+goal.w1_4	Линейка, печенье и труба: у каждой спички своя работа.	Ruler, cookie and pipe: every match has its own job.
+goal.w1_5	Достаньте ключ и донесите его до замка на выходе.	Get the key and carry it to the lock at the exit.
+goal.w1_6	Всё, чему научились, — в одном уровне.	Everything you've learned — in one level.
+goal.w2_1	Желе подбрасывает, шарики поднимают. Перелетите пропасть и опустите мост для друзей.	Jelly bounces, balloons lift. Fly over the gap and lower the bridge for friends.
+goal.w2_2	Откройте подарок вдвоём, достаньте ключ с шарика и заберитесь к выходу.	Open the present together, get the key off the balloon and climb to the exit.
+goal.w2_3	Зажгите все свечи на торте — и праздник откроет выход.	Light every candle on the cake — and the party opens the exit.

@@ -99,6 +99,7 @@ namespace PushPals.Network
             levelSync = GetComponent<LevelSync>();
             if (levelSync == null) levelSync = gameObject.AddComponent<LevelSync>();
             Online.ShowNetworkPanel = () => visible = true;
+            Online.LeaveSession = () => Leave(false);
             Online.LobbyCode = () => !IsInSession ? "" : lobby.HasValue ? lobby.Value.Id.Value.ToString() : Online.IsHost ? "локальная игра (порт 7777)" : "";
             // Префаб спички Netcode регистрирует сам (список DefaultNetworkPrefabs), второй раз добавлять не нужно
         }
@@ -417,10 +418,12 @@ namespace PushPals.Network
             else EndSession("Не удалось подключиться");
         }
 
-        public void Leave()
+        /// <summary>Выйти из сетевой игры. reloadClient — клиенту начать уровень заново своей игрой (false — сцену сменят следом).</summary>
+        public void Leave(bool reloadClient = true)
         {
+            pendingLobby = null;
             if (net.IsListening) net.Shutdown();
-            EndSession("Не в сети");
+            EndSession("Не в сети", reloadClient);
         }
 
         private void BeginSession(NetworkTransport transport)
@@ -483,7 +486,7 @@ namespace PushPals.Network
             response.Pending = false;
         }
 
-        private void EndSession(string status)
+        private void EndSession(string status, bool reloadClient = true)
         {
             bool wasClient = Online.IsClientView;
             bool wasActive = Online.IsActive;
@@ -502,7 +505,7 @@ namespace PushPals.Network
             Status = status;
             // Клиент: уровень показывал снимки хоста (предметы кинематические, огонь не считался) —
             // начинаем его заново уже своей игрой
-            if (wasActive && wasClient) SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+            if (wasActive && wasClient && reloadClient) SceneManager.LoadScene(SceneManager.GetActiveScene().name);
         }
 
         // ---------- Уровни по сети ----------
@@ -697,8 +700,8 @@ namespace PushPals.Network
         {
             // Netcode закрывает сессию только в конце кадра: сразу после Leave() IsListening ещё true и
             // JoinSteam ничего не делал — входим из Update, когда старая сессия закрылась
-            pendingLobby = invited.Id;
             if (IsInSession) Leave();
+            pendingLobby = invited.Id;
         }
 
         // ---------- Поиск и приглашения ----------

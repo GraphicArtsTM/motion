@@ -39,6 +39,12 @@ namespace PushPals
         /// <summary>Открыть панель сетевой игры (F2). Задаёт сетевой модуль.</summary>
         public static System.Action ShowNetworkPanel;
 
+        /// <summary>
+        /// Выйти из сетевой игры, не перезагружая сцену у клиента (сразу следом грузится другая — выход в главное меню).
+        /// Задаёт сетевой модуль.
+        /// </summary>
+        public static System.Action LeaveSession;
+
         // ---------- Личные сообщения (режим «Предатель»: тайная роль — только своему ПК) ----------
 
         /// <summary>Номер этого ПК в сети (хост — 0).</summary>
@@ -82,6 +88,7 @@ namespace PushPals
             VoteOverride = null;
             LobbyCode = null;
             ShowNetworkPanel = null;
+            LeaveSession = null;
             LocalClientId = 0;
             SendToClient = null;
             SendToHost = null;

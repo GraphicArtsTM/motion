@@ -1,0 +1,691 @@
+diff --git a/Assets/Resources/Localization/strings.txt b/Assets/Resources/Localization/strings.txt
+index 08127da..47cb205 100644
+--- a/Assets/Resources/Localization/strings.txt
++++ b/Assets/Resources/Localization/strings.txt
+@@ -126,7 +126,7 @@ online.offline	Не в сети	Offline
+ online.steam	Steam: {0}	Steam: {0}
+ online.no_steam	Steam не запущен — работает только игра по локальной сети.	Steam is not running — only LAN play is available.
+ online.host	Создать игру	Host a game
+-online.find	Найти игры друзей	Find friends' games
++online.find	Найти открытые игры	Find open games
+ online.join	Войти: {0} ({1}/{2})	Join: {0} ({1}/{2})
+ online.code	Код лобби	Lobby code
+ online.join_code	Войти по коду	Join by code
+@@ -185,7 +185,11 @@ level.w1_6	Хлебница	Bread Box
+ level.w2_1	Шарики	Balloons
+ level.w2_2	Подарки	Presents
+ level.w2_3	Торт	Cake
+-online.found_hint	Найденные игры друзей появятся здесь.	Your friends' games will appear here.
++online.found_hint	Здесь появятся открытые игры. В игру друга входите через Steam: «Присоединиться» в списке друзей или по приглашению.	Open games will appear here. To join a friend, use Steam: "Join game" in your friends list, or an invite.
++online.hosting_hint	Игра создана! Дай друзьям код или пригласи их через Steam, потом жми «В коробок» — там вы и встретитесь.	Game created! Give friends the code or invite them via Steam, then press "To the box" — that's where you'll meet.
++online.host_hint	Ты хост. Друзья входят по коду или приглашению Steam.	You're the host. Friends join with the code or a Steam invite.
++online.client_hint	Ты в игре у друга. Уровень и настройки выбирает хост.	You're in a friend's game. The host chooses the level and settings.
++online.to_box	В коробок	To the box
+ # --- Этап 17.5: «Предатель» ---
+ traitor.gone	ушедший игрок	a player who left
+ traitor.need_people	«Предатель»: нужно от {0} людей — этот уровень обычный.	Traitor: needs {0}+ people — this level is a normal one.
+@@ -213,6 +217,9 @@ traitor.score	Счёт:	Score:
+ # --- Этап 17.5: пауза, итог, HUD, загрузка ---
+ pause.host	Настройки игры (хост)	Game settings (host)
+ pause.quit	Выйти из игры	Quit game
++pause.main_menu	Главное меню	Main menu
++pause.main_menu_confirm	Выйти в главное меню?	Leave to the main menu?
++pause.leave_online	Ты выйдешь из сетевой игры. Если ты хост — игра закончится у всех.	You'll leave the online game. If you're the host, it ends for everyone.
+ pause.note_online	Игра по сети не останавливается.	Online games don't pause.
+ pause.note_local	Друзья тем временем играют дальше.	Your friends keep playing meanwhile.
+ result.world	Мир {0} · {1}	World {0} · {1}
+diff --git a/Assets/Scripts/Input/PlayerIntentReader.cs b/Assets/Scripts/Input/PlayerIntentReader.cs
+index 61a1429..a85fe54 100644
+--- a/Assets/Scripts/Input/PlayerIntentReader.cs
++++ b/Assets/Scripts/Input/PlayerIntentReader.cs
+@@ -46,6 +46,8 @@ namespace PushPals.Input
+         private Vector2 lastStickAim = Vector2.right;
+ 
+         private PlayerMenu menu;
++        // «Настройки игры» открыли экран (карта миров, онлайн): когда он закроется — вернуться в них
++        private bool reopenHostMenu;
+         private bool wheelOpen;
+         private int wheelPick;
+         private Vector2 lastQuick;
+@@ -104,6 +106,11 @@ namespace PushPals.Input
+                 ragdoll.SetIntent(new RagdollIntent());
+                 return;
+             }
++            if (reopenHostMenu)
++            {
++                reopenHostMenu = false;
++                if (menu == null && LobbyBoard.Instance != null && IsHost) Open(new HostMenu());
++            }
+ 
+             // Открыто меню — кнопки идут ему, спичка стоит
+             if (menu != null)
+@@ -112,6 +119,8 @@ namespace PushPals.Input
+                 menu.Handle(ReadMenuInput());
+                 if (menu.Closed)
+                 {
++                    var host = menu as HostMenu;
++                    if (host != null && host.ReturnAfterScreen) reopenHostMenu = true;
+                     var next = menu.Next; // пауза → настройки и т. п.
+                     menu = null;
+                     if (next != null) Open(next);
+diff --git a/Assets/Scripts/Level/LevelRun.cs b/Assets/Scripts/Level/LevelRun.cs
+index e3cc647..250ebc5 100644
+--- a/Assets/Scripts/Level/LevelRun.cs
++++ b/Assets/Scripts/Level/LevelRun.cs
+@@ -74,6 +74,12 @@ namespace PushPals.Level
+         /// <summary>Итог: «Дальше» — следующий уровень (мир пройден — в коробок).</summary>
+         public void Continue() { if (CanContinue) LoadNext(); }
+ 
++        /// <summary>Итог: «Начать заново» — этот же уровень с той же командой.</summary>
++        public void Restart()
++        {
++            if (CanContinue) Load(SceneManager.GetActiveScene().name, level != null ? PushPals.UI.UiNames.Level(level) : "");
++        }
++
+         /// <summary>Итог: «В коробок».</summary>
+         public void ToLobby() { if (CanContinue && LevelLoader.Exists(LevelLoader.LobbyScene)) Load(LevelLoader.LobbyScene, ""); }
+ 
+diff --git a/Assets/Scripts/Level/LobbyBoard.cs b/Assets/Scripts/Level/LobbyBoard.cs
+index 5e0b1e8..5f35253 100644
+--- a/Assets/Scripts/Level/LobbyBoard.cs
++++ b/Assets/Scripts/Level/LobbyBoard.cs
+@@ -82,8 +82,8 @@ namespace PushPals.Level
+         private void Awake()
+         {
+             Instance = this;
+-            // Игра только началась — коробок открывается
+-            if (!introShown) { introShown = true; PushPals.UI.TitleScreen.Show(); }
++            // Игра только началась — коробок открывается; вернулись из игры в главное меню — оно снова на столе
++            if (PushPals.UI.MainMenuScreen.ConsumeReturn() || !introShown) { introShown = true; PushPals.UI.TitleScreen.Show(); }
+             var f = MatchVisual.AddPill(transform, 0.12f, 1f, frame, -9); f.size = boardSize + Vector2.one * 0.2f;
+             f.transform.localPosition = new Vector3(0f, boardHeight + boardSize.y * 0.5f, 0f);
+             var b = MatchVisual.AddPill(transform, 0.12f, 1f, board, -8); b.size = boardSize;
+diff --git a/Assets/Scripts/Network/NetSession.cs b/Assets/Scripts/Network/NetSession.cs
+index 06396de..6dd558b 100644
+--- a/Assets/Scripts/Network/NetSession.cs
++++ b/Assets/Scripts/Network/NetSession.cs
+@@ -99,6 +99,7 @@ namespace PushPals.Network
+             levelSync = GetComponent<LevelSync>();
+             if (levelSync == null) levelSync = gameObject.AddComponent<LevelSync>();
+             Online.ShowNetworkPanel = () => visible = true;
++            Online.LeaveSession = () => Leave(false);
+             Online.LobbyCode = () => !IsInSession ? "" : lobby.HasValue ? lobby.Value.Id.Value.ToString() : Online.IsHost ? "локальная игра (порт 7777)" : "";
+             // Префаб спички Netcode регистрирует сам (список DefaultNetworkPrefabs), второй раз добавлять не нужно
+         }
+@@ -417,10 +418,12 @@ namespace PushPals.Network
+             else EndSession("Не удалось подключиться");
+         }
+ 
+-        public void Leave()
++        /// <summary>Выйти из сетевой игры. reloadClient — клиенту начать уровень заново своей игрой (false — сцену сменят следом).</summary>
++        public void Leave(bool reloadClient = true)
+         {
++            pendingLobby = null;
+             if (net.IsListening) net.Shutdown();
+-            EndSession("Не в сети");
++            EndSession("Не в сети", reloadClient);
+         }
+ 
+         private void BeginSession(NetworkTransport transport)
+@@ -483,7 +486,7 @@ namespace PushPals.Network
+             response.Pending = false;
+         }
+ 
+-        private void EndSession(string status)
++        private void EndSession(string status, bool reloadClient = true)
+         {
+             bool wasClient = Online.IsClientView;
+             bool wasActive = Online.IsActive;
+@@ -502,7 +505,7 @@ namespace PushPals.Network
+             Status = status;
+             // Клиент: уровень показывал снимки хоста (предметы кинематические, огонь не считался) —
+             // начинаем его заново уже своей игрой
+-            if (wasActive && wasClient) SceneManager.LoadScene(SceneManager.GetActiveScene().name);
++            if (wasActive && wasClient && reloadClient) SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+         }
+ 
+         // ---------- Уровни по сети ----------
+@@ -697,8 +700,8 @@ namespace PushPals.Network
+         {
+             // Netcode закрывает сессию только в конце кадра: сразу после Leave() IsListening ещё true и
+             // JoinSteam ничего не делал — входим из Update, когда старая сессия закрылась
+-            pendingLobby = invited.Id;
+             if (IsInSession) Leave();
++            pendingLobby = invited.Id;
+         }
+ 
+         // ---------- Поиск и приглашения ----------
+diff --git a/Assets/Scripts/Network/Online.cs b/Assets/Scripts/Network/Online.cs
+index ec7991a..2c835aa 100644
+--- a/Assets/Scripts/Network/Online.cs
++++ b/Assets/Scripts/Network/Online.cs
+@@ -39,6 +39,12 @@ namespace PushPals
+         /// <summary>Открыть панель сетевой игры (F2). Задаёт сетевой модуль.</summary>
+         public static System.Action ShowNetworkPanel;
+ 
++        /// <summary>
++        /// Выйти из сетевой игры, не перезагружая сцену у клиента (сразу следом грузится другая — выход в главное меню).
++        /// Задаёт сетевой модуль.
++        /// </summary>
++        public static System.Action LeaveSession;
++
+         // ---------- Личные сообщения (режим «Предатель»: тайная роль — только своему ПК) ----------
+ 
+         /// <summary>Номер этого ПК в сети (хост — 0).</summary>
+@@ -82,6 +88,7 @@ namespace PushPals
+             VoteOverride = null;
+             LobbyCode = null;
+             ShowNetworkPanel = null;
++            LeaveSession = null;
+             LocalClientId = 0;
+             SendToClient = null;
+             SendToHost = null;
+diff --git a/Assets/Scripts/UI/HostMenu.cs b/Assets/Scripts/UI/HostMenu.cs
+index 151e4b7..8f00ffe 100644
+--- a/Assets/Scripts/UI/HostMenu.cs
++++ b/Assets/Scripts/UI/HostMenu.cs
+@@ -16,6 +16,9 @@ namespace PushPals.UI
+ 
+         private static LobbyBoard Board => LobbyBoard.Instance;
+ 
++        /// <summary>Закрылось ради экрана (карта миров, онлайн) — после него вернуться сюда, к «Начать!».</summary>
++        public bool ReturnAfterScreen { get; private set; }
++
+         protected override string Label(int row)
+         {
+             switch (row)
+@@ -28,7 +31,7 @@ namespace PushPals.UI
+                 case NetRow:
+                 {
+                     string code = Online.LobbyCode != null ? Online.LobbyCode() : "";
+-                    return code.Length > 0 ? "Код для друзей: " + code : "Играть по сети: пригласить друзей (F2)";
++                    return code.Length > 0 ? "Онлайн — код для друзей: " + code : "Онлайн: создать игру и пригласить друзей";
+                 }
+                 default:
+                     if (Board != null && Board.Counting) return "Отменить старт";
+@@ -85,13 +88,14 @@ namespace PushPals.UI
+         {
+             if (row == NetRow)
+             {
+-                // Панель сети (Steam-лобби, приглашения, код)
+-                if (Online.ShowNetworkPanel != null) Online.ShowNetworkPanel();
++                // Экран «Онлайн» (Steam-лобби, приглашения, код) — раньше открывалась отладочная панель F2
++                ReturnAfterScreen = true;
+                 Close();
++                OnlineScreen.Open(false);
+                 return;
+             }
+             // Уровень — на карте миров (Этап 17.4); стрелками по-прежнему листается здесь
+-            if (row == LevelRow) { Close(); WorldMapScreen.Open(true); return; }
++            if (row == LevelRow) { ReturnAfterScreen = true; Close(); WorldMapScreen.Open(true); return; }
+             if (row != StartRow) { Change(row, 1); return; }
+             if (Board == null) return;
+             if (Board.Counting) Board.CancelCountdown();
+diff --git a/Assets/Scripts/UI/Kit/UiDialog.cs b/Assets/Scripts/UI/Kit/UiDialog.cs
+index fd2ab5b..9180aa7 100644
+--- a/Assets/Scripts/UI/Kit/UiDialog.cs
++++ b/Assets/Scripts/UI/Kit/UiDialog.cs
+@@ -18,6 +18,13 @@ namespace PushPals.UI
+ 
+         public UiPanel Panel => GetComponent<UiPanel>();
+ 
++        // Кнопки окна не срабатывают сразу после открытия: нажатие, которое открыло окно («Выйти»),
++        // не должно тут же нажать и его главную кнопку («Выход»)
++        private const float ClickGuard = 0.3f;
++        private float openedAt = -1f;
++
++        private void OnEnable() => openedAt = Time.unscaledTime;
++
+         public void Setup(LocText titleText, LocText bodyText, RectTransform buttonRow, GameObject primary, GameObject secondary)
+         {
+             title = titleText;
+@@ -42,10 +49,23 @@ namespace PushPals.UI
+             var label = go.GetComponentInChildren<LocText>();
+             if (label != null) label.Key = key;
+             var b = go.GetComponent<Button>();
+-            if (onClick != null) b.onClick.AddListener(() => onClick());
++            if (onClick != null) b.onClick.AddListener(() => { if (Time.unscaledTime - openedAt >= ClickGuard) onClick(); });
+             return b;
+         }
+ 
++        /// <summary>Окно «точно?»: заголовок, текст, главная кнопка с действием и «Отмена». Закрылось — удаляется.</summary>
++        public static UiDialog Confirm(string titleKey, string bodyKey, string confirmKey, System.Action onConfirm)
++        {
++            var dialog = UiPrefabs.Spawn<UiDialog>("DialogPanel", UiRoot.Instance.Popups);
++            dialog.gameObject.SetActive(false);
++            dialog.Set(titleKey, bodyKey);
++            dialog.AddButton(confirmKey, true, () => { dialog.Panel.Close(); if (onConfirm != null) onConfirm(); });
++            dialog.AddButton("ui.cancel", false, () => dialog.Panel.Close());
++            dialog.Panel.Closed += () => Destroy(dialog.gameObject, 0.6f);
++            dialog.Panel.Open();
++            return dialog;
++        }
++
+         public void ClearButtons()
+         {
+             if (buttons == null) return;
+diff --git a/Assets/Scripts/UI/Kit/UiScreen.cs b/Assets/Scripts/UI/Kit/UiScreen.cs
+index 5ea9dd5..91ccafa 100644
+--- a/Assets/Scripts/UI/Kit/UiScreen.cs
++++ b/Assets/Scripts/UI/Kit/UiScreen.cs
+@@ -57,6 +57,23 @@ namespace PushPals.UI
+         /// <summary>Закрыть экран (как «назад»).</summary>
+         public void Close() => Panel.Close();
+ 
++        /// <summary>
++        /// Собрать содержимое заново на этом же экране (сменился язык — тексты в списках переведены при сборке).
++        /// Экран не пересоздаётся: кто ждёт его закрытия (главное меню — чтобы «камера» вернулась), так и ждёт.
++        /// </summary>
++        protected void Rebuild()
++        {
++            for (int i = transform.childCount - 1; i >= 0; i--)
++            {
++                var child = transform.GetChild(i).gameObject;
++                if (child.name == "Dim") continue; // затемнение — от Create, его оставляем
++                child.SetActive(false); // уже сейчас не мешает выбрать первую кнопку нового содержимого
++                Destroy(child);
++            }
++            Build();
++            Panel.SelectFirst();
++        }
++
+         private void OnPanelClosed()
+         {
+             if (Closed != null) Closed();
+diff --git a/Assets/Scripts/UI/Screens/LevelResultScreen.cs b/Assets/Scripts/UI/Screens/LevelResultScreen.cs
+index 9a6241c..486ceac 100644
+--- a/Assets/Scripts/UI/Screens/LevelResultScreen.cs
++++ b/Assets/Scripts/UI/Screens/LevelResultScreen.cs
+@@ -15,7 +15,7 @@ namespace PushPals.UI
+     public class LevelResultScreen : UiScreen
+     {
+         private LevelRun run;
+-        private Button next, lobby;
++        private Button next, lobby, replay;
+         private TextMeshProUGUI auto;
+         private RectTransform traitorArea;
+         private TextMeshProUGUI traitorText;
+@@ -103,19 +103,30 @@ namespace PushPals.UI
+             paper.anchoredPosition = new Vector2(0f, 70f);
+             float bottom = 70f - paperHeight * 0.5f;
+             // Кнопки
++            // «Дальше» · «Заново» · «В коробок»
+             var buttons = UiFactory.Rect(Rect, "Buttons");
+-            UiFactory.Place(buttons, new Vector2(0.5f, 0.5f), new Vector2(900f, 90f), new Vector2(0f, bottom - 75f));
++            UiFactory.Place(buttons, new Vector2(0.5f, 0.5f), new Vector2(1200f, 90f), new Vector2(0f, bottom - 75f));
+             var nextLevel = run != null ? run.NextLevel : null;
+             next = UiPrefabs.Spawn<Button>("PrimaryButton", buttons);
+-            UiFactory.Place((RectTransform)next.transform, new Vector2(0.5f, 0.5f), new Vector2(440f, 86f), new Vector2(-230f, 0f));
++            UiFactory.Place((RectTransform)next.transform, new Vector2(0.5f, 0.5f), new Vector2(440f, 86f), new Vector2(-370f, 0f));
+             var nextLabel = next.GetComponentInChildren<LocText>();
+             if (nextLevel != null) nextLabel.Set("result.next", UiNames.Level(nextLevel)); else nextLabel.Key = "result.world_done";
+             next.onClick.AddListener(() => { if (run != null) run.Continue(); });
++            // Заново — раньше только удержанием R / Select, кнопки на итоге не было
++            replay = UiPrefabs.Spawn<Button>("SecondaryButton", buttons);
++            UiFactory.Place((RectTransform)replay.transform, new Vector2(0.5f, 0.5f), new Vector2(320f, 86f), new Vector2(40f, 0f));
++            replay.GetComponentInChildren<LocText>().Key = "pause.restart";
++            replay.onClick.AddListener(() => { if (run != null) run.Restart(); });
+             lobby = UiPrefabs.Spawn<Button>("SecondaryButton", buttons);
+-            UiFactory.Place((RectTransform)lobby.transform, new Vector2(0.5f, 0.5f), new Vector2(320f, 86f), new Vector2(200f, 0f));
++            UiFactory.Place((RectTransform)lobby.transform, new Vector2(0.5f, 0.5f), new Vector2(320f, 86f), new Vector2(380f, 0f));
+             lobby.GetComponentInChildren<LocText>().Key = "result.lobby";
+             lobby.onClick.AddListener(() => { if (run != null) run.ToLobby(); });
+             lobby.gameObject.SetActive(nextLevel != null && LevelLoader.Exists(LevelLoader.LobbyScene));
++            if (!lobby.gameObject.activeSelf) // двух кнопок — по центру
++            {
++                ((RectTransform)next.transform).anchoredPosition = new Vector2(-190f, 0f);
++                ((RectTransform)replay.transform).anchoredPosition = new Vector2(220f, 0f);
++            }
+             auto = UiFactory.Text(Rect, "", 24f, Theme.inkLight, false);
+             UiFactory.Place(auto.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(800f, 34f), new Vector2(0f, bottom - 145f));
+             auto.gameObject.AddComponent<Shadow>().effectColor = new Color(0f, 0f, 0f, 0.7f);
+@@ -147,8 +158,10 @@ namespace PushPals.UI
+             bool decides = !Online.IsClientView;
+             bool waitVote = TraitorRound.Instance != null && TraitorRound.Instance.BlocksContinue;
+             next.gameObject.SetActive(decides);
++            replay.gameObject.SetActive(decides);
+             if (lobby.gameObject.activeSelf && !decides) lobby.gameObject.SetActive(false);
+             next.interactable = run.CanContinue;
++            replay.interactable = run.CanContinue;
+             lobby.interactable = run.CanContinue;
+             if (!decides) auto.text = Loc.T("result.waiting_host");
+             else if (waitVote) auto.text = Loc.T("result.waiting_vote");
+diff --git a/Assets/Scripts/UI/Screens/MainMenuScreen.cs b/Assets/Scripts/UI/Screens/MainMenuScreen.cs
+index 0d9072e..2e77dff 100644
+--- a/Assets/Scripts/UI/Screens/MainMenuScreen.cs
++++ b/Assets/Scripts/UI/Screens/MainMenuScreen.cs
+@@ -41,6 +41,39 @@ namespace PushPals.UI
+ 
+         public static bool Showing { get; private set; }
+ 
++        // Из игры попросили главное меню: показать, когда загрузится коробок (LobbyBoard)
++        private static bool returnRequested;
++
++        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
++        private static void ResetReturn() => returnRequested = false;
++
++        /// <summary>Коробок загрузился: показать ли главное меню (просили из игры). Флаг сбрасывается.</summary>
++        public static bool ConsumeReturn()
++        {
++            bool r = returnRequested;
++            returnRequested = false;
++            return r;
++        }
++
++        /// <summary>
++        /// Из паузы — в главное меню: сетевая игра заканчивается (у хоста — у всех), с уровня сначала в коробок
++        /// (меню стоит на столе над ним), в коробке у себя — сразу.
++        /// </summary>
++        public static void ReturnFromGame()
++        {
++            bool wasClient = Online.IsClientView;
++            if (Online.IsActive && Online.LeaveSession != null) Online.LeaveSession();
++            // Клиент видел мир хоста (предметы кинематические) — коробок грузим заново и в лобби
++            bool inOwnLobby = PushPals.Level.LobbyBoard.Instance != null && !wasClient;
++            if (!inOwnLobby && PushPals.Level.LevelLoader.Exists(PushPals.Level.LevelLoader.LobbyScene))
++            {
++                returnRequested = true;
++                if (PushPals.Level.LevelLoader.Load(PushPals.Level.LevelLoader.LobbyScene)) return;
++                returnRequested = false;
++            }
++            Show();
++        }
++
+         private UiBackground table;
+         private readonly List<Button> buttons = new List<Button>();
+         private readonly List<Image> glows = new List<Image>();
+@@ -260,12 +293,18 @@ namespace PushPals.UI
+                 UiScreen s;
+                 switch (n)
+                 {
+-                    case OnlineProp: s = OnlineScreen.Open(); break;
++                    case OnlineProp: s = OnlineScreen.Open(true); break;
+                     case Wardrobe: s = WardrobeScreen.Open(); break;
+                     case Collection: s = CollectionScreen.Open(); break;
+                     default: s = SettingsScreen.Open(); break;
+                 }
+-                s.Closed += () => { if (this != null && !gone) StartCoroutine(FlyBack(n)); };
++                s.Closed += () =>
++                {
++                    if (this == null || gone) return;
++                    // Из «Онлайн» с созданной игрой — сразу в коробок (там и ждём друзей), без возврата к столу
++                    if (Online.IsActive) Leave();
++                    else StartCoroutine(FlyBack(n));
++                };
+             }));
+         }
+ 
+@@ -308,16 +347,7 @@ namespace PushPals.UI
+             if (es != null) { UiButtonFx.QuietFrame = Time.frameCount; es.SetSelectedGameObject(buttons[n].gameObject); }
+         }
+ 
+-        private void AskQuit()
+-        {
+-            var dialog = UiPrefabs.Spawn<UiDialog>("DialogPanel", UiRoot.Instance.Popups);
+-            dialog.gameObject.SetActive(false);
+-            dialog.Set("menu.quit_confirm", "settings.saved");
+-            dialog.AddButton("menu.exit", true, () => PauseMenu.Quit());
+-            dialog.AddButton("ui.cancel", false, () => dialog.Panel.Close());
+-            dialog.Panel.Closed += () => Destroy(dialog.gameObject, 0.6f);
+-            dialog.Panel.Open();
+-        }
++        private void AskQuit() => UiDialog.Confirm("menu.quit_confirm", "settings.saved", "menu.exit", PauseMenu.Quit);
+ 
+         // В коробок: обложка закрыта и сразу открывается — внутри лобби
+         private void Leave()
+diff --git a/Assets/Scripts/UI/Screens/OnlineScreen.cs b/Assets/Scripts/UI/Screens/OnlineScreen.cs
+index e75e007..4d24230 100644
+--- a/Assets/Scripts/UI/Screens/OnlineScreen.cs
++++ b/Assets/Scripts/UI/Screens/OnlineScreen.cs
+@@ -7,26 +7,40 @@ using UnityEngine.UI;
+ namespace PushPals.UI
+ {
+     /// <summary>
+-    /// Онлайн (Этап 17.4, банки-телефон на столе): слева — создать игру (лобби Steam), найти игры друзей, войти по коду,
+-    /// игра без Steam (локальный хост / подключиться по адресу); справа — когда в игре: код лобби (копировать),
+-    /// кто в лобби, пригласить друзей Steam (из списка или окном Steam), выйти. Состояние обновляется само.
++    /// Онлайн (Этап 17.4, банки-телефон на столе; в игре — из паузы и «Настроек игры»).
++    /// Не в игре: создать игру (лобби Steam), найти открытые игры, войти по коду, игра без Steam (локальный хост /
++    /// подключиться по адресу). В игре: что происходит и что делать дальше, код лобби (копировать), пригласить
++    /// друзей Steam (из списка или окном Steam), кто в игре, выйти из сетевой игры. Состояние обновляется само.
++    /// Из главного меню: игра создана — нижняя кнопка «В коробок» (там ждём друзей; Esc — то же самое),
++    /// подключились к другу — коробок хоста загрузится сам. Из игры нижняя кнопка — «Назад».
+     /// Работает через NetSession (тот же код, что временная панель F2).
+     /// </summary>
+     public class OnlineScreen : UiScreen
+     {
++        private static bool fromMenuNext;
++
+         private NetSession net;
+-        private TextMeshProUGUI status, details;
++        private bool fromMenu;
++        private TextMeshProUGUI status, details, hint, codeText;
+         private RectTransform lobbyList, friendsList, membersList;
+         private GameObject offlineColumn, sessionColumn;
+         private TMP_InputField codeField, addressField;
++        private Button copyButton, inviteButton, bottomButton;
++        private LocText bottomLabel;
+         private float refreshClock;
+         private string shownLobbies = "", shownFriends = "", shownMembers = "";
+         private bool lastInSession;
+ 
+-        public static OnlineScreen Open() => Create<OnlineScreen>("Online Screen", true, true, UiPanel.Motion.Drawer);
++        /// <summary>Открыть: fromMainMenu — со стола главного меню (созданная игра продолжается в коробке).</summary>
++        public static OnlineScreen Open(bool fromMainMenu)
++        {
++            fromMenuNext = fromMainMenu;
++            return Create<OnlineScreen>("Online Screen", true, true, UiPanel.Motion.Drawer);
++        }
+ 
+         protected override void Build()
+         {
++            fromMenu = fromMenuNext;
+             net = NetSession.Instance;
+             if (net != null) net.TryInitSteam();
+             var area = Paper(new Vector2(1500f, 930f), "online.title");
+@@ -55,23 +69,31 @@ namespace PushPals.UI
+             SmallButton(addrSlot, "online.local_join", () => { if (net != null) net.StartLocalClient(addressField.text.Trim()); });
+             var right = Half(offline, false);
+             var found = new UiForm(right);
+-            found.Note("online.found_hint");
++            Tall(found.Note("online.found_hint"), 70f);
+             lobbyList = found.Content;
+ 
+-            // В игре: код, участники, друзья, выйти
++            // В игре: что дальше, код, пригласить, выйти, кто в игре
+             var session = UiFactory.Rect(area, "Session");
+             UiRoot.Stretch(session);
+             session.offsetMax = new Vector2(0f, -90f);
+             sessionColumn = session.gameObject;
+             var sl = new UiForm(Half(session, true));
++            hint = Tall(sl.Note("online.host_hint"), 70f);
+             var codeRow = sl.Row("online.code");
+-            var copy = SmallButton(codeRow, "online.copy", () =>
++            codeText = Ink(codeRow, "", 30f, true);
++            codeText.rectTransform.anchorMin = Vector2.zero;
++            codeText.rectTransform.anchorMax = Vector2.one;
++            codeText.rectTransform.offsetMin = Vector2.zero;
++            codeText.rectTransform.offsetMax = new Vector2(-260f, 0f); // справа — «Копировать»
++            codeText.enableAutoSizing = true;
++            codeText.fontSizeMin = 18f;
++            codeText.fontSizeMax = 30f;
++            copyButton = SmallButton(codeRow, "online.copy", () =>
+             {
+                 GUIUtility.systemCopyBuffer = net != null ? net.LobbyCodeText : "";
+                 details.text = Loc.T("online.copied");
+             });
+-            ((RectTransform)copy.transform).anchoredPosition = new Vector2(0f, 0f);
+-            sl.Button("online.invite_overlay", false, () => { if (net != null) net.OpenInviteOverlay(); });
++            inviteButton = sl.Button("online.invite_overlay", false, () => { if (net != null) net.OpenInviteOverlay(); });
+             sl.Button("online.leave", false, () => { if (net != null) net.Leave(); });
+             sl.Header("online.members");
+             membersList = sl.Content;
+@@ -80,10 +102,20 @@ namespace PushPals.UI
+             sr.Button("online.refresh", false, () => { if (net != null) net.UpdateFriends(); shownFriends = "?"; });
+             friendsList = sr.Content;
+ 
+-            BackButton(Rect, new Vector2(0.5f, 0f), new Vector2(0f, 40f));
++            // Внизу: «Назад», а со стола с идущей игрой — «В коробок» (меню само уводит туда после закрытия)
++            bottomButton = BackButton(Rect, new Vector2(0.5f, 0f), new Vector2(0f, 40f));
++            bottomLabel = bottomButton.GetComponentInChildren<LocText>();
+             Refresh(true);
+         }
+ 
++        // Пояснение повыше (в одну строку не влезает)
++        private static TextMeshProUGUI Tall(TextMeshProUGUI note, float height)
++        {
++            var fit = note.transform.parent.GetComponent<LayoutElement>();
++            if (fit != null) fit.preferredHeight = height;
++            return note;
++        }
++
+         private static RectTransform Half(RectTransform parent, bool left)
+         {
+             var r = UiFactory.Rect(parent, left ? "Left" : "Right");
+@@ -156,6 +188,12 @@ namespace PushPals.UI
+                 lastInSession = inSession;
+                 offlineColumn.SetActive(!inSession);
+                 sessionColumn.SetActive(inSession);
++                // Что дальше: хост ждёт друзей (со стола — в коробке), клиент играет у хоста
++                hint.text = Loc.T(!net.IsHost ? "online.client_hint" : fromMenu ? "online.hosting_hint" : "online.host_hint");
++                bool toBox = fromMenu && inSession;
++                bottomLabel.Key = toBox ? "online.to_box" : "ui.back";
++                Panel.FirstSelected = toBox ? bottomButton : null;
++                shownMembers = shownFriends = shownLobbies = "?"; // списки — заново
+                 Panel.SelectFirst();
+             }
+             status.text = net.Status;
+@@ -163,10 +201,16 @@ namespace PushPals.UI
+             info.Add(net.SteamReady ? Loc.T("online.steam", net.SteamName) : Loc.T("online.no_steam"));
+             if (inSession) info.Add(Loc.T("online.players", net.PlayersInSession));
+             if (inSession && net.PingMs.Length > 0) info.Add(Loc.T("online.ping", net.PingMs));
+-            if (inSession && net.LobbyCodeText.Length > 0) info.Add(Loc.T("online.code") + ": " + net.LobbyCodeText);
+             if (details.text != Loc.T("online.copied") || refreshClock < -2f) details.text = string.Join("   ·   ", info.ToArray());
+-            if (!inSession) RefreshLobbies();
+-            else { RefreshMembers(); RefreshFriends(); }
++            if (!inSession) { RefreshLobbies(); return; }
++            // Код: Steam-лобби — число для друзей; локальная игра — порт; клиент без Steam — кода нет
++            string code = Online.LobbyCode != null ? Online.LobbyCode() : "";
++            codeText.text = code.Length > 0 ? code : "—";
++            bool steamLobby = net.LobbyCodeText.Length > 0;
++            copyButton.interactable = steamLobby;
++            inviteButton.interactable = steamLobby && net.SteamReady;
++            RefreshMembers();
++            RefreshFriends();
+         }
+ 
+         // Найденные игры — кнопки «Войти»
+@@ -247,10 +291,5 @@ namespace PushPals.UI
+             tmp.fontStyle = FontStyles.Normal;
+             return b;
+         }
+-
+-        private static void Clear(RectTransform list)
+-        {
+-            for (int i = list.childCount - 1; i >= 0; i--) Destroy(list.GetChild(i).gameObject);
+-        }
+     }
+ }
+diff --git a/Assets/Scripts/UI/Screens/PauseScreen.cs b/Assets/Scripts/UI/Screens/PauseScreen.cs
+index c26c6ab..50abc66 100644
+--- a/Assets/Scripts/UI/Screens/PauseScreen.cs
++++ b/Assets/Scripts/UI/Screens/PauseScreen.cs
+@@ -10,8 +10,9 @@ namespace PushPals.UI
+ {
+     /// <summary>
+     /// Пауза (Этап 17.5) — короткое нажатие Start / Esc. Время не останавливается (играете вместе, по сети — тем более).
+-    /// Слева — список: продолжить, настройки игры (хосту в лобби), настройки, заново и в коробок (кто решает — на уровне),
+-    /// выйти из игры. Справа — уровень, золотые спички, время. «Назад» — продолжить.
++    /// Слева — список: продолжить, настройки игры (хосту в лобби), онлайн (код, приглашения, кто в игре), настройки,
++    /// заново и в коробок (кто решает — на уровне), главное меню, выйти из игры (оба — с вопросом «точно?»).
++    /// Справа — уровень, золотые спички, время. «Назад» — продолжить.
+     /// </summary>
+     public class PauseScreen : UiScreen
+     {
+@@ -52,17 +53,19 @@ namespace PushPals.UI
+             list.anchoredPosition = new Vector2(160f, -260f);
+             list.sizeDelta = new Vector2(620f, 600f);
+             var layout = list.gameObject.AddComponent<VerticalLayoutGroup>();
+-            layout.spacing = 10f;
++            layout.spacing = 6f;
+             layout.childControlWidth = true;
+             layout.childControlHeight = false;
+             layout.childForceExpandHeight = false;
+             Item(list, "pause.resume", Close);
+             if (inLobby && host) Item(list, "pause.host", () => { Close(); if (opener != null) opener.OpenMenu(new HostMenu()); });
++            Item(list, "menu.online", () => OnlineScreen.Open(false));
+             Item(list, "menu.settings", () => SettingsScreen.Open());
+             if (!inLobby && decides && LevelRun.Instance != null)
+                 Item(list, "pause.restart", () => { Close(); LevelLoader.Load(SceneManager.GetActiveScene().name, UiNames.Level(LevelRun.Instance.Level)); });
+             if (!inLobby && decides && LevelLoader.Exists(LevelLoader.LobbyScene))
+                 Item(list, "pause.lobby", () => { Close(); LevelLoader.Load(LevelLoader.LobbyScene); });
++            Item(list, "pause.main_menu", AskMainMenu);
+             Item(list, "pause.quit", AskQuit);
+             // Сводка справа
+             var run = LevelRun.Instance;
+@@ -90,15 +93,19 @@ namespace PushPals.UI
+             item.GetComponent<Button>().onClick.AddListener(() => onClick());
+         }
+ 
+-        private void AskQuit()
++        private void AskQuit() => UiDialog.Confirm("menu.quit_confirm", Online.IsActive ? "pause.leave_online" : "settings.saved", "menu.exit", PauseMenu.Quit);
++
++        // В главное меню: по сети — сначала «точно?» (игра закончится), без сети — сразу (всё сохранено)
++        private void AskMainMenu()
++        {
++            if (!Online.IsActive) { ToMainMenu(); return; }
++            UiDialog.Confirm("pause.main_menu_confirm", "pause.leave_online", "pause.main_menu", ToMainMenu);
++        }
++
++        private void ToMainMenu()
+         {
+-            var dialog = UiPrefabs.Spawn<UiDialog>("DialogPanel", UiRoot.Instance.Popups);
+-            dialog.gameObject.SetActive(false);
+-            dialog.Set("menu.quit_confirm", "settings.saved");
+-            dialog.AddButton("menu.exit", true, () => PauseMenu.Quit());
+-            dialog.AddButton("ui.cancel", false, () => dialog.Panel.Close());
+-            dialog.Panel.Closed += () => Destroy(dialog.gameObject, 0.6f);
+-            dialog.Panel.Open();
++            Close();
++            MainMenuScreen.ReturnFromGame();
+         }
+     }
+ }
+diff --git a/Assets/Scripts/UI/Screens/SettingsScreen.cs b/Assets/Scripts/UI/Screens/SettingsScreen.cs
+index d88a3c6..0168e7c 100644
+--- a/Assets/Scripts/UI/Screens/SettingsScreen.cs
++++ b/Assets/Scripts/UI/Screens/SettingsScreen.cs
+@@ -21,7 +21,7 @@ namespace PushPals.UI
+         private readonly List<Vector2Int> resolutions = new List<Vector2Int>();
+         private RectTransform controlsPage;
+         private float pendingScale = -1f, scaleClock;
+-        private static int startTab;
++        private int startTab;
+ 
+         public static SettingsScreen Open() => Create<SettingsScreen>("Settings Screen", true, true, UiPanel.Motion.Drawer);
+ 
+@@ -157,19 +157,19 @@ namespace PushPals.UI
+             f.Choice("settings.language", Loc.LanguageNames, (int)Loc.Current, i =>
+             {
+                 Loc.Current = (Loc.Language)i;
+-                // Тексты внутри списков переведены при сборке — открыть экран заново на этой же вкладке
++                // Тексты внутри списков переведены при сборке — собрать экран заново на этой же вкладке.
++                // Раньше экран удалялся и открывался новый: главное меню ждало закрытия старого и застревало
+                 startTab = 4;
+-                UiRoot.Instance.StartCoroutine(Reopen(gameObject)); // после того, как список закроется
++                StartCoroutine(RebuildLater()); // после того, как список закроется
+             });
+             var hud = new[] { Loc.T("settings.hud.full"), Loc.T("settings.hud.minimal"), Loc.T("settings.hud.off") };
+             f.Choice("settings.hud", hud, (int)UiSettings.Hud, i => UiSettings.Hud = (UiSettings.HudMode)i);
+         }
+ 
+-        private static System.Collections.IEnumerator Reopen(GameObject old)
++        private System.Collections.IEnumerator RebuildLater()
+         {
+             yield return new WaitForSecondsRealtime(0.3f);
+-            if (old != null) Destroy(old);
+-            Open();
++            if (Panel.IsOpen) Rebuild();
+         }
+ 
+         private void Update()
