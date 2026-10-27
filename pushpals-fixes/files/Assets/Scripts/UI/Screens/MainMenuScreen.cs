@@ -9,35 +9,58 @@ namespace PushPals.UI
 {
     /// <summary>
     /// Главное меню-стол (Этап 17.4): ночная кухня, на столе предметы — коробок «Играть», банки-телефон «Онлайн»,
-    /// линейка «Настройки», шкаф из напёрстков «Гардероб», блокнот «Коллекция», дверь «Выход».
-    /// Наведение мышью или выбор стрелками/геймпадом — мягкое свечение, подпись и спичка-указатель над предметом;
-    /// выбор — «камера» летит к предмету и открывается экран (закрыли — летит обратно). Свеча мерцает, в её свете
-    /// кружатся пылинки. «Играть» — коробок открывается, внутри лобби. Заменяет титульный экран Этапа 17.
+    /// линейка «Настройки», шкаф из напёрстков «Гардероб», книга «Коллекция», дверь «Выход».
+    /// Предметы стоят на столешнице в два ряда с перспективой (дальний ряд меньше), у каждого тень от свечи
+    /// и бумажный ярлык с подписью, прислонённый спереди. В тени предметы притушены, выбранный — светлеет,
+    /// чуть приподнимается, за ним тёплое свечение, к его ярлыку тянется горящая спичка-указатель.
+    /// Выбор — мышью, стрелками, геймпадом (между рядами — вверх/вниз); нажатие — «камера» летит к предмету
+    /// и открывается экран (закрыли — летит обратно). Свеча мерцает, в её свете кружатся пылинки.
+    /// «Играть» — коробок открывается, внутри лобби. Заменяет титульный экран Этапа 17.
     /// </summary>
     public class MainMenuScreen : UiScreen
     {
-        // Предмет: картинка, подпись, где стоит (доли картинки фона: x — середина, y — низ, сверху вниз), высота
+        // Предмет на столе. Всё — в долях картинки фона: x — середина, y — низ (сверху вниз), h — высота.
+        // Тень: сдвиг по x (доля ширины предмета, «−» — влево, от свечи), ширина и высота (доли предмета), где «ступня» (доля высоты от низа).
+        // Ярлык: насколько выше низа предмета его середина (доля высоты картинки) и ширина
         private struct Prop
         {
             public string sprite, key;
-            public Vector2 at;
-            public float height;
-            public Prop(string sprite, string key, float x, float y, float h) { this.sprite = sprite; this.key = key; at = new Vector2(x, y); height = h; }
+            public float x, y, h, tint;
+            public float shadowX, shadowW, shadowH, foot;
+            public float labelY, labelWidth;
         }
 
+        private static Prop P(string sprite, string key, float x, float y, float h, float tint,
+                              float shadowX, float shadowW, float shadowH, float foot, float labelY, float labelWidth) =>
+            new Prop { sprite = sprite, key = key, x = x, y = y, h = h, tint = tint, shadowX = shadowX, shadowW = shadowW,
+                       shadowH = shadowH, foot = foot, labelY = labelY, labelWidth = labelWidth };
+
+        // Дальний ряд — у заднего края столешницы (он на 0,58), ближний — у переднего; слева спереди ложка,
+        // справа спереди спички, справа сзади свеча — предметы между ними (проверено макетом из этих же картинок)
         private static readonly Prop[] Props =
         {
-            new Prop("menu_obj_exit", "menu.exit", 0.115f, 0.70f, 0.47f),
-            new Prop("menu_obj_wardrobe", "menu.wardrobe", 0.275f, 0.79f, 0.40f),
-            new Prop("menu_obj_online", "menu.online", 0.425f, 0.90f, 0.25f),
-            new Prop("menu_obj_play", "menu.play", 0.585f, 0.87f, 0.31f),
-            new Prop("menu_obj_collection", "menu.collection", 0.755f, 0.93f, 0.23f),
-            new Prop("menu_obj_settings", "menu.settings", 0.875f, 0.995f, 0.21f),
+            P("menu_obj_wardrobe",   "menu.wardrobe",   0.19f,  0.685f, 0.23f,  0.66f, -0.12f, 1.0f,  0.10f, 0.05f, 0.006f, 210f),
+            P("menu_obj_online",     "menu.online",     0.40f,  0.685f, 0.165f, 0.70f, -0.08f, 0.9f,  0.16f, 0.12f, 0.006f, 210f),
+            P("menu_obj_exit",       "menu.exit",       0.655f, 0.685f, 0.22f,  0.82f, -0.10f, 1.1f,  0.09f, 0.05f, 0.006f, 210f),
+            P("menu_obj_settings",   "menu.settings",   0.335f, 0.925f, 0.16f,  0.72f, -0.05f, 0.95f, 0.30f, 0.25f, 0.011f, 230f),
+            P("menu_obj_play",       "menu.play",       0.53f,  0.925f, 0.23f,  0.85f, -0.06f, 1.0f,  0.22f, 0.12f, 0.011f, 210f),
+            P("menu_obj_collection", "menu.collection", 0.705f, 0.925f, 0.17f,  0.86f, -0.06f, 1.0f,  0.20f, 0.10f, 0.011f, 230f),
         };
-        private const int Exit = 0, Wardrobe = 1, OnlineProp = 2, Play = 3, Collection = 4, Settings = 5;
+        private const int Wardrobe = 0, OnlineProp = 1, Exit = 2, Settings = 3, Play = 4, Collection = 5;
+        // Стрелки и геймпад: соседи слева, справа, сверху, снизу (−1 — нет)
+        private static readonly int[,] Neighbours =
+        {
+            { -1, OnlineProp, -1, Settings },        // Гардероб
+            { Wardrobe, Exit, -1, Play },            // Онлайн
+            { OnlineProp, -1, -1, Collection },      // Выход
+            { -1, Play, Wardrobe, -1 },              // Настройки
+            { Settings, Collection, OnlineProp, -1 },// Играть
+            { Play, -1, Exit, -1 },                  // Коллекция
+        };
 
         // Где пламя свечи на картинке фона (доли, сверху вниз)
         private static readonly Vector2 Candle = new Vector2(0.855f, 0.27f);
+        private const float LabelHeight = 54f;
 
         public static bool Showing { get; private set; }
 
@@ -74,14 +97,24 @@ namespace PushPals.UI
             Show();
         }
 
+        // Предмет на экране: кнопка, картинка (её приподнимаем и подсвечиваем), ярлык, свечение
+        private class PropView
+        {
+            public Button button;
+            public RectTransform visual, label;
+            public Image image, tag, glow;
+            public TextMeshProUGUI text;
+            public float k; // 0 — в тени, 1 — выбран
+        }
+
         private UiBackground table;
-        private readonly List<Button> buttons = new List<Button>();
-        private readonly List<Image> glows = new List<Image>();
+        private readonly List<PropView> views = new List<PropView>();
         private int selected = -1;
-        private RectTransform caption, pointer;
-        private TextMeshProUGUI captionText;
+        private RectTransform pointer;
+        private Image pointerImage;
         private Image candleGlow;
         private readonly List<RectTransform> dust = new List<RectTransform>();
+        private readonly List<Image> dustImages = new List<Image>();
         private readonly List<Vector3> dustState = new List<Vector3>(); // фаза, скорость, размер
         private bool flying, gone;
         private static Sprite soft;
@@ -117,61 +150,33 @@ namespace PushPals.UI
                 d.color = new Color(1f, 0.9f, 0.7f, 0f);
                 d.rectTransform.anchorMin = d.rectTransform.anchorMax = new Vector2(Random.Range(0.6f, 1f), Random.Range(0.35f, 0.95f));
                 dust.Add(d.rectTransform);
+                dustImages.Add(d);
                 dustState.Add(new Vector3(Random.value * 10f, Random.Range(0.008f, 0.02f), Random.Range(3f, 8f)));
             }
 
-            // Предметы на столе
-            for (int i = 0; i < Props.Length; i++)
-            {
-                var p = Props[i];
-                var sprite = UiSprites.Get(p.sprite);
-                float spriteAspect = sprite != null ? sprite.rect.width / sprite.rect.height : 1f;
-                float w = p.height * spriteAspect / aspect; // ширина в долях ширины картинки
-                var glow = Glow(picture, new Vector2(p.at.x, p.at.y - p.height * 0.5f), p.height * 1.25f, new Color(1f, 0.85f, 0.55f, 0f));
-                glows.Add(glow);
-                var go = new GameObject(p.key, typeof(RectTransform));
-                var rt = (RectTransform)go.transform;
-                rt.SetParent(picture, false);
-                rt.anchorMin = new Vector2(p.at.x - w * 0.5f, 1f - p.at.y);
-                rt.anchorMax = new Vector2(p.at.x + w * 0.5f, 1f - p.at.y + p.height);
-                rt.offsetMin = rt.offsetMax = Vector2.zero;
-                var visual = UiFactory.Rect(rt, "Visual");
-                UiRoot.Stretch(visual);
-                var img = visual.gameObject.AddComponent<Image>();
-                img.sprite = sprite;
-                img.preserveAspect = true;
-                var b = go.AddComponent<Button>();
-                b.targetGraphic = img;
-                b.transition = Selectable.Transition.None;
-                go.AddComponent<UiButtonFx>();
-                int n = i;
-                b.onClick.AddListener(() => Activate(n));
-                var trigger = go.AddComponent<EventTrigger>();
-                var e = new EventTrigger.Entry { eventID = EventTriggerType.Select };
-                e.callback.AddListener(_ => selected = n);
-                trigger.triggers.Add(e);
-                buttons.Add(b);
-            }
+            // Предметы: сначала дальний ряд (ближние рисуются поверх), у каждого — тень, свечение, картинка, ярлык
+            views.Clear();
+            for (int i = 0; i < Props.Length; i++) views.Add(null);
+            var order = new List<int>();
+            for (int i = 0; i < Props.Length; i++) order.Add(i);
+            order.Sort((a, b) => Props[a].y.CompareTo(Props[b].y));
+            // Ярлык дальнего ряда не заслонён ближним предметом: верх ближних — ниже ярлыков дальних (макет)
+            foreach (int i in order) views[i] = BuildProp(picture, aspect, i);
+            Navigation();
 
-            // Подпись и спичка-указатель над выбранным
-            caption = UiFactory.Rect(picture, "Caption");
-            caption.anchorMin = caption.anchorMax = new Vector2(0.5f, 0.5f);
-            caption.sizeDelta = new Vector2(600f, 80f);
-            var shadow = UiFactory.Text(caption, "", 58f, new Color(0.1f, 0.05f, 0.02f, 0.85f), true);
-            UiRoot.Stretch(shadow.rectTransform);
-            shadow.rectTransform.anchoredPosition = new Vector2(3f, -3f);
-            captionText = UiFactory.Text(caption, "", 58f, Theme.inkLight, true);
-            UiRoot.Stretch(captionText.rectTransform);
-            captionText.gameObject.AddComponent<CaptionShadow>().shadow = shadow;
-            var ptr = UiFactory.Image(picture, "menu_pointer", false, "Pointer");
-            pointer = ptr.rectTransform;
+            // Спичка-указатель: горит у ярлыка выбранного предмета
+            pointerImage = UiFactory.Image(picture, "menu_pointer", false, "Pointer");
+            pointerImage.raycastTarget = false;
+            pointer = pointerImage.rectTransform;
             pointer.anchorMin = pointer.anchorMax = new Vector2(0.5f, 0.5f);
-            pointer.sizeDelta = new Vector2(130f, 56f);
-            pointer.localRotation = Quaternion.Euler(0f, 0f, -90f); // головкой вниз — на предмет
+            pointer.sizeDelta = new Vector2(118f, 56f);
+            pointerImage.color = new Color(1f, 1f, 1f, 0f);
 
-            // Логотип и подсказка
+            // Логотип — табличкой в углу, как на эскизе (стол и предметы — главное)
             var logo = UiFactory.Image(Rect, "logo_full", false, "Logo");
-            UiFactory.Place(logo.rectTransform, new Vector2(0.5f, 1f), new Vector2(500f, 268f), new Vector2(-40f, -160f));
+            UiFactory.Place(logo.rectTransform, new Vector2(0f, 1f), new Vector2(380f, 202f), new Vector2(60f + 190f, -36f - 101f));
+            logo.raycastTarget = false;
+            // Подсказка
             var hint = UiFactory.Rect(Rect, "Hint");
             UiFactory.Place(hint, new Vector2(1f, 0f), new Vector2(260f, 56f), new Vector2(-170f, 50f));
             var glyph = UiFactory.Image(hint, "keyboard_enter", false, "Glyph");
@@ -181,7 +186,110 @@ namespace PushPals.UI
             label.alignment = TextAlignmentOptions.MidlineLeft;
             UiFactory.Place(label.rectTransform, new Vector2(0f, 0.5f), new Vector2(190f, 50f), new Vector2(160f, 0f));
 
-            Panel.FirstSelected = buttons[Play];
+            Panel.FirstSelected = views[Play].button;
+        }
+
+        private PropView BuildProp(RectTransform picture, float aspect, int i)
+        {
+            var p = Props[i];
+            var v = new PropView();
+            var sprite = UiSprites.Get(p.sprite);
+            float spriteAspect = sprite != null ? sprite.rect.width / sprite.rect.height : 1f;
+            float w = p.h * spriteAspect / aspect; // ширина в долях ширины картинки
+            float bottom = 1f - p.y;               // низ в долях снизу
+
+            // Тень на столешнице — от свечи справа уходит влево
+            var shadow = UiFactory.Rect(picture, "Shadow").gameObject.AddComponent<Image>();
+            shadow.sprite = soft;
+            shadow.color = new Color(0f, 0f, 0f, 0.72f);
+            shadow.raycastTarget = false;
+            float sx = p.x + p.shadowX * w, sy = bottom + p.foot * p.h;
+            float sw = w * p.shadowW * 0.5f, shh = p.h * p.shadowH * 0.5f;
+            shadow.rectTransform.anchorMin = new Vector2(sx - sw, sy - shh);
+            shadow.rectTransform.anchorMax = new Vector2(sx + sw, sy + shh);
+            shadow.rectTransform.offsetMin = shadow.rectTransform.offsetMax = Vector2.zero;
+
+            // Тёплое свечение за выбранным
+            v.glow = Glow(picture, new Vector2(p.x, p.y - p.h * 0.5f), p.h * 1.35f, new Color(1f, 0.82f, 0.48f, 0f));
+
+            // Кнопка — по месту картинки предмета
+            var go = new GameObject(p.key, typeof(RectTransform));
+            var rt = (RectTransform)go.transform;
+            rt.SetParent(picture, false);
+            rt.anchorMin = new Vector2(p.x - w * 0.5f, bottom);
+            rt.anchorMax = new Vector2(p.x + w * 0.5f, bottom + p.h);
+            rt.offsetMin = rt.offsetMax = Vector2.zero;
+            v.visual = UiFactory.Rect(rt, "Visual");
+            UiRoot.Stretch(v.visual);
+            v.image = v.visual.gameObject.AddComponent<Image>();
+            v.image.sprite = sprite;
+            v.image.preserveAspect = true;
+            v.image.color = Shade(p.tint);
+            v.button = go.AddComponent<Button>();
+            v.button.targetGraphic = v.image;
+            v.button.transition = Selectable.Transition.None;
+            // Без UiButtonFx: он сам двигает и осветляет картинку и спорил бы с подсветкой предмета (Update)
+            int n = i;
+            v.button.onClick.AddListener(() => { UiTheme.Play(Theme.clickSound, Theme.clickVolume); Activate(n); });
+            var trigger = go.AddComponent<EventTrigger>();
+            var select = new EventTrigger.Entry { eventID = EventTriggerType.Select };
+            select.callback.AddListener(_ =>
+            {
+                if (selected != n && Time.frameCount != UiButtonFx.QuietFrame) UiTheme.Play(Theme.hoverSound, Theme.hoverVolume);
+                selected = n;
+            });
+            trigger.triggers.Add(select);
+            // Наведение мышью = выбор (геймпад и стрелки продолжают отсюда)
+            var enter = new EventTrigger.Entry { eventID = EventTriggerType.PointerEnter };
+            enter.callback.AddListener(_ =>
+            {
+                var es = EventSystem.current;
+                if (es != null && !flying && es.currentSelectedGameObject != go) es.SetSelectedGameObject(go);
+            });
+            trigger.triggers.Add(enter);
+
+            // Ярлык: бумажная табличка, прислонённая спереди (часть кнопки — нажимается и она)
+            var tag = UiFactory.Image(rt, "hud_team_plate", true, "Label");
+            tag.pixelsPerUnitMultiplier = 2f; // рамка тоньше — табличка невысокая
+            v.tag = tag;
+            tag.raycastTarget = true; // ярлык нажимается и выбирается, как сам предмет
+            v.label = tag.rectTransform;
+            v.label.anchorMin = v.label.anchorMax = new Vector2(0.5f, p.labelY / p.h);
+            v.label.pivot = new Vector2(0.5f, 0.5f);
+            v.label.sizeDelta = new Vector2(p.labelWidth, LabelHeight);
+            v.label.anchoredPosition = Vector2.zero;
+            v.text = UiFactory.LocText(v.label, p.key, 26f, Theme.ink, true);
+            UiRoot.Stretch(v.text.rectTransform);
+            v.text.rectTransform.offsetMin = new Vector2(18f, 4f);
+            v.text.rectTransform.offsetMax = new Vector2(-18f, -4f);
+            v.text.enableAutoSizing = true;
+            v.text.fontSizeMin = 16f;
+            v.text.fontSizeMax = 26f;
+            v.text.alignment = TextAlignmentOptions.Center;
+            return v;
+        }
+
+        // Предмет в тени свечи: темнее и теплее; выбранный — как есть
+        private static Color Shade(float k) => new Color(Mathf.Min(1f, k * 1.04f), k, k * 0.9f, 1f);
+
+        // Стрелки и геймпад ходят по рядам, а не «куда ближе по прямой»
+        private void Navigation()
+        {
+            for (int i = 0; i < views.Count; i++)
+            {
+                var nav = new UnityEngine.UI.Navigation { mode = UnityEngine.UI.Navigation.Mode.Explicit };
+                nav.selectOnLeft = Neighbour(i, 0);
+                nav.selectOnRight = Neighbour(i, 1);
+                nav.selectOnUp = Neighbour(i, 2);
+                nav.selectOnDown = Neighbour(i, 3);
+                views[i].button.navigation = nav;
+            }
+        }
+
+        private Selectable Neighbour(int i, int side)
+        {
+            int n = Neighbours[i, side];
+            return n >= 0 ? views[n].button : null;
         }
 
         private static Image Glow(RectTransform parent, Vector2 at, float size, Color color)
@@ -237,46 +345,41 @@ namespace PushPals.UI
                 rt.anchorMin = rt.anchorMax = a;
                 rt.sizeDelta = Vector2.one * s.z;
                 float near = 1f - Mathf.Clamp01(Vector2.Distance(a, new Vector2(Candle.x, 1f - Candle.y)) / 0.35f);
-                var img = rt.GetComponent<Image>();
-                img.color = new Color(1f, 0.9f, 0.7f, near * (0.35f + 0.3f * Mathf.Sin(t * 2f + s.x)));
+                dustImages[i].color = new Color(1f, 0.9f, 0.7f, near * (0.35f + 0.3f * Mathf.Sin(t * 2f + s.x)));
             }
 
-            // Выбранный предмет: свечение, подпись и указатель над ним
+            // Выбранный предмет: светлеет, приподнимается, светится; ярлык ярче; спичка-указатель у ярлыка
             var es = EventSystem.current;
-            if (es != null && es.currentSelectedGameObject == null && !flying && buttons.Count > 0) es.SetSelectedGameObject(buttons[Play].gameObject);
-            for (int i = 0; i < glows.Count; i++)
+            if (es != null && es.currentSelectedGameObject == null && !flying && views.Count > 0) es.SetSelectedGameObject(views[Play].button.gameObject);
+            for (int i = 0; i < views.Count; i++)
             {
-                var c = glows[i].color;
-                float want = i == selected && !flying ? 0.5f + 0.1f * Mathf.Sin(t * 3f) : 0f;
-                c.a = Mathf.MoveTowards(c.a, want, dt * 2.5f);
-                glows[i].color = c;
+                var v = views[i];
+                bool on = i == selected && !flying;
+                v.k = Mathf.MoveTowards(v.k, on ? 1f : 0f, dt * 5f);
+                float e = v.k * v.k * (3f - 2f * v.k);
+                v.image.color = Color.Lerp(Shade(Props[i].tint), Color.white, e);
+                float lift = e * 10f + (on ? Mathf.Sin(t * 3f) * 1.5f * e : 0f);
+                v.visual.offsetMin = new Vector2(0f, lift);
+                v.visual.offsetMax = new Vector2(0f, lift);
+                v.label.localScale = Vector3.one * (1f + 0.06f * e);
+                v.tag.color = Color.Lerp(new Color(0.86f, 0.8f, 0.72f), Color.white, e);
+                var c = v.glow.color;
+                c.a = e * (0.42f + 0.08f * Mathf.Sin(t * 3f));
+                v.glow.color = c;
             }
             bool show = selected >= 0 && !flying;
-            captionText.alpha = Mathf.MoveTowards(captionText.alpha, show ? 1f : 0f, dt * 6f);
-            var pimg = pointer.GetComponent<Image>();
-            pimg.color = new Color(1f, 1f, 1f, captionText.alpha);
+            float alpha = Mathf.MoveTowards(pointerImage.color.a, show ? 1f : 0f, dt * 6f);
+            pointerImage.color = new Color(1f, 1f, 1f, alpha);
             if (selected >= 0)
             {
-                captionText.text = Loc.T(Props[selected].key);
-                var target = (RectTransform)buttons[selected].transform;
-                Vector3 top = target.TransformPoint(new Vector3(target.rect.center.x, target.rect.yMax, 0f));
-                Vector2 local = caption.parent.InverseTransformPoint(top);
-                float bob = Mathf.Sin(t * 4f) * 6f;
-                pointer.anchoredPosition = Vector2.Lerp(pointer.anchoredPosition, local + new Vector2(0f, 50f + bob), 1f - Mathf.Exp(-14f * dt));
-                caption.anchoredPosition = Vector2.Lerp(caption.anchoredPosition, local + new Vector2(0f, 140f), 1f - Mathf.Exp(-14f * dt));
-                ClampCaption();
+                // Слева от ярлыка, головкой к нему; чуть «подпрыгивает»
+                var label = views[selected].label;
+                Vector3 left = label.TransformPoint(new Vector3(label.rect.xMin, label.rect.center.y, 0f));
+                Vector2 local = (Vector2)pointer.parent.InverseTransformPoint(left);
+                float bob = Mathf.Sin(t * 4f) * 4f;
+                Vector2 want = local + new Vector2(-pointer.sizeDelta.x * 0.5f + 6f + bob, 0f);
+                pointer.anchoredPosition = alpha < 0.05f ? want : Vector2.Lerp(pointer.anchoredPosition, want, 1f - Mathf.Exp(-16f * dt));
             }
-        }
-
-        // Подпись не уезжает за край экрана (предметы у краёв)
-        private void ClampCaption()
-        {
-            var parent = (RectTransform)caption.parent;
-            var r = parent.rect;
-            var p = caption.anchoredPosition;
-            p.x = Mathf.Clamp(p.x, r.xMin + 320f, r.xMax - 320f);
-            p.y = Mathf.Min(p.y, r.yMax - 60f);
-            caption.anchoredPosition = p;
         }
 
         private void Activate(int n)
@@ -313,7 +416,7 @@ namespace PushPals.UI
         {
             flying = true;
             var picture = table.Zoom;
-            var target = (RectTransform)buttons[n].transform;
+            var target = (RectTransform)views[n].button.transform;
             Vector2 center = target.TransformPoint(target.rect.center);
             Vector2 local = picture.InverseTransformPoint(center); // точка в своих координатах (без масштаба)
             Vector2 from = picture.anchoredPosition;
@@ -344,7 +447,7 @@ namespace PushPals.UI
             }
             flying = false;
             var es = EventSystem.current;
-            if (es != null) { UiButtonFx.QuietFrame = Time.frameCount; es.SetSelectedGameObject(buttons[n].gameObject); }
+            if (es != null) { UiButtonFx.QuietFrame = Time.frameCount; es.SetSelectedGameObject(views[n].button.gameObject); }
         }
 
         private void AskQuit() => UiDialog.Confirm("menu.quit_confirm", "settings.saved", "menu.exit", QuitGame);

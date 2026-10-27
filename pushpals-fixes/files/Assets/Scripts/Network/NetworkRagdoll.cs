@@ -14,7 +14,7 @@ namespace PushPals.Network
     /// </summary>
     [RequireComponent(typeof(RagdollController))]
     [DefaultExecutionOrder(50)] // после PlayerIntentReader: видим нажатия этого кадра
-    public class NetworkRagdoll : NetworkBehaviour, IRemoteChoices
+    public class NetworkRagdoll : NetworkBehaviour, IRemoteChoices, IRemotePing
     {
         private const int PartCount = 10;
 
@@ -173,6 +173,31 @@ namespace PushPals.Network
         }
 
         public void SendLook(int hat, int wood) => SubmitLookRpc((byte)hat, (byte)wood);
+
+        // ---------- Метка «сюда» (владелец → хост → всем) ----------
+
+        private float lastPingTime = -10f;
+
+        public bool SendPing(Vector2 at)
+        {
+            if (!IsSpawned) return false; // сеть ещё не готова — покажем у себя
+            if (IsServer) ShowPingRpc(at);
+            else SubmitPingRpc(at);
+            return true;
+        }
+
+        [Rpc(SendTo.Server)]
+        private void SubmitPingRpc(Vector2 at, RpcParams rpcParams = default)
+        {
+            if (rpcParams.Receive.SenderClientId != OwnerClientId) return; // метку — только своей спичкой
+            if (Time.unscaledTime - lastPingTime < 0.3f) return;           // не чаще
+            if (controller.Body.IsBuilt && (at - (Vector2)controller.Body.Head.Body.position).sqrMagnitude > 30f * 30f) return; // не на краю света
+            lastPingTime = Time.unscaledTime;
+            ShowPingRpc(at);
+        }
+
+        [Rpc(SendTo.ClientsAndHost)]
+        private void ShowPingRpc(Vector2 at) => PingMarker.Show(controller, at);
 
         [Rpc(SendTo.Server)]
         private void SubmitWishRpc(int code, RpcParams rpcParams = default)

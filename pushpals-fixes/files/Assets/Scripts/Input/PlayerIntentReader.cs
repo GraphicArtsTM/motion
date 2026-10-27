@@ -40,10 +40,15 @@ namespace PushPals.Input
         }
 
 
-        private InputAction move, aim, point, grabLeft, grabRight, jump, headbutt, relax, stiffen, switchMatch, emote, emoteQuick, menuAction, pushToTalk;
+        private InputAction move, aim, point, grabLeft, grabRight, jump, headbutt, relax, stiffen, switchMatch, emote, emoteQuick, menuAction, pushToTalk, ping;
+        private readonly RaycastHit2D[] pingHits = new RaycastHit2D[8];
         private Vector2 lastStickAim = Vector2.right;
 
         private bool wheelOpen;
+        // После колеса правый стик ещё наклонён — не тянуть им руки, пока не отпустят (иначе эмоция тут же прерывалась)
+        private bool stickAimLocked;
+        // Колесо закрыли кнопкой B / Shift — пока LB / Q держат, оно снова не открывается
+        private bool wheelCancelled;
         private int wheelPick;
         private Vector2 lastQuick;
         private float menuPressTime = -1f;
@@ -71,6 +76,7 @@ namespace PushPals.Input
             emoteQuick = actions.FindAction("EmoteQuick");
             menuAction = actions.FindAction("Menu");
             pushToTalk = actions.FindAction("PushToTalk");
+            ping = actions.FindAction("Ping");
         }
 
         private bool UsesKeyboard => playerInput.currentControlScheme == KeyboardMouseScheme;
@@ -124,7 +130,37 @@ namespace PushPals.Input
 
             ReadEmotes(ref intent);
             ReadLobby(ref intent);
+            // Метка «сюда»: R3 / колёсико мыши — туда, куда показывает прицел
+            if (ping != null && ping.WasPressedThisFrame() && !wheelOpen) PingMarker.Request(ragdoll, PingTarget());
             ragdoll.SetIntent(intent);
+        }
+
+        // Куда метка: мышь — точка под курсором; геймпад — луч от головы по правому стику (не наклонён — вперёд и вниз),
+        // до первого, во что упрётся (пол, стена, предмет), иначе в 6 м
+        private Vector2 PingTarget()
+        {
+            Vector2 head = ragdoll.Body.Head.Body.position;
+            Vector2 dir;
+            if (UsesKeyboard)
+            {
+                var cam = Camera.main;
+                Vector2 screen = VirtualAimActive ? VirtualAim : point.ReadValue<Vector2>();
+                if (cam != null) return cam.ScreenToWorldPoint(new Vector3(screen.x, screen.y, -cam.transform.position.z));
+                dir = new Vector2(ragdoll.Facing, 0.2f).normalized;
+            }
+            else
+            {
+                Vector2 stick = aim.ReadValue<Vector2>();
+                dir = stick.magnitude > aimDeadZone ? stick.normalized : new Vector2(ragdoll.Facing, -0.35f).normalized;
+            }
+            var filter = new ContactFilter2D { useTriggers = false };
+            filter.SetLayerMask(~LayerMask.GetMask("Player", "PlayerArm", "PlayerLeg", "Ghost", "Balloon"));
+            int n = Physics2D.Raycast(head, dir, filter, pingHits, 12f);
+            Vector2 at = head + dir * 6f;
+            float best = float.MaxValue;
+            for (int i = 0; i < n; i++)
+                if (pingHits[i].distance > 0.05f && pingHits[i].distance < best) { best = pingHits[i].distance; at = pingHits[i].point; }
+            return at;
         }
 
         // ---------- Прицел мышью (для HUD) ----------
@@ -205,7 +241,7 @@ namespace PushPals.Input
         private void ReadEmotes(ref RagdollIntent intent)
         {
             // Колесо: держим LB / Q, показываем стиком или мышью, отпускаем
-            if (emote != null && emote.IsPressed())
+            if (emote != null && emote.IsPressed() && !wheelCancelled)
             {
                 wheelOpen = true;
                 Vector2 dir;
@@ -216,17 +252,35 @@ namespace PushPals.Input
                     dir = delta.magnitude > 30f ? delta.normalized : Vector2.zero;
                 }
                 else dir = aim.ReadValue<Vector2>();
-                wheelPick = EmoteWheel.Pick(dir, wheelDeadZone);
+                // Стик вернулся в центр — выбор остаётся (обычно сначала отпускают стик, потом LB: раньше выбор
+                // в этот момент сбрасывался, и эмоция с геймпада не срабатывала). Мышь — по месту курсора
+                int pick = EmoteWheel.Pick(dir, wheelDeadZone);
+                if (pick > 0 || UsesKeyboard) wheelPick = pick;
+                // B / Shift — закрыть колесо без эмоции
+                if (relax.WasPressedThisFrame()) { wheelPick = 0; wheelOpen = false; wheelCancelled = true; }
                 // Стик выбирает эмоцию, а не тянет руки
                 intent.Aim = Vector2.zero;
                 intent.ArmsFollowAim = false;
                 intent.GrabLeft = intent.GrabRight = false;
+                intent.Relax = false;
             }
             else if (wheelOpen)
             {
                 wheelOpen = false;
-                if (wheelPick > 0) intent.Emote = (byte)wheelPick;
+                if (wheelPick > 0)
+                {
+                    intent.Emote = (byte)wheelPick;
+                    stickAimLocked = !UsesKeyboard;
+                }
                 wheelPick = 0;
+            }
+            if (emote == null || !emote.IsPressed()) wheelCancelled = false;
+
+            // Эмоция с колеса запущена, а правый стик ещё наклонён: руки за ним не тянутся, пока его не отпустят
+            if (stickAimLocked)
+            {
+                if (aim.ReadValue<Vector2>().magnitude < aimDeadZone * 0.6f) stickAimLocked = false;
+                else { intent.Aim = Vector2.zero; intent.ArmsFollowAim = false; }
             }
 
             // Крестовина: вверх / вправо / вниз / влево — те же места колеса

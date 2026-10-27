@@ -401,3 +401,7 @@ scene.35	Ключ привязан к шарику. Подпрыгни на же
 scene.36	Торт: зажгите все пять свечей. Головка — о тёрку коробка,\nсвечу — «боднуть» у фитиля (X / E). От свечи зажигаются и спички.	Cake: light all five candles. Match head — on the matchbox striker,\ncandle — headbutt by the wick (X / E). Matches light from a candle too.
 scene.37	С днём рождения!	Happy birthday!
 scene.38	Ленты: одна внизу, другая на уступе (желе подбросит).\nТяните обе разом.	Ribbons: one below, the other on the ledge (the jelly bounces you up).\nPull both at once.
+# --- Метка «сюда» и советы на обложке ---
+ping.here	Сюда!	Over here!
+tip.8	Метка «сюда»: R3, G или колёсико мыши — булавка там, куда смотрит прицел. Видят все, и по сети тоже.	Ping: R3, G or the mouse wheel button drops a pin where you aim. Everyone sees it, online too.
+tip.9	Эмоции: держи LB / Q, наклони стик или мышь к эмоции и отпусти. Крестовина и 1–8 — сразу. B / Shift — передумать.	Emotes: hold LB / Q, tilt the stick or mouse to one and let go. D-pad and 1–8 play one at once. B / Shift to cancel.

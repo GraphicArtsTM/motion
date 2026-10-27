@@ -1,0 +1,936 @@
+diff --git a/Assets/Resources/Localization/strings.txt b/Assets/Resources/Localization/strings.txt
+index 1b459d5..3d9f46f 100644
+--- a/Assets/Resources/Localization/strings.txt
++++ b/Assets/Resources/Localization/strings.txt
+@@ -401,3 +401,7 @@ scene.35	Ключ привязан к шарику. Подпрыгни на же
+ scene.36	Торт: зажгите все пять свечей. Головка — о тёрку коробка,\nсвечу — «боднуть» у фитиля (X / E). От свечи зажигаются и спички.	Cake: light all five candles. Match head — on the matchbox striker,\ncandle — headbutt by the wick (X / E). Matches light from a candle too.
+ scene.37	С днём рождения!	Happy birthday!
+ scene.38	Ленты: одна внизу, другая на уступе (желе подбросит).\nТяните обе разом.	Ribbons: one below, the other on the ledge (the jelly bounces you up).\nPull both at once.
++# --- Метка «сюда» и советы на обложке ---
++ping.here	Сюда!	Over here!
++tip.8	Метка «сюда»: R3, G или колёсико мыши — булавка там, куда смотрит прицел. Видят все, и по сети тоже.	Ping: R3, G or the mouse wheel button drops a pin where you aim. Everyone sees it, online too.
++tip.9	Эмоции: держи LB / Q, наклони стик или мышь к эмоции и отпусти. Крестовина и 1–8 — сразу. B / Shift — передумать.	Emotes: hold LB / Q, tilt the stick or mouse to one and let go. D-pad and 1–8 play one at once. B / Shift to cancel.
+diff --git a/Assets/Scripts/Audio/Sfx.cs b/Assets/Scripts/Audio/Sfx.cs
+index 3f0fccd..c389374 100644
+--- a/Assets/Scripts/Audio/Sfx.cs
++++ b/Assets/Scripts/Audio/Sfx.cs
+@@ -44,6 +44,7 @@ namespace PushPals.Audio
+             AddClip("fanfare", SynthClips.Fanfare());
+             AddClip("boom", SynthClips.Boom());
+             AddClip("crackle", SynthClips.Crackle());
++            for (int i = 0; i < 4; i++) AddClip("step_soft", SynthClips.Step(i));
+             for (int i = 0; i < voices; i++)
+             {
+                 var s = gameObject.AddComponent<AudioSource>();
+@@ -88,10 +89,17 @@ namespace PushPals.Audio
+         public static void Play(string group, Vector2? at, float volume = 1f, float pitchJitter = 0.08f)
+         {
+             if (instance == null || volume <= 0.01f) return;
+-            instance.PlayInternal(group, at, volume, pitchJitter);
++            instance.PlayInternal(group, at, volume, pitchJitter, 1f);
+         }
+ 
+-        private void PlayInternal(string group, Vector2? at, float volume, float pitchJitter)
++        /// <summary>Звук в мире со своей высотой (шаг Тяжёлого ниже, Маленького выше).</summary>
++        public static void Play(string group, Vector2? at, float volume, float pitchJitter, float pitch)
++        {
++            if (instance == null || volume <= 0.01f) return;
++            instance.PlayInternal(group, at, volume, pitchJitter, pitch);
++        }
++
++        private void PlayInternal(string group, Vector2? at, float volume, float pitchJitter, float pitch)
+         {
+             var clip = Clip(group);
+             if (clip == null) return;
+@@ -121,7 +129,7 @@ namespace PushPals.Audio
+             if (src == null) { src = pool[next]; next = (next + 1) % pool.Count; }
+             src.clip = clip;
+             src.volume = Mathf.Clamp01(v);
+-            src.pitch = 1f + Random.Range(-pitchJitter, pitchJitter);
++            src.pitch = pitch * (1f + Random.Range(-pitchJitter, pitchJitter));
+             src.panStereo = pan;
+             src.Play();
+         }
+diff --git a/Assets/Scripts/Audio/SynthClips.cs b/Assets/Scripts/Audio/SynthClips.cs
+index cdbcb67..7feb10e 100644
+--- a/Assets/Scripts/Audio/SynthClips.cs
++++ b/Assets/Scripts/Audio/SynthClips.cs
+@@ -4,7 +4,7 @@ namespace PushPals.Audio
+ {
+     /// <summary>
+     /// Звуки, которых нет в наборах Kenney, — синтез при запуске: чирканье о тёрку, вспышка, «пшш» в воде,
+-    /// хлопок шарика, «боинг» желе, звон звезды, фанфары, взрыв петарды, треск огня (петля).
++    /// хлопок шарика, «боинг» желе, звон звезды, фанфары, взрыв петарды, треск огня (петля), мягкий шаг.
+     /// </summary>
+     public static class SynthClips
+     {
+@@ -27,6 +27,26 @@ namespace PushPals.Audio
+ 
+         private static float[] Buffer(float seconds) => new float[Mathf.CeilToInt(seconds * Rate)];
+ 
++        /// <summary>
++        /// Шаг спички по столу: глухое короткое «топ» — низкий тук с лёгким шорохом, без звонкого щелчка
++        /// (стук дерева Kenney на каждый шаг резал слух). variant — свой разброс, чтобы шаги не звучали одинаково.
++        /// </summary>
++        public static AudioClip Step(int variant)
++        {
++            var r = new System.Random(100 + variant);
++            var d = Buffer(0.09f);
++            float lp = 0f, freq = 140f + variant * 17f;
++            for (int i = 0; i < d.Length; i++)
++            {
++                float t = i / (float)Rate;
++                lp += 0.1f * ((float)(r.NextDouble() * 2.0 - 1.0) - lp);                 // глухой шорох — только низы
++                float thump = Mathf.Sin(2f * Mathf.PI * freq * t * (1f - t * 3f)) * Mathf.Exp(-t * 60f); // тук, чуть «проседает»
++                float env = Mathf.Min(1f, t / 0.004f) * Mathf.Exp(-t * 40f);
++                d[i] = (thump * 0.8f + lp * 1.5f) * env;
++            }
++            return Make("step_soft", d);
++        }
++
+         /// <summary>Чирк о тёрку: короткий шершавый шум с «зубчиками».</summary>
+         public static AudioClip Strike()
+         {
+diff --git a/Assets/Scripts/Audio/WorldSounds.cs b/Assets/Scripts/Audio/WorldSounds.cs
+index 437d0d0..2d8a0d5 100644
+--- a/Assets/Scripts/Audio/WorldSounds.cs
++++ b/Assets/Scripts/Audio/WorldSounds.cs
+@@ -110,13 +110,24 @@ namespace PushPals.Audio
+             public RagdollController Controller;
+             public MatchFire Fire;
+             public bool Grounded, Burning, Stunned, Ghost;
+-            public float StepPhase;
++            public float StepPhase, LastStep = -10f;
+             public AudioSource Crackle;
+         }
+ 
+         private readonly Dictionary<RagdollController, MatchState> matches = new Dictionary<RagdollController, MatchState>();
+         private float scanTimer;
+ 
++        [Header("Шаги")]
++        [Tooltip("Один шаг одной спички не чаще, с (раньше — на каждый полушаг, дробью)")]
++        [SerializeField] private float stepInterval = 0.27f;
++        [Tooltip("Шаги всех спичек вместе не чаще, с — вчетвером не сливаются в стук")]
++        [SerializeField] private float anyStepInterval = 0.08f;
++        [Tooltip("Медленнее этого (м/с) — не шаг (упёрся в стену, топчется на месте)")]
++        [SerializeField] private float stepMinSpeed = 0.6f;
++        [Tooltip("Громкость шага: медленно — быстро")]
++        [SerializeField] private Vector2 stepVolume = new Vector2(0.07f, 0.15f);
++        private float lastAnyStep = -10f;
++
+         private void Matches()
+         {
+             if ((scanTimer -= Time.deltaTime) <= 0f)
+@@ -137,11 +148,20 @@ namespace PushPals.Audio
+                 if (grounded && !m.Grounded && c.IsRemoteView) Sfx.Play("impactSoft_medium", at, 0.5f);
+                 m.Grounded = grounded;
+ 
+-                // Шаги — тихий стук по дереву на каждый шаг
+-                if (grounded && !c.IsRemoteView && c.WalkAmount > 0.3f)
++                // Шаги — мягкое «топ» (синтез): только когда правда идёт, не чаще stepInterval, тише медленно;
++                // Тяжёлый — ниже и громче, Маленький — выше и тише
++                if (grounded && !c.IsRemoteView && !c.IsGhost && c.WalkAmount > 0.3f)
+                 {
+                     float phase = Mathf.Repeat(c.WalkPhase, Mathf.PI);
+-                    if (phase < m.StepPhase) Sfx.Play("footstep_wood", at, 0.18f + 0.15f * c.Profile.LegLength, 0.1f);
++                    float speed = Mathf.Abs(c.Body.Velocity.x);
++                    float now = Time.time;
++                    if (phase < m.StepPhase && speed > stepMinSpeed && now - m.LastStep >= stepInterval && now - lastAnyStep >= anyStepInterval)
++                    {
++                        m.LastStep = lastAnyStep = now;
++                        float size = Mathf.InverseLerp(0.5f, 0.86f, c.Profile.LegLength); // ноги: Маленький 0,52 … Тяжёлый 0,84
++                        float volume = Mathf.Lerp(stepVolume.x, stepVolume.y, Mathf.InverseLerp(stepMinSpeed, 3f, speed)) * Mathf.Lerp(0.75f, 1.25f, size);
++                        Sfx.Play("step_soft", c.Body.HipPoint, volume, 0.06f, Mathf.Lerp(1.25f, 0.8f, size));
++                    }
+                     m.StepPhase = phase;
+                 }
+ 
+diff --git a/Assets/Scripts/Input/PlayerIntentReader.cs b/Assets/Scripts/Input/PlayerIntentReader.cs
+index 55931db..43f19ac 100644
+--- a/Assets/Scripts/Input/PlayerIntentReader.cs
++++ b/Assets/Scripts/Input/PlayerIntentReader.cs
+@@ -40,10 +40,15 @@ namespace PushPals.Input
+         }
+ 
+ 
+-        private InputAction move, aim, point, grabLeft, grabRight, jump, headbutt, relax, stiffen, switchMatch, emote, emoteQuick, menuAction, pushToTalk;
++        private InputAction move, aim, point, grabLeft, grabRight, jump, headbutt, relax, stiffen, switchMatch, emote, emoteQuick, menuAction, pushToTalk, ping;
++        private readonly RaycastHit2D[] pingHits = new RaycastHit2D[8];
+         private Vector2 lastStickAim = Vector2.right;
+ 
+         private bool wheelOpen;
++        // После колеса правый стик ещё наклонён — не тянуть им руки, пока не отпустят (иначе эмоция тут же прерывалась)
++        private bool stickAimLocked;
++        // Колесо закрыли кнопкой B / Shift — пока LB / Q держат, оно снова не открывается
++        private bool wheelCancelled;
+         private int wheelPick;
+         private Vector2 lastQuick;
+         private float menuPressTime = -1f;
+@@ -71,6 +76,7 @@ namespace PushPals.Input
+             emoteQuick = actions.FindAction("EmoteQuick");
+             menuAction = actions.FindAction("Menu");
+             pushToTalk = actions.FindAction("PushToTalk");
++            ping = actions.FindAction("Ping");
+         }
+ 
+         private bool UsesKeyboard => playerInput.currentControlScheme == KeyboardMouseScheme;
+@@ -124,9 +130,39 @@ namespace PushPals.Input
+ 
+             ReadEmotes(ref intent);
+             ReadLobby(ref intent);
++            // Метка «сюда»: R3 / колёсико мыши — туда, куда показывает прицел
++            if (ping != null && ping.WasPressedThisFrame() && !wheelOpen) PingMarker.Request(ragdoll, PingTarget());
+             ragdoll.SetIntent(intent);
+         }
+ 
++        // Куда метка: мышь — точка под курсором; геймпад — луч от головы по правому стику (не наклонён — вперёд и вниз),
++        // до первого, во что упрётся (пол, стена, предмет), иначе в 6 м
++        private Vector2 PingTarget()
++        {
++            Vector2 head = ragdoll.Body.Head.Body.position;
++            Vector2 dir;
++            if (UsesKeyboard)
++            {
++                var cam = Camera.main;
++                Vector2 screen = VirtualAimActive ? VirtualAim : point.ReadValue<Vector2>();
++                if (cam != null) return cam.ScreenToWorldPoint(new Vector3(screen.x, screen.y, -cam.transform.position.z));
++                dir = new Vector2(ragdoll.Facing, 0.2f).normalized;
++            }
++            else
++            {
++                Vector2 stick = aim.ReadValue<Vector2>();
++                dir = stick.magnitude > aimDeadZone ? stick.normalized : new Vector2(ragdoll.Facing, -0.35f).normalized;
++            }
++            var filter = new ContactFilter2D { useTriggers = false };
++            filter.SetLayerMask(~LayerMask.GetMask("Player", "PlayerArm", "PlayerLeg", "Ghost", "Balloon"));
++            int n = Physics2D.Raycast(head, dir, filter, pingHits, 12f);
++            Vector2 at = head + dir * 6f;
++            float best = float.MaxValue;
++            for (int i = 0; i < n; i++)
++                if (pingHits[i].distance > 0.05f && pingHits[i].distance < best) { best = pingHits[i].distance; at = pingHits[i].point; }
++            return at;
++        }
++
+         // ---------- Прицел мышью (для HUD) ----------
+ 
+         /// <summary>Игрок на клавиатуре и мыши целится (в этом или прошлом кадре) — HUD ставит курсор-прицел.</summary>
+@@ -205,7 +241,7 @@ namespace PushPals.Input
+         private void ReadEmotes(ref RagdollIntent intent)
+         {
+             // Колесо: держим LB / Q, показываем стиком или мышью, отпускаем
+-            if (emote != null && emote.IsPressed())
++            if (emote != null && emote.IsPressed() && !wheelCancelled)
+             {
+                 wheelOpen = true;
+                 Vector2 dir;
+@@ -216,18 +252,36 @@ namespace PushPals.Input
+                     dir = delta.magnitude > 30f ? delta.normalized : Vector2.zero;
+                 }
+                 else dir = aim.ReadValue<Vector2>();
+-                wheelPick = EmoteWheel.Pick(dir, wheelDeadZone);
++                // Стик вернулся в центр — выбор остаётся (обычно сначала отпускают стик, потом LB: раньше выбор
++                // в этот момент сбрасывался, и эмоция с геймпада не срабатывала). Мышь — по месту курсора
++                int pick = EmoteWheel.Pick(dir, wheelDeadZone);
++                if (pick > 0 || UsesKeyboard) wheelPick = pick;
++                // B / Shift — закрыть колесо без эмоции
++                if (relax.WasPressedThisFrame()) { wheelPick = 0; wheelOpen = false; wheelCancelled = true; }
+                 // Стик выбирает эмоцию, а не тянет руки
+                 intent.Aim = Vector2.zero;
+                 intent.ArmsFollowAim = false;
+                 intent.GrabLeft = intent.GrabRight = false;
++                intent.Relax = false;
+             }
+             else if (wheelOpen)
+             {
+                 wheelOpen = false;
+-                if (wheelPick > 0) intent.Emote = (byte)wheelPick;
++                if (wheelPick > 0)
++                {
++                    intent.Emote = (byte)wheelPick;
++                    stickAimLocked = !UsesKeyboard;
++                }
+                 wheelPick = 0;
+             }
++            if (emote == null || !emote.IsPressed()) wheelCancelled = false;
++
++            // Эмоция с колеса запущена, а правый стик ещё наклонён: руки за ним не тянутся, пока его не отпустят
++            if (stickAimLocked)
++            {
++                if (aim.ReadValue<Vector2>().magnitude < aimDeadZone * 0.6f) stickAimLocked = false;
++                else { intent.Aim = Vector2.zero; intent.ArmsFollowAim = false; }
++            }
+ 
+             // Крестовина: вверх / вправо / вниз / влево — те же места колеса
+             if (emoteQuick != null)
+diff --git a/Assets/Scripts/Network/NetworkRagdoll.cs b/Assets/Scripts/Network/NetworkRagdoll.cs
+index d18940e..160e5e9 100644
+--- a/Assets/Scripts/Network/NetworkRagdoll.cs
++++ b/Assets/Scripts/Network/NetworkRagdoll.cs
+@@ -14,7 +14,7 @@ namespace PushPals.Network
+     /// </summary>
+     [RequireComponent(typeof(RagdollController))]
+     [DefaultExecutionOrder(50)] // после PlayerIntentReader: видим нажатия этого кадра
+-    public class NetworkRagdoll : NetworkBehaviour, IRemoteChoices
++    public class NetworkRagdoll : NetworkBehaviour, IRemoteChoices, IRemotePing
+     {
+         private const int PartCount = 10;
+ 
+@@ -174,6 +174,31 @@ namespace PushPals.Network
+ 
+         public void SendLook(int hat, int wood) => SubmitLookRpc((byte)hat, (byte)wood);
+ 
++        // ---------- Метка «сюда» (владелец → хост → всем) ----------
++
++        private float lastPingTime = -10f;
++
++        public bool SendPing(Vector2 at)
++        {
++            if (!IsSpawned) return false; // сеть ещё не готова — покажем у себя
++            if (IsServer) ShowPingRpc(at);
++            else SubmitPingRpc(at);
++            return true;
++        }
++
++        [Rpc(SendTo.Server)]
++        private void SubmitPingRpc(Vector2 at, RpcParams rpcParams = default)
++        {
++            if (rpcParams.Receive.SenderClientId != OwnerClientId) return; // метку — только своей спичкой
++            if (Time.unscaledTime - lastPingTime < 0.3f) return;           // не чаще
++            if (controller.Body.IsBuilt && (at - (Vector2)controller.Body.Head.Body.position).sqrMagnitude > 30f * 30f) return; // не на краю света
++            lastPingTime = Time.unscaledTime;
++            ShowPingRpc(at);
++        }
++
++        [Rpc(SendTo.ClientsAndHost)]
++        private void ShowPingRpc(Vector2 at) => PingMarker.Show(controller, at);
++
+         [Rpc(SendTo.Server)]
+         private void SubmitWishRpc(int code, RpcParams rpcParams = default)
+         {
+diff --git a/Assets/Scripts/Players/PingMarker.cs b/Assets/Scripts/Players/PingMarker.cs
+new file mode 100644
+index 0000000..199ee77
+--- /dev/null
++++ b/Assets/Scripts/Players/PingMarker.cs
+@@ -0,0 +1,154 @@
++using System.Collections.Generic;
++using PushPals.Level;
++using PushPals.Ragdoll;
++using PushPals.Ragdoll.Visual;
++using UnityEngine;
++
++namespace PushPals.Players
++{
++    /// <summary>Метка по сети (задаёт сетевой модуль): клиент → хост → всем.</summary>
++    public interface IRemotePing
++    {
++        /// <summary>Показать метку у всех; false — сеть не готова (тогда только у себя).</summary>
++        bool SendPing(Vector2 at);
++    }
++
++    /// <summary>
++    /// Метка «сюда» (действие Ping: R3 / колёсико мыши): булавка цвета игрока там, куда он показал прицелом
++    /// (стиком или мышью), круги по месту и надпись «Сюда!». Живёт несколько секунд; новая метка того же игрока
++    /// заменяет прежнюю. По сети её видят все (решает хост — чужой спичкой метку не поставить).
++    /// </summary>
++    public class PingMarker : MonoBehaviour
++    {
++        private const float Life = 4f, FadeTime = 0.6f, Cooldown = 0.35f, PinHeight = 0.9f, DropTime = 0.25f;
++        private const int Order = 60; // поверх уровня и спичек
++
++        private static readonly Dictionary<RagdollController, PingMarker> active = new Dictionary<RagdollController, PingMarker>();
++        private static readonly Dictionary<RagdollController, float> lastPing = new Dictionary<RagdollController, float>();
++
++        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
++        private static void ResetStatics() { active.Clear(); lastPing.Clear(); }
++
++        private RagdollController owner;
++        private Color color;
++        private float age;
++        private Transform pin;
++        private SpriteRenderer pinArt, dot, ripple;
++        private string label;
++
++        /// <summary>Игрок показал «сюда» — с этого ПК (по сети — у всех через хоста).</summary>
++        public static void Request(RagdollController who, Vector2 at)
++        {
++            if (who == null) return;
++            float last;
++            if (lastPing.TryGetValue(who, out last) && Time.unscaledTime - last < Cooldown) return;
++            lastPing[who] = Time.unscaledTime;
++            if (Online.IsActive)
++            {
++                var remote = who.GetComponent<IRemotePing>();
++                if (remote != null && remote.SendPing(at)) return;
++            }
++            Show(who, at);
++        }
++
++        /// <summary>Показать метку игрока who в точке at (на этом ПК).</summary>
++        public static void Show(RagdollController who, Vector2 at)
++        {
++            if (who == null) return;
++            PingMarker old;
++            if (active.TryGetValue(who, out old) && old != null) Destroy(old.gameObject);
++            var go = new GameObject("Ping");
++            go.transform.position = at;
++            var marker = go.AddComponent<PingMarker>();
++            marker.Build(who);
++            active[who] = marker;
++            PushPals.Audio.Sfx.Play("pluck", at, 0.8f, 0.05f);
++        }
++
++        private void Build(RagdollController who)
++        {
++            owner = who;
++            var player = who.GetComponent<Player>();
++            color = player != null ? player.Color : Color.white;
++            label = PushPals.UI.Loc.T("ping.here");
++
++            // Круги по месту: плоский эллипс цвета игрока расходится и тает
++            ripple = MatchVisual.AddEllipse(transform, new Vector2(1f, 0.35f), color, Order);
++
++            // Булавка: остриё — в точке, кружок — цветом игрока (видно, кто показал)
++            pin = MatchVisual.NewChild(transform, "Pin");
++            pinArt = new GameObject("Art").AddComponent<SpriteRenderer>();
++            pinArt.transform.SetParent(pin, false);
++            pinArt.sprite = PushPals.UI.UiSprites.Get("ic_ping");
++            pinArt.sortingOrder = Order + 1;
++            float height = PinHeight;
++            if (pinArt.sprite != null)
++            {
++                float scale = PinHeight / Mathf.Max(0.01f, pinArt.sprite.bounds.size.y);
++                pinArt.transform.localScale = Vector3.one * scale;
++                // Центр спрайта — посередине: поднять, чтобы остриё (низ) было в точке
++                pinArt.transform.localPosition = new Vector3(0f, PinHeight * 0.5f, 0f);
++                dot = MatchVisual.AddEllipse(pin, Vector2.one * PinHeight * 0.3f, color, Order + 2);
++                dot.transform.localPosition = new Vector3(0f, PinHeight * 0.7f, 0f);
++            }
++            else
++            {
++                // Листы интерфейса не нарезаны — звёздочка цвета игрока
++                pinArt.sprite = MatchArt.Star;
++                pinArt.color = color;
++                pinArt.transform.localScale = Vector3.one * PinHeight * 0.6f;
++                pinArt.transform.localPosition = new Vector3(0f, PinHeight * 0.4f, 0f);
++                height = PinHeight * 0.8f;
++            }
++            pin.localPosition = Vector3.up * 0.6f; // падает сверху
++            labelHeight = height + 0.35f;
++        }
++
++        private float labelHeight;
++
++        private void Update()
++        {
++            age += Time.deltaTime;
++            if (age >= Life || owner == null) { Destroy(gameObject); return; }
++            float alpha = Mathf.Clamp01((Life - age) / FadeTime);
++            // Булавка падает с отскоком, потом чуть покачивается
++            float drop = Mathf.Clamp01(age / DropTime);
++            float bounce = drop < 1f ? (1f - drop) * (1f - drop) * 0.6f : Mathf.Abs(Mathf.Sin((age - DropTime) * 6f)) * 0.08f * Mathf.Exp(-(age - DropTime) * 2f);
++            pin.localPosition = new Vector3(0f, bounce + Mathf.Sin(age * 3f) * 0.03f, 0f);
++            SetAlpha(pinArt, alpha);
++            SetAlpha(dot, alpha);
++            // Круги: раз в секунду расходятся заново
++            float wave = Mathf.Repeat(age, 1f);
++            float s = 0.4f + wave * 1.2f; // эллипс лёжа на полу: ширина : высота = 1 : 0,35 (AddEllipse задаёт размер масштабом)
++            ripple.transform.localScale = new Vector3(s, s * 0.35f, 1f);
++            var c = color;
++            c.a = (1f - wave) * 0.55f * alpha;
++            ripple.color = c;
++        }
++
++        private static void SetAlpha(SpriteRenderer sr, float alpha)
++        {
++            if (sr == null) return;
++            var c = sr.color;
++            c.a = alpha;
++            sr.color = c;
++        }
++
++        // «Сюда!» над булавкой — первые секунды
++        private void OnGUI()
++        {
++            if (PushPals.UI.UiScreen.BlocksGame || age > Life - FadeTime) return;
++            float alpha = Mathf.Clamp01((Life - FadeTime - age) / 0.5f);
++            WorldLabel.Draw(transform.position + Vector3.up * labelHeight, label, alpha, 14, -1, 110f);
++        }
++
++        private void OnDestroy()
++        {
++            if (owner != null)
++            {
++                PingMarker current;
++                if (active.TryGetValue(owner, out current) && current == this) active.Remove(owner);
++            }
++        }
++    }
++}
+diff --git a/Assets/Scripts/Players/PingMarker.cs.meta b/Assets/Scripts/Players/PingMarker.cs.meta
+new file mode 100644
+index 0000000..a527052
+--- /dev/null
++++ b/Assets/Scripts/Players/PingMarker.cs.meta
+@@ -0,0 +1,2 @@
++fileFormatVersion: 2
++guid: 0d62bff9f4a84693a121f7308b677334
+\ No newline at end of file
+diff --git a/Assets/Scripts/UI/MatchboxSleeve.cs b/Assets/Scripts/UI/MatchboxSleeve.cs
+index 7376a25..6c6b5ea 100644
+--- a/Assets/Scripts/UI/MatchboxSleeve.cs
++++ b/Assets/Scripts/UI/MatchboxSleeve.cs
+@@ -95,8 +95,10 @@ namespace PushPals.UI
+         {
+             subtitle = text ?? "";
+             if (title != null) title.text = subtitle.Length > 0 ? subtitle : Loc.T("loading.title");
+-            // Новый совет на каждую загрузку
+-            tipIndex = Random.Range(1, 8);
++            // Новый совет на каждую загрузку (сколько их — по таблице: tip.1, tip.2, … — новые подхватываются сами)
++            int tips = 0;
++            while (Loc.Has("tip." + (tips + 1))) tips++;
++            tipIndex = Random.Range(1, Mathf.Max(1, tips) + 1);
+             if (tip != null) tip.text = Loc.Has("tip." + tipIndex) ? Loc.T("tip." + tipIndex) : "";
+         }
+ 
+diff --git a/Assets/Scripts/UI/Screens/MainMenuScreen.cs b/Assets/Scripts/UI/Screens/MainMenuScreen.cs
+index 559ef3b..cb1c980 100644
+--- a/Assets/Scripts/UI/Screens/MainMenuScreen.cs
++++ b/Assets/Scripts/UI/Screens/MainMenuScreen.cs
+@@ -9,35 +9,58 @@ namespace PushPals.UI
+ {
+     /// <summary>
+     /// Главное меню-стол (Этап 17.4): ночная кухня, на столе предметы — коробок «Играть», банки-телефон «Онлайн»,
+-    /// линейка «Настройки», шкаф из напёрстков «Гардероб», блокнот «Коллекция», дверь «Выход».
+-    /// Наведение мышью или выбор стрелками/геймпадом — мягкое свечение, подпись и спичка-указатель над предметом;
+-    /// выбор — «камера» летит к предмету и открывается экран (закрыли — летит обратно). Свеча мерцает, в её свете
+-    /// кружатся пылинки. «Играть» — коробок открывается, внутри лобби. Заменяет титульный экран Этапа 17.
++    /// линейка «Настройки», шкаф из напёрстков «Гардероб», книга «Коллекция», дверь «Выход».
++    /// Предметы стоят на столешнице в два ряда с перспективой (дальний ряд меньше), у каждого тень от свечи
++    /// и бумажный ярлык с подписью, прислонённый спереди. В тени предметы притушены, выбранный — светлеет,
++    /// чуть приподнимается, за ним тёплое свечение, к его ярлыку тянется горящая спичка-указатель.
++    /// Выбор — мышью, стрелками, геймпадом (между рядами — вверх/вниз); нажатие — «камера» летит к предмету
++    /// и открывается экран (закрыли — летит обратно). Свеча мерцает, в её свете кружатся пылинки.
++    /// «Играть» — коробок открывается, внутри лобби. Заменяет титульный экран Этапа 17.
+     /// </summary>
+     public class MainMenuScreen : UiScreen
+     {
+-        // Предмет: картинка, подпись, где стоит (доли картинки фона: x — середина, y — низ, сверху вниз), высота
++        // Предмет на столе. Всё — в долях картинки фона: x — середина, y — низ (сверху вниз), h — высота.
++        // Тень: сдвиг по x (доля ширины предмета, «−» — влево, от свечи), ширина и высота (доли предмета), где «ступня» (доля высоты от низа).
++        // Ярлык: насколько выше низа предмета его середина (доля высоты картинки) и ширина
+         private struct Prop
+         {
+             public string sprite, key;
+-            public Vector2 at;
+-            public float height;
+-            public Prop(string sprite, string key, float x, float y, float h) { this.sprite = sprite; this.key = key; at = new Vector2(x, y); height = h; }
++            public float x, y, h, tint;
++            public float shadowX, shadowW, shadowH, foot;
++            public float labelY, labelWidth;
+         }
+ 
++        private static Prop P(string sprite, string key, float x, float y, float h, float tint,
++                              float shadowX, float shadowW, float shadowH, float foot, float labelY, float labelWidth) =>
++            new Prop { sprite = sprite, key = key, x = x, y = y, h = h, tint = tint, shadowX = shadowX, shadowW = shadowW,
++                       shadowH = shadowH, foot = foot, labelY = labelY, labelWidth = labelWidth };
++
++        // Дальний ряд — у заднего края столешницы (он на 0,58), ближний — у переднего; слева спереди ложка,
++        // справа спереди спички, справа сзади свеча — предметы между ними (проверено макетом из этих же картинок)
+         private static readonly Prop[] Props =
+         {
+-            new Prop("menu_obj_exit", "menu.exit", 0.115f, 0.70f, 0.47f),
+-            new Prop("menu_obj_wardrobe", "menu.wardrobe", 0.275f, 0.79f, 0.40f),
+-            new Prop("menu_obj_online", "menu.online", 0.425f, 0.90f, 0.25f),
+-            new Prop("menu_obj_play", "menu.play", 0.585f, 0.87f, 0.31f),
+-            new Prop("menu_obj_collection", "menu.collection", 0.755f, 0.93f, 0.23f),
+-            new Prop("menu_obj_settings", "menu.settings", 0.875f, 0.995f, 0.21f),
++            P("menu_obj_wardrobe",   "menu.wardrobe",   0.19f,  0.685f, 0.23f,  0.66f, -0.12f, 1.0f,  0.10f, 0.05f, 0.006f, 210f),
++            P("menu_obj_online",     "menu.online",     0.40f,  0.685f, 0.165f, 0.70f, -0.08f, 0.9f,  0.16f, 0.12f, 0.006f, 210f),
++            P("menu_obj_exit",       "menu.exit",       0.655f, 0.685f, 0.22f,  0.82f, -0.10f, 1.1f,  0.09f, 0.05f, 0.006f, 210f),
++            P("menu_obj_settings",   "menu.settings",   0.335f, 0.925f, 0.16f,  0.72f, -0.05f, 0.95f, 0.30f, 0.25f, 0.011f, 230f),
++            P("menu_obj_play",       "menu.play",       0.53f,  0.925f, 0.23f,  0.85f, -0.06f, 1.0f,  0.22f, 0.12f, 0.011f, 210f),
++            P("menu_obj_collection", "menu.collection", 0.705f, 0.925f, 0.17f,  0.86f, -0.06f, 1.0f,  0.20f, 0.10f, 0.011f, 230f),
++        };
++        private const int Wardrobe = 0, OnlineProp = 1, Exit = 2, Settings = 3, Play = 4, Collection = 5;
++        // Стрелки и геймпад: соседи слева, справа, сверху, снизу (−1 — нет)
++        private static readonly int[,] Neighbours =
++        {
++            { -1, OnlineProp, -1, Settings },        // Гардероб
++            { Wardrobe, Exit, -1, Play },            // Онлайн
++            { OnlineProp, -1, -1, Collection },      // Выход
++            { -1, Play, Wardrobe, -1 },              // Настройки
++            { Settings, Collection, OnlineProp, -1 },// Играть
++            { Play, -1, Exit, -1 },                  // Коллекция
+         };
+-        private const int Exit = 0, Wardrobe = 1, OnlineProp = 2, Play = 3, Collection = 4, Settings = 5;
+ 
+         // Где пламя свечи на картинке фона (доли, сверху вниз)
+         private static readonly Vector2 Candle = new Vector2(0.855f, 0.27f);
++        private const float LabelHeight = 54f;
+ 
+         public static bool Showing { get; private set; }
+ 
+@@ -74,14 +97,24 @@ namespace PushPals.UI
+             Show();
+         }
+ 
++        // Предмет на экране: кнопка, картинка (её приподнимаем и подсвечиваем), ярлык, свечение
++        private class PropView
++        {
++            public Button button;
++            public RectTransform visual, label;
++            public Image image, tag, glow;
++            public TextMeshProUGUI text;
++            public float k; // 0 — в тени, 1 — выбран
++        }
++
+         private UiBackground table;
+-        private readonly List<Button> buttons = new List<Button>();
+-        private readonly List<Image> glows = new List<Image>();
++        private readonly List<PropView> views = new List<PropView>();
+         private int selected = -1;
+-        private RectTransform caption, pointer;
+-        private TextMeshProUGUI captionText;
++        private RectTransform pointer;
++        private Image pointerImage;
+         private Image candleGlow;
+         private readonly List<RectTransform> dust = new List<RectTransform>();
++        private readonly List<Image> dustImages = new List<Image>();
+         private readonly List<Vector3> dustState = new List<Vector3>(); // фаза, скорость, размер
+         private bool flying, gone;
+         private static Sprite soft;
+@@ -117,61 +150,33 @@ namespace PushPals.UI
+                 d.color = new Color(1f, 0.9f, 0.7f, 0f);
+                 d.rectTransform.anchorMin = d.rectTransform.anchorMax = new Vector2(Random.Range(0.6f, 1f), Random.Range(0.35f, 0.95f));
+                 dust.Add(d.rectTransform);
++                dustImages.Add(d);
+                 dustState.Add(new Vector3(Random.value * 10f, Random.Range(0.008f, 0.02f), Random.Range(3f, 8f)));
+             }
+ 
+-            // Предметы на столе
+-            for (int i = 0; i < Props.Length; i++)
+-            {
+-                var p = Props[i];
+-                var sprite = UiSprites.Get(p.sprite);
+-                float spriteAspect = sprite != null ? sprite.rect.width / sprite.rect.height : 1f;
+-                float w = p.height * spriteAspect / aspect; // ширина в долях ширины картинки
+-                var glow = Glow(picture, new Vector2(p.at.x, p.at.y - p.height * 0.5f), p.height * 1.25f, new Color(1f, 0.85f, 0.55f, 0f));
+-                glows.Add(glow);
+-                var go = new GameObject(p.key, typeof(RectTransform));
+-                var rt = (RectTransform)go.transform;
+-                rt.SetParent(picture, false);
+-                rt.anchorMin = new Vector2(p.at.x - w * 0.5f, 1f - p.at.y);
+-                rt.anchorMax = new Vector2(p.at.x + w * 0.5f, 1f - p.at.y + p.height);
+-                rt.offsetMin = rt.offsetMax = Vector2.zero;
+-                var visual = UiFactory.Rect(rt, "Visual");
+-                UiRoot.Stretch(visual);
+-                var img = visual.gameObject.AddComponent<Image>();
+-                img.sprite = sprite;
+-                img.preserveAspect = true;
+-                var b = go.AddComponent<Button>();
+-                b.targetGraphic = img;
+-                b.transition = Selectable.Transition.None;
+-                go.AddComponent<UiButtonFx>();
+-                int n = i;
+-                b.onClick.AddListener(() => Activate(n));
+-                var trigger = go.AddComponent<EventTrigger>();
+-                var e = new EventTrigger.Entry { eventID = EventTriggerType.Select };
+-                e.callback.AddListener(_ => selected = n);
+-                trigger.triggers.Add(e);
+-                buttons.Add(b);
+-            }
++            // Предметы: сначала дальний ряд (ближние рисуются поверх), у каждого — тень, свечение, картинка, ярлык
++            views.Clear();
++            for (int i = 0; i < Props.Length; i++) views.Add(null);
++            var order = new List<int>();
++            for (int i = 0; i < Props.Length; i++) order.Add(i);
++            order.Sort((a, b) => Props[a].y.CompareTo(Props[b].y));
++            // Ярлык дальнего ряда не заслонён ближним предметом: верх ближних — ниже ярлыков дальних (макет)
++            foreach (int i in order) views[i] = BuildProp(picture, aspect, i);
++            Navigation();
+ 
+-            // Подпись и спичка-указатель над выбранным
+-            caption = UiFactory.Rect(picture, "Caption");
+-            caption.anchorMin = caption.anchorMax = new Vector2(0.5f, 0.5f);
+-            caption.sizeDelta = new Vector2(600f, 80f);
+-            var shadow = UiFactory.Text(caption, "", 58f, new Color(0.1f, 0.05f, 0.02f, 0.85f), true);
+-            UiRoot.Stretch(shadow.rectTransform);
+-            shadow.rectTransform.anchoredPosition = new Vector2(3f, -3f);
+-            captionText = UiFactory.Text(caption, "", 58f, Theme.inkLight, true);
+-            UiRoot.Stretch(captionText.rectTransform);
+-            captionText.gameObject.AddComponent<CaptionShadow>().shadow = shadow;
+-            var ptr = UiFactory.Image(picture, "menu_pointer", false, "Pointer");
+-            pointer = ptr.rectTransform;
++            // Спичка-указатель: горит у ярлыка выбранного предмета
++            pointerImage = UiFactory.Image(picture, "menu_pointer", false, "Pointer");
++            pointerImage.raycastTarget = false;
++            pointer = pointerImage.rectTransform;
+             pointer.anchorMin = pointer.anchorMax = new Vector2(0.5f, 0.5f);
+-            pointer.sizeDelta = new Vector2(130f, 56f);
+-            pointer.localRotation = Quaternion.Euler(0f, 0f, -90f); // головкой вниз — на предмет
++            pointer.sizeDelta = new Vector2(118f, 56f);
++            pointerImage.color = new Color(1f, 1f, 1f, 0f);
+ 
+-            // Логотип и подсказка
++            // Логотип — табличкой в углу, как на эскизе (стол и предметы — главное)
+             var logo = UiFactory.Image(Rect, "logo_full", false, "Logo");
+-            UiFactory.Place(logo.rectTransform, new Vector2(0.5f, 1f), new Vector2(500f, 268f), new Vector2(-40f, -160f));
++            UiFactory.Place(logo.rectTransform, new Vector2(0f, 1f), new Vector2(380f, 202f), new Vector2(60f + 190f, -36f - 101f));
++            logo.raycastTarget = false;
++            // Подсказка
+             var hint = UiFactory.Rect(Rect, "Hint");
+             UiFactory.Place(hint, new Vector2(1f, 0f), new Vector2(260f, 56f), new Vector2(-170f, 50f));
+             var glyph = UiFactory.Image(hint, "keyboard_enter", false, "Glyph");
+@@ -181,7 +186,110 @@ namespace PushPals.UI
+             label.alignment = TextAlignmentOptions.MidlineLeft;
+             UiFactory.Place(label.rectTransform, new Vector2(0f, 0.5f), new Vector2(190f, 50f), new Vector2(160f, 0f));
+ 
+-            Panel.FirstSelected = buttons[Play];
++            Panel.FirstSelected = views[Play].button;
++        }
++
++        private PropView BuildProp(RectTransform picture, float aspect, int i)
++        {
++            var p = Props[i];
++            var v = new PropView();
++            var sprite = UiSprites.Get(p.sprite);
++            float spriteAspect = sprite != null ? sprite.rect.width / sprite.rect.height : 1f;
++            float w = p.h * spriteAspect / aspect; // ширина в долях ширины картинки
++            float bottom = 1f - p.y;               // низ в долях снизу
++
++            // Тень на столешнице — от свечи справа уходит влево
++            var shadow = UiFactory.Rect(picture, "Shadow").gameObject.AddComponent<Image>();
++            shadow.sprite = soft;
++            shadow.color = new Color(0f, 0f, 0f, 0.72f);
++            shadow.raycastTarget = false;
++            float sx = p.x + p.shadowX * w, sy = bottom + p.foot * p.h;
++            float sw = w * p.shadowW * 0.5f, shh = p.h * p.shadowH * 0.5f;
++            shadow.rectTransform.anchorMin = new Vector2(sx - sw, sy - shh);
++            shadow.rectTransform.anchorMax = new Vector2(sx + sw, sy + shh);
++            shadow.rectTransform.offsetMin = shadow.rectTransform.offsetMax = Vector2.zero;
++
++            // Тёплое свечение за выбранным
++            v.glow = Glow(picture, new Vector2(p.x, p.y - p.h * 0.5f), p.h * 1.35f, new Color(1f, 0.82f, 0.48f, 0f));
++
++            // Кнопка — по месту картинки предмета
++            var go = new GameObject(p.key, typeof(RectTransform));
++            var rt = (RectTransform)go.transform;
++            rt.SetParent(picture, false);
++            rt.anchorMin = new Vector2(p.x - w * 0.5f, bottom);
++            rt.anchorMax = new Vector2(p.x + w * 0.5f, bottom + p.h);
++            rt.offsetMin = rt.offsetMax = Vector2.zero;
++            v.visual = UiFactory.Rect(rt, "Visual");
++            UiRoot.Stretch(v.visual);
++            v.image = v.visual.gameObject.AddComponent<Image>();
++            v.image.sprite = sprite;
++            v.image.preserveAspect = true;
++            v.image.color = Shade(p.tint);
++            v.button = go.AddComponent<Button>();
++            v.button.targetGraphic = v.image;
++            v.button.transition = Selectable.Transition.None;
++            // Без UiButtonFx: он сам двигает и осветляет картинку и спорил бы с подсветкой предмета (Update)
++            int n = i;
++            v.button.onClick.AddListener(() => { UiTheme.Play(Theme.clickSound, Theme.clickVolume); Activate(n); });
++            var trigger = go.AddComponent<EventTrigger>();
++            var select = new EventTrigger.Entry { eventID = EventTriggerType.Select };
++            select.callback.AddListener(_ =>
++            {
++                if (selected != n && Time.frameCount != UiButtonFx.QuietFrame) UiTheme.Play(Theme.hoverSound, Theme.hoverVolume);
++                selected = n;
++            });
++            trigger.triggers.Add(select);
++            // Наведение мышью = выбор (геймпад и стрелки продолжают отсюда)
++            var enter = new EventTrigger.Entry { eventID = EventTriggerType.PointerEnter };
++            enter.callback.AddListener(_ =>
++            {
++                var es = EventSystem.current;
++                if (es != null && !flying && es.currentSelectedGameObject != go) es.SetSelectedGameObject(go);
++            });
++            trigger.triggers.Add(enter);
++
++            // Ярлык: бумажная табличка, прислонённая спереди (часть кнопки — нажимается и она)
++            var tag = UiFactory.Image(rt, "hud_team_plate", true, "Label");
++            tag.pixelsPerUnitMultiplier = 2f; // рамка тоньше — табличка невысокая
++            v.tag = tag;
++            tag.raycastTarget = true; // ярлык нажимается и выбирается, как сам предмет
++            v.label = tag.rectTransform;
++            v.label.anchorMin = v.label.anchorMax = new Vector2(0.5f, p.labelY / p.h);
++            v.label.pivot = new Vector2(0.5f, 0.5f);
++            v.label.sizeDelta = new Vector2(p.labelWidth, LabelHeight);
++            v.label.anchoredPosition = Vector2.zero;
++            v.text = UiFactory.LocText(v.label, p.key, 26f, Theme.ink, true);
++            UiRoot.Stretch(v.text.rectTransform);
++            v.text.rectTransform.offsetMin = new Vector2(18f, 4f);
++            v.text.rectTransform.offsetMax = new Vector2(-18f, -4f);
++            v.text.enableAutoSizing = true;
++            v.text.fontSizeMin = 16f;
++            v.text.fontSizeMax = 26f;
++            v.text.alignment = TextAlignmentOptions.Center;
++            return v;
++        }
++
++        // Предмет в тени свечи: темнее и теплее; выбранный — как есть
++        private static Color Shade(float k) => new Color(Mathf.Min(1f, k * 1.04f), k, k * 0.9f, 1f);
++
++        // Стрелки и геймпад ходят по рядам, а не «куда ближе по прямой»
++        private void Navigation()
++        {
++            for (int i = 0; i < views.Count; i++)
++            {
++                var nav = new UnityEngine.UI.Navigation { mode = UnityEngine.UI.Navigation.Mode.Explicit };
++                nav.selectOnLeft = Neighbour(i, 0);
++                nav.selectOnRight = Neighbour(i, 1);
++                nav.selectOnUp = Neighbour(i, 2);
++                nav.selectOnDown = Neighbour(i, 3);
++                views[i].button.navigation = nav;
++            }
++        }
++
++        private Selectable Neighbour(int i, int side)
++        {
++            int n = Neighbours[i, side];
++            return n >= 0 ? views[n].button : null;
+         }
+ 
+         private static Image Glow(RectTransform parent, Vector2 at, float size, Color color)
+@@ -237,48 +345,43 @@ namespace PushPals.UI
+                 rt.anchorMin = rt.anchorMax = a;
+                 rt.sizeDelta = Vector2.one * s.z;
+                 float near = 1f - Mathf.Clamp01(Vector2.Distance(a, new Vector2(Candle.x, 1f - Candle.y)) / 0.35f);
+-                var img = rt.GetComponent<Image>();
+-                img.color = new Color(1f, 0.9f, 0.7f, near * (0.35f + 0.3f * Mathf.Sin(t * 2f + s.x)));
++                dustImages[i].color = new Color(1f, 0.9f, 0.7f, near * (0.35f + 0.3f * Mathf.Sin(t * 2f + s.x)));
+             }
+ 
+-            // Выбранный предмет: свечение, подпись и указатель над ним
++            // Выбранный предмет: светлеет, приподнимается, светится; ярлык ярче; спичка-указатель у ярлыка
+             var es = EventSystem.current;
+-            if (es != null && es.currentSelectedGameObject == null && !flying && buttons.Count > 0) es.SetSelectedGameObject(buttons[Play].gameObject);
+-            for (int i = 0; i < glows.Count; i++)
++            if (es != null && es.currentSelectedGameObject == null && !flying && views.Count > 0) es.SetSelectedGameObject(views[Play].button.gameObject);
++            for (int i = 0; i < views.Count; i++)
+             {
+-                var c = glows[i].color;
+-                float want = i == selected && !flying ? 0.5f + 0.1f * Mathf.Sin(t * 3f) : 0f;
+-                c.a = Mathf.MoveTowards(c.a, want, dt * 2.5f);
+-                glows[i].color = c;
++                var v = views[i];
++                bool on = i == selected && !flying;
++                v.k = Mathf.MoveTowards(v.k, on ? 1f : 0f, dt * 5f);
++                float e = v.k * v.k * (3f - 2f * v.k);
++                v.image.color = Color.Lerp(Shade(Props[i].tint), Color.white, e);
++                float lift = e * 10f + (on ? Mathf.Sin(t * 3f) * 1.5f * e : 0f);
++                v.visual.offsetMin = new Vector2(0f, lift);
++                v.visual.offsetMax = new Vector2(0f, lift);
++                v.label.localScale = Vector3.one * (1f + 0.06f * e);
++                v.tag.color = Color.Lerp(new Color(0.86f, 0.8f, 0.72f), Color.white, e);
++                var c = v.glow.color;
++                c.a = e * (0.42f + 0.08f * Mathf.Sin(t * 3f));
++                v.glow.color = c;
+             }
+             bool show = selected >= 0 && !flying;
+-            captionText.alpha = Mathf.MoveTowards(captionText.alpha, show ? 1f : 0f, dt * 6f);
+-            var pimg = pointer.GetComponent<Image>();
+-            pimg.color = new Color(1f, 1f, 1f, captionText.alpha);
++            float alpha = Mathf.MoveTowards(pointerImage.color.a, show ? 1f : 0f, dt * 6f);
++            pointerImage.color = new Color(1f, 1f, 1f, alpha);
+             if (selected >= 0)
+             {
+-                captionText.text = Loc.T(Props[selected].key);
+-                var target = (RectTransform)buttons[selected].transform;
+-                Vector3 top = target.TransformPoint(new Vector3(target.rect.center.x, target.rect.yMax, 0f));
+-                Vector2 local = caption.parent.InverseTransformPoint(top);
+-                float bob = Mathf.Sin(t * 4f) * 6f;
+-                pointer.anchoredPosition = Vector2.Lerp(pointer.anchoredPosition, local + new Vector2(0f, 50f + bob), 1f - Mathf.Exp(-14f * dt));
+-                caption.anchoredPosition = Vector2.Lerp(caption.anchoredPosition, local + new Vector2(0f, 140f), 1f - Mathf.Exp(-14f * dt));
+-                ClampCaption();
++                // Слева от ярлыка, головкой к нему; чуть «подпрыгивает»
++                var label = views[selected].label;
++                Vector3 left = label.TransformPoint(new Vector3(label.rect.xMin, label.rect.center.y, 0f));
++                Vector2 local = (Vector2)pointer.parent.InverseTransformPoint(left);
++                float bob = Mathf.Sin(t * 4f) * 4f;
++                Vector2 want = local + new Vector2(-pointer.sizeDelta.x * 0.5f + 6f + bob, 0f);
++                pointer.anchoredPosition = alpha < 0.05f ? want : Vector2.Lerp(pointer.anchoredPosition, want, 1f - Mathf.Exp(-16f * dt));
+             }
+         }
+ 
+-        // Подпись не уезжает за край экрана (предметы у краёв)
+-        private void ClampCaption()
+-        {
+-            var parent = (RectTransform)caption.parent;
+-            var r = parent.rect;
+-            var p = caption.anchoredPosition;
+-            p.x = Mathf.Clamp(p.x, r.xMin + 320f, r.xMax - 320f);
+-            p.y = Mathf.Min(p.y, r.yMax - 60f);
+-            caption.anchoredPosition = p;
+-        }
+-
+         private void Activate(int n)
+         {
+             if (flying) return;
+@@ -313,7 +416,7 @@ namespace PushPals.UI
+         {
+             flying = true;
+             var picture = table.Zoom;
+-            var target = (RectTransform)buttons[n].transform;
++            var target = (RectTransform)views[n].button.transform;
+             Vector2 center = target.TransformPoint(target.rect.center);
+             Vector2 local = picture.InverseTransformPoint(center); // точка в своих координатах (без масштаба)
+             Vector2 from = picture.anchoredPosition;
+@@ -344,7 +447,7 @@ namespace PushPals.UI
+             }
+             flying = false;
+             var es = EventSystem.current;
+-            if (es != null) { UiButtonFx.QuietFrame = Time.frameCount; es.SetSelectedGameObject(buttons[n].gameObject); }
++            if (es != null) { UiButtonFx.QuietFrame = Time.frameCount; es.SetSelectedGameObject(views[n].button.gameObject); }
+         }
+ 
+         private void AskQuit() => UiDialog.Confirm("menu.quit_confirm", "settings.saved", "menu.exit", QuitGame);
+diff --git a/Assets/Scripts/UI/Screens/SettingsScreen.cs b/Assets/Scripts/UI/Screens/SettingsScreen.cs
+index 65c45c8..0168e7c 100644
+--- a/Assets/Scripts/UI/Screens/SettingsScreen.cs
++++ b/Assets/Scripts/UI/Screens/SettingsScreen.cs
+@@ -15,9 +15,8 @@ namespace PushPals.UI
+     /// </summary>
+     public class SettingsScreen : UiScreen
+     {
+-        // «Ping» (метка «сюда») в наборе есть, но в игре ещё ничего не делает — переназначать нечего, не показываем
+         private static readonly string[] ActionsToBind =
+-            { "Jump", "GrabLeft", "GrabRight", "Headbutt", "SwitchMatch", "Relax", "Stiffen", "Emote", "PushToTalk", "VoteRestart", "Menu" };
++            { "Jump", "GrabLeft", "GrabRight", "Headbutt", "SwitchMatch", "Relax", "Stiffen", "Emote", "Ping", "PushToTalk", "VoteRestart", "Menu" };
+ 
+         private readonly List<Vector2Int> resolutions = new List<Vector2Int>();
+         private RectTransform controlsPage;
+@@ -147,7 +146,8 @@ namespace PushPals.UI
+             }, Percent);
+             f.Toggle("settings.player_colors", AccessSettings.PlayerMarkers, v => { AccessSettings.PlayerMarkers = v; Save(); });
+             f.Note("settings.markers_note");
+-            // Субтитры — когда появится озвучка: переключатель, который ничего не меняет, только путал (значение хранится)
++            f.Toggle("settings.subtitles", AccessSettings.Subtitles, v => { AccessSettings.Subtitles = v; Save(); });
++            f.Note("settings.subtitles_note");
+         }
+ 
+         // ---------- Игра ----------
+diff --git a/Assets/Settings/PushPalsControls.inputactions b/Assets/Settings/PushPalsControls.inputactions
+index 3348ba7..14a0cab 100644
+--- a/Assets/Settings/PushPalsControls.inputactions
++++ b/Assets/Settings/PushPalsControls.inputactions
+@@ -459,6 +459,17 @@
+                     "isComposite": false,
+                     "isPartOfComposite": false
+                 },
++                {
++                    "name": "",
++                    "id": "6808d489-bd21-4aa0-ae21-168ff16f0839",
++                    "path": "<Keyboard>/g",
++                    "interactions": "",
++                    "processors": "",
++                    "groups": "KeyboardMouse",
++                    "action": "Ping",
++                    "isComposite": false,
++                    "isPartOfComposite": false
++                },
+                 {
+                     "name": "",
+                     "id": "12478d47-d00e-442b-862a-61e46cf6b97e",
