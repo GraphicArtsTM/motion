@@ -1,0 +1,549 @@
+diff --git a/Assets/Scripts/Level/TraitorRound.cs b/Assets/Scripts/Level/TraitorRound.cs
+index a335aa5..b5772a6 100644
+--- a/Assets/Scripts/Level/TraitorRound.cs
++++ b/Assets/Scripts/Level/TraitorRound.cs
+@@ -16,7 +16,9 @@ namespace PushPals.Level
+     {
+         public enum Task { Burn = 0, Falls = 1, Slow = 2, Stuns = 3 }
+ 
+-        private const string RoleChannel = "t_role", ProgressChannel = "t_prog", VoteChannel = "t_vote", ResultChannel = "t_result", EscapeChannel = "t_escape";
++        private const string RoleChannel = "t_role", ProgressChannel = "t_prog", VoteChannel = "t_vote", ResultChannel = "t_result", EscapeChannel = "t_escape", AskChannel = "t_ask";
++        // Клиент без роли переспрашивает хоста так часто (роль могла прийти, пока уровень ещё грузился)
++        private const float AskInterval = 1.5f;
+         private const int MinPeople = 3;
+ 
+         [Tooltip("Через сколько секунд после начала уровня раздать роли (все успели загрузиться)")]
+@@ -55,6 +57,7 @@ namespace PushPals.Level
+ 
+         // Голос этого ПК
+         private bool voted;
++        private float askTimer;
+         private string result = "";
+         private string note = "";
+ 
+@@ -85,11 +88,13 @@ namespace PushPals.Level
+         {
+             Instance = this;
+             gameObject.AddComponent<PushPals.UI.TraitorHud>(); // карточка роли и тайная задача (Этап 17.5)
++            // Роль, ход задачи, итог и достижение решает только хост: от других ПК не принимаем
+             Online.On(RoleChannel, OnRole);
+-            Online.On(ProgressChannel, (s, d) => progress = d.Length >= 2 ? d[0] | (d[1] << 8) : progress);
++            Online.On(ProgressChannel, (s, d) => { if (Online.FromHost(s) && d.Length >= 2) progress = d[0] | (d[1] << 8); });
+             Online.On(VoteChannel, OnVote);
+-            Online.On(ResultChannel, (s, d) => ShowResult(System.Text.Encoding.UTF8.GetString(d)));
+-            Online.On(EscapeChannel, (s, d) => PushPals.Save.Achievements.Unlock(PushPals.Save.Achievements.TraitorEscape));
++            Online.On(ResultChannel, (s, d) => { if (Online.FromHost(s)) ShowResult(System.Text.Encoding.UTF8.GetString(d)); });
++            Online.On(EscapeChannel, (s, d) => { if (Online.FromHost(s)) PushPals.Save.Achievements.Unlock(PushPals.Save.Achievements.TraitorEscape); });
++            Online.On(AskChannel, OnAsk);
+             var manager = PlayerManager.Instance;
+             if (manager != null) manager.PlayerFell += OnFell;
+         }
+@@ -102,6 +107,7 @@ namespace PushPals.Level
+             Online.Off(VoteChannel);
+             Online.Off(ResultChannel);
+             Online.Off(EscapeChannel);
++            Online.Off(AskChannel);
+             var manager = PlayerManager.Instance;
+             if (manager != null) manager.PlayerFell -= OnFell;
+         }
+@@ -141,6 +147,28 @@ namespace PushPals.Level
+             if (roleCard > 0f) roleCard -= Time.deltaTime;
+             if (!Online.IsActive) { phase = Phase.Off; return; }
+             if (!Online.IsClientView) HostUpdate();
++            else AskRole();
++        }
++
++        // Клиент: роли всё нет — спросить хоста ещё раз
++        private void AskRole()
++        {
++            if (roleKnown || Revealed || Online.SendToHost == null) return;
++            if ((askTimer -= Time.deltaTime) > 0f) return;
++            askTimer = AskInterval;
++            Online.SendToHost(AskChannel, new byte[0]);
++        }
++
++        // Хост: клиент спрашивает свою роль — опоздавший к раздаче становится честным
++        private void OnAsk(ulong sender, byte[] d)
++        {
++            if (Online.IsClientView || (phase != Phase.Playing && phase != Phase.Voting)) return;
++            if (!people.Contains(sender))
++            {
++                if (!People().Contains(sender)) return; // его спички в игре ещё нет
++                people.Add(sender);
++            }
++            SendRole(sender, sender == traitorId);
+         }
+ 
+         private void HostUpdate()
+@@ -208,7 +236,8 @@ namespace PushPals.Level
+ 
+         private void OnRole(ulong sender, byte[] d)
+         {
+-            if (d.Length < 4) return;
++            // Повтор (ответ на переспрос пришёл вслед за обычной раздачей) — карточку роли второй раз не показываем
++            if (!Online.FromHost(sender) || d.Length < 4 || roleKnown) return;
+             SetRole(d[0] == 1, (Task)d[1], d[2] | (d[3] << 8));
+             if (phase == Phase.Waiting) phase = Phase.Playing;
+         }
+@@ -297,7 +326,11 @@ namespace PushPals.Level
+         private void OnVote(ulong sender, byte[] d)
+         {
+             if (Online.IsClientView || d.Length < 8 || phase != Phase.Voting) return;
+-            votes[sender] = System.BitConverter.ToUInt64(d, 0);
++            // Голосуют люди в игре и только за другого человека в игре
++            ulong suspect = System.BitConverter.ToUInt64(d, 0);
++            var inGame = People();
++            if (suspect == sender || !inGame.Contains(sender) || !inGame.Contains(suspect)) return;
++            votes[sender] = suspect;
+         }
+ 
+ 
+diff --git a/Assets/Scripts/Network/NetSession.cs b/Assets/Scripts/Network/NetSession.cs
+index 37ff27e..06396de 100644
+--- a/Assets/Scripts/Network/NetSession.cs
++++ b/Assets/Scripts/Network/NetSession.cs
+@@ -187,10 +187,26 @@ namespace PushPals.Network
+             // Сессия закончилась сама (хост вышел, связь пропала) — обратно в одиночную/локальную игру
+             if (!net.IsListening && !net.ShutdownInProgress && PlayerManager.Instance != null && PlayerManager.Instance.IsOnline && !starting)
+                 EndSession("Связь потеряна");
++
++            // Принятое приглашение: Netcode закрывает сессию только в конце кадра — входим, когда она закрылась
++            if (pendingLobby.HasValue && !net.IsListening && !net.ShutdownInProgress && !joining)
++            {
++                var invited = pendingLobby.Value;
++                pendingLobby = null;
++                JoinSteam(invited);
++            }
+         }
+ 
+         private bool starting; // между StartClient и подключением IsListening уже true, но на всякий случай
+ 
++        // Идёт вход в лобби Steam (ждём ответа Steam): второй вход, хост или локальная игра в это время не начинаются
++        private bool joining;
++        // Приглашение принято во время другой игры: войти, когда старая сессия закроется до конца
++        private SteamId? pendingLobby;
++
++        /// <summary>Сессия идёт или вот-вот начнётся — новую не начинать.</summary>
++        private bool Busy => IsInSession || joining;
++
+         // ---------- Бот для автотеста (-pp-bot): своя спичка ходит, прыгает и хватается, в лог — что видим ----------
+ 
+         private bool botMode;
+@@ -337,7 +353,7 @@ namespace PushPals.Network
+         /// <summary>Создать лобби Steam и стать хостом.</summary>
+         public async void HostSteam()
+         {
+-            if (IsInSession || !EnsureSteam()) return;
++            if (Busy || !EnsureSteam()) return;
+             Status = "Создаю лобби…";
+             BeginSession(steamTransport);
+             if (!net.StartHost()) { EndSession("Не удалось стать хостом"); return; }
+@@ -360,23 +376,32 @@ namespace PushPals.Network
+         /// <summary>Войти в лобби Steam (по приглашению, из списка или по коду) и подключиться к хосту.</summary>
+         public async void JoinSteam(SteamId lobbyId)
+         {
+-            if (IsInSession || !EnsureSteam()) return;
+-            Status = "Вхожу в лобби…";
+-            var joined = await SteamMatchmaking.JoinLobbyAsync(lobbyId);
+-            if (!joined.HasValue) { Status = "Не удалось войти в лобби"; return; }
+-            var l = joined.Value;
+-            lobby = l;
+-            steamTransport.targetSteamId = l.Owner.Id;
+-            BeginSession(steamTransport);
+-            Status = "Подключаюсь к " + l.Owner.Name + "…";
+-            if (!net.StartClient()) { EndSession("Не удалось подключиться"); return; }
+-            SetRole(false);
++            // Повторное нажатие «Войти», пока ждём Steam, второй раз не входит (иначе второй StartClient
++            // не удавался и EndSession разбирал уже идущую сессию)
++            if (Busy || !EnsureSteam()) return;
++            joining = true;
++            try
++            {
++                Status = "Вхожу в лобби…";
++                var joined = await SteamMatchmaking.JoinLobbyAsync(lobbyId);
++                if (!joined.HasValue) { Status = "Не удалось войти в лобби"; return; }
++                var l = joined.Value;
++                // Пока ждали Steam, сессия могла начаться другим путём — это лобби уже не нужно
++                if (IsInSession) { l.Leave(); return; }
++                lobby = l;
++                steamTransport.targetSteamId = l.Owner.Id;
++                BeginSession(steamTransport);
++                Status = "Подключаюсь к " + l.Owner.Name + "…";
++                if (!net.StartClient()) { EndSession("Не удалось подключиться"); return; }
++                SetRole(false);
++            }
++            finally { joining = false; }
+         }
+ 
+         /// <summary>Хост на этом ПК без Steam (проверка вдвоём на одном компьютере / в локальной сети).</summary>
+         public void StartLocalHost()
+         {
+-            if (IsInSession) return;
++            if (Busy) return;
+             BeginSession(localTransport);
+             localTransport.SetConnectionData("0.0.0.0", 7777);
+             if (net.StartHost()) { Status = "Локальный хост (порт 7777)"; SetRole(true); }
+@@ -385,7 +410,7 @@ namespace PushPals.Network
+ 
+         public void StartLocalClient(string address)
+         {
+-            if (IsInSession) return;
++            if (Busy) return;
+             BeginSession(localTransport);
+             localTransport.SetConnectionData(address, 7777);
+             if (net.StartClient()) { Status = "Подключаюсь к " + address + "…"; SetRole(false); }
+@@ -547,10 +572,22 @@ namespace PushPals.Network
+         {
+             string channel;
+             int length;
+-            reader.ReadValueSafe(out channel);
+-            reader.ReadValueSafe(out length);
+-            var data = new byte[Mathf.Max(0, length)];
+-            if (length > 0) reader.ReadBytesSafe(ref data, length);
++            byte[] data;
++            try
++            {
++                reader.ReadValueSafe(out channel);
++                reader.ReadValueSafe(out length);
++                // Длина пришла из сети: не больше, чем реально осталось в пакете (иначе чужой ПК мог
++                // заставить выделить гигабайты одним сообщением)
++                if (length < 0 || length > reader.Length - reader.Position) return;
++                data = new byte[length];
++                if (length > 0) reader.ReadBytesSafe(ref data, length);
++            }
++            catch (Exception e)
++            {
++                Debug.LogWarning("[PushPals] Битое сообщение от " + sender + ": " + e.Message);
++                return;
++            }
+             Online.Dispatch(channel, sender, data);
+         }
+ 
+@@ -658,8 +695,10 @@ namespace PushPals.Network
+         // Друг пригласил через Steam, а мы приняли приглашение (игра уже запущена)
+         private void OnInviteAccepted(Lobby invited, SteamId friend)
+         {
++            // Netcode закрывает сессию только в конце кадра: сразу после Leave() IsListening ещё true и
++            // JoinSteam ничего не делал — входим из Update, когда старая сессия закрылась
++            pendingLobby = invited.Id;
+             if (IsInSession) Leave();
+-            JoinSteam(invited.Id);
+         }
+ 
+         // ---------- Поиск и приглашения ----------
+diff --git a/Assets/Scripts/Network/NetworkRagdoll.cs b/Assets/Scripts/Network/NetworkRagdoll.cs
+index 3ed71aa..d18940e 100644
+--- a/Assets/Scripts/Network/NetworkRagdoll.cs
++++ b/Assets/Scripts/Network/NetworkRagdoll.cs
+@@ -55,6 +55,10 @@ namespace PushPals.Network
+         private byte jumpCount, headbuttCount, switchCount, emoteCount, emoteId;
+         // Хост: последние полученные счётчики
+         private byte lastJump, lastHeadbutt, lastSwitch, lastEmote;
++        // Номер пакета намерений: владелец растит, хост выкидывает опоздавшие (ненадёжная доставка их переставляет —
++        // старый пакет после нового давал лишние прыжок, удар, смену спички или эмоцию)
++        private ushort intentSeq, lastIntentSeq;
++        private bool hasIntentSeq;
+ 
+         // Клиент: снимки по времени хоста
+         private readonly List<RagdollSnapshot> snapshots = new List<RagdollSnapshot>();
+@@ -255,6 +259,7 @@ namespace PushPals.Network
+                 var net = NetIntent.From(controller.Intent, jumpCount, headbuttCount, switchCount);
+                 net.EmoteCount = emoteCount;
+                 net.EmoteId = emoteId;
++                net.Seq = ++intentSeq;
+                 SubmitIntentRpc(net);
+             }
+         }
+@@ -263,6 +268,9 @@ namespace PushPals.Network
+         private void SubmitIntentRpc(NetIntent data, RpcParams rpcParams = default)
+         {
+             if (rpcParams.Receive.SenderClientId != OwnerClientId) return; // чужой спичкой управлять нельзя
++            if (hasIntentSeq && (short)(data.Seq - lastIntentSeq) <= 0) return; // опоздавший или повтор
++            hasIntentSeq = true;
++            lastIntentSeq = data.Seq;
+             var intent = data.ToIntent();
+             intent.JumpPressed = data.JumpCount != lastJump;
+             intent.HeadbuttPressed = data.HeadbuttCount != lastHeadbutt;
+@@ -377,6 +385,8 @@ namespace PushPals.Network
+         public byte JumpCount, HeadbuttCount, SwitchCount;
+         /// <summary>Эмоции: счётчик нажатий и номер последней.</summary>
+         public byte EmoteCount, EmoteId;
++        /// <summary>Номер пакета (владелец → хост), по кругу.</summary>
++        public ushort Seq;
+ 
+         private const byte GrabLeft = 1, GrabRight = 2, JumpHeld = 4, Relax = 8, Stiffen = 16, FollowAim = 32;
+ 
+@@ -417,6 +427,7 @@ namespace PushPals.Network
+             serializer.SerializeValue(ref SwitchCount);
+             serializer.SerializeValue(ref EmoteCount);
+             serializer.SerializeValue(ref EmoteId);
++            serializer.SerializeValue(ref Seq);
+         }
+     }
+ 
+diff --git a/Assets/Scripts/Network/NetworkVoice.cs b/Assets/Scripts/Network/NetworkVoice.cs
+index a681bfe..4b737b2 100644
+--- a/Assets/Scripts/Network/NetworkVoice.cs
++++ b/Assets/Scripts/Network/NetworkVoice.cs
+@@ -43,6 +43,7 @@ namespace PushPals.Network
+         // Больше этого — ненадёжной отправкой нельзя (Netcode ругается) — шлём надёжной
+         private const int UnreliableLimit = 1000;
+         private const int TestRate = 8000;
++        private const int MinPcmRate = 8000, MaxPcmRate = 48000;
+ 
+         private RagdollController controller;
+         private AudioSource source;
+@@ -253,6 +254,9 @@ namespace PushPals.Network
+             {
+                 if (data.Length < 5) return null;
+                 int rate = data[1] | (data[2] << 8);
++                // Частота пришла из сети: со странной (1 Гц) перегонка раздувала кусочек в десятки тысяч раз
++                // у каждого слушателя. Тест-тон — 8 кГц, больше 48 кГц голоса не бывает
++                if (rate < MinPcmRate || rate > MaxPcmRate) return null;
+                 int count = (data.Length - 3) / 2;
+                 var raw = new float[count];
+                 for (int i = 0; i < count; i++) raw[i] = (short)(data[3 + i * 2] | (data[4 + i * 2] << 8)) / 32768f;
+diff --git a/Assets/Scripts/Network/Online.cs b/Assets/Scripts/Network/Online.cs
+index 3455f8f..ec7991a 100644
+--- a/Assets/Scripts/Network/Online.cs
++++ b/Assets/Scripts/Network/Online.cs
+@@ -44,6 +44,12 @@ namespace PushPals
+         /// <summary>Номер этого ПК в сети (хост — 0).</summary>
+         public static ulong LocalClientId { get; set; }
+ 
++        /// <summary>Номер хоста в сети (как NetworkManager.ServerClientId).</summary>
++        public const ulong HostClientId = 0;
++
++        /// <summary>Сообщение пришло от хоста к нам-клиенту (а не от другого ПК самому хосту).</summary>
++        public static bool FromHost(ulong sender) => IsClientView && sender == HostClientId;
++
+         /// <summary>Хост: отправить сообщение по каналу одному ПК (клиенту). Задаёт сетевой модуль.</summary>
+         public static System.Action<ulong, string, byte[]> SendToClient;
+         /// <summary>Клиент: отправить сообщение хосту. Задаёт сетевой модуль.</summary>
+diff --git a/Assets/Scripts/Network/SteamAchievements.cs b/Assets/Scripts/Network/SteamAchievements.cs
+index 8146d2d..5af3364 100644
+--- a/Assets/Scripts/Network/SteamAchievements.cs
++++ b/Assets/Scripts/Network/SteamAchievements.cs
+@@ -10,28 +10,42 @@ namespace PushPals.Network
+     /// </summary>
+     public class SteamAchievements : IAchievementPlatform
+     {
+-        private bool requested;
++        private bool requested, ready;
+ 
+-        public bool Available => SteamClient.IsValid;
++        /// <summary>
++        /// Steam подключён и уже прислал статистику. Раньше достижения читались сразу после запроса, когда ответа
++        /// ещё нет: открытое в Steam (на другом ПК) выглядело закрытым. Пока ответа нет — «недоступно»: открытое
++        /// за это время хранится в сохранении и уходит в Steam, когда статистика придёт (Achievements.SyncPlatform).
++        /// </summary>
++        public bool Available => SteamClient.IsValid && Ensure();
+ 
+-        // Steam отдаёт достижения после запроса текущей статистики
+-        private void Ensure()
++        // Steam отдаёт достижения после запроса текущей статистики (ответ — колбэком, его крутит NetSession)
++        private bool Ensure()
+         {
+-            if (requested) return;
++            if (ready) return true;
++            if (requested) return false;
+             requested = true;
+-            SteamUserStats.RequestCurrentStats();
++            SteamUserStats.OnUserStatsReceived += OnStatsReceived;
++            // Запрос не ушёл (в новых Steamworks SDK статистика грузится сама при запуске) — читаем как есть
++            if (!SteamUserStats.RequestCurrentStats())
++            {
++                SteamUserStats.OnUserStatsReceived -= OnStatsReceived;
++                ready = true;
++            }
++            return ready;
+         }
+ 
+-        public bool IsUnlocked(string id)
++        private void OnStatsReceived(SteamId user, Result result)
+         {
+-            Ensure();
+-            return new Achievement(id).State;
++            if (!SteamClient.IsValid || user != SteamClient.SteamId) return;
++            SteamUserStats.OnUserStatsReceived -= OnStatsReceived;
++            if (result != Result.OK) { requested = false; return; } // не удалось — спросим при следующем обращении
++            ready = true;
++            Achievements.SyncPlatform(); // открытое без Steam — туда, открытое в Steam — себе
+         }
+ 
+-        public void Unlock(string id)
+-        {
+-            Ensure();
+-            new Achievement(id).Trigger();
+-        }
++        public bool IsUnlocked(string id) => new Achievement(id).State;
++
++        public void Unlock(string id) => new Achievement(id).Trigger();
+     }
+ }
+diff --git a/Assets/Scripts/Save/SaveSystem.cs b/Assets/Scripts/Save/SaveSystem.cs
+index 2b3c1e6..c144652 100644
+--- a/Assets/Scripts/Save/SaveSystem.cs
++++ b/Assets/Scripts/Save/SaveSystem.cs
+@@ -102,6 +102,8 @@ namespace PushPals.Save
+ 
+         private static string FileName => Application.isEditor ? "pushpals_save_editor.json" : "pushpals_save.json";
+         public static string FilePath => System.IO.Path.Combine(Application.persistentDataPath, FileName);
++        private static string TempPath => FilePath + ".tmp";
++        private static string BackupPath => FilePath + ".bak";
+ 
+         // Загрузка до первой сцены (и при каждом Play в редакторе — статика живёт между запусками)
+         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+@@ -123,18 +125,32 @@ namespace PushPals.Save
+             PushPals.UI.UiSettings.Changed += Save;
+         }
+ 
++        // Основной файл; не читается — недописанный временный (выключение посреди записи), потом прошлая копия
+         private static SaveData ReadFile()
+         {
+-            try
++            bool broken = false;
++            foreach (var path in new[] { FilePath, TempPath, BackupPath })
+             {
+-                if (!System.IO.File.Exists(FilePath)) return null;
+-                return Parse(System.IO.File.ReadAllText(FilePath));
++                try
++                {
++                    if (!System.IO.File.Exists(path)) continue;
++                    var data = Parse(System.IO.File.ReadAllText(path));
++                    if (data != null)
++                    {
++                        if (path != FilePath) Debug.LogWarning("[PushPals] Сохранение восстановлено из " + System.IO.Path.GetFileName(path));
++                        return data;
++                    }
++                }
++                catch (Exception e) { Debug.LogWarning("[PushPals] Сохранение не прочиталось (" + System.IO.Path.GetFileName(path) + "): " + e.Message); }
++                if (path == FilePath) broken = true;
+             }
+-            catch (Exception e)
++            // Ничего не прочиталось: битый файл откладываем, чтобы первая же запись не стёрла его насовсем
++            if (broken)
+             {
+-                Debug.LogWarning("[PushPals] Сохранение не прочиталось: " + e.Message);
+-                return null;
++                try { System.IO.File.Copy(FilePath, FilePath + ".broken", true); }
++                catch (Exception e) { Debug.LogWarning("[PushPals] Битое сохранение не отложилось: " + e.Message); }
+             }
++            return null;
+         }
+ 
+         private static SaveData Parse(string json)
+@@ -159,21 +175,56 @@ namespace PushPals.Save
+             return d;
+         }
+ 
+-        /// <summary>Подключилось облако: взять более новое (облако или диск) и выровнять оба.</summary>
++        /// <summary>
++        /// Подключилось облако: прогресс (уровни, золотые спички, достижения, колпак) складываем из обоих —
++        /// пройденное на любом ПК не теряется; настройки и внешний вид берём из более нового. Потом выравниваем оба.
++        /// </summary>
+         public static void SyncWithCloud()
+         {
+             if (Cloud == null || !Cloud.Available || Disabled || Application.isEditor) return;
+             SaveData remote = null;
+             try { remote = Parse(Cloud.Read()); }
+             catch (Exception e) { Debug.LogWarning("[PushPals] Облако Steam: " + e.Message); }
++            Capture(); // в Data — то, что сейчас в игре
+             if (remote != null && remote.savedAt > Data.savedAt)
+             {
++                MergeProgress(remote, Data);
+                 Data = remote;
+                 Apply();
+-                WriteFile(JsonUtility.ToJson(Data, true));
+-                Debug.Log("[PushPals] Сохранение взято из облака Steam");
++                Debug.Log("[PushPals] Сохранение взято из облака Steam (с прогрессом этого ПК)");
++            }
++            else if (remote != null && MergeProgress(Data, remote))
++            {
++                applying = true;
++                ApplyProgress();
++                applying = false;
++                Debug.Log("[PushPals] В сохранение добавлен прогресс из облака Steam");
++            }
++            Save();
++        }
++
++        // Прогресс из from — в into (только прибавляется). true — что-то добавилось
++        private static bool MergeProgress(SaveData into, SaveData from)
++        {
++            bool changed = false;
++            foreach (var l in from.levels)
++            {
++                if (l == null || string.IsNullOrEmpty(l.id)) continue;
++                var mine = into.levels.Find(x => x != null && x.id == l.id);
++                if (mine == null)
++                {
++                    into.levels.Add(new LevelSave { id = l.id, done = l.done, golden = l.golden, bestTime = l.bestTime });
++                    changed = true;
++                    continue;
++                }
++                if (l.done && !mine.done) { mine.done = true; changed = true; }
++                if ((mine.golden | l.golden) != mine.golden) { mine.golden |= l.golden; changed = true; } // маска найденных
++                if (l.bestTime > 0f && (mine.bestTime <= 0f || l.bestTime < mine.bestTime)) { mine.bestTime = l.bestTime; changed = true; }
+             }
+-            else Save();
++            foreach (var a in from.achievements)
++                if (!string.IsNullOrEmpty(a) && !into.achievements.Contains(a)) { into.achievements.Add(a); changed = true; }
++            if (from.partyHat && !into.partyHat) { into.partyHat = true; changed = true; }
++            return changed;
+         }
+ 
+         /// <summary>Записать всё текущее (прогресс, настройки) — диск и облако.</summary>
+@@ -195,11 +246,18 @@ namespace PushPals.Save
+         {
+             try
+             {
+-                // Сначала во временный файл, потом подменить — выключение посреди записи не портит сохранение
+-                string tmp = FilePath + ".tmp";
+-                System.IO.File.WriteAllText(tmp, json);
+-                if (System.IO.File.Exists(FilePath)) System.IO.File.Delete(FilePath);
+-                System.IO.File.Move(tmp, FilePath);
++                // Сначала во временный файл, потом подменить одним шагом (прошлое — в .bak). Раньше старый файл
++                // удалялся до переноса: выключение между ними оставляло только .tmp, а его никто не читал
++                System.IO.File.WriteAllText(TempPath, json);
++                if (!System.IO.File.Exists(FilePath)) { System.IO.File.Move(TempPath, FilePath); return; }
++                try { System.IO.File.Replace(TempPath, FilePath, BackupPath, true); }
++                catch (Exception e) when (e is PlatformNotSupportedException || e is System.IO.IOException)
++                {
++                    // Без File.Replace: прошлое — в копию, потом подмена (ReadFile найдёт .tmp или .bak, если оборвётся)
++                    System.IO.File.Copy(FilePath, BackupPath, true);
++                    System.IO.File.Delete(FilePath);
++                    System.IO.File.Move(TempPath, FilePath);
++                }
+             }
+             catch (Exception e) { Debug.LogWarning("[PushPals] Сохранение не записалось: " + e.Message); }
+         }
+@@ -266,11 +324,7 @@ namespace PushPals.Save
+         private static void Apply()
+         {
+             applying = true;
+-            var levels = new Dictionary<string, LevelProgress.Entry>();
+-            foreach (var l in Data.levels)
+-                if (!string.IsNullOrEmpty(l.id)) levels[l.id] = new LevelProgress.Entry { completed = l.done, golden = l.golden, bestTime = l.bestTime };
+-            LevelProgress.Load(levels);
+-            GameRules.PartyHatFound = Data.partyHat;
++            ApplyProgress();
+             GameRules.LevelId = Data.levelId;
+             GameRules.Burn = Mathf.Clamp(Data.burn, 0, GameRules.BurnScales.Length - 1);
+             GameRules.FriendSlaps = Data.friendSlaps;
+@@ -295,5 +349,15 @@ namespace PushPals.Save
+             PushPals.UI.UiSettings.Hud = (PushPals.UI.UiSettings.HudMode)Mathf.Clamp(Data.hud, 0, 2);
+             applying = false;
+         }
++
++        // Прогресс уровней и колпак — в игру (достижения игра читает прямо из Data)
++        private static void ApplyProgress()
++        {
++            var levels = new Dictionary<string, LevelProgress.Entry>();
++            foreach (var l in Data.levels)
++                if (l != null && !string.IsNullOrEmpty(l.id)) levels[l.id] = new LevelProgress.Entry { completed = l.done, golden = l.golden, bestTime = l.bestTime };
++            LevelProgress.Load(levels);
++            GameRules.PartyHatFound = Data.partyHat;
++        }
+     }
+ }
