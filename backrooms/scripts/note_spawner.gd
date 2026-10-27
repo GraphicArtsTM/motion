@@ -11,6 +11,9 @@ const MazeChunk = preload("res://scripts/maze_chunk.gd")
 const MazeCell = preload("res://scripts/maze_cell.gd")
 const NotePickup = preload("res://scripts/note_pickup.gd")
 const NoteTexts = preload("res://scripts/note_texts.gd")
+const CampSpawner = preload("res://scripts/camp_spawner.gd")
+const PropCamp = preload("res://scripts/prop_camp.gd")
+const Flood = preload("res://scripts/flood.gd")
 
 const CELL: float = MazeChunk.CELL_SIZE
 const CHANCE: float = 0.13
@@ -52,6 +55,13 @@ func add_notes(chunk, world_seed: int) -> void:
 	note.position = chunk.get_world_position() + Vector3((cell.x + rng.randf_range(0.3, 0.7)) * CELL,
 		0.0, (cell.y + rng.randf_range(0.3, 0.7)) * CELL)
 	note.rotation.y = rng.randf() * TAU
+	# В чанке лагерь разведчика — записка у его спальника
+	var camp: Dictionary = CampSpawner.camp_transform(chunk, world_seed)
+	if not camp.is_empty():
+		note.position = camp["pos"] + PropCamp.NOTE_POS.rotated(Vector3.UP, camp["yaw"])
+	# В затопленном секторе листок плавает на воде, а не лежит под ней
+	if Flood.is_flooded_chunk(pos):
+		note.position.y = Flood.WATER_Y
 	note.read.connect(_on_read.bind(pos))
 	add_child(note)
 	placed[pos] = note

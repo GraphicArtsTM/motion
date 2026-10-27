@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3 uid="uid://c8x3y7n4qwh5v"]
+[gd_scene load_steps=13 format=3 uid="uid://c8x3y7n4qwh5v"]
 
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="1_player"]
 [ext_resource type="Script" path="res://scripts/chunk_manager.gd" id="2_chunk_manager"]
@@ -10,6 +10,7 @@
 [ext_resource type="Script" path="res://scripts/ambience_director.gd" id="9_ambience"]
 [ext_resource type="Script" path="res://scripts/entity_stalker.gd" id="10_stalker"]
 [ext_resource type="Script" path="res://scripts/entity_echo.gd" id="11_echo"]
+[ext_resource type="Script" path="res://scripts/entity_director.gd" id="12_director"]
 
 [sub_resource type="Environment" id="Environment_1"]
 background_mode = 1
@@ -20,6 +21,11 @@ ambient_light_energy = 0.07
 ambient_light_sky_contribution = 0.0
 tonemap_mode = 3
 tonemap_white = 5.0
+ssr_enabled = true
+ssr_max_steps = 48
+ssr_fade_in = 0.1
+ssr_fade_out = 1.5
+ssr_depth_tolerance = 0.3
 fog_enabled = true
 fog_light_color = Color(0.6, 0.53, 0.32, 1)
 fog_light_energy = 0.45
@@ -103,3 +109,6 @@ script = ExtResource("10_stalker")
 
 [node name="EntityEcho" type="Node" parent="Entity"]
 script = ExtResource("11_echo")
+
+[node name="EntityDirector" type="Node" parent="Entity"]
+script = ExtResource("12_director")

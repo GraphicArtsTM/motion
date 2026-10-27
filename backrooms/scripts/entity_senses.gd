@@ -5,6 +5,10 @@ extends RefCounted
 
 const SIGHT_RANGE: float = 24.0
 const SIGHT_HALF_ANGLE: float = 1.15  # половина угла обзора, ~66°
+# Доля радиуса шума, которую пробивает стена
+const WALL_MUFFLE: float = 0.55
+
+const Flood = preload("res://scripts/flood.gd")
 
 var entity: CharacterBody3D = null
 var player = null
@@ -51,14 +55,19 @@ func perceive() -> Dictionary:
 
 
 # Шум игрока: радиус задаёт сам игрок (присед 3 м, шаг 8 м, бег 20 м,
-# в укрытии 0 — тогда не слышно вовсе).
+# в укрытии 0 — тогда не слышно вовсе), в воде (flood.gd) — дальше.
 func hears_player() -> bool:
 	if player == null:
 		return false
-	var radius: float = player.get_noise_radius()
+	var radius: float = player.get_noise_radius() * Flood.noise_at(player.global_position)
 	if radius <= 0.0:
 		return false
-	return entity.global_position.distance_to(player.global_position) <= radius
+	var dist: float = entity.global_position.distance_to(player.global_position)
+	if dist > radius:
+		return false
+	# Стены глушат: за стеной шаги слышны только вблизи. Луч — лишь в
+	# дальней части радиуса, ближе слышно в любом случае
+	return dist <= radius * WALL_MUFFLE or line_clear(eye_position(), player.global_position + Vector3(0, 1.0, 0))
 
 
 # Разовое событие шины шумов (звон банки, грохот двери) — целиком, или null

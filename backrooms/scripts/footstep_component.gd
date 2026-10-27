@@ -2,6 +2,8 @@ extends Node
 class_name FootstepComponent
 
 const AudioBank = preload("res://scripts/audio_bank.gd")
+const AudioWater = preload("res://scripts/audio_water.gd")
+const Flood = preload("res://scripts/flood.gd")
 
 # Шаг совершился: слушает микрофон камеры (шорох корпуса). Мир слышит сам
 # AudioStreamPlayer3D, поэтому сигнал — только для «записи»
@@ -94,8 +96,11 @@ func play_footstep(volume_override: float = -1.0) -> void:
 		return
 	if volume_override >= 0.0:
 		audio_player.volume_db = linear_to_db(volume_override)
-	# Синтезированный шаг: 4 варианта + случайная высота — не звучит как цикл
-	audio_player.stream = AudioBank.footstep(rng.randi_range(0, 3))
+	# Синтезированный шаг: 4 варианта + случайная высота — не звучит как цикл.
+	# В затопленном секторе (flood.gd) вместо ковра — плеск
+	var variant: int = rng.randi_range(0, 3)
+	var wet: bool = Flood.is_flooded_at(audio_player.global_position)
+	audio_player.stream = AudioWater.splash(variant) if wet else AudioBank.footstep(variant)
 	audio_player.pitch_scale = rng.randf_range(0.93, 1.07)
 	audio_player.play()
 

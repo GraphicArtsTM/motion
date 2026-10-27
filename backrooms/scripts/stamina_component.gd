@@ -9,6 +9,8 @@ signal stamina_recovered
 @export var drain_rate: float = 20.0
 @export var regen_rate: float = 15.0
 @export var regen_rate_crouched: float = 25.0
+# В шкафу дыхание выравнивается медленно: сердце ещё колотится
+@export var regen_rate_hidden: float = 4.0
 @export var regen_delay: float = 1.0
 @export var sprint_threshold: float = 30.0
 
@@ -62,6 +64,17 @@ func regenerate(delta: float, is_crouched: bool = false) -> void:
 		can_sprint = true
 		stamina_recovered.emit()
 	
+	stamina_changed.emit(current_stamina, max_stamina)
+
+
+# Затаился в укрытии: не бежит и не двигается, но и отдыхает медленно
+func recover_hidden(delta: float) -> void:
+	if regen_timer > 0.0 or current_stamina >= max_stamina:
+		return
+	current_stamina = min(current_stamina + regen_rate_hidden * delta, max_stamina)
+	if not can_sprint and current_stamina >= sprint_threshold:
+		can_sprint = true
+		stamina_recovered.emit()
 	stamina_changed.emit(current_stamina, max_stamina)
 
 

@@ -1,5 +1,6 @@
 extends CharacterBody3D
 class_name PlayerController
+const Flood = preload("res://scripts/flood.gd")
 
 # PlayerController: ходьба, бег, присед и намерение взгляда. Мышь двигает
 # только look_yaw — это «куда игрок навёл», — а корпус доворачивается за ним
@@ -54,11 +55,8 @@ func _ready() -> void:
 func _input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		look_yaw -= event.relative.x * mouse_sensitivity
-		var y_amount: float = event.relative.y * mouse_sensitivity
-		if invert_y:
-			y_amount = -y_amount
-		camera_rotation_x -= y_amount
-		camera_rotation_x = clamp(camera_rotation_x, -deg_to_rad(89), deg_to_rad(89))
+		var y_amount: float = event.relative.y * mouse_sensitivity * (-1.0 if invert_y else 1.0)
+		camera_rotation_x = clampf(camera_rotation_x - y_amount, -deg_to_rad(89), deg_to_rad(89))
 
 
 func _physics_process(delta: float) -> void:
@@ -143,7 +141,7 @@ func _process_movement(delta: float) -> void:
 		target_speed = sprint_speed
 	else:
 		target_speed = walk_speed
-	target_speed *= stamina.speed_multiplier()
+	target_speed *= stamina.speed_multiplier() * Flood.speed_at(global_position)
 	# Экспоненциальное затухание вместо accel*delta — кадро-независимо
 	if direction != Vector3.ZERO:
 		target_speed *= _turn_slowdown(direction)
@@ -195,5 +193,7 @@ func is_hidden() -> bool:
 	return hidden_spot != null
 
 
-func _update_hidden(_delta: float) -> void:
+# В шкафу дыхание выравнивается: тяжёлое выдаёт укрытие (entity_lockers.gd)
+func _update_hidden(delta: float) -> void:
 	velocity = Vector3.ZERO
+	stamina.recover_hidden(delta)

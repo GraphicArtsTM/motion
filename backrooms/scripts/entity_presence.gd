@@ -7,6 +7,8 @@ extends Node
 
 const AudioEntity = preload("res://scripts/audio_entity.gd")
 const AudioBank = preload("res://scripts/audio_bank.gd")
+const AudioWater = preload("res://scripts/audio_water.gd")
+const Flood = preload("res://scripts/flood.gd")
 
 const STATE_CHASE: int = 2 # Entity.State.CHASE
 const STEP_DISTANCE: float = 1.25
@@ -90,8 +92,12 @@ func _steps() -> void:
 	if step_accum < STEP_DISTANCE:
 		return
 	step_accum = 0.0
+	# По воде затопленного сектора (flood.gd) — тяжёлый плеск, слышно дальше
+	var wet: bool = Flood.is_flooded_at(host.global_position)
+	var stream: AudioStreamWAV = AudioWater.splash(rng.randi_range(0, 3)) if wet \
+		else AudioEntity.step(rng.randi_range(0, 3))
 	AudioBank.play_one_shot(get_tree(), host.global_position + Vector3(0, 0.12, 0),
-		AudioEntity.step(rng.randi_range(0, 3)), 7.0, "Entity")
+		stream, 10.0 if wet else 7.0, "Entity")
 
 
 # Дыхание: тихое вдалеке, громкое и частое за спиной

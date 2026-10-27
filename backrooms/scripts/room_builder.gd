@@ -15,6 +15,7 @@ const WALL_Y0: float = -0.05
 const WALL_Y1: float = 2.79
 
 const RoomTrim = preload("res://scripts/room_trim.gd")
+const Flood = preload("res://scripts/flood.gd")
 const WorldDecay = preload("res://scripts/world_decay.gd")
 const PropFactory = preload("res://scripts/prop_factory.gd")
 
@@ -62,6 +63,8 @@ func build_chunk_mesh(chunk) -> MeshInstance3D:
 	# а треугольники физики дорогие
 	var collision: Shape3D = array_mesh.create_trimesh_shape()
 	_add_surface(array_mesh, trim["base"], baseboard_material)
+	# Затопленный сектор: гладь поверх ковра — уже не в коллизии
+	Flood.add_water(array_mesh, mesh_instance, chunk)
 	mesh_instance.mesh = array_mesh
 	mesh_instance.position = chunk.get_world_position()
 	# Порча чанка: её читают шейдеры стен, ковра и потолка (instance uniform)

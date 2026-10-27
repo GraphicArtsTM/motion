@@ -12,6 +12,7 @@ const DecorBuilder = preload("res://scripts/decor_builder.gd")
 const HidingSpots = preload("res://scripts/hiding_spots.gd")
 const FuseSpawner = preload("res://scripts/fuse_spawner.gd")
 const NoteSpawner = preload("res://scripts/note_spawner.gd")
+const CampSpawner = preload("res://scripts/camp_spawner.gd")
 
 @export var world_seed: int = 12345
 @export var load_radius: int = 2
@@ -27,6 +28,7 @@ var decor_builder
 var hiding_spots
 var fuse_spawner
 var note_spawner
+var camp_spawner
 var chunks: Dictionary = {}
 var chunk_meshes: Dictionary = {}
 var last_player_chunk: Vector2i = Vector2i.MAX
@@ -52,6 +54,8 @@ func _ready() -> void:
 	add_child(fuse_spawner)
 	note_spawner = NoteSpawner.new()
 	add_child(note_spawner)
+	camp_spawner = CampSpawner.new()
+	add_child(camp_spawner)
 	
 	if player:
 		force_update()
@@ -156,6 +160,7 @@ func _build_chunk_nodes(chunk_pos: Vector2i, chunk) -> void:
 	hiding_spots.add_spots(chunk, world_seed)
 	fuse_spawner.add_fuses(chunk, world_seed)
 	note_spawner.add_notes(chunk, world_seed)
+	camp_spawner.add_camps(chunk, world_seed)
 	decor_builder.clear_decor(chunk_pos)
 	decor_builder.build_decor(chunk, world_seed)
 
@@ -174,6 +179,7 @@ func _unload_chunk(chunk_pos: Vector2i) -> void:
 	hiding_spots.remove_spots(chunk_pos)
 	fuse_spawner.remove_fuses(chunk_pos)
 	note_spawner.remove_notes(chunk_pos)
+	camp_spawner.remove_camps(chunk_pos)
 	decor_builder.clear_decor(chunk_pos)
 	chunk_unloaded.emit(chunk_pos)
 

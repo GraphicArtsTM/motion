@@ -32,6 +32,14 @@ func take_fuse() -> bool:
 	return true
 
 
+# Заначка в лагере разведчика (camp.gd)
+func add_cans(count: int) -> void:
+	if count <= 0:
+		return
+	cans += count
+	cans_changed.emit(cans)
+
+
 func take_can() -> bool:
 	if cans <= 0:
 		return false
