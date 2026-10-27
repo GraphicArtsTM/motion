@@ -34,6 +34,12 @@ namespace PushPals.Level
             }
         }
 
+        // Дверь «все кнопки» (requireAll) должна знать о воротах заранее
+        private void Start()
+        {
+            if (doors != null) foreach (var d in doors) if (d != null) d.Register(this);
+        }
+
         public void WriteNet(System.IO.BinaryWriter w) => w.Write(open);
         public void ReadNet(System.IO.BinaryReader r) => open = r.ReadBoolean();
 

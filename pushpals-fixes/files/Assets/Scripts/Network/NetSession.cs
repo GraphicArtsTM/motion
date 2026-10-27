@@ -436,9 +436,15 @@ namespace PushPals.Network
             EndSession("online.offline", reloadClient);
         }
 
+        // Клиент: подключение состоялось (хост пустил, пришёл его мир) — только тогда при конце сессии меняем сцену
+        private bool connectedOnce;
+        // Что сказать после перезагрузки (связь пропала, хост закрыл игру, не пустили)
+        private string pendingNotice;
+
         private void BeginSession(NetworkTransport transport)
         {
             starting = true;
+            connectedOnce = false;
             net.NetworkConfig.NetworkTransport = transport;
             // Очередь пакетов побольше: 4 игрока шлют намерения 100 раз/с, при подвисании кадра 128 не хватало
             if (transport is UnityTransport utp) utp.MaxPacketQueueSize = 512;
@@ -500,6 +506,8 @@ namespace PushPals.Network
         private void EndSession(string status, bool reloadClient = true)
         {
             bool wasClient = Online.IsClientView;
+            bool wasConnected = connectedOnce;
+            connectedOnce = false;
             bool wasActive = Online.IsActive;
             LeaveLobby();
             levelSync.End();
@@ -514,9 +522,17 @@ namespace PushPals.Network
             var manager = PlayerManager.Instance;
             if (manager != null) manager.SetOnline(false);
             SetStatus(status);
-            // Клиент: уровень показывал снимки хоста (предметы кинематические, огонь не считался) —
-            // начинаем его заново уже своей игрой
-            if (wasActive && wasClient && reloadClient) SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+            // Клиент был в мире хоста (предметы кинематические, огонь не считался) — дальше своя игра в своём коробке
+            // (не одному на чужом уровне посреди прохождения); ушёл не сам — после загрузки окно с причиной. Не подключился вовсе (отказ, нет связи) — сцена та же:
+            // главное меню и экран «Онлайн» остаются, причина видна там. Раньше сцена перезагружалась всегда —
+            // главное меню пропадало, и игрок молча оказывался в коробке
+            if (wasActive && wasClient && reloadClient && wasConnected)
+            {
+                if (status != "online.offline") pendingNotice = Status;
+                string scene = PushPals.Level.LevelLoader.Exists(PushPals.Level.LevelLoader.LobbyScene)
+                    ? PushPals.Level.LevelLoader.LobbyScene : SceneManager.GetActiveScene().name;
+                SceneManager.LoadScene(scene);
+            }
         }
 
         // ---------- Уровни по сети ----------
@@ -533,6 +549,11 @@ namespace PushPals.Network
         // Новая сцена загружена (у хоста и у клиента): её PlayerManager — в сетевой режим
         private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
+            if (Instance == this && pendingNotice != null && !IsInSession)
+            {
+                PushPals.UI.UiDialog.Info("net.ended_title", pendingNotice);
+                pendingNotice = null;
+            }
             if (Instance != this || !IsInSession) return;
             var manager = PlayerManager.Instance;
             if (manager != null)
@@ -671,6 +692,7 @@ namespace PushPals.Network
             }
             else if (clientId == net.LocalClientId)
             {
+                connectedOnce = true;
                 SetStatus("net.in_game", lobby.HasValue ? lobby.Value.Owner.Name : localAddress);
             }
         }
@@ -684,7 +706,7 @@ namespace PushPals.Network
                 bool had = false;
                 foreach (var p in manager.Players)
                 {
-                    var no = p.GetComponent<NetworkObject>();
+                    var no = p != null ? p.GetComponent<NetworkObject>() : null; // спичку могли уже убрать (смена сцены)
                     if (no != null && no.IsSpawned && no.OwnerClientId == clientId && p.IsNetworkPlayer)
                     {
                         manager.RemoveNetworkPlayer(p);

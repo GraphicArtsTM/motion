@@ -61,6 +61,7 @@ settings.player_colors	Цветные метки игроков	Player colour ma
 settings.mouse_sens	Чувствительность прицела мышью	Mouse aim sensitivity
 settings.rebind	Переназначить	Rebind
 settings.rebind_wait	Нажмите клавишу… (Esc — отмена)	Press a key… (Esc to cancel)
+settings.rebind_wait_pad	Нажмите кнопку… (Start — отмена)	Press a button… (Start to cancel)
 settings.reset_bindings	Сбросить управление	Reset controls
 # --- Действия (подписи для переназначения и подсказок) ---
 action.Move	Ходить	Move
@@ -111,7 +112,7 @@ settings.voice.1	Тише	Quieter
 settings.voice.2	Обычно	Normal
 settings.voice.3	Громче	Louder
 settings.header.keyboard	Клавиатура и мышь — слева, геймпад — справа. Нажмите поле и новую кнопку.	Keyboard & mouse on the left, gamepad on the right. Click a field, then press a new button.
-settings.mouse_note	Прицел мышью с этой скоростью — в игре (HUD, следующий шаг).	Mouse aim speed applies in game (HUD, next step).
+settings.mouse_note	С какой скоростью прицел в игре следует за мышью.	How fast the in-game aim follows the mouse.
 settings.simple_note	Руки держат сами: нажал — схватил, нажал ещё раз — отпустил.	Hands hold by themselves: press to grab, press again to let go.
 settings.markers_note	Цветной треугольник над каждой спичкой.	A coloured marker above each match.
 settings.subtitles_note	Для озвучки — когда она появится.	For voice lines, once they arrive.
@@ -360,6 +361,7 @@ net.reason.full	все 4 места заняты	all 4 spots are taken
 net.reason.closed	хост закрыл вход	the host closed joining
 net.searching	Ищу игры…	Looking for games…
 net.found	Найдено игр: {0}	Games found: {0}
+net.ended_title	Сетевая игра закончилась	The online game has ended
 # --- Тексты из сцен (таблички, двери, торт, шкаф): ищутся по русскому тексту — Loc.Auto ---
 scene.01	Шкаф: X / E — спички, шапка, дерево	Wardrobe: X / E — matches, hat, wood
 scene.02	Мир 3 — Камин\nСкоро	World 3 — Fireplace\nComing soon

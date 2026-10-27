@@ -29,6 +29,11 @@ namespace PushPals.Level
 
         public LevelDefinition Level => level;
         public float Elapsed { get; private set; }
+        /// <summary>
+        /// Сколько спичек сгорело дотла (итог «Сгорели», достижение «Ни одной искры зря», задача предателя «пусть сгорят»).
+        /// Раньше считались только игроки, ставшие призраками: догоревшая спичка, на смену которой из рюкзака
+        /// вышла целая, не считалась — итог занижал, а задачу «сгорят 2 спички» при парах было почти не выполнить.
+        /// </summary>
         public int Ghosts { get; private set; }
         public bool Finished { get; private set; }
         /// <summary>Сколько золотых спичек уровня найдено — раньше или сейчас.</summary>
@@ -88,6 +93,54 @@ namespace PushPals.Level
             if (exit == null) exit = FindAnyObjectByType<TeamExit>();
             unlocksAtStart = Unlocks.Mask;
             goldenAtStart = GoldenFound;
+            CollectProps();
+        }
+
+        // ---------- Упавшие предметы ----------
+
+        // Предметы, которые носят (ящик, мяч, ключ): упали в пропасть — возвращаются на место. Раньше они пропадали
+        // насовсем, и уровень было не пройти (кубик к высокому краю, ключ от выхода) — только начинать заново
+        private struct Prop
+        {
+            public Rigidbody2D Body;
+            public Vector2 Home;
+            public float Angle;
+        }
+        private readonly List<Prop> props = new List<Prop>();
+
+        private void CollectProps()
+        {
+            int grabbable = LayerMask.NameToLayer("Grabbable"), metal = LayerMask.NameToLayer("Metal");
+            foreach (var rb in FindObjectsByType<Rigidbody2D>(FindObjectsSortMode.None))
+            {
+                int layer = rb.gameObject.layer;
+                if (layer != grabbable && layer != metal) continue;              // только то, что носят
+                if (PushPals.Ragdoll.RagdollBody.Of(rb) != null || rb.GetComponentInParent<PushPals.Ragdoll.RagdollBody>() != null) continue;
+                props.Add(new Prop { Body = rb, Home = rb.position, Angle = rb.rotation });
+            }
+        }
+
+        private void FixedUpdate()
+        {
+            if (Online.IsClientView || props.Count == 0) return; // у клиента предметы ведёт хост
+            var manager = PlayerManager.Instance;
+            if (manager == null) return;
+            float fallY = manager.FallY;
+            for (int i = props.Count - 1; i >= 0; i--)
+            {
+                var p = props[i];
+                if (p.Body == null) { props.RemoveAt(i); continue; } // ключ вошёл в замок, ящик сломан
+                if (p.Body.bodyType != RigidbodyType2D.Dynamic || p.Body.position.y >= fallY) continue;
+                // На шарнире или нитке (линейка-качели, ключ под шариком, груз на верёвке) — висит, а не потерян
+                var joint = p.Body.GetComponent<Joint2D>();
+                if (joint != null && joint.enabled) continue;
+                p.Body.linearVelocity = Vector2.zero;
+                p.Body.angularVelocity = 0f;
+                p.Body.position = p.Home;
+                p.Body.rotation = p.Angle;
+                p.Body.transform.SetPositionAndRotation(p.Home, Quaternion.Euler(0f, 0f, p.Angle));
+                PushPals.Fire.Puffs.Smoke(p.Home, 6, 0.3f);
+            }
         }
 
         /// <summary>Сколько людей голосуют «Заново» и сколько всего (для надписи).</summary>
@@ -158,14 +211,15 @@ namespace PushPals.Level
             if (finished && !Finished) Finish();
         }
 
-        // Каждого игрока считаем: стал призраком — счёт сгоревших (итог, достижение «Ни одной искры зря», «Предатель»)
+        // Каждого игрока считаем: спичка догорела дотла — счёт сгоревших (итог, достижение «Ни одной искры зря», «Предатель»)
         private void WatchGhosts(PlayerManager manager)
         {
             foreach (var p in manager.Players)
             {
                 if (p == null || watched.Contains(p)) continue;
                 watched.Add(p);
-                p.Ragdoll.GhostChanged += ghost => { if (ghost && !Finished) Ghosts++; };
+                var fire = p.GetComponent<PushPals.Fire.MatchFire>();
+                if (fire != null) fire.BurntOut += () => { if (!Finished) Ghosts++; };
             }
         }
 
@@ -201,19 +255,28 @@ namespace PushPals.Level
             if (LevelLoader.Load(scene, title)) loading = true;
         }
 
-        // Сколько людей на этом ПК держат кнопку
+        // Сколько людей на этом ПК держат кнопку (игроки — у PlayerManager; раньше каждый кадр искали по всей сцене)
         private static int CountLocal(string action)
         {
             int n = 0;
-            foreach (var input in FindObjectsByType<PlayerInput>(FindObjectsSortMode.None))
+            var manager = PlayerManager.Instance;
+            if (manager == null) return 0;
+            foreach (var p in manager.Players)
             {
-                var a = input.actions != null ? input.actions.FindAction(action) : null;
+                var input = p != null ? p.Input : null;
+                var a = input != null && input.actions != null ? input.actions.FindAction(action) : null;
                 if (a != null && a.IsPressed()) n++;
             }
             return n;
         }
 
         // Сколько людей на этом ПК (манекены не голосуют)
-        private static int CountLocalPeople() => FindObjectsByType<PlayerInput>(FindObjectsSortMode.None).Length;
+        private static int CountLocalPeople()
+        {
+            int n = 0;
+            var manager = PlayerManager.Instance;
+            if (manager != null) foreach (var p in manager.Players) if (p != null && p.Input != null) n++;
+            return n;
+        }
     }
 }

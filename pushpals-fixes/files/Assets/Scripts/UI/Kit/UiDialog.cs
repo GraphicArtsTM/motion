@@ -53,6 +53,23 @@ namespace PushPals.UI
             return b;
         }
 
+        /// <summary>Окно-сообщение: заголовок (ключ), готовый текст и «Закрыть». Закрылось — удаляется.</summary>
+        public static UiDialog Info(string titleKey, string text)
+        {
+            var dialog = UiPrefabs.Spawn<UiDialog>("DialogPanel", UiRoot.Instance.Popups);
+            dialog.gameObject.SetActive(false);
+            dialog.Set(titleKey, null);
+            if (dialog.body != null)
+            {
+                var t = dialog.body.GetComponent<TMP_Text>();
+                if (t != null) t.text = text; // готовый текст, не ключ
+            }
+            dialog.AddButton("ui.close", true, () => dialog.Panel.Close());
+            dialog.Panel.Closed += () => Destroy(dialog.gameObject, 0.6f);
+            dialog.Panel.Open();
+            return dialog;
+        }
+
         /// <summary>Окно «точно?»: заголовок, текст, главная кнопка с действием и «Отмена». Закрылось — удаляется.</summary>
         public static UiDialog Confirm(string titleKey, string bodyKey, string confirmKey, System.Action onConfirm)
         {

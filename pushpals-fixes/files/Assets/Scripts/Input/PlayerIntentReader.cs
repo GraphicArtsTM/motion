@@ -76,12 +76,19 @@ namespace PushPals.Input
         private bool UsesKeyboard => playerInput.currentControlScheme == KeyboardMouseScheme;
 
         // Простое управление (доступность): нажал — рука держит, нажал ещё раз — отпустила
-        private bool heldLeft, heldRight;
+        private bool heldLeft, heldRight, holdingLeft, holdingRight;
+        private RagdollGrab hands;
 
-        private static bool Grab(InputAction action, ref bool held)
+        private bool Grab(InputAction action, ref bool held, ref bool wasHolding, bool left)
         {
             if (!AccessSettings.SimpleControls) { held = false; return action.IsPressed(); }
             if (action.WasPressedThisFrame()) held = !held;
+            // Рука держала, а теперь пуста (смена спички, возрождение, сорвалась, ключ вошёл в замок) — хват снят:
+            // иначе пустая рука хватала бы всё, чего коснётся, пока не нажмёшь ещё раз
+            if (hands == null || hands.gameObject != ragdoll.gameObject) hands = ragdoll.GetComponent<RagdollGrab>();
+            bool holding = hands != null && hands.IsHolding(left);
+            if (wasHolding && !holding && !action.WasPressedThisFrame()) held = false;
+            wasHolding = holding;
             return held;
         }
 
@@ -102,8 +109,8 @@ namespace PushPals.Input
             var intent = new RagdollIntent
             {
                 Move = ApplyDeadZone(move.ReadValue<Vector2>(), moveDeadZone),
-                GrabLeft = Grab(grabLeft, ref heldLeft),
-                GrabRight = Grab(grabRight, ref heldRight),
+                GrabLeft = Grab(grabLeft, ref heldLeft, ref holdingLeft, true),
+                GrabRight = Grab(grabRight, ref heldRight, ref holdingRight, false),
                 JumpPressed = jump.WasPressedThisFrame(),
                 JumpHeld = jump.IsPressed(),
                 HeadbuttPressed = headbutt.WasPressedThisFrame(),

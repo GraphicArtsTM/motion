@@ -15,8 +15,9 @@ namespace PushPals.UI
     /// </summary>
     public class SettingsScreen : UiScreen
     {
+        // «Ping» (метка «сюда») в наборе есть, но в игре ещё ничего не делает — переназначать нечего, не показываем
         private static readonly string[] ActionsToBind =
-            { "Jump", "GrabLeft", "GrabRight", "Headbutt", "SwitchMatch", "Relax", "Stiffen", "Emote", "Ping", "PushToTalk", "VoteRestart", "Menu" };
+            { "Jump", "GrabLeft", "GrabRight", "Headbutt", "SwitchMatch", "Relax", "Stiffen", "Emote", "PushToTalk", "VoteRestart", "Menu" };
 
         private readonly List<Vector2Int> resolutions = new List<Vector2Int>();
         private RectTransform controlsPage;
@@ -146,8 +147,7 @@ namespace PushPals.UI
             }, Percent);
             f.Toggle("settings.player_colors", AccessSettings.PlayerMarkers, v => { AccessSettings.PlayerMarkers = v; Save(); });
             f.Note("settings.markers_note");
-            f.Toggle("settings.subtitles", AccessSettings.Subtitles, v => { AccessSettings.Subtitles = v; Save(); });
-            f.Note("settings.subtitles_note");
+            // Субтитры — когда появится озвучка: переключатель, который ничего не меняет, только путал (значение хранится)
         }
 
         // ---------- Игра ----------

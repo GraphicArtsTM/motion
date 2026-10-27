@@ -64,7 +64,7 @@ namespace PushPals.Level
             held = Total > 0 && count == Total ? held + Time.fixedDeltaTime : 0f;
             if (held >= holdTime && !loading && level != null)
             {
-                loading = LevelLoader.Load(level.sceneName);
+                loading = LevelLoader.Load(level.sceneName, PushPals.UI.UiNames.Level(level)); // название — на обложке, как со старта у доски
                 if (loading) PushPals.Fire.Puffs.Sparks((Vector2)transform.position + Vector2.up * size.y, 30);
             }
             ShowFill();

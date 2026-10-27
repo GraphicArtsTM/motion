@@ -26,6 +26,8 @@ namespace PushPals.UI
         private GameObject offlineColumn, sessionColumn;
         private TMP_InputField codeField, addressField;
         private Button copyButton, inviteButton, bottomButton;
+        private readonly List<Button> steamButtons = new List<Button>(); // без Steam не работают — и не нажимаются
+        private TMP_Dropdown accessChoice;
         private LocText bottomLabel;
         private float refreshClock;
         private string shownLobbies = "", shownFriends = "", shownMembers = "";
@@ -57,11 +59,11 @@ namespace PushPals.UI
             offlineColumn = offline.gameObject;
             var left = Half(offline, true);
             var f = new UiForm(left);
-            f.Button("online.host", true, () => { if (net != null) net.HostSteam(); });
-            f.Button("online.find", false, () => { if (net != null) net.FindLobbies(); });
+            steamButtons.Add(f.Button("online.host", true, () => { if (net != null) net.HostSteam(); }));
+            steamButtons.Add(f.Button("online.find", false, () => { if (net != null) net.FindLobbies(); }));
             var codeSlot = f.Row(null);
             codeField = Field(codeSlot, "", -270f, "online.code");
-            SmallButton(codeSlot, "online.join_code", () => { if (net != null && !net.JoinByCode(codeField.text)) UiTheme.Play(Theme.backSound, Theme.backVolume); });
+            steamButtons.Add(SmallButton(codeSlot, "online.join_code", () => { if (net != null && !net.JoinByCode(codeField.text)) UiTheme.Play(Theme.backSound, Theme.backVolume); }));
             f.Header("online.local");
             f.Button("online.local_host", false, () => { if (net != null) net.StartLocalHost(); });
             var addrSlot = f.Row(null);
@@ -92,6 +94,15 @@ namespace PushPals.UI
             {
                 GUIUtility.systemCopyBuffer = net != null ? net.LobbyCodeText : "";
                 details.text = Loc.T("online.copied");
+            });
+            // Кто может войти — хосту прямо здесь: выбор хранится между запусками, и «никто» из прошлой игры
+            // молча не пускал друзей (а на этом экране его было не видно)
+            var accessNames = new List<string>();
+            for (int i = 0; i < GameRules.PrivacyCount; i++) accessNames.Add(GameRules.PrivacyName((GameRules.Privacy)i));
+            accessChoice = sl.Choice("setup.access", accessNames, (int)GameRules.Access, i =>
+            {
+                GameRules.Access = (GameRules.Privacy)i;
+                GameRules.NotifyChanged();
             });
             inviteButton = sl.Button("online.invite_overlay", false, () => { if (net != null) net.OpenInviteOverlay(); });
             sl.Button("online.leave", false, () => { if (net != null) net.Leave(); });
@@ -202,10 +213,21 @@ namespace PushPals.UI
             if (inSession) info.Add(Loc.T("online.players", net.PlayersInSession));
             if (inSession && net.PingMs.Length > 0) info.Add(Loc.T("online.ping", net.PingMs));
             if (details.text != Loc.T("online.copied") || refreshClock < -2f) details.text = string.Join("   ·   ", info.ToArray());
-            if (!inSession) { RefreshLobbies(); return; }
+            if (!inSession)
+            {
+                // Steam не запущен — создать/найти/войти по коду нельзя (подсказка «online.no_steam» — в строке выше);
+                // игра без Steam (локальная сеть) работает
+                foreach (var b in steamButtons) if (b != null) b.interactable = net.SteamReady;
+                RefreshLobbies();
+                return;
+            }
             // Код: Steam-лобби — число для друзей; локальная игра — порт; клиент без Steam — кода нет
             string code = Online.LobbyCode != null ? Online.LobbyCode() : "";
             codeText.text = code.Length > 0 ? code : "—";
+            // Кто может войти — решает хост; у клиента строки нет
+            var accessRow = accessChoice.transform.parent != null ? accessChoice.transform.parent.parent : null;
+            if (accessRow != null && accessRow.gameObject.activeSelf != net.IsHost) accessRow.gameObject.SetActive(net.IsHost);
+            if (accessChoice.value != (int)GameRules.Access) accessChoice.SetValueWithoutNotify((int)GameRules.Access);
             bool steamLobby = net.LobbyCodeText.Length > 0;
             copyButton.interactable = steamLobby;
             inviteButton.interactable = steamLobby && net.SteamReady;

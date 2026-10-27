@@ -46,6 +46,12 @@ namespace PushPals.Level
             if (message > 0f) message -= Time.deltaTime;
         }
 
+        // Дверь «все кнопки» (requireAll) должна знать о торте заранее
+        private void Start()
+        {
+            if (doors != null) foreach (var d in doors) if (d != null) d.Register(this);
+        }
+
         public void WriteNet(System.IO.BinaryWriter w) => w.Write(done);
         public void ReadNet(System.IO.BinaryReader r) => done = r.ReadBoolean();
 
