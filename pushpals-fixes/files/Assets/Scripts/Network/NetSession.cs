@@ -33,8 +33,18 @@ namespace PushPals.Network
 
         public static NetSession Instance { get; private set; }
 
-        /// <summary>Что сейчас происходит — для панели и автотестов.</summary>
-        public string Status { get; private set; } = "Не в сети";
+        /// <summary>Что сейчас происходит — для экрана «Онлайн», панели и автотестов (на языке игры).</summary>
+        public string Status => PushPals.UI.Loc.T(statusKey, statusArgs);
+
+        // Статус — ключ локализации и подстановки: переводится при показе (язык можно сменить в любой момент)
+        private string statusKey = "online.offline";
+        private object[] statusArgs = new object[0];
+
+        private void SetStatus(string key, params object[] args)
+        {
+            statusKey = key;
+            statusArgs = args ?? new object[0];
+        }
         public bool IsInSession => net != null && net.IsListening;
 
         private NetworkManager net;
@@ -100,7 +110,7 @@ namespace PushPals.Network
             if (levelSync == null) levelSync = gameObject.AddComponent<LevelSync>();
             Online.ShowNetworkPanel = () => visible = true;
             Online.LeaveSession = () => Leave(false);
-            Online.LobbyCode = () => !IsInSession ? "" : lobby.HasValue ? lobby.Value.Id.Value.ToString() : Online.IsHost ? "локальная игра (порт 7777)" : "";
+            Online.LobbyCode = () => !IsInSession ? "" : lobby.HasValue ? lobby.Value.Id.Value.ToString() : Online.IsHost ? PushPals.UI.Loc.T("net.local_code") : "";
             // Префаб спички Netcode регистрирует сам (список DefaultNetworkPrefabs), второй раз добавлять не нужно
         }
 
@@ -187,7 +197,7 @@ namespace PushPals.Network
 
             // Сессия закончилась сама (хост вышел, связь пропала) — обратно в одиночную/локальную игру
             if (!net.IsListening && !net.ShutdownInProgress && PlayerManager.Instance != null && PlayerManager.Instance.IsOnline && !starting)
-                EndSession("Связь потеряна");
+                EndSession("net.lost");
 
             // Принятое приглашение: Netcode закрывает сессию только в конце кадра — входим, когда она закрылась
             if (pendingLobby.HasValue && !net.IsListening && !net.ShutdownInProgress && !joining)
@@ -343,7 +353,7 @@ namespace PushPals.Network
             catch (Exception e)
             {
                 steamReady = false;
-                Status = "Steam не запущен или недоступен";
+                SetStatus("net.no_steam");
                 Debug.LogWarning("[PushPals] Steam: " + e.Message);
             }
             return steamReady;
@@ -355,13 +365,13 @@ namespace PushPals.Network
         public async void HostSteam()
         {
             if (Busy || !EnsureSteam()) return;
-            Status = "Создаю лобби…";
+            SetStatus("net.creating");
             BeginSession(steamTransport);
-            if (!net.StartHost()) { EndSession("Не удалось стать хостом"); return; }
+            if (!net.StartHost()) { EndSession("net.host_failed"); return; }
             SetRole(true);
 
             var created = await SteamMatchmaking.CreateLobbyAsync(PlayerManager.MaxPlayers);
-            if (!created.HasValue) { Status = "Хост запущен, но лобби Steam не создалось"; return; }
+            if (!created.HasValue) { SetStatus("net.no_lobby"); return; }
             var l = created.Value;
             l.SetData(lobbyTag, "1");
             l.SetData("name", SteamClient.Name);
@@ -370,7 +380,7 @@ namespace PushPals.Network
             // Друзья видят «Присоединиться» в списке друзей Steam
             SteamFriends.SetRichPresence("connect", "+connect_lobby " + l.Id.Value);
             SteamFriends.SetRichPresence("status", "Играет в PushPals — можно присоединиться");
-            Status = "Хост. Лобби " + l.Id.Value + " — пригласите друга";
+            SetStatus("net.host_lobby", l.Id.Value);
             RefreshFriends();
         }
 
@@ -383,17 +393,17 @@ namespace PushPals.Network
             joining = true;
             try
             {
-                Status = "Вхожу в лобби…";
+                SetStatus("net.joining");
                 var joined = await SteamMatchmaking.JoinLobbyAsync(lobbyId);
-                if (!joined.HasValue) { Status = "Не удалось войти в лобби"; return; }
+                if (!joined.HasValue) { SetStatus("net.join_failed"); return; }
                 var l = joined.Value;
                 // Пока ждали Steam, сессия могла начаться другим путём — это лобби уже не нужно
                 if (IsInSession) { l.Leave(); return; }
                 lobby = l;
                 steamTransport.targetSteamId = l.Owner.Id;
                 BeginSession(steamTransport);
-                Status = "Подключаюсь к " + l.Owner.Name + "…";
-                if (!net.StartClient()) { EndSession("Не удалось подключиться"); return; }
+                SetStatus("net.connecting", l.Owner.Name);
+                if (!net.StartClient()) { EndSession("net.connect_failed"); return; }
                 SetRole(false);
             }
             finally { joining = false; }
@@ -405,8 +415,8 @@ namespace PushPals.Network
             if (Busy) return;
             BeginSession(localTransport);
             localTransport.SetConnectionData("0.0.0.0", 7777);
-            if (net.StartHost()) { Status = "Локальный хост (порт 7777)"; SetRole(true); }
-            else EndSession("Не удалось стать хостом");
+            if (net.StartHost()) { SetStatus("net.local_host"); SetRole(true); }
+            else EndSession("net.host_failed");
         }
 
         public void StartLocalClient(string address)
@@ -414,8 +424,8 @@ namespace PushPals.Network
             if (Busy) return;
             BeginSession(localTransport);
             localTransport.SetConnectionData(address, 7777);
-            if (net.StartClient()) { Status = "Подключаюсь к " + address + "…"; SetRole(false); }
-            else EndSession("Не удалось подключиться");
+            if (net.StartClient()) { SetStatus("net.connecting", address); SetRole(false); }
+            else EndSession("net.connect_failed");
         }
 
         /// <summary>Выйти из сетевой игры. reloadClient — клиенту начать уровень заново своей игрой (false — сцену сменят следом).</summary>
@@ -423,7 +433,7 @@ namespace PushPals.Network
         {
             pendingLobby = null;
             if (net.IsListening) net.Shutdown();
-            EndSession("Не в сети", reloadClient);
+            EndSession("online.offline", reloadClient);
         }
 
         private void BeginSession(NetworkTransport transport)
@@ -481,11 +491,12 @@ namespace PushPals.Network
             bool full = net.ConnectedClientsIds.Count >= PlayerManager.MaxPlayers;
             bool closed = GameRules.Access == GameRules.Privacy.Closed;
             response.Approved = self || (!full && !closed);
-            response.Reason = full ? "Все 4 места заняты" : closed ? "Хост закрыл вход" : "";
+            response.Reason = full ? "full" : closed ? "closed" : ""; // код: клиент переведёт на свой язык (net.reason.*)
             response.CreatePlayerObject = false; // спичку создаёт PlayerManager (OnClientConnected)
             response.Pending = false;
         }
 
+        // status — ключ локализации (что показать на экране «Онлайн»)
         private void EndSession(string status, bool reloadClient = true)
         {
             bool wasClient = Online.IsClientView;
@@ -502,7 +513,7 @@ namespace PushPals.Network
             Online.RemoteRestartVotes = 0;
             var manager = PlayerManager.Instance;
             if (manager != null) manager.SetOnline(false);
-            Status = status;
+            SetStatus(status);
             // Клиент: уровень показывал снимки хоста (предметы кинематические, огонь не считался) —
             // начинаем его заново уже своей игрой
             if (wasActive && wasClient && reloadClient) SceneManager.LoadScene(SceneManager.GetActiveScene().name);
@@ -655,11 +666,12 @@ namespace PushPals.Network
                 // Каждому подключившемуся (и самому хосту) — своя спичка
                 PlayerManager.Instance?.AddNetworkPlayer(clientId);
                 Online.PeopleCount = net.ConnectedClientsIds.Count;
-                Status = (lobby.HasValue ? "Хост, лобби " + lobby.Value.Id.Value : "Хост") + ". Игроков: " + net.ConnectedClientsIds.Count;
+                if (lobby.HasValue) SetStatus("net.hosting", lobby.Value.Id.Value, net.ConnectedClientsIds.Count);
+                else SetStatus("net.hosting_local", net.ConnectedClientsIds.Count);
             }
             else if (clientId == net.LocalClientId)
             {
-                Status = "В игре у " + (lobby.HasValue ? lobby.Value.Owner.Name : localAddress);
+                SetStatus("net.in_game", lobby.HasValue ? lobby.Value.Owner.Name : localAddress);
             }
         }
 
@@ -685,12 +697,14 @@ namespace PushPals.Network
                 foreach (var id in net.ConnectedClientsIds) if (id != clientId) people++;
                 Online.PeopleCount = Mathf.Max(1, people);
                 // Не пущенный (вход закрыт, мест нет) в игре и не был
-                Status = (had ? "Игрок вышел" : "Кого-то не пустили (вход закрыт или мест нет)") + ". Игроков: " + Online.PeopleCount;
+                SetStatus(had ? "net.player_left" : "net.rejected_someone", Online.PeopleCount);
             }
             else if (clientId == net.LocalClientId || clientId == NetworkManager.ServerClientId)
             {
                 string reason = net.DisconnectReason;
-                EndSession(string.IsNullOrEmpty(reason) ? "Хост закрыл игру или связь пропала" : "Не пустили: " + reason);
+                EndSession(string.IsNullOrEmpty(reason) ? "net.host_closed" : "net.rejected");
+                if (!string.IsNullOrEmpty(reason))
+                    SetStatus("net.rejected", PushPals.UI.Loc.Has("net.reason." + reason) ? PushPals.UI.Loc.T("net.reason." + reason) : reason);
                 if (botMode) Debug.Log("[PushPals бот] " + Status);
             }
         }
@@ -709,10 +723,10 @@ namespace PushPals.Network
         public async void FindLobbies()
         {
             if (!EnsureSteam()) return;
-            Status = "Ищу игры…";
+            SetStatus("net.searching");
             var list = await SteamMatchmaking.LobbyList.WithKeyValue(lobbyTag, "1").WithSlotsAvailable(1).RequestAsync();
             foundLobbies = list ?? new Lobby[0];
-            Status = "Найдено игр: " + foundLobbies.Length;
+            SetStatus("net.found", foundLobbies.Length);
         }
 
         private void RefreshFriends()

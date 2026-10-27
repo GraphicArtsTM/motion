@@ -1,0 +1,2163 @@
+diff --git a/Assets/Resources/Localization/strings.txt b/Assets/Resources/Localization/strings.txt
+index 47cb205..9f0f219 100644
+--- a/Assets/Resources/Localization/strings.txt
++++ b/Assets/Resources/Localization/strings.txt
+@@ -255,3 +255,147 @@ goal.w1_6	Всё, чему научились, — в одном уровне.	E
+ goal.w2_1	Желе подбрасывает, шарики поднимают. Перелетите пропасть и опустите мост для друзей.	Jelly bounces, balloons lift. Fly over the gap and lower the bridge for friends.
+ goal.w2_2	Откройте подарок вдвоём, достаньте ключ с шарика и заберитесь к выходу.	Open the present together, get the key off the balloon and climb to the exit.
+ goal.w2_3	Зажгите все свечи на торте — и праздник откроет выход.	Light every candle on the cake — and the party opens the exit.
++# --- Настройки игры (экран вместо временного меню) ---
++setup.title	Настройки игры	Game setup
++setup.level	Уровень	Level
++setup.choose	Выбрать	Choose
++setup.mode	Режим	Mode
++setup.burn	Спички горят	Matches burn
++setup.slaps	Шлепки по друзьям	Friendly slaps
++setup.access	Кто может войти	Who can join
++setup.access_note	Для сетевой игры: кто может войти в твоё лобби Steam.	For online play: who can join your Steam lobby.
++setup.online	Онлайн: код и приглашения	Online: code and invites
++setup.start	Начать!	Start!
++setup.cancel	Отменить старт	Cancel start
++setup.level_golden	{0}  ·  золотых {1} из {2}	{0}  ·  golden {1} of {2}
++setup.goal	Цель: {0}	Goal: {0}
++setup.only_host	Уровень и настройки выбирает хост	The host chooses the level and settings
++setup.only_first	Настройки — у первого игрока	Settings belong to player 1
++setup.problem_offline	«Предатель» — только по сети: у каждого свой экран (пауза → Онлайн)	Traitor is online only: everyone needs their own screen (Pause → Online)
++setup.problem_people	«Предатель»: нужно от 3 людей (сейчас {0})	Traitor needs 3+ people (now {0})
++mode.0	Кооператив	Co-op
++mode.1	Предатель	Traitor
++burn.0	обычно	normal
++burn.1	дольше ×1,5	longer ×1.5
++burn.2	дольше ×2	longer ×2
++access.0	только друзья	friends only
++access.1	все	everyone
++access.2	никто	nobody
++# --- Шкаф: спички ---
++wardrobe.any	любые	any
++wardrobe.all_four	все четыре — ты один	all four — you're alone
++wardrobe.pair_a	Пара А: {0}	Pair A: {0}
++wardrobe.pair_b	Пара Б: {0}	Pair B: {0}
++wardrobe.taken	{0} (сейчас у игрока {1})	{0} (player {1} has it now)
++wardrobe.rule.1	Один игрок — все спички твои.	One player — all matches are yours.
++wardrobe.rule.2	2 игрока — у каждого пара.	2 players — each gets a pair.
++wardrobe.rule.3	3 игрока — выбравший пару получит её целиком.	3 players — whoever picks a pair gets both.
++wardrobe.rule.4	4 игрока — у каждого по одной спичке.	4 players — one match each.
++match.0	Тяжёлый	Heavy
++match.1	Маленький	Small
++match.2	Лёгкий	Light
++match.3	Магнит	Magnet
++# --- Доска в лобби ---
++board.world	Мир {0}	World {0}
++board.none	Уровней пока нет	No levels yet
++board.next	Следующий: {0}	Next: {0}
++board.tutorial	(обучение)	(tutorial)
++board.fire	огонь: {0}	fire: {0}
++board.no_slaps	без шлепков	no slaps
++board.code	Код для друзей: {0}	Code for friends: {0}
++board.hint	Настройки игры (хост): X / E у доски или пауза	Game setup (host): X / E at the board, or pause
++board.exit	Выход	Exit
++board.go	Поехали!	Let's go!
++board.host	хост	host
++board.start_in	Старт через {0}	Starting in {0}
++board.cancel_hint	хост: B / Esc — отменить	host: B / Esc — cancel
++# --- Подсказки внизу экрана и в мире ---
++hint.online	Сетевая игра: игроков {0}/{1}. Код, приглашения и выход — пауза → Онлайн	Online game: {0}/{1} players. Code, invites and leaving — Pause → Online
++hint.join	Нажми любую кнопку на геймпаде или клавиатуре, чтобы войти	Press any button on a gamepad or keyboard to join
++hint.players	Игроков: {0}/{1} — друг входит любой кнопкой своего геймпада. Пауза — Start / Esc, держать — уйти из команды	Players: {0}/{1} — a friend joins with any button on their gamepad. Pause — Start / Esc, hold to leave the team
++hint.full	Пауза — Start / Esc, держать — уйти из команды	Pause — Start / Esc, hold to leave the team
++slots.join	Нажми любую кнопку,\nчтобы войти	Press any button\nto join
++slots.online	Место для друга\n(пригласить: пауза → Онлайн)	A spot for a friend\n(invite: Pause → Online)
++slots.local	Друг: любая кнопка\nсвоего геймпада	Friend: any button\non their gamepad
++door.team	зайдите всей командой: {0} из {1}	enter as a whole team: {0} of {1}
++secret.found	Секрет найден!\nВ шкафу — праздничный колпак	Secret found!\nThe party hat is in the wardrobe
++secret.what	Что это там?	What's up there?
++ribbons.pull	Тяните ленты разом: {0} из {1}	Pull the ribbons together: {0} of {1}
++candles.light	Зажгите все свечи: {0} из {1}	Light every candle: {0} of {1}
++station.open	X / E — открыть	X / E — open
++emote.1	Привет!	Hi!
++emote.2	Ура!	Yay!
++emote.3	Туда!	That way!
++emote.4	Танец	Dance
++emote.5	Поклон	Bow
++emote.6	Эх…	Sigh…
++emote.7	Сила!	Strong!
++emote.8	Ой!	Oops!
++# --- Пауза: заново и в коробок посреди уровня ---
++pause.restart_confirm	Начать уровень заново?	Restart the level?
++pause.lobby_confirm	Вернуться в коробок?	Back to the box?
++pause.progress_lost	Прохождение начнётся сначала. Найденные золотые спички останутся.	The run starts over. Golden matches you found stay found.
++pause.progress_lost_online	Прохождение начнётся сначала у всех. Найденные золотые спички останутся.	The run starts over for everyone. Golden matches you found stay found.
++# --- Сеть: что происходит (экран «Онлайн») ---
++net.lost	Связь потеряна	Connection lost
++net.no_steam	Steam не запущен или недоступен	Steam isn't running or is unavailable
++net.creating	Создаю лобби…	Creating a lobby…
++net.host_failed	Не удалось стать хостом	Couldn't start hosting
++net.no_lobby	Хост запущен, но лобби Steam не создалось	Hosting, but the Steam lobby wasn't created
++net.host_lobby	Хост. Лобби {0} — пригласите друга	Hosting. Lobby {0} — invite a friend
++net.joining	Вхожу в лобби…	Joining the lobby…
++net.join_failed	Не удалось войти в лобби	Couldn't join the lobby
++net.connecting	Подключаюсь к {0}…	Connecting to {0}…
++net.connect_failed	Не удалось подключиться	Couldn't connect
++net.local_host	Локальный хост (порт 7777)	Local host (port 7777)
++net.local_code	локальная игра (порт 7777)	local game (port 7777)
++net.hosting	Хост, лобби {0}. Игроков: {1}	Hosting lobby {0}. Players: {1}
++net.hosting_local	Хост. Игроков: {0}	Hosting. Players: {0}
++net.in_game	В игре у {0}	In {0}'s game
++net.player_left	Игрок вышел. Игроков: {0}	A player left. Players: {0}
++net.rejected_someone	Кого-то не пустили (вход закрыт или мест нет). Игроков: {0}	Someone was turned away (joining closed or no room). Players: {0}
++net.host_closed	Хост закрыл игру или связь пропала	The host closed the game or the connection dropped
++net.rejected	Не пустили: {0}	Couldn't join: {0}
++net.reason.full	все 4 места заняты	all 4 spots are taken
++net.reason.closed	хост закрыл вход	the host closed joining
++net.searching	Ищу игры…	Looking for games…
++net.found	Найдено игр: {0}	Games found: {0}
++# --- Тексты из сцен (таблички, двери, торт, шкаф): ищутся по русскому тексту — Loc.Auto ---
++scene.01	Шкаф: X / E — спички, шапка, дерево	Wardrobe: X / E — matches, hat, wood
++scene.02	Мир 3 — Камин\nСкоро	World 3 — Fireplace\nComing soon
++scene.03	Мир 4 — Кемпинг ночью\nСкоро	World 4 — Night Camping\nComing soon
++scene.04	Мир 5 — Фейерверки\nСкоро	World 5 — Fireworks\nComing soon
++scene.05	Коробок-лобби!\n← шкаф: спички и шапки\nдоска →: уровень (выбирает хост)\nэмоции: держи LB / Q (или 1–8)	Matchbox lobby!\n← wardrobe: matches and hats\nboard →: level (the host chooses)\nemotes: hold LB / Q (or 1–8)
++scene.06	Лесенка: подпрыгни и хватайся за край (LT / RT · мышь),\nдержи прыжок — подтянешься. Наверху что-то есть!	Ladder: jump and grab the edge (LT / RT · mouse),\nhold jump to pull yourself up. There's something up there!
++scene.07	Невысокую ступеньку просто перепрыгни.	Just jump over a low step.
++scene.08	Высокий край: прицелься вперёд-вверх на край, держи обе руки и прыгай — подтянешься и перелезешь.\nНе достаёшь — встань на кубик.	High ledge: aim forward and up at the edge, hold both hands and jump — you'll pull yourself up and over.\nCan't reach? Stand on a cube.
++scene.09	Коробок — контрольная точка: упавшие и сгоревшие возвращаются к нему.	The matchbox is a checkpoint: anyone who falls or burns out comes back to it.
++scene.10	Ходить — левый стик или A / D.\nПрыжок — A или Пробел.	Walk — left stick or A / D.\nJump — A or Space.
++scene.11	Выход: зайдите в дверь всей командой.	Exit: go through the door as a whole team.
++scene.12	Пропасть: разбегись и прыгни.\nУпал — вернёшься к последнему коробку.	Gap: take a run-up and jump.\nFell? You'll come back at the last matchbox.
++scene.13	Руки — LT / RT или левая / правая кнопка мыши: держишь кнопку — держишь предмет.\nКуда тянуться — правый стик или мышь.\nСхвати кубик и подтащи к стене.	Hands — LT / RT or left / right mouse button: hold the button to hold an object.\nWhere to reach — right stick or mouse.\nGrab the cube and drag it to the wall.
++scene.14	Y или F — сменить спичку (около секунды).\nВорота открываются изнутри: Маленький пролезет по трубе под полом, Лёгкого поднимет ветер над стеной.	Y or F — swap match (takes about a second).\nThe gate opens from the inside: Small crawls through the pipe under the floor, wind lifts Light over the wall.
++scene.15	Стена высокая. Встань другу на голову — или пусть он подбросит тебя: держит, целится вверх и отпускает руки.\nНаверху — кнопка двери.	The wall is high. Stand on a friend's head — or let them throw you: they hold you, aim up and let go.\nThe door button is at the top.
++scene.16	Этот уровень — для двоих и больше.\nХватай друга, как предмет: за руку, ногу или голову.	This level is for two or more.\nGrab a friend like an object: by the hand, leg or head.
++scene.17	Тяжёлый ящик одному не сдвинуть — толкайте вместе к уступу и залезайте по нему.	The heavy crate won't budge for one — push it to the ledge together and climb up on it.
++scene.18	Пропасть широкая. Лёгкий перелетит, раскинув руки: держи прыжок в воздухе.\nДругих можно перебросить. На том берегу — кнопка моста.	The gap is wide. Light glides with arms spread: hold jump in the air.\nYou can throw the others across. The bridge button is on the far side.
++scene.19	Деревянная стенка горит — бодни её горящей головой.	The wooden wall burns — headbutt it with a burning head.
++scene.20	Фитиль сам донесёт огонь до нитки. Перегорит нитка — груз упадёт на кнопку двери.	The fuse carries the fire to the thread by itself. When the thread burns through, the weight drops onto the door button.
++scene.21	Погас? Зажгись от свечи или от друга: бодни его голову своей горящей.\nГорящая спичка догорает — не тяни.	Went out? Light up from a candle or a friend: headbutt their head with your burning one.\nA burning match burns down — don't wait too long.
++scene.22	Капли и лужа гасят огонь. Проскочи между каплями и перепрыгни лужу.	Drops and the puddle put fire out. Slip between the drops and jump over the puddle.
++scene.23	Спичку зажигают о коробок: подойди боком (тёрка — на высоте головы) и бодни — X или E.\nМагнит из металла — не горит. При смене спички огонь гаснет.	Matches are lit on the matchbox: walk up sideways (the striker is at head height) and headbutt — X or E.\nMagnet is metal — it doesn't burn. Swapping matches puts the fire out.
++scene.24	Подожги фитиль и отойди подальше: петарда взорвёт стенку.	Light the fuse and step back: the firecracker will blow up the wall.
++scene.25	Печенье треснуло: Тяжёлый проломит его, если спрыгнет сверху.	The cookie is cracked: Heavy will break through it by jumping on it from above.
++scene.26	Линейка — качели: встань на низкий конец у полки, а Тяжёлый пусть спрыгнет на высокий.\nВ полёте держи руки вверх и хватайся за край полки.	The ruler is a seesaw: stand on the low end by the shelf and let Heavy jump onto the high end.\nIn the air, keep your hands up and grab the shelf edge.
++scene.27	Кнопка «на всех»: встаньте на неё всей командой.	“Everyone” button: stand on it as a whole team.
++scene.28	Ключ от выхода — на полке. Он железный: Магнит притянет его рукой, а Лёгкого туда поднимет ветер.	The exit key is on the shelf. It's iron: Magnet pulls it with a hand, and wind lifts Light up there.
++scene.29	Финал мира: всё, чему научились. Удачи!	World finale: everything you've learned. Good luck!
++scene.30	Желе: прыгни на него — подбросит.\nДержи прыжок — подбросит выше.	Jelly: jump on it — it bounces you.\nHold jump to bounce higher.
++scene.31	Кнопка опускает мост для друзей.	The button lowers the bridge for your friends.
++scene.32	Шарик: схвати (LT / RT · мышь) и держи — полетишь.\nЛёгкого и Маленького поднимает один, Магнита — два (по шарику в руке). Огонь лопает шарики!	Balloon: grab it (LT / RT · mouse) and hold on — you'll fly.\nOne lifts Light or Small, Magnet needs two (one in each hand). Fire pops balloons!
++scene.33	Подарок: схватите бантики и тяните вдвоём от подарка —\nобе ленты разом, и ворота откроются.	Present: grab the bows and pull away from the present together —\nboth ribbons at once, and the gate opens.
++scene.34	Наверх: желе у стены (держи прыжок) и хватайся за край.\nИли на шарике — Лёгкий, Маленький, Магнит (два шарика).	Up: the jelly by the wall (hold jump), then grab the edge.\nOr ride a balloon — Light, Small, Magnet (two balloons).
++scene.35	Ключ привязан к шарику. Подпрыгни на желе и схвати ключ —\nили лопни шарик огнём (тёрка у коробка), или Магнит притянет.	The key is tied to a balloon. Bounce on the jelly and grab the key —\nor pop the balloon with fire (striker by the matchbox), or Magnet pulls it.
++scene.36	Торт: зажгите все пять свечей. Головка — о тёрку коробка,\nсвечу — «боднуть» у фитиля (X / E). От свечи зажигаются и спички.	Cake: light all five candles. Match head — on the matchbox striker,\ncandle — headbutt by the wick (X / E). Matches light from a candle too.
++scene.37	С днём рождения!	Happy birthday!
++scene.38	Ленты: одна внизу, другая на уступе (желе подбросит).\nТяните обе разом.	Ribbons: one below, the other on the ledge (the jelly bounces you up).\nPull both at once.
+diff --git a/Assets/Scripts/Input/PlayerIntentReader.cs b/Assets/Scripts/Input/PlayerIntentReader.cs
+index a85fe54..332a04d 100644
+--- a/Assets/Scripts/Input/PlayerIntentReader.cs
++++ b/Assets/Scripts/Input/PlayerIntentReader.cs
+@@ -11,8 +11,8 @@ namespace PushPals.Input
+     /// Читает Input System (геймпад или клавиатура+мышь) и передаёт намерения рэгдоллу.
+     /// Единственное место, где спичка связана с устройствами ввода. Живёт на отдельном объекте
+     /// «LocalController» (ввод одного игрока за этим ПК), спичку назначает PlayerManager или сеть.
+-    /// Ещё здесь: колесо эмоций (держать LB / Q), быстрые эмоции (крестовина, 1–8) и меню лобби —
+-    /// у шкафа и доски «боднуть» открывает меню, пока оно открыто, спичка стоит.
++    /// Ещё здесь: колесо эмоций (держать LB / Q), быстрые эмоции (крестовина, 1–8) и лобби —
++    /// у шкафа «боднуть» открывает гардероб этого игрока, у доски — настройки игры (хосту); пока экран открыт, спичка стоит.
+     /// </summary>
+     [RequireComponent(typeof(PlayerInput))]
+     public class PlayerIntentReader : MonoBehaviour
+@@ -27,7 +27,7 @@ namespace PushPals.Input
+         [SerializeField, Range(0f, 1f)] private float aimDeadZone = 0.35f;
+         [Tooltip("Насколько отклонить стик, чтобы выбрать эмоцию на колесе")]
+         [SerializeField, Range(0f, 1f)] private float wheelDeadZone = 0.5f;
+-        [Tooltip("Короткое нажатие Start / Esc (меньше стольких секунд) открывает настройки хоста в лобби")]
++        [Tooltip("Короткое нажатие Start / Esc (меньше стольких секунд) открывает паузу; держать дольше — уйти из команды")]
+         [SerializeField] private float menuTapTime = 0.4f;
+ 
+         private PlayerInput playerInput;
+@@ -39,22 +39,14 @@ namespace PushPals.Input
+             set => ragdoll = value;
+         }
+ 
+-        /// <summary>Открытое меню этого игрока (null — нет).</summary>
+-        public PlayerMenu Menu => menu;
+ 
+         private InputAction move, aim, point, grabLeft, grabRight, jump, headbutt, relax, stiffen, switchMatch, emote, emoteQuick, menuAction, pushToTalk;
+         private Vector2 lastStickAim = Vector2.right;
+ 
+-        private PlayerMenu menu;
+-        // «Настройки игры» открыли экран (карта миров, онлайн): когда он закроется — вернуться в них
+-        private bool reopenHostMenu;
+         private bool wheelOpen;
+         private int wheelPick;
+         private Vector2 lastQuick;
+         private float menuPressTime = -1f;
+-        private bool menuPressHadMenu;
+-        private Vector2Int navDir;
+-        private float navTimer;
+         private string toast;
+         private float toastTimer;
+ 
+@@ -106,28 +98,6 @@ namespace PushPals.Input
+                 ragdoll.SetIntent(new RagdollIntent());
+                 return;
+             }
+-            if (reopenHostMenu)
+-            {
+-                reopenHostMenu = false;
+-                if (menu == null && LobbyBoard.Instance != null && IsHost) Open(new HostMenu());
+-            }
+-
+-            // Открыто меню — кнопки идут ему, спичка стоит
+-            if (menu != null)
+-            {
+-                TrackMenuTap(); // до Handle: Start / Esc, закрывший меню, не должен открыть его снова
+-                menu.Handle(ReadMenuInput());
+-                if (menu.Closed)
+-                {
+-                    var host = menu as HostMenu;
+-                    if (host != null && host.ReturnAfterScreen) reopenHostMenu = true;
+-                    var next = menu.Next; // пауза → настройки и т. п.
+-                    menu = null;
+-                    if (next != null) Open(next);
+-                }
+-                ragdoll.SetIntent(new RagdollIntent());
+-                return;
+-            }
+ 
+             var intent = new RagdollIntent
+             {
+@@ -280,7 +250,8 @@ namespace PushPals.Input
+                 if (station != null)
+                 {
+                     intent.HeadbuttPressed = false;
+-                    if (station.Type == LobbyStation.Kind.Wardrobe) Open(new WardrobeMenu(ragdoll));
++                    wheelOpen = false;
++                    if (station.Type == LobbyStation.Kind.Wardrobe) OpenWardrobe();
+                     else OpenHostMenu();
+                 }
+             }
+@@ -294,33 +265,31 @@ namespace PushPals.Input
+         private void TrackMenuTap()
+         {
+             if (menuAction == null) return;
+-            if (menuAction.WasPressedThisFrame()) { menuPressTime = Time.unscaledTime; menuPressHadMenu = menu != null; }
++            if (menuAction.WasPressedThisFrame()) menuPressTime = Time.unscaledTime;
+             if (!menuAction.WasReleasedThisFrame() || menuPressTime < 0f) return;
+             bool tap = Time.unscaledTime - menuPressTime < menuTapTime;
+             menuPressTime = -1f;
+-            if (!tap || menuPressHadMenu || menu != null || PushPals.UI.TitleScreen.Showing) return;
++            if (!tap || PushPals.UI.TitleScreen.Showing) return;
+             var board = LobbyBoard.Instance;
+             if (board != null && board.Counting && IsHost) board.CancelCountdown();
+             else PushPals.UI.PauseScreen.Open(IsHost, this); // пауза на наборе интерфейса (Этап 17.5)
+         }
+ 
++        // Доска: настройки игры — хосту, остальным — кто решает
+         private void OpenHostMenu()
+         {
+-            if (IsHost) Open(new HostMenu());
+-            else Toast(Online.IsClientView ? "Уровень и настройки выбирает хост" : "Настройки — у первого игрока");
++            if (IsHost) GameSetupScreen.Open();
++            else Toast(Loc.T(Online.IsClientView ? "setup.only_host" : "setup.only_first"));
+         }
+ 
+-        private void Open(PlayerMenu m)
++        // Шкаф: гардероб этого игрока (шапка, дерево, какие спички хочет)
++        private void OpenWardrobe()
+         {
+             var player = ragdoll.GetComponent<Player>();
+-            if (player != null) m.Color = player.Color;
+-            menu = m;
+-            wheelOpen = false;
++            if (player != null) WardrobeScreen.OpenFor(player);
++            else WardrobeScreen.Open();
+         }
+ 
+-        /// <summary>Открыть меню извне (автотест).</summary>
+-        public void OpenMenu(PlayerMenu m) => Open(m);
+-
+         // Хост: в сетевой игре — компьютер-хост, за одним ПК — первый вошедший живой игрок
+         private bool IsHost
+         {
+@@ -342,42 +311,6 @@ namespace PushPals.Input
+             toastTimer = 2.2f;
+         }
+ 
+-        // Стрелки/стик меню с повтором при удержании
+-        private MenuInput ReadMenuInput()
+-        {
+-            var input = new MenuInput();
+-            Vector2 nav = Vector2.zero;
+-            var pad = Device<Gamepad>();
+-            if (pad != null)
+-            {
+-                nav = pad.dpad.ReadValue();
+-                Vector2 stick = pad.leftStick.ReadValue();
+-                if (stick.magnitude > 0.6f) nav = stick;
+-                input.Confirm = pad.buttonSouth.wasPressedThisFrame;
+-                input.Back = pad.buttonEast.wasPressedThisFrame || pad.buttonWest.wasPressedThisFrame || pad.startButton.wasPressedThisFrame;
+-            }
+-            var kb = Device<Keyboard>();
+-            if (kb != null)
+-            {
+-                if (kb.wKey.isPressed || kb.upArrowKey.isPressed) nav.y = 1f;
+-                if (kb.sKey.isPressed || kb.downArrowKey.isPressed) nav.y = -1f;
+-                if (kb.aKey.isPressed || kb.leftArrowKey.isPressed) nav.x = -1f;
+-                if (kb.dKey.isPressed || kb.rightArrowKey.isPressed) nav.x = 1f;
+-                input.Confirm |= kb.spaceKey.wasPressedThisFrame || kb.enterKey.wasPressedThisFrame;
+-                input.Back |= kb.escapeKey.wasPressedThisFrame || kb.eKey.wasPressedThisFrame || kb.leftShiftKey.wasPressedThisFrame;
+-            }
+-
+-            var dir = Vector2Int.zero;
+-            if (Mathf.Abs(nav.y) >= Mathf.Abs(nav.x) && Mathf.Abs(nav.y) > 0.5f) dir.y = nav.y > 0f ? 1 : -1;
+-            else if (Mathf.Abs(nav.x) > 0.5f) dir.x = nav.x > 0f ? 1 : -1;
+-            bool fire = false;
+-            if (dir != navDir) { fire = dir != Vector2Int.zero; navTimer = 0.35f; }
+-            else if (dir != Vector2Int.zero && (navTimer -= Time.unscaledDeltaTime) <= 0f) { fire = true; navTimer = 0.12f; }
+-            navDir = dir;
+-            if (fire) { input.Row = -dir.y; input.Change = dir.x; }
+-            return input;
+-        }
+-
+         private T Device<T>() where T : InputDevice
+         {
+             foreach (var d in playerInput.devices)
+@@ -403,18 +336,6 @@ namespace PushPals.Input
+             var player = ragdoll.GetComponent<Player>();
+             Color color = player != null ? player.Color : Color.white;
+ 
+-            if (menu != null)
+-            {
+-                GUI.depth = -10; // поверх табличек
+-                if (menu is HostMenu) menu.Draw(new Vector2(Screen.width * 0.5f, Screen.height * 0.16f));
+-                else
+-                {
+-                    // Сбоку от своей спички, чтобы видеть шапку и дерево, пока выбираешь
+-                    float side = gui.x + 70f + 380f < Screen.width ? 1f : -1f;
+-                    menu.Draw(new Vector2(gui.x + side * (70f + 190f), gui.y - 90f));
+-                }
+-                return;
+-            }
+             if (wheelOpen) EmoteWheel.Draw(gui + Vector2.up * 10f, wheelPick, color);
+             if (toastTimer > 0f) WorldLabel.Draw((Vector3)ragdoll.Body.Head.EndPoint + Vector3.up * 0.5f, toast, Mathf.Clamp01(toastTimer * 2f), 14, -1, 220f);
+         }
+diff --git a/Assets/Scripts/Level/CandleGoal.cs b/Assets/Scripts/Level/CandleGoal.cs
+index e48f355..a5fdaaf 100644
+--- a/Assets/Scripts/Level/CandleGoal.cs
++++ b/Assets/Scripts/Level/CandleGoal.cs
+@@ -54,9 +54,9 @@ namespace PushPals.Level
+             if (PushPals.UI.UiScreen.BlocksGame) return; // открыт экран меню — мировые надписи не поверх него
+             if (candles == null) return;
+             Vector3 top = transform.position + Vector3.up * 2.4f;
+-            if (message > 0f) { WorldLabel.Draw(top, doneText, Mathf.Clamp01(message), 20, -1, 260f); return; }
++            if (message > 0f) { WorldLabel.Draw(top, PushPals.UI.Loc.Auto(doneText), Mathf.Clamp01(message), 20, -1, 260f); return; }
+             if (done || WorldLabel.NearestPlayer(transform.position) > 9f) return;
+-            WorldLabel.Draw(top, "Зажгите все свечи: " + LitCount + " из " + candles.Length, 0.9f, 14, -1, 200f);
++            WorldLabel.Draw(top, PushPals.UI.Loc.T("candles.light", LitCount, candles.Length), 0.9f, 14, -1, 200f);
+         }
+     }
+ }
+diff --git a/Assets/Scripts/Level/GameRules.cs b/Assets/Scripts/Level/GameRules.cs
+index 23353bf..271ccb4 100644
+--- a/Assets/Scripts/Level/GameRules.cs
++++ b/Assets/Scripts/Level/GameRules.cs
+@@ -12,9 +12,12 @@ namespace PushPals
+ 
+         /// <summary>Множители времени горения: обычно, ×1,5, ×2.</summary>
+         public static readonly float[] BurnScales = { 1f, 1.5f, 2f };
+-        public static readonly string[] BurnNames = { "обычно", "дольше ×1,5", "дольше ×2" };
+-        public static readonly string[] ModeNames = { "Кооператив", "Предатель" };
+-        public static readonly string[] PrivacyNames = { "только друзья", "все", "никто" };
++        /// <summary>Сколько режимов и вариантов доступа (названия — на текущем языке: ModeName, PrivacyName).</summary>
++        public const int ModeCount = 2, PrivacyCount = 3;
++
++        public static string BurnName(int burn) => PushPals.UI.Loc.T("burn." + UnityEngine.Mathf.Clamp(burn, 0, BurnScales.Length - 1));
++        public static string ModeName(GameMode mode) => PushPals.UI.Loc.T("mode." + (int)mode);
++        public static string PrivacyName(Privacy access) => PushPals.UI.Loc.T("access." + (int)access);
+ 
+         /// <summary>Уровень, который начнётся из лобби (id LevelDefinition; пусто — первый уровень мира).</summary>
+         public static string LevelId { get; set; }
+@@ -39,8 +42,8 @@ namespace PushPals
+             get
+             {
+                 if (Mode != GameMode.Traitor) return "";
+-                if (!Online.IsActive) return "«Предатель» — только по сети (F2): у каждого свой экран";
+-                if (Online.PeopleCount < 3) return "«Предатель»: нужно от 3 людей (сейчас " + Online.PeopleCount + ")";
++                if (!Online.IsActive) return PushPals.UI.Loc.T("setup.problem_offline");
++                if (Online.PeopleCount < 3) return PushPals.UI.Loc.T("setup.problem_people", Online.PeopleCount);
+                 return "";
+             }
+         }
+diff --git a/Assets/Scripts/Level/JoinSlots.cs b/Assets/Scripts/Level/JoinSlots.cs
+index 7d515c2..901fd04 100644
+--- a/Assets/Scripts/Level/JoinSlots.cs
++++ b/Assets/Scripts/Level/JoinSlots.cs
+@@ -65,7 +65,7 @@ namespace PushPals.Level
+             int taken = Taken;
+             if (taken >= slots.Length || Online.IsClientView) return;
+             Vector3 top = slots[taken].position + Vector3.up * 2.3f;
+-            string text = taken == 0 ? "Нажми любую кнопку,\nчтобы войти" : Online.IsActive ? "Место для друга\n(пригласить — у доски)" : "Друг: любая кнопка\nсвоего геймпада";
++            string text = PushPals.UI.Loc.T(taken == 0 ? "slots.join" : Online.IsActive ? "slots.online" : "slots.local");
+             WorldLabel.Draw(top, text, 0.85f, 12, -1, 150f);
+         }
+     }
+diff --git a/Assets/Scripts/Level/LevelDoor.cs b/Assets/Scripts/Level/LevelDoor.cs
+index 85c7b3f..1d13451 100644
+--- a/Assets/Scripts/Level/LevelDoor.cs
++++ b/Assets/Scripts/Level/LevelDoor.cs
+@@ -87,14 +87,14 @@ namespace PushPals.Level
+             bool near = d < 4f;
+             if (locked)
+             {
+-                WorldLabel.Draw(top, lockedText, near ? 1f : 0.6f, 13, -1, 150f);
++                WorldLabel.Draw(top, PushPals.UI.Loc.Auto(lockedText), near ? 1f : 0.6f, 13, -1, 150f);
+                 return;
+             }
+             if (level == null) return;
+             int number = world != null ? world.NumberOf(level) : 0;
+-            string title = (number > 0 ? number + ". " : "") + level.displayName;
++            string title = (number > 0 ? number + ". " : "") + PushPals.UI.UiNames.Level(level);
+             if (!near) { WorldLabel.Draw(top, title, 0.75f, 13, LevelProgress.Golden(level.id), 150f, level.goldenCount); return; }
+-            string text = title + (level.tutorial ? "\n(обучение)" : "") + "\nзайдите всей командой: " + Inside + " из " + Mathf.Max(1, Total);
++            string text = title + (level.tutorial ? "\n" + PushPals.UI.Loc.T("board.tutorial") : "") + "\n" + PushPals.UI.Loc.T("door.team", Inside, Mathf.Max(1, Total));
+             WorldLabel.Draw(top, text, 1f, 15, LevelProgress.Golden(level.id), 220f, level.goldenCount);
+         }
+ 
+diff --git a/Assets/Scripts/Level/LobbyBoard.cs b/Assets/Scripts/Level/LobbyBoard.cs
+index 5f35253..4b44107 100644
+--- a/Assets/Scripts/Level/LobbyBoard.cs
++++ b/Assets/Scripts/Level/LobbyBoard.cs
+@@ -4,7 +4,7 @@ using UnityEngine;
+ namespace PushPals.Level
+ {
+     /// <summary>
+-    /// Доска у выхода из лобби: какой уровень следующий и с какими настройками (их выбирает хост в меню — HostMenu).
++    /// Доска у выхода из лобби: какой уровень следующий и с какими настройками (их выбирает хост на экране «Настройки игры» — GameSetupScreen).
+     /// «Начать» — отсчёт 5 секунд (хост может отменить), потом уровень грузится у всех (по сети решает хост).
+     /// Рядом — дверь-выход, светлеет во время отсчёта. По сети клиент получает настройки и отсчёт снимком (INetState).
+     /// Позиция — низ середины доски (на полу).
+@@ -36,13 +36,13 @@ namespace PushPals.Level
+             return null;
+         }
+ 
+-        /// <summary>«Мир 2 · 1. Шарики».</summary>
++        /// <summary>«Мир 2 · 1. Шарики» (на текущем языке).</summary>
+         public string Title(LevelDefinition level)
+         {
+             if (level == null) return "—";
+             var w = WorldOf(level);
+             int wi = w != null ? System.Array.IndexOf(worlds, w) + 1 : 0;
+-            return (wi > 0 ? "Мир " + wi + " · " : "") + (w != null ? w.NumberOf(level) + ". " : "") + level.displayName;
++            return (wi > 0 ? PushPals.UI.Loc.T("board.world", wi) + " · " : "") + (w != null ? w.NumberOf(level) + ". " : "") + PushPals.UI.UiNames.Level(level);
+         }
+ 
+         // Все уровни всех миров подряд
+@@ -178,27 +178,30 @@ namespace PushPals.Level
+             Vector3 boardTop = transform.position + Vector3.up * (boardHeight + boardSize.y - 0.25f);
+             string text;
+             int golden = -1, goldenMax = 0;
+-            if (level == null) text = "Уровней пока нет";
++            if (level == null) text = PushPals.UI.Loc.T("board.none");
+             else
+             {
+                 var w = WorldOf(level);
+-                text = (w != null ? w.displayName + "\n" : "") + "Следующий: " + Title(level) + (level.tutorial ? " (обучение)" : "")
+-                       + "\n" + GameRules.ModeNames[(int)GameRules.Mode] + " · огонь: " + GameRules.BurnNames[GameRules.Burn]
+-                       + (GameRules.FriendSlaps ? "" : " · без шлепков");
++                int wi = w != null ? System.Array.IndexOf(worlds, w) + 1 : 0;
++                text = (w != null ? PushPals.UI.UiNames.World(wi, w) + "\n" : "") + PushPals.UI.Loc.T("board.next", Title(level))
++                       + (level.tutorial ? " " + PushPals.UI.Loc.T("board.tutorial") : "")
++                       + "\n" + GameRules.ModeName(GameRules.Mode) + " · " + PushPals.UI.Loc.T("board.fire", GameRules.BurnName(GameRules.Burn))
++                       + (GameRules.FriendSlaps ? "" : " · " + PushPals.UI.Loc.T("board.no_slaps"));
+                 golden = LevelProgress.Golden(level.id);
+                 goldenMax = level.goldenCount;
+             }
+             string code = Online.LobbyCode != null ? Online.LobbyCode() : "";
+-            if (code.Length > 0) text += "\nКод для друзей: " + code;
+-            if (!Counting) text += "\nХост: X / E у доски или Start / Esc";
++            if (code.Length > 0) text += "\n" + PushPals.UI.Loc.T("board.code", code);
++            // Раньше: «Хост: … или Start / Esc» — но Start / Esc открывает паузу, а настройки — в ней
++            if (!Counting) text += "\n" + PushPals.UI.Loc.T("board.hint");
+             WorldLabel.Draw(boardTop, text, 1f, 14, golden, 300f, goldenMax);
+-            WorldLabel.Draw(transform.position + new Vector3(doorOffset, doorSize.y + 0.45f, 0f), Counting ? "Поехали!" : "Выход", 1f, 15, -1, 110f);
++            WorldLabel.Draw(transform.position + new Vector3(doorOffset, doorSize.y + 0.45f, 0f), PushPals.UI.Loc.T(Counting ? "board.go" : "board.exit"), 1f, 15, -1, 110f);
+ 
+             // Метка над хостом: кто выбирает уровень
+             var manager = PushPals.Players.PlayerManager.Instance;
+             var host = manager != null && manager.Visible.Count > 1 ? manager.HostPlayer : null;
+             if (host != null && host.Ragdoll.Body.IsBuilt)
+-                WorldLabel.Draw((Vector3)host.Ragdoll.Body.Head.EndPoint + Vector3.up * 0.75f, "хост", 0.8f, 11, -1, 46f);
++                WorldLabel.Draw((Vector3)host.Ragdoll.Body.Head.EndPoint + Vector3.up * 0.75f, PushPals.UI.Loc.T("board.host"), 0.8f, 11, -1, 46f);
+ 
+             if (!Counting) return;
+             // Отсчёт крупно — всем
+@@ -208,7 +211,7 @@ namespace PushPals.Level
+                 big.normal.textColor = new Color(1f, 0.93f, 0.75f);
+             }
+             int secs = Mathf.CeilToInt(Mathf.Max(0f, Countdown));
+-            string line = loading || secs == 0 ? "Поехали!" : "Старт через " + secs;
++            string line = loading || secs == 0 ? PushPals.UI.Loc.T("board.go") : PushPals.UI.Loc.T("board.start_in", secs);
+             var r = new Rect(0f, Screen.height * 0.18f, Screen.width, 60f);
+             var shadow = new GUIStyle(big); shadow.normal.textColor = new Color(0.2f, 0.12f, 0.05f, 0.8f);
+             GUI.Label(new Rect(r.x + 3f, r.y + 3f, r.width, r.height), line, shadow);
+@@ -216,7 +219,7 @@ namespace PushPals.Level
+             if (level != null)
+             {
+                 var small = new GUIStyle(big) { fontSize = 18, fontStyle = FontStyle.Normal };
+-                GUI.Label(new Rect(0f, r.yMax, Screen.width, 30f), Title(level) + (Online.IsClientView ? "" : "   ·   хост: B / Esc — отменить"), small);
++                GUI.Label(new Rect(0f, r.yMax, Screen.width, 30f), Title(level) + (Online.IsClientView ? "" : "   ·   " + PushPals.UI.Loc.T("board.cancel_hint")), small);
+             }
+         }
+ 
+diff --git a/Assets/Scripts/Level/LobbySecret.cs b/Assets/Scripts/Level/LobbySecret.cs
+index db7b0b5..09b2928 100644
+--- a/Assets/Scripts/Level/LobbySecret.cs
++++ b/Assets/Scripts/Level/LobbySecret.cs
+@@ -74,9 +74,9 @@ namespace PushPals.Level
+         {
+             if (PushPals.UI.UiScreen.BlocksGame) return; // открыт экран меню — мировые надписи не поверх него
+             if (message > 0f)
+-                WorldLabel.Draw(transform.position + Vector3.up * 1f, "Секрет найден!\nВ шкафу — праздничный колпак", Mathf.Clamp01(message), 16, -1, 260f);
++                WorldLabel.Draw(transform.position + Vector3.up * 1f, PushPals.UI.Loc.T("secret.found"), Mathf.Clamp01(message), 16, -1, 260f);
+             else if (!GameRules.PartyHatFound && WorldLabel.NearestPlayer(transform.position) < 3f)
+-                WorldLabel.Draw(transform.position + Vector3.up * 0.9f, "Что это там?", 0.9f, 13, -1, 120f);
++                WorldLabel.Draw(transform.position + Vector3.up * 0.9f, PushPals.UI.Loc.T("secret.what"), 0.9f, 13, -1, 120f);
+         }
+     }
+ }
+diff --git a/Assets/Scripts/Level/LobbyStation.cs b/Assets/Scripts/Level/LobbyStation.cs
+index ab3db73..e8069bc 100644
+--- a/Assets/Scripts/Level/LobbyStation.cs
++++ b/Assets/Scripts/Level/LobbyStation.cs
+@@ -15,7 +15,8 @@ namespace PushPals.Level
+         [Tooltip("На каком расстоянии от середины (по x) можно открыть")]
+         [SerializeField] private float radius = 1.6f;
+         [SerializeField] private float height = 3f;
+-        [SerializeField] private string prompt = "X / E — открыть";
++        private const string DefaultPrompt = "X / E — открыть";
++        [SerializeField] private string prompt = DefaultPrompt;
+ 
+         private static readonly List<LobbyStation> all = new List<LobbyStation>();
+ 
+@@ -41,7 +42,9 @@ namespace PushPals.Level
+             if (string.IsNullOrEmpty(prompt)) return; // подпись рисует само место (доска)
+             float d = WorldLabel.NearestPlayer((Vector2)transform.position + Vector2.up);
+             if (d > radius + 0.6f) return;
+-            WorldLabel.Draw(transform.position + Vector3.up * (height + 0.4f), prompt, 1f, 14, -1, 200f);
++            // В сцене подпись по-русски; по умолчанию — ключ station.open
++            string text = prompt == DefaultPrompt ? PushPals.UI.Loc.T("station.open") : PushPals.UI.Loc.Auto(prompt);
++            WorldLabel.Draw(transform.position + Vector3.up * (height + 0.4f), text, 1f, 14, -1, 200f);
+         }
+ 
+         private void OnDrawGizmos()
+diff --git a/Assets/Scripts/Level/RibbonGate.cs b/Assets/Scripts/Level/RibbonGate.cs
+index 904abe1..94b4e36 100644
+--- a/Assets/Scripts/Level/RibbonGate.cs
++++ b/Assets/Scripts/Level/RibbonGate.cs
+@@ -45,7 +45,7 @@ namespace PushPals.Level
+             if (d > 6f) return;
+             int pulled = 0;
+             foreach (var r in ribbons) if (r != null && r.Pulled) pulled++;
+-            WorldLabel.Draw(transform.position + Vector3.up * 1.2f, "Тяните ленты разом: " + pulled + " из " + ribbons.Length, 0.9f, 13, -1, 190f);
++            WorldLabel.Draw(transform.position + Vector3.up * 1.2f, PushPals.UI.Loc.T("ribbons.pull", pulled, ribbons.Length), 0.9f, 13, -1, 190f);
+         }
+     }
+ }
+diff --git a/Assets/Scripts/Level/TeamExit.cs b/Assets/Scripts/Level/TeamExit.cs
+index bc80e48..56fb734 100644
+--- a/Assets/Scripts/Level/TeamExit.cs
++++ b/Assets/Scripts/Level/TeamExit.cs
+@@ -72,7 +72,7 @@ namespace PushPals.Level
+             if (manager == null) return;
+             if (style == null) { style = new GUIStyle(GUI.skin.label) { fontSize = 28, alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold }; style.normal.textColor = new Color(0.3f, 0.18f, 0.08f); }
+             // На уровне мира итог показывает LevelRun
+-            if (Completed && LevelRun.Instance == null) GUI.Label(new Rect(0, Screen.height * 0.2f, Screen.width, 50), "Уровень пройден!", style);
++            if (Completed && LevelRun.Instance == null) GUI.Label(new Rect(0, Screen.height * 0.2f, Screen.width, 50), PushPals.UI.Loc.T("result.title"), style);
+         }
+ 
+         private void OnDrawGizmos()
+diff --git a/Assets/Scripts/Level/TutorialSign.cs b/Assets/Scripts/Level/TutorialSign.cs
+index 7131b56..7ed3c1f 100644
+--- a/Assets/Scripts/Level/TutorialSign.cs
++++ b/Assets/Scripts/Level/TutorialSign.cs
+@@ -81,7 +81,8 @@ namespace PushPals.Level
+             Vector3 screen = cam.WorldToScreenPoint(transform.position + Vector3.up * (height + 0.3f));
+             if (screen.z < 0f) return;
+             float width = 300f;
+-            float textHeight = style.CalcHeight(new GUIContent(text), width - 20f);
++            string shown = PushPals.UI.Loc.Auto(text); // в сцене записано по-русски — на другом языке перевод из таблицы
++            float textHeight = style.CalcHeight(new GUIContent(shown), width - 20f);
+             var rect = new Rect(screen.x - width * 0.5f, Screen.height - screen.y - textHeight - 16f, width, textHeight + 16f);
+             var old = GUI.color;
+             GUI.color = new Color(outline.r, outline.g, outline.b, alpha * 0.9f);
+@@ -89,7 +90,7 @@ namespace PushPals.Level
+             GUI.color = new Color(card.r, card.g, card.b, alpha * 0.95f);
+             GUI.DrawTexture(rect, pixel);
+             GUI.color = new Color(1f, 1f, 1f, alpha);
+-            GUI.Label(new Rect(rect.x + 10f, rect.y + 8f, rect.width - 20f, textHeight), text, style);
++            GUI.Label(new Rect(rect.x + 10f, rect.y + 8f, rect.width - 20f, textHeight), shown, style);
+             GUI.color = old;
+         }
+     }
+diff --git a/Assets/Scripts/Level/Unlocks.cs b/Assets/Scripts/Level/Unlocks.cs
+index b3dab38..e1fb988 100644
+--- a/Assets/Scripts/Level/Unlocks.cs
++++ b/Assets/Scripts/Level/Unlocks.cs
+@@ -44,17 +44,6 @@ namespace PushPals.Level
+ 
+         public static bool Wood(int wood) => wood >= 0 && wood < Woods.Length && Met(Woods[wood]);
+ 
+-        /// <summary>Чем открывается закрытая вещь — для шкафа: «3 золотые спички» или «достижение «…»».</summary>
+-        public static string NeedText(Need n)
+-        {
+-            if (n.achievement != null)
+-            {
+-                var a = Achievements.Find(n.achievement);
+-                return "достижение «" + (a != null ? a.name : n.achievement) + "»";
+-            }
+-            return GoldenText(n.golden);
+-        }
+-
+         /// <summary>«1 золотая спичка», «3 золотые спички», «5 золотых спичек».</summary>
+         public static string GoldenText(int n)
+         {
+@@ -98,17 +87,5 @@ namespace PushPals.Level
+                 if ((after & (1 << (16 + i))) != 0 && (before & (1 << (16 + i))) == 0) list.Add(new System.Collections.Generic.KeyValuePair<bool, int>(false, i));
+             return list;
+         }
+-
+-        /// <summary>Названия вещей, которые открылись между масками before → after.</summary>
+-        public static string NewSince(int before)
+-        {
+-            int after = Mask;
+-            string s = "";
+-            for (int i = 0; i < MatchVisual.HatCount; i++)
+-                if ((after & (1 << i)) != 0 && (before & (1 << i)) == 0) s += (s.Length > 0 ? ", " : "") + "шапка «" + MatchVisual.HatNames[i] + "»";
+-            for (int i = 0; i < MatchVisual.WoodCount; i++)
+-                if ((after & (1 << (16 + i))) != 0 && (before & (1 << (16 + i))) == 0) s += (s.Length > 0 ? ", " : "") + "дерево «" + MatchVisual.WoodNames[i] + "»";
+-            return s;
+-        }
+     }
+ }
+diff --git a/Assets/Scripts/Network/NetSession.cs b/Assets/Scripts/Network/NetSession.cs
+index 6dd558b..edf581c 100644
+--- a/Assets/Scripts/Network/NetSession.cs
++++ b/Assets/Scripts/Network/NetSession.cs
+@@ -33,8 +33,18 @@ namespace PushPals.Network
+ 
+         public static NetSession Instance { get; private set; }
+ 
+-        /// <summary>Что сейчас происходит — для панели и автотестов.</summary>
+-        public string Status { get; private set; } = "Не в сети";
++        /// <summary>Что сейчас происходит — для экрана «Онлайн», панели и автотестов (на языке игры).</summary>
++        public string Status => PushPals.UI.Loc.T(statusKey, statusArgs);
++
++        // Статус — ключ локализации и подстановки: переводится при показе (язык можно сменить в любой момент)
++        private string statusKey = "online.offline";
++        private object[] statusArgs = new object[0];
++
++        private void SetStatus(string key, params object[] args)
++        {
++            statusKey = key;
++            statusArgs = args ?? new object[0];
++        }
+         public bool IsInSession => net != null && net.IsListening;
+ 
+         private NetworkManager net;
+@@ -100,7 +110,7 @@ namespace PushPals.Network
+             if (levelSync == null) levelSync = gameObject.AddComponent<LevelSync>();
+             Online.ShowNetworkPanel = () => visible = true;
+             Online.LeaveSession = () => Leave(false);
+-            Online.LobbyCode = () => !IsInSession ? "" : lobby.HasValue ? lobby.Value.Id.Value.ToString() : Online.IsHost ? "локальная игра (порт 7777)" : "";
++            Online.LobbyCode = () => !IsInSession ? "" : lobby.HasValue ? lobby.Value.Id.Value.ToString() : Online.IsHost ? PushPals.UI.Loc.T("net.local_code") : "";
+             // Префаб спички Netcode регистрирует сам (список DefaultNetworkPrefabs), второй раз добавлять не нужно
+         }
+ 
+@@ -187,7 +197,7 @@ namespace PushPals.Network
+ 
+             // Сессия закончилась сама (хост вышел, связь пропала) — обратно в одиночную/локальную игру
+             if (!net.IsListening && !net.ShutdownInProgress && PlayerManager.Instance != null && PlayerManager.Instance.IsOnline && !starting)
+-                EndSession("Связь потеряна");
++                EndSession("net.lost");
+ 
+             // Принятое приглашение: Netcode закрывает сессию только в конце кадра — входим, когда она закрылась
+             if (pendingLobby.HasValue && !net.IsListening && !net.ShutdownInProgress && !joining)
+@@ -343,7 +353,7 @@ namespace PushPals.Network
+             catch (Exception e)
+             {
+                 steamReady = false;
+-                Status = "Steam не запущен или недоступен";
++                SetStatus("net.no_steam");
+                 Debug.LogWarning("[PushPals] Steam: " + e.Message);
+             }
+             return steamReady;
+@@ -355,13 +365,13 @@ namespace PushPals.Network
+         public async void HostSteam()
+         {
+             if (Busy || !EnsureSteam()) return;
+-            Status = "Создаю лобби…";
++            SetStatus("net.creating");
+             BeginSession(steamTransport);
+-            if (!net.StartHost()) { EndSession("Не удалось стать хостом"); return; }
++            if (!net.StartHost()) { EndSession("net.host_failed"); return; }
+             SetRole(true);
+ 
+             var created = await SteamMatchmaking.CreateLobbyAsync(PlayerManager.MaxPlayers);
+-            if (!created.HasValue) { Status = "Хост запущен, но лобби Steam не создалось"; return; }
++            if (!created.HasValue) { SetStatus("net.no_lobby"); return; }
+             var l = created.Value;
+             l.SetData(lobbyTag, "1");
+             l.SetData("name", SteamClient.Name);
+@@ -370,7 +380,7 @@ namespace PushPals.Network
+             // Друзья видят «Присоединиться» в списке друзей Steam
+             SteamFriends.SetRichPresence("connect", "+connect_lobby " + l.Id.Value);
+             SteamFriends.SetRichPresence("status", "Играет в PushPals — можно присоединиться");
+-            Status = "Хост. Лобби " + l.Id.Value + " — пригласите друга";
++            SetStatus("net.host_lobby", l.Id.Value);
+             RefreshFriends();
+         }
+ 
+@@ -383,17 +393,17 @@ namespace PushPals.Network
+             joining = true;
+             try
+             {
+-                Status = "Вхожу в лобби…";
++                SetStatus("net.joining");
+                 var joined = await SteamMatchmaking.JoinLobbyAsync(lobbyId);
+-                if (!joined.HasValue) { Status = "Не удалось войти в лобби"; return; }
++                if (!joined.HasValue) { SetStatus("net.join_failed"); return; }
+                 var l = joined.Value;
+                 // Пока ждали Steam, сессия могла начаться другим путём — это лобби уже не нужно
+                 if (IsInSession) { l.Leave(); return; }
+                 lobby = l;
+                 steamTransport.targetSteamId = l.Owner.Id;
+                 BeginSession(steamTransport);
+-                Status = "Подключаюсь к " + l.Owner.Name + "…";
+-                if (!net.StartClient()) { EndSession("Не удалось подключиться"); return; }
++                SetStatus("net.connecting", l.Owner.Name);
++                if (!net.StartClient()) { EndSession("net.connect_failed"); return; }
+                 SetRole(false);
+             }
+             finally { joining = false; }
+@@ -405,8 +415,8 @@ namespace PushPals.Network
+             if (Busy) return;
+             BeginSession(localTransport);
+             localTransport.SetConnectionData("0.0.0.0", 7777);
+-            if (net.StartHost()) { Status = "Локальный хост (порт 7777)"; SetRole(true); }
+-            else EndSession("Не удалось стать хостом");
++            if (net.StartHost()) { SetStatus("net.local_host"); SetRole(true); }
++            else EndSession("net.host_failed");
+         }
+ 
+         public void StartLocalClient(string address)
+@@ -414,8 +424,8 @@ namespace PushPals.Network
+             if (Busy) return;
+             BeginSession(localTransport);
+             localTransport.SetConnectionData(address, 7777);
+-            if (net.StartClient()) { Status = "Подключаюсь к " + address + "…"; SetRole(false); }
+-            else EndSession("Не удалось подключиться");
++            if (net.StartClient()) { SetStatus("net.connecting", address); SetRole(false); }
++            else EndSession("net.connect_failed");
+         }
+ 
+         /// <summary>Выйти из сетевой игры. reloadClient — клиенту начать уровень заново своей игрой (false — сцену сменят следом).</summary>
+@@ -423,7 +433,7 @@ namespace PushPals.Network
+         {
+             pendingLobby = null;
+             if (net.IsListening) net.Shutdown();
+-            EndSession("Не в сети", reloadClient);
++            EndSession("online.offline", reloadClient);
+         }
+ 
+         private void BeginSession(NetworkTransport transport)
+@@ -481,11 +491,12 @@ namespace PushPals.Network
+             bool full = net.ConnectedClientsIds.Count >= PlayerManager.MaxPlayers;
+             bool closed = GameRules.Access == GameRules.Privacy.Closed;
+             response.Approved = self || (!full && !closed);
+-            response.Reason = full ? "Все 4 места заняты" : closed ? "Хост закрыл вход" : "";
++            response.Reason = full ? "full" : closed ? "closed" : ""; // код: клиент переведёт на свой язык (net.reason.*)
+             response.CreatePlayerObject = false; // спичку создаёт PlayerManager (OnClientConnected)
+             response.Pending = false;
+         }
+ 
++        // status — ключ локализации (что показать на экране «Онлайн»)
+         private void EndSession(string status, bool reloadClient = true)
+         {
+             bool wasClient = Online.IsClientView;
+@@ -502,7 +513,7 @@ namespace PushPals.Network
+             Online.RemoteRestartVotes = 0;
+             var manager = PlayerManager.Instance;
+             if (manager != null) manager.SetOnline(false);
+-            Status = status;
++            SetStatus(status);
+             // Клиент: уровень показывал снимки хоста (предметы кинематические, огонь не считался) —
+             // начинаем его заново уже своей игрой
+             if (wasActive && wasClient && reloadClient) SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+@@ -655,11 +666,12 @@ namespace PushPals.Network
+                 // Каждому подключившемуся (и самому хосту) — своя спичка
+                 PlayerManager.Instance?.AddNetworkPlayer(clientId);
+                 Online.PeopleCount = net.ConnectedClientsIds.Count;
+-                Status = (lobby.HasValue ? "Хост, лобби " + lobby.Value.Id.Value : "Хост") + ". Игроков: " + net.ConnectedClientsIds.Count;
++                if (lobby.HasValue) SetStatus("net.hosting", lobby.Value.Id.Value, net.ConnectedClientsIds.Count);
++                else SetStatus("net.hosting_local", net.ConnectedClientsIds.Count);
+             }
+             else if (clientId == net.LocalClientId)
+             {
+-                Status = "В игре у " + (lobby.HasValue ? lobby.Value.Owner.Name : localAddress);
++                SetStatus("net.in_game", lobby.HasValue ? lobby.Value.Owner.Name : localAddress);
+             }
+         }
+ 
+@@ -685,12 +697,14 @@ namespace PushPals.Network
+                 foreach (var id in net.ConnectedClientsIds) if (id != clientId) people++;
+                 Online.PeopleCount = Mathf.Max(1, people);
+                 // Не пущенный (вход закрыт, мест нет) в игре и не был
+-                Status = (had ? "Игрок вышел" : "Кого-то не пустили (вход закрыт или мест нет)") + ". Игроков: " + Online.PeopleCount;
++                SetStatus(had ? "net.player_left" : "net.rejected_someone", Online.PeopleCount);
+             }
+             else if (clientId == net.LocalClientId || clientId == NetworkManager.ServerClientId)
+             {
+                 string reason = net.DisconnectReason;
+-                EndSession(string.IsNullOrEmpty(reason) ? "Хост закрыл игру или связь пропала" : "Не пустили: " + reason);
++                EndSession(string.IsNullOrEmpty(reason) ? "net.host_closed" : "net.rejected");
++                if (!string.IsNullOrEmpty(reason))
++                    SetStatus("net.rejected", PushPals.UI.Loc.Has("net.reason." + reason) ? PushPals.UI.Loc.T("net.reason." + reason) : reason);
+                 if (botMode) Debug.Log("[PushPals бот] " + Status);
+             }
+         }
+@@ -709,10 +723,10 @@ namespace PushPals.Network
+         public async void FindLobbies()
+         {
+             if (!EnsureSteam()) return;
+-            Status = "Ищу игры…";
++            SetStatus("net.searching");
+             var list = await SteamMatchmaking.LobbyList.WithKeyValue(lobbyTag, "1").WithSlotsAvailable(1).RequestAsync();
+             foundLobbies = list ?? new Lobby[0];
+-            Status = "Найдено игр: " + foundLobbies.Length;
++            SetStatus("net.found", foundLobbies.Length);
+         }
+ 
+         private void RefreshFriends()
+diff --git a/Assets/Scripts/UI/EmoteWheel.cs b/Assets/Scripts/UI/EmoteWheel.cs
+index c4d50ad..9737b8c 100644
+--- a/Assets/Scripts/UI/EmoteWheel.cs
++++ b/Assets/Scripts/UI/EmoteWheel.cs
+@@ -45,7 +45,7 @@ namespace PushPals.UI
+                 GUI.DrawTexture(r, dot);
+                 GUI.color = Color.white;
+                 style.normal.textColor = new Color(0.25f, 0.15f, 0.07f);
+-                GUI.Label(r, RagdollEmote.Names[i], style);
++                GUI.Label(r, i > 0 ? Loc.T("emote." + i) : RagdollEmote.Names[i], style);
+             }
+             GUI.color = old;
+         }
+diff --git a/Assets/Scripts/UI/HostMenu.cs b/Assets/Scripts/UI/HostMenu.cs
+deleted file mode 100644
+index 8f00ffe..0000000
+--- a/Assets/Scripts/UI/HostMenu.cs
++++ /dev/null
+@@ -1,107 +0,0 @@
+-using PushPals.Level;
+-using UnityEngine;
+-
+-namespace PushPals.UI
+-{
+-    /// <summary>
+-    /// Настройки игры у доски в лобби — только хосту (за одним ПК — первому вошедшему): уровень, режим,
+-    /// время горения спичек, шлепки по друзьям, кто может войти; «Начать» — отсчёт у всех.
+-    /// </summary>
+-    public class HostMenu : PlayerMenu
+-    {
+-        private const int LevelRow = 0, ModeRow = 1, BurnRow = 2, SlapRow = 3, AccessRow = 4, NetRow = 5, StartRow = 6;
+-
+-        protected override string Title => "Настройки игры (хост)";
+-        protected override int RowCount => 7;
+-
+-        private static LobbyBoard Board => LobbyBoard.Instance;
+-
+-        /// <summary>Закрылось ради экрана (карта миров, онлайн) — после него вернуться сюда, к «Начать!».</summary>
+-        public bool ReturnAfterScreen { get; private set; }
+-
+-        protected override string Label(int row)
+-        {
+-            switch (row)
+-            {
+-                case LevelRow: return "Уровень";
+-                case ModeRow: return "Режим";
+-                case BurnRow: return "Спички горят";
+-                case SlapRow: return "Шлепки по друзьям";
+-                case AccessRow: return "Кто может войти";
+-                case NetRow:
+-                {
+-                    string code = Online.LobbyCode != null ? Online.LobbyCode() : "";
+-                    return code.Length > 0 ? "Онлайн — код для друзей: " + code : "Онлайн: создать игру и пригласить друзей";
+-                }
+-                default:
+-                    if (Board != null && Board.Counting) return "Отменить старт";
+-                    return GameRules.ModeReady ? "Начать!" : "Начать — " + GameRules.ModeProblem;
+-            }
+-        }
+-
+-        protected override bool IsButton(int row) => row == StartRow || row == NetRow;
+-        protected override bool Enabled(int row) => row != StartRow || GameRules.ModeReady || (Board != null && Board.Counting);
+-
+-        protected override string Value(int row)
+-        {
+-            switch (row)
+-            {
+-                case LevelRow:
+-                {
+-                    var level = Board != null ? Board.Selected : null;
+-                    if (level == null) return "—";
+-                    return Board.Title(level) + "  (золотых " + LevelProgress.Golden(level.id) + " из " + level.goldenCount + ")";
+-                }
+-                case ModeRow: return GameRules.ModeNames[(int)GameRules.Mode];
+-                case BurnRow: return GameRules.BurnNames[GameRules.Burn];
+-                case SlapRow: return GameRules.FriendSlaps ? "да" : "нет";
+-                case AccessRow: return GameRules.PrivacyNames[(int)GameRules.Access];
+-                default: return "";
+-            }
+-        }
+-
+-        protected override string Note
+-        {
+-            get
+-            {
+-                var level = Board != null ? Board.Selected : null;
+-                string goal = level != null && !string.IsNullOrEmpty(level.goal) ? "Цель: " + level.goal + "\n" : "";
+-                return goal + "Миры 3–5 — скоро. Шапки и спички — в шкафу.";
+-            }
+-        }
+-
+-        protected override void Change(int row, int dir)
+-        {
+-            switch (row)
+-            {
+-                case LevelRow: if (Board != null) Board.Select(dir); return;
+-                case ModeRow: GameRules.Mode = (GameRules.GameMode)Cycle((int)GameRules.Mode, dir, GameRules.ModeNames.Length); break;
+-                case BurnRow: GameRules.Burn = Cycle(GameRules.Burn, dir, GameRules.BurnScales.Length); break;
+-                case SlapRow: GameRules.FriendSlaps = !GameRules.FriendSlaps; break;
+-                case AccessRow: GameRules.Access = (GameRules.Privacy)Cycle((int)GameRules.Access, dir, GameRules.PrivacyNames.Length); break;
+-                default: return;
+-            }
+-            GameRules.NotifyChanged();
+-        }
+-
+-        protected override void Press(int row)
+-        {
+-            if (row == NetRow)
+-            {
+-                // Экран «Онлайн» (Steam-лобби, приглашения, код) — раньше открывалась отладочная панель F2
+-                ReturnAfterScreen = true;
+-                Close();
+-                OnlineScreen.Open(false);
+-                return;
+-            }
+-            // Уровень — на карте миров (Этап 17.4); стрелками по-прежнему листается здесь
+-            if (row == LevelRow) { ReturnAfterScreen = true; Close(); WorldMapScreen.Open(true); return; }
+-            if (row != StartRow) { Change(row, 1); return; }
+-            if (Board == null) return;
+-            if (Board.Counting) Board.CancelCountdown();
+-            else { Board.StartCountdown(); if (Board.Counting) Close(); }
+-        }
+-
+-        private static int Cycle(int value, int dir, int count) => (value + dir + count) % count;
+-    }
+-}
+diff --git a/Assets/Scripts/UI/HostMenu.cs.meta b/Assets/Scripts/UI/HostMenu.cs.meta
+deleted file mode 100644
+index 93184c1..0000000
+--- a/Assets/Scripts/UI/HostMenu.cs.meta
++++ /dev/null
+@@ -1,2 +0,0 @@
+-fileFormatVersion: 2
+-guid: d1a34df589eb5a5418a147340f2a8b08
+\ No newline at end of file
+diff --git a/Assets/Scripts/UI/JoinHint.cs b/Assets/Scripts/UI/JoinHint.cs
+index 2e22ed7..739c9b6 100644
+--- a/Assets/Scripts/UI/JoinHint.cs
++++ b/Assets/Scripts/UI/JoinHint.cs
+@@ -4,7 +4,7 @@ using UnityEngine;
+ namespace PushPals.UI
+ {
+     /// <summary>
+-    /// Временная подсказка внизу экрана: как войти и выйти. Настоящее меню — на Этапе 17.
++    /// Подсказка внизу экрана: как войти, где пауза и как уйти из команды; по сети — где код и приглашения.
+     /// </summary>
+     public class JoinHint : MonoBehaviour
+     {
+@@ -24,14 +24,15 @@ namespace PushPals.UI
+                 style.normal.textColor = new Color(0.25f, 0.16f, 0.1f);
+             }
+ 
++            // Раньше по сети отправляла к отладочной панели F2 — теперь к паузе → «Онлайн»
+             int count = manager.Visible.Count;
+             string text = Online.IsActive
+-                ? $"Сетевая игра: игроков {count}/{PlayerManager.MaxPlayers}. Пригласить или выйти — F2"
++                ? Loc.T("hint.online", count, PlayerManager.MaxPlayers)
+                 : manager.Players.Count == 0
+-                ? "Нажми любую кнопку на геймпаде или клавиатуре, чтобы войти"
++                ? Loc.T("hint.join")
+                 : manager.Players.Count < PlayerManager.MaxPlayers
+-                    ? $"Игроков: {manager.Players.Count}/{PlayerManager.MaxPlayers} — друг входит любой кнопкой своего геймпада. Выйти: держать Start / Esc"
+-                    : "Выйти: держать Start / Esc";
++                    ? Loc.T("hint.players", manager.Players.Count, PlayerManager.MaxPlayers)
++                    : Loc.T("hint.full");
+             GUI.Label(new Rect(0, Screen.height - 40, Screen.width, 32), text, style);
+         }
+     }
+diff --git a/Assets/Scripts/UI/Kit/Loc.cs b/Assets/Scripts/UI/Kit/Loc.cs
+index 250e2cb..c4f6fa0 100644
+--- a/Assets/Scripts/UI/Kit/Loc.cs
++++ b/Assets/Scripts/UI/Kit/Loc.cs
+@@ -17,6 +17,8 @@ namespace PushPals.UI
+         public static readonly string[] LanguageNames = { "Русский", "English" };
+ 
+         private static Dictionary<string, string[]> table;
++        // Русский текст → строка таблицы scene.*: для текстов, записанных в сценах прямо по-русски (таблички, двери)
++        private static Dictionary<string, string[]> bySource;
+         private static Language language = Language.Ru;
+         private static bool chosen;
+ 
+@@ -96,6 +98,24 @@ namespace PushPals.UI
+             return table.ContainsKey(key);
+         }
+ 
++        /// <summary>
++        /// Текст, который в сцене или префабе записан прямо по-русски (табличка-подсказка, подпись двери):
++        /// на русском — как есть, на другом языке — перевод из таблицы, где такой же русский текст; нет — как есть.
++        /// Ключ таблицы тоже подходит.
++        /// </summary>
++        public static string Auto(string source)
++        {
++            if (string.IsNullOrEmpty(source)) return source;
++            if (table == null) Load();
++            string[] row;
++            if (table.TryGetValue(source, out row) || bySource.TryGetValue(source, out row))
++            {
++                int i = (int)Current;
++                return i < row.Length && !string.IsNullOrEmpty(row[i]) ? row[i] : row[0];
++            }
++            return source;
++        }
++
+         /// <summary>Перечитать таблицу (после правки файла).</summary>
+         public static void Reload()
+         {
+@@ -106,6 +126,7 @@ namespace PushPals.UI
+         private static void Load()
+         {
+             table = new Dictionary<string, string[]>();
++            bySource = new Dictionary<string, string[]>();
+             var file = Resources.Load<TextAsset>("Localization/strings");
+             if (file == null) { Debug.LogWarning("[PushPals] Нет Resources/Localization/strings.txt"); return; }
+             foreach (var raw in file.text.Split('\n'))
+@@ -117,6 +138,8 @@ namespace PushPals.UI
+                 var row = new string[2];
+                 for (int i = 0; i < 2; i++) row[i] = i + 1 < parts.Length ? parts[i + 1].Replace("\\n", "\n") : "";
+                 table[parts[0].Trim()] = row;
++                // По русскому тексту ищутся только строки scene.* (иначе «Выход»-кнопка и «Выход»-дверь спорили бы)
++                if (parts[0].StartsWith("scene.") && !string.IsNullOrEmpty(row[0])) bySource[row[0]] = row;
+             }
+         }
+     }
+diff --git a/Assets/Scripts/UI/Kit/UiNames.cs b/Assets/Scripts/UI/Kit/UiNames.cs
+index 876b24a..684b761 100644
+--- a/Assets/Scripts/UI/Kit/UiNames.cs
++++ b/Assets/Scripts/UI/Kit/UiNames.cs
+@@ -23,6 +23,17 @@ namespace PushPals.UI
+             return Loc.Has(key) ? Loc.T(key) : world != null ? world.displayName : "";
+         }
+ 
++        /// <summary>Спичка (Тяжёлый, Маленький, Лёгкий, Магнит).</summary>
++        public static string Match(PushPals.Abilities.MatchKind kind) => Loc.T("match." + (int)kind);
++
++        /// <summary>«Тяжёлый + Маленький».</summary>
++        public static string Matches(System.Collections.Generic.IList<PushPals.Abilities.MatchKind> kinds)
++        {
++            string s = "";
++            foreach (var k in kinds) s += (s.Length > 0 ? " + " : "") + Match(k);
++            return s;
++        }
++
+         public static string Hat(int i) => Loc.T("hat." + i);
+         public static string Wood(int i) => Loc.T("wood." + i);
+ 
+diff --git a/Assets/Scripts/UI/PauseMenu.cs b/Assets/Scripts/UI/PauseMenu.cs
+deleted file mode 100644
+index 9660817..0000000
+--- a/Assets/Scripts/UI/PauseMenu.cs
++++ /dev/null
+@@ -1,73 +0,0 @@
+-using System.Collections.Generic;
+-using PushPals.Level;
+-using UnityEngine;
+-using UnityEngine.SceneManagement;
+-
+-namespace PushPals.UI
+-{
+-    /// <summary>
+-    /// Меню по короткому Start / Esc (Этап 17). Время не останавливается — играете вместе: пока меню открыто, твоя спичка стоит.
+-    /// В лобби хосту — ещё «Настройки игры»; на уровне хосту (и за одним ПК) — «Заново» и «В коробок».
+-    /// </summary>
+-    public class PauseMenu : PlayerMenu
+-    {
+-        private enum Item { Resume, HostSettings, Settings, Restart, Lobby, Quit }
+-        private readonly List<Item> items = new List<Item>();
+-
+-        public PauseMenu(bool isHost)
+-        {
+-            bool inLobby = LobbyBoard.Instance != null;
+-            bool decides = !Online.IsClientView;
+-            items.Add(Item.Resume);
+-            if (inLobby && isHost) items.Add(Item.HostSettings);
+-            items.Add(Item.Settings);
+-            if (!inLobby && decides && LevelRun.Instance != null) items.Add(Item.Restart);
+-            if (!inLobby && decides && LevelLoader.Exists(LevelLoader.LobbyScene)) items.Add(Item.Lobby);
+-            items.Add(Item.Quit);
+-        }
+-
+-        protected override string Title => "Пауза";
+-        protected override int RowCount => items.Count;
+-        protected override bool IsButton(int row) => true;
+-        protected override string Value(int row) => "";
+-        protected override void Change(int row, int dir) { }
+-
+-        protected override string Label(int row)
+-        {
+-            switch (items[row])
+-            {
+-                case Item.Resume: return "Продолжить";
+-                case Item.HostSettings: return "Настройки игры (хост)";
+-                case Item.Settings: return "Настройки";
+-                case Item.Restart: return "Начать уровень заново";
+-                case Item.Lobby: return "В коробок-лобби";
+-                default: return "Выйти из игры";
+-            }
+-        }
+-
+-        protected override string Note => Online.IsActive ? "Игра по сети не останавливается." : "Друзья тем временем играют дальше.";
+-
+-        protected override void Press(int row)
+-        {
+-            switch (items[row])
+-            {
+-                case Item.Resume: Close(); break;
+-                case Item.HostSettings: OpenNext(new HostMenu()); break;
+-                case Item.Settings: Close(); SettingsScreen.Open(); break; // настройки для ПК (Этап 17.4)
+-                case Item.Restart: Close(); LevelLoader.Load(SceneManager.GetActiveScene().name); break;
+-                case Item.Lobby: Close(); LevelLoader.Load(LevelLoader.LobbyScene); break;
+-                default: Quit(); break;
+-            }
+-        }
+-
+-        public static void Quit()
+-        {
+-            PushPals.Save.SaveSystem.Save();
+-#if UNITY_EDITOR
+-            UnityEditor.EditorApplication.isPlaying = false;
+-#else
+-            Application.Quit();
+-#endif
+-        }
+-    }
+-}
+diff --git a/Assets/Scripts/UI/PauseMenu.cs.meta b/Assets/Scripts/UI/PauseMenu.cs.meta
+deleted file mode 100644
+index 7905b00..0000000
+--- a/Assets/Scripts/UI/PauseMenu.cs.meta
++++ /dev/null
+@@ -1,2 +0,0 @@
+-fileFormatVersion: 2
+-guid: 1ae162626db59d34283293e19e54c69f
+\ No newline at end of file
+diff --git a/Assets/Scripts/UI/PlayerMenu.cs b/Assets/Scripts/UI/PlayerMenu.cs
+deleted file mode 100644
+index bbf6def..0000000
+--- a/Assets/Scripts/UI/PlayerMenu.cs
++++ /dev/null
+@@ -1,169 +0,0 @@
+-using UnityEngine;
+-
+-namespace PushPals.UI
+-{
+-    /// <summary>Нажатия для меню за кадр (геймпад, клавиатура).</summary>
+-    public struct MenuInput
+-    {
+-        public int Row;       // −1 вверх, +1 вниз
+-        public int Change;    // −1 влево, +1 вправо
+-        public bool Confirm;  // A / Пробел / Enter
+-        public bool Back;     // B / Esc / та же кнопка, что открыла
+-    }
+-
+-    /// <summary>
+-    /// Меню одного игрока (шкаф, настройки хоста): строки «название — ◀ значение ▶», управляет своим геймпадом
+-    /// или клавиатурой (мышью — стрелками). Пока меню открыто, спичка стоит. Рисуется из OnGUI его ввода.
+-    /// Временный интерфейс — настоящий (этикетки коробков) будет на Этапе 17.
+-    /// </summary>
+-    public abstract class PlayerMenu
+-    {
+-        protected int selected;
+-
+-        /// <summary>Меню закрылось (ввод снова управляет спичкой).</summary>
+-        public bool Closed { get; protected set; }
+-
+-        /// <summary>Цвет игрока (полоска в заголовке).</summary>
+-        public Color Color { get; set; } = Color.white;
+-
+-        protected abstract string Title { get; }
+-        protected abstract int RowCount { get; }
+-        protected abstract string Label(int row);
+-        protected abstract string Value(int row);
+-        /// <summary>Строка-кнопка (без стрелок): Confirm её нажимает.</summary>
+-        protected virtual bool IsButton(int row) => false;
+-        protected virtual bool Enabled(int row) => true;
+-        protected abstract void Change(int row, int dir);
+-        protected virtual void Press(int row) => Change(row, 1);
+-        /// <summary>Строка пояснения под меню (пусто — нет).</summary>
+-        protected virtual string Note => "";
+-
+-        public void Close() => Closed = true;
+-
+-        /// <summary>Меню, которое открыть вместо этого (пауза → настройки); его ставит OpenNext.</summary>
+-        public PlayerMenu Next { get; private set; }
+-
+-        /// <summary>Закрыть это и открыть другое (тот же игрок, тот же ввод).</summary>
+-        protected void OpenNext(PlayerMenu menu)
+-        {
+-            menu.Color = Color;
+-            Next = menu;
+-            Closed = true;
+-        }
+-
+-        public void Handle(MenuInput input)
+-        {
+-            if (Closed) return;
+-            if (input.Back) { Closed = true; PushPals.Audio.Sfx.Ui("back", 0.5f); return; }
+-            int n = RowCount;
+-            if (n == 0) return;
+-            if (input.Row != 0) { selected = (selected + input.Row + n) % n; PushPals.Audio.Sfx.Ui("select", 0.35f); }
+-            selected = Mathf.Clamp(selected, 0, n - 1);
+-            if (!Enabled(selected)) return;
+-            if (input.Change != 0 && !IsButton(selected)) DoChange(selected, input.Change);
+-            if (input.Confirm) DoPress(selected);
+-        }
+-
+-        // Со звуком интерфейса
+-        private void DoChange(int row, int dir)
+-        {
+-            Change(row, dir);
+-            PushPals.Audio.Sfx.Ui("click", 0.45f);
+-        }
+-
+-        private void DoPress(int row)
+-        {
+-            Press(row);
+-            PushPals.Audio.Sfx.Ui(IsButton(row) ? "confirmation" : "click", 0.5f);
+-        }
+-
+-        // ---------- Рисование ----------
+-
+-        private static GUIStyle text, small, title;
+-        private static Texture2D pixel;
+-        private static readonly Color Ink = new Color(0.25f, 0.15f, 0.07f);
+-        private static readonly Color Card = new Color(1f, 0.97f, 0.88f);
+-        private static readonly Color Border = new Color(0.28f, 0.17f, 0.09f);
+-        private static readonly Color Pick = new Color(1f, 0.85f, 0.45f);
+-        private const float Width = 380f, RowHeight = 32f, LabelWidth = 150f;
+-
+-        /// <summary>Нарисовать: center — середина верхнего края на экране (GUI-координаты).</summary>
+-        public void Draw(Vector2 center)
+-        {
+-            if (Closed) return;
+-            Styles();
+-            int n = RowCount;
+-            string note = Note;
+-            float noteHeight = string.IsNullOrEmpty(note) ? 0f : small.CalcHeight(new GUIContent(note), Width - 20f) + 6f;
+-            float height = 40f + n * RowHeight + noteHeight + 28f;
+-            float x = Mathf.Clamp(center.x - Width * 0.5f, 6f, Screen.width - Width - 6f);
+-            float y = Mathf.Clamp(center.y, 6f, Screen.height - height - 6f);
+-            var rect = new Rect(x, y, Width, height);
+-
+-            var old = GUI.color;
+-            Fill(new Rect(rect.x - 3f, rect.y - 3f, rect.width + 6f, rect.height + 6f), Border);
+-            Fill(rect, Card);
+-            Fill(new Rect(rect.x, rect.y, rect.width, 6f), Color);
+-            GUI.Label(new Rect(rect.x, rect.y + 8f, rect.width, 28f), Title, title);
+-
+-            for (int i = 0; i < n; i++)
+-            {
+-                var row = new Rect(rect.x + 8f, rect.y + 40f + i * RowHeight, rect.width - 16f, RowHeight - 4f);
+-                bool on = Enabled(i);
+-                if (i == selected) Fill(row, Pick);
+-                GUI.color = new Color(1f, 1f, 1f, on ? 1f : 0.45f);
+-                if (IsButton(i))
+-                {
+-                    GUI.Label(row, "[  " + Label(i) + "  ]", text);
+-                    if (on && Clicked(row)) { selected = i; DoPress(i); }
+-                }
+-                else
+-                {
+-                    var labelRect = new Rect(row.x + 6f, row.y, LabelWidth, row.height);
+-                    var valueRect = new Rect(row.x + LabelWidth, row.y, row.width - LabelWidth, row.height);
+-                    var leftStyle = new GUIStyle(text) { alignment = TextAnchor.MiddleLeft };
+-                    GUI.Label(labelRect, Label(i), leftStyle);
+-                    GUI.Label(valueRect, "◀  " + Value(i) + "  ▶", text);
+-                    // Мышь: левая половина значения — назад, правая — вперёд
+-                    var left = new Rect(valueRect.x, valueRect.y, valueRect.width * 0.5f, valueRect.height);
+-                    var right = new Rect(valueRect.center.x, valueRect.y, valueRect.width * 0.5f, valueRect.height);
+-                    if (on && Clicked(left)) { selected = i; DoChange(i, -1); }
+-                    if (on && Clicked(right)) { selected = i; DoChange(i, 1); }
+-                }
+-                GUI.color = old;
+-            }
+-            float bottom = rect.y + 40f + n * RowHeight;
+-            if (noteHeight > 0f) GUI.Label(new Rect(rect.x + 10f, bottom, rect.width - 20f, noteHeight), note, small);
+-            GUI.Label(new Rect(rect.x + 6f, rect.yMax - 26f, rect.width - 12f, 22f), "▲▼ — строка · ◀▶ — выбрать · A / Пробел — ок · B / Esc — закрыть", small);
+-            GUI.color = old;
+-        }
+-
+-        private static bool Clicked(Rect r)
+-        {
+-            var e = Event.current;
+-            if (e.type != EventType.MouseDown || e.button != 0 || !r.Contains(e.mousePosition)) return false;
+-            e.Use();
+-            return true;
+-        }
+-
+-        private static void Fill(Rect r, Color c)
+-        {
+-            var old = GUI.color;
+-            GUI.color = c;
+-            GUI.DrawTexture(r, pixel);
+-            GUI.color = old;
+-        }
+-
+-        private static void Styles()
+-        {
+-            if (text != null && pixel != null) return; // текстура гибнет при выходе из Play, а статика живёт
+-            pixel = new Texture2D(1, 1);
+-            pixel.SetPixel(0, 0, Color.white);
+-            pixel.Apply();
+-            text = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 15 };
+-            text.normal.textColor = Ink;
+-            small = new GUIStyle(text) { fontSize = 11, wordWrap = true };
+-            title = new GUIStyle(text) { fontSize = 17, fontStyle = FontStyle.Bold };
+-        }
+-    }
+-}
+diff --git a/Assets/Scripts/UI/PlayerMenu.cs.meta b/Assets/Scripts/UI/PlayerMenu.cs.meta
+deleted file mode 100644
+index 9818ac2..0000000
+--- a/Assets/Scripts/UI/PlayerMenu.cs.meta
++++ /dev/null
+@@ -1,2 +0,0 @@
+-fileFormatVersion: 2
+-guid: b21a0980e8c00d44dabf95b10741446d
+\ No newline at end of file
+diff --git a/Assets/Scripts/UI/Screens/GameSetupScreen.cs b/Assets/Scripts/UI/Screens/GameSetupScreen.cs
+new file mode 100644
+index 0000000..d3cad68
+--- /dev/null
++++ b/Assets/Scripts/UI/Screens/GameSetupScreen.cs
+@@ -0,0 +1,124 @@
++using System.Collections.Generic;
++using PushPals.Level;
++using TMPro;
++using UnityEngine;
++using UnityEngine.UI;
++
++namespace PushPals.UI
++{
++    /// <summary>
++    /// Настройки игры у доски в лобби — только хосту (за одним ПК — первому вошедшему): уровень (карта миров), режим,
++    /// время горения спичек, шлепки по друзьям, кто может войти, онлайн; «Начать!» — отсчёт у всех.
++    /// Открывается у доски (X / E) и из паузы. Заменяет временное меню HostMenu: тот же набор интерфейса, что у
++    /// остальных экранов, и перевод на язык игры. Карта миров и «Онлайн» открываются поверх — закрылись, и снова здесь.
++    /// </summary>
++    public class GameSetupScreen : UiScreen
++    {
++        private TextMeshProUGUI levelText, goalText, problemText;
++        private Button startButton;
++        private LocText startLabel;
++        private float refreshClock;
++
++        /// <summary>Открыть (null — уже открыт другой экран или это не лобби).</summary>
++        public static GameSetupScreen Open()
++        {
++            if (LobbyBoard.Instance == null) return null;
++            return Create<GameSetupScreen>("Game Setup Screen", true, true, UiPanel.Motion.Drawer);
++        }
++
++        protected override void Build()
++        {
++            var area = Paper(new Vector2(1240f, 930f), "setup.title");
++            var f = new UiForm(area);
++
++            // Уровень: что выбрано и кнопка «Выбрать» (карта миров)
++            var levelRow = f.Row("setup.level", 84f);
++            levelText = Ink(levelRow, "", 28f);
++            levelText.rectTransform.anchorMin = Vector2.zero;
++            levelText.rectTransform.anchorMax = Vector2.one;
++            levelText.rectTransform.offsetMin = Vector2.zero;
++            levelText.rectTransform.offsetMax = new Vector2(-230f, 0f);
++            levelText.enableAutoSizing = true;
++            levelText.fontSizeMin = 18f;
++            levelText.fontSizeMax = 28f;
++            var choose = UiPrefabs.Spawn<Button>("SecondaryButton", levelRow);
++            var crt = (RectTransform)choose.transform;
++            crt.anchorMin = crt.anchorMax = new Vector2(1f, 0.5f);
++            crt.pivot = new Vector2(1f, 0.5f);
++            crt.sizeDelta = new Vector2(220f, 66f);
++            crt.anchoredPosition = Vector2.zero;
++            choose.GetComponentInChildren<LocText>().Key = "setup.choose";
++            choose.onClick.AddListener(() => WorldMapScreen.Open(true));
++            goalText = Tall(f.Note("setup.goal", ""), 64f);
++
++            f.Choice("setup.mode", Names(GameRules.ModeCount, i => GameRules.ModeName((GameRules.GameMode)i)), (int)GameRules.Mode,
++                i => { GameRules.Mode = (GameRules.GameMode)i; GameRules.NotifyChanged(); Refresh(); });
++            f.Choice("setup.burn", Names(GameRules.BurnScales.Length, GameRules.BurnName), GameRules.Burn,
++                i => { GameRules.Burn = i; GameRules.NotifyChanged(); });
++            f.Toggle("setup.slaps", GameRules.FriendSlaps, v => { GameRules.FriendSlaps = v; GameRules.NotifyChanged(); });
++            f.Choice("setup.access", Names(GameRules.PrivacyCount, i => GameRules.PrivacyName((GameRules.Privacy)i)), (int)GameRules.Access,
++                i => { GameRules.Access = (GameRules.Privacy)i; GameRules.NotifyChanged(); });
++            f.Note("setup.access_note");
++            f.Button("setup.online", false, () => OnlineScreen.Open(false));
++
++            // Почему нельзя начать (режим «Предатель» без сети или людей мало)
++            problemText = Tall(f.Note("setup.goal", ""), 40f);
++            problemText.color = Theme.accent;
++            startButton = f.Button("setup.start", true, StartOrCancel);
++            startLabel = startButton.GetComponentInChildren<LocText>();
++
++            BackButton(Rect, new Vector2(0.5f, 0f), new Vector2(0f, 40f));
++            Panel.FirstSelected = startButton;
++            Refresh();
++        }
++
++        private static List<string> Names(int count, System.Func<int, string> name)
++        {
++            var list = new List<string>();
++            for (int i = 0; i < count; i++) list.Add(name(i));
++            return list;
++        }
++
++        // Пояснение повыше (в одну строку не влезает)
++        private static TextMeshProUGUI Tall(TextMeshProUGUI note, float height)
++        {
++            var fit = note.transform.parent.GetComponent<LayoutElement>();
++            if (fit != null) fit.preferredHeight = height;
++            return note;
++        }
++
++        private void StartOrCancel()
++        {
++            var board = LobbyBoard.Instance;
++            if (board == null) return;
++            if (board.Counting) { board.CancelCountdown(); Refresh(); return; }
++            board.StartCountdown();
++            if (board.Counting) { Close(); PauseScreen.CloseIfOpen(); } // отсчёт идёт — смотрим на доску и коробок
++            else Refresh();
++        }
++
++        private void Update()
++        {
++            refreshClock -= Time.unscaledDeltaTime;
++            if (refreshClock > 0f) return;
++            refreshClock = 0.25f;
++            Refresh();
++        }
++
++        // Уровень и цель могли смениться на карте миров, люди — подключиться
++        private void Refresh()
++        {
++            var board = LobbyBoard.Instance;
++            var level = board != null ? board.Selected : null;
++            levelText.text = level == null ? Loc.T("board.none")
++                : Loc.T("setup.level_golden", board.Title(level), Mathf.Min(LevelProgress.Golden(level.id), level.goldenCount), level.goldenCount);
++            string goalKey = level != null ? "goal." + level.id : "";
++            goalText.text = level != null && Loc.Has(goalKey) ? Loc.T("setup.goal", Loc.T(goalKey))
++                : level != null && !string.IsNullOrEmpty(level.goal) ? Loc.T("setup.goal", level.goal) : "";
++            bool counting = board != null && board.Counting;
++            problemText.text = counting ? "" : GameRules.ModeProblem;
++            startLabel.Key = counting ? "setup.cancel" : "setup.start";
++            startButton.interactable = counting || (level != null && GameRules.ModeReady);
++        }
++    }
++}
+diff --git a/Assets/Scripts/UI/Screens/GameSetupScreen.cs.meta b/Assets/Scripts/UI/Screens/GameSetupScreen.cs.meta
+new file mode 100644
+index 0000000..47b0014
+--- /dev/null
++++ b/Assets/Scripts/UI/Screens/GameSetupScreen.cs.meta
+@@ -0,0 +1,2 @@
++fileFormatVersion: 2
++guid: 7aaeb5ade40948a89fe250da44ef8198
+\ No newline at end of file
+diff --git a/Assets/Scripts/UI/Screens/MainMenuScreen.cs b/Assets/Scripts/UI/Screens/MainMenuScreen.cs
+index 2e77dff..559ef3b 100644
+--- a/Assets/Scripts/UI/Screens/MainMenuScreen.cs
++++ b/Assets/Scripts/UI/Screens/MainMenuScreen.cs
+@@ -347,7 +347,18 @@ namespace PushPals.UI
+             if (es != null) { UiButtonFx.QuietFrame = Time.frameCount; es.SetSelectedGameObject(buttons[n].gameObject); }
+         }
+ 
+-        private void AskQuit() => UiDialog.Confirm("menu.quit_confirm", "settings.saved", "menu.exit", PauseMenu.Quit);
++        private void AskQuit() => UiDialog.Confirm("menu.quit_confirm", "settings.saved", "menu.exit", QuitGame);
++
++        /// <summary>Выйти из игры (всё сохранено; в редакторе — остановить Play).</summary>
++        public static void QuitGame()
++        {
++            PushPals.Save.SaveSystem.Save();
++#if UNITY_EDITOR
++            UnityEditor.EditorApplication.isPlaying = false;
++#else
++            Application.Quit();
++#endif
++        }
+ 
+         // В коробок: обложка закрыта и сразу открывается — внутри лобби
+         private void Leave()
+diff --git a/Assets/Scripts/UI/Screens/PauseScreen.cs b/Assets/Scripts/UI/Screens/PauseScreen.cs
+index 50abc66..6dea723 100644
+--- a/Assets/Scripts/UI/Screens/PauseScreen.cs
++++ b/Assets/Scripts/UI/Screens/PauseScreen.cs
+@@ -17,22 +17,28 @@ namespace PushPals.UI
+     public class PauseScreen : UiScreen
+     {
+         private static bool hostNext;
+-        private static PlayerIntentReader openerNext;
+         private bool host;
+-        private PlayerIntentReader opener;
++        private static PauseScreen current;
+ 
+-        /// <summary>Открыть паузу (host — может менять настройки игры; opener — ввод игрока, открывшего паузу).</summary>
++        /// <summary>Закрыть паузу, если открыта (настройки игры над ней начали отсчёт — пора смотреть на доску).</summary>
++        public static void CloseIfOpen()
++        {
++            if (current != null) current.Close();
++        }
++
++        private void OnDestroy() { if (current == this) current = null; }
++
++        /// <summary>Открыть паузу (host — может менять настройки игры; byPlayer — ввод игрока, открывшего паузу).</summary>
+         public static PauseScreen Open(bool isHost, PlayerIntentReader byPlayer)
+         {
+             hostNext = isHost;
+-            openerNext = byPlayer;
+             return Create<PauseScreen>("Pause Screen", true, true, UiPanel.Motion.Fade);
+         }
+ 
+         protected override void Build()
+         {
+             host = hostNext;
+-            opener = openerNext;
++            current = this;
+             bool inLobby = LobbyBoard.Instance != null;
+             bool decides = !Online.IsClientView;
+             // Тень слева под списком — светлый уровень не мешает читать
+@@ -58,13 +64,19 @@ namespace PushPals.UI
+             layout.childControlHeight = false;
+             layout.childForceExpandHeight = false;
+             Item(list, "pause.resume", Close);
+-            if (inLobby && host) Item(list, "pause.host", () => { Close(); if (opener != null) opener.OpenMenu(new HostMenu()); });
++            // Настройки игры, онлайн и настройки — поверх паузы: закрыли — снова пауза
++            if (inLobby && host) Item(list, "pause.host", () => GameSetupScreen.Open());
+             Item(list, "menu.online", () => OnlineScreen.Open(false));
+             Item(list, "menu.settings", () => SettingsScreen.Open());
++            // Посреди уровня — сначала «точно?»: прохождение начнётся сначала (по сети — у всех)
+             if (!inLobby && decides && LevelRun.Instance != null)
+-                Item(list, "pause.restart", () => { Close(); LevelLoader.Load(SceneManager.GetActiveScene().name, UiNames.Level(LevelRun.Instance.Level)); });
++                Item(list, "pause.restart", () => Confirm("pause.restart_confirm", "pause.restart", () =>
++                {
++                    var run = LevelRun.Instance;
++                    LevelLoader.Load(SceneManager.GetActiveScene().name, run != null ? UiNames.Level(run.Level) : "");
++                }));
+             if (!inLobby && decides && LevelLoader.Exists(LevelLoader.LobbyScene))
+-                Item(list, "pause.lobby", () => { Close(); LevelLoader.Load(LevelLoader.LobbyScene); });
++                Item(list, "pause.lobby", () => Confirm("pause.lobby_confirm", "pause.lobby", () => LevelLoader.Load(LevelLoader.LobbyScene)));
+             Item(list, "pause.main_menu", AskMainMenu);
+             Item(list, "pause.quit", AskQuit);
+             // Сводка справа
+@@ -93,7 +105,15 @@ namespace PushPals.UI
+             item.GetComponent<Button>().onClick.AddListener(() => onClick());
+         }
+ 
+-        private void AskQuit() => UiDialog.Confirm("menu.quit_confirm", Online.IsActive ? "pause.leave_online" : "settings.saved", "menu.exit", PauseMenu.Quit);
++        private void AskQuit() => UiDialog.Confirm("menu.quit_confirm", Online.IsActive ? "pause.leave_online" : "settings.saved", "menu.exit", MainMenuScreen.QuitGame);
++
++        // Уровень пройден наполовину: подтвердить, потом закрыть паузу и сделать
++        private void Confirm(string titleKey, string confirmKey, System.Action action)
++        {
++            bool finished = LevelRun.Instance != null && LevelRun.Instance.Finished;
++            if (finished) { Close(); action(); return; } // уровень уже пройден — терять нечего
++            UiDialog.Confirm(titleKey, Online.IsActive ? "pause.progress_lost_online" : "pause.progress_lost", confirmKey, () => { Close(); action(); });
++        }
+ 
+         // В главное меню: по сети — сначала «точно?» (игра закончится), без сети — сразу (всё сохранено)
+         private void AskMainMenu()
+diff --git a/Assets/Scripts/UI/Screens/WardrobeScreen.cs b/Assets/Scripts/UI/Screens/WardrobeScreen.cs
+index fce6027..5f6f797 100644
+--- a/Assets/Scripts/UI/Screens/WardrobeScreen.cs
++++ b/Assets/Scripts/UI/Screens/WardrobeScreen.cs
+@@ -1,4 +1,5 @@
+ using System.Collections.Generic;
++using PushPals.Abilities;
+ using PushPals.Level;
+ using PushPals.Players;
+ using PushPals.Ragdoll.Visual;
+@@ -14,39 +15,73 @@ namespace PushPals.UI
+     /// Гардероб (Этап 17.4, шкаф из напёрстков на столе): игрок 1–4 за этим ПК (по сети — свой), шапка и дерево.
+     /// Наведение или выбор — примерить на манекене (и закрытое — посмотреть), нажатие — надеть (только открытое),
+     /// у закрытого — чем открывается. Сохраняется сразу; если игрок уже в лобби — меняется и на его спичке.
++    /// У шкафа в лобби (OpenFor) — для того, кто подошёл: его шапка и дерево и какие спички он хочет
++    /// (раньше там было отдельное временное меню со своими кнопками, только по-русски, с дублем настроек голоса).
+     /// </summary>
+     public class WardrobeScreen : UiScreen
+     {
++        private static readonly MatchKind[] PairA = { MatchKind.Heavy, MatchKind.Small };
++        private static readonly MatchKind[] PairB = { MatchKind.Light, MatchKind.Magnet };
++        private static readonly MatchKind[] Singles = { MatchKind.Heavy, MatchKind.Small, MatchKind.Light, MatchKind.Magnet };
++
++        private static Player ownerNext;
++
+         private int slot, hat, wood;
++        private Player owner;             // открыли у шкафа: этот игрок (null — со стола главного меню)
++        private bool hadOwner;
+         private MatchPreview preview;
+-        private TextMeshProUGUI info;
++        private TextMeshProUGUI info, ruleText;
++        private TMP_Dropdown matchChoice;
++        private List<MatchKind[]> matchOptions = new List<MatchKind[]>();
++        private string shownOptions = "";
++        private float refreshClock;
+         private readonly List<Button> slotButtons = new List<Button>();
++        private readonly List<int> slotNumbers = new List<int>();
+         private readonly List<UiMenuItem> hatItems = new List<UiMenuItem>(), woodItems = new List<UiMenuItem>();
+ 
+-        public static WardrobeScreen Open() => Create<WardrobeScreen>("Wardrobe Screen", true, true, UiPanel.Motion.Drawer);
++        /// <summary>Со стола главного меню: игроки 1–4 за этим ПК (по сети — свой).</summary>
++        public static WardrobeScreen Open()
++        {
++            ownerNext = null;
++            return Create<WardrobeScreen>("Wardrobe Screen", true, true, UiPanel.Motion.Drawer);
++        }
++
++        /// <summary>У шкафа в лобби: для этого игрока — шапка, дерево и спички.</summary>
++        public static WardrobeScreen OpenFor(Player player)
++        {
++            ownerNext = player;
++            return Create<WardrobeScreen>("Wardrobe Screen", true, true, UiPanel.Motion.Drawer);
++        }
+ 
+         private bool Network => Online.IsActive;
+ 
+         protected override void Build()
+         {
++            owner = ownerNext;
++            ownerNext = null;
++            hadOwner = owner != null;
+             var area = Paper(new Vector2(1480f, 930f), "wardrobe.title");
+-            // Игроки за этим ПК (по сети — только свой)
+-            int slots = Network ? 1 : 4;
++            // Игроки за этим ПК (по сети — только свой; у шкафа — тот, кто подошёл)
++            slotButtons.Clear();
++            slotNumbers.Clear();
++            int slots = owner != null || Network ? 1 : 4;
+             for (int i = 0; i < slots; i++)
+             {
++                int n = Network ? 0 : owner != null ? Mathf.Clamp(owner.Index, 0, 3) : i;
+                 var b = UiPrefabs.Spawn<Button>("SecondaryButton", area);
+                 var rt = (RectTransform)b.transform;
+                 UiFactory.Place(rt, new Vector2(0f, 1f), new Vector2(220f, 70f), new Vector2(120f + i * 232f, -36f));
+                 var label = b.GetComponentInChildren<LocText>();
+-                label.Set("wardrobe.player", i + 1);
++                label.Set("wardrobe.player", owner != null ? owner.Index + 1 : n + 1);
+                 label.GetComponent<TMP_Text>().fontSizeMax = 26f;
+-                int n = i;
+                 b.onClick.AddListener(() => SelectSlot(n));
+                 slotButtons.Add(b);
++                slotNumbers.Add(n);
+             }
+-            // Манекен
++            // Манекен (у шкафа — пониже, под ним выбор спичек)
+             var stage = UiFactory.Rect(area, "Preview");
+-            UiFactory.Place(stage, new Vector2(0f, 0.5f), new Vector2(340f, 460f), new Vector2(190f, -40f));
++            if (owner != null) UiFactory.Place(stage, new Vector2(0f, 0.5f), new Vector2(300f, 380f), new Vector2(190f, 30f));
++            else UiFactory.Place(stage, new Vector2(0f, 0.5f), new Vector2(340f, 460f), new Vector2(190f, -40f));
+             var shelf = UiFactory.Image(stage, "card_level", true, "Frame");
+             UiRoot.Stretch(shelf.rectTransform);
+             shelf.rectTransform.offsetMin = new Vector2(-20f, -20f);
+@@ -66,11 +101,119 @@ namespace PushPals.UI
+             info.textWrappingMode = TextWrappingModes.Normal;
+             info.alignment = TextAlignmentOptions.MidlineLeft;
+             UiFactory.Place(info.rectTransform, new Vector2(0f, 0f), new Vector2(880f, 70f), new Vector2(980f, 30f));
++            if (owner != null) BuildMatches(area);
+             BackButton(Rect, new Vector2(0.5f, 0f), new Vector2(0f, 40f));
+-            SelectSlot(0);
++            SelectSlot(slotNumbers.Count > 0 ? slotNumbers[0] : 0);
+             Panel.FirstSelected = hatItems.Count > 0 ? hatItems[0].GetComponent<Button>() : null;
+         }
+ 
++        // ---------- Спички (у шкафа в лобби) ----------
++
++        private void BuildMatches(RectTransform area)
++        {
++            var box = UiFactory.Rect(area, "Matches");
++            box.anchorMin = box.anchorMax = new Vector2(0f, 0f);
++            box.pivot = new Vector2(0f, 0f);
++            box.sizeDelta = new Vector2(400f, 190f);
++            box.anchoredPosition = new Vector2(0f, 0f);
++            var title = UiFactory.LocText(box, "wardrobe.matches", 30f, Theme.accent, true);
++            title.alignment = TextAlignmentOptions.MidlineLeft;
++            UiFactory.Place(title.rectTransform, new Vector2(0f, 1f), new Vector2(400f, 44f), new Vector2(200f, -22f));
++            matchChoice = UiPrefabs.Spawn<TMP_Dropdown>("Dropdown", box);
++            var rt = (RectTransform)matchChoice.transform;
++            rt.anchorMin = new Vector2(0f, 1f);
++            rt.anchorMax = new Vector2(1f, 1f);
++            rt.pivot = new Vector2(0.5f, 1f);
++            rt.sizeDelta = new Vector2(0f, rt.sizeDelta.y);
++            rt.anchoredPosition = new Vector2(0f, -50f);
++            matchChoice.onValueChanged.AddListener(i =>
++            {
++                if (owner == null || i < 0 || i >= matchOptions.Count) return;
++                PlayerChoices.Wish(owner.Ragdoll, matchOptions[i]);
++            });
++            ruleText = UiFactory.Text(box, "", 22f, Theme.inkMuted, false);
++            ruleText.textWrappingMode = TextWrappingModes.Normal;
++            ruleText.alignment = TextAlignmentOptions.TopLeft;
++            UiFactory.Place(ruleText.rectTransform, new Vector2(0f, 0f), new Vector2(400f, 60f), new Vector2(200f, 30f));
++            RefreshMatches(true);
++        }
++
++        private static int PlayerCount
++        {
++            get
++            {
++                var m = PlayerManager.Instance;
++                return m != null ? Mathf.Max(1, m.Visible.Count) : 1;
++            }
++        }
++
++        // Что можно выбрать при таком числе игроков (null — «любые»): 2–3 игрока — пары, 4 — по одной
++        private static List<MatchKind[]> Options()
++        {
++            var list = new List<MatchKind[]> { null };
++            int n = PlayerCount;
++            if (n >= 4) foreach (var k in Singles) list.Add(new[] { k });
++            else if (n >= 2) { list.Add(PairA); list.Add(PairB); }
++            return list;
++        }
++
++        private string OptionText(MatchKind[] kinds)
++        {
++            if (PlayerCount < 2) return Loc.T("wardrobe.all_four");
++            if (kinds == null) return Loc.T("wardrobe.any");
++            string s = kinds.Length == 2 ? Loc.T(kinds[0] == MatchKind.Heavy ? "wardrobe.pair_a" : "wardrobe.pair_b", UiNames.Matches(kinds)) : UiNames.Matches(kinds);
++            // Уже у друга — видно сразу
++            var m = PlayerManager.Instance;
++            if (m != null)
++                foreach (var p in m.Visible)
++                {
++                    if (p == null || p == owner) continue;
++                    var b = p.GetComponent<Backpack>();
++                    if (b == null) continue;
++                    foreach (var k in kinds) if (b.Kinds.Contains(k)) return Loc.T("wardrobe.taken", s, p.Index + 1);
++                }
++            return s;
++        }
++
++        // Список по числу игроков; выбрано — то, что сейчас в рюкзаке
++        private void RefreshMatches(bool force)
++        {
++            if (matchChoice == null || owner == null) return;
++            matchOptions = Options();
++            var names = new List<string>();
++            foreach (var o in matchOptions) names.Add(OptionText(o));
++            string key = string.Join("|", names.ToArray());
++            int n = PlayerCount;
++            ruleText.text = Loc.T("wardrobe.rule." + Mathf.Clamp(n, 1, 4));
++            if (!force && key == shownOptions) return;
++            shownOptions = key;
++            // Тот же список (сменились только «у игрока N») — выбор остаётся; новый список — по рюкзаку
++            int value = 0;
++            if (!force && matchChoice.options.Count == names.Count) value = matchChoice.value;
++            else
++            {
++                var backpack = owner.GetComponent<Backpack>();
++                var have = backpack != null ? backpack.Kinds : new List<MatchKind>();
++                for (int i = 1; i < matchOptions.Count; i++)
++                    if (matchOptions[i].Length == have.Count && have.Contains(matchOptions[i][0]) && (matchOptions[i].Length < 2 || have.Contains(matchOptions[i][1]))) value = i;
++            }
++            matchChoice.ClearOptions();
++            matchChoice.AddOptions(names);
++            matchChoice.SetValueWithoutNotify(Mathf.Clamp(value, 0, names.Count - 1));
++            matchChoice.RefreshShownValue();
++            matchChoice.interactable = n >= 2;
++        }
++
++        private void Update()
++        {
++            // Игрок ушёл (держал Start / Esc, отключился) — его шкаф закрывается
++            if (hadOwner && owner == null) { hadOwner = false; Close(); return; }
++            refreshClock -= Time.unscaledDeltaTime;
++            if (refreshClock > 0f) return;
++            refreshClock = 0.5f;
++            RefreshMatches(false);
++        }
++
+         // Колонка списка: заголовок и пункты; left — левый край от края содержимого
+         private RectTransform Column(RectTransform area, string key, float left)
+         {
+@@ -130,10 +273,11 @@ namespace PushPals.UI
+             preview.Show(hat, wood);
+             for (int i = 0; i < slotButtons.Count; i++)
+             {
++                bool on = slotNumbers[i] == slot;
+                 var img = slotButtons[i].transform.GetChild(0).GetComponent<Image>();
+-                img.sprite = UiSprites.Get(i == slot ? "btn_primary_normal" : "btn_secondary_normal");
++                img.sprite = UiSprites.Get(on ? "btn_primary_normal" : "btn_secondary_normal");
+                 var t = slotButtons[i].GetComponentInChildren<TMP_Text>();
+-                t.color = i == slot ? Theme.inkLight : Theme.ink;
++                t.color = on ? Theme.inkLight : Theme.ink;
+                 var fx = slotButtons[i].GetComponent<UiButtonFx>();
+                 if (fx != null) fx.RememberColors();
+             }
+@@ -165,7 +309,8 @@ namespace PushPals.UI
+             SaveSystem.RememberLook(slot, hat, wood);
+             // Игрок уже в лобби — и на его спичке
+             var m = PlayerManager.Instance;
+-            if (m != null)
++            if (owner != null) PlayerChoices.Look(owner.Ragdoll, hat, wood);
++            else if (m != null)
+                 foreach (var p in m.Visible)
+                     if (p != null && (Network ? p.NetworkOwner == Online.LocalClientId : p.Index == slot)) PlayerChoices.Look(p.Ragdoll, hat, wood);
+             Mark();
+diff --git a/Assets/Scripts/UI/SettingsMenu.cs b/Assets/Scripts/UI/SettingsMenu.cs
+deleted file mode 100644
+index ba04ff0..0000000
+--- a/Assets/Scripts/UI/SettingsMenu.cs
++++ /dev/null
+@@ -1,95 +0,0 @@
+-using System.Collections.Generic;
+-using PushPals.Save;
+-using UnityEngine;
+-
+-namespace PushPals.UI
+-{
+-    /// <summary>Настройки (Этап 17): громкость, голос, экран, тряска. Меняется сразу и сохраняется само.</summary>
+-    public class SettingsMenu : PlayerMenu
+-    {
+-        private const int Master = 0, Music = 1, Effects = 2, Voices = 3, Mic = 4, Full = 5, Res = 6, Shake = 7, Done = 8;
+-        private readonly List<Vector2Int> resolutions = new List<Vector2Int>();
+-        private int res;
+-
+-        public SettingsMenu()
+-        {
+-            foreach (var r in Screen.resolutions)
+-            {
+-                var v = new Vector2Int(r.width, r.height);
+-                if (!resolutions.Contains(v)) resolutions.Add(v);
+-            }
+-            if (resolutions.Count == 0) resolutions.Add(new Vector2Int(Screen.width, Screen.height));
+-            res = resolutions.IndexOf(new Vector2Int(Screen.width, Screen.height));
+-            if (res < 0) res = resolutions.Count - 1;
+-        }
+-
+-        protected override string Title => "Настройки";
+-        protected override int RowCount => 9;
+-        protected override bool IsButton(int row) => row == Done;
+-        protected override bool Enabled(int row) => (row != Full && row != Res) || !Application.isEditor;
+-
+-        protected override string Label(int row)
+-        {
+-            switch (row)
+-            {
+-                case Master: return "Общая громкость";
+-                case Music: return "Музыка";
+-                case Effects: return "Звуки";
+-                case Voices: return "Голоса друзей";
+-                case Mic: return "Микрофон";
+-                case Full: return "Экран";
+-                case Res: return "Разрешение";
+-                case Shake: return "Тряска экрана";
+-                default: return "Готово";
+-            }
+-        }
+-
+-        private static string Percent(float v) => Mathf.RoundToInt(v * 100f) + "%";
+-
+-        protected override string Value(int row)
+-        {
+-            switch (row)
+-            {
+-                case Master: return Percent(SoundSettings.Master);
+-                case Music: return Percent(SoundSettings.Music);
+-                case Effects: return Percent(SoundSettings.Effects);
+-                case Voices: return VoiceSettings.VolumeNames[VoiceSettings.Volume];
+-                case Mic: return VoiceSettings.MicNames[(int)VoiceSettings.Mic];
+-                case Full: return Application.isEditor ? "в редакторе — окно Unity" : Screen.fullScreen ? "полный" : "в окне";
+-                case Res: return Application.isEditor ? "—" : resolutions[res].x + " × " + resolutions[res].y;
+-                case Shake: return VideoSettings.Shake ? "да" : "нет";
+-                default: return "";
+-            }
+-        }
+-
+-        protected override string Note => "Всё сохраняется само. Голос — в сетевой игре через Steam.";
+-
+-        private static float Step(float v, int dir) => Mathf.Clamp01(Mathf.Round((v + dir * 0.1f) * 10f) / 10f);
+-
+-        protected override void Change(int row, int dir)
+-        {
+-            switch (row)
+-            {
+-                case Master: SoundSettings.Master = Step(SoundSettings.Master, dir); break;
+-                case Music: SoundSettings.Music = Step(SoundSettings.Music, dir); break;
+-                case Effects: SoundSettings.Effects = Step(SoundSettings.Effects, dir); break;
+-                case Voices: VoiceSettings.Volume = (VoiceSettings.Volume + dir + VoiceSettings.Volumes.Length) % VoiceSettings.Volumes.Length; break;
+-                case Mic: VoiceSettings.Mic = (VoiceSettings.MicMode)(((int)VoiceSettings.Mic + dir + 3) % 3); break;
+-                case Full: SaveSystem.SetScreen(!Screen.fullScreen, resolutions[res].x, resolutions[res].y); return;
+-                case Res:
+-                    res = (res + dir + resolutions.Count) % resolutions.Count;
+-                    SaveSystem.SetScreen(Screen.fullScreen, resolutions[res].x, resolutions[res].y);
+-                    return;
+-                case Shake: VideoSettings.ShakeAmount = VideoSettings.Shake ? 0f : 1f; if (VideoSettings.Shake) PushPals.Audio.CameraShake.Shake(0.5f); break;
+-                default: return;
+-            }
+-            SaveSystem.Save();
+-        }
+-
+-        protected override void Press(int row)
+-        {
+-            if (row == Done) Close();
+-            else Change(row, 1);
+-        }
+-    }
+-}
+diff --git a/Assets/Scripts/UI/SettingsMenu.cs.meta b/Assets/Scripts/UI/SettingsMenu.cs.meta
+deleted file mode 100644
+index e976222..0000000
+--- a/Assets/Scripts/UI/SettingsMenu.cs.meta
++++ /dev/null
+@@ -1,2 +0,0 @@
+-fileFormatVersion: 2
+-guid: b23f9f84986fbcf4fb006600fbdca571
+\ No newline at end of file
+diff --git a/Assets/Scripts/UI/WardrobeMenu.cs b/Assets/Scripts/UI/WardrobeMenu.cs
+deleted file mode 100644
+index 2787cf5..0000000
+--- a/Assets/Scripts/UI/WardrobeMenu.cs
++++ /dev/null
+@@ -1,203 +0,0 @@
+-using System.Collections.Generic;
+-using PushPals.Abilities;
+-using PushPals.Players;
+-using PushPals.Ragdoll;
+-using PushPals.Ragdoll.Visual;
+-using UnityEngine;
+-
+-namespace PushPals.UI
+-{
+-    /// <summary>
+-    /// Шкаф в лобби — «Мой персонаж»: какие спички хочу (пары при 2–3 игроках, одна спичка при 4),
+-    /// шапка и дерево (открываются за золотые спички и достижения — Unlocks), микрофон. Открытое меняется сразу (видно на спичке)
+-    /// и запоминается в сохранении. Цвет головки не меняется: это вид спички.
+-    /// </summary>
+-    public class WardrobeMenu : PlayerMenu
+-    {
+-        private static readonly MatchKind[] PairA = { MatchKind.Heavy, MatchKind.Small };
+-        private static readonly MatchKind[] PairB = { MatchKind.Light, MatchKind.Magnet };
+-        private static readonly MatchKind[] Singles = { MatchKind.Heavy, MatchKind.Small, MatchKind.Light, MatchKind.Magnet };
+-
+-        private readonly RagdollController match;
+-        private readonly Backpack backpack;
+-        private readonly MatchVisual visual;
+-        private int choice, hat, wood;           // что листаем
+-        private int wornHat, wornWood;           // что надето (листать можно и закрытое — надевается только открытое)
+-        private int lastPlayers = -1;
+-
+-        public WardrobeMenu(RagdollController match)
+-        {
+-            this.match = match;
+-            backpack = match.GetComponent<Backpack>();
+-            visual = match.GetComponent<MatchVisual>();
+-            hat = wornHat = visual != null ? visual.Hat : 0;
+-            wood = wornWood = visual != null ? visual.Wood : 0;
+-        }
+-
+-        // Номер игрока в сохранении: по сети — свой (первый), за одним ПК — по номеру
+-        private int SaveSlot
+-        {
+-            get
+-            {
+-                var p = match.GetComponent<Player>();
+-                return Online.IsActive || p == null ? 0 : Mathf.Max(0, p.Index);
+-            }
+-        }
+-
+-        private static string Locked(PushPals.Level.Unlocks.Need need) => " (откроет: " + PushPals.Level.Unlocks.NeedText(need) + ")";
+-
+-        private void Wear()
+-        {
+-            if (PushPals.Level.Unlocks.Hat(hat)) wornHat = hat;
+-            if (PushPals.Level.Unlocks.Wood(wood)) wornWood = wood;
+-            PlayerChoices.Look(match, wornHat, wornWood);
+-            PushPals.Save.SaveSystem.RememberLook(SaveSlot, wornHat, wornWood);
+-        }
+-
+-        protected override string Title => "Шкаф — мой персонаж";
+-        protected override int RowCount => 6;
+-        private const int DoneRow = 5;
+-
+-        private static int PlayerCount
+-        {
+-            get
+-            {
+-                var m = PlayerManager.Instance;
+-                return m != null ? m.Visible.Count : 1;
+-            }
+-        }
+-
+-        // Что можно выбрать при таком числе игроков (null — «любые»)
+-        private static List<MatchKind[]> Options()
+-        {
+-            var list = new List<MatchKind[]> { null };
+-            int n = PlayerCount;
+-            if (n >= 4) foreach (var k in Singles) list.Add(new[] { k });
+-            else if (n >= 2) { list.Add(PairA); list.Add(PairB); }
+-            return list;
+-        }
+-
+-        protected override string Label(int row)
+-        {
+-            switch (row)
+-            {
+-                case 0: return "Спички";
+-                case 1: return "Шапка";
+-                case 2: return "Дерево";
+-                case 3: return "Микрофон";
+-                case 4: return "Голоса друзей";
+-                default: return "Готово";
+-            }
+-        }
+-
+-        protected override bool IsButton(int row) => row == DoneRow;
+-        protected override bool Enabled(int row) => row != 0 || PlayerCount >= 2;
+-
+-        protected override string Value(int row)
+-        {
+-            switch (row)
+-            {
+-                case 0:
+-                {
+-                    SyncChoice();
+-                    if (PlayerCount < 2) return "все четыре";
+-                    var o = Options();
+-                    var kinds = o[Mathf.Clamp(choice, 0, o.Count - 1)];
+-                    if (kinds == null) return "любые";
+-                    string s = (kinds.Length == 2 ? (kinds[0] == MatchKind.Heavy ? "Пара А: " : "Пара Б: ") : "") + Names(kinds);
+-                    string owner = TakenBy(kinds);
+-                    return owner != null ? s + " (" + owner + ")" : s;
+-                }
+-                case 1:
+-                    if (PushPals.Level.Unlocks.Hat(hat)) return MatchVisual.HatNames[hat];
+-                    return hat == MatchVisual.PartyHat ? "??? — секрет в лобби" : MatchVisual.HatNames[hat] + Locked(PushPals.Level.Unlocks.Hats[hat]);
+-                case 2:
+-                    return PushPals.Level.Unlocks.Wood(wood) ? MatchVisual.WoodNames[wood] : MatchVisual.WoodNames[wood] + Locked(PushPals.Level.Unlocks.Woods[wood]);
+-                case 3: return VoiceSettings.MicNames[(int)VoiceSettings.Mic];
+-                case 4: return VoiceSettings.VolumeNames[VoiceSettings.Volume];
+-                default: return "";
+-            }
+-        }
+-
+-        protected override string Note
+-        {
+-            get
+-            {
+-                string now = backpack != null && backpack.Count > 0 ? "Сейчас у тебя: " + Names(backpack.Kinds.ToArray()) : "";
+-                int n = PlayerCount;
+-                string rule = n >= 4 ? "4 игрока — у каждого по одной спичке." : n == 3 ? "3 игрока — выбравший пару получит её целиком." : n == 2 ? "2 игрока — у каждого пара." : "Один игрок — все спички твои.";
+-                string secret = GameRules.PartyHatFound ? "" : " Есть секретная шапка: заберись на полку коробка!";
+-                return now + "\n" + rule + "\nЗолотых спичек найдено: " + PushPals.Level.WorldCatalog.GoldenFound() + " из " + PushPals.Level.WorldCatalog.GoldenMax()
+-                       + ", достижений: " + PushPals.Save.Achievements.Count + " из " + PushPals.Save.Achievements.All.Length
+-                       + " — за них открываются шапки и дерево." + secret
+-                       + "\nГолос — только в сетевой игре через Steam: друзей слышно, когда они рядом.";
+-            }
+-        }
+-
+-        protected override void Change(int row, int dir)
+-        {
+-            switch (row)
+-            {
+-                case 0:
+-                {
+-                    var o = Options();
+-                    if (o.Count <= 1) return;
+-                    choice = (choice + dir + o.Count) % o.Count;
+-                    PlayerChoices.Wish(match, o[choice]);
+-                    break;
+-                }
+-                case 1: hat = (hat + dir + MatchVisual.HatCount) % MatchVisual.HatCount; Wear(); break;
+-                case 2: wood = (wood + dir + MatchVisual.WoodCount) % MatchVisual.WoodCount; Wear(); break;
+-                case 3: VoiceSettings.Mic = (VoiceSettings.MicMode)(((int)VoiceSettings.Mic + dir + 3) % 3); PushPals.Save.SaveSystem.Save(); break;
+-                case 4: VoiceSettings.Volume = (VoiceSettings.Volume + dir + VoiceSettings.Volumes.Length) % VoiceSettings.Volumes.Length; PushPals.Save.SaveSystem.Save(); break;
+-            }
+-        }
+-
+-        protected override void Press(int row)
+-        {
+-            if (row == DoneRow) Close();
+-            else Change(row, 1);
+-        }
+-
+-        // Число игроков сменилось — выбор показываем по тому, что сейчас в рюкзаке
+-        private void SyncChoice()
+-        {
+-            int n = PlayerCount;
+-            if (n == lastPlayers) return;
+-            lastPlayers = n;
+-            choice = 0;
+-            if (backpack == null) return;
+-            var have = backpack.Kinds;
+-            var o = Options();
+-            for (int i = 1; i < o.Count; i++)
+-                if (o[i].Length == have.Count && have.Contains(o[i][0]) && (o[i].Length < 2 || have.Contains(o[i][1]))) choice = i;
+-        }
+-
+-        // У кого из друзей сейчас эти спички (для «занята»)
+-        private string TakenBy(MatchKind[] kinds)
+-        {
+-            var m = PlayerManager.Instance;
+-            if (m == null) return null;
+-            foreach (var p in m.Visible)
+-            {
+-                if (p == null || p.Ragdoll == match) continue;
+-                var b = p.GetComponent<Backpack>();
+-                if (b == null) continue;
+-                foreach (var k in kinds) if (b.Kinds.Contains(k)) return "у игрока " + (p.Index + 1);
+-            }
+-            return null;
+-        }
+-
+-        private string Names(MatchKind[] kinds)
+-        {
+-            var catalog = backpack != null ? backpack.Catalog : null;
+-            string s = "";
+-            foreach (var k in kinds)
+-            {
+-                var def = catalog != null ? catalog.Get(k) : null;
+-                s += (s.Length > 0 ? " + " : "") + (def != null ? def.displayName : k.ToString());
+-            }
+-            return s;
+-        }
+-    }
+-}
+diff --git a/Assets/Scripts/UI/WardrobeMenu.cs.meta b/Assets/Scripts/UI/WardrobeMenu.cs.meta
+deleted file mode 100644
+index 66d7459..0000000
+--- a/Assets/Scripts/UI/WardrobeMenu.cs.meta
++++ /dev/null
+@@ -1,2 +0,0 @@
+-fileFormatVersion: 2
+-guid: 1f9c391b62be1284782b7551630ea768
+\ No newline at end of file

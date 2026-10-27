@@ -255,3 +255,147 @@ goal.w1_6	Всё, чему научились, — в одном уровне.	E
 goal.w2_1	Желе подбрасывает, шарики поднимают. Перелетите пропасть и опустите мост для друзей.	Jelly bounces, balloons lift. Fly over the gap and lower the bridge for friends.
 goal.w2_2	Откройте подарок вдвоём, достаньте ключ с шарика и заберитесь к выходу.	Open the present together, get the key off the balloon and climb to the exit.
 goal.w2_3	Зажгите все свечи на торте — и праздник откроет выход.	Light every candle on the cake — and the party opens the exit.
+# --- Настройки игры (экран вместо временного меню) ---
+setup.title	Настройки игры	Game setup
+setup.level	Уровень	Level
+setup.choose	Выбрать	Choose
+setup.mode	Режим	Mode
+setup.burn	Спички горят	Matches burn
+setup.slaps	Шлепки по друзьям	Friendly slaps
+setup.access	Кто может войти	Who can join
+setup.access_note	Для сетевой игры: кто может войти в твоё лобби Steam.	For online play: who can join your Steam lobby.
+setup.online	Онлайн: код и приглашения	Online: code and invites
+setup.start	Начать!	Start!
+setup.cancel	Отменить старт	Cancel start
+setup.level_golden	{0}  ·  золотых {1} из {2}	{0}  ·  golden {1} of {2}
+setup.goal	Цель: {0}	Goal: {0}
+setup.only_host	Уровень и настройки выбирает хост	The host chooses the level and settings
+setup.only_first	Настройки — у первого игрока	Settings belong to player 1
+setup.problem_offline	«Предатель» — только по сети: у каждого свой экран (пауза → Онлайн)	Traitor is online only: everyone needs their own screen (Pause → Online)
+setup.problem_people	«Предатель»: нужно от 3 людей (сейчас {0})	Traitor needs 3+ people (now {0})
+mode.0	Кооператив	Co-op
+mode.1	Предатель	Traitor
+burn.0	обычно	normal
+burn.1	дольше ×1,5	longer ×1.5
+burn.2	дольше ×2	longer ×2
+access.0	только друзья	friends only
+access.1	все	everyone
+access.2	никто	nobody
+# --- Шкаф: спички ---
+wardrobe.any	любые	any
+wardrobe.all_four	все четыре — ты один	all four — you're alone
+wardrobe.pair_a	Пара А: {0}	Pair A: {0}
+wardrobe.pair_b	Пара Б: {0}	Pair B: {0}
+wardrobe.taken	{0} (сейчас у игрока {1})	{0} (player {1} has it now)
+wardrobe.rule.1	Один игрок — все спички твои.	One player — all matches are yours.
+wardrobe.rule.2	2 игрока — у каждого пара.	2 players — each gets a pair.
+wardrobe.rule.3	3 игрока — выбравший пару получит её целиком.	3 players — whoever picks a pair gets both.
+wardrobe.rule.4	4 игрока — у каждого по одной спичке.	4 players — one match each.
+match.0	Тяжёлый	Heavy
+match.1	Маленький	Small
+match.2	Лёгкий	Light
+match.3	Магнит	Magnet
+# --- Доска в лобби ---
+board.world	Мир {0}	World {0}
+board.none	Уровней пока нет	No levels yet
+board.next	Следующий: {0}	Next: {0}
+board.tutorial	(обучение)	(tutorial)
+board.fire	огонь: {0}	fire: {0}
+board.no_slaps	без шлепков	no slaps
+board.code	Код для друзей: {0}	Code for friends: {0}
+board.hint	Настройки игры (хост): X / E у доски или пауза	Game setup (host): X / E at the board, or pause
+board.exit	Выход	Exit
+board.go	Поехали!	Let's go!
+board.host	хост	host
+board.start_in	Старт через {0}	Starting in {0}
+board.cancel_hint	хост: B / Esc — отменить	host: B / Esc — cancel
+# --- Подсказки внизу экрана и в мире ---
+hint.online	Сетевая игра: игроков {0}/{1}. Код, приглашения и выход — пауза → Онлайн	Online game: {0}/{1} players. Code, invites and leaving — Pause → Online
+hint.join	Нажми любую кнопку на геймпаде или клавиатуре, чтобы войти	Press any button on a gamepad or keyboard to join
+hint.players	Игроков: {0}/{1} — друг входит любой кнопкой своего геймпада. Пауза — Start / Esc, держать — уйти из команды	Players: {0}/{1} — a friend joins with any button on their gamepad. Pause — Start / Esc, hold to leave the team
+hint.full	Пауза — Start / Esc, держать — уйти из команды	Pause — Start / Esc, hold to leave the team
+slots.join	Нажми любую кнопку,\nчтобы войти	Press any button\nto join
+slots.online	Место для друга\n(пригласить: пауза → Онлайн)	A spot for a friend\n(invite: Pause → Online)
+slots.local	Друг: любая кнопка\nсвоего геймпада	Friend: any button\non their gamepad
+door.team	зайдите всей командой: {0} из {1}	enter as a whole team: {0} of {1}
+secret.found	Секрет найден!\nВ шкафу — праздничный колпак	Secret found!\nThe party hat is in the wardrobe
+secret.what	Что это там?	What's up there?
+ribbons.pull	Тяните ленты разом: {0} из {1}	Pull the ribbons together: {0} of {1}
+candles.light	Зажгите все свечи: {0} из {1}	Light every candle: {0} of {1}
+station.open	X / E — открыть	X / E — open
+emote.1	Привет!	Hi!
+emote.2	Ура!	Yay!
+emote.3	Туда!	That way!
+emote.4	Танец	Dance
+emote.5	Поклон	Bow
+emote.6	Эх…	Sigh…
+emote.7	Сила!	Strong!
+emote.8	Ой!	Oops!
+# --- Пауза: заново и в коробок посреди уровня ---
+pause.restart_confirm	Начать уровень заново?	Restart the level?
+pause.lobby_confirm	Вернуться в коробок?	Back to the box?
+pause.progress_lost	Прохождение начнётся сначала. Найденные золотые спички останутся.	The run starts over. Golden matches you found stay found.
+pause.progress_lost_online	Прохождение начнётся сначала у всех. Найденные золотые спички останутся.	The run starts over for everyone. Golden matches you found stay found.
+# --- Сеть: что происходит (экран «Онлайн») ---
+net.lost	Связь потеряна	Connection lost
+net.no_steam	Steam не запущен или недоступен	Steam isn't running or is unavailable
+net.creating	Создаю лобби…	Creating a lobby…
+net.host_failed	Не удалось стать хостом	Couldn't start hosting
+net.no_lobby	Хост запущен, но лобби Steam не создалось	Hosting, but the Steam lobby wasn't created
+net.host_lobby	Хост. Лобби {0} — пригласите друга	Hosting. Lobby {0} — invite a friend
+net.joining	Вхожу в лобби…	Joining the lobby…
+net.join_failed	Не удалось войти в лобби	Couldn't join the lobby
+net.connecting	Подключаюсь к {0}…	Connecting to {0}…
+net.connect_failed	Не удалось подключиться	Couldn't connect
+net.local_host	Локальный хост (порт 7777)	Local host (port 7777)
+net.local_code	локальная игра (порт 7777)	local game (port 7777)
+net.hosting	Хост, лобби {0}. Игроков: {1}	Hosting lobby {0}. Players: {1}
+net.hosting_local	Хост. Игроков: {0}	Hosting. Players: {0}
+net.in_game	В игре у {0}	In {0}'s game
+net.player_left	Игрок вышел. Игроков: {0}	A player left. Players: {0}
+net.rejected_someone	Кого-то не пустили (вход закрыт или мест нет). Игроков: {0}	Someone was turned away (joining closed or no room). Players: {0}
+net.host_closed	Хост закрыл игру или связь пропала	The host closed the game or the connection dropped
+net.rejected	Не пустили: {0}	Couldn't join: {0}
+net.reason.full	все 4 места заняты	all 4 spots are taken
+net.reason.closed	хост закрыл вход	the host closed joining
+net.searching	Ищу игры…	Looking for games…
+net.found	Найдено игр: {0}	Games found: {0}
+# --- Тексты из сцен (таблички, двери, торт, шкаф): ищутся по русскому тексту — Loc.Auto ---
+scene.01	Шкаф: X / E — спички, шапка, дерево	Wardrobe: X / E — matches, hat, wood
+scene.02	Мир 3 — Камин\nСкоро	World 3 — Fireplace\nComing soon
+scene.03	Мир 4 — Кемпинг ночью\nСкоро	World 4 — Night Camping\nComing soon
+scene.04	Мир 5 — Фейерверки\nСкоро	World 5 — Fireworks\nComing soon
+scene.05	Коробок-лобби!\n← шкаф: спички и шапки\nдоска →: уровень (выбирает хост)\nэмоции: держи LB / Q (или 1–8)	Matchbox lobby!\n← wardrobe: matches and hats\nboard →: level (the host chooses)\nemotes: hold LB / Q (or 1–8)
+scene.06	Лесенка: подпрыгни и хватайся за край (LT / RT · мышь),\nдержи прыжок — подтянешься. Наверху что-то есть!	Ladder: jump and grab the edge (LT / RT · mouse),\nhold jump to pull yourself up. There's something up there!
+scene.07	Невысокую ступеньку просто перепрыгни.	Just jump over a low step.
+scene.08	Высокий край: прицелься вперёд-вверх на край, держи обе руки и прыгай — подтянешься и перелезешь.\nНе достаёшь — встань на кубик.	High ledge: aim forward and up at the edge, hold both hands and jump — you'll pull yourself up and over.\nCan't reach? Stand on a cube.
+scene.09	Коробок — контрольная точка: упавшие и сгоревшие возвращаются к нему.	The matchbox is a checkpoint: anyone who falls or burns out comes back to it.
+scene.10	Ходить — левый стик или A / D.\nПрыжок — A или Пробел.	Walk — left stick or A / D.\nJump — A or Space.
+scene.11	Выход: зайдите в дверь всей командой.	Exit: go through the door as a whole team.
+scene.12	Пропасть: разбегись и прыгни.\nУпал — вернёшься к последнему коробку.	Gap: take a run-up and jump.\nFell? You'll come back at the last matchbox.
+scene.13	Руки — LT / RT или левая / правая кнопка мыши: держишь кнопку — держишь предмет.\nКуда тянуться — правый стик или мышь.\nСхвати кубик и подтащи к стене.	Hands — LT / RT or left / right mouse button: hold the button to hold an object.\nWhere to reach — right stick or mouse.\nGrab the cube and drag it to the wall.
+scene.14	Y или F — сменить спичку (около секунды).\nВорота открываются изнутри: Маленький пролезет по трубе под полом, Лёгкого поднимет ветер над стеной.	Y or F — swap match (takes about a second).\nThe gate opens from the inside: Small crawls through the pipe under the floor, wind lifts Light over the wall.
+scene.15	Стена высокая. Встань другу на голову — или пусть он подбросит тебя: держит, целится вверх и отпускает руки.\nНаверху — кнопка двери.	The wall is high. Stand on a friend's head — or let them throw you: they hold you, aim up and let go.\nThe door button is at the top.
+scene.16	Этот уровень — для двоих и больше.\nХватай друга, как предмет: за руку, ногу или голову.	This level is for two or more.\nGrab a friend like an object: by the hand, leg or head.
+scene.17	Тяжёлый ящик одному не сдвинуть — толкайте вместе к уступу и залезайте по нему.	The heavy crate won't budge for one — push it to the ledge together and climb up on it.
+scene.18	Пропасть широкая. Лёгкий перелетит, раскинув руки: держи прыжок в воздухе.\nДругих можно перебросить. На том берегу — кнопка моста.	The gap is wide. Light glides with arms spread: hold jump in the air.\nYou can throw the others across. The bridge button is on the far side.
+scene.19	Деревянная стенка горит — бодни её горящей головой.	The wooden wall burns — headbutt it with a burning head.
+scene.20	Фитиль сам донесёт огонь до нитки. Перегорит нитка — груз упадёт на кнопку двери.	The fuse carries the fire to the thread by itself. When the thread burns through, the weight drops onto the door button.
+scene.21	Погас? Зажгись от свечи или от друга: бодни его голову своей горящей.\nГорящая спичка догорает — не тяни.	Went out? Light up from a candle or a friend: headbutt their head with your burning one.\nA burning match burns down — don't wait too long.
+scene.22	Капли и лужа гасят огонь. Проскочи между каплями и перепрыгни лужу.	Drops and the puddle put fire out. Slip between the drops and jump over the puddle.
+scene.23	Спичку зажигают о коробок: подойди боком (тёрка — на высоте головы) и бодни — X или E.\nМагнит из металла — не горит. При смене спички огонь гаснет.	Matches are lit on the matchbox: walk up sideways (the striker is at head height) and headbutt — X or E.\nMagnet is metal — it doesn't burn. Swapping matches puts the fire out.
+scene.24	Подожги фитиль и отойди подальше: петарда взорвёт стенку.	Light the fuse and step back: the firecracker will blow up the wall.
+scene.25	Печенье треснуло: Тяжёлый проломит его, если спрыгнет сверху.	The cookie is cracked: Heavy will break through it by jumping on it from above.
+scene.26	Линейка — качели: встань на низкий конец у полки, а Тяжёлый пусть спрыгнет на высокий.\nВ полёте держи руки вверх и хватайся за край полки.	The ruler is a seesaw: stand on the low end by the shelf and let Heavy jump onto the high end.\nIn the air, keep your hands up and grab the shelf edge.
+scene.27	Кнопка «на всех»: встаньте на неё всей командой.	“Everyone” button: stand on it as a whole team.
+scene.28	Ключ от выхода — на полке. Он железный: Магнит притянет его рукой, а Лёгкого туда поднимет ветер.	The exit key is on the shelf. It's iron: Magnet pulls it with a hand, and wind lifts Light up there.
+scene.29	Финал мира: всё, чему научились. Удачи!	World finale: everything you've learned. Good luck!
+scene.30	Желе: прыгни на него — подбросит.\nДержи прыжок — подбросит выше.	Jelly: jump on it — it bounces you.\nHold jump to bounce higher.
+scene.31	Кнопка опускает мост для друзей.	The button lowers the bridge for your friends.
+scene.32	Шарик: схвати (LT / RT · мышь) и держи — полетишь.\nЛёгкого и Маленького поднимает один, Магнита — два (по шарику в руке). Огонь лопает шарики!	Balloon: grab it (LT / RT · mouse) and hold on — you'll fly.\nOne lifts Light or Small, Magnet needs two (one in each hand). Fire pops balloons!
+scene.33	Подарок: схватите бантики и тяните вдвоём от подарка —\nобе ленты разом, и ворота откроются.	Present: grab the bows and pull away from the present together —\nboth ribbons at once, and the gate opens.
+scene.34	Наверх: желе у стены (держи прыжок) и хватайся за край.\nИли на шарике — Лёгкий, Маленький, Магнит (два шарика).	Up: the jelly by the wall (hold jump), then grab the edge.\nOr ride a balloon — Light, Small, Magnet (two balloons).
+scene.35	Ключ привязан к шарику. Подпрыгни на желе и схвати ключ —\nили лопни шарик огнём (тёрка у коробка), или Магнит притянет.	The key is tied to a balloon. Bounce on the jelly and grab the key —\nor pop the balloon with fire (striker by the matchbox), or Magnet pulls it.
+scene.36	Торт: зажгите все пять свечей. Головка — о тёрку коробка,\nсвечу — «боднуть» у фитиля (X / E). От свечи зажигаются и спички.	Cake: light all five candles. Match head — on the matchbox striker,\ncandle — headbutt by the wick (X / E). Matches light from a candle too.
+scene.37	С днём рождения!	Happy birthday!
+scene.38	Ленты: одна внизу, другая на уступе (желе подбросит).\nТяните обе разом.	Ribbons: one below, the other on the ledge (the jelly bounces you up).\nPull both at once.

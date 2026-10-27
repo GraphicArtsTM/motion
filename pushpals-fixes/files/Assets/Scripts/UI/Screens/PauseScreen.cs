@@ -17,22 +17,28 @@ namespace PushPals.UI
     public class PauseScreen : UiScreen
     {
         private static bool hostNext;
-        private static PlayerIntentReader openerNext;
         private bool host;
-        private PlayerIntentReader opener;
+        private static PauseScreen current;
 
-        /// <summary>Открыть паузу (host — может менять настройки игры; opener — ввод игрока, открывшего паузу).</summary>
+        /// <summary>Закрыть паузу, если открыта (настройки игры над ней начали отсчёт — пора смотреть на доску).</summary>
+        public static void CloseIfOpen()
+        {
+            if (current != null) current.Close();
+        }
+
+        private void OnDestroy() { if (current == this) current = null; }
+
+        /// <summary>Открыть паузу (host — может менять настройки игры; byPlayer — ввод игрока, открывшего паузу).</summary>
         public static PauseScreen Open(bool isHost, PlayerIntentReader byPlayer)
         {
             hostNext = isHost;
-            openerNext = byPlayer;
             return Create<PauseScreen>("Pause Screen", true, true, UiPanel.Motion.Fade);
         }
 
         protected override void Build()
         {
             host = hostNext;
-            opener = openerNext;
+            current = this;
             bool inLobby = LobbyBoard.Instance != null;
             bool decides = !Online.IsClientView;
             // Тень слева под списком — светлый уровень не мешает читать
@@ -58,13 +64,19 @@ namespace PushPals.UI
             layout.childControlHeight = false;
             layout.childForceExpandHeight = false;
             Item(list, "pause.resume", Close);
-            if (inLobby && host) Item(list, "pause.host", () => { Close(); if (opener != null) opener.OpenMenu(new HostMenu()); });
+            // Настройки игры, онлайн и настройки — поверх паузы: закрыли — снова пауза
+            if (inLobby && host) Item(list, "pause.host", () => GameSetupScreen.Open());
             Item(list, "menu.online", () => OnlineScreen.Open(false));
             Item(list, "menu.settings", () => SettingsScreen.Open());
+            // Посреди уровня — сначала «точно?»: прохождение начнётся сначала (по сети — у всех)
             if (!inLobby && decides && LevelRun.Instance != null)
-                Item(list, "pause.restart", () => { Close(); LevelLoader.Load(SceneManager.GetActiveScene().name, UiNames.Level(LevelRun.Instance.Level)); });
+                Item(list, "pause.restart", () => Confirm("pause.restart_confirm", "pause.restart", () =>
+                {
+                    var run = LevelRun.Instance;
+                    LevelLoader.Load(SceneManager.GetActiveScene().name, run != null ? UiNames.Level(run.Level) : "");
+                }));
             if (!inLobby && decides && LevelLoader.Exists(LevelLoader.LobbyScene))
-                Item(list, "pause.lobby", () => { Close(); LevelLoader.Load(LevelLoader.LobbyScene); });
+                Item(list, "pause.lobby", () => Confirm("pause.lobby_confirm", "pause.lobby", () => LevelLoader.Load(LevelLoader.LobbyScene)));
             Item(list, "pause.main_menu", AskMainMenu);
             Item(list, "pause.quit", AskQuit);
             // Сводка справа
@@ -93,7 +105,15 @@ namespace PushPals.UI
             item.GetComponent<Button>().onClick.AddListener(() => onClick());
         }
 
-        private void AskQuit() => UiDialog.Confirm("menu.quit_confirm", Online.IsActive ? "pause.leave_online" : "settings.saved", "menu.exit", PauseMenu.Quit);
+        private void AskQuit() => UiDialog.Confirm("menu.quit_confirm", Online.IsActive ? "pause.leave_online" : "settings.saved", "menu.exit", MainMenuScreen.QuitGame);
+
+        // Уровень пройден наполовину: подтвердить, потом закрыть паузу и сделать
+        private void Confirm(string titleKey, string confirmKey, System.Action action)
+        {
+            bool finished = LevelRun.Instance != null && LevelRun.Instance.Finished;
+            if (finished) { Close(); action(); return; } // уровень уже пройден — терять нечего
+            UiDialog.Confirm(titleKey, Online.IsActive ? "pause.progress_lost_online" : "pause.progress_lost", confirmKey, () => { Close(); action(); });
+        }
 
         // В главное меню: по сети — сначала «точно?» (игра закончится), без сети — сразу (всё сохранено)
         private void AskMainMenu()

@@ -347,7 +347,18 @@ namespace PushPals.UI
             if (es != null) { UiButtonFx.QuietFrame = Time.frameCount; es.SetSelectedGameObject(buttons[n].gameObject); }
         }
 
-        private void AskQuit() => UiDialog.Confirm("menu.quit_confirm", "settings.saved", "menu.exit", PauseMenu.Quit);
+        private void AskQuit() => UiDialog.Confirm("menu.quit_confirm", "settings.saved", "menu.exit", QuitGame);
+
+        /// <summary>Выйти из игры (всё сохранено; в редакторе — остановить Play).</summary>
+        public static void QuitGame()
+        {
+            PushPals.Save.SaveSystem.Save();
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+#else
+            Application.Quit();
+#endif
+        }
 
         // В коробок: обложка закрыта и сразу открывается — внутри лобби
         private void Leave()

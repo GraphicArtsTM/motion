@@ -4,7 +4,7 @@ using UnityEngine;
 namespace PushPals.Level
 {
     /// <summary>
-    /// Доска у выхода из лобби: какой уровень следующий и с какими настройками (их выбирает хост в меню — HostMenu).
+    /// Доска у выхода из лобби: какой уровень следующий и с какими настройками (их выбирает хост на экране «Настройки игры» — GameSetupScreen).
     /// «Начать» — отсчёт 5 секунд (хост может отменить), потом уровень грузится у всех (по сети решает хост).
     /// Рядом — дверь-выход, светлеет во время отсчёта. По сети клиент получает настройки и отсчёт снимком (INetState).
     /// Позиция — низ середины доски (на полу).
@@ -36,13 +36,13 @@ namespace PushPals.Level
             return null;
         }
 
-        /// <summary>«Мир 2 · 1. Шарики».</summary>
+        /// <summary>«Мир 2 · 1. Шарики» (на текущем языке).</summary>
         public string Title(LevelDefinition level)
         {
             if (level == null) return "—";
             var w = WorldOf(level);
             int wi = w != null ? System.Array.IndexOf(worlds, w) + 1 : 0;
-            return (wi > 0 ? "Мир " + wi + " · " : "") + (w != null ? w.NumberOf(level) + ". " : "") + level.displayName;
+            return (wi > 0 ? PushPals.UI.Loc.T("board.world", wi) + " · " : "") + (w != null ? w.NumberOf(level) + ". " : "") + PushPals.UI.UiNames.Level(level);
         }
 
         // Все уровни всех миров подряд
@@ -178,27 +178,30 @@ namespace PushPals.Level
             Vector3 boardTop = transform.position + Vector3.up * (boardHeight + boardSize.y - 0.25f);
             string text;
             int golden = -1, goldenMax = 0;
-            if (level == null) text = "Уровней пока нет";
+            if (level == null) text = PushPals.UI.Loc.T("board.none");
             else
             {
                 var w = WorldOf(level);
-                text = (w != null ? w.displayName + "\n" : "") + "Следующий: " + Title(level) + (level.tutorial ? " (обучение)" : "")
-                       + "\n" + GameRules.ModeNames[(int)GameRules.Mode] + " · огонь: " + GameRules.BurnNames[GameRules.Burn]
-                       + (GameRules.FriendSlaps ? "" : " · без шлепков");
+                int wi = w != null ? System.Array.IndexOf(worlds, w) + 1 : 0;
+                text = (w != null ? PushPals.UI.UiNames.World(wi, w) + "\n" : "") + PushPals.UI.Loc.T("board.next", Title(level))
+                       + (level.tutorial ? " " + PushPals.UI.Loc.T("board.tutorial") : "")
+                       + "\n" + GameRules.ModeName(GameRules.Mode) + " · " + PushPals.UI.Loc.T("board.fire", GameRules.BurnName(GameRules.Burn))
+                       + (GameRules.FriendSlaps ? "" : " · " + PushPals.UI.Loc.T("board.no_slaps"));
                 golden = LevelProgress.Golden(level.id);
                 goldenMax = level.goldenCount;
             }
             string code = Online.LobbyCode != null ? Online.LobbyCode() : "";
-            if (code.Length > 0) text += "\nКод для друзей: " + code;
-            if (!Counting) text += "\nХост: X / E у доски или Start / Esc";
+            if (code.Length > 0) text += "\n" + PushPals.UI.Loc.T("board.code", code);
+            // Раньше: «Хост: … или Start / Esc» — но Start / Esc открывает паузу, а настройки — в ней
+            if (!Counting) text += "\n" + PushPals.UI.Loc.T("board.hint");
             WorldLabel.Draw(boardTop, text, 1f, 14, golden, 300f, goldenMax);
-            WorldLabel.Draw(transform.position + new Vector3(doorOffset, doorSize.y + 0.45f, 0f), Counting ? "Поехали!" : "Выход", 1f, 15, -1, 110f);
+            WorldLabel.Draw(transform.position + new Vector3(doorOffset, doorSize.y + 0.45f, 0f), PushPals.UI.Loc.T(Counting ? "board.go" : "board.exit"), 1f, 15, -1, 110f);
 
             // Метка над хостом: кто выбирает уровень
             var manager = PushPals.Players.PlayerManager.Instance;
             var host = manager != null && manager.Visible.Count > 1 ? manager.HostPlayer : null;
             if (host != null && host.Ragdoll.Body.IsBuilt)
-                WorldLabel.Draw((Vector3)host.Ragdoll.Body.Head.EndPoint + Vector3.up * 0.75f, "хост", 0.8f, 11, -1, 46f);
+                WorldLabel.Draw((Vector3)host.Ragdoll.Body.Head.EndPoint + Vector3.up * 0.75f, PushPals.UI.Loc.T("board.host"), 0.8f, 11, -1, 46f);
 
             if (!Counting) return;
             // Отсчёт крупно — всем
@@ -208,7 +211,7 @@ namespace PushPals.Level
                 big.normal.textColor = new Color(1f, 0.93f, 0.75f);
             }
             int secs = Mathf.CeilToInt(Mathf.Max(0f, Countdown));
-            string line = loading || secs == 0 ? "Поехали!" : "Старт через " + secs;
+            string line = loading || secs == 0 ? PushPals.UI.Loc.T("board.go") : PushPals.UI.Loc.T("board.start_in", secs);
             var r = new Rect(0f, Screen.height * 0.18f, Screen.width, 60f);
             var shadow = new GUIStyle(big); shadow.normal.textColor = new Color(0.2f, 0.12f, 0.05f, 0.8f);
             GUI.Label(new Rect(r.x + 3f, r.y + 3f, r.width, r.height), line, shadow);
@@ -216,7 +219,7 @@ namespace PushPals.Level
             if (level != null)
             {
                 var small = new GUIStyle(big) { fontSize = 18, fontStyle = FontStyle.Normal };
-                GUI.Label(new Rect(0f, r.yMax, Screen.width, 30f), Title(level) + (Online.IsClientView ? "" : "   ·   хост: B / Esc — отменить"), small);
+                GUI.Label(new Rect(0f, r.yMax, Screen.width, 30f), Title(level) + (Online.IsClientView ? "" : "   ·   " + PushPals.UI.Loc.T("board.cancel_hint")), small);
             }
         }
 

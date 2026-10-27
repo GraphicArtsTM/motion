@@ -1,0 +1,10 @@
+Assets/Scripts/UI/HostMenu.cs
+Assets/Scripts/UI/HostMenu.cs.meta
+Assets/Scripts/UI/PauseMenu.cs
+Assets/Scripts/UI/PauseMenu.cs.meta
+Assets/Scripts/UI/PlayerMenu.cs
+Assets/Scripts/UI/PlayerMenu.cs.meta
+Assets/Scripts/UI/SettingsMenu.cs
+Assets/Scripts/UI/SettingsMenu.cs.meta
+Assets/Scripts/UI/WardrobeMenu.cs
+Assets/Scripts/UI/WardrobeMenu.cs.meta

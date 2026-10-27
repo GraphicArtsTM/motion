@@ -11,8 +11,8 @@ namespace PushPals.Input
     /// Читает Input System (геймпад или клавиатура+мышь) и передаёт намерения рэгдоллу.
     /// Единственное место, где спичка связана с устройствами ввода. Живёт на отдельном объекте
     /// «LocalController» (ввод одного игрока за этим ПК), спичку назначает PlayerManager или сеть.
-    /// Ещё здесь: колесо эмоций (держать LB / Q), быстрые эмоции (крестовина, 1–8) и меню лобби —
-    /// у шкафа и доски «боднуть» открывает меню, пока оно открыто, спичка стоит.
+    /// Ещё здесь: колесо эмоций (держать LB / Q), быстрые эмоции (крестовина, 1–8) и лобби —
+    /// у шкафа «боднуть» открывает гардероб этого игрока, у доски — настройки игры (хосту); пока экран открыт, спичка стоит.
     /// </summary>
     [RequireComponent(typeof(PlayerInput))]
     public class PlayerIntentReader : MonoBehaviour
@@ -27,7 +27,7 @@ namespace PushPals.Input
         [SerializeField, Range(0f, 1f)] private float aimDeadZone = 0.35f;
         [Tooltip("Насколько отклонить стик, чтобы выбрать эмоцию на колесе")]
         [SerializeField, Range(0f, 1f)] private float wheelDeadZone = 0.5f;
-        [Tooltip("Короткое нажатие Start / Esc (меньше стольких секунд) открывает настройки хоста в лобби")]
+        [Tooltip("Короткое нажатие Start / Esc (меньше стольких секунд) открывает паузу; держать дольше — уйти из команды")]
         [SerializeField] private float menuTapTime = 0.4f;
 
         private PlayerInput playerInput;
@@ -39,22 +39,14 @@ namespace PushPals.Input
             set => ragdoll = value;
         }
 
-        /// <summary>Открытое меню этого игрока (null — нет).</summary>
-        public PlayerMenu Menu => menu;
 
         private InputAction move, aim, point, grabLeft, grabRight, jump, headbutt, relax, stiffen, switchMatch, emote, emoteQuick, menuAction, pushToTalk;
         private Vector2 lastStickAim = Vector2.right;
 
-        private PlayerMenu menu;
-        // «Настройки игры» открыли экран (карта миров, онлайн): когда он закроется — вернуться в них
-        private bool reopenHostMenu;
         private bool wheelOpen;
         private int wheelPick;
         private Vector2 lastQuick;
         private float menuPressTime = -1f;
-        private bool menuPressHadMenu;
-        private Vector2Int navDir;
-        private float navTimer;
         private string toast;
         private float toastTimer;
 
@@ -103,28 +95,6 @@ namespace PushPals.Input
             // Открыт экран меню (настройки, коллекция…) — кнопки у него, спичка стоит
             if (PushPals.UI.UiScreen.BlocksGame)
             {
-                ragdoll.SetIntent(new RagdollIntent());
-                return;
-            }
-            if (reopenHostMenu)
-            {
-                reopenHostMenu = false;
-                if (menu == null && LobbyBoard.Instance != null && IsHost) Open(new HostMenu());
-            }
-
-            // Открыто меню — кнопки идут ему, спичка стоит
-            if (menu != null)
-            {
-                TrackMenuTap(); // до Handle: Start / Esc, закрывший меню, не должен открыть его снова
-                menu.Handle(ReadMenuInput());
-                if (menu.Closed)
-                {
-                    var host = menu as HostMenu;
-                    if (host != null && host.ReturnAfterScreen) reopenHostMenu = true;
-                    var next = menu.Next; // пауза → настройки и т. п.
-                    menu = null;
-                    if (next != null) Open(next);
-                }
                 ragdoll.SetIntent(new RagdollIntent());
                 return;
             }
@@ -280,7 +250,8 @@ namespace PushPals.Input
                 if (station != null)
                 {
                     intent.HeadbuttPressed = false;
-                    if (station.Type == LobbyStation.Kind.Wardrobe) Open(new WardrobeMenu(ragdoll));
+                    wheelOpen = false;
+                    if (station.Type == LobbyStation.Kind.Wardrobe) OpenWardrobe();
                     else OpenHostMenu();
                 }
             }
@@ -294,32 +265,30 @@ namespace PushPals.Input
         private void TrackMenuTap()
         {
             if (menuAction == null) return;
-            if (menuAction.WasPressedThisFrame()) { menuPressTime = Time.unscaledTime; menuPressHadMenu = menu != null; }
+            if (menuAction.WasPressedThisFrame()) menuPressTime = Time.unscaledTime;
             if (!menuAction.WasReleasedThisFrame() || menuPressTime < 0f) return;
             bool tap = Time.unscaledTime - menuPressTime < menuTapTime;
             menuPressTime = -1f;
-            if (!tap || menuPressHadMenu || menu != null || PushPals.UI.TitleScreen.Showing) return;
+            if (!tap || PushPals.UI.TitleScreen.Showing) return;
             var board = LobbyBoard.Instance;
             if (board != null && board.Counting && IsHost) board.CancelCountdown();
             else PushPals.UI.PauseScreen.Open(IsHost, this); // пауза на наборе интерфейса (Этап 17.5)
         }
 
+        // Доска: настройки игры — хосту, остальным — кто решает
         private void OpenHostMenu()
         {
-            if (IsHost) Open(new HostMenu());
-            else Toast(Online.IsClientView ? "Уровень и настройки выбирает хост" : "Настройки — у первого игрока");
+            if (IsHost) GameSetupScreen.Open();
+            else Toast(Loc.T(Online.IsClientView ? "setup.only_host" : "setup.only_first"));
         }
 
-        private void Open(PlayerMenu m)
+        // Шкаф: гардероб этого игрока (шапка, дерево, какие спички хочет)
+        private void OpenWardrobe()
         {
             var player = ragdoll.GetComponent<Player>();
-            if (player != null) m.Color = player.Color;
-            menu = m;
-            wheelOpen = false;
+            if (player != null) WardrobeScreen.OpenFor(player);
+            else WardrobeScreen.Open();
         }
-
-        /// <summary>Открыть меню извне (автотест).</summary>
-        public void OpenMenu(PlayerMenu m) => Open(m);
 
         // Хост: в сетевой игре — компьютер-хост, за одним ПК — первый вошедший живой игрок
         private bool IsHost
@@ -340,42 +309,6 @@ namespace PushPals.Input
         {
             toast = text;
             toastTimer = 2.2f;
-        }
-
-        // Стрелки/стик меню с повтором при удержании
-        private MenuInput ReadMenuInput()
-        {
-            var input = new MenuInput();
-            Vector2 nav = Vector2.zero;
-            var pad = Device<Gamepad>();
-            if (pad != null)
-            {
-                nav = pad.dpad.ReadValue();
-                Vector2 stick = pad.leftStick.ReadValue();
-                if (stick.magnitude > 0.6f) nav = stick;
-                input.Confirm = pad.buttonSouth.wasPressedThisFrame;
-                input.Back = pad.buttonEast.wasPressedThisFrame || pad.buttonWest.wasPressedThisFrame || pad.startButton.wasPressedThisFrame;
-            }
-            var kb = Device<Keyboard>();
-            if (kb != null)
-            {
-                if (kb.wKey.isPressed || kb.upArrowKey.isPressed) nav.y = 1f;
-                if (kb.sKey.isPressed || kb.downArrowKey.isPressed) nav.y = -1f;
-                if (kb.aKey.isPressed || kb.leftArrowKey.isPressed) nav.x = -1f;
-                if (kb.dKey.isPressed || kb.rightArrowKey.isPressed) nav.x = 1f;
-                input.Confirm |= kb.spaceKey.wasPressedThisFrame || kb.enterKey.wasPressedThisFrame;
-                input.Back |= kb.escapeKey.wasPressedThisFrame || kb.eKey.wasPressedThisFrame || kb.leftShiftKey.wasPressedThisFrame;
-            }
-
-            var dir = Vector2Int.zero;
-            if (Mathf.Abs(nav.y) >= Mathf.Abs(nav.x) && Mathf.Abs(nav.y) > 0.5f) dir.y = nav.y > 0f ? 1 : -1;
-            else if (Mathf.Abs(nav.x) > 0.5f) dir.x = nav.x > 0f ? 1 : -1;
-            bool fire = false;
-            if (dir != navDir) { fire = dir != Vector2Int.zero; navTimer = 0.35f; }
-            else if (dir != Vector2Int.zero && (navTimer -= Time.unscaledDeltaTime) <= 0f) { fire = true; navTimer = 0.12f; }
-            navDir = dir;
-            if (fire) { input.Row = -dir.y; input.Change = dir.x; }
-            return input;
         }
 
         private T Device<T>() where T : InputDevice
@@ -403,18 +336,6 @@ namespace PushPals.Input
             var player = ragdoll.GetComponent<Player>();
             Color color = player != null ? player.Color : Color.white;
 
-            if (menu != null)
-            {
-                GUI.depth = -10; // поверх табличек
-                if (menu is HostMenu) menu.Draw(new Vector2(Screen.width * 0.5f, Screen.height * 0.16f));
-                else
-                {
-                    // Сбоку от своей спички, чтобы видеть шапку и дерево, пока выбираешь
-                    float side = gui.x + 70f + 380f < Screen.width ? 1f : -1f;
-                    menu.Draw(new Vector2(gui.x + side * (70f + 190f), gui.y - 90f));
-                }
-                return;
-            }
             if (wheelOpen) EmoteWheel.Draw(gui + Vector2.up * 10f, wheelPick, color);
             if (toastTimer > 0f) WorldLabel.Draw((Vector3)ragdoll.Body.Head.EndPoint + Vector3.up * 0.5f, toast, Mathf.Clamp01(toastTimer * 2f), 14, -1, 220f);
         }
