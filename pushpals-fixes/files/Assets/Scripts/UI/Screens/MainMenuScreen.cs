@@ -20,35 +20,44 @@ namespace PushPals.UI
     /// </summary>
     public class MainMenuScreen : UiScreen
     {
+        // Тень у основания — мягкое пятно по «следу» предмета (у банок — под каждой): сдвиг от середины низа
+        // (доли ширины и высоты предмета, вверх — «+»), размер (доли), наклон
+        private struct Spot
+        {
+            public Vector2 shift, size;
+            public float angle;
+        }
+
+        private static Spot S(float dx, float dy, float w, float h, float angle) =>
+            new Spot { shift = new Vector2(dx, dy), size = new Vector2(w, h), angle = angle };
+
         // Предмет на столе. Место — на сцене 1920×1080 (кадр 16:9), в долях: x — середина, y — низ (сверху вниз),
-        // h — высота. light — сколько достаётся света свечи (дальше от неё — темнее). Тень у основания — мягкое пятно
-        // по «следу» предмета: сдвиг от середины низа (доли ширины и высоты, вверх — «+»), размер (доли), наклон.
-        // Ярлык — на сколько ниже низа предмета (доля кадра) и наклон; спичка у ярлыка — слева или справа (где свободно)
+        // h — высота. light — сколько достаётся света свечи (дальше от неё — темнее). Ярлык — на сколько ниже низа
+        // предмета (доля кадра) и наклон; спичка у ярлыка — слева или справа (где свободно)
         private struct Prop
         {
             public string sprite, key;
-            public float x, y, h, light;
-            public Vector2 shadowShift, shadowSize;
-            public float shadowAngle, labelY, labelAngle;
+            public float x, y, h, light, labelY, labelAngle;
             public bool pointerRight;
+            public Spot[] contact;
         }
 
-        private static Prop P(string sprite, string key, float x, float y, float h, float light, float sx, float sy, float sw, float sh,
-                              float sa, float labelY, float labelAngle, bool pointerRight = false) =>
-            new Prop { sprite = sprite, key = key, x = x, y = y, h = h, light = light, shadowShift = new Vector2(sx, sy),
-                       shadowSize = new Vector2(sw, sh), shadowAngle = sa, labelY = labelY, labelAngle = labelAngle, pointerRight = pointerRight };
+        private static Prop P(string sprite, string key, float x, float y, float h, float light, float labelY, float labelAngle,
+                              bool pointerRight, params Spot[] contact) =>
+            new Prop { sprite = sprite, key = key, x = x, y = y, h = h, light = light, labelY = labelY, labelAngle = labelAngle,
+                       pointerRight = pointerRight, contact = contact };
 
-        // Дальний ряд — у заднего края столешницы, ближний — у переднего, между ложкой (слева спереди), спичками
-        // (справа спереди) и свечой (справа сзади). Предметы не заслоняют ни ярлыки, ни логотип (проверено макетом
-        // из этих же картинок)
+        // Дальний ряд — дверь и шкаф у заднего края столешницы, банки-телефон — ближе, у свечи, ближний ряд — у переднего
+        // края, между ложкой (слева спереди) и спичками (справа спереди). Всё лежит и стоит на столешнице: ничто не
+        // висит над её задним краем; предметы не заслоняют ни ярлыки, ни логотип (проверено макетом из этих же картинок)
         private static readonly Prop[] Props =
         {
-            P("menu_obj_exit",       "menu.exit",       0.105f, 0.64f,  0.37f, 0.84f, 0.04f, 0.02f, 1.5f,  0.14f, 0f,   0.04f,   0f,   true),
-            P("menu_obj_wardrobe",   "menu.wardrobe",   0.30f,  0.635f, 0.33f, 0.88f, 0f,    0.02f, 1.4f,  0.14f, 0f,   0.04f,  -1.2f),
-            P("menu_obj_online",     "menu.online",     0.67f,  0.63f,  0.23f, 0.95f, 0f,    0.10f, 1.25f, 0.30f, 0f,   0.04f,   1.2f, true),
-            P("menu_obj_settings",   "menu.settings",   0.215f, 0.925f, 0.21f, 0.86f, 0f,    0.45f, 1.35f, 0.30f, 40f,  0.035f, -4f),
-            P("menu_obj_play",       "menu.play",       0.485f, 0.895f, 0.34f, 0.92f, 0f,    0.22f, 1.35f, 0.50f, -12f, 0.045f, -1f),
-            P("menu_obj_collection", "menu.collection", 0.778f, 0.92f,  0.26f, 0.97f, 0f,    0.18f, 1.35f, 0.45f, -20f, 0.04f,   1.5f),
+            P("menu_obj_exit",       "menu.exit",       0.105f, 0.64f,  0.37f, 0.84f, 0.04f,   0f,   true,  S(0.04f, 0.02f, 1.5f, 0.14f, 0f)),
+            P("menu_obj_wardrobe",   "menu.wardrobe",   0.30f,  0.635f, 0.33f, 0.88f, 0.04f,  -1.2f, false, S(0f, 0.02f, 1.4f, 0.14f, 0f)),
+            P("menu_obj_online",     "menu.online",     0.655f, 0.715f, 0.23f, 0.95f, 0.04f,   1.2f, true,  S(-0.22f, 0.12f, 0.62f, 0.16f, -33f), S(0.2f, 0.6f, 0.55f, 0.13f, -28f)),
+            P("menu_obj_settings",   "menu.settings",   0.215f, 0.925f, 0.21f, 0.86f, 0.035f, -4f,   false, S(0f, 0.45f, 1.35f, 0.30f, 40f)),
+            P("menu_obj_play",       "menu.play",       0.485f, 0.895f, 0.34f, 0.92f, 0.045f, -1f,   false, S(0f, 0.22f, 1.35f, 0.50f, -12f)),
+            P("menu_obj_collection", "menu.collection", 0.775f, 0.915f, 0.25f, 0.97f, 0.04f,   1.5f, false, S(0f, 0.18f, 1.35f, 0.45f, -20f)),
         };
         private const int Exit = 0, Wardrobe = 1, OnlineProp = 2, Settings = 3, Play = 4, Collection = 5;
         // Стрелки и геймпад: соседи слева, справа, сверху, снизу (−1 — нет); вверх-вниз — пары «дальний — ближний»
@@ -70,11 +79,11 @@ namespace PushPals.UI
         private static readonly Vector2 Candle = new Vector2(0.855f, 0.27f);
         private const float CandleX = 0.87f;
 
-        // Выбранный: подъём (доля высоты) и рост; падающая тень — сдвиг от свечи (доли высоты), размытие, плотность
-        private const float Lift = 0.04f, Grow = 0.05f, CastShiftX = 0.05f, CastShiftY = 0.02f, CastBlur = 0.035f, CastAlpha = 0.5f;
+        // Выбранный: подъём (доля высоты — чуть-чуть, тень остаётся на столе) и рост; падающая тень — сдвиг от свечи (доли высоты), размытие, плотность
+        private const float Lift = 0.025f, Grow = 0.05f, CastShiftX = 0.05f, CastShiftY = 0.02f, CastBlur = 0.035f, CastAlpha = 0.5f;
         private const float RestLight = 0.9f; // невыбранные — в полутени
-        // Ярлык: высота, поля, наименьшая ширина, рамка тоньше (карточка невысокая), рост выбранного; спичка-указатель
-        private const float LabelHeight = 52f, LabelPad = 30f, LabelMinWidth = 170f, LabelBorder = 1.9f, LabelGrow = 0.1f;
+        // Ярлык: высота, поля, наименьшая ширина, рост выбранного; спичка-указатель
+        private const float LabelHeight = 52f, LabelPad = 30f, LabelMinWidth = 170f, LabelGrow = 0.1f;
         private const float PointerWidth = 140f, PointerHeight = 67f;
         private static readonly Vector2 LogoSize = new Vector2(500f, 266f), LogoAt = new Vector2(0f, -26f - 133f);
         private static readonly Color Lit = new Color(1f, 0.985f, 0.95f, 1f);
@@ -247,16 +256,19 @@ namespace PushPals.UI
         {
             var p = Props[i];
             var v = new PropView();
-            var sprite = UiSprites.Get(p.sprite);
+            var sprite = PropSprite(p.sprite);
             float aspect = sprite != null ? sprite.rect.width / sprite.rect.height : 1f;
             float h = p.h * StageHeight, w = h * aspect;
             v.height = h;
             var foot = new Vector2(p.x * StageWidth, -p.y * StageHeight); // середина низа, от левого верхнего угла сцены
 
-            // Тень у основания — пятно по «следу» предмета
-            var contact = Soft(shadows, "Shadow", foot + Vector2.Scale(p.shadowShift, new Vector2(w, h)),
-                               Vector2.Scale(p.shadowSize, new Vector2(w, h)), new Color(0f, 0f, 0f, 0.75f));
-            contact.rectTransform.localEulerAngles = new Vector3(0f, 0f, p.shadowAngle);
+            // Тень у основания — пятно по «следу» предмета (у банок — под каждой)
+            foreach (var spot in p.contact)
+            {
+                var contact = Soft(shadows, "Shadow", foot + Vector2.Scale(spot.shift, new Vector2(w, h)),
+                                   Vector2.Scale(spot.size, new Vector2(w, h)), new Color(0f, 0f, 0f, 0.75f));
+                contact.rectTransform.localEulerAngles = new Vector3(0f, 0f, spot.angle);
+            }
             // Падающая тень: свеча справа сзади — размытый силуэт уходит влево-вниз
             v.cast = UiFactory.Rect(shadows, "Cast").gameObject.AddComponent<Image>();
             v.cast.sprite = sprite;
@@ -299,13 +311,11 @@ namespace PushPals.UI
             v.label.sizeDelta = new Vector2(LabelMinWidth, LabelHeight);
             v.label.localEulerAngles = new Vector3(0f, 0f, p.labelAngle);
             var cardShadow = UiFactory.Image(v.label, "input_field", true, "Shadow");
-            cardShadow.pixelsPerUnitMultiplier = LabelBorder;
             UiRoot.Stretch(cardShadow.rectTransform);
             cardShadow.rectTransform.anchoredPosition = new Vector2(-4f, -5f);
             cardShadow.color = new Color(0f, 0f, 0f, 0.45f);
             cardShadow.gameObject.AddComponent<UiSoftSilhouette>().Radius = 4f;
             v.card = UiFactory.Image(v.label, "input_field", true, "Card");
-            v.card.pixelsPerUnitMultiplier = LabelBorder;
             UiRoot.Stretch(v.card.rectTransform);
             v.card.color = LabelShade;
             v.card.raycastTarget = true;
@@ -320,6 +330,14 @@ namespace PushPals.UI
             Hook(v.labelButton, i);
             FitLabel(v);
             return v;
+        }
+
+        // Картинка предмета: своя из Resources/UI/Menu (банки-телефон — новый рисунок, обе банки лежат на столе),
+        // если её нет — из листа интерфейса
+        private static Sprite PropSprite(string name)
+        {
+            var own = Resources.Load<Sprite>("UI/Menu/" + name);
+            return own != null ? own : UiSprites.Get(name);
         }
 
         // Выбор и нажатие: предмет и его ярлык ведут себя одинаково
@@ -496,7 +514,7 @@ namespace PushPals.UI
                 v.k = Mathf.MoveTowards(v.k, on ? 1f : 0f, dt * 5f);
                 float e = v.k * v.k * (3f - 2f * v.k);
                 v.image.color = Color.Lerp(Rest(Props[i].light), Lit, e);
-                v.visual.anchoredPosition = new Vector2(0f, e * (Lift * v.height + Mathf.Sin(t * 2.6f) * 2f));
+                v.visual.anchoredPosition = new Vector2(0f, e * (Lift * v.height + Mathf.Sin(t * 2.6f) * 1.5f));
                 v.visual.localScale = Vector3.one * (1f + Grow * e);
                 SetAlpha(v.cast, CastAlpha * (1f - 0.2f * e));
                 SetAlpha(v.glow, 0.745f * e * pulse);
