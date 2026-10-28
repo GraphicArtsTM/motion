@@ -13,7 +13,7 @@ namespace PushPals.Level
     {
         [Tooltip("Миры по порядку: хост выбирает любой уровень любого мира")]
         [SerializeField] private WorldDefinition[] worlds;
-        [Tooltip("Отсчёт перед стартом, с")]
+        [Tooltip("Отсчёт перед стартом, с — если нет префаба Countdown (иначе — длительность из его инспектора)")]
         [SerializeField] private float countdownTime = 5f;
         [SerializeField] private Vector2 boardSize = new Vector2(4.6f, 2.5f);
         [Tooltip("Низ доски над полом")]
@@ -60,8 +60,8 @@ namespace PushPals.Level
         [SerializeField] private float sleeveTime = 0.7f;
 
         private SpriteRenderer doorInside;
-        private bool loading, sleeveClosing;
-        private static GUIStyle big;
+        private bool loading, sleeveClosing, countdownShown;
+        private float countdownTotal; // с какого числа пошёл отсчёт (у клиента — первое из снимка)
         private static bool introShown;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -121,7 +121,8 @@ namespace PushPals.Level
         public void StartCountdown()
         {
             if (Online.IsClientView || loading || Selected == null || !GameRules.ModeReady) return;
-            Countdown = countdownTime;
+            float time = PushPals.UI.Countdown.Duration;
+            Countdown = time > 0f ? time : countdownTime;
         }
 
         public void CancelCountdown()
@@ -135,9 +136,7 @@ namespace PushPals.Level
         {
             if (!Online.IsClientView && Counting && !loading)
             {
-                int before = Mathf.CeilToInt(Countdown);
-                Countdown -= Time.fixedDeltaTime;
-                if (Mathf.CeilToInt(Countdown) != before && Countdown > 0f) PushPals.Audio.Sfx.Ui("tick", 0.7f);
+                Countdown -= Time.fixedDeltaTime; // тик на каждой цифре — у отсчёта на экране (у всех, не только у хоста)
                 if (Countdown <= 0f)
                 {
                     var level = Selected;
@@ -154,8 +153,16 @@ namespace PushPals.Level
                 PushPals.UI.MatchboxSleeve.Close(Mathf.Max(0.2f, Countdown), Title(level));
             }
             if (!Counting) sleeveClosing = false;
+            // Отсчёт на экране (префаб Countdown) — у всех: у клиента по снимку; отменили — исчезает сам
+            if (Counting && Countdown > 0f && !countdownShown)
+            {
+                countdownShown = true;
+                countdownTotal = Countdown;
+                PushPals.UI.Countdown.Follow(() => this != null && Counting ? Countdown : -1f, Title(Selected), !Online.IsClientView);
+            }
+            if (!Counting) countdownShown = false;
             // Проём двери светлеет к старту
-            float k = Counting ? 1f - Mathf.Clamp01(Countdown / Mathf.Max(0.01f, countdownTime)) : 0f;
+            float k = Counting ? 1f - Mathf.Clamp01(Countdown / Mathf.Max(0.01f, countdownTotal)) : 0f;
             doorInside.color = Color.Lerp(inside, ready, k);
         }
 
@@ -202,25 +209,7 @@ namespace PushPals.Level
             var host = manager != null && manager.Visible.Count > 1 ? manager.HostPlayer : null;
             if (host != null && host.Ragdoll.Body.IsBuilt)
                 WorldLabel.Draw((Vector3)host.Ragdoll.Body.Head.EndPoint + Vector3.up * 0.75f, PushPals.UI.Loc.T("board.host"), 0.8f, 11, -1, 46f);
-
-            if (!Counting) return;
-            // Отсчёт крупно — всем
-            if (big == null)
-            {
-                big = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 40, fontStyle = FontStyle.Bold };
-                big.normal.textColor = new Color(1f, 0.93f, 0.75f);
-            }
-            int secs = Mathf.CeilToInt(Mathf.Max(0f, Countdown));
-            string line = loading || secs == 0 ? PushPals.UI.Loc.T("board.go") : PushPals.UI.Loc.T("board.start_in", secs);
-            var r = new Rect(0f, Screen.height * 0.18f, Screen.width, 60f);
-            var shadow = new GUIStyle(big); shadow.normal.textColor = new Color(0.2f, 0.12f, 0.05f, 0.8f);
-            GUI.Label(new Rect(r.x + 3f, r.y + 3f, r.width, r.height), line, shadow);
-            GUI.Label(r, line, big);
-            if (level != null)
-            {
-                var small = new GUIStyle(big) { fontSize = 18, fontStyle = FontStyle.Normal };
-                GUI.Label(new Rect(0f, r.yMax, Screen.width, 30f), Title(level) + (Online.IsClientView ? "" : "   ·   " + PushPals.UI.Loc.T("board.cancel_hint")), small);
-            }
+            // Сам отсчёт — префаб Countdown (FixedUpdate), а не надпись здесь
         }
 
         private void OnDrawGizmos()

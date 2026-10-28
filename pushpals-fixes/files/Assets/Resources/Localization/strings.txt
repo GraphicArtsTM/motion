@@ -310,6 +310,9 @@ board.go	Поехали!	Let's go!
 board.host	хост	host
 board.start_in	Старт через {0}	Starting in {0}
 board.cancel_hint	хост: B / Esc — отменить	host: B / Esc — cancel
+countdown.title	Старт через	Starting in
+countdown.go	Поехали!	Go!
+countdown.cancel	B / Esc — отменить	B / Esc — cancel
 # --- Подсказки внизу экрана и в мире ---
 hint.online	Сетевая игра: игроков {0}/{1}. Код, приглашения и выход — пауза → Онлайн	Online game: {0}/{1} players. Code, invites and leaving — Pause → Online
 hint.join	Нажми любую кнопку на геймпаде или клавиатуре, чтобы войти	Press any button on a gamepad or keyboard to join

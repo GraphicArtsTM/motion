@@ -50,6 +50,8 @@ namespace PushPals.UI
 
         /// <summary>Экран сейчас закрыт обложкой (полностью или частично).</summary>
         public static bool Visible => instance != null && instance.cover > 0.001f;
+        /// <summary>Насколько закрыт экран: 0 — открыт, 1 — закрыт (отсчёт ждёт, пока обложка уедет, — и «Поехали!»).</summary>
+        public static float Cover => instance != null ? instance.cover : 0f;
 
         private static MatchboxSleeve Get()
         {

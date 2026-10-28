@@ -1,0 +1,1042 @@
+diff --git a/Assets/Resources/Localization/strings.txt b/Assets/Resources/Localization/strings.txt
+index 3d9f46f..76edfea 100644
+--- a/Assets/Resources/Localization/strings.txt
++++ b/Assets/Resources/Localization/strings.txt
+@@ -310,6 +310,9 @@ board.go	Поехали!	Let's go!
+ board.host	хост	host
+ board.start_in	Старт через {0}	Starting in {0}
+ board.cancel_hint	хост: B / Esc — отменить	host: B / Esc — cancel
++countdown.title	Старт через	Starting in
++countdown.go	Поехали!	Go!
++countdown.cancel	B / Esc — отменить	B / Esc — cancel
+ # --- Подсказки внизу экрана и в мире ---
+ hint.online	Сетевая игра: игроков {0}/{1}. Код, приглашения и выход — пауза → Онлайн	Online game: {0}/{1} players. Code, invites and leaving — Pause → Online
+ hint.join	Нажми любую кнопку на геймпаде или клавиатуре, чтобы войти	Press any button on a gamepad or keyboard to join
+diff --git a/Assets/Scripts/Audio/MusicPlayer.cs b/Assets/Scripts/Audio/MusicPlayer.cs
+index 521a9ec..122a27e 100644
+--- a/Assets/Scripts/Audio/MusicPlayer.cs
++++ b/Assets/Scripts/Audio/MusicPlayer.cs
+@@ -5,7 +5,8 @@ namespace PushPals.Audio
+ {
+     /// <summary>
+     /// Музыка (Этап 17): тёплые петли, сыгранные кодом — укулеле (щипки Карплуса — Стронга), ксилофон и мягкий бас.
+-    /// В лобби — спокойная, на уровнях — бодрее; при смене сцены плавный переход. Временно, пока нет настоящей музыки.
++    /// Три петли: главное меню на столе — тихий вальс шкатулки при свече, коробок (лобби) — укулеле, на уровнях —
++    /// бодрее. Переход плавный: из меню в коробок, из коробка на уровень и обратно. Временно, пока нет настоящей музыки.
+     /// </summary>
+     public class MusicPlayer : MonoBehaviour
+     {
+@@ -14,7 +15,8 @@ namespace PushPals.Audio
+ 
+         private const int Rate = 32000;
+         private AudioSource a, b;
+-        private AudioClip lobby, level;
++        private AudioClip menu, lobby, level;
++        private bool lobbyScene;
+         private bool usingA = true;
+         private float fade = 1f;
+ 
+@@ -24,7 +26,8 @@ namespace PushPals.Audio
+         {
+             a = NewSource();
+             b = NewSource();
+-            // Лобби: C – Am – F – G, 92 удара в минуту; уровень: F – C – G – Am, 112, мелодия гуще
++            // Лобби: C – Am – F – G, 92 удара в минуту; уровень: F – C – G – Am, 112, мелодия гуще; меню — свой вальс
++            menu = ComposeMenu();
+             lobby = Compose("Music Lobby", 92f, new[] { 0, 9, 5, 7 }, 0.45f, 11);
+             level = Compose("Music Level", 112f, new[] { 5, 0, 7, 9 }, 0.7f, 23);
+             SceneManager.sceneLoaded += OnScene;
+@@ -45,7 +48,15 @@ namespace PushPals.Audio
+ 
+         private void OnScene(Scene scene, LoadSceneMode mode)
+         {
+-            var clip = scene.name == PushPals.Level.LevelLoader.LobbyScene ? lobby : level;
++            lobbyScene = scene.name == PushPals.Level.LevelLoader.LobbyScene;
++            Play(Wanted());
++        }
++
++        // Главное меню стоит на столе над коробком (та же сцена) — у него своя музыка, пока оно открыто
++        private AudioClip Wanted() => PushPals.UI.MainMenuScreen.Showing ? menu : lobbyScene ? lobby : level;
++
++        private void Play(AudioClip clip)
++        {
+             var current = usingA ? a : b;
+             if (current.clip == clip && current.isPlaying) return;
+             usingA = !usingA;
+@@ -58,6 +69,8 @@ namespace PushPals.Audio
+ 
+         private void Update()
+         {
++            var want = Wanted();
++            if ((usingA ? a : b).clip != want) Play(want);
+             fade = Mathf.MoveTowards(fade, 1f, Time.unscaledDeltaTime / Mathf.Max(0.1f, fadeTime));
+             float v = SoundSettings.MusicVolume * loudness;
+             (usingA ? a : b).volume = v * fade;
+@@ -68,6 +81,91 @@ namespace PushPals.Audio
+ 
+         // ---------- Сочинить петлю ----------
+ 
++        // Меню: ночная кухня при свече — медленный вальс (3/4, 76 ударов), Dm – G – C – Am. Музыкальная шкатулка
++        // ведёт колыбельную фразу, тихая гитара — «раз — два-три», под ними тёплый тянущийся аккорд.
++        // Хвосты последних нот переносятся в начало — петля без щелчка на стыке
++        private static AudioClip ComposeMenu()
++        {
++            const float bpm = 76f;
++            int[] chords = { 2, 7, 0, 9 };
++            // Фраза шкатулки на 4 такта: восьмые (6 на такт), полутона от C5, −1 — пауза
++            int[][] phrase =
++            {
++                new[] { 9, -1, 5, -1, 2, 5 },
++                new[] { 7, -1, 11, -1, 14, -1 },
++                new[] { 12, -1, 7, -1, 4, 7 },
++                new[] { 9, -1, -1, 12, 11, 9 },
++            };
++            // Второй круг — с проходящими нотами, третий — реже (передышка), четвёртый — как первый, в конце — «ля»
++            int[][] fill =
++            {
++                new[] { 9, 10, 9, 5, 2, 5 },
++                new[] { 7, 9, 11, 12, 14, -1 },
++                new[] { 12, 11, 12, 7, 4, 7 },
++                new[] { 9, -1, 12, 11, 9, 7 },
++            };
++            var rng = new System.Random(37);
++            float beat = 60f / bpm;
++            int bars = chords.Length * 4;
++            float length = bars * 3 * beat;
++            int n = Mathf.CeilToInt(length * Rate);
++            var d = new float[n + Rate * 3]; // с запасом под хвосты
++            for (int bar = 0; bar < bars; bar++)
++            {
++                int root = chords[bar % chords.Length];
++                int third = Minor(root) ? 3 : 4;
++                int cycle = bar / chords.Length;
++                float t0 = bar * 3 * beat;
++                // Тянущийся аккорд на весь такт
++                foreach (int note in new[] { root, root + third, root + 7 })
++                    AddPad(d, t0, 3 * beat, Note(note, 3), 0.045f);
++                // Гитара: бас на «раз», аккорд на «два» и «три»
++                SynthClips.Pluck(d, t0, Note(root, 2), 0.2f, 0.996f, Rate, rng);
++                for (int k = 1; k <= 2; k++)
++                {
++                    int[] chord = { root + third, root + 7, root + 12 };
++                    for (int c = 0; c < chord.Length; c++)
++                        SynthClips.Pluck(d, t0 + k * beat + c * 0.018f, Note(chord[c], 3), 0.07f, 0.995f, Rate, rng);
++                }
++                // Шкатулка: колыбельная, на третьем круге — только сильные доли
++                var line = cycle == 1 ? fill[bar % 4] : phrase[bar % 4];
++                for (int e = 0; e < 6; e++)
++                {
++                    int note = line[e];
++                    if (note < 0 || (cycle == 2 && e % 2 == 1)) continue;
++                    if (cycle == 3 && bar % 4 == 3 && e > 0) continue; // в конце — одна долгая «ля»
++                    float at = t0 + e * beat * 0.5f;
++                    float f = Note(note, 5);
++                    SynthClips.AddBell(d, at, f, 0.16f, Rate, 3.2f);
++                    SynthClips.AddBell(d, at, f * 2f, 0.035f, Rate, 7f); // звонкий «зубчик» гребёнки
++                }
++            }
++            // Хвосты за концом петли — в её начало
++            var loop = new float[n];
++            for (int i = 0; i < d.Length; i++) loop[i % n] += d[i];
++            float peak = 0.0001f;
++            foreach (var x in loop) peak = Mathf.Max(peak, Mathf.Abs(x));
++            for (int i = 0; i < n; i++) loop[i] *= 0.7f / peak; // тише остальных — меню спокойное
++            var clip = AudioClip.Create("Music Menu", n, 1, Rate, false);
++            clip.SetData(loop, 0);
++            return clip;
++        }
++
++        // Тёплый тянущийся звук (как фисгармония): мягкое нарастание и затухание, чуть «дышит»
++        private static void AddPad(float[] d, float start, float duration, float freq, float amp)
++        {
++            int s0 = Mathf.RoundToInt(start * Rate);
++            int len = Mathf.Min(d.Length - s0, Mathf.RoundToInt((duration + 0.6f) * Rate));
++            for (int i = 0; i < len; i++)
++            {
++                float t = i / (float)Rate;
++                float env = Mathf.Min(1f, t / 0.35f) * (t < duration ? 1f : Mathf.Exp(-(t - duration) * 6f));
++                float wobble = 1f + 0.15f * Mathf.Sin(2f * Mathf.PI * 0.8f * t);
++                float w = 2f * Mathf.PI * freq * t;
++                d[s0 + i] += amp * env * wobble * (Mathf.Sin(w) + 0.3f * Mathf.Sin(2f * w) + 0.1f * Mathf.Sin(3f * w));
++            }
++        }
++
+         // Полутона от C: аккорд мажор/минор по ступени (0 — C, 9 — Am …)
+         private static float Note(int semitone, int octave) => 261.63f * Mathf.Pow(2f, (semitone + 12 * (octave - 4)) / 12f);
+         private static bool Minor(int root) => root == 9 || root == 2 || root == 4;
+diff --git a/Assets/Scripts/Audio/Sfx.cs b/Assets/Scripts/Audio/Sfx.cs
+index c389374..0bd8cc0 100644
+--- a/Assets/Scripts/Audio/Sfx.cs
++++ b/Assets/Scripts/Audio/Sfx.cs
+@@ -44,6 +44,8 @@ namespace PushPals.Audio
+             AddClip("fanfare", SynthClips.Fanfare());
+             AddClip("boom", SynthClips.Boom());
+             AddClip("crackle", SynthClips.Crackle());
++            AddClip("wood_tick", SynthClips.WoodTick());
++            AddClip("whoosh", SynthClips.Whoosh());
+             for (int i = 0; i < 4; i++) AddClip("step_soft", SynthClips.Step(i));
+             for (int i = 0; i < voices; i++)
+             {
+diff --git a/Assets/Scripts/Audio/SynthClips.cs b/Assets/Scripts/Audio/SynthClips.cs
+index 7feb10e..a043037 100644
+--- a/Assets/Scripts/Audio/SynthClips.cs
++++ b/Assets/Scripts/Audio/SynthClips.cs
+@@ -4,7 +4,8 @@ namespace PushPals.Audio
+ {
+     /// <summary>
+     /// Звуки, которых нет в наборах Kenney, — синтез при запуске: чирканье о тёрку, вспышка, «пшш» в воде,
+-    /// хлопок шарика, «боинг» желе, звон звезды, фанфары, взрыв петарды, треск огня (петля), мягкий шаг.
++    /// хлопок шарика, «боинг» желе, звон звезды, фанфары, взрыв петарды, треск огня (петля), мягкий шаг,
++    /// деревянный тик и «вжух» (отсчёт перед стартом).
+     /// </summary>
+     public static class SynthClips
+     {
+@@ -47,6 +48,37 @@ namespace PushPals.Audio
+             return Make("step_soft", d);
+         }
+ 
++        /// <summary>Тихий деревянный тик (отсчёт): короткий стук деревяшки — два быстро гаснущих тона и щелчок.</summary>
++        public static AudioClip WoodTick()
++        {
++            var d = Buffer(0.12f);
++            for (int i = 0; i < d.Length; i++)
++            {
++                float t = i / (float)Rate;
++                float body = Mathf.Sin(2f * Mathf.PI * 1250f * t) * Mathf.Exp(-t * 70f)
++                             + 0.55f * Mathf.Sin(2f * Mathf.PI * 2730f * t) * Mathf.Exp(-t * 120f);
++                float click = Noise() * Mathf.Exp(-t * 900f) * 0.4f;
++                d[i] = (body + click) * Mathf.Min(1f, t / 0.0008f);
++            }
++            return Make("wood_tick", d);
++        }
++
++        /// <summary>«Вжух»: шум нарастает и уходит, полоса частот открывается и закрывается.</summary>
++        public static AudioClip Whoosh()
++        {
++            var d = Buffer(0.5f);
++            float lp = 0f, low = 0f;
++            for (int i = 0; i < d.Length; i++)
++            {
++                float k = i / (float)d.Length;
++                float bell = Mathf.Sin(Mathf.PI * k);
++                lp += Mathf.Lerp(0.03f, 0.35f, bell) * (Noise() - lp);
++                low += 0.02f * (lp - low); // без гула: полоса, а не низ
++                d[i] = (lp - low) * bell * bell;
++            }
++            return Make("whoosh", d);
++        }
++
+         /// <summary>Чирк о тёрку: короткий шершавый шум с «зубчиками».</summary>
+         public static AudioClip Strike()
+         {
+diff --git a/Assets/Scripts/Editor/UiKitBuilder.cs b/Assets/Scripts/Editor/UiKitBuilder.cs
+index 4bcc6ed..fd9c1c3 100644
+--- a/Assets/Scripts/Editor/UiKitBuilder.cs
++++ b/Assets/Scripts/Editor/UiKitBuilder.cs
+@@ -224,6 +224,7 @@ namespace PushPals.EditorTools
+             Save(PlayerBadgePrefab(), names);
+             Save(BurnBarPrefab(), names);
+             Save(CounterPrefab(), names);
++            Save(CountdownPrefab(), names);
+             // Реестр для экранов, собираемых в игре (UiPrefabs.Spawn)
+             string reg = ResourceDir + "UiPrefabs.asset";
+             var set = AssetDatabase.LoadAssetAtPath<UiPrefabs>(reg);
+@@ -708,6 +709,16 @@ namespace PushPals.EditorTools
+             return go;
+         }
+ 
++        // Отсчёт перед стартом: корень с Countdown, части собирает сам компонент — в префабе их можно двигать,
++        // длительность и прочее — в его инспекторе
++        private static GameObject CountdownPrefab()
++        {
++            var go = Root(Countdown.PrefabName, new Vector2(1920f, 1080f));
++            go.AddComponent<Countdown>().BuildView();
++            foreach (var t in go.GetComponentsInChildren<TextMeshProUGUI>(true)) t.font = t.gameObject.name == "Hint" ? Theme.body : Theme.heading;
++            return go;
++        }
++
+         // ---------- Витрина ----------
+ 
+         public const string DemoScene = "Assets/Scenes/UiKitDemo.unity";
+diff --git a/Assets/Scripts/Editor/UiSheetTool.cs b/Assets/Scripts/Editor/UiSheetTool.cs
+index 743620f..5be1cf7 100644
+--- a/Assets/Scripts/Editor/UiSheetTool.cs
++++ b/Assets/Scripts/Editor/UiSheetTool.cs
+@@ -42,6 +42,7 @@ namespace PushPals.EditorTools
+             public int gap = 18;        // кусочки ближе этого (пиксели) — одна картинка
+             public int edge = 8;        // ширина кромки, где убирается маджента-оттенок
+             public int minArea = 150;   // меньше — крошка
++            public int minThickness = 0; // уже этого (пиксели) по ширине или высоте — не картинка, а линия-разделитель
+             public RectInt[] groups = new RectInt[0];        // всё внутри — одна картинка (x, y от левого верхнего угла)
+             public Vector2Int[] holes = new Vector2Int[0];   // нарисованная «шахматка» внутри — сделать прозрачной
+             public float scale = 1f;    // уменьшить лист после очистки (одиночная крупная картинка — к размеру остальных)
+@@ -104,6 +105,16 @@ namespace PushPals.EditorTools
+                 gap = 24, // ниточка у банок-телефона
+                 names = new[] { "menu_obj_play", "menu_obj_online", "menu_obj_settings", "menu_obj_wardrobe", "menu_obj_collection", "menu_obj_exit" },
+             },
++            // Отсчёт перед стартом (Countdown): цифры 5…1 — между ними на листе тонкие чёрные линии, их выкидываем
++            new Sheet
++            {
++                file = "ui_countdown_digits",
++                minThickness = 24,
++                names = new[] { "cd_5", "cd_4", "cd_3", "cd_2", "cd_1" },
++            },
++            // Слова: сверху лента «Старт через», под ней табличка «Поехали!»
++            new Sheet { file = "ui_countdown_words_ru", names = new[] { "cd_title_ru", "cd_go_ru" } },
++            new Sheet { file = "ui_countdown_words_en", names = new[] { "cd_title_en", "cd_go_en" } },
+             // Отдельные картинки вместо кусочков листов
+             new Sheet { file = "menu_highlight", names = new[] { "menu_highlight" }, minArea = 2000 },
+             new Sheet { file = "ic_keyboard", names = new[] { "ic_keyboard" }, minArea = 2000, scale = 0.15f }, // к размеру иконок (~150 px)
+@@ -209,9 +220,10 @@ namespace PushPals.EditorTools
+             borderScale = kPost;
+             s.gap = Mathf.RoundToInt(s.gap * s.scale);
+             s.minArea = Mathf.RoundToInt(s.minArea * s.scale * s.scale);
++            s.minThickness = Mathf.RoundToInt(s.minThickness * s.scale);
+ 
+             var boxes = Merge(Components(img), s);
+-            boxes.RemoveAll(b => b.area < s.minArea);
++            boxes.RemoveAll(b => b.area < s.minArea || Mathf.Min(b.W, b.H) < s.minThickness);
+             boxes = Order(boxes);
+             ClearOutside(img, boxes);
+ 
+@@ -234,6 +246,7 @@ namespace PushPals.EditorTools
+             r.gap = Mathf.RoundToInt(s.gap * k);
+             r.edge = Mathf.RoundToInt(s.edge * k);
+             r.minArea = Mathf.RoundToInt(s.minArea * k * k);
++            r.minThickness = Mathf.RoundToInt(s.minThickness * k);
+             r.groups = new RectInt[s.groups.Length];
+             for (int i = 0; i < s.groups.Length; i++)
+                 r.groups[i] = new RectInt(Mathf.RoundToInt(s.groups[i].x * k * s.scale), Mathf.RoundToInt(s.groups[i].y * k * s.scale),
+diff --git a/Assets/Scripts/Level/LevelRun.cs b/Assets/Scripts/Level/LevelRun.cs
+index 4354682..e40b344 100644
+--- a/Assets/Scripts/Level/LevelRun.cs
++++ b/Assets/Scripts/Level/LevelRun.cs
+@@ -94,6 +94,8 @@ namespace PushPals.Level
+             unlocksAtStart = Unlocks.Mask;
+             goldenAtStart = GoldenFound;
+             CollectProps();
++            // Начало уровня: «Поехали!» — как только уедет обложка коробка (у каждого ПК своя)
++            PushPals.UI.Countdown.Go();
+         }
+ 
+         // ---------- Упавшие предметы ----------
+diff --git a/Assets/Scripts/Level/LobbyBoard.cs b/Assets/Scripts/Level/LobbyBoard.cs
+index 4b44107..a27fc97 100644
+--- a/Assets/Scripts/Level/LobbyBoard.cs
++++ b/Assets/Scripts/Level/LobbyBoard.cs
+@@ -13,7 +13,7 @@ namespace PushPals.Level
+     {
+         [Tooltip("Миры по порядку: хост выбирает любой уровень любого мира")]
+         [SerializeField] private WorldDefinition[] worlds;
+-        [Tooltip("Отсчёт перед стартом, с")]
++        [Tooltip("Отсчёт перед стартом, с — если нет префаба Countdown (иначе — длительность из его инспектора)")]
+         [SerializeField] private float countdownTime = 5f;
+         [SerializeField] private Vector2 boardSize = new Vector2(4.6f, 2.5f);
+         [Tooltip("Низ доски над полом")]
+@@ -60,8 +60,8 @@ namespace PushPals.Level
+         [SerializeField] private float sleeveTime = 0.7f;
+ 
+         private SpriteRenderer doorInside;
+-        private bool loading, sleeveClosing;
+-        private static GUIStyle big;
++        private bool loading, sleeveClosing, countdownShown;
++        private float countdownTotal; // с какого числа пошёл отсчёт (у клиента — первое из снимка)
+         private static bool introShown;
+ 
+         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+@@ -121,7 +121,8 @@ namespace PushPals.Level
+         public void StartCountdown()
+         {
+             if (Online.IsClientView || loading || Selected == null || !GameRules.ModeReady) return;
+-            Countdown = countdownTime;
++            float time = PushPals.UI.Countdown.Duration;
++            Countdown = time > 0f ? time : countdownTime;
+         }
+ 
+         public void CancelCountdown()
+@@ -135,9 +136,7 @@ namespace PushPals.Level
+         {
+             if (!Online.IsClientView && Counting && !loading)
+             {
+-                int before = Mathf.CeilToInt(Countdown);
+-                Countdown -= Time.fixedDeltaTime;
+-                if (Mathf.CeilToInt(Countdown) != before && Countdown > 0f) PushPals.Audio.Sfx.Ui("tick", 0.7f);
++                Countdown -= Time.fixedDeltaTime; // тик на каждой цифре — у отсчёта на экране (у всех, не только у хоста)
+                 if (Countdown <= 0f)
+                 {
+                     var level = Selected;
+@@ -154,8 +153,16 @@ namespace PushPals.Level
+                 PushPals.UI.MatchboxSleeve.Close(Mathf.Max(0.2f, Countdown), Title(level));
+             }
+             if (!Counting) sleeveClosing = false;
++            // Отсчёт на экране (префаб Countdown) — у всех: у клиента по снимку; отменили — исчезает сам
++            if (Counting && Countdown > 0f && !countdownShown)
++            {
++                countdownShown = true;
++                countdownTotal = Countdown;
++                PushPals.UI.Countdown.Follow(() => this != null && Counting ? Countdown : -1f, Title(Selected), !Online.IsClientView);
++            }
++            if (!Counting) countdownShown = false;
+             // Проём двери светлеет к старту
+-            float k = Counting ? 1f - Mathf.Clamp01(Countdown / Mathf.Max(0.01f, countdownTime)) : 0f;
++            float k = Counting ? 1f - Mathf.Clamp01(Countdown / Mathf.Max(0.01f, countdownTotal)) : 0f;
+             doorInside.color = Color.Lerp(inside, ready, k);
+         }
+ 
+@@ -202,25 +209,7 @@ namespace PushPals.Level
+             var host = manager != null && manager.Visible.Count > 1 ? manager.HostPlayer : null;
+             if (host != null && host.Ragdoll.Body.IsBuilt)
+                 WorldLabel.Draw((Vector3)host.Ragdoll.Body.Head.EndPoint + Vector3.up * 0.75f, PushPals.UI.Loc.T("board.host"), 0.8f, 11, -1, 46f);
+-
+-            if (!Counting) return;
+-            // Отсчёт крупно — всем
+-            if (big == null)
+-            {
+-                big = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 40, fontStyle = FontStyle.Bold };
+-                big.normal.textColor = new Color(1f, 0.93f, 0.75f);
+-            }
+-            int secs = Mathf.CeilToInt(Mathf.Max(0f, Countdown));
+-            string line = loading || secs == 0 ? PushPals.UI.Loc.T("board.go") : PushPals.UI.Loc.T("board.start_in", secs);
+-            var r = new Rect(0f, Screen.height * 0.18f, Screen.width, 60f);
+-            var shadow = new GUIStyle(big); shadow.normal.textColor = new Color(0.2f, 0.12f, 0.05f, 0.8f);
+-            GUI.Label(new Rect(r.x + 3f, r.y + 3f, r.width, r.height), line, shadow);
+-            GUI.Label(r, line, big);
+-            if (level != null)
+-            {
+-                var small = new GUIStyle(big) { fontSize = 18, fontStyle = FontStyle.Normal };
+-                GUI.Label(new Rect(0f, r.yMax, Screen.width, 30f), Title(level) + (Online.IsClientView ? "" : "   ·   " + PushPals.UI.Loc.T("board.cancel_hint")), small);
+-            }
++            // Сам отсчёт — префаб Countdown (FixedUpdate), а не надпись здесь
+         }
+ 
+         private void OnDrawGizmos()
+diff --git a/Assets/Scripts/UI/Hud/GameHud.cs b/Assets/Scripts/UI/Hud/GameHud.cs
+index 212647a..3b525e5 100644
+--- a/Assets/Scripts/UI/Hud/GameHud.cs
++++ b/Assets/Scripts/UI/Hud/GameHud.cs
+@@ -262,8 +262,8 @@ namespace PushPals.UI
+             float dt = Time.unscaledDeltaTime;
+             bool inLevel = run != null && run.Level != null && !run.Finished;
+             if (run != lastRun) { lastRun = run; lastGolden = -1; showInfoUntil = Time.unscaledTime + introTime; }
+-            // Название и цель — первые секунды
+-            bool showIntro = inLevel && run.Started && run.Elapsed < introTime;
++            // Название и цель — первые секунды (после «Поехали!» — не под ним)
++            bool showIntro = inLevel && run.Started && run.Elapsed < introTime && !Countdown.Showing;
+             if (showIntro)
+             {
+                 int wn = WorldCatalog.NumberOf(run.World);
+diff --git a/Assets/Scripts/UI/Kit/Countdown.cs b/Assets/Scripts/UI/Kit/Countdown.cs
+new file mode 100644
+index 0000000..f92a2a2
+--- /dev/null
++++ b/Assets/Scripts/UI/Kit/Countdown.cs
+@@ -0,0 +1,553 @@
++using System.Collections.Generic;
++using PushPals.Audio;
++using TMPro;
++using UnityEngine;
++using UnityEngine.InputSystem;
++using UnityEngine.UI;
++
++namespace PushPals.UI
++{
++    /// <summary>
++    /// Отсчёт перед стартом (префаб Countdown — собирает UiKitBuilder). Сверху лента «Старт через» (по языку игры),
++    /// под ней цифра: каждую секунду новая выпрыгивает (масштаб 1,4 → 1 с лёгким отскоком), старая быстро сжимается
++    /// и гаснет, на каждой — тихий деревянный тик. Рядом горящая спичка-таймер: пламя за весь отсчёт прогорает вниз
++    /// по палочке. «Поехали!» — табличка выскакивает крупно, лёгкая тряска камеры, искры от спички, чирк и «вжух»;
++    /// через 0,8 с всё гаснет.
++    /// Лобби (Follow): время ведёт доска (по сети — хост), отмена — B / Esc у хоста, отсчёт тут же исчезает;
++    /// на нуле коробок закрывается, а «Поехали!» говорит уже открывшийся уровень (Go). Сам по себе (Play) — считает
++    /// сам, B / Esc — отмена. Нет картинок слов или цифры на языке игры — тот же текст TextMeshPro, тем же цветом.
++    /// Длительность — в инспекторе префаба (её же берёт доска в лобби).
++    /// </summary>
++    public class Countdown : MonoBehaviour
++    {
++        public const string PrefabName = "Countdown";
++
++        [Header("Отсчёт")]
++        [Tooltip("Длительность отсчёта, с: цифры от неё вниз до 1 (её же берёт доска в лобби)")]
++        [SerializeField, Min(1f)] private float duration = 5f;
++        [Tooltip("Сколько держится «Поехали!», прежде чем всё погаснет, с")]
++        [SerializeField] private float goHold = 0.8f;
++        [Tooltip("Тряска камеры на «Поехали!» (0–1; в настройках доступности — слабее или выключена)")]
++        [SerializeField, Range(0f, 1f)] private float shake = 0.3f;
++        [SerializeField, Range(0f, 1f)] private float tickVolume = 0.35f;
++        [Header("Текст, если нет картинки (цвета — как у надписей на картинках)")]
++        [SerializeField] private Color ink = new Color(0.98f, 0.93f, 0.82f);
++        [SerializeField] private Color outline = new Color(0.32f, 0.13f, 0.08f);
++
++        // Цифра: картинка cd_N или (нет её) текст
++        [System.Serializable]
++        private class Slot
++        {
++            public RectTransform root;
++            public Image image;
++            public TextMeshProUGUI text;
++        }
++
++        [Header("Части (собирает BuildView; в префабе их можно двигать)")]
++        [SerializeField] private CanvasGroup group;
++        [SerializeField] private RectTransform countRoot, matchRoot, goRoot, sparkRoot;
++        [SerializeField] private Image shade, title, goPlate, wood, charred, flame, glow;
++        [SerializeField] private TextMeshProUGUI titleText, goText, hint;
++        [SerializeField] private Slot slotA, slotB;
++
++        // Спичка-таймер — картинка menu_pointer, повёрнутая головкой вверх: видна доля ширины от StickStart до края,
++        // край сползает от StickTop (головка уже сгорела — чёрный кончик) до огарка StickStub. Палочка на высоте StickLine
++        private const float StickStart = 0.035f, StickTop = 0.716f, StickStub = 0.12f, CharLength = 0.035f, StickLine = 0.256f;
++        private const float MatchLength = 240f; // видимая палочка целиком, единиц интерфейса
++
++        private enum Mode { Count, WaitLevel, Go, Out }
++
++        private struct Spark
++        {
++            public Image image;
++            public Vector2 velocity;
++            public float life, age;
++        }
++
++        public static Countdown Current { get; private set; }
++        /// <summary>Отсчёт или «Поехали!» на экране (заставка уровня ждёт).</summary>
++        public static bool Showing => Current != null;
++
++        private static bool prefabLooked;
++        private static Countdown prefab;
++        private static Sprite soft;
++
++        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
++        private static void ResetStatics()
++        {
++            prefabLooked = false;
++            prefab = null;
++            Current = null;
++        }
++
++        private Mode mode = Mode.Out;
++        private System.Func<float> source; // лобби: секунд до старта (меньше нуля — отменили)
++        private System.Action onGo, onCancel;
++        private bool selfTimed, cancellable;
++        private float left, total, modeTime, digitTime;
++        private int shownDigit = -1;
++        private Slot current, previous;
++        private bool previousShown; // у первой цифры прежней нет
++        private float burnt;  // 0 — спичка целая, 1 — огарок
++        private readonly List<Spark> sparks = new List<Spark>();
++
++        /// <summary>Длительность из префаба (инспектор); 0 — префаба нет (UiKitBuilder ещё не запускали).</summary>
++        public static float Duration
++        {
++            get
++            {
++                var p = Prefab();
++                return p != null ? Mathf.Max(1f, p.duration) : 0f;
++            }
++        }
++
++        private static Countdown Prefab()
++        {
++            if (!prefabLooked)
++            {
++                prefabLooked = true;
++                var go = UiPrefabs.Get(PrefabName);
++                prefab = go != null ? go.GetComponent<Countdown>() : null;
++            }
++            return prefab;
++        }
++
++        /// <summary>
++        /// Лобби: показать и вести по внешнему времени (секунд до старта; меньше нуля — отменили: исчезает).
++        /// subtitle — строка под цифрой (уровень), canCancel — подсказать «B / Esc — отменить».
++        /// </summary>
++        public static void Follow(System.Func<float> remaining, string subtitle, bool canCancel)
++        {
++            var c = Spawn();
++            c.source = remaining;
++            c.selfTimed = false;
++            c.cancellable = false; // отменяет доска (кнопки хоста — PlayerIntentReader)
++            c.onGo = c.onCancel = null;
++            c.Begin(remaining(), subtitle, canCancel ? Loc.T("board.cancel_hint") : "");
++        }
++
++        /// <summary>Сам по себе: отсчёт на Duration, в конце — «Поехали!» и onGo; B / Esc — отмена (onCancel).</summary>
++        public static Countdown Play(System.Action go, System.Action cancel = null)
++        {
++            var c = Spawn();
++            c.source = null;
++            c.selfTimed = true;
++            c.cancellable = true;
++            c.onGo = go;
++            c.onCancel = cancel;
++            c.Begin(c.duration, "", Loc.T("countdown.cancel"));
++            return c;
++        }
++
++        /// <summary>Уровень открылся: «Поехали!» (спичка уже догорела) — как только уедет обложка коробка.</summary>
++        public static void Go()
++        {
++            var c = Spawn();
++            c.source = null;
++            c.onGo = c.onCancel = null;
++            c.burnt = 1f;
++            c.SetMode(Mode.WaitLevel);
++        }
++
++        /// <summary>Убрать сразу (отменили).</summary>
++        public static void Stop()
++        {
++            if (Current != null) Current.SetMode(Mode.Out);
++        }
++
++        // Свой холст поверх всего, даже обложки коробка (у неё 300): «1» видна, пока коробок закрывается.
++        // В UiRoot — живёт между сценами: «Поехали!» показывает уже новый уровень
++        private static Countdown Spawn()
++        {
++            if (Current != null) return Current;
++            var host = new GameObject("Countdown Canvas", typeof(RectTransform), typeof(Canvas));
++            host.transform.SetParent(UiRoot.Instance.Safe, false);
++            UiRoot.Stretch((RectTransform)host.transform);
++            var canvas = host.GetComponent<Canvas>();
++            canvas.overrideSorting = true;
++            canvas.sortingOrder = 310;
++            var p = Prefab();
++            Countdown c;
++            if (p != null) c = Instantiate(p, host.transform, false);
++            else
++            {
++                c = new GameObject(PrefabName, typeof(RectTransform)).AddComponent<Countdown>();
++                c.transform.SetParent(host.transform, false);
++            }
++            UiRoot.Stretch((RectTransform)c.transform);
++            Current = c;
++            return c;
++        }
++
++        private void Awake()
++        {
++            if (group == null) BuildView();
++            if (soft == null) soft = MakeSoftCircle();
++            shade.sprite = glow.sprite = soft;
++            foreach (var t in new[] { titleText, goText, hint, slotA.text, slotB.text })
++            {
++                t.color = ink;
++                t.outlineColor = outline;
++                t.outlineWidth = 0.22f;
++            }
++            group.alpha = 0f;
++            current = slotA;
++            previous = slotB;
++        }
++
++        private void OnDestroy()
++        {
++            if (Current == this) Current = null;
++        }
++
++        /// <summary>Собрать части (UiKitBuilder — в префаб; без префаба — в игре).</summary>
++        public void BuildView()
++        {
++            var root = (RectTransform)transform;
++            group = gameObject.GetComponent<CanvasGroup>();
++            if (group == null) group = gameObject.AddComponent<CanvasGroup>();
++            group.interactable = false;
++            group.blocksRaycasts = false;
++
++            // Полутень за отсчётом — читается на любом уровне
++            shade = UiFactory.Rect(root, "Shade").gameObject.AddComponent<Image>();
++            shade.raycastTarget = false;
++            shade.color = new Color(0.04f, 0.02f, 0.01f, 0.4f);
++            UiFactory.Place(shade.rectTransform, new Vector2(0.5f, 1f), new Vector2(1500f, 820f), new Vector2(0f, -320f));
++
++            // Отсчёт: лента «Старт через», цифра, подпись
++            countRoot = Top(root, "Count");
++            title = UiFactory.Image(countRoot, "cd_title_ru", false, "Title");
++            UiFactory.Place(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(560f, 106f), new Vector2(0f, -120f));
++            titleText = Word(title.rectTransform, 56f);
++            slotA = Digit(countRoot, "Digit A");
++            slotB = Digit(countRoot, "Digit B");
++            hint = UiFactory.Text(countRoot, "", 24f, ink, false);
++            hint.gameObject.name = "Hint";
++            UiFactory.Place(hint.rectTransform, new Vector2(0.5f, 1f), new Vector2(1200f, 40f), new Vector2(0f, -505f));
++
++            // Спичка-таймер справа от цифры: низ палочки — вровень с низом цифры
++            matchRoot = UiFactory.Rect(root, "Match");
++            matchRoot.anchorMin = matchRoot.anchorMax = new Vector2(0.5f, 1f);
++            matchRoot.pivot = new Vector2(0.5f, 0f);
++            matchRoot.sizeDelta = new Vector2(60f, MatchLength);
++            matchRoot.anchoredPosition = new Vector2(195f, -465f);
++            glow = UiFactory.Rect(matchRoot, "Glow").gameObject.AddComponent<Image>();
++            glow.raycastTarget = false;
++            glow.color = new Color(1f, 0.63f, 0.24f, 0.55f);
++            glow.rectTransform.anchorMin = glow.rectTransform.anchorMax = new Vector2(0.5f, 0f);
++            glow.rectTransform.sizeDelta = new Vector2(170f, 170f);
++            charred = Stick(matchRoot, "Charred");
++            charred.color = new Color(0.16f, 0.1f, 0.07f, 1f);
++            wood = Stick(matchRoot, "Wood");
++            flame = UiFactory.Image(matchRoot, "ic_fire", false, "Flame");
++            flame.rectTransform.anchorMin = flame.rectTransform.anchorMax = new Vector2(0.5f, 0f);
++            flame.rectTransform.pivot = new Vector2(0.5f, 0.12f);
++            flame.rectTransform.sizeDelta = new Vector2(64f, 84f);
++
++            // «Поехали!» — на месте цифры, крупно
++            goRoot = Top(root, "Go");
++            goPlate = UiFactory.Image(goRoot, "cd_go_ru", false, "Plate");
++            UiFactory.Place(goPlate.rectTransform, new Vector2(0.5f, 1f), new Vector2(760f, 304f), new Vector2(0f, -335f));
++            goText = Word(goPlate.rectTransform, 120f);
++
++            sparkRoot = Top(root, "Sparks");
++        }
++
++        private static RectTransform Top(RectTransform parent, string name)
++        {
++            var rt = UiFactory.Rect(parent, name);
++            UiRoot.Stretch(rt);
++            return rt;
++        }
++
++        // Запасной текст поверх места картинки
++        private static TextMeshProUGUI Word(RectTransform place, float size)
++        {
++            var t = UiFactory.Text(place, "", size, Color.white, true);
++            UiRoot.Stretch(t.rectTransform);
++            t.enableAutoSizing = true;
++            t.fontSizeMin = size * 0.4f;
++            t.fontSizeMax = size;
++            return t;
++        }
++
++        private static Slot Digit(RectTransform parent, string name)
++        {
++            var s = new Slot { root = UiFactory.Rect(parent, name) };
++            UiFactory.Place(s.root, new Vector2(0.5f, 1f), new Vector2(200f, 260f), new Vector2(0f, -335f));
++            s.image = UiFactory.Image(s.root, "cd_5", false, "Image");
++            UiRoot.Stretch(s.image.rectTransform);
++            s.text = UiFactory.Text(s.root, "", 220f, Color.white, true);
++            UiRoot.Stretch(s.text.rectTransform);
++            return s;
++        }
++
++        // Палочка: menu_pointer, повёрнутая головкой вверх и заполняемая от низа (Filled) — край прогорает вниз
++        private static Image Stick(RectTransform matchRoot, string name)
++        {
++            var img = UiFactory.Image(matchRoot, "menu_pointer", false, name);
++            img.preserveAspect = false;
++            img.type = Image.Type.Filled;
++            img.fillMethod = Image.FillMethod.Horizontal;
++            img.fillOrigin = (int)Image.OriginHorizontal.Left;
++            var sprite = img.sprite;
++            float aspect = sprite != null ? sprite.rect.height / sprite.rect.width : 164f / 342f;
++            float w = MatchLength / (StickTop - StickStart), h = w * aspect;
++            var rt = img.rectTransform;
++            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0f);
++            rt.sizeDelta = new Vector2(w, h);
++            rt.localEulerAngles = new Vector3(0f, 0f, 90f); // левый край картинки — внизу
++            // Палочка (StickLine по высоте картинки) — по середине, её низ (StickStart) — в точке опоры
++            rt.anchoredPosition = new Vector2(-(0.5f - StickLine) * h, (0.5f - StickStart) * w);
++            return img;
++        }
++
++        // ---------- Ход отсчёта ----------
++
++        private void Begin(float remaining, string subtitle, string cancelHint)
++        {
++            total = Mathf.Max(0.1f, Mathf.Max(remaining, duration));
++            left = remaining;
++            shownDigit = -1;
++            burnt = 0f;
++            string line = subtitle ?? "";
++            if (!string.IsNullOrEmpty(cancelHint)) line += (line.Length > 0 ? "   ·   " : "") + cancelHint;
++            hint.text = line;
++            SetMode(Mode.Count);
++        }
++
++        private void SetMode(Mode m)
++        {
++            mode = m;
++            modeTime = 0f;
++            Words();
++            countRoot.gameObject.SetActive(m == Mode.Count);
++            goRoot.gameObject.SetActive(m == Mode.Go);
++            matchRoot.gameObject.SetActive(m == Mode.Count || m == Mode.Go);
++            if (m != Mode.Go) return;
++            // «Поехали!»: табличка, искры, тряска, чирк и «вжух»
++            Burst(26);
++            CameraShake.Shake(shake);
++            Sfx.Ui("strike", 0.7f);
++            Sfx.Ui("whoosh", 0.55f);
++        }
++
++        private void Update()
++        {
++            float dt = Time.unscaledDeltaTime;
++            modeTime += dt;
++            switch (mode)
++            {
++                case Mode.Count:
++                    if (!Counting(dt)) return;
++                    break;
++                case Mode.WaitLevel:
++                    // Уровень виден, когда обложка коробка поехала (без обложки — сразу)
++                    if (MatchboxSleeve.Cover < 0.6f || modeTime > 8f) SetMode(Mode.Go);
++                    break;
++                case Mode.Go:
++                    if (modeTime > goHold) SetMode(Mode.Out);
++                    break;
++                case Mode.Out:
++                    if (group.alpha <= 0.001f && sparks.Count == 0)
++                    {
++                        Destroy(transform.parent != null && transform.parent.GetComponent<Canvas>() != null ? transform.parent.gameObject : gameObject);
++                        return;
++                    }
++                    break;
++            }
++            Animate(dt);
++        }
++
++        // false — отсчёт кончился или отменён (режим уже сменён)
++        private bool Counting(float dt)
++        {
++            if (source != null)
++            {
++                float r = source();
++                if (r < 0f) { SetMode(Mode.Out); return false; } // отменили (или доски уже нет)
++                // По сети время приходит рывками — между снимками считаем сами
++                left = Mathf.Abs(r - (left - dt)) > 0.25f ? r : Mathf.Max(0f, left - dt);
++            }
++            else left -= dt;
++            if (cancellable && CancelPressed())
++            {
++                var cancel = onCancel;
++                SetMode(Mode.Out);
++                if (cancel != null) cancel();
++                return false;
++            }
++            if (left <= 0f)
++            {
++                burnt = 1f;
++                if (selfTimed)
++                {
++                    var go = onGo;
++                    SetMode(Mode.Go);
++                    if (go != null) go();
++                }
++                else SetMode(Mode.Out); // лобби: коробок закрывается, «Поехали!» скажет новый уровень
++                return false;
++            }
++            int n = Mathf.CeilToInt(left);
++            if (n != shownDigit) ShowDigit(n);
++            burnt = 1f - Mathf.Clamp01(left / total);
++            return true;
++        }
++
++        private static bool CancelPressed()
++        {
++            var k = Keyboard.current;
++            if (k != null && k.escapeKey.wasPressedThisFrame) return true;
++            foreach (var g in Gamepad.all) if (g.buttonEast.wasPressedThisFrame) return true;
++            return false;
++        }
++
++        // Новая цифра выпрыгивает, прежняя — сжимается и гаснет
++        private void ShowDigit(int n)
++        {
++            bool first = shownDigit < 0;
++            shownDigit = n;
++            var t = previous;
++            previous = current;
++            current = t;
++            var sprite = n >= 1 && n <= 5 ? UiSprites.Get("cd_" + n) : null;
++            current.image.sprite = sprite;
++            current.image.enabled = sprite != null;
++            current.text.gameObject.SetActive(sprite == null);
++            current.text.text = n.ToString();
++            current.root.SetAsLastSibling();
++            previousShown = !first;
++            digitTime = 0f;
++            Sfx.Ui("wood_tick", tickVolume);
++        }
++
++        // Картинки слов на языке игры; нет — тот же текст
++        private void Words()
++        {
++            string lang = Loc.Current == Loc.Language.En ? "en" : "ru";
++            Pick(title, titleText, UiSprites.Get("cd_title_" + lang), Loc.T("countdown.title"));
++            Pick(goPlate, goText, UiSprites.Get("cd_go_" + lang), Loc.T("countdown.go"));
++        }
++
++        private static void Pick(Image image, TextMeshProUGUI text, Sprite sprite, string fallback)
++        {
++            image.sprite = sprite;
++            image.enabled = sprite != null;
++            text.gameObject.SetActive(sprite == null);
++            text.text = fallback;
++        }
++
++        // ---------- Анимация ----------
++
++        private void Animate(float dt)
++        {
++            float t = Time.unscaledTime;
++            bool visible = mode == Mode.Count || mode == Mode.Go;
++            group.alpha = Mathf.MoveTowards(group.alpha, visible ? 1f : 0f, dt * (visible ? 7f : 4f));
++
++            // Цифры: новая 1,4 → 1 с лёгким «проседанием», прежняя — быстро меньше и прозрачнее
++            digitTime += dt;
++            float u = Mathf.Clamp01(digitTime / 0.32f);
++            float pop = 1f + 0.4f * (1f - u) * (1f - u) * (1f - u) - 0.08f * Mathf.Sin(Mathf.PI * u) * (1f - u * 0.3f) * (u < 1f ? 1f : 0f);
++            current.root.localScale = Vector3.one * pop;
++            Alpha(current, Mathf.Clamp01(digitTime / 0.08f));
++            float v = Mathf.Clamp01(digitTime / 0.18f);
++            previous.root.localScale = Vector3.one * (1f - 0.45f * v);
++            Alpha(previous, previousShown ? 1f - v : 0f);
++
++            // Спичка: край палочки сползает вниз, над ним пламя «дышит», у огарка — тлеет
++            float edge = Mathf.Lerp(StickTop, StickStub, burnt);
++            wood.fillAmount = edge;
++            charred.fillAmount = Mathf.Min(1f, edge + CharLength);
++            float w = MatchLength / (StickTop - StickStart);
++            float y = (edge - StickStart) * w;
++            float flicker = 0.9f + 0.1f * Mathf.PerlinNoise(t * 7f, 0.3f) + 0.05f * Mathf.Sin(t * 23f);
++            float big = mode == Mode.Go ? 1f + 0.8f * Mathf.Exp(-modeTime * 6f) : 1f;
++            flame.rectTransform.anchoredPosition = new Vector2(0f, y - 4f);
++            flame.rectTransform.localScale = new Vector3(1f + 0.05f * Mathf.Sin(t * 17f), flicker, 1f) * big * (mode == Mode.Go ? Mathf.Clamp01(1.2f - modeTime * 1.2f) : 1f);
++            glow.rectTransform.anchoredPosition = new Vector2(0f, y + 24f);
++            glow.color = new Color(1f, 0.63f, 0.24f, 0.5f * flicker * big);
++
++            // «Поехали!»: из маленькой — крупнее нужного — на место
++            if (mode == Mode.Go)
++            {
++                float a = Mathf.Clamp01(modeTime / 0.12f), b = Mathf.Clamp01((modeTime - 0.12f) / 0.2f);
++                float s = modeTime < 0.12f ? Mathf.Lerp(0.4f, 1.18f, 1f - (1f - a) * (1f - a)) : Mathf.Lerp(1.18f, 1f, 1f - (1f - b) * (1f - b));
++                goPlate.rectTransform.localScale = Vector3.one * s; // вокруг середины таблички
++            }
++
++            // Искры: летят вверх и в стороны, падают, гаснут
++            for (int i = sparks.Count - 1; i >= 0; i--)
++            {
++                var sp = sparks[i];
++                sp.age += dt;
++                if (sp.age >= sp.life || sp.image == null)
++                {
++                    if (sp.image != null) Destroy(sp.image.gameObject);
++                    sparks.RemoveAt(i);
++                    continue;
++                }
++                sp.velocity += Vector2.down * 900f * dt;
++                var rt = sp.image.rectTransform;
++                rt.anchoredPosition += sp.velocity * dt;
++                float k = 1f - sp.age / sp.life;
++                rt.localScale = Vector3.one * (0.4f + 0.6f * k);
++                var c = sp.image.color;
++                c.a = k;
++                sp.image.color = c;
++                sparks[i] = sp;
++            }
++        }
++
++        private static void Alpha(Slot s, float a)
++        {
++            var c = s.image.color;
++            c.a = a;
++            s.image.color = c;
++            s.text.alpha = a;
++        }
++
++        // Искры от огонька спички
++        private void Burst(int count)
++        {
++            float w = MatchLength / (StickTop - StickStart);
++            Vector2 from = matchRoot.anchoredPosition + new Vector2(0f, (Mathf.Lerp(StickTop, StickStub, burnt) - StickStart) * w + 10f);
++            for (int i = 0; i < count; i++)
++            {
++                var img = UiFactory.Rect(sparkRoot, "Spark").gameObject.AddComponent<Image>();
++                img.sprite = soft;
++                img.raycastTarget = false;
++                img.color = Color.Lerp(new Color(1f, 0.95f, 0.7f), new Color(1f, 0.6f, 0.2f), Random.value);
++                var rt = img.rectTransform;
++                rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 1f);
++                rt.sizeDelta = Vector2.one * Random.Range(8f, 16f);
++                rt.anchoredPosition = from;
++                float angle = Random.Range(15f, 165f) * Mathf.Deg2Rad;
++                sparks.Add(new Spark
++                {
++                    image = img,
++                    velocity = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * Random.Range(250f, 680f),
++                    life = Random.Range(0.45f, 0.9f),
++                });
++            }
++        }
++
++        // Мягкий круг: белый в центре, прозрачный к краю (полутень, отсвет, искры)
++        private static Sprite MakeSoftCircle()
++        {
++            const int n = 64;
++            var tex = new Texture2D(n, n, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
++            for (int y = 0; y < n; y++)
++                for (int x = 0; x < n; x++)
++                {
++                    float d = Vector2.Distance(new Vector2(x + 0.5f, y + 0.5f), new Vector2(n * 0.5f, n * 0.5f)) / (n * 0.5f);
++                    float a = Mathf.Clamp01(1f - d);
++                    tex.SetPixel(x, y, new Color(1f, 1f, 1f, a * a));
++                }
++            tex.Apply();
++            return Sprite.Create(tex, new Rect(0, 0, n, n), new Vector2(0.5f, 0.5f));
++        }
++    }
++}
+diff --git a/Assets/Scripts/UI/Kit/Countdown.cs.meta b/Assets/Scripts/UI/Kit/Countdown.cs.meta
+new file mode 100644
+index 0000000..b205d9b
+--- /dev/null
++++ b/Assets/Scripts/UI/Kit/Countdown.cs.meta
+@@ -0,0 +1,2 @@
++fileFormatVersion: 2
++guid: 4ef9d60c9cce4a17b28eb7fdd46ebc87
+\ No newline at end of file
+diff --git a/Assets/Scripts/UI/MatchboxSleeve.cs b/Assets/Scripts/UI/MatchboxSleeve.cs
+index 6c6b5ea..07da7d0 100644
+--- a/Assets/Scripts/UI/MatchboxSleeve.cs
++++ b/Assets/Scripts/UI/MatchboxSleeve.cs
+@@ -50,6 +50,8 @@ namespace PushPals.UI
+ 
+         /// <summary>Экран сейчас закрыт обложкой (полностью или частично).</summary>
+         public static bool Visible => instance != null && instance.cover > 0.001f;
++        /// <summary>Насколько закрыт экран: 0 — открыт, 1 — закрыт (отсчёт ждёт, пока обложка уедет, — и «Поехали!»).</summary>
++        public static float Cover => instance != null ? instance.cover : 0f;
+ 
+         private static MatchboxSleeve Get()
+         {
+diff --git a/Assets/Scripts/UI/Screens/MainMenuScreen.cs b/Assets/Scripts/UI/Screens/MainMenuScreen.cs
+index c8ddb7f..0a55113 100644
+--- a/Assets/Scripts/UI/Screens/MainMenuScreen.cs
++++ b/Assets/Scripts/UI/Screens/MainMenuScreen.cs
+@@ -632,7 +632,9 @@ namespace PushPals.UI
+             var target = views[n].rt;
+             Vector2 focus = cam.InverseTransformPoint(target.TransformPoint(target.rect.center)); // точка в своих координатах (без масштаба)
+             float from = cam.localScale.x, to = from * zoom;
+-            Vector2 fromPos = cam.anchoredPosition, toPos = BaseView().center - focus * to;
++            // Предмет — в середину кадра, но не дальше, чем позволяет картинка: у нижних (линейка, книга) иначе
++            // в кадр въезжал её край. По пути тоже не въедет: и начало, и конец закрывают кадр
++            Vector2 fromPos = cam.anchoredPosition, toPos = Cover(BaseView().center - focus * to, to);
+             for (float k = 0f; k < 1f;)
+             {
+                 k = Mathf.Min(1f, k + Time.unscaledDeltaTime / 0.45f);
+@@ -645,6 +647,18 @@ namespace PushPals.UI
+             if (then != null) then();
+         }
+ 
++        // Сдвиг «камеры» при масштабе s, при котором картинка (по середине Zoom) закрывает весь кадр
++        private Vector2 Cover(Vector2 position, float s)
++        {
++            var frame = UiRoot.Instance.Safe.rect;
++            float aspect = table.PictureAspect;
++            float ph = Mathf.Max(frame.height, frame.width / aspect), pw = ph * aspect;
++            float rx = (s * pw - frame.width) * 0.5f, ry = (s * ph - frame.height) * 0.5f;
++            if (rx > 0f) position.x = Mathf.Clamp(position.x, -rx, rx);
++            if (ry > 0f) position.y = Mathf.Clamp(position.y, -ry, ry);
++            return position;
++        }
++
+         private IEnumerator FlyBack(int n)
+         {
+             var cam = table.Zoom;

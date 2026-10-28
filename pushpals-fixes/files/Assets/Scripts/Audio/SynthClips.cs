@@ -4,7 +4,8 @@ namespace PushPals.Audio
 {
     /// <summary>
     /// Звуки, которых нет в наборах Kenney, — синтез при запуске: чирканье о тёрку, вспышка, «пшш» в воде,
-    /// хлопок шарика, «боинг» желе, звон звезды, фанфары, взрыв петарды, треск огня (петля), мягкий шаг.
+    /// хлопок шарика, «боинг» желе, звон звезды, фанфары, взрыв петарды, треск огня (петля), мягкий шаг,
+    /// деревянный тик и «вжух» (отсчёт перед стартом).
     /// </summary>
     public static class SynthClips
     {
@@ -45,6 +46,37 @@ namespace PushPals.Audio
                 d[i] = (thump * 0.8f + lp * 1.5f) * env;
             }
             return Make("step_soft", d);
+        }
+
+        /// <summary>Тихий деревянный тик (отсчёт): короткий стук деревяшки — два быстро гаснущих тона и щелчок.</summary>
+        public static AudioClip WoodTick()
+        {
+            var d = Buffer(0.12f);
+            for (int i = 0; i < d.Length; i++)
+            {
+                float t = i / (float)Rate;
+                float body = Mathf.Sin(2f * Mathf.PI * 1250f * t) * Mathf.Exp(-t * 70f)
+                             + 0.55f * Mathf.Sin(2f * Mathf.PI * 2730f * t) * Mathf.Exp(-t * 120f);
+                float click = Noise() * Mathf.Exp(-t * 900f) * 0.4f;
+                d[i] = (body + click) * Mathf.Min(1f, t / 0.0008f);
+            }
+            return Make("wood_tick", d);
+        }
+
+        /// <summary>«Вжух»: шум нарастает и уходит, полоса частот открывается и закрывается.</summary>
+        public static AudioClip Whoosh()
+        {
+            var d = Buffer(0.5f);
+            float lp = 0f, low = 0f;
+            for (int i = 0; i < d.Length; i++)
+            {
+                float k = i / (float)d.Length;
+                float bell = Mathf.Sin(Mathf.PI * k);
+                lp += Mathf.Lerp(0.03f, 0.35f, bell) * (Noise() - lp);
+                low += 0.02f * (lp - low); // без гула: полоса, а не низ
+                d[i] = (lp - low) * bell * bell;
+            }
+            return Make("whoosh", d);
         }
 
         /// <summary>Чирк о тёрку: короткий шершавый шум с «зубчиками».</summary>

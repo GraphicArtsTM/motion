@@ -632,7 +632,9 @@ namespace PushPals.UI
             var target = views[n].rt;
             Vector2 focus = cam.InverseTransformPoint(target.TransformPoint(target.rect.center)); // точка в своих координатах (без масштаба)
             float from = cam.localScale.x, to = from * zoom;
-            Vector2 fromPos = cam.anchoredPosition, toPos = BaseView().center - focus * to;
+            // Предмет — в середину кадра, но не дальше, чем позволяет картинка: у нижних (линейка, книга) иначе
+            // в кадр въезжал её край. По пути тоже не въедет: и начало, и конец закрывают кадр
+            Vector2 fromPos = cam.anchoredPosition, toPos = Cover(BaseView().center - focus * to, to);
             for (float k = 0f; k < 1f;)
             {
                 k = Mathf.Min(1f, k + Time.unscaledDeltaTime / 0.45f);
@@ -643,6 +645,18 @@ namespace PushPals.UI
                 yield return null;
             }
             if (then != null) then();
+        }
+
+        // Сдвиг «камеры» при масштабе s, при котором картинка (по середине Zoom) закрывает весь кадр
+        private Vector2 Cover(Vector2 position, float s)
+        {
+            var frame = UiRoot.Instance.Safe.rect;
+            float aspect = table.PictureAspect;
+            float ph = Mathf.Max(frame.height, frame.width / aspect), pw = ph * aspect;
+            float rx = (s * pw - frame.width) * 0.5f, ry = (s * ph - frame.height) * 0.5f;
+            if (rx > 0f) position.x = Mathf.Clamp(position.x, -rx, rx);
+            if (ry > 0f) position.y = Mathf.Clamp(position.y, -ry, ry);
+            return position;
         }
 
         private IEnumerator FlyBack(int n)

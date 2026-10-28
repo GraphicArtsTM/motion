@@ -94,6 +94,8 @@ namespace PushPals.Level
             unlocksAtStart = Unlocks.Mask;
             goldenAtStart = GoldenFound;
             CollectProps();
+            // Начало уровня: «Поехали!» — как только уедет обложка коробка (у каждого ПК своя)
+            PushPals.UI.Countdown.Go();
         }
 
         // ---------- Упавшие предметы ----------

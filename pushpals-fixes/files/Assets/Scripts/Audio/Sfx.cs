@@ -44,6 +44,8 @@ namespace PushPals.Audio
             AddClip("fanfare", SynthClips.Fanfare());
             AddClip("boom", SynthClips.Boom());
             AddClip("crackle", SynthClips.Crackle());
+            AddClip("wood_tick", SynthClips.WoodTick());
+            AddClip("whoosh", SynthClips.Whoosh());
             for (int i = 0; i < 4; i++) AddClip("step_soft", SynthClips.Step(i));
             for (int i = 0; i < voices; i++)
             {
