@@ -68,13 +68,16 @@ public class GameManager : MonoBehaviour
     public event Action<string> MessageShown; // text that is already translated
 
     bool hurryShown;
+    int bonusLives;
 
     void Awake()
     {
         Instance = this;
         Time.timeScale = 1f; // a previous scene could have left the game paused
 
-        Lives = startLives;
+        // Bonus lives from the rewarded ad in the main menu are used once, in the first level that starts.
+        bonusLives = SaveData.TakeBonusLives();
+        Lives = startLives + bonusLives;
         TimeLeft = timeLimit;
         Score = GameScenes.CarriedScore;
         CrystalsTotal = FindObjectsByType<Crystal>(FindObjectsSortMode.None).Length;
@@ -85,7 +88,9 @@ public class GameManager : MonoBehaviour
         // Wait one frame, so the UI has surely subscribed to our events.
         yield return null;
         StatsChanged?.Invoke();
-        ShowMessage(Localization.Format("msg_level_start", levelNumber, CrystalsTotal));
+        string message = Localization.Format("msg_level_start", levelNumber, CrystalsTotal);
+        if (bonusLives > 0) message += "\n" + Localization.Format("msg_bonus_lives", bonusLives);
+        ShowMessage(message);
     }
 
     void OnDestroy()

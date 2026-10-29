@@ -1,6 +1,4 @@
-using System;
 using System.Runtime.InteropServices;
-using UnityEngine;
 
 /// <summary>
 /// Monetag ads for the WebGL build. The real work is done in JavaScript:
@@ -23,9 +21,7 @@ public class MonetagAdProvider : IAdProvider
     readonly string callbackObjectName;
     readonly string rewardedZoneId;
     readonly string interstitialZoneId;
-
-    Action<AdResult> rewardedCallback;
-    Action interstitialCallback;
+    IAdHost host;
 
     public MonetagAdProvider(string callbackObjectName, string rewardedZoneId, string interstitialZoneId)
     {
@@ -38,40 +34,33 @@ public class MonetagAdProvider : IAdProvider
     public bool IsRewardedReady => Monetag_IsReady(rewardedZoneId) == 1;
     public bool IsInterstitialReady => Monetag_IsReady(interstitialZoneId) == 1;
 
-    public void Initialize()
+    public void Initialize(IAdHost host)
+    {
+        this.host = host;
+        LoadAds();
+    }
+
+    /// <summary>Adds the Monetag SDK script. If it failed to load (no internet, ad blocker), the next call tries again.</summary>
+    public void LoadAds()
     {
         Monetag_Init(rewardedZoneId);
         if (interstitialZoneId != rewardedZoneId) Monetag_Init(interstitialZoneId);
     }
 
-    public void ShowRewarded(Action<AdResult> onFinished)
-    {
-        rewardedCallback = onFinished;
-        Monetag_Show(rewardedZoneId, callbackObjectName, 1);
-    }
+    public void ShowRewarded() => Show(rewardedZoneId, true);
 
-    public void ShowInterstitial(Action onClosed)
-    {
-        interstitialCallback = onClosed;
-        Monetag_Show(interstitialZoneId, callbackObjectName, 0);
-    }
+    public void ShowInterstitial() => Show(interstitialZoneId, false);
 
-    /// <summary>Result from JavaScript: "rewarded", "closed" or "failed".</summary>
-    public void HandleResult(string result)
+    void Show(string zoneId, bool rewarded)
     {
-        if (rewardedCallback != null)
+        if (Monetag_IsReady(zoneId) != 1)
         {
-            Action<AdResult> callback = rewardedCallback;
-            rewardedCallback = null;
-            if (result == "rewarded") callback(AdResult.Rewarded);
-            else if (result == "closed") callback(AdResult.Skipped);
-            else callback(AdResult.NotAvailable);
+            host.OnAdFailedToShow();
+            return;
         }
-        else if (interstitialCallback != null)
-        {
-            Action callback = interstitialCallback;
-            interstitialCallback = null;
-            callback();
-        }
+        // Monetag has no "opened" event, so we count the ad as opened when we ask for it.
+        // The answer comes later from JavaScript into AdManager.OnWebAdResult.
+        host.OnAdOpened();
+        Monetag_Show(zoneId, callbackObjectName, rewarded ? 1 : 0);
     }
 }

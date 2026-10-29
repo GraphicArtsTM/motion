@@ -23,6 +23,8 @@ public class StubAdProvider : MonoBehaviour, IAdProvider
     Button skipButton;
     Text skipLabel;
     Font font;
+    IAdHost host;
+    bool isShowing;
 
     public string Name => simulateNoFill ? "Stub (no fill)" : "Stub (test ads)";
     public bool IsRewardedReady => !simulateNoFill;
@@ -36,24 +38,44 @@ public class StubAdProvider : MonoBehaviour, IAdProvider
         this.font = font;
     }
 
-    public void Initialize()
+    public void Initialize(IAdHost host)
     {
+        this.host = host;
         if (font == null) font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
     }
 
-    public void ShowRewarded(Action<AdResult> onFinished)
+    public void LoadAds()
     {
-        StartCoroutine(ShowAd(true, rewardedSeconds, watched => onFinished?.Invoke(watched ? AdResult.Rewarded : AdResult.Skipped)));
+        // A fake ad is always "loaded" (unless we simulate "no fill").
     }
 
-    public void ShowInterstitial(Action onClosed)
+    public void ShowRewarded()
     {
-        StartCoroutine(ShowAd(false, interstitialSeconds, _ => onClosed?.Invoke()));
+        if (!TryStart()) return;
+        StartCoroutine(ShowAd(true, rewardedSeconds));
     }
 
-    IEnumerator ShowAd(bool isRewarded, float seconds, Action<bool> onDone)
+    public void ShowInterstitial()
+    {
+        if (!TryStart()) return;
+        StartCoroutine(ShowAd(false, interstitialSeconds));
+    }
+
+    bool TryStart()
+    {
+        if (simulateNoFill || isShowing)
+        {
+            host.OnAdFailedToShow();
+            return false;
+        }
+        isShowing = true;
+        return true;
+    }
+
+    IEnumerator ShowAd(bool isRewarded, float seconds)
     {
         if (overlay == null) BuildOverlay();
+        host.OnAdOpened();
         overlay.SetActive(true);
 
         titleText.text = Localization.Get("ad_test_title");
@@ -89,7 +111,9 @@ public class StubAdProvider : MonoBehaviour, IAdProvider
         }
 
         overlay.SetActive(false);
-        onDone(isRewarded && !skipped);
+        isShowing = false;
+        if (isRewarded && !skipped) host.OnRewardEarned();
+        host.OnAdClosed();
     }
 
     void BuildOverlay()

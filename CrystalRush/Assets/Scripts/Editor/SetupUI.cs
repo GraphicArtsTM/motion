@@ -194,6 +194,12 @@ public static partial class CrystalRushSetup
         Button quit = NewButton("QuitButton", canvas, "menu_quit", "", ButtonGrey, new Vector2(220f, 80f), 34);
         AnchorAt((RectTransform)quit.transform, new Vector2(0f, 1f), new Vector2(150f, -60f), new Vector2(220f, 80f));
 
+        // Rewarded ad on the right side: far from Play, so it is never pressed by accident.
+        Button watchAd = NewButton("WatchAdButton", canvas, null, "", ButtonGold, new Vector2(460f, 120f), 34);
+        AnchorAt((RectTransform)watchAd.transform, new Vector2(1f, 0.5f), new Vector2(-280f, 120f), new Vector2(460f, 120f));
+        Text adStatus = NewText("AdStatusText", canvas, "", 26, new Color(1f, 0.85f, 0.55f), TextAnchor.MiddleCenter);
+        AnchorAt(adStatus.rectTransform, new Vector2(1f, 0.5f), new Vector2(-280f, 30f), new Vector2(480f, 60f));
+
         Set(menu, "playButton", play);
         Set(menu, "levelButtons", levelButtons);
         Set(menu, "languageButtons", languageButtons);
@@ -201,6 +207,9 @@ public static partial class CrystalRushSetup
         Set(menu, "highScoreText", highScore);
         Set(menu, "controlsText", controls);
         Set(menu, "quitButton", quit);
+        Set(menu, "watchAdButton", watchAd);
+        Set(menu, "watchAdLabel", watchAd.GetComponentInChildren<Text>());
+        Set(menu, "adStatusText", adStatus);
     }
 
     // ================================================================ UI helpers

@@ -1,10 +1,8 @@
-// Unity LevelPlay (ironSource) for Android.
-// This file compiles only when the scripting define LEVELPLAY_ENABLED is set
-// (Project Settings > Player > Android > Scripting Define Symbols), after the
-// "Ads Mediation" (com.unity.services.levelplay) package is installed. Without the SDK the
-// project still compiles and AdManager uses the stub. Written for the LevelPlay 8.x API.
+// Unity LevelPlay for Android (package com.unity.services.levelplay 9.x, already in Packages/manifest.json).
+// This file compiles only with the LEVELPLAY_ENABLED define. The editor script LevelPlayDefineGuard
+// adds it for Android automatically while the package is installed and removes it if the package is removed,
+// so the project always compiles.
 #if LEVELPLAY_ENABLED
-using System;
 using Unity.Services.LevelPlay;
 using UnityEngine;
 
@@ -14,11 +12,18 @@ public class LevelPlayAdProvider : IAdProvider
     readonly string rewardedAdUnitId;
     readonly string interstitialAdUnitId;
 
+    IAdHost host;
     LevelPlayRewardedAd rewardedAd;
     LevelPlayInterstitialAd interstitialAd;
-    Action<AdResult> rewardedCallback;
-    Action interstitialCallback;
-    bool rewardEarned;
+    bool initialized;
+    bool initializing;
+    bool rewardedLoading;
+    bool interstitialLoading;
+    float rewardedLoadStart;
+    float interstitialLoadStart;
+
+    // If the SDK never answers a load request, we allow a new one after this time.
+    const float LoadAnswerTimeout = 60f;
 
     public LevelPlayAdProvider(string appKey, string rewardedAdUnitId, string interstitialAdUnitId)
     {
@@ -31,57 +36,96 @@ public class LevelPlayAdProvider : IAdProvider
     public bool IsRewardedReady => rewardedAd != null && rewardedAd.IsAdReady();
     public bool IsInterstitialReady => interstitialAd != null && interstitialAd.IsAdReady();
 
-    public void Initialize()
+    public void Initialize(IAdHost host)
     {
-        // Test mode: never click your own real ads! Add your phone as a test device in the LevelPlay dashboard.
+        this.host = host;
+        // Never click your own real ads! Add your phone as a test device in the LevelPlay dashboard.
         LevelPlay.OnInitSuccess += OnInitSuccess;
-        LevelPlay.OnInitFailed += error => Debug.LogWarning("LevelPlay init failed: " + error);
+        LevelPlay.OnInitFailed += OnInitFailed;
+        StartInit();
+    }
+
+    void StartInit()
+    {
+        initializing = true;
         LevelPlay.Init(appKey);
     }
 
     void OnInitSuccess(LevelPlayConfiguration configuration)
     {
+        initializing = false;
+        if (initialized) return;
+        initialized = true;
+
         rewardedAd = new LevelPlayRewardedAd(rewardedAdUnitId);
-        rewardedAd.OnAdRewarded += (adInfo, reward) => rewardEarned = true;
-        rewardedAd.OnAdClosed += adInfo => FinishRewarded(rewardEarned ? AdResult.Rewarded : AdResult.Skipped);
-        rewardedAd.OnAdDisplayFailed += error => FinishRewarded(AdResult.NotAvailable);
-        rewardedAd.OnAdLoadFailed += error => Debug.Log("LevelPlay rewarded not loaded: " + error);
-        rewardedAd.LoadAd();
+        rewardedAd.OnAdLoaded += info => rewardedLoading = false;
+        rewardedAd.OnAdLoadFailed += error =>
+        {
+            rewardedLoading = false;
+            Debug.Log("LevelPlay: rewarded not loaded: " + error);
+        };
+        rewardedAd.OnAdDisplayed += info => host.OnAdOpened();
+        rewardedAd.OnAdRewarded += (info, reward) => host.OnRewardEarned();
+        rewardedAd.OnAdClosed += info => host.OnAdClosed();
+        rewardedAd.OnAdDisplayFailed += (info, error) => host.OnAdFailedToShow();
 
         interstitialAd = new LevelPlayInterstitialAd(interstitialAdUnitId);
-        interstitialAd.OnAdClosed += adInfo => FinishInterstitial();
-        interstitialAd.OnAdDisplayFailed += error => FinishInterstitial();
-        interstitialAd.OnAdLoadFailed += error => Debug.Log("LevelPlay interstitial not loaded: " + error);
-        interstitialAd.LoadAd();
+        interstitialAd.OnAdLoaded += info => interstitialLoading = false;
+        interstitialAd.OnAdLoadFailed += error =>
+        {
+            interstitialLoading = false;
+            Debug.Log("LevelPlay: interstitial not loaded: " + error);
+        };
+        interstitialAd.OnAdDisplayed += info => host.OnAdOpened();
+        interstitialAd.OnAdClosed += info => host.OnAdClosed();
+        interstitialAd.OnAdDisplayFailed += (info, error) => host.OnAdFailedToShow();
+
+        LoadAds();
     }
 
-    public void ShowRewarded(Action<AdResult> onFinished)
+    void OnInitFailed(LevelPlayInitError error)
     {
-        rewardedCallback = onFinished;
-        rewardEarned = false;
-        rewardedAd.ShowAd();
+        // AdManager will call LoadAds again later, and LoadAds tries to start the SDK again.
+        initializing = false;
+        Debug.LogWarning("LevelPlay: init failed: " + error);
     }
 
-    public void ShowInterstitial(Action onClosed)
+    public void LoadAds()
     {
-        interstitialCallback = onClosed;
-        interstitialAd.ShowAd();
+        if (!initialized)
+        {
+            if (!initializing) StartInit();
+            return;
+        }
+
+        float now = Time.realtimeSinceStartup;
+        if (rewardedLoading && now - rewardedLoadStart > LoadAnswerTimeout) rewardedLoading = false;
+        if (interstitialLoading && now - interstitialLoadStart > LoadAnswerTimeout) interstitialLoading = false;
+
+        if (!rewardedLoading && !rewardedAd.IsAdReady())
+        {
+            rewardedLoading = true;
+            rewardedLoadStart = now;
+            rewardedAd.LoadAd();
+        }
+        if (!interstitialLoading && !interstitialAd.IsAdReady())
+        {
+            interstitialLoading = true;
+            interstitialLoadStart = now;
+            interstitialAd.LoadAd();
+        }
     }
 
-    void FinishRewarded(AdResult result)
+    public void ShowRewarded()
     {
-        Action<AdResult> callback = rewardedCallback;
-        rewardedCallback = null;
-        rewardedAd.LoadAd(); // load the next one right away
-        callback?.Invoke(result);
+        if (IsRewardedReady) rewardedAd.ShowAd();
+        else host.OnAdFailedToShow();
     }
 
-    void FinishInterstitial()
+    public void ShowInterstitial()
     {
-        Action callback = interstitialCallback;
-        interstitialCallback = null;
-        interstitialAd.LoadAd();
-        callback?.Invoke();
+        if (IsInterstitialReady) interstitialAd.ShowAd();
+        else host.OnAdFailedToShow();
     }
 }
 #endif

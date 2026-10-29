@@ -11,6 +11,7 @@ public static class SaveData
     const string LanguageKey = "language";
     const string VolumeKey = "volume";
     const string LanguageChosenKey = "language_chosen";
+    const string BonusLivesKey = "bonus_lives";
 
     public static int HighScore
     {
@@ -59,6 +60,21 @@ public static class SaveData
     {
         get => PlayerPrefs.GetFloat(VolumeKey, 0.8f);
         set { PlayerPrefs.SetFloat(VolumeKey, Mathf.Clamp01(value)); PlayerPrefs.Save(); }
+    }
+
+    /// <summary>Extra lives for the next game, earned with the rewarded ad in the main menu.</summary>
+    public static int BonusLives
+    {
+        get => Mathf.Max(0, PlayerPrefs.GetInt(BonusLivesKey, 0));
+        set { PlayerPrefs.SetInt(BonusLivesKey, Mathf.Max(0, value)); PlayerPrefs.Save(); }
+    }
+
+    /// <summary>Gives the bonus lives once and clears them.</summary>
+    public static int TakeBonusLives()
+    {
+        int lives = BonusLives;
+        if (lives > 0) BonusLives = 0;
+        return lives;
     }
 
     static Language LanguageFromSystem()

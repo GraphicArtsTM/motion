@@ -25,6 +25,11 @@ public static partial class CrystalRushSetup
     const string ScenesFolder = "Assets/Scenes";
     const string FontPath = "Assets/Fonts/Rubik-SemiBold.ttf";
 
+    // Raise this number when the generated content changes; projects built with an older
+    // version are offered a rebuild on the next start (see CrystalRushAutoSetup).
+    public const int SetupVersion = 2;
+    public const string SetupVersionFile = ScenesFolder + "/.setup-version"; // hidden file, Unity does not import it
+
     const string PackageName = "com.yourname.crystalrush";
     const string CompanyName = "YourName";
     const string ProductName = "Crystal Rush";
@@ -79,6 +84,7 @@ public static partial class CrystalRushSetup
             }
             Progress("Project settings", 0.95f);
             ConfigureProject();
+            File.WriteAllText(SetupVersionFile, SetupVersion.ToString());
 
             AssetDatabase.SaveAssets();
         }

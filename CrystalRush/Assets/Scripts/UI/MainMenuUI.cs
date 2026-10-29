@@ -2,7 +2,8 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Main menu: Play, level choice, language (English / Русский / O‘zbekcha), volume, best score, quit.
+/// Main menu: Play, level choice, language (English / Русский / O‘zbekcha), volume, best score, quit,
+/// and a "Watch ad" button: a rewarded ad that gives extra lives for the next game.
 /// </summary>
 public class MainMenuUI : MonoBehaviour
 {
@@ -15,6 +16,12 @@ public class MainMenuUI : MonoBehaviour
     [SerializeField] Button quitButton;
     [SerializeField] Color selectedLanguageColor = new Color(1f, 0.8f, 0.25f);
     [SerializeField] Color normalLanguageColor = new Color(0.22f, 0.24f, 0.4f);
+
+    [Header("Rewarded ad in the menu")]
+    [SerializeField] Button watchAdButton;
+    [SerializeField] Text watchAdLabel;
+    [SerializeField] Text adStatusText;
+    [SerializeField, Min(1)] int bonusLivesForAd = 2;
 
     void Start()
     {
@@ -47,6 +54,9 @@ public class MainMenuUI : MonoBehaviour
         quitButton.gameObject.SetActive(Application.platform != RuntimePlatform.WebGLPlayer);
         quitButton.onClick.AddListener(Application.Quit);
 
+        watchAdButton.onClick.AddListener(OnWatchAdPressed);
+        adStatusText.text = string.Empty;
+
         Localization.LanguageChanged += Refresh;
         Refresh();
     }
@@ -62,6 +72,13 @@ public class MainMenuUI : MonoBehaviour
         controlsText.text = Localization.Get(Application.isMobilePlatform ? "menu_controls_mobile" : "menu_controls_pc")
             + "\n" + Localization.Get(Application.isMobilePlatform ? "menu_controls_pc" : "menu_controls_mobile");
 
+        // One bonus at a time: after watching, the button waits until the bonus is used in a game.
+        bool bonusWaiting = SaveData.BonusLives > 0;
+        watchAdLabel.text = bonusWaiting
+            ? Localization.Format("menu_bonus_ready", SaveData.BonusLives)
+            : Localization.Format("menu_watch_ad", bonusLivesForAd);
+        watchAdButton.interactable = !bonusWaiting && !AdManager.Instance.IsShowingAd;
+
         // Levels open one by one.
         for (int i = 0; i < levelButtons.Length; i++)
         {
@@ -74,6 +91,35 @@ public class MainMenuUI : MonoBehaviour
             languageButtons[i].GetComponent<Image>().color =
                 i == (int)Localization.Current ? selectedLanguageColor : normalLanguageColor;
         }
+    }
+
+    void OnWatchAdPressed()
+    {
+        AudioManager.Play(Sfx.Click);
+        watchAdButton.interactable = false; // no double clicks while the ad is opening
+        adStatusText.text = string.Empty;
+
+        AdManager.Instance.ShowRewarded(result =>
+        {
+            if (this == null) return; // the menu was closed while the ad was on the screen
+
+            if (result == AdResult.Rewarded)
+            {
+                SaveData.BonusLives = bonusLivesForAd;
+                adStatusText.text = Localization.Get("ad_thanks");
+                AudioManager.Play(Sfx.Pickup);
+            }
+            else if (result == AdResult.Skipped)
+            {
+                adStatusText.text = Localization.Get("ad_no_reward");
+            }
+            else
+            {
+                // Not loaded yet: AdManager is already loading a new one.
+                adStatusText.text = Localization.Get("ad_loading");
+            }
+            Refresh();
+        });
     }
 
     void StartLevel(int level)

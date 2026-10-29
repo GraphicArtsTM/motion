@@ -48,6 +48,10 @@ public static class Localization
         { "menu_volume",       new[] { "Volume", "Громкость", "Ovoz balandligi" } },
         { "menu_highscore",    new[] { "Best score: {0}", "Рекорд: {0}", "Rekord: {0}" } },
         { "menu_quit",         new[] { "Quit", "Выход", "Chiqish" } },
+        { "menu_watch_ad",     new[] { "Watch ad: +{0} lives for the next game", "Смотреть рекламу: +{0} жизни в следующей игре",
+                                       "Reklama ko‘rish: keyingi o‘yinga +{0} jon" } },
+        { "menu_bonus_ready",  new[] { "Bonus ready: +{0} lives in the next game", "Бонус готов: +{0} жизни в следующей игре",
+                                       "Bonus tayyor: keyingi o‘yinda +{0} jon" } },
         { "menu_controls_pc",  new[] { "PC: WASD / arrows - move, Space - dash, Esc - pause",
                                        "ПК: WASD / стрелки - движение, Пробел - рывок, Esc - пауза",
                                        "Kompyuter: WASD / strelkalar - harakat, Probel - otilish, Esc - pauza" } },
@@ -83,6 +87,9 @@ public static class Localization
         { "btn_watch_ad",      new[] { "Watch ad: +{0} lives", "Смотреть рекламу: +{0} жизни", "Reklama ko‘rish: +{0} jon" } },
         { "ad_not_available",  new[] { "Ad is not available right now", "Реклама сейчас недоступна", "Reklama hozir mavjud emas" } },
         { "ad_no_reward",      new[] { "Ad was closed early - no bonus", "Реклама закрыта раньше - без бонуса", "Reklama erta yopildi - bonus yo‘q" } },
+        { "ad_loading",        new[] { "The ad is loading, try again in a moment", "Реклама загружается, попробуйте через минуту",
+                                       "Reklama yuklanmoqda, birozdan so‘ng urinib ko‘ring" } },
+        { "ad_thanks",         new[] { "Thank you! Bonus received", "Спасибо! Бонус получен", "Rahmat! Bonus olindi" } },
         { "ad_test_title",     new[] { "TEST AD", "ТЕСТОВАЯ РЕКЛАМА", "TEST REKLAMA" } },
         { "ad_test_rewarded",  new[] { "Rewarded ad (stub)", "Реклама с наградой (заглушка)", "Mukofotli reklama (zaglushka)" } },
         { "ad_test_inter",     new[] { "Interstitial ad between rounds (stub)", "Межстраничная реклама между раундами (заглушка)",
@@ -98,6 +105,7 @@ public static class Localization
         { "msg_portal_locked", new[] { "Collect all crystals first", "Сначала собери все кристаллы", "Avval barcha kristallarni yig‘" } },
         { "msg_extra_life",    new[] { "+1 life", "+1 жизнь", "+1 jon" } },
         { "msg_extra_time",    new[] { "+{0} sec", "+{0} сек", "+{0} soniya" } },
+        { "msg_bonus_lives",   new[] { "+{0} lives - ad bonus", "+{0} жизни - бонус за рекламу", "+{0} jon - reklama bonusi" } },
         { "msg_hurry",         new[] { "Hurry up!", "Поторопись!", "Shoshiling!" } },
     };
 
