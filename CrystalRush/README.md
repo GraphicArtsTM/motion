@@ -13,23 +13,26 @@
 
 ---
 
-## 1. Как запустить (5 минут)
+## 1. Как запустить
 
-1. **Unity Hub → New project → Universal 3D**, версия 6000.3.x.
-   Имя проекта `CrystalRush`, путь **без кириллицы и пробелов** (например `C:\Unity\CrystalRush`).
-2. Закройте Unity. Скопируйте папку `Assets` из этого репозитория **поверх** `Assets` нового проекта
-   (добавятся `Assets/Scripts`, `Assets/Plugins`, `Assets/Fonts`).
-3. Откройте проект, дождитесь компиляции (в Console не должно быть красных ошибок).
-4. Меню **Crystal Rush → Build Game (create scenes, prefabs, sounds)**.
-   Инструмент сам создаст всё остальное (около 10–20 секунд):
+Папка `CrystalRush` — это **готовый Unity-проект** (собран на основе официального шаблона Universal 3D для Unity 6000.3).
+
+1. Скачайте репозиторий (кнопка **Code → Download ZIP** на GitHub для ветки `claude/loving-hypatia-1vtkqz`, или `git clone`)
+   и положите папку `CrystalRush` туда, где в пути **нет кириллицы и пробелов**, например `C:\Unity\CrystalRush`.
+2. **Unity Hub → Add → Add project from disk** → выберите папку `CrystalRush` → откройте в Unity **6000.3.x**.
+3. Первое открытие: Unity скачает пакеты и импортирует проект (несколько минут). Затем **автоматически**
+   запустится сборка игры (окно с прогрессом, 10–20 секунд) и появится окно «Done!».
+   Инструмент сам создаст:
    - папки `Materials`, `Prefabs`, `Audio`, `Particles`, `Scenes`, `Textures`, `Models`;
-   - теги `Hazard`, `Crystal`, `Pickup`;
    - текстуры, материалы, 3D-модели, частицы, звуки и музыку (всё генерируется кодом — без скачанных ассетов);
    - префабы, интерфейс, 4 сцены (`MainMenu`, `Level1`–`Level3`) и Build Settings;
    - Player Settings: название, иконку, Package Name `com.yourname.crystalrush`, альбомную ориентацию.
-5. Откройте `Assets/Scenes/MainMenu` и нажмите **Play**.
+4. Откроется сцена `Assets/Scenes/MainMenu` — нажмите **Play**.
 
-Можно удалить из шаблона ненужное: `Assets/TutorialInfo`, `Assets/Readme.asset`, `Assets/Scenes/SampleScene`.
+Если автосборка не запустилась — меню **Crystal Rush → Build Game (create scenes, prefabs, sounds)**.
+Этим же пунктом можно пересобрать всё заново в любой момент.
+Если Hub предложит другую версию 6000.3.x — соглашайтесь, проект подходит для любой 6000.3.
+
 Перед сдачей поменяйте `yourname` в Package Name и Company Name на своё имя
 (Project Settings → Player, или константы в `Assets/Scripts/Editor/CrystalRushSetup.cs`).
 
@@ -146,20 +149,20 @@ GameUI (кнопки) ──► GameManager.Restart / Next / WatchAdForLives ─
 
 ## English — quick start
 
-1. Unity Hub → New project → **Universal 3D**, Unity 6000.3.x, name `CrystalRush` (no spaces, no Cyrillic in the path).
-2. Close Unity, copy this repository's `Assets` folder over the new project's `Assets`.
-3. Open the project and wait for compilation. Then **Crystal Rush → Build Game** builds all scenes, prefabs, sounds and settings.
-4. Open `Assets/Scenes/MainMenu` → Play. Pick the language in the menu: English / Русский / O‘zbekcha.
+1. Put the `CrystalRush` folder in a path without spaces or Cyrillic letters.
+2. Unity Hub → **Add → Add project from disk** → choose `CrystalRush` → open with Unity 6000.3.x.
+3. On the first start the game builds itself (scenes, prefabs, sounds). If not: **Crystal Rush → Build Game**.
+4. The `MainMenu` scene opens → Play. Pick the language in the menu: English / Русский / O‘zbekcha.
 
 Controls: WASD / arrows — move, Space — dash, Esc — pause. Phone: joystick + DASH button.
 Goal: collect all crystals → the portal opens → enter it. Dangers: laser gates, patrol drones, floor spikes.
 
 ## O‘zbekcha — tez boshlash
 
-1. Unity Hub → New project → **Universal 3D**, Unity 6000.3.x, nomi `CrystalRush` (yo‘lda bo‘sh joy va kirill harflari bo‘lmasin).
-2. Unity’ni yoping, ushbu repozitoriydagi `Assets` papkasini yangi loyihaning `Assets` papkasi ustiga nusxalang.
-3. Loyihani oching, kompilyatsiyani kuting. So‘ng **Crystal Rush → Build Game** — barcha sahnalar, prefablar, ovozlar avtomatik yaratiladi.
-4. `Assets/Scenes/MainMenu` sahnasini oching → Play. Tilni menyuda tanlang: English / Русский / O‘zbekcha.
+1. `CrystalRush` papkasini bo‘sh joy va kirill harflari bo‘lmagan yo‘lga joylang.
+2. Unity Hub → **Add → Add project from disk** → `CrystalRush` papkasini tanlang → Unity 6000.3.x bilan oching.
+3. Birinchi ochilishda o‘yin o‘zi yig‘iladi (sahnalar, prefablar, ovozlar). Agar bo‘lmasa: **Crystal Rush → Build Game**.
+4. `MainMenu` sahnasi ochiladi → Play. Tilni menyuda tanlang: English / Русский / O‘zbekcha.
 
 Boshqaruv: WASD / strelkalar — harakat, Probel — otilish, Esc — pauza. Telefonda: joystik + OTILISH tugmasi.
 Maqsad: barcha kristallarni yig‘ → portal ochiladi → portalga kir. Xavflar: lazer to‘siqlari, patrul dronlari, poldagi tikanlar.
