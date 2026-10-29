@@ -123,17 +123,50 @@ GameUI (кнопки) ──► GameManager.Restart / Next / WatchAdForLives ─
 **Не нажимайте на свою настоящую рекламу** — только тестовый режим.
 
 ### Android — Unity LevelPlay (уже подключено)
-- Пакет **Ads Mediation / LevelPlay 9.5.1** уже есть в `Packages/manifest.json`. Символ `LEVELPLAY_ENABLED` для Android
-  выставляется автоматически (`Assets/Scripts/Editor/DefineGuard`). Если пакет удалить, символ уберётся и проект всё равно соберётся.
-- В `AdManager` стоят **демо-ключи Unity** из официального примера LevelPlay (App Key `25b63cf85`): в APK сразу показывается тестовая реклама.
-- Чтобы зарабатывать: в дашборде LevelPlay создайте приложение (Package Name как в Player Settings),
-  Ad Units Rewarded и Interstitial, добавьте свой телефон как test device и впишите свои App Key и Ad Unit ID
-  в префаб `Assets/Prefabs/AdManager` (раздел Level Play).
-- При первом переключении на Android External Dependency Manager может спросить про авто-резолв зависимостей — нажмите **Enable**.
+
+**Почему в редакторе написано «тест»?** В Unity Editor и в PC-сборке всегда показывается встроенная тестовая реклама.
+Так задумано: настоящую рекламу LevelPlay показывает только на телефоне (APK). Ключи берутся из файла
+**`Assets/Scripts/Ads/AdKeys.cs`**. Сейчас там демо-ключи Unity: в APK будет тестовая реклама без дохода.
+
+**Шаг 1. Ad unit для Rewarded** (форма «Ad unit setup» в кабинете LevelPlay):
+| Поле | Что ввести |
+|---|---|
+| Ad unit name | `CrystalRush_Rewarded` |
+| Ad format | `Rewarded` |
+| Setup configuration | `New setup` |
+| Reward item name | `Lives` |
+| Reward amount | `2` |
+
+→ **Save**. Значения Reward в игре не используются: бонус задаёт сам код (+2 жизни в меню, +3 на Game Over).
+
+**Шаг 2. Ad unit для Interstitial**: ещё раз **Add ad unit** → name `CrystalRush_Interstitial`, format `Interstitial`,
+`New setup` → **Save**.
+
+**Шаг 3. Скопируйте ключи** в `Assets/Scripts/Ads/AdKeys.cs`:
+- `LevelPlayAppKey` — App Key: значок копирования рядом с названием приложения **CrystalRush** вверху страницы;
+- `LevelPlayRewardedAdUnitId` и `LevelPlayInterstitialAdUnitId` — колонка **Ad unit ID** в списке Ad units.
+
+**Шаг 4. Package Name** приложения в кабинете должен совпадать с Project Settings → Player → Android →
+Package Name (сейчас `com.yourname.crystalrush`; поменяйте в обоих местах одинаково).
+
+**Шаг 5. Тестовое устройство** (чтобы не получить бан за свои клики): в кабинете LevelPlay →
+**Testing → Test devices → Add**. Advertising ID телефона: Настройки Android → Google → Реклама.
+Включите для него тестовый режим. **На свою настоящую рекламу не нажимайте.**
+
+**Шаг 6. Сборка APK.** File → Build Profiles → Android → **Switch Platform**:
+1. Project Settings → Player → Android → Publishing Settings: включите **Custom Main Gradle Template**
+   и **Custom Gradle Properties Template**.
+2. Меню **Assets → External Dependency Manager → Android Resolver → Force Resolve**.
+   Если спросит про авто-резолв, нажмите **Enable**.
+3. **Build** → установите APK на телефон (нужен интернет) → кнопка «Смотреть рекламу» в меню.
+
+Проверить LevelPlay прямо в редакторе: при активной платформе Android поставьте галочку `levelPlayInEditor`
+на префабе `Assets/Prefabs/AdManager`. Тогда покажется тестовая реклама самого LevelPlay вместо нашей.
+Символ `LEVELPLAY_ENABLED` для Android выставляется автоматически (`Assets/Scripts/Editor/DefineGuard`).
 
 ### WebGL — Monetag
 1. В кабинете Monetag создайте зону **Rewarded Interstitial**, скопируйте Zone ID (только цифры).
-2. Впишите его в `AdManager → Monetag → rewardedZoneId` (и `interstitialZoneId`, можно тот же).
+2. Впишите его в `Assets/Scripts/Ads/AdKeys.cs` → `MonetagRewardedZoneId` (и `MonetagInterstitialZoneId`, можно тот же).
 3. `Assets/Plugins/WebGL/MonetagBridge.jslib` сам подключит SDK Monetag и вызовет `show_ZONEID()`.
    Если SDK не загрузился (нет интернета, блокировщик рекламы), повторит попытку позже.
 4. Пока Zone ID не вписан, кнопки рекламы честно отвечают «реклама недоступна». Для показа заглушки в браузере включите `forceStub`.

@@ -60,30 +60,12 @@ public class AdManager : MonoBehaviour, IAdHost
     [SerializeField] float stubInterstitialSeconds = 3f;
     [Tooltip("Font of the fake ad (must have Cyrillic and Uzbek letters).")]
     [SerializeField] Font stubFont;
+    [Tooltip("Editor only, with the Android platform active: use LevelPlay's own test ads instead of our stub.")]
+#pragma warning disable CS0414 // used only inside the Editor
+    [SerializeField] bool levelPlayInEditor = false;
+#pragma warning restore CS0414
 
-    [Serializable]
-    public class LevelPlayKeys
-    {
-        // Demo keys from Unity's official LevelPlay sample: they show TEST ads.
-        // Replace them with the keys of YOUR app from the LevelPlay dashboard to earn money.
-        public string appKey = "25b63cf85";
-        public string rewardedAdUnitId = "syz3d8ekts22q0or";
-        public string interstitialAdUnitId = "h3xw38h9214adgxo";
-    }
-
-    [Serializable]
-    public class MonetagZones
-    {
-        [Tooltip("Zone ID of the Monetag 'Rewarded Interstitial' zone (numbers only).")]
-        public string rewardedZoneId = "0000000";
-        public string interstitialZoneId = "0000000";
-    }
-
-    [Header("Unity LevelPlay (Android)")]
-    [SerializeField] LevelPlayKeys levelPlay = new LevelPlayKeys();
-
-    [Header("Monetag (WebGL)")]
-    [SerializeField] MonetagZones monetag = new MonetagZones();
+    // The keys of the ad networks are in AdKeys.cs.
 
     // SDK callbacks can come from other threads; they wait here until Update runs them.
     readonly ConcurrentQueue<Action> mainThreadQueue = new ConcurrentQueue<Action>();
@@ -140,15 +122,27 @@ public class AdManager : MonoBehaviour, IAdHost
         if (forceStub) return CreateStub();
 
 #if UNITY_EDITOR
+#if LEVELPLAY_ENABLED
+        if (levelPlayInEditor) return CreateLevelPlay();
+#else
+        if (levelPlayInEditor) Debug.Log("AdManager: LevelPlay test ads in the Editor work only with the Android platform active.");
+#endif
         return CreateStub();
 #elif UNITY_ANDROID && LEVELPLAY_ENABLED
-        return new LevelPlayAdProvider(levelPlay.appKey, levelPlay.rewardedAdUnitId, levelPlay.interstitialAdUnitId);
+        return CreateLevelPlay();
 #elif UNITY_WEBGL
-        return new MonetagAdProvider(gameObject.name, monetag.rewardedZoneId, monetag.interstitialZoneId);
+        return new MonetagAdProvider(gameObject.name, AdKeys.MonetagRewardedZoneId, AdKeys.MonetagInterstitialZoneId);
 #else
         return CreateStub();
 #endif
     }
+
+#if LEVELPLAY_ENABLED
+    static IAdProvider CreateLevelPlay()
+    {
+        return new LevelPlayAdProvider(AdKeys.LevelPlayAppKey, AdKeys.LevelPlayRewardedAdUnitId, AdKeys.LevelPlayInterstitialAdUnitId);
+    }
+#endif
 
     IAdProvider CreateStub()
     {
