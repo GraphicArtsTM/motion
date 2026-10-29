@@ -19,4 +19,4 @@
 данные, убери `T( )` и запусти `./build.sh`. Тексты резюме и CV — в `src/gen_html.py`, объективка — в `src/gen_docx.py`.
 
 Нужно: Python 3 (python-docx), Node.js с Playwright, LibreOffice. Скриншоты кладутся в `screenshots/`
-(в git не попадают — на них ЖШШИР).
+(в git не попадают — на них ЖШШИР). Данные родственников — в `src/relatives.py`, он и готовая объективка тоже не хранятся в git.

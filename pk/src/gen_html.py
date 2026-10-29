@@ -73,70 +73,69 @@ RU = dict(
     name="Рузибоев Мухаммад", role="Видеомонтажёр · моушн-дизайнер", city=CITY_RU,
     phone_l="Тел.", born_l="Дата рождения", born="19.09.2003",
     h_goal="Цель", goal="Занять позицию видеомонтажёра / моушн-дизайнера в digital-команде и делать "
-    "рекламные ролики для соцсетей, которые удерживают внимание с первых секунд и приводят к целевому действию.",
+    "ролики для соцсетей и игровых продуктов, которые удерживают внимание с первых секунд.",
     h_edu="Образование", uni="Ташкентский государственный экономический университет",
     uni_d="09.2023 — 06.2027 (ожид.)",
     uni_sub="Бакалавриат, направление «Искусственный интеллект», 4-й курс. "
     "Python, обработка данных, машинное обучение.",
     h_exp="Опыт и проекты",
     exp=[
-        dict(t="GraphicArts — видеомонтаж и моушн-дизайн (фриланс)", d=f"{h(FREELANCE_FROM)} — н. в.",
+        dict(t="GraphicArts — видеомонтаж и моушн-дизайн (фриланс)", d=f"{VIDEO_FROM} — н. в.",
              sub="Ташкент, удалённо · Telegram " + TELEGRAM,
              b=["Монтирую ролики для соцсетей (Reels, Shorts, TikTok): нарезка, цветокоррекция, титры, "
                 "звук — в форматах 9:16, 4:5 и 16:9.",
-                "Веду проект от брифа и раскадровки до финального рендера и правок заказчика."]),
-        dict(t="Промо-ролик для платёжного сервиса Muhr", d="10.2026",
-             b=["Сделал рекламный ролик 32 с, 1080×1350, 60 к/с: 8 сцен на ритмической сетке 120 BPM — "
-                "от «хука» в первые 4 секунды до призыва «Начать сделку».",
-                "Анимацию собрал кодом (HTML/CSS/JavaScript + Playwright) с AI-ассистентом, музыку "
-                "синтезировал на Python без сэмплов; звуки привязаны к событиям в кадре, громкость −14 LUFS.",
-                "Автоматизировал сборку: любая правка пересобирает финальный MP4 одной командой (ffmpeg)."]),
+                "Делаю моушн-графику: анимированные логотипы, титры, заставки; веду проект от брифа до правок заказчика."]),
+        dict(t="Разработчик мобильных игр (Unity, C#) — собственные проекты", d=f"{GAMEDEV_FROM} — н. в.",
+             b=["Создал 2 игры для Android — AirFly и UzbekAdventure: геймплей, интерфейс, графика и сборка APK.",
+                "Сам монтировал промо-трейлеры к своим играм — с этого начался мой путь в видеомонтаж."]),
+        dict(t="Семейный бизнес — графический дизайнер, помощник предпринимателя",
+             d=f"{BUSINESS[0]} — {BUSINESS[1]}", sub="Термез",
+             b=["Делал рекламные материалы: логотипы, баннеры, посты для соцсетей; помогал в работе с клиентами."]),
     ],
     h_skills="Навыки",
     skills=[("Монтаж и графика", "Adobe Premiere Pro, After Effects, DaVinci Resolve, CapCut, Photoshop"),
-            ("Моушн-дизайн кодом", "HTML/CSS, JavaScript, Playwright, ffmpeg, Python (numpy)"),
-            ("Звук", "синтез и сведение, синхронизация с кадром, нормализация громкости (LUFS)"),
-            ("Дополнительно", "Unity (C#) — базовый уровень, тестирование игр, работа с AI-инструментами"),
+            ("Разработка игр", "Unity, C#, тестирование игр, игровая графика и интерфейсы"),
+            ("Дополнительно", "Python, работа с AI-инструментами, подбор музыки и сведение звука"),
             ("Личные качества", "внимание к деталям, соблюдение сроков, умение принимать правки")],
     h_lang="Языки", langs="Узбекский — родной · Русский — свободно (C1) · Английский — средний (B1)",
     h_ach="Достижения",
-    ach=["Ролик Muhr сделан без стоковых шаблонов и чужой музыки: все 8 сцен и саундтрек — собственная работа.",
-         "Совмещаю 4-й курс по направлению «Искусственный интеллект» с практическими заказами по видео."],
+    ach=["Создал и выпустил 2 собственные игры для Android (AirFly, UzbekAdventure) — от идеи до готового APK.",
+         "5 лет практики в цифровом контенте: игры (с 2021), графический дизайн, видео (с 2023).",
+         "Совмещаю 4-й курс по направлению «Искусственный интеллект» с заказами по видео."],
 )
 
 EN = dict(
     name="Muhammad Ruziboev", role="Video Editor · Motion Designer", city=CITY_EN,
     phone_l="Phone", born_l="Date of birth", born="19 September 2003",
-    h_goal="Objective", goal="To join a digital team as a video editor / motion designer and create social-media "
-    "ads that hold attention from the first seconds and drive viewers to act.",
+    h_goal="Objective", goal="To join a digital team as a video editor / motion designer and create videos for "
+    "social media and game products that hold attention from the first seconds.",
     h_edu="Education", uni="Tashkent State University of Economics",
     uni_d="09/2023 — 06/2027 (expected)",
     uni_sub="Bachelor’s degree in Artificial Intelligence, 4th year. "
     "Python, data processing, machine learning.",
     h_exp="Experience and projects",
     exp=[
-        dict(t="GraphicArts — video editing and motion design (freelance)", d=f"{h(FREELANCE_FROM_EN)} — present",
+        dict(t="GraphicArts — video editing and motion design (freelance)", d="09/2023 — present",
              sub="Tashkent, remote · Telegram " + TELEGRAM,
              b=["Edit social-media videos (Reels, Shorts, TikTok): cutting, colour correction, titles and "
                 "sound in 9:16, 4:5 and 16:9 formats.",
-                "Run each project from brief and storyboard to final render and client revisions."]),
-        dict(t="Promo video for the Muhr payment service", d="10/2026",
-             b=["Produced a 32-second ad, 1080×1350 at 60 fps: 8 scenes on a 120 BPM rhythm grid — from a "
-                "4-second hook to the “Start a deal” call to action.",
-                "Built the animation in code (HTML/CSS/JavaScript + Playwright) with an AI assistant and "
-                "synthesised the music in Python with no samples; sounds are synced to on-screen events, "
-                "loudness −14 LUFS.",
-                "Automated the pipeline: any change rebuilds the final MP4 with one command (ffmpeg)."]),
+                "Create motion graphics — animated logos, titles, intros; run projects from brief to client revisions."]),
+        dict(t="Mobile game developer (Unity, C#) — own projects", d="07/2021 — present",
+             b=["Built 2 Android games — AirFly and UzbekAdventure: gameplay, UI, graphics and APK builds.",
+                "Edited promo trailers for my own games — this is how I got into video editing."]),
+        dict(t="Family business — graphic designer, assistant to the owner", d="07/2021 — 08/2023",
+             sub="Termez",
+             b=["Made advertising materials: logos, banners, social-media posts; helped with customer service."]),
     ],
     h_skills="Skills",
     skills=[("Editing and graphics", "Adobe Premiere Pro, After Effects, DaVinci Resolve, CapCut, Photoshop"),
-            ("Motion design in code", "HTML/CSS, JavaScript, Playwright, ffmpeg, Python (numpy)"),
-            ("Audio", "synthesis and mixing, sync to picture, loudness normalisation (LUFS)"),
-            ("Additional", "Unity (C#) — basic, game testing, AI tools"),
+            ("Game development", "Unity, C#, game testing, game graphics and UI"),
+            ("Additional", "Python, AI tools, music selection and sound mixing"),
             ("Personal", "attention to detail, meeting deadlines, taking feedback well")],
     h_lang="Languages", langs="Uzbek — native · Russian — fluent (C1) · English — intermediate (B1)",
     h_ach="Achievements",
-    ach=["Made the Muhr video with no stock templates or third-party music: all 8 scenes and the soundtrack are my own work.",
+    ach=["Built and released 2 Android games of my own (AirFly, UzbekAdventure) — from idea to a finished APK.",
+         "5 years of practice in digital content: games (since 2021), graphic design, video (since 2023).",
          "Combine the 4th year of an Artificial Intelligence degree with paid video work."],
 )
 
@@ -144,35 +143,37 @@ UZ = dict(
     name="Ro‘ziboyev Muxammad", role="Videomontajchi · motion-dizayner", city=CITY_UZ,
     phone_l="Tel.", born_l="Tug‘ilgan sana", born="19.09.2003",
     h_goal="Maqsad", goal="Raqamli jamoada videomontajchi / motion-dizayner sifatida ishlash va ijtimoiy "
-    "tarmoqlar uchun birinchi soniyalardanoq e’tiborni ushlab, maqsadli harakatga undaydigan reklama roliklarini yaratish.",
+    "tarmoqlar hamda o‘yin mahsulotlari uchun birinchi soniyalardanoq e’tiborni ushlaydigan roliklar yaratish.",
     h_edu="Ta’lim", uni="Toshkent davlat iqtisodiyot universiteti",
     uni_d="09.2023 — 06.2027 (kutilmoqda)",
     uni_sub="Bakalavriat, «Sun’iy intellekt» yo‘nalishi, 4-kurs. "
     "Python, ma’lumotlarga ishlov berish, mashinali o‘qitish.",
     h_exp="Tajriba va loyihalar",
     exp=[
-        dict(t="GraphicArts — videomontaj va motion-dizayn (frilans)", d=f"{h(FREELANCE_FROM)} — h. v.",
+        dict(t="GraphicArts — videomontaj va motion-dizayn (frilans)", d=f"{VIDEO_FROM} — h. v.",
              sub="Toshkent, masofaviy · Telegram " + TELEGRAM,
              b=["Ijtimoiy tarmoqlar uchun roliklarni montaj qilaman (Reels, Shorts, TikTok): kesish, rang "
                 "korreksiyasi, titrlar, ovoz — 9:16, 4:5 va 16:9 formatlarida.",
-                "Loyihani brif va raskadrovkadan yakuniy render va buyurtmachi tuzatishlarigacha olib boraman."]),
-        dict(t="Muhr to‘lov xizmati uchun promo-rolik", d="10.2026",
-             b=["32 soniyalik reklama roligini tayyorladim (1080×1350, 60 kadr/s): 120 BPM ritmik to‘rdagi "
-                "8 sahna — dastlabki 4 soniyadagi «xuk»dan «Bitimni boshlash» chaqirig‘igacha.",
-                "Animatsiyani AI-yordamchi bilan kod orqali yig‘dim (HTML/CSS/JavaScript + Playwright), musiqani "
-                "Python’da semplsiz sintez qildim; tovushlar kadrdagi voqealarga bog‘langan, ovoz balandligi −14 LUFS.",
-                "Yig‘ishni avtomatlashtirdim: har qanday tuzatish yakuniy MP4 ni bitta buyruq bilan qayta yig‘adi (ffmpeg)."]),
+                "Motion-grafika yarataman: animatsion logotiplar, titrlar, zastavkalar; loyihani brifdan "
+                "buyurtmachi tuzatishlarigacha olib boraman."]),
+        dict(t="Mobil o‘yinlar dasturchisi (Unity, C#) — shaxsiy loyihalar", d=f"{GAMEDEV_FROM} — h. v.",
+             b=["Android uchun 2 ta o‘yin yaratdim — AirFly va UzbekAdventure: geympley, interfeys, grafika va APK yig‘ish.",
+                "O‘yinlarim uchun promo-treylerlarni o‘zim montaj qildim — videomontajga yo‘lim shundan boshlangan."]),
+        dict(t="Oilaviy biznes — grafik dizayner, tadbirkor yordamchisi",
+             d=f"{BUSINESS[0]} — {BUSINESS[1]}", sub="Termiz",
+             b=["Reklama materiallarini tayyorladim: logotiplar, bannerlar, ijtimoiy tarmoq postlari; "
+                "mijozlar bilan ishlashda yordam berdim."]),
     ],
     h_skills="Ko‘nikmalar",
     skills=[("Montaj va grafika", "Adobe Premiere Pro, After Effects, DaVinci Resolve, CapCut, Photoshop"),
-            ("Kod orqali motion-dizayn", "HTML/CSS, JavaScript, Playwright, ffmpeg, Python (numpy)"),
-            ("Ovoz", "sintez va mikslash, kadr bilan sinxronlash, ovoz balandligini normallashtirish (LUFS)"),
-            ("Qo‘shimcha", "Unity (C#) — boshlang‘ich daraja, o‘yinlarni testlash, AI-vositalar bilan ishlash"),
+            ("O‘yin yaratish", "Unity, C#, o‘yinlarni testlash, o‘yin grafikasi va interfeyslari"),
+            ("Qo‘shimcha", "Python, AI-vositalar bilan ishlash, musiqa tanlash va ovozni mikslash"),
             ("Shaxsiy sifatlar", "detallarga e’tibor, muddatlarga rioya qilish, tuzatishlarni qabul qila olish")],
     h_lang="Tillar", langs="O‘zbek — ona tili · Rus — erkin (C1) · Ingliz — o‘rta (B1)",
     h_ach="Yutuqlar",
-    ach=["Muhr roligi tayyor shablon va begona musiqasiz yaratilgan: barcha 8 sahna va saundtrek — o‘z ishim.",
-         "«Sun’iy intellekt» yo‘nalishidagi 4-kursni video bo‘yicha amaliy buyurtmalar bilan birga olib boraman."],
+    ach=["Android uchun 2 ta shaxsiy o‘yin yaratdim va chiqardim (AirFly, UzbekAdventure) — g‘oyadan tayyor APK gacha.",
+         "Raqamli kontentda 5 yillik amaliyot: o‘yinlar (2021-yildan), grafik dizayn, video (2023-yildan).",
+         "«Sun’iy intellekt» yo‘nalishidagi 4-kursni video bo‘yicha buyurtmalar bilan birga olib boraman."],
 )
 
 for lang, L in (("RU", RU), ("EN", EN), ("UZ", UZ)):
@@ -258,22 +259,27 @@ EP_EN = dict(
     addr_l="Address", city=CITY_EN, phone_l="Phone", sex="Sex: Male", dob_l="Date of birth",
     nat="Nationality: Uzbek", job_l="Job applied for", job="Video Editor / Motion Designer",
     h_work="Work experience",
-    work=[(f"{h(FREELANCE_FROM_EN)} – Present", "Video editor and motion designer (freelance)",
+    work=[("09/2023 – Present", "Video editor and motion designer (freelance)",
            "GraphicArts — Tashkent, Uzbekistan (remote)",
            ["Editing social-media videos (Reels, Shorts, TikTok): cutting, colour correction, titles, sound "
             "in 9:16, 4:5 and 16:9 formats.",
-            "Running projects from brief and storyboard to final render and client revisions.",
-            "<b>10/2026 — promo video for the Muhr payment service:</b> 32 s, 1080×1350, 60 fps, 8 scenes on "
-            "a 120 BPM grid; animation built in code (HTML/CSS/JavaScript, Playwright) with an AI assistant; "
-            "original music synthesised in Python, loudness −14 LUFS; one-command build to MP4 (ffmpeg)."],
-           "<div class='muted'>Business or sector: Digital media and advertising</div>")],
+            "Creating motion graphics: animated logos, titles, intros.",
+            "Running projects from brief and storyboard to final render and client revisions."],
+           "<div class='muted'>Business or sector: Digital media and advertising</div>"),
+          ("07/2021 – Present", "Mobile game developer (independent)", "Own projects — Termez / Tashkent, Uzbekistan",
+           ["Built 2 Android games in Unity (C#) — AirFly and UzbekAdventure: gameplay, UI, graphics, APK builds.",
+            "Edited promo trailers for my games."],
+           "<div class='muted'>Business or sector: Game development</div>"),
+          ("07/2021 – 08/2023", "Graphic designer, assistant to the owner", "Family business — Termez, Uzbekistan",
+           ["Designed advertising materials: logos, banners, social-media posts.",
+            "Helped with customer service and day-to-day operations."],
+           "<div class='muted'>Business or sector: Small business, trade</div>")],
     h_edu="Education and training",
     edu=[("09/2023 – 06/2027 (expected)", "Bachelor’s degree — Artificial Intelligence",
           "Tashkent State University of Economics — Tashkent, Uzbekistan · EQF level 6",
           ["4th-year student. Main subjects: programming in Python, data processing, machine learning, "
            "digital economy."]),
-         (f"{h(SCHOOL_YEARS[0]).replace('.', '/')} – {h(SCHOOL_YEARS[1]).replace('.', '/')}",
-          "General secondary education", f"{h(SCHOOL_EN)}, Uzbekistan · EQF level 4")],
+         ("09/2010 – 06/2021", "General secondary education", f"{SCHOOL_EN}, Uzbekistan · EQF level 4")],
     h_ps="Personal skills", mt_l="Mother tongue", mt="Uzbek", ol_l="Other languages",
     und="UNDERSTANDING", spk="SPEAKING", wri="WRITING", lis="Listening", rea="Reading",
     si="Spoken interaction", sp="Spoken production",
@@ -281,21 +287,20 @@ EP_EN = dict(
     cefr="Levels: A1/A2 — basic user · B1/B2 — independent user · C1/C2 — proficient user. "
          "Common European Framework of Reference for Languages.",
     soft=[("Communication skills", "Clear communication with clients: agreeing on a brief, presenting drafts and "
-           "taking revisions; experience of remote work through Telegram."),
-          ("Organisational / managerial skills", "Planning a project into scenes and deadlines; combining full-time "
-           "university study with freelance orders."),
-          ("Job-related skills", "Editing to the beat, storytelling for short-form ads (hook → product → call to "
-           "action), sound design and sync to picture, preparing videos for different platforms.")],
+           "taking revisions; customer service experience in the family business."),
+          ("Organisational / managerial skills", "Planning projects into stages and deadlines; combining full-time "
+           "university study with freelance orders and my own game projects."),
+          ("Job-related skills", "Editing to the beat, storytelling for short-form videos and game trailers, "
+           "motion graphics, colour correction, preparing videos for different platforms.")],
     dig_l="Digital skills", dig_h="SELF-ASSESSMENT",
     dig_cols=["Information processing", "Communication", "Content creation", "Safety", "Problem solving"],
-    dig_lv=["Independent user", "Proficient user", "Proficient user", "Independent user", "Independent user"],
+    dig_lv=["Independent user", "Proficient user", "Proficient user", "Independent user", "Proficient user"],
     dig_note="Digital competences — self-assessment grid.",
-    dig_tools="Adobe Premiere Pro, After Effects, DaVinci Resolve, CapCut, Photoshop · HTML/CSS, JavaScript, "
-              "Playwright, ffmpeg · Python (numpy) · Unity (C#, basic) · AI tools",
+    dig_tools="Adobe Premiere Pro, After Effects, DaVinci Resolve, CapCut, Photoshop · Unity, C# · Python · AI tools",
     h_add="Additional information",
-    add=[("Projects", "Muhr promo video (10/2026) — fintech advertising, vertical 4:5 format for social feeds."),
+    add=[("Projects", "AirFly and UzbekAdventure — Android games built in Unity (C#), with self-made promo trailers."),
          ("Online profiles", f"LinkedIn: {LINKEDIN} · hh.uz: resume “Video editor” · vacancy.argos.uz"),
-         ("Interests", "Game industry and game testing (Unity), motion graphics, AI tools for content creation."),
+         ("Interests", "Game industry, motion graphics, AI tools for content creation."),
          ("References", "Available on request.")],
 )
 
@@ -304,22 +309,29 @@ EP_RU = dict(
     addr_l="Адрес", city=CITY_RU, phone_l="Телефон", sex="Пол: мужской", dob_l="Дата рождения",
     nat="Гражданство: Узбекистан", job_l="Желаемая должность", job="Видеомонтажёр / моушн-дизайнер",
     h_work="Опыт работы",
-    work=[(f"{h(FREELANCE_FROM)} – по наст. время", "Видеомонтажёр и моушн-дизайнер (фриланс)",
+    work=[("09.2023 – по наст. время", "Видеомонтажёр и моушн-дизайнер (фриланс)",
            "GraphicArts — Ташкент, Узбекистан (удалённо)",
            ["Монтаж роликов для соцсетей (Reels, Shorts, TikTok): нарезка, цветокоррекция, титры, звук "
             "в форматах 9:16, 4:5 и 16:9.",
-            "Ведение проекта от брифа и раскадровки до финального рендера и правок заказчика.",
-            "<b>10.2026 — промо-ролик для платёжного сервиса Muhr:</b> 32 с, 1080×1350, 60 к/с, 8 сцен "
-            "на сетке 120 BPM; анимация собрана кодом (HTML/CSS/JavaScript, Playwright) с AI-ассистентом; "
-            "собственная музыка, синтезированная на Python, громкость −14 LUFS; сборка в MP4 одной командой (ffmpeg)."],
-           "<div class='muted'>Сфера деятельности: цифровые медиа и реклама</div>")],
+            "Моушн-графика: анимированные логотипы, титры, заставки.",
+            "Ведение проекта от брифа и раскадровки до финального рендера и правок заказчика."],
+           "<div class='muted'>Сфера деятельности: цифровые медиа и реклама</div>"),
+          ("07.2021 – по наст. время", "Разработчик мобильных игр (самостоятельно)",
+           "Собственные проекты — Термез / Ташкент, Узбекистан",
+           ["Создал 2 игры для Android на Unity (C#) — AirFly и UzbekAdventure: геймплей, интерфейс, графика, сборка APK.",
+            "Монтаж промо-трейлеров к своим играм."],
+           "<div class='muted'>Сфера деятельности: разработка игр</div>"),
+          ("07.2021 – 08.2023", "Графический дизайнер, помощник предпринимателя", "Семейный бизнес — Термез, Узбекистан",
+           ["Рекламные материалы: логотипы, баннеры, посты для соцсетей.",
+            "Помощь в работе с клиентами и в текущих делах бизнеса."],
+           "<div class='muted'>Сфера деятельности: малый бизнес, торговля</div>")],
     h_edu="Образование и обучение",
     edu=[("09.2023 – 06.2027 (ожид.)", "Бакалавриат — Искусственный интеллект",
           "Ташкентский государственный экономический университет — Ташкент, Узбекистан · уровень EQF 6",
           ["Студент 4-го курса. Основные дисциплины: программирование на Python, обработка данных, "
            "машинное обучение, цифровая экономика."]),
-         (f"{h(SCHOOL_YEARS[0])} – {h(SCHOOL_YEARS[1])}", "Общее среднее образование",
-          f"{h(SCHOOL_RU)}, Узбекистан · уровень EQF 4")],
+         ("09.2010 – 06.2021", "Общее среднее образование",
+          "Общеобразовательная школа № 18 города Термеза, Узбекистан · уровень EQF 4")],
     h_ps="Личные навыки", mt_l="Родной язык", mt="Узбекский", ol_l="Иностранные языки",
     und="ПОНИМАНИЕ", spk="РАЗГОВОР", wri="ПИСЬМО", lis="Аудирование", rea="Чтение",
     si="Диалог", sp="Монолог",
@@ -327,21 +339,20 @@ EP_RU = dict(
     cefr="Уровни: A1/A2 — базовый · B1/B2 — самостоятельный · C1/C2 — свободный. "
          "Общеевропейская шкала владения языками (CEFR).",
     soft=[("Коммуникативные навыки", "Чёткое общение с заказчиками: согласование брифа, показ черновиков, "
-           "работа с правками; опыт удалённой работы через Telegram."),
-          ("Организационные навыки", "Планирую проект по сценам и срокам; совмещаю очную учёбу в университете "
-           "с заказами на фрилансе."),
-          ("Профессиональные навыки", "Монтаж в ритм музыки, сторителлинг для коротких рекламных роликов "
-           "(хук → продукт → призыв к действию), саунд-дизайн и синхронизация с кадром, подготовка видео под разные площадки.")],
+           "работа с правками; опыт работы с клиентами в семейном бизнесе."),
+          ("Организационные навыки", "Планирую проекты по этапам и срокам; совмещаю очную учёбу "
+           "с заказами на фрилансе и собственными игровыми проектами."),
+          ("Профессиональные навыки", "Монтаж в ритм музыки, сторителлинг для коротких роликов и игровых "
+           "трейлеров, моушн-графика, цветокоррекция, подготовка видео под разные площадки.")],
     dig_l="Цифровые навыки", dig_h="САМООЦЕНКА",
     dig_cols=["Обработка информации", "Коммуникация", "Создание контента", "Безопасность", "Решение проблем"],
-    dig_lv=["Самостоятельный", "Опытный", "Опытный", "Самостоятельный", "Самостоятельный"],
+    dig_lv=["Самостоятельный", "Опытный", "Опытный", "Самостоятельный", "Опытный"],
     dig_note="Цифровые компетенции — шкала самооценки.",
-    dig_tools="Adobe Premiere Pro, After Effects, DaVinci Resolve, CapCut, Photoshop · HTML/CSS, JavaScript, "
-              "Playwright, ffmpeg · Python (numpy) · Unity (C#, базовый) · AI-инструменты",
+    dig_tools="Adobe Premiere Pro, After Effects, DaVinci Resolve, CapCut, Photoshop · Unity, C# · Python · AI-инструменты",
     h_add="Дополнительная информация",
-    add=[("Проекты", "Промо-ролик Muhr (10.2026) — реклама финтех-сервиса, вертикальный формат 4:5 для лент соцсетей."),
+    add=[("Проекты", "AirFly и UzbekAdventure — игры для Android на Unity (C#) с собственными промо-трейлерами."),
          ("Профили", f"LinkedIn: {LINKEDIN} · hh.uz: резюме «Видеомонтажёр» · vacancy.argos.uz"),
-         ("Интересы", "Игровая индустрия и тестирование игр (Unity), моушн-графика, AI-инструменты для создания контента."),
+         ("Интересы", "Игровая индустрия, моушн-графика, AI-инструменты для создания контента."),
          ("Рекомендации", "Предоставляются по запросу.")],
 )
 
