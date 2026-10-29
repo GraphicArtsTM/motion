@@ -1,0 +1,14 @@
+# Unity: generated folders (do not hand them in or commit them)
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+*.csproj
+*.sln
+*.apk
+*.aab
+.vs/
+.idea/
