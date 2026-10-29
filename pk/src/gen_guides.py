@@ -38,12 +38,12 @@ QA = [
      "Здравствуйте! Меня зовут Мухаммад Рузибоев. Я студент 4-го курса Ташкентского государственного "
      "экономического университета, направление «Искусственный интеллект», и претендую на должность "
      "видеомонтажёра и моушн-дизайнера. С 2023 года я работаю на фрилансе под брендом GraphicArts: "
-     "монтирую ролики для соцсетей — Reels, Shorts, TikTok — и делаю моушн-графику. А начинал я с игр: "
-     "после школы освоил Unity и сделал две игры для Android — AirFly и UzbekAdventure, а ещё два года "
-     "был графическим дизайнером в семейном бизнесе. Моя ценность в том, что я смотрю на видео сразу глазами "
+     "монтирую ролики для соцсетей — Reels, Shorts, TikTok — и делаю моушн-графику, а с 2023 по 2025 год "
+     "вёл YouTube-канал. А начинал я с игр: ещё в школе, в 2019 году, освоил Unity и сделал две игры для "
+     "Android — AirFly и UzbekAdventure, а ещё два года был графическим дизайнером в семейном бизнесе. Моя ценность в том, что я смотрю на видео сразу глазами "
      "дизайнера, разработчика и монтажёра: понимаю и картинку, и технику. Как человек я ответственный "
      "и спокойно принимаю правки — для меня это нормальная часть работы.",
-     "Имя → 4 курс ТГЭУ, ИИ → должность → GraphicArts с 2023: Reels/Shorts, моушн → начинал с игр: AirFly, UzbekAdventure → дизайнер в семейном бизнесе → дизайнер + разработчик + монтажёр"),
+     "Имя → 4 курс ТГЭУ, ИИ → должность → GraphicArts с 2023: Reels/Shorts, моушн → YouTube-канал 2023–2025 → игры с 2019: AirFly, UzbekAdventure → дизайнер в семейном бизнесе → дизайнер + разработчик + монтажёр"),
     ("2. Почему вы выбрали именно эту должность и эту организацию?", "≈ 45 с",
      "Короткое видео сегодня — главный способ рассказать о продукте, и мне нравится, что результат монтажа "
      "сразу виден в цифрах: досмотры, клики, продажи. Компания Uzum выпускает очень много видеоконтента — "
@@ -60,15 +60,15 @@ QA = [
      "согласования. Так я укладываюсь в дедлайны.",
      "Детали (игры → монтаж) → C#/Python → освоил сам | Слабость: перфекционизм → черновик сначала"),
     ("4. Пример решения в сложной ситуации (метод STAR)", "≈ 60 с",
-     "<b>Ситуация.</b> Когда я закончил свою игру UzbekAdventure, о ней никто не знал, а денег на рекламу "
-     "не было. <b>Задача.</b> Нужно было самому сделать трейлер, который за тридцать секунд покажет, чем "
-     "игра интересна. <b>Действия.</b> Я написал короткий сценарий, записал геймплей и выбрал самые яркие "
-     "моменты. Смонтировал динамичный трейлер под музыку, добавил титры и анимированный логотип и сделал "
-     "отдельную вертикальную версию для соцсетей. <b>Результат.</b> Трейлер стал главным материалом для "
-     "продвижения: я выложил его в соцсети и Telegram, и люди начали скачивать игру и писать отзывы. "
-     "А для меня это стало поворотом: я понял, что монтаж мне нравится больше всего, и с 2023 года занимаюсь "
-     "видео профессионально.",
-     "S: UzbekAdventure готова, никто не знает, нет бюджета → T: трейлер 30 с → A: сценарий, геймплей, монтаж под музыку, титры, логотип, вертикальная версия → R: соцсети + Telegram, скачивания и отзывы → ушёл в видео"),
+     "<b>Ситуация.</b> Когда я выпустил свою игру UzbekAdventure, я вложил в её рекламу несколько тысяч "
+     "долларов. Для меня это были большие деньги, и потратить их впустую было нельзя. <b>Задача.</b> Сделать так, "
+     "чтобы реклама окупалась: нужны были ролики, которые цепляют игрока в первые секунды. <b>Действия.</b> "
+     "Я не стал заказывать готовую рекламу, а смонтировал трейлеры сам: написал сценарий, записал геймплей и "
+     "сделал несколько коротких версий с разным началом. Запустил их, смотрел, какая версия приносит больше "
+     "установок, и переносил бюджет на лучшую. <b>Результат.</b> Деньги работали на самые сильные ролики, "
+     "игру начали скачивать и оценивать. А главное — я понял, что всё решают первые секунды видео. Так я пришёл "
+     "в монтаж и с 2023 года занимаюсь видео профессионально.",
+     "S: UzbekAdventure, реклама на несколько тысяч $ → T: чтобы реклама окупалась → A: сам смонтировал трейлеры, несколько версий с разным началом, бюджет на лучшую → R: установки и оценки, понял силу первых секунд → ушёл в видео"),
     ("5. Где вы видите себя через пять лет?", "≈ 40 с",
      "Через пять лет я вижу себя ведущим моушн-дизайнером или руководителем небольшой видеокоманды в крупной "
      "компании. Хочу, чтобы мои ролики давали измеримый результат — рост досмотров и продаж. План такой: "
@@ -84,7 +84,7 @@ save("interview_script.html", f"""
 <h1>Видеоинтервью — сценарий ответов</h1>
 <p class="muted">Должность: видеомонтажёр / моушн-дизайнер · пример организации: Uzum (можно заменить на свою
 — тогда перепиши 2-й ответ). Общая длительность ≈ 4 мин (норма 3–5 мин). Не читай с листа: прочитай 3–5 раз,
-потом говори по тезисам своими словами. Если у игры есть цифры (скачивания, отзывы) — назови их в 4-м ответе.</p>
+потом говори по тезисам своими словами. Точную сумму рекламного бюджета не называй — говори «несколько тысяч долларов».</p>
 {qa}
 <h2>Перед записью — чек-лист</h2>
 <ul>
@@ -98,7 +98,8 @@ save("interview_script.html", f"""
 <h2>Что могут спросить устно (будь готов)</h2>
 <ul>
 <li>Какие игры ты сделал и на чём? → AirFly и UzbekAdventure, Unity + C#, для Android. Будь готов коротко рассказать, в чём суть каждой.</li>
-<li>Как связаны игры и видеомонтаж? → трейлеры к своим играм: сценарий, динамика, ритм — то же, что в рекламном ролике.</li>
+<li>Как связаны игры и видеомонтаж? → рекламные трейлеры к своим играм: сценарий, динамика, первые секунды — то же, что в любом рекламном ролике.</li>
+<li>Что делал на YouTube-канале (2023–2025)? → монтаж, превью, названия и описания под поиск, график публикаций, статистика в YouTube Studio. Будь готов назвать канал и тему.</li>
 <li>Что ты делал в семейном бизнесе? → логотипы, баннеры, посты для соцсетей, помогал с клиентами (2021–2023).</li>
 <li>Какой софт используешь и почему? → назови только то, чем реально владеешь (и убери лишнее из резюме).</li>
 </ul>
@@ -106,15 +107,15 @@ save("interview_script.html", f"""
 
 # =========================================================================== ПРОФИЛИ
 ABOUT_EN = ("Video editor and motion designer based in Tashkent, and a 4th-year Artificial Intelligence student at "
-            "Tashkent State University of Economics. Since 2023 I edit short-form videos for social media (Reels, "
+            "Tashkent State University of Economics. Since 2023 I have been editing short-form videos for social media (Reels, "
             "Shorts, TikTok) and create motion graphics. I started with game development: I built two Android "
-            "games in Unity (C#) — AirFly and UzbekAdventure — and edited their trailers myself, and I worked as a "
-            "graphic designer in a family business. I look at video as a designer, a developer and an editor at "
+            "games in Unity (C#) since 2019 — AirFly and UzbekAdventure — and edited their ad trailers myself. "
+            "I also ran a YouTube channel (2023–2025) and worked as a graphic designer in a family business. I look at video as a designer, a developer and an editor at "
             "once. Open to Video Editor / Motion Designer roles.")
 ABOUT_RU = ("Видеомонтажёр и моушн-дизайнер из Ташкента, студент 4-го курса ТГЭУ по направлению «Искусственный "
             "интеллект». С 2023 года монтирую короткие ролики для соцсетей (Reels, Shorts, TikTok) и делаю "
-            "моушн-графику. Начинал с разработки игр: создал на Unity (C#) две игры для Android — AirFly и "
-            "UzbekAdventure — и сам смонтировал к ним трейлеры; два года работал графическим дизайнером в семейном "
+            "моушн-графику; в 2023–2025 годах вёл YouTube-канал. Начинал с разработки игр в 2019 году: создал на "
+            "Unity (C#) две игры для Android — AirFly и UzbekAdventure — и сам монтировал к ним рекламные трейлеры; два года работал графическим дизайнером в семейном "
             "бизнесе. Ответственно отношусь к срокам и спокойно принимаю правки.")
 
 save("profiles_guide.html", f"""
@@ -134,11 +135,13 @@ save("profiles_guide.html", f"""
 <h2>LinkedIn</h2>
 <h3>Headline</h3><div class="copy">Video Editor &amp; Motion Designer | Game developer (Unity) | AI student at TSUE</div>
 <h3>About</h3><div class="copy">{ABOUT_EN}</div>
-<h3>Experience → Add position (3 позиции)</h3><div class="copy">
+<h3>Experience → Add position (4 позиции)</h3><div class="copy">
 <b>1.</b> Video Editor &amp; Motion Designer · Freelance · GraphicArts · Tashkent (Remote) · Sep 2023 – Present ·
 <i>Editing short-form videos for social media (Reels, Shorts, TikTok); motion graphics — animated logos, titles, intros.</i><br>
-<b>2.</b> Mobile Game Developer · Self-employed · Jul 2021 – Present ·
-<i>Built 2 Android games in Unity (C#): AirFly and UzbekAdventure; edited their promo trailers.</i><br>
+<b>2.</b> YouTube Channel Manager &amp; Video Editor · Remote · 2023 – 2025 ·
+<i>Editing, thumbnails, search-friendly titles and descriptions, upload schedule, YouTube Studio analytics.</i><br>
+<b>4.</b> Mobile Game Developer · Self-employed · 2019 – Present ·
+<i>Built 2 Android games in Unity (C#): AirFly and UzbekAdventure; ran paid ads and edited the ad trailers.</i><br>
 <b>3.</b> Graphic Designer · Family business · Termez · Jul 2021 – Aug 2023 ·
 <i>Logos, banners and social-media posts; customer service.</i></div>
 <h3>Education</h3><div class="copy">Tashkent State University of Economics · Bachelor’s degree, Artificial Intelligence · 2023 – 2027</div>
@@ -152,8 +155,9 @@ Adobe After Effects · Color Correction · Unity · C# · Graphic Design</div>
 <tr><th>Поле</th><th>Что вписать</th></tr>
 <tr><td>Должность</td><td>Видеомонтажёр / моушн-дизайнер</td></tr>
 <tr><td>Опыт работы</td><td>1) GraphicArts (фриланс), сентябрь 2023 — по настоящее время, «Видеомонтажёр и моушн-дизайнер»;<br>
-2) Разработчик мобильных игр (собственные проекты), июль 2021 — по настоящее время;<br>
-3) Семейный бизнес, Термез, июль 2021 — август 2023, «Графический дизайнер». Обязанности — как в резюме.</td></tr>
+2) YouTube-канал, 2023 — 2025, «Видеомонтажёр, менеджер канала»;<br>
+3) Разработчик мобильных игр (собственные проекты), 2019 — по настоящее время;<br>
+4) Семейный бизнес, Термез, июль 2021 — август 2023, «Графический дизайнер». Обязанности — как в резюме.</td></tr>
 <tr><td>Образование</td><td>Высшее (бакалавр) — Ташкентский государственный экономический университет, «Искусственный интеллект», 2027</td></tr>
 <tr><td>Ключевые навыки</td><td>Видеомонтаж · Моушн-дизайн · Adobe Premiere Pro · Adobe After Effects · DaVinci Resolve ·
 Цветокоррекция · Unity · C# · Графический дизайн</td></tr>
@@ -170,7 +174,8 @@ Adobe After Effects · Color Correction · Unity · C# · Graphic Design</div>
 <tr><td>Chet tillari</td><td>Rus tili — erkin (C1); Ingliz tili — o‘rta (B1)</td></tr>
 <tr><td>Ma’lumoti</td><td>Toshkent davlat iqtisodiyot universiteti, «Sun’iy intellekt», 2023–2027; Termiz shahridagi 18-maktab, 2010–2021</td></tr>
 <tr><td>Mehnat faoliyati</td><td>07.2021 – 08.2023: oilaviy biznes, grafik dizayner (Termiz);<br>
-07.2021 – h. v.: mobil o‘yinlar dasturchisi (Unity, C#), shaxsiy loyihalar;<br>
+2019 – h. v.: mobil o‘yinlar dasturchisi (Unity, C#), shaxsiy loyihalar;<br>
+2023 – 2025: YouTube-kanal, videomontajchi va kanal menejeri;<br>
 09.2023 – h. v.: GraphicArts, videomontajchi va motion-dizayner (frilans)</td></tr>
 </table>
 <p>Для сдачи: скриншоты главной страницы и вкладок (Umumiy ma’lumotlar, Ma’lumoti, Mehnat faoliyati, Qarindoshlari).</p>

@@ -85,9 +85,13 @@ RU = dict(
              b=["Монтирую ролики для соцсетей (Reels, Shorts, TikTok): нарезка, цветокоррекция, титры, "
                 "звук — в форматах 9:16, 4:5 и 16:9.",
                 "Делаю моушн-графику: анимированные логотипы, титры, заставки; веду проект от брифа до правок заказчика."]),
+        dict(t="YouTube-канал — монтаж и управление каналом", d=f"{YOUTUBE[0]} — {YOUTUBE[1]}",
+             b=["Вёл канал: монтаж роликов, превью, названия и описания под поиск, график публикаций, "
+                "анализ статистики в YouTube Studio."]),
         dict(t="Разработчик мобильных игр (Unity, C#) — собственные проекты", d=f"{GAMEDEV_FROM} — н. в.",
              b=["Создал 2 игры для Android — AirFly и UzbekAdventure: геймплей, интерфейс, графика и сборка APK.",
-                "Сам монтировал промо-трейлеры к своим играм — с этого начался мой путь в видеомонтаж."]),
+                "Вложил в рекламу игр несколько тысяч долларов; рекламные трейлеры монтировал сам — "
+                "с этого начался мой путь в видеомонтаж."]),
         dict(t="Семейный бизнес — графический дизайнер, помощник предпринимателя",
              d=f"{BUSINESS[0]} — {BUSINESS[1]}", sub="Термез",
              b=["Делал рекламные материалы: логотипы, баннеры, посты для соцсетей; помогал в работе с клиентами."]),
@@ -100,7 +104,7 @@ RU = dict(
     h_lang="Языки", langs="Узбекский — родной · Русский — свободно (C1) · Английский — средний (B1)",
     h_ach="Достижения",
     ach=["Создал и выпустил 2 собственные игры для Android (AirFly, UzbekAdventure) — от идеи до готового APK.",
-         "5 лет практики в цифровом контенте: игры (с 2021), графический дизайн, видео (с 2023).",
+         "7 лет практики в цифровом контенте: игры (с 2019), графический дизайн, YouTube и видео (с 2023).",
          "Совмещаю 4-й курс по направлению «Искусственный интеллект» с заказами по видео."],
 )
 
@@ -120,9 +124,13 @@ EN = dict(
              b=["Edit social-media videos (Reels, Shorts, TikTok): cutting, colour correction, titles and "
                 "sound in 9:16, 4:5 and 16:9 formats.",
                 "Create motion graphics — animated logos, titles, intros; run projects from brief to client revisions."]),
-        dict(t="Mobile game developer (Unity, C#) — own projects", d="07/2021 — present",
+        dict(t="YouTube channel — editing and channel management", d="2023 — 2025",
+             b=["Ran the channel: video editing, thumbnails, search-friendly titles and descriptions, "
+                "upload schedule, YouTube Studio analytics."]),
+        dict(t="Mobile game developer (Unity, C#) — own projects", d="2019 — present",
              b=["Built 2 Android games — AirFly and UzbekAdventure: gameplay, UI, graphics and APK builds.",
-                "Edited promo trailers for my own games — this is how I got into video editing."]),
+                "Invested several thousand dollars in advertising the games and edited the ad trailers "
+                "myself — this is how I got into video editing."]),
         dict(t="Family business — graphic designer, assistant to the owner", d="07/2021 — 08/2023",
              sub="Termez",
              b=["Made advertising materials: logos, banners, social-media posts; helped with customer service."]),
@@ -135,7 +143,7 @@ EN = dict(
     h_lang="Languages", langs="Uzbek — native · Russian — fluent (C1) · English — intermediate (B1)",
     h_ach="Achievements",
     ach=["Built and released 2 Android games of my own (AirFly, UzbekAdventure) — from idea to a finished APK.",
-         "5 years of practice in digital content: games (since 2021), graphic design, video (since 2023).",
+         "7 years of practice in digital content: games (since 2019), graphic design, YouTube and video (since 2023).",
          "Combine the 4th year of an Artificial Intelligence degree with paid video work."],
 )
 
@@ -156,9 +164,13 @@ UZ = dict(
                 "korreksiyasi, titrlar, ovoz — 9:16, 4:5 va 16:9 formatlarida.",
                 "Motion-grafika yarataman: animatsion logotiplar, titrlar, zastavkalar; loyihani brifdan "
                 "buyurtmachi tuzatishlarigacha olib boraman."]),
+        dict(t="YouTube-kanal — montaj va kanalni boshqarish", d=f"{YOUTUBE[0]} — {YOUTUBE[1]}",
+             b=["Kanalni yuritdim: roliklarni montaj qilish, prevyular, qidiruv uchun sarlavha va tavsiflar, "
+                "nashr jadvali, YouTube Studio statistikasini tahlil qilish."]),
         dict(t="Mobil o‘yinlar dasturchisi (Unity, C#) — shaxsiy loyihalar", d=f"{GAMEDEV_FROM} — h. v.",
              b=["Android uchun 2 ta o‘yin yaratdim — AirFly va UzbekAdventure: geympley, interfeys, grafika va APK yig‘ish.",
-                "O‘yinlarim uchun promo-treylerlarni o‘zim montaj qildim — videomontajga yo‘lim shundan boshlangan."]),
+                "O‘yinlar reklamasiga bir necha ming dollar sarfladim; reklama treylerlarini o‘zim montaj "
+                "qildim — videomontajga yo‘lim shundan boshlangan."]),
         dict(t="Oilaviy biznes — grafik dizayner, tadbirkor yordamchisi",
              d=f"{BUSINESS[0]} — {BUSINESS[1]}", sub="Termiz",
              b=["Reklama materiallarini tayyorladim: logotiplar, bannerlar, ijtimoiy tarmoq postlari; "
@@ -172,7 +184,7 @@ UZ = dict(
     h_lang="Tillar", langs="O‘zbek — ona tili · Rus — erkin (C1) · Ingliz — o‘rta (B1)",
     h_ach="Yutuqlar",
     ach=["Android uchun 2 ta shaxsiy o‘yin yaratdim va chiqardim (AirFly, UzbekAdventure) — g‘oyadan tayyor APK gacha.",
-         "Raqamli kontentda 5 yillik amaliyot: o‘yinlar (2021-yildan), grafik dizayn, video (2023-yildan).",
+         "Raqamli kontentda 7 yillik amaliyot: o‘yinlar (2019-yildan), grafik dizayn, YouTube va video (2023-yildan).",
          "«Sun’iy intellekt» yo‘nalishidagi 4-kursni video bo‘yicha buyurtmalar bilan birga olib boraman."],
 )
 
@@ -266,14 +278,18 @@ EP_EN = dict(
             "Creating motion graphics: animated logos, titles, intros.",
             "Running projects from brief and storyboard to final render and client revisions."],
            "<div class='muted'>Business or sector: Digital media and advertising</div>"),
-          ("07/2021 – Present", "Mobile game developer (independent)", "Own projects — Termez / Tashkent, Uzbekistan",
-           ["Built 2 Android games in Unity (C#) — AirFly and UzbekAdventure: gameplay, UI, graphics, APK builds.",
-            "Edited promo trailers for my games."],
-           "<div class='muted'>Business or sector: Game development</div>"),
+          ("2023 – 2025", "YouTube channel manager and video editor", "YouTube channel — remote",
+           ["Editing videos, designing thumbnails, writing search-friendly titles and descriptions.",
+            "Planning the upload schedule and analysing statistics in YouTube Studio."],
+           "<div class='muted'>Business or sector: Online media</div>"),
           ("07/2021 – 08/2023", "Graphic designer, assistant to the owner", "Family business — Termez, Uzbekistan",
            ["Designed advertising materials: logos, banners, social-media posts.",
             "Helped with customer service and day-to-day operations."],
-           "<div class='muted'>Business or sector: Small business, trade</div>")],
+           "<div class='muted'>Business or sector: Small business, trade</div>"),
+          ("2019 – Present", "Mobile game developer (independent)", "Own projects — Termez / Tashkent, Uzbekistan",
+           ["Built 2 Android games in Unity (C#) — AirFly and UzbekAdventure: gameplay, UI, graphics, APK builds.",
+            "Ran paid advertising for the games with a budget of several thousand dollars; edited the ad trailers myself."],
+           "<div class='muted'>Business or sector: Game development</div>")],
     h_edu="Education and training",
     edu=[("09/2023 – 06/2027 (expected)", "Bachelor’s degree — Artificial Intelligence",
           "Tashkent State University of Economics — Tashkent, Uzbekistan · EQF level 6",
@@ -298,9 +314,9 @@ EP_EN = dict(
     dig_note="Digital competences — self-assessment grid.",
     dig_tools="Adobe Premiere Pro, After Effects, DaVinci Resolve, CapCut, Photoshop · Unity, C# · Python · AI tools",
     h_add="Additional information",
-    add=[("Projects", "AirFly and UzbekAdventure — Android games built in Unity (C#), with self-made promo trailers."),
+    add=[("Projects", "AirFly and UzbekAdventure — Android games built in Unity (C#), promoted with self-edited ad trailers."),
          ("Online profiles", f"LinkedIn: {LINKEDIN} · hh.uz: resume “Video editor” · vacancy.argos.uz"),
-         ("Interests", "Game industry, motion graphics, AI tools for content creation."),
+         ("Interests", "Game industry, YouTube, motion graphics, AI tools for content creation."),
          ("References", "Available on request.")],
 )
 
@@ -316,15 +332,19 @@ EP_RU = dict(
             "Моушн-графика: анимированные логотипы, титры, заставки.",
             "Ведение проекта от брифа и раскадровки до финального рендера и правок заказчика."],
            "<div class='muted'>Сфера деятельности: цифровые медиа и реклама</div>"),
-          ("07.2021 – по наст. время", "Разработчик мобильных игр (самостоятельно)",
-           "Собственные проекты — Термез / Ташкент, Узбекистан",
-           ["Создал 2 игры для Android на Unity (C#) — AirFly и UzbekAdventure: геймплей, интерфейс, графика, сборка APK.",
-            "Монтаж промо-трейлеров к своим играм."],
-           "<div class='muted'>Сфера деятельности: разработка игр</div>"),
+          ("2023 – 2025", "Менеджер YouTube-канала и видеомонтажёр", "YouTube-канал — удалённо",
+           ["Монтаж роликов, создание превью, названия и описания под поиск.",
+            "Планирование графика публикаций и анализ статистики в YouTube Studio."],
+           "<div class='muted'>Сфера деятельности: онлайн-медиа</div>"),
           ("07.2021 – 08.2023", "Графический дизайнер, помощник предпринимателя", "Семейный бизнес — Термез, Узбекистан",
            ["Рекламные материалы: логотипы, баннеры, посты для соцсетей.",
             "Помощь в работе с клиентами и в текущих делах бизнеса."],
-           "<div class='muted'>Сфера деятельности: малый бизнес, торговля</div>")],
+           "<div class='muted'>Сфера деятельности: малый бизнес, торговля</div>"),
+          ("2019 – по наст. время", "Разработчик мобильных игр (самостоятельно)",
+           "Собственные проекты — Термез / Ташкент, Узбекистан",
+           ["Создал 2 игры для Android на Unity (C#) — AirFly и UzbekAdventure: геймплей, интерфейс, графика, сборка APK.",
+            "Запускал платную рекламу игр с бюджетом в несколько тысяч долларов; рекламные трейлеры монтировал сам."],
+           "<div class='muted'>Сфера деятельности: разработка игр</div>")],
     h_edu="Образование и обучение",
     edu=[("09.2023 – 06.2027 (ожид.)", "Бакалавриат — Искусственный интеллект",
           "Ташкентский государственный экономический университет — Ташкент, Узбекистан · уровень EQF 6",
@@ -350,9 +370,9 @@ EP_RU = dict(
     dig_note="Цифровые компетенции — шкала самооценки.",
     dig_tools="Adobe Premiere Pro, After Effects, DaVinci Resolve, CapCut, Photoshop · Unity, C# · Python · AI-инструменты",
     h_add="Дополнительная информация",
-    add=[("Проекты", "AirFly и UzbekAdventure — игры для Android на Unity (C#) с собственными промо-трейлерами."),
+    add=[("Проекты", "AirFly и UzbekAdventure — игры для Android на Unity (C#), продвигались рекламными трейлерами моего монтажа."),
          ("Профили", f"LinkedIn: {LINKEDIN} · hh.uz: резюме «Видеомонтажёр» · vacancy.argos.uz"),
-         ("Интересы", "Игровая индустрия, моушн-графика, AI-инструменты для создания контента."),
+         ("Интересы", "Игровая индустрия, YouTube, моушн-графика, AI-инструменты для создания контента."),
          ("Рекомендации", "Предоставляются по запросу.")],
 )
 
