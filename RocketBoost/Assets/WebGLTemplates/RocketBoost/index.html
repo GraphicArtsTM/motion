@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>{{{ PRODUCT_NAME }}}</title>
+
+    <!-- ================= MONETAG (ads guide, Part 6.4) =================
+         1) If Monetag asks for a meta tag to confirm the site, put it here, for example:
+            <meta name="monetag" content="CONFIRMATION_CODE_FROM_PANEL">
+         2) Paste the SDK script from your Monetag zone panel right below this comment.
+         3) Uncomment the <script> block below and replace show_ZONE_NUMBER with the function
+            names from your panel. The functions must return a Promise.
+         Until you do this, the "Watch ad" button simply does not appear in the browser version. -->
+
+    <!--
+    <script>
+      // Rewarded: must return a Promise that finishes after the ad is watched
+      window.monetagShowRewarded = function () {
+        return show_ZONE_NUMBER();
+      };
+      // Interstitial between levels and restarts
+      window.monetagShowInterstitial = function () {
+        return show_ZONE_NUMBER();
+      };
+    </script>
+    -->
+
+    <style>
+      html, body { margin: 0; padding: 0; background: #0b1020; color: #cfd8ff; font-family: sans-serif; }
+      #unity-container { position: relative; margin: 0 auto; width: 100%; max-width: 1280px; }
+      #unity-canvas { display: block; width: 100%; aspect-ratio: 16 / 9; background: #0b1020; outline: none; }
+      #unity-loading { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 40%; }
+      #unity-progress { height: 10px; background: #26315a; border-radius: 5px; overflow: hidden; }
+      #unity-progress-bar { height: 100%; width: 0%; background: #f39c2b; }
+      #unity-warning { position: absolute; left: 50%; top: 8px; transform: translateX(-50%); }
+      #unity-warning div { padding: 8px 12px; margin-bottom: 4px; border-radius: 4px; }
+      #ad-banner-bottom { text-align: center; margin: 8px auto; min-height: 50px; }
+      body.mobile #unity-container { max-width: none; }
+      body.mobile #unity-canvas { width: 100vw; height: calc(100vh - 60px); aspect-ratio: auto; }
+    </style>
+  </head>
+  <body>
+    <div id="unity-container">
+      <canvas id="unity-canvas" tabindex="-1"></canvas>
+      <div id="unity-loading"><div id="unity-progress"><div id="unity-progress-bar"></div></div></div>
+      <div id="unity-warning"></div>
+    </div>
+
+    <!-- ================= ADSTERRA BANNER (ads guide, Part 7.4) =================
+         Paste the banner code from the Adsterra panel inside this div, without changes.
+         The banner is under the game, it never covers the game window. -->
+    <div id="ad-banner-bottom">
+      <!-- BANNER_CODE_FROM_ADSTERRA_PANEL -->
+    </div>
+
+    <script>
+      var canvas = document.querySelector("#unity-canvas");
+      var loading = document.querySelector("#unity-loading");
+      var progressBar = document.querySelector("#unity-progress-bar");
+      var warning = document.querySelector("#unity-warning");
+
+      function showBanner(msg, type) {
+        var div = document.createElement("div");
+        div.innerHTML = msg;
+        div.style.background = type == "error" ? "#c0392b" : "#f1c40f";
+        div.style.color = type == "error" ? "#fff" : "#000";
+        warning.appendChild(div);
+        if (type != "error") setTimeout(function () { warning.removeChild(div); }, 5000);
+      }
+
+      if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+        document.body.className = "mobile";
+      }
+
+      var buildUrl = "Build";
+      var config = {
+        arguments: [],
+        dataUrl: buildUrl + "/{{{ DATA_FILENAME }}}",
+        frameworkUrl: buildUrl + "/{{{ FRAMEWORK_FILENAME }}}",
+#if USE_THREADS
+        workerUrl: buildUrl + "/{{{ WORKER_FILENAME }}}",
+#endif
+        codeUrl: buildUrl + "/{{{ CODE_FILENAME }}}",
+#if MEMORY_FILENAME
+        memoryUrl: buildUrl + "/{{{ MEMORY_FILENAME }}}",
+#endif
+#if SYMBOLS_FILENAME
+        symbolsUrl: buildUrl + "/{{{ SYMBOLS_FILENAME }}}",
+#endif
+        streamingAssetsUrl: "StreamingAssets",
+        companyName: {{{ JSON.stringify(COMPANY_NAME) }}},
+        productName: {{{ JSON.stringify(PRODUCT_NAME) }}},
+        productVersion: {{{ JSON.stringify(PRODUCT_VERSION) }}},
+        showBanner: showBanner,
+      };
+
+      var script = document.createElement("script");
+      script.src = buildUrl + "/{{{ LOADER_FILENAME }}}";
+      script.onload = function () {
+        createUnityInstance(canvas, config, function (progress) {
+          progressBar.style.width = 100 * progress + "%";
+        }).then(function (unityInstance) {
+          // A backup way for SendMessage from WebAds.jslib (ads guide, Part 6.4, step 2)
+          window.unityInstance = unityInstance;
+          loading.style.display = "none";
+        }).catch(function (message) {
+          alert(message);
+        });
+      };
+      document.body.appendChild(script);
+    </script>
+
+    <!-- SOCIAL_BAR_CODE_FROM_ADSTERRA_PANEL (optional, before </body>) -->
+  </body>
+</html>
