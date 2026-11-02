@@ -1,0 +1,11 @@
+# Rojo
+sourcemap.json
+*.rbxl
+*.rbxlx
+*.rbxl.lock
+*.rbxlx.lock
+*.rbxm
+# Lune type definitions (генерируются `lune setup`)
+.lune-typedefs/
+# Tools
+roblox.yml

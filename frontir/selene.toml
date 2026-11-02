@@ -1,0 +1,5 @@
+std = "roblox"
+
+[lints]
+# Luau-типы (`export type`) selene понимает; shadowing допустим в коротких функциях.
+shadowing = "allow"

@@ -1,0 +1,35 @@
+name: Frontir CI
+
+on:
+  push:
+    paths:
+      - "frontir/**"
+      - ".github/workflows/ci.yml"
+  pull_request:
+    paths:
+      - "frontir/**"
+      - ".github/workflows/ci.yml"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontir
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rokit and tools
+        uses: CompeyDev/setup-rokit@v0.2.1
+        with:
+          path: frontir
+          token: ${{ github.token }}
+
+      - name: StyLua
+        run: stylua --check src tests tools
+
+      - name: Selene
+        run: selene src tests tools
+
+      - name: Lune tests
+        run: lune run tests
