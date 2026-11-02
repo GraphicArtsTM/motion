@@ -20,9 +20,11 @@ T.describe("Config", function()
 		T.expect(Config.Sim.TickRate).toBe(10)
 	end)
 
-	T.it("зум ×1–×12 и чанк — степень двойки не больше 1024 (§3)", function()
-		T.expect(Config.Render.ZoomMin).toBe(1)
+	T.it("зум и чанки (§3)", function()
+		T.expect(Config.Render.IntegerZoomFrom).toBe(2)
 		T.expect(Config.Render.ZoomMax).toBe(12)
+		T.expect(Config.Render.ZoomFloor > 0 and Config.Render.ZoomFloor < Config.Render.IntegerZoomFrom).toBe(true)
+		T.expect(Config.Render.WheelZoomFactor > 1).toBe(true)
 		local c = Config.Render.ChunkSize
 		T.expect(c > 0 and bit32.band(c, c - 1) == 0 and c <= 1024).toBe(true)
 	end)

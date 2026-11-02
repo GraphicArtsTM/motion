@@ -6,6 +6,7 @@ local Fixtures = require("./lib/Fixtures")
 local CameraMath = require("../src/shared/CameraMath")
 local Config = require("../src/shared/Config")
 local MapPaint = require("../src/shared/MapPaint")
+local NationColors = require("../src/shared/NationColors")
 local Palette = require("../src/shared/Palette")
 local Types = require("../src/shared/Types")
 
@@ -35,6 +36,30 @@ T.describe("Palette", function()
 		for _, s in Palette.Swatches do
 			T.expect(fromDoc[s.name]).toBe(s.hex)
 		end
+	end)
+
+	T.it("docs/palette.png соответствует коду (иначе: lune run tools/palette_preview)", function()
+		local png = fs.readFile("docs/palette.png")
+		T.expect(string.sub(png, 1, 8)).toBe("\137PNG\r\n\26\n")
+		local hexes: { string } = {}
+		for _, s in Palette.Swatches do
+			table.insert(hexes, s.hex)
+		end
+		local stamp = "Frontir-Palette\0" .. table.concat(hexes, ",") .. "|" .. table.concat(NationColors.Hex, ",")
+		T.expect(string.find(png, stamp, 1, true) ~= nil).toBe(true)
+	end)
+
+	T.it("таблица цветов держав в docs/palette.md совпадает с кодом", function()
+		local doc = fs.readFile("docs/palette.md")
+		local count = 0
+		for index, hex, borderHex in string.gmatch(doc, "| (%d+) | `#(%x+)` | `#(%x+)` |") do
+			local i = tonumber(index) :: number
+			count += 1
+			T.expect(hex).toBe(NationColors.Hex[i])
+			local b = NationColors.Borders[i]
+			T.expect(borderHex).toBe(string.format("%02x%02x%02x", b.r, b.g, b.b))
+		end
+		T.expect(count).toBe(NationColors.Count)
 	end)
 
 	T.it("неизвестный цвет — ошибка", function()
@@ -122,27 +147,73 @@ T.describe("CameraMath", function()
 
 	T.it("новая камера показывает карту целиком и по центру", function()
 		local s = CameraMath.new(W, H, 1280, 720)
-		T.expect(s.zoom).toBe(2)
+		T.expect(s.zoom).toBe(2) -- 2.16 с отступом → целое 2
 		local ox, oy = CameraMath.canvasOffset(s)
 		T.expect(ox).toBe((1280 - W * 2) // 2)
 		T.expect(oy).toBe((720 - H * 2) // 2)
 	end)
 
-	T.it("на телефоне карта влезает при зуме ×1", function()
+	T.it(
+		"обзорный зум ниже ×2 дробный и почти заполняет экран (случай со скриншота)",
+		function()
+			local s = CameraMath.new(W, H, 1440, 611)
+			T.expect(s.zoom).toBeNear(611 / 320 * Config.Render.FitMargin, 1e-9)
+			T.expect(H * s.zoom <= 611 and H * s.zoom >= 611 * 0.9).toBe(true)
+		end
+	)
+
+	T.it("на телефоне карта влезает целиком", function()
 		local s = CameraMath.new(W, H, 844, 390)
-		T.expect(s.zoom).toBe(1)
 		T.expect(W * s.zoom <= 844 and H * s.zoom <= 390).toBe(true)
+		T.expect(H * s.zoom >= 390 * 0.9).toBe(true)
 	end)
 
-	T.it("зум ограничен диапазоном из Config и всегда целый", function()
-		local s = CameraMath.new(W, H, 1280, 720)
-		CameraMath.zoomAt(s, 100, 640, 360)
-		T.expect(s.zoom).toBe(Config.Render.ZoomMax)
-		CameraMath.zoomAt(s, -5, 640, 360)
-		T.expect(s.zoom).toBe(Config.Render.ZoomMin)
-		CameraMath.zoomAt(s, 4.4, 640, 360)
-		T.expect(s.zoom).toBe(4)
-	end)
+	T.it(
+		"зум ограничен: не мельче «всей карты» и не крупнее ZoomMax",
+		function()
+			local s = CameraMath.new(W, H, 1280, 720)
+			CameraMath.zoomAt(s, 100, 640, 360)
+			T.expect(s.zoom).toBe(Config.Render.ZoomMax)
+			CameraMath.zoomAt(s, -5, 640, 360)
+			T.expect(s.zoom).toBe(CameraMath.minZoom(s))
+			CameraMath.zoomAt(s, 4.4, 640, 360) -- в анимации зум бывает дробным
+			T.expect(s.zoom).toBeNear(4.4, 1e-9)
+			T.expect(CameraMath.snapZoom(s, 4.4)).toBe(4)
+		end
+	)
+
+	T.it(
+		"колесо: от ×2 только целые шаги, каждый щелчок меняет зум, туда и обратно",
+		function()
+			local s = CameraMath.new(W, H, 1440, 611)
+			local z = s.zoom
+			local up: { number } = {}
+			while true do
+				local t = CameraMath.wheelTarget(s, z, 1)
+				if t == z then
+					break
+				end
+				T.expect(t > z).toBe(true)
+				if t >= Config.Render.IntegerZoomFrom then
+					T.expect(t).toBe(math.round(t))
+				end
+				table.insert(up, t)
+				z = t
+			end
+			T.expect(z).toBe(Config.Render.ZoomMax)
+			T.expect(up[1]).toBe(Config.Render.IntegerZoomFrom) -- с обзорного 1.83 сразу на ×2
+			T.expect(#up <= 10).toBe(true) -- от обзора до ×12 — не больше 10 щелчков
+			while true do
+				local t = CameraMath.wheelTarget(s, z, -1)
+				if t == z then
+					break
+				end
+				T.expect(t < z).toBe(true)
+				z = t
+			end
+			T.expect(z).toBe(CameraMath.minZoom(s))
+		end
+	)
 
 	T.it(
 		"зум к курсору: клетка под курсором остаётся под курсором",
@@ -151,12 +222,27 @@ T.describe("CameraMath", function()
 			CameraMath.zoomAt(s, 6, 640, 360)
 			local sx, sy = 700, 300
 			local wx, wy = CameraMath.screenToWorld(s, sx, sy)
-			CameraMath.zoomAt(s, 9, sx, sy)
-			local wx2, wy2 = CameraMath.screenToWorld(s, sx, sy)
-			T.expect(wx2).toBeNear(wx, 1e-9)
-			T.expect(wy2).toBeNear(wy, 1e-9)
+			for _, z in { 9, 7.37, 12 } do
+				CameraMath.zoomAt(s, z, sx, sy)
+				local wx2, wy2 = CameraMath.screenToWorld(s, sx, sy)
+				T.expect(wx2).toBeNear(wx, 1e-9)
+				T.expect(wy2).toBeNear(wy, 1e-9)
+			end
 		end
 	)
+
+	T.it("границы клеток при дробном зуме стыкуются без щелей", function()
+		for _, z in { 1.83, 2, 2.7, 11.3 } do
+			local prev = CameraMath.cellEdge(z, 0)
+			T.expect(prev).toBe(0)
+			for c = 1, 600 do
+				local e = CameraMath.cellEdge(z, c)
+				T.expect(e >= prev).toBe(true)
+				T.expect(e - prev <= math.ceil(z)).toBe(true)
+				prev = e
+			end
+		end
+	end)
 
 	T.it("панорамирование и границы", function()
 		local s = CameraMath.new(W, H, 1280, 720)
@@ -170,6 +256,17 @@ T.describe("CameraMath", function()
 		CameraMath.pan(s, -1e6, -1e6)
 		T.expect(s.x).toBeNear(W - 1280 / 8 + Config.Render.PanMarginPx / 8, 1e-9)
 	end)
+
+	T.it(
+		"смена размера окна не даёт зуму стать мельче «всей карты»",
+		function()
+			local s = CameraMath.new(W, H, 844, 390)
+			local small = s.zoom
+			CameraMath.setViewSize(s, 2560, 1440)
+			T.expect(s.zoom >= CameraMath.minZoom(s)).toBe(true)
+			T.expect(s.zoom > small).toBe(true)
+		end
+	)
 
 	T.it("клетка под точкой экрана и видимая область", function()
 		local s = CameraMath.new(W, H, 1280, 720)

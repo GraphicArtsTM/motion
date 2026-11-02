@@ -4,6 +4,7 @@
 	В Studio открыто сразу, в игре — по F3. Время тика и пинг появятся вместе с сервером симуляции (этап 2).
 ]]
 
+local GuiService = game:GetService("GuiService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -38,7 +39,10 @@ end
 function DebugOverlay.create(parent: Instance, source: DebugSource, lang: Strings.Lang): () -> ()
 	local panel = Instance.new("Frame")
 	panel.Name = "DebugOverlay"
-	panel.Position = UDim2.fromOffset(8, 8)
+	-- Справа сверху, под верхней панелью Roblox (слева её кнопки и чат).
+	local inset = GuiService:GetGuiInset()
+	panel.AnchorPoint = Vector2.new(1, 0)
+	panel.Position = UDim2.new(1, -8, 0, inset.Y + 8)
 	panel.Size = UDim2.fromOffset(330, 0)
 	panel.AutomaticSize = Enum.AutomaticSize.Y
 	panel.BackgroundColor3 = Theme.Colors.PanelBg
@@ -91,7 +95,7 @@ function DebugOverlay.create(parent: Instance, source: DebugSource, lang: String
 				map.height,
 				map.seed
 			),
-			string.format(Strings.get("debug.zoom", lang), s.zoom),
+			string.format(Strings.get("debug.zoom", lang), s.zoom, CameraMath.minZoom(s)),
 			string.format(Strings.get("debug.camera", lang), s.x, s.y),
 		}
 		local hx, hy = source.hover()

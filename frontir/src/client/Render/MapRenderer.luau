@@ -4,7 +4,7 @@
 
 	Карта режется на чанки Config.Render.ChunkSize (лимит Roblox — 1024×1024 на изображение).
 	Каждый чанк — свой EditableImage в ImageLabel с ResampleMode = Pixelated: одна клетка = один пиксель
-	текстуры, зум — это просто размер ImageLabel, поэтому без размытия.
+	текстуры, зум — это просто размер ImageLabel, поэтому без размытия (ближайший пиксель).
 	Камера двигает и масштабирует общий Frame-холст; текстуры при этом не перерисовываются.
 
 	Ограничения Roblox (create.roblox.com/docs, EditableImage / AssetService):
@@ -17,6 +17,7 @@ local AssetService = game:GetService("AssetService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local CameraMath = require(Shared:WaitForChild("CameraMath"))
 local Config = require(Shared:WaitForChild("Config"))
 local MapDataModule = require(Shared:WaitForChild("MapData"))
 local MapPaint = require(Shared:WaitForChild("MapPaint"))
@@ -99,11 +100,16 @@ function MapRenderer.create(parent: GuiObject, map: MapData, colors: buffer): (M
 		canvas.Position = UDim2.fromOffset(offsetX, offsetY)
 		if zoom ~= lastZoom then
 			lastZoom = zoom
-			canvas.Size = UDim2.fromOffset(map.width * zoom, map.height * zoom)
-			-- Позиции и размеры в целых пикселях: чанки стыкуются без щелей.
+			canvas.Size = UDim2.fromOffset(CameraMath.cellEdge(zoom, map.width), CameraMath.cellEdge(zoom, map.height))
+			-- Края чанков — округлённые границы клеток: при дробном зуме чанки стыкуются без щелей.
 			for _, chunk in chunks do
-				chunk.label.Position = UDim2.fromOffset(chunk.x0 * zoom, chunk.y0 * zoom)
-				chunk.label.Size = UDim2.fromOffset(chunk.w * zoom, chunk.h * zoom)
+				local left = CameraMath.cellEdge(zoom, chunk.x0)
+				local top = CameraMath.cellEdge(zoom, chunk.y0)
+				chunk.label.Position = UDim2.fromOffset(left, top)
+				chunk.label.Size = UDim2.fromOffset(
+					CameraMath.cellEdge(zoom, chunk.x0 + chunk.w) - left,
+					CameraMath.cellEdge(zoom, chunk.y0 + chunk.h) - top
+				)
 			end
 		end
 	end

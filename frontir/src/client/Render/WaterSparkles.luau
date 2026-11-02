@@ -56,8 +56,13 @@ function WaterSparkles.start(
 
 	local function place(s: Sparkle)
 		local z = state.zoom
-		s.frame.Position = UDim2.fromOffset(s.cx * z, s.cy * z)
-		s.frame.Size = UDim2.fromOffset(z, z)
+		local left = CameraMath.cellEdge(z, s.cx)
+		local top = CameraMath.cellEdge(z, s.cy)
+		s.frame.Position = UDim2.fromOffset(left, top)
+		s.frame.Size = UDim2.fromOffset(
+			math.max(1, CameraMath.cellEdge(z, s.cx + 1) - left),
+			math.max(1, CameraMath.cellEdge(z, s.cy + 1) - top)
+		)
 	end
 
 	local function onCamera(_: CameraState)

@@ -47,6 +47,8 @@ task.spawn(function()
 end)
 StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
 StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Health, false)
+-- Справа сверху по GDD §10 будет своя таблица лидеров; стандартный список игроков её перекрывал бы.
+StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)
 
 -- Карту выбирает сервер (атрибут MapId у ReplicatedStorage), данные лежат в ReplicatedStorage.Maps.
 local mapId = ReplicatedStorage:GetAttribute("MapId")

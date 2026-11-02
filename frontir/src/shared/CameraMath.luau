@@ -1,8 +1,15 @@
 --!strict
 --[[
 	CameraMath — 2D-камера карты без Roblox API (тестируется в Lune).
-	Мир — клетки карты, экран — пиксели области просмотра. zoom = пикселей экрана на клетку, целое.
+	Мир — клетки карты, экран — пиксели области просмотра. zoom = пикселей экрана на клетку.
 	(x, y) — мировая координата (в клетках) левого верхнего угла экрана.
+
+	Зум:
+	- самый мелкий — «вся карта на экране» (fitZoom): дробный ниже IntegerZoomFrom, чтобы карта
+	  занимала экран, а не висела маленькой картинкой посередине;
+	- от IntegerZoomFrom (×2) колесо и щипок останавливаются только на целых значениях — все клетки
+	  одного размера, пиксели ровные; в процессе плавной анимации зум бывает дробным.
+	Границы клеток на экране округляются до целых пикселей (cellEdge) — без щелей и размытия.
 ]]
 
 local Config = require("./Config")
@@ -19,16 +26,46 @@ export type CameraState = {
 
 local CameraMath = {}
 
-local function clampZoom(z: number): number
-	return math.clamp(math.round(z), Config.Render.ZoomMin, Config.Render.ZoomMax)
+local EPS = 1e-6
+
+-- Зум, при котором карта видна целиком (с отступом FitMargin).
+function CameraMath.fitZoom(mapW: number, mapH: number, viewW: number, viewH: number): number
+	local cfg = Config.Render
+	local z = math.min(viewW / mapW, viewH / mapH) * cfg.FitMargin
+	if z >= cfg.IntegerZoomFrom then
+		z = math.floor(z)
+	end
+	return math.clamp(z, cfg.ZoomFloor, cfg.ZoomMax)
 end
 
-CameraMath.clampZoom = clampZoom
+-- Самый мелкий допустимый зум для текущего экрана: дальше «всей карты» отдалять незачем.
+function CameraMath.minZoom(s: CameraState): number
+	return CameraMath.fitZoom(s.mapW, s.mapH, s.viewW, s.viewH)
+end
 
--- Наибольший целый зум, при котором карта видна целиком.
-function CameraMath.fitZoom(mapW: number, mapH: number, viewW: number, viewH: number): number
-	local z = math.floor(math.min(viewW / mapW, viewH / mapH))
-	return math.clamp(z, Config.Render.ZoomMin, Config.Render.ZoomMax)
+function CameraMath.clampZoom(s: CameraState, z: number): number
+	return math.clamp(z, CameraMath.minZoom(s), Config.Render.ZoomMax)
+end
+
+-- Ближайший «устойчивый» зум: от IntegerZoomFrom — целый.
+function CameraMath.snapZoom(s: CameraState, z: number): number
+	local c = CameraMath.clampZoom(s, z)
+	if c >= Config.Render.IntegerZoomFrom then
+		c = CameraMath.clampZoom(s, math.round(c))
+	end
+	return c
+end
+
+-- Цель зума после щелчка колеса (dir = +1 ближе, -1 дальше) от зума current.
+function CameraMath.wheelTarget(s: CameraState, current: number, dir: number): number
+	local t = CameraMath.snapZoom(s, current * Config.Render.WheelZoomFactor ^ dir)
+	-- Округление не должно «съесть» шаг: каждый щелчок хоть немного меняет зум.
+	if dir > 0 and t <= current + EPS then
+		t = CameraMath.snapZoom(s, math.floor(current + EPS) + 1)
+	elseif dir < 0 and t >= current - EPS then
+		t = CameraMath.snapZoom(s, math.ceil(current - EPS) - 1)
+	end
+	return t
 end
 
 -- Держит карту в пределах экрана: если карта меньше экрана по оси — центрирует,
@@ -72,10 +109,10 @@ function CameraMath.worldToScreen(s: CameraState, wx: number, wy: number): (numb
 	return (wx - s.x) * s.zoom, (wy - s.y) * s.zoom
 end
 
--- Новый зум с сохранением точки мира под (sx, sy) экрана (курсор или центр щипка).
+-- Новый зум с сохранением точки мира под (sx, sy) экрана (курсор или центр щипка). Без округления.
 function CameraMath.zoomAt(s: CameraState, newZoom: number, sx: number, sy: number)
-	local z = clampZoom(newZoom)
-	if z == s.zoom then
+	local z = CameraMath.clampZoom(s, newZoom)
+	if math.abs(z - s.zoom) < EPS then
 		return
 	end
 	local wx, wy = CameraMath.screenToWorld(s, sx, sy)
@@ -95,6 +132,7 @@ end
 function CameraMath.setViewSize(s: CameraState, viewW: number, viewH: number)
 	s.viewW = viewW
 	s.viewH = viewH
+	s.zoom = CameraMath.clampZoom(s, s.zoom)
 	CameraMath.clamp(s)
 end
 
@@ -105,16 +143,22 @@ function CameraMath.centerOn(s: CameraState, wx: number, wy: number)
 	CameraMath.clamp(s)
 end
 
--- Смещение левого верхнего угла карты на экране в целых пикселях (ровная сетка пикселей).
+-- Смещение левого верхнего угла карты на экране в целых пикселях.
 function CameraMath.canvasOffset(s: CameraState): (number, number)
 	return math.round(-s.x * s.zoom), math.round(-s.y * s.zoom)
+end
+
+-- Граница клетки c (в клетках от края карты) в целых пикселях холста.
+-- Соседние прямоугольники, посчитанные так, стыкуются без щелей и наложений.
+function CameraMath.cellEdge(zoom: number, c: number): number
+	return math.round(c * zoom)
 end
 
 -- Клетка под точкой экрана или nil, если вне карты.
 function CameraMath.cellAt(s: CameraState, sx: number, sy: number): (number?, number?)
 	local ox, oy = CameraMath.canvasOffset(s)
-	local cx = (sx - ox) // s.zoom
-	local cy = (sy - oy) // s.zoom
+	local cx = math.floor((sx - ox) / s.zoom)
+	local cy = math.floor((sy - oy) / s.zoom)
 	if cx < 0 or cy < 0 or cx >= s.mapW or cy >= s.mapH then
 		return nil, nil
 	end

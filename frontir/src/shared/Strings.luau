@@ -29,7 +29,7 @@ local TABLE: { [string]: Entry } = {
 	["debug.title"] = { ru = "Отладка (F3)", en = "Debug (F3)" },
 	["debug.fps"] = { ru = "FPS: %d", en = "FPS: %d" },
 	["debug.map"] = { ru = "Карта: %s %d×%d, сид %d", en = "Map: %s %d×%d, seed %d" },
-	["debug.zoom"] = { ru = "Зум: ×%d", en = "Zoom: ×%d" },
+	["debug.zoom"] = { ru = "Зум: ×%.2f (мин. ×%.2f)", en = "Zoom: ×%.2f (min ×%.2f)" },
 	["debug.camera"] = { ru = "Камера: %.1f, %.1f", en = "Camera: %.1f, %.1f" },
 	["debug.cell"] = { ru = "Клетка: %d, %d — %s", en = "Cell: %d, %d — %s" },
 	["debug.cell.none"] = { ru = "Клетка: —", en = "Cell: —" },

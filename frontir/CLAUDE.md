@@ -9,9 +9,9 @@
 - **Сервер решает всё.** Клиент шлёт намерения (intents) и рисует. Каждое намерение сервер валидирует.
 - **Все числа баланса — только в `src/shared/Config.luau`.** Никаких магических чисел. Изменения баланса — в `docs/BALANCE.md`.
 - **Все строки UI — через ключи** в `src/shared/Strings.luau` (RU/EN), не хардкодом.
-- **Плейсхолдеры вместо арта**: рисуем программно. Нужные спрайты и размеры — в `docs/ART_LIST.md`. Цвета — только из `docs/palette.md`.
+- **Плейсхолдеры вместо арта**: рисуем программно. Нужные спрайты и размеры — в `docs/ART_LIST.md`. Цвета — только из `docs/palette.md` (32 цвета палитры + 24 цвета держав из `NationColors`).
 - **Не выдумывать API Roblox.** Сверяться с create.roblox.com/docs. Упёрлись в лимит — сказать и предложить замену.
-- **Оригинальность**: не копировать код, названия, UI, карты и арт других игр.
+- **Оригинальность** (уточнено геймдизайнером): механики жанра можно брать у других игр, если они делают игру интереснее. Не копируем только чужой код, арт, звуки, названия, логотипы и узнаваемый интерфейс один в один — это авторское право и правила Roblox.
 - **Никаких реальных стран, флагов, лидеров**, любой текст игроков — через фильтр Roblox.
 - Изменения записывать в `docs/CHANGELOG.md`.
 
@@ -23,6 +23,7 @@ stylua --check src tests tools
 selene src tests tools
 rojo serve              # синхронизация со Studio
 lune run tools/genmap Pangea   # пересоздать maps/Pangea.luau (+ превью build/Pangea.bmp)
+lune run tools/palette_preview # пересоздать docs/palette.png после правки цветов
 rojo sourcemap default.project.json -o sourcemap.json   # для luau-lsp
 lune setup              # типы Lune (алиас @lune в .luaurc)
 luau-lsp analyze --platform=roblox --definitions:@roblox=types/globalTypes.d.luau --sourcemap=sourcemap.json --base-luaurc=.luaurc src tests tools

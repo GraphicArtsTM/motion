@@ -1,7 +1,7 @@
 --!strict
 --[[
 	CameraInput — управление камерой (GDD §3):
-	- мышь: колесо — зум к курсору, перетаскивание правой или средней кнопкой — сдвиг;
+	- мышь: колесо — плавный зум к курсору (от ×2 — только целые шаги), перетаскивание правой или средней кнопкой — сдвиг;
 	- клавиатура: WASD и стрелки — сдвиг, Space — показать всю карту;
 	- телефон: перетаскивание пальцем — сдвиг, щипок двумя пальцами — зум к центру щипка.
 	Координаты ввода переводятся в координаты области карты через её AbsolutePosition,
@@ -96,10 +96,10 @@ function CameraInput.bind(camera: Camera2D, viewport: GuiObject): Binding
 				end
 			elseif t == Enum.UserInputType.MouseWheel and not gameProcessed then
 				local x, y = toLocal(input.Position)
-				local step = if input.Position.Z > 0 then 1 elseif input.Position.Z < 0 then -1 else 0
-				if step ~= 0 then
-					CameraMath.zoomAt(state, state.zoom + step, x, y)
-					camera.refresh()
+				local dir = if input.Position.Z > 0 then 1 elseif input.Position.Z < 0 then -1 else 0
+				if dir ~= 0 then
+					-- От текущей цели, чтобы быстрые щелчки складывались, а не терялись в анимации.
+					camera.zoomTo(CameraMath.wheelTarget(state, camera.targetZoom(), dir), x, y)
 				end
 			end
 		end)
@@ -144,6 +144,7 @@ function CameraInput.bind(camera: Camera2D, viewport: GuiObject): Binding
 			touches[input] = { x = x, y = y }
 			touchCount += 1
 			if touchCount == 2 then
+				camera.cancelZoom()
 				beginPinch()
 			end
 		end)
@@ -184,6 +185,9 @@ function CameraInput.bind(camera: Camera2D, viewport: GuiObject): Binding
 				touchCount -= 1
 				if touchCount == 2 then
 					beginPinch()
+				elseif touchCount == 1 then
+					-- Щипок закончился: доводим зум до ближайшего целого (от ×2) плавно.
+					camera.zoomTo(CameraMath.snapZoom(state, state.zoom), pinchMidX, pinchMidY)
 				end
 			end
 		end)
