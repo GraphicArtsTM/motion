@@ -16,7 +16,8 @@ local function deepFreeze<T>(t: T): T
 			deepFreeze(v)
 		end
 	end
-	return table.freeze(tbl)
+	table.freeze(tbl)
+	return t
 end
 
 local Config = {}
@@ -55,7 +56,7 @@ Config.Render = {
 }
 
 -- §6.1 Местность. Порядок id фиксирован форматом карты, не переставлять.
-Config.Terrain = {
+local terrain: { [Types.TerrainId]: Types.TerrainStats } = {
 	[Types.Terrain.Water] = { captureCost = 0, defense = 0, armySpeed = 0, passable = false },
 	[Types.Terrain.Plains] = { captureCost = 1.0, defense = 1.0, armySpeed = 1.0, passable = true },
 	[Types.Terrain.Forest] = { captureCost = 1.3, defense = 1.2, armySpeed = 0.8, passable = true },
@@ -63,11 +64,12 @@ Config.Terrain = {
 	[Types.Terrain.Mountains] = { captureCost = 2.5, defense = 1.8, armySpeed = 0.45, passable = true },
 	[Types.Terrain.Desert] = { captureCost = 1.2, defense = 0.9, armySpeed = 0.85, passable = true },
 	[Types.Terrain.Tundra] = { captureCost = 1.4, defense = 1.0, armySpeed = 0.75, passable = true },
-} :: { [Types.TerrainId]: Types.TerrainStats }
+}
+Config.Terrain = terrain
 
 -- §7 Юниты. Скорость в клетках/с для эталонной ширины карты UnitsReferenceMapWidth.
 Config.UnitsReferenceMapWidth = 512
-Config.Units = {
+local units: Types.UnitTable = {
 	Infantry = { cost = 1000, oil = 0, speed = 2.4, attack = 1.0, defense = 1.2, captureRate = 26, requires = nil },
 	Tanks = { cost = 2500, oil = 20, speed = 3.6, attack = 1.6, defense = 1.0, captureRate = 18, requires = "Factory" },
 	Artillery = {
@@ -93,7 +95,8 @@ Config.Units = {
 		requires = "Airfield",
 	},
 	Bomber = { cost = 5000, oil = 40, speed = 5.0, attack = 2.0, defense = 0.6, captureRate = 0, requires = "Airfield" },
-} :: { [Types.UnitKind]: Types.UnitStats }
+}
+Config.Units = units
 
 -- §6.7 Бой
 Config.Combat = {

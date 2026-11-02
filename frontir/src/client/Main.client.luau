@@ -11,15 +11,10 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
 local Strings = require(Shared:WaitForChild("Strings"))
+local Theme = require(script.Parent:WaitForChild("UI"):WaitForChild("Theme"))
 
 local player = Players.LocalPlayer
-local lang = Strings.langFromLocale(LocalizationService.RobloxLocaleId)
-
--- Цвета-заглушки до появления docs/palette.md (этап 1).
-local PANEL_BG = Color3.fromRGB(20, 22, 34)
-local PANEL_BORDER = Color3.fromRGB(90, 96, 130)
-local GOLD = Color3.fromRGB(240, 196, 64)
-local SKY = Color3.fromRGB(120, 200, 255)
+local lang: Strings.Lang = Strings.langFromLocale(LocalizationService.RobloxLocaleId)
 
 local gui = Instance.new("ScreenGui")
 gui.Name = "FrontirBoot"
@@ -29,7 +24,7 @@ gui.ResetOnSpawn = false
 local backdrop = Instance.new("Frame")
 backdrop.Name = "Backdrop"
 backdrop.Size = UDim2.fromScale(1, 1)
-backdrop.BackgroundColor3 = Color3.fromRGB(8, 10, 18)
+backdrop.BackgroundColor3 = Theme.Colors.Backdrop
 backdrop.BorderSizePixel = 0
 backdrop.Parent = gui
 
@@ -38,36 +33,37 @@ panel.Name = "Panel"
 panel.AnchorPoint = Vector2.new(0.5, 0.5)
 panel.Position = UDim2.fromScale(0.5, 0.5)
 panel.Size = UDim2.fromOffset(360, 120)
-panel.BackgroundColor3 = PANEL_BG
+panel.BackgroundColor3 = Theme.Colors.PanelBg
 panel.BorderSizePixel = 0
 panel.Parent = backdrop
 
 local stroke = Instance.new("UIStroke")
-stroke.Color = PANEL_BORDER
-stroke.Thickness = 1
+stroke.Color = Theme.Colors.PanelBorder
+stroke.Thickness = Theme.BorderPx
 stroke.Parent = panel
 
-local function addLabel(name: string, text: string, color: Color3, y: number, size: number)
+local function addLabel(name: string, text: string, color: Color3, y: number, size: number, font: Font)
 	local label = Instance.new("TextLabel")
 	label.Name = name
 	label.BackgroundTransparency = 1
 	label.Position = UDim2.fromOffset(0, y)
 	label.Size = UDim2.new(1, 0, 0, size + 8)
-	label.Font = Enum.Font.Arcade
+	label.FontFace = font
 	label.TextSize = size
 	label.TextColor3 = color
 	label.Text = text
 	label.Parent = panel
 end
 
-addLabel("Title", Strings.get("game.title", lang), GOLD, 14, 32)
-addLabel("Stage", Strings.get("boot.stage", lang), SKY, 60, 16)
+addLabel("Title", Strings.get("game.title", lang), Theme.Colors.Gold, 14, 32, Theme.FontBold)
+addLabel("Stage", Strings.get("boot.stage", lang), Theme.Colors.Sky, 60, 16, Theme.Font)
 addLabel(
 	"Hint",
 	string.format("%s · %d Hz", Strings.get("boot.hint", lang), Config.Sim.TickRate),
-	PANEL_BORDER,
+	Theme.Colors.Muted,
 	86,
-	14
+	14,
+	Theme.Font
 )
 
 gui.Parent = player:WaitForChild("PlayerGui")

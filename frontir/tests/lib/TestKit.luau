@@ -31,8 +31,11 @@ function TestKit.describe(name: string, body: () -> ())
 end
 
 function TestKit.it(name: string, body: () -> ())
-	local ok, err = pcall(body)
-	table.insert(results, { name = fullName(name), ok = ok, err = if ok then nil else tostring(err) })
+	local err: string? = nil
+	local ok = xpcall(body, function(e: any)
+		err = tostring(e)
+	end)
+	table.insert(results, { name = fullName(name), ok = ok, err = err })
 end
 
 local function fmt(v: any): string

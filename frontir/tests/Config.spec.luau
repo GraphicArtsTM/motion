@@ -3,6 +3,9 @@ local T = require("./lib/TestKit")
 local Config = require("../src/shared/Config")
 local Types = require("../src/shared/Types")
 
+-- Config.Units — запись (record); для перебора в тестах смотрим на неё как на словарь.
+local unitsByKind: { [string]: Types.UnitStats } = Config.Units :: any
+
 T.describe("Config", function()
 	T.it("заморожен целиком", function()
 		T.expect(table.isfrozen(Config)).toBe(true)
@@ -25,7 +28,7 @@ T.describe("Config", function()
 	end)
 
 	T.it("у каждого типа местности есть параметры (§6.1)", function()
-		for _, id in Types.Terrain do
+		for _, id in Types.TerrainIds do
 			local stats = Config.Terrain[id]
 			T.expect(stats ~= nil).toBe(true)
 			if id == Types.Terrain.Water then
@@ -38,9 +41,18 @@ T.describe("Config", function()
 		end
 	end)
 
+	T.it("TerrainIds совпадает с перечислением Terrain", function()
+		local count = 0
+		for _, id in Types.Terrain :: { [string]: number } do
+			count += 1
+			T.expect(table.find(Types.TerrainIds, id) ~= nil).toBe(true)
+		end
+		T.expect(count).toBe(#Types.TerrainIds)
+	end)
+
 	T.it("id местности влезают в байт и уникальны", function()
 		local seen: { [number]: boolean } = {}
-		for _, id in Types.Terrain do
+		for _, id in Types.TerrainIds do
 			T.expect(id >= 0 and id <= 255).toBe(true)
 			T.expect(seen[id]).toBe(nil)
 			seen[id] = true
@@ -48,7 +60,7 @@ T.describe("Config", function()
 	end)
 
 	T.it("у юнитов положительные цена и скорость (§7)", function()
-		for _, u in Config.Units do
+		for _, u in unitsByKind do
 			T.expect(u.cost > 0).toBe(true)
 			T.expect(u.speed > 0).toBe(true)
 			T.expect(u.oil >= 0).toBe(true)
@@ -56,7 +68,7 @@ T.describe("Config", function()
 	end)
 
 	T.it("юнит требует только существующее здание", function()
-		for _, u in Config.Units do
+		for _, u in unitsByKind do
 			if u.requires ~= nil then
 				T.expect((Config.Buildings :: any)[u.requires] ~= nil).toBe(true)
 			end

@@ -19,6 +19,9 @@ Types.Terrain = table.freeze({
 	Tundra = 6,
 })
 
+-- Все id местности по порядку — для перебора (record-таблицу выше перебирать неудобно в strict).
+Types.TerrainIds = table.freeze({ 0, 1, 2, 3, 4, 5, 6 }) :: { TerrainId }
+
 export type TerrainStats = {
 	captureCost: number, -- множитель стоимости захвата клетки
 	defense: number, -- множитель защиты
@@ -50,6 +53,18 @@ export type UnitStats = {
 	captureRate: number, -- клеток/с при захвате провинции
 	range: number?,
 	requires: BuildingKind?,
+}
+
+-- Таблица параметров всех юнитов (запись, чтобы обращение Config.Units.Infantry проверялось типами).
+export type UnitTable = {
+	Infantry: UnitStats,
+	Tanks: UnitStats,
+	Artillery: UnitStats,
+	AntiAir: UnitStats,
+	Transport: UnitStats,
+	Destroyer: UnitStats,
+	Fighter: UnitStats,
+	Bomber: UnitStats,
 }
 
 return Types

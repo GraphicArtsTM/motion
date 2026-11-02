@@ -45,19 +45,31 @@
    rojo plugin install
    ```
 
-## Запуск в Studio
-1. В папке `frontir/`:
+## Проверка этапа в Studio
+Делается после каждого этапа. Все команды выполняются в папке `frontir/`.
+
+1. Поставь или обнови инструменты проекта (после каждого `git pull` тоже):
+   ```bash
+   rokit install
+   ```
+2. Поставь плагин Rojo в Studio (один раз, и после обновления версии Rojo):
+   ```bash
+   rojo plugin install
+   ```
+3. Запусти синхронизацию и не закрывай терминал:
    ```bash
    rojo serve
    ```
-2. Открой Roblox Studio → новый пустой проект **Baseplate** (или любой пустой place).
-3. Вкладка **Plugins → Rojo → Connect** (адрес по умолчанию `localhost:34872`).
-4. Нажми **Play**. Должен появиться тёмный экран с панелью «Фронтир / Каркас готов (этап 0)», в Output — строки `[Frontir] server boot …` и `[Frontir] client boot …`.
+4. Открой Roblox Studio → пустой **Baseplate**. Вкладка **Plugins → Rojo → Connect** (адрес по умолчанию `localhost:34872`).
+5. Нажми **Play** (или **Test → Clients and Servers → 2 Players**, когда этап про мультиплеер).
+6. Сверь увиденное с разделом «Как проверить в Studio» из отчёта по этапу.
+
+**Этап 0:** тёмный экран с панелью «Фронтир / Каркас готов (этап 0)» (кириллица читается). В Output — строки `[Frontir] server boot, config v1, tick 10 Hz` и `[Frontir] client boot, lang = ru`.
 
 > Персонажи отключены (`Players.CharacterAutoLoads = false`): игра 2D и аватар не нужен.
 
 ## Тесты и проверки
-Из папки `frontir/`:
+Из папки `frontir/` — то же самое, что делает CI (`.github/workflows/ci.yml` в корне репозитория):
 ```bash
 lune run tests
 ```
@@ -67,7 +79,27 @@ stylua --check src tests tools
 ```bash
 selene src tests tools
 ```
-То же самое запускает CI на каждый push (`.github/workflows/ci.yml` в корне репозитория).
+Проверка типов (strict). Первые две команды нужны один раз и после изменения структуры файлов:
+```bash
+lune setup
+```
+```bash
+rojo sourcemap default.project.json -o sourcemap.json
+```
+```bash
+luau-lsp analyze --platform=roblox --definitions:@roblox=types/globalTypes.d.luau --sourcemap=sourcemap.json --base-luaurc=.luaurc src tests tools
+```
+
+### Обновление определений Roblox
+Определения для selene (`roblox.yml`) и luau-lsp (`types/globalTypes.d.luau`) закоммичены, чтобы проверки работали одинаково локально и в CI без сети.
+Обновлять, когда в Roblox появились нужные новые API:
+```bash
+selene generate-roblox-std
+```
+```bash
+curl -sSfL -o types/globalTypes.d.luau https://raw.githubusercontent.com/JohnnyMorganz/luau-lsp/1.70.1/scripts/globalTypes.d.luau
+```
+(в ссылке — версия luau-lsp из `rokit.toml`).
 
 ## Автодополнение (luau-lsp)
 ```bash
@@ -76,7 +108,7 @@ rojo sourcemap default.project.json -o sourcemap.json
 ```bash
 lune setup
 ```
-Первая команда даёт luau-lsp карту Roblox-инстансов, вторая — типы модулей Lune для тестов и инструментов.
+Первая команда даёт luau-lsp карту Roblox-инстансов, вторая — типы модулей Lune (алиас `@lune` в `.luaurc`).
 
 ## Структура
 ```
@@ -87,4 +119,6 @@ maps/        упакованные карты
 tools/       Lune-скрипты (генерация карт)
 tests/       Lune-тесты (*.spec.luau)
 docs/        GDD, список арта, баланс, changelog
+types/       определения Roblox для luau-lsp
+roblox.yml   определения Roblox для selene
 ```

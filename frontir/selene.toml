@@ -1,4 +1,7 @@
 std = "roblox"
+# roblox.yml закоммичен в репозиторий: selene берёт его как есть и не ходит в сеть.
+# Обновить: см. README, раздел «Обновление определений Roblox».
+roblox-std-source = "pinned"
 
 [lints]
 # Luau-типы (`export type`) selene понимает; shadowing допустим в коротких функциях.

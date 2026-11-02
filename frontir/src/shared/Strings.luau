@@ -7,22 +7,28 @@
 
 export type Lang = "ru" | "en"
 
-local Strings = {}
+-- Каждая запись обязана иметь оба языка: пропуск перевода — ошибка типов.
+export type Entry = { ru: string, en: string }
 
-Strings.DefaultLang = "ru" :: Lang
-Strings.Langs = table.freeze({ "ru", "en" }) :: { Lang }
+local DEFAULT_LANG: Lang = "ru"
+local LANGS: { Lang } = { "ru", "en" }
 
-Strings.Table = table.freeze({
-	["game.title"] = table.freeze({ ru = "Фронтир", en = "Frontir" }),
-	["boot.stage"] = table.freeze({ ru = "Каркас готов (этап 0)", en = "Skeleton ready (stage 0)" }),
-	["boot.hint"] = table.freeze({
-		ru = "Карта появится на этапе 1",
-		en = "The map arrives in stage 1",
-	}),
-}) :: { [string]: { [Lang]: string } }
+local TABLE: { [string]: Entry } = {
+	["game.title"] = { ru = "Фронтир", en = "Frontir" },
+	["boot.stage"] = { ru = "Каркас готов (этап 0)", en = "Skeleton ready (stage 0)" },
+	["boot.hint"] = { ru = "Карта появится на этапе 1", en = "The map arrives in stage 1" },
+}
+
+-- Перевод записи на язык.
+local function pick(entry: Entry, lang: Lang): string
+	if lang == "en" then
+		return entry.en
+	end
+	return entry.ru
+end
 
 -- Приводит код локали Roblox ("ru-ru", "en-us") к поддерживаемому языку.
-function Strings.langFromLocale(localeId: string): Lang
+local function langFromLocale(localeId: string): Lang
 	local prefix = string.lower(string.sub(localeId, 1, 2))
 	if prefix == "ru" then
 		return "ru"
@@ -30,13 +36,39 @@ function Strings.langFromLocale(localeId: string): Lang
 	return "en"
 end
 
--- Возвращает строку по ключу; если перевода нет — русскую; если ключа нет — сам ключ.
-function Strings.get(key: string, lang: Lang?): string
-	local entry = Strings.Table[key]
+-- Возвращает строку по ключу; пустой перевод заменяется русским; нет ключа — сам ключ.
+local function get(key: string, lang: Lang?): string
+	local entry = TABLE[key]
 	if entry == nil then
 		return key
 	end
-	return entry[lang or Strings.DefaultLang] or entry[Strings.DefaultLang] or key
+	local text = pick(entry, lang or DEFAULT_LANG)
+	if text == "" then
+		return pick(entry, DEFAULT_LANG)
+	end
+	return text
 end
+
+for _, entry in TABLE do
+	table.freeze(entry)
+end
+
+export type StringsModule = {
+	DefaultLang: Lang,
+	Langs: { Lang },
+	Table: { [string]: Entry },
+	pick: (entry: Entry, lang: Lang) -> string,
+	langFromLocale: (localeId: string) -> Lang,
+	get: (key: string, lang: Lang?) -> string,
+}
+
+local Strings: StringsModule = {
+	DefaultLang = DEFAULT_LANG,
+	Langs = table.freeze(LANGS),
+	Table = table.freeze(TABLE),
+	pick = pick,
+	langFromLocale = langFromLocale,
+	get = get,
+}
 
 return table.freeze(Strings)

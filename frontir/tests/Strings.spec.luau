@@ -5,9 +5,8 @@ local Strings = require("../src/shared/Strings")
 T.describe("Strings", function()
 	T.it("у каждого ключа есть все языки", function()
 		for key, entry in Strings.Table do
-			for _, lang in Strings.Langs do
-				local s = entry[lang]
-				if s == nil or s == "" then
+			for _, lang: Strings.Lang in Strings.Langs do
+				if Strings.pick(entry, lang) == "" then
 					error("нет перевода " .. lang .. " для " .. key)
 				end
 			end

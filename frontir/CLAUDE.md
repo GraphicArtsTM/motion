@@ -23,7 +23,15 @@ stylua --check src tests tools
 selene src tests tools
 rojo serve              # синхронизация со Studio
 rojo sourcemap default.project.json -o sourcemap.json   # для luau-lsp
+lune setup              # типы Lune (алиас @lune в .luaurc)
+luau-lsp analyze --platform=roblox --definitions:@roblox=types/globalTypes.d.luau --sourcemap=sourcemap.json --base-luaurc=.luaurc src tests tools
 ```
+CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (strict) и тесты; любая ошибка роняет сборку.
+
+## Типы в strict
+- Singleton-юнионы (`"ru" | "en"`) расширяются до `string` на неаннотированных `local` и переменных цикла — аннотируй: `local lang: Strings.Lang = ...`.
+- Наборы с известными ключами (юниты, здания) — record-типы (`Types.UnitTable`), а не словари с юнион-ключами.
+- Для перебора перечислений держим отдельные списки (`Types.TerrainIds`).
 
 ## Раскладка в Roblox (default.project.json)
 - `src/shared` → `ReplicatedStorage.Shared`

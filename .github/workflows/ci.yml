@@ -2,13 +2,8 @@ name: Frontir CI
 
 on:
   push:
-    paths:
-      - "frontir/**"
-      - ".github/workflows/ci.yml"
+    branches: ["**"]
   pull_request:
-    paths:
-      - "frontir/**"
-      - ".github/workflows/ci.yml"
 
 jobs:
   check:
@@ -23,13 +18,33 @@ jobs:
         uses: CompeyDev/setup-rokit@v0.2.1
         with:
           path: frontir
+          cache: true
           token: ${{ github.token }}
+
+      - name: Tool versions
+        run: |
+          rojo --version
+          lune --version
+          stylua --version
+          selene --version
+          luau-lsp --version
 
       - name: StyLua
         run: stylua --check src tests tools
 
       - name: Selene
         run: selene src tests tools
+
+      - name: Luau type check (strict)
+        run: |
+          lune setup
+          rojo sourcemap default.project.json -o sourcemap.json
+          luau-lsp analyze \
+            --platform=roblox \
+            --definitions:@roblox=types/globalTypes.d.luau \
+            --sourcemap=sourcemap.json \
+            --base-luaurc=.luaurc \
+            src tests tools
 
       - name: Lune tests
         run: lune run tests
