@@ -1,6 +1,7 @@
 --!strict
 local T = require("./lib/TestKit")
 local Strings = require("../src/shared/Strings")
+local Types = require("../src/shared/Types")
 
 T.describe("Strings", function()
 	T.it("у каждого ключа есть все языки", function()
@@ -17,6 +18,27 @@ T.describe("Strings", function()
 		T.expect(Strings.get("game.title", "ru")).toBe("Фронтир")
 		T.expect(Strings.get("game.title", "en")).toBe("Frontir")
 		T.expect(Strings.get("no.such.key", "en")).toBe("no.such.key")
+	end)
+
+	T.it("у каждого типа местности есть название", function()
+		for name in Types.Terrain :: { [string]: number } do
+			T.expect(Strings.Table["terrain." .. name] ~= nil).toBe(true)
+		end
+	end)
+
+	T.it("шаблоны с %-подстановками совпадают в RU и EN", function()
+		for key, entry in Strings.Table do
+			local function specs(text: string): string
+				local out = {}
+				for spec in string.gmatch(text, "%%[%d%.]*[dsf]") do
+					table.insert(out, spec)
+				end
+				return table.concat(out, ",")
+			end
+			if specs(entry.ru) ~= specs(entry.en) then
+				error("разные подстановки в " .. key)
+			end
+		end
 	end)
 
 	T.it("локаль Roblox сводится к языку", function()

@@ -20,11 +20,11 @@ T.describe("Config", function()
 		T.expect(Config.Sim.TickRate).toBe(10)
 	end)
 
-	T.it("зум ×2–×12 и чанк — степень двойки (§3)", function()
-		T.expect(Config.Render.ZoomMin).toBe(2)
+	T.it("зум ×1–×12 и чанк — степень двойки не больше 1024 (§3)", function()
+		T.expect(Config.Render.ZoomMin).toBe(1)
 		T.expect(Config.Render.ZoomMax).toBe(12)
 		local c = Config.Render.ChunkSize
-		T.expect(c > 0 and bit32.band(c, c - 1) == 0).toBe(true)
+		T.expect(c > 0 and bit32.band(c, c - 1) == 0 and c <= 1024).toBe(true)
 	end)
 
 	T.it("у каждого типа местности есть параметры (§6.1)", function()
@@ -32,9 +32,14 @@ T.describe("Config", function()
 			local stats = Config.Terrain[id]
 			T.expect(stats ~= nil).toBe(true)
 			if id == Types.Terrain.Water then
-				T.expect(stats.passable).toBe(false)
+				T.expect(stats.borderPassable).toBe(false)
+				T.expect(stats.armySpeed).toBe(0) -- по воде только флот
+			elseif id == Types.Terrain.River then
+				-- §4: реки не пускают границу, армии идут с замедлением
+				T.expect(stats.borderPassable).toBe(false)
+				T.expect(stats.armySpeed > 0 and stats.armySpeed < 1).toBe(true)
 			else
-				T.expect(stats.passable).toBe(true)
+				T.expect(stats.borderPassable).toBe(true)
 				T.expect(stats.captureCost > 0).toBe(true)
 				T.expect(stats.armySpeed > 0 and stats.armySpeed <= 1).toBe(true)
 			end

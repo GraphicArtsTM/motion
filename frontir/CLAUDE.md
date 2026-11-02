@@ -22,6 +22,7 @@ lune run tests          # все тесты; `lune run tests Config` — тол�
 stylua --check src tests tools
 selene src tests tools
 rojo serve              # синхронизация со Studio
+lune run tools/genmap Pangea   # пересоздать maps/Pangea.luau (+ превью build/Pangea.bmp)
 rojo sourcemap default.project.json -o sourcemap.json   # для luau-lsp
 lune setup              # типы Lune (алиас @lune в .luaurc)
 luau-lsp analyze --platform=roblox --definitions:@roblox=types/globalTypes.d.luau --sourcemap=sourcemap.json --base-luaurc=.luaurc src tests tools
@@ -38,6 +39,13 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
 - `maps` → `ReplicatedStorage.Maps`
 - `src/server` → `ServerScriptService.Server`
 - `src/client` → `StarterPlayer.StarterPlayerScripts.Client`
+
+## Карта и рендер
+- Чистые модули карты в `src/shared`: `MapGen` (генератор), `MapFormat` (бинарный формат + base64 в ModuleScript),
+  `MapPaint` (цвета клеток), `CameraMath`. Клиентская обвязка — `src/client/Render`, `src/client/Input`.
+- EditableImage: максимум 1024×1024, на экране обновляется один EditableImage за кадр, бюджет памяти клиента
+  (CreateEditableImage → nil), в опубликованной игре нужен флаг Allow Mesh / Image APIs.
+- Pure-модули, которые нужны клиенту, кладём в `src/shared` (клиентская папка не видит shared по относительному пути).
 
 ## Require
 Внутри `src/shared` модули подключают друг друга строкой: `require("./Types")` — так работает и в Roblox (`./` = `script.Parent`), и в Lune.

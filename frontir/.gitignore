@@ -7,3 +7,4 @@ sourcemap.json
 *.rbxm
 # Lune type definitions (генерируются `lune setup`)
 .lune-typedefs/
+build/

@@ -1,27 +1,34 @@
 --!strict
 --[[
-	Theme — визуальные константы интерфейса (цвета, шрифты, размеры).
-	Не баланс, поэтому живёт на клиенте, а не в Config.
-
-	Шрифт: временно стандартный RobotoMono (есть кириллица и латиница, моноширинные цифры).
-	Пиксельный шрифт выберем на этапе HUD — см. docs/ART_LIST.md.
-	Цвета — заглушки до docs/palette.md (этап 1).
+	Theme — визуальные константы интерфейса. Цвета только из палитры (Shared.Palette, docs/palette.md).
+	Шрифт временно стандартный RobotoMono (кириллица, моноширинные цифры); пиксельный — на этапе HUD.
 ]]
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Palette = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Palette"))
+
+local function color(name: string): Color3
+	local c = Palette.rgb(name)
+	return Color3.fromRGB(c.r, c.g, c.b)
+end
 
 local Theme = {}
 
+Theme.color = color
 Theme.Font = Font.fromEnum(Enum.Font.RobotoMono)
 Theme.FontBold = Font.new(Theme.Font.Family, Enum.FontWeight.Bold)
+Theme.BorderPx = 1
 
 Theme.Colors = table.freeze({
-	Backdrop = Color3.fromRGB(8, 10, 18),
-	PanelBg = Color3.fromRGB(20, 22, 34),
-	PanelBorder = Color3.fromRGB(90, 96, 130),
-	Gold = Color3.fromRGB(240, 196, 64),
-	Sky = Color3.fromRGB(120, 200, 255),
-	Muted = Color3.fromRGB(90, 96, 130),
+	Backdrop = color("Ink"),
+	PanelBg = color("Night"),
+	PanelBorder = color("Steel"),
+	Text = color("White"),
+	Muted = color("Mist"),
+	Gold = color("Gold"),
+	Sky = color("Sky"),
+	Alert = color("Red"),
 })
-
-Theme.BorderPx = 1
 
 return table.freeze(Theme)

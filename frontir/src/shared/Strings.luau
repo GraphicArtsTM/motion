@@ -15,8 +15,34 @@ local LANGS: { Lang } = { "ru", "en" }
 
 local TABLE: { [string]: Entry } = {
 	["game.title"] = { ru = "Фронтир", en = "Frontir" },
-	["boot.stage"] = { ru = "Каркас готов (этап 0)", en = "Skeleton ready (stage 0)" },
-	["boot.hint"] = { ru = "Карта появится на этапе 1", en = "The map arrives in stage 1" },
+	["map.Pangea"] = { ru = "Пангея", en = "Pangaea" },
+
+	["terrain.Water"] = { ru = "вода", en = "water" },
+	["terrain.Plains"] = { ru = "равнина", en = "plains" },
+	["terrain.Forest"] = { ru = "лес", en = "forest" },
+	["terrain.Hills"] = { ru = "холмы", en = "hills" },
+	["terrain.Mountains"] = { ru = "горы", en = "mountains" },
+	["terrain.Desert"] = { ru = "пустыня", en = "desert" },
+	["terrain.Tundra"] = { ru = "тундра", en = "tundra" },
+	["terrain.River"] = { ru = "река", en = "river" },
+
+	["debug.title"] = { ru = "Отладка (F3)", en = "Debug (F3)" },
+	["debug.fps"] = { ru = "FPS: %d", en = "FPS: %d" },
+	["debug.map"] = { ru = "Карта: %s %d×%d, сид %d", en = "Map: %s %d×%d, seed %d" },
+	["debug.zoom"] = { ru = "Зум: ×%d", en = "Zoom: ×%d" },
+	["debug.camera"] = { ru = "Камера: %.1f, %.1f", en = "Camera: %.1f, %.1f" },
+	["debug.cell"] = { ru = "Клетка: %d, %d — %s", en = "Cell: %d, %d — %s" },
+	["debug.cell.none"] = { ru = "Клетка: —", en = "Cell: —" },
+	["debug.memory"] = { ru = "EditableImage: чанков %d, %.2f МБ", en = "EditableImage: %d chunks, %.2f MB" },
+
+	["error.editable.disabled"] = {
+		ru = "Не удалось создать EditableImage. В опубликованной игре включите Allow Mesh / Image APIs (Experience Settings → Security).",
+		en = "Could not create EditableImage. For a published game enable Allow Mesh / Image APIs (Experience Settings → Security).",
+	},
+	["error.editable.budget"] = {
+		ru = "Не хватает памяти устройства, чтобы показать карту (лимит EditableImage).",
+		en = "Not enough device memory to show the map (EditableImage budget).",
+	},
 }
 
 -- Перевод записи на язык.

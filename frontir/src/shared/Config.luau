@@ -44,26 +44,43 @@ Config.Match = {
 	VictoryLandShareFfa = 0.60,
 	VictoryLandShareTeams = 0.70,
 	MaxAlliesFfa = 2,
+	DefaultMap = "Pangea",
 }
 
--- §3 Рендер карты
+-- §3 Рендер карты и камера
 Config.Render = {
-	ChunkSize = 256, -- сторона чанка EditableImage в клетках
-	ZoomMin = 2, -- пикселей экрана на клетку
+	ChunkSize = 256, -- сторона чанка EditableImage в клетках (лимит Roblox — 1024)
+	-- Зум в пикселях экрана на клетку, только целые значения (ровные пиксели).
+	-- ZoomMin = 1, а не 2 из GDD: на телефоне карта 512×320 при ×2 не влезает целиком.
+	ZoomMin = 1,
 	ZoomMax = 12,
+	PanMarginPx = 48, -- насколько карту можно утащить за край экрана
+	KeyPanSpeedPx = 900, -- скорость прокрутки WASD/стрелками, пикселей экрана в секунду
 	CaptureFlashSec = 0.7,
 	MinTouchTargetPx = 44,
+	-- Вода: глубина по расстоянию до суши (в клетках).
+	WaterShallowDistance = 1,
+	WaterMidDistance = 4,
+	DitherShare = 0.22, -- доля клеток с альтернативным оттенком местности
+	SnowRadius = 3, -- снег на горе, если все клетки в этом радиусе — горы
+	-- Блики воды — отдельные пиксели поверх карты, текстуру не перерисовываем.
+	SparkleMax = 48,
+	SparklesPerSec = 24,
+	SparkleLifeSec = 0.9,
+	SparkleMinDepth = 2, -- блики только там, где до суши не меньше N клеток
+	DebugRefreshSec = 0.25, -- частота обновления окна F3
 }
 
 -- §6.1 Местность. Порядок id фиксирован форматом карты, не переставлять.
 local terrain: { [Types.TerrainId]: Types.TerrainStats } = {
-	[Types.Terrain.Water] = { captureCost = 0, defense = 0, armySpeed = 0, passable = false },
-	[Types.Terrain.Plains] = { captureCost = 1.0, defense = 1.0, armySpeed = 1.0, passable = true },
-	[Types.Terrain.Forest] = { captureCost = 1.3, defense = 1.2, armySpeed = 0.8, passable = true },
-	[Types.Terrain.Hills] = { captureCost = 1.5, defense = 1.3, armySpeed = 0.7, passable = true },
-	[Types.Terrain.Mountains] = { captureCost = 2.5, defense = 1.8, armySpeed = 0.45, passable = true },
-	[Types.Terrain.Desert] = { captureCost = 1.2, defense = 0.9, armySpeed = 0.85, passable = true },
-	[Types.Terrain.Tundra] = { captureCost = 1.4, defense = 1.0, armySpeed = 0.75, passable = true },
+	[Types.Terrain.Water] = { captureCost = 0, defense = 0, armySpeed = 0, borderPassable = false },
+	[Types.Terrain.Plains] = { captureCost = 1.0, defense = 1.0, armySpeed = 1.0, borderPassable = true },
+	[Types.Terrain.Forest] = { captureCost = 1.3, defense = 1.2, armySpeed = 0.8, borderPassable = true },
+	[Types.Terrain.Hills] = { captureCost = 1.5, defense = 1.3, armySpeed = 0.7, borderPassable = true },
+	[Types.Terrain.Mountains] = { captureCost = 2.5, defense = 1.8, armySpeed = 0.45, borderPassable = true },
+	[Types.Terrain.Desert] = { captureCost = 1.2, defense = 0.9, armySpeed = 0.85, borderPassable = true },
+	[Types.Terrain.Tundra] = { captureCost = 1.4, defense = 1.0, armySpeed = 0.75, borderPassable = true },
+	[Types.Terrain.River] = { captureCost = 0, defense = 1.0, armySpeed = 0.5, borderPassable = false },
 }
 Config.Terrain = terrain
 
@@ -119,6 +136,51 @@ Config.Buildings = {
 	Radar = { cost = 1500, visionRadius = 25 },
 	Market = { cost = 2000, incomeBonus = 0.05 },
 	MissileSilo = { cost = 10000, oil = 200, strikeRadius = 6, cooldownSec = 240, warningSec = 10 },
+}
+
+-- §4 Генератор выдуманных карт (описание полей — Types.MapGenParams).
+local pangea: Types.MapGenParams = {
+	Name = "Pangea",
+	Seed = 20261102,
+	Width = 512,
+	Height = 320,
+	LandShare = 0.42,
+	EdgeWater = 8,
+	NoiseScale = 95,
+	Octaves = 6,
+	Lacunarity = 2.0,
+	Gain = 0.5,
+	FalloffStrength = 0.7,
+	FalloffPower = 2.0,
+	MinIslandCells = 120,
+	FillHoleCells = 24,
+	RidgeScale = 60,
+	RidgeWeight = 0.8,
+	MountainShare = 0.07,
+	HillShare = 0.14,
+	MoistureScale = 90,
+	TundraLatitude = 0.62,
+	LatitudeJitter = 0.45,
+	DesertMoistureMax = 0.40,
+	DesertLatitudeMax = 0.45,
+	ForestMoistureMin = 0.56,
+	LakeCount = 6,
+	LakeMinCells = 14,
+	LakeMaxCells = 70,
+	LakeCoastGap = 4,
+	RiverCount = 9,
+	RiverMinLength = 14,
+	RiverMaxLength = 260,
+	RiverMeander = 0.3,
+}
+
+Config.MapGen = {
+	Pangea = pangea,
+}
+
+-- Упаковка карт в ModuleScript (maps/*.luau)
+Config.MapFile = {
+	ChunkChars = 8000, -- длина одной строки base64 в модуле карты
 }
 
 -- §6.11 Туман войны

@@ -64,7 +64,18 @@
 5. Нажми **Play** (или **Test → Clients and Servers → 2 Players**, когда этап про мультиплеер).
 6. Сверь увиденное с разделом «Как проверить в Studio» из отчёта по этапу.
 
-**Этап 0:** тёмный экран с панелью «Фронтир / Каркас готов (этап 0)» (кириллица читается). В Output — строки `[Frontir] server boot, config v1, tick 10 Hz` и `[Frontir] client boot, lang = ru`.
+**Этап 1:** на весь экран — карта «Пангея» (один материк, горы со снежными вершинами, реки, озёра, тундра у полюсов),
+на воде мерцают блики. В Studio слева сверху открыто окно отладки (F3 — скрыть/показать): FPS, зум, клетка под курсором,
+память EditableImage. Управление:
+- колесо мыши — зум к курсору (×1…×12, пиксели остаются чёткими);
+- зажатая правая или средняя кнопка — тащить карту; WASD и стрелки — прокрутка; Space — показать всю карту;
+- телефон (Test → Device Emulator или реальное устройство): палец — тащить, щипок — зум.
+
+В Output: `[Frontir] server: карта Pangea 512×320, …` и `[Frontir] client: карта Pangea 512×320, чанков 4`.
+
+**Публикация.** EditableImage в опубликованной игре по умолчанию выключен. Включи его один раз:
+Studio → **File → Experience Settings → Security → Allow Mesh / Image APIs** (или Creator Dashboard → Configure → Settings).
+Иначе на экране будет сообщение об ошибке вместо карты.
 
 > Персонажи отключены (`Players.CharacterAutoLoads = false`): игра 2D и аватар не нужен.
 
@@ -89,6 +100,14 @@ rojo sourcemap default.project.json -o sourcemap.json
 ```bash
 luau-lsp analyze --platform=roblox --definitions:@roblox=types/globalTypes.d.luau --sourcemap=sourcemap.json --base-luaurc=.luaurc src tests tools
 ```
+
+### Карты
+Выдуманные карты генерируются по сиду из параметров `Config.MapGen.<Имя>` и упаковываются в `maps/<Имя>.luau`:
+```bash
+lune run tools/genmap Pangea
+```
+Заодно пишется превью `build/Pangea.bmp` (в git не идёт). Тест `MapFormat.spec` падает, если закоммиченная карта
+не совпадает с генератором — после правки параметров карты перезапусти команду выше.
 
 ### Обновление определений Roblox
 Определения для selene (`roblox.yml`) и luau-lsp (`types/globalTypes.d.luau`) закоммичены, чтобы проверки работали одинаково локально и в CI без сети.

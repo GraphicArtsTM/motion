@@ -12,7 +12,7 @@ jobs:
       run:
         working-directory: frontir
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rokit and tools
         uses: CompeyDev/setup-rokit@v0.2.1
