@@ -54,6 +54,30 @@ function Intents.parse(kind: any, payload: any): (Types.Intent?, string?)
 			return nil, "bad target"
 		end
 		return { kind = "cancel", target = target }, nil
+	elseif kind == "declare" then
+		local target = payload.target
+		if not isInt(target) or target <= 0 then
+			return nil, "bad target"
+		end
+		return { kind = "declare", target = target }, nil
+	elseif kind == "peace" then
+		local target, terms = payload.target, payload.terms
+		if not isInt(target) or target <= 0 then
+			return nil, "bad target"
+		end
+		if terms ~= "white" and terms ~= "keep" and terms ~= "capitulate" then
+			return nil, "bad terms"
+		end
+		return { kind = "peace", target = target, terms = terms :: Types.PeaceTerms }, nil
+	elseif kind == "peaceReply" then
+		local target, accept = payload.target, payload.accept
+		if not isInt(target) or target <= 0 then
+			return nil, "bad target"
+		end
+		if type(accept) ~= "boolean" then
+			return nil, "bad accept"
+		end
+		return { kind = "peaceReply", target = target, accept = accept }, nil
 	end
 	return nil, "unknown kind"
 end

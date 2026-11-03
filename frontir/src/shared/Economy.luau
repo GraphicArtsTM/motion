@@ -24,9 +24,13 @@ function Economy.growthPerSec(people: number, max: number): number
 	return cfg.GrowthRate * people * (1 - people / max) + cfg.MinGrowthPerSec * (1 - people / max)
 end
 
--- Люди через dt секунд.
-function Economy.grow(people: number, max: number, dt: number): number
-	local nextPeople = people + Economy.growthPerSec(people, max) * dt
+-- Люди через dt секунд. growthMul — множитель положительного прироста (усталость от войны, §6.7а).
+function Economy.grow(people: number, max: number, dt: number, growthMul: number?): number
+	local growth = Economy.growthPerSec(people, max)
+	if growth > 0 and growthMul ~= nil then
+		growth *= growthMul
+	end
+	local nextPeople = people + growth * dt
 	if people <= max then
 		nextPeople = math.min(nextPeople, max)
 	else

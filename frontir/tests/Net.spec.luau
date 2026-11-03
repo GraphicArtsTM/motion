@@ -115,6 +115,8 @@ T.describe("Protocol: войска и фронты", function()
 					power = 3000,
 					frontPower = 1500,
 					cities = 6,
+					mix = { 0.75, 0, 0.25, 0 },
+					weariness = 0.35,
 				},
 			},
 			attacks = {
@@ -127,6 +129,7 @@ T.describe("Protocol: войска и фронты", function()
 					supplied = false,
 					fighting = true,
 					ratio = 1.75,
+					focus = 123456,
 				},
 				{
 					attacker = 4,
@@ -148,7 +151,62 @@ T.describe("Protocol: войска и фронты", function()
 		T.expect(a.fighting).toBe(true)
 		T.expect(a.ratio).toBeNear(1.75, 1 / 32)
 		T.expect(a.mix[2]).toBeNear(0.25, 1 / 255)
+		T.expect(a.focus).toBe(123456)
 		T.expect(back.attacks[2].ratio).toBe(math.huge)
+		T.expect(back.attacks[2].focus).toBe(nil)
+		T.expect(back.nations[1].mix[3]).toBeNear(0.25, 1 / 255)
+		T.expect(back.nations[1].weariness).toBeNear(0.35, 0.01)
+	end)
+
+	T.it("войны и запреты после мира туда и обратно", function()
+		local msg: Protocol.WarsMessage = {
+			wars = {
+				{
+					a = 3,
+					b = 7,
+					active = false,
+					timeLeft = 12.3,
+					age = 0,
+					takenA = 0,
+					takenB = 0,
+					lossesA = 0,
+					lossesB = 0,
+					powerA = 4000,
+					powerB = 2500,
+					proposalFrom = 0,
+					proposalTerms = "white",
+					proposalLeft = 0,
+				},
+				{
+					a = 1,
+					b = 2,
+					active = true,
+					timeLeft = 0,
+					age = 361,
+					takenA = 1500,
+					takenB = 20,
+					lossesA = 800.5,
+					lossesB = 2100,
+					powerA = 6000,
+					powerB = 900,
+					proposalFrom = 2,
+					proposalTerms = "keep",
+					proposalLeft = 17.2,
+				},
+			},
+			cooldowns = { { a = 4, b = 5, left = 42.5 } },
+		}
+		local back = Protocol.decodeWars(Protocol.encodeWars(msg))
+		T.expect(#back.wars).toBe(2)
+		T.expect(back.wars[1].active).toBe(false)
+		T.expect(back.wars[1].timeLeft).toBeNear(12.3, 0.05)
+		T.expect(back.wars[2].takenA).toBe(1500)
+		T.expect(back.wars[2].lossesA).toBeNear(800.5, 1e-3)
+		T.expect(back.wars[2].proposalFrom).toBe(2)
+		T.expect(back.wars[2].proposalTerms).toBe("keep")
+		T.expect(back.wars[2].proposalLeft).toBe(18)
+		T.expect(back.cooldowns[1].b).toBe(5)
+		T.expect(back.cooldowns[1].left).toBe(43)
 	end)
 
 	T.it("свои войска и очередь найма туда и обратно", function()
@@ -220,6 +278,7 @@ T.describe("Трафик", function()
 			if tick % statsEvery == 0 then
 				bytes += buffer.len(Protocol.encodeStats(MatchStats.build(m, 0, #changes))) + OVERHEAD
 				bytes += buffer.len(Protocol.encodeForces(MatchStats.forcesOf(m, 1))) + OVERHEAD
+				bytes += buffer.len(Protocol.encodeWars(MatchStats.wars(m))) + OVERHEAD
 			end
 			if m.infoDirty then
 				m.infoDirty = false

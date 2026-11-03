@@ -1,6 +1,6 @@
 --!strict
 --[[
-	MatchStats — что сервер рассылает о матче (Net/Protocol STATS и FORCES), собранное из MatchSim.
+	MatchStats — что сервер рассылает о матче (Net/Protocol STATS, FORCES и WARS), собранное из MatchSim.
 	Чистый модуль: им пользуются MatchService (рассылка) и тест трафика (Net.spec — 60 держав).
 ]]
 
@@ -8,6 +8,7 @@ local Economy = require("../Economy")
 local Forces = require("../Forces")
 local Grid = require("../Grid")
 local MatchSim = require("../MatchSim")
+local Wars = require("../Wars")
 local Protocol = require("./Protocol")
 
 local MatchStats = {}
@@ -26,6 +27,8 @@ function MatchStats.build(m: MatchSim.Match, tickMs: number, changed: number): P
 			power = Forces.total(n.home),
 			frontPower = Forces.total(MatchSim.frontForces(m, n.id)),
 			cities = MatchSim.citiesOf(m, n.id),
+			mix = Forces.composition(n.home),
+			weariness = Wars.weariness(m.wars, n.id, m.simTime),
 		})
 	end
 	local attacks: { Protocol.AttackStats } = {}
@@ -39,6 +42,7 @@ function MatchStats.build(m: MatchSim.Match, tickMs: number, changed: number): P
 			supplied = a.supplied,
 			fighting = a.fighting,
 			ratio = a.ratio,
+			focus = a.focus,
 		})
 	end
 	return { tickMs = tickMs, changed = changed, nations = nations, attacks = attacks }
@@ -63,6 +67,52 @@ function MatchStats.forcesOf(m: MatchSim.Match, nationId: number): Protocol.MyFo
 		end
 	end
 	return { kinds = kinds, queue = queue }
+end
+
+-- Войны и запреты на новую войну после мира (§6.7а). Обратные отсчёты — в секундах реального времени
+-- (игровое время ÷ Match.Speed), чтобы таймер у клиента шёл как часы.
+function MatchStats.wars(m: MatchSim.Match): Protocol.WarsMessage
+	local function power(id: number): number
+		local n = m.nations[id]
+		return if n ~= nil then Forces.total(n.home) + Forces.total(MatchSim.frontForces(m, id)) else 0
+	end
+	local wars: { Protocol.WarStats } = {}
+	for _, war in m.wars.list do
+		local byA, byB = Wars.takenCells(war, m.grid)
+		local p = war.proposal
+		table.insert(wars, {
+			a = war.a,
+			b = war.b,
+			active = war.state == "active",
+			timeLeft = math.max(0, war.activeAt - m.simTime) / m.speed,
+			age = math.max(0, m.simTime - war.activeAt),
+			takenA = byA,
+			takenB = byB,
+			lossesA = war.lossesA,
+			lossesB = war.lossesB,
+			powerA = power(war.a),
+			powerB = power(war.b),
+			proposalFrom = if p ~= nil then p.from else 0,
+			proposalTerms = if p ~= nil then p.terms else "white",
+			proposalLeft = if p ~= nil then math.max(0, p.expiresAt - m.simTime) / m.speed else 0,
+		})
+	end
+	local cooldowns: { Protocol.Cooldown } = {}
+	for key, untilTime in m.wars.cooldown do
+		local left = untilTime - m.simTime
+		if left > 0 then
+			-- Стороны считаем отдельно: StyLua 2.6 падает на «//» внутри конструктора таблицы.
+			local a, b = key // 65536, key % 65536
+			table.insert(cooldowns, { a = a, b = b, left = left / m.speed })
+		end
+	end
+	table.sort(cooldowns, function(x: Protocol.Cooldown, y: Protocol.Cooldown): boolean
+		if x.a ~= y.a then
+			return x.a < y.a
+		end
+		return x.b < y.b
+	end)
+	return { wars = wars, cooldowns = cooldowns }
 end
 
 return table.freeze(MatchStats)

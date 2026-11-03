@@ -167,7 +167,19 @@ export type PickIntent = { kind: "pick", cell: number }
 export type AttackIntent = { kind: "attack", target: NationId, percent: number, focus: number? }
 export type CancelIntent = { kind: "cancel", target: NationId }
 export type HireIntent = { kind: "hire", unit: LandUnit }
-export type Intent = PickIntent | AttackIntent | CancelIntent | HireIntent
+-- Война и мир (§6.7а).
+export type PeaceTerms = "white" | "keep" | "capitulate"
+export type DeclareIntent = { kind: "declare", target: NationId }
+export type PeaceIntent = { kind: "peace", target: NationId, terms: PeaceTerms }
+export type PeaceReplyIntent = { kind: "peaceReply", target: NationId, accept: boolean }
+export type Intent =
+	PickIntent
+	| AttackIntent
+	| CancelIntent
+	| HireIntent
+	| DeclareIntent
+	| PeaceIntent
+	| PeaceReplyIntent
 
 export type Phase = "Waiting" | "Pick" | "Play"
 

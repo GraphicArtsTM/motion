@@ -5,11 +5,14 @@
 	никаких читов (GDD §9).
 
 	- Иногда нанимает юниты (очередь не длиннее Bots.MaxQueue).
+	- Долго воюет и сильно слабее врага — просит мира (белый, а если сам взял больше — «забрать захваченное»).
+	- Идёт война — открывает или подкрепляет фронт против самого слабого врага, если войск хватает.
 	- Людей мало (меньше AttackWhenFill от максимума) — копит.
 	- Рядом ничья земля — расширяется на неё людьми (NeutralPercent); войска в той же доле идут
 	  следом и берут ничейные города.
-	- Ничьей земли нет — открывает фронт против соседа с самым слабым гарнизоном, если отправит
-	  войск в NationAdvantage раз сильнее его гарнизона.
+	- Ничьей земли нет и войн меньше MaxWars — объявляет войну соседу с самым слабым гарнизоном,
+	  если отправит войск в NationAdvantage раз сильнее его гарнизона (§6.7а).
+	- На предложение мира отвечает answerPeace: соглашается, если слабее врага.
 ]]
 
 local Config = require("./Config")
@@ -19,7 +22,24 @@ local Types = require("./Types")
 
 type Rng = Rng.Rng
 
-export type Neighbour = { id: number, people: number, power: number }
+export type Neighbour = {
+	id: number,
+	people: number,
+	power: number, -- гарнизон соседа
+	atWar: boolean, -- с ним идёт активная война (можно открыть фронт)
+	canDeclare: boolean, -- можно объявить ему войну (нет войны и запрета после мира)
+}
+
+-- Война бота глазами бота.
+export type WarView = {
+	enemy: number,
+	active: boolean, -- мобилизация закончилась
+	age: number, -- секунд активной войны
+	myGain: number, -- клеток взято у врага в этой войне
+	theirGain: number, -- клеток враг взял у нас
+	theirPower: number, -- вся сила врага (гарнизон и фронты)
+	canPropose: boolean, -- нет висящего предложения и давно не просили
+}
 
 export type BotView = {
 	people: number,
@@ -27,9 +47,20 @@ export type BotView = {
 	attacks: number, -- активных атак и фронтов
 	queue: number, -- юнитов в очереди найма
 	power: number, -- сила гарнизона (войска дома)
+	totalPower: number, -- гарнизон и фронты
 	hasCapital: boolean,
 	hasNeutral: boolean, -- рядом есть ничья земля, которую можно взять
 	neighbours: { Neighbour }, -- соседние державы
+	wars: { WarView },
+}
+
+-- Что бот знает, отвечая на предложение мира.
+export type PeaceOffer = {
+	terms: Types.PeaceTerms,
+	myGain: number,
+	theirGain: number,
+	myPower: number,
+	theirPower: number,
 }
 
 local BotBrain = {}
@@ -57,8 +88,31 @@ function BotBrain.decide(view: BotView, rng: Rng): Types.Intent?
 			return { kind = "hire", unit = unit }
 		end
 	end
+	-- Мир: долгая война, а мы сильно слабее.
+	for _, war in view.wars do
+		if
+			war.active
+			and war.canPropose
+			and war.age >= cfg.MinWarSec
+			and view.totalPower < war.theirPower * cfg.PeaceWhenWeaker
+		then
+			local terms: Types.PeaceTerms = if war.myGain > war.theirGain then "keep" else "white"
+			return { kind = "peace", target = war.enemy, terms = terms }
+		end
+	end
 	if view.attacks >= cfg.MaxAttacks then
 		return nil
+	end
+	local send = view.power * cfg.FrontPercent
+	-- Война идёт — фронт против самого слабого врага.
+	local enemy: Neighbour? = nil
+	for _, n in view.neighbours do
+		if n.atWar and (enemy == nil or n.power < enemy.power) then
+			enemy = n
+		end
+	end
+	if enemy ~= nil and send >= Config.Forces.MinFrontStrength then
+		return { kind = "attack", target = enemy.id, percent = cfg.FrontPercent }
 	end
 	if view.hasNeutral then
 		if view.people < view.maxPeople * cfg.AttackWhenFill then
@@ -67,17 +121,34 @@ function BotBrain.decide(view: BotView, rng: Rng): Types.Intent?
 		-- Если атака на ничью землю уже идёт, MatchSim сольёт отряды — это подкрепление.
 		return { kind = "attack", target = 0, percent = cfg.NeutralPercent }
 	end
+	-- Ничьей земли нет — объявить войну самому слабому соседу, если войск хватает.
+	if #view.wars >= cfg.MaxWars then
+		return nil
+	end
 	local weakest: Neighbour? = nil
 	for _, n in view.neighbours do
-		if weakest == nil or n.power < weakest.power then
+		if n.canDeclare and (weakest == nil or n.power < weakest.power) then
 			weakest = n
 		end
 	end
-	local send = view.power * cfg.FrontPercent
 	if weakest ~= nil and send >= math.max(Config.Forces.MinFrontStrength, weakest.power * cfg.NationAdvantage) then
-		return { kind = "attack", target = weakest.id, percent = cfg.FrontPercent }
+		return { kind = "declare", target = weakest.id }
 	end
 	return nil
+end
+
+-- Ответ бота на предложение мира.
+function BotBrain.answerPeace(offer: PeaceOffer): boolean
+	local cfg = Config.Bots
+	if offer.terms == "capitulate" then
+		return false
+	end
+	if offer.terms == "white" then
+		-- Белый мир вернёт всё взятое: выгоден тому, кто проигрывает.
+		return offer.myPower < offer.theirPower * cfg.AcceptWhiteWhenWeaker or offer.theirGain > offer.myGain
+	end
+	-- «Забрать захваченное»: соглашаемся, если сами взяли не меньше или сильно слабее.
+	return offer.myGain >= offer.theirGain or offer.myPower < offer.theirPower * cfg.AcceptKeepWhenWeaker
 end
 
 return table.freeze(BotBrain)

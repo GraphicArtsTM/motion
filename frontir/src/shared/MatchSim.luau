@@ -19,6 +19,11 @@
 	- атака на державу — фронт: доля войск уходит на границу, бой (Fronts) решает, идёт ли фронт
 	  и берёт ли он города; потери, опыт, снабжение;
 	- держава выбывает, когда пал её последний город: её клетки становятся ничьими.
+
+	Война и мир (§6.7а, Wars): по умолчанию мир; фронт против державы — только в активной войне
+	(объявление → мобилизация). Без войны граница людей идёт только на ничью землю, окружение не берёт
+	куски чужих стран. Мир: белый (взятое в войне возвращается) или «забрать захваченное»; после мира —
+	запрет на новую войну; долгая война — усталость (меньше прирост людей).
 ]]
 
 local BotBrain = require("./BotBrain")
@@ -35,6 +40,7 @@ local Provinces = require("./Provinces")
 local Rng = require("./Rng")
 local StartPositions = require("./StartPositions")
 local Types = require("./Types")
+local Wars = require("./Wars")
 
 type Grid = Grid.Grid
 type MapData = MapData.MapData
@@ -45,6 +51,11 @@ type Attack = Types.Attack
 export type MatchEvent =
 	{ kind: "eliminated", nation: number, by: number }
 	| { kind: "capitalLost", nation: number, by: number }
+	| { kind: "warDeclared", nation: number, target: number }
+	| { kind: "warStarted", nation: number, target: number }
+	| { kind: "peaceProposed", nation: number, target: number, terms: Types.PeaceTerms }
+	| { kind: "peaceRejected", nation: number, target: number, expired: boolean }
+	| { kind: "peace", nation: number, target: number, terms: Types.PeaceTerms, returned: number }
 
 export type Match = {
 	map: MapData,
@@ -66,6 +77,7 @@ export type Match = {
 	lastCaptured: number, -- клеток захвачено за последний тик
 	provinces: Provinces.ProvinceSet,
 	cityOf: { [number]: number }, -- провинция → клетка города (нейтрального, державы или столицы)
+	wars: Wars.WarSet,
 }
 
 local MatchSim = {}
@@ -101,6 +113,7 @@ function MatchSim.new(map: MapData, seed: number): Match
 		lastCaptured = 0,
 		provinces = provinces,
 		cityOf = cityOf,
+		wars = Wars.new(),
 	}
 end
 
@@ -368,6 +381,67 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 		return true, nil
 	end
 
+	if intent.kind == "declare" then
+		local t = m.nations[intent.target]
+		if t == nil or not t.alive then
+			return false, "target"
+		end
+		local ok, reason = Wars.canDeclare(m.wars, nationId, intent.target, m.simTime)
+		if not ok then
+			return false, reason
+		end
+		Wars.declare(m.wars, nationId, intent.target, m.simTime)
+		table.insert(m.events, { kind = "warDeclared", nation = nationId, target = intent.target })
+		return true, nil
+	end
+
+	if intent.kind == "peace" then
+		local war = Wars.find(m.wars, nationId, intent.target)
+		if war == nil then
+			return false, "notAtWar"
+		end
+		if intent.terms == "capitulate" then
+			return false, "notYet" -- вассалитет — этап 6
+		end
+		if war.proposal ~= nil then
+			return false, "peacePending"
+		end
+		war.proposal = {
+			from = nationId,
+			terms = intent.terms,
+			madeAt = m.simTime,
+			expiresAt = m.simTime + Config.War.PeaceReplySec,
+		}
+		war.lastProposal[nationId] = m.simTime
+		table.insert(m.events, {
+			kind = "peaceProposed",
+			nation = nationId,
+			target = intent.target,
+			terms = intent.terms,
+		})
+		return true, nil
+	end
+
+	if intent.kind == "peaceReply" then
+		local war = Wars.find(m.wars, nationId, intent.target)
+		local proposal = if war ~= nil then war.proposal else nil
+		if war == nil or proposal == nil or proposal.from ~= intent.target then
+			return false, "noProposal"
+		end
+		war.proposal = nil
+		if intent.accept then
+			MatchSim.makePeace(m, war, proposal.terms)
+		else
+			table.insert(m.events, {
+				kind = "peaceRejected",
+				nation = nationId,
+				target = intent.target,
+				expired = false,
+			})
+		end
+		return true, nil
+	end
+
 	-- attack
 	local target = intent.target
 	if target == nationId then
@@ -378,13 +452,22 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 		if t == nil or not t.alive then
 			return false, "target"
 		end
+		-- Землю страны берёт только фронт, и только в активной войне (§6.7а).
+		local war = Wars.find(m.wars, nationId, target)
+		if war == nil then
+			return false, "notAtWar"
+		elseif war.state ~= "active" then
+			return false, "mobilizing"
+		end
 	end
 	local focus = intent.focus
 	if focus ~= nil and focus >= m.grid.size then
 		return false, "focus"
 	end
 	-- Города в соседстве считаются, если их есть чем брать: фронт против державы или войска с собой.
-	if not Expansion.hasFrontier(m.grid, nationId, target, target ~= 0 or Forces.total(n.home) > 0) then
+	-- Фронт против страны видит и землю за рекой; граница людей реку не переходит.
+	local riverMap = if target ~= 0 then m.map else nil
+	if not Expansion.hasFrontier(m.grid, nationId, target, target ~= 0 or Forces.total(n.home) > 0, riverMap) then
 		return false, "notAdjacent"
 	end
 	local _, existing = findAttack(m, nationId, target)
@@ -428,6 +511,15 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 end
 
 -- Что бот «видит» о своей державе.
+-- Вся сила державы: гарнизон и фронты.
+local function totalPower(m: Match, id: number): number
+	local n = m.nations[id]
+	if n == nil then
+		return 0
+	end
+	return Forces.total(n.home) + Forces.total(MatchSim.frontForces(m, id))
+end
+
 local function botView(m: Match, n: Nation): BotBrain.BotView
 	local adjacent = Grid.adjacentOwners(m.grid, n.id)
 	local neighbours: { BotBrain.Neighbour } = {}
@@ -435,9 +527,30 @@ local function botView(m: Match, n: Nation): BotBrain.BotView
 		if owner ~= 0 then
 			local other = m.nations[owner]
 			if other ~= nil and other.alive then
-				table.insert(neighbours, { id = owner, people = other.people, power = Forces.total(other.home) })
+				table.insert(neighbours, {
+					id = owner,
+					people = other.people,
+					power = Forces.total(other.home),
+					atWar = Wars.isActive(m.wars, n.id, owner),
+					canDeclare = (Wars.canDeclare(m.wars, n.id, owner, m.simTime)),
+				})
 			end
 		end
+	end
+	local wars: { BotBrain.WarView } = {}
+	for _, war in Wars.of(m.wars, n.id) do
+		local enemy = Wars.enemyOf(war, n.id)
+		local byA, byB = Wars.takenCells(war, m.grid)
+		local last = war.lastProposal[n.id]
+		table.insert(wars, {
+			enemy = enemy,
+			active = war.state == "active",
+			age = math.max(0, m.simTime - war.activeAt),
+			myGain = if war.a == n.id then byA else byB,
+			theirGain = if war.a == n.id then byB else byA,
+			theirPower = totalPower(m, enemy),
+			canPropose = war.proposal == nil and (last == nil or m.simTime - last >= Config.Bots.PeaceRetrySec),
+		})
 	end
 	table.sort(neighbours, function(a: BotBrain.Neighbour, b: BotBrain.Neighbour): boolean
 		return a.id < b.id
@@ -448,6 +561,7 @@ local function botView(m: Match, n: Nation): BotBrain.BotView
 		attacks = attacksOf(m, n.id),
 		queue = #n.queue,
 		power = Forces.total(n.home),
+		totalPower = totalPower(m, n.id),
 		hasCapital = n.capital ~= nil,
 		-- Ничья земля «рядом», если её можно взять: обычные клетки — людьми, ничейный город — войсками.
 		hasNeutral = Expansion.hasFrontier(m.grid, n.id, 0, false)
@@ -456,6 +570,7 @@ local function botView(m: Match, n: Nation): BotBrain.BotView
 				and Expansion.hasFrontier(m.grid, n.id, 0, true)
 			),
 		neighbours = neighbours,
+		wars = wars,
 	}
 end
 
@@ -484,8 +599,48 @@ local function eliminate(m: Match, n: Nation, by: number)
 			j += 1
 		end
 	end
+	for _, war in Wars.of(m.wars, n.id) do
+		Wars.finish(m.wars, war, m.simTime, false)
+	end
 	table.insert(m.events, { kind = "eliminated", nation = n.id, by = by })
 	m.infoDirty = true
+end
+
+-- Мир между сторонами войны: белый — взятое в войне возвращается; фронты между ними закрываются,
+-- войска идут домой; паре на PeaceCooldownSec запрещено снова объявлять войну.
+function MatchSim.makePeace(m: Match, war: Wars.War, terms: Types.PeaceTerms)
+	local returned = 0
+	if terms == "white" then
+		returned = Wars.returnTaken(war, m.grid, function(id: number): boolean
+			local nation = m.nations[id]
+			return nation ~= nil and nation.alive
+		end)
+	end
+	local j = 1
+	while j <= #m.attacks do
+		local a = m.attacks[j]
+		if (a.attacker == war.a and a.target == war.b) or (a.attacker == war.b and a.target == war.a) then
+			returnHome(m, a)
+			table.remove(m.attacks, j)
+		else
+			j += 1
+		end
+	end
+	Wars.finish(m.wars, war, m.simTime, true)
+	table.insert(m.events, { kind = "peace", nation = war.a, target = war.b, terms = terms, returned = returned })
+end
+
+-- Чьи окружённые куски может забрать attacker: ничьи и тех, с кем идёт война.
+local function enclaveRule(m: Match, attacker: number): (owner: number) -> boolean
+	return function(owner: number): boolean
+		return owner == 0 or Wars.isActive(m.wars, attacker, owner)
+	end
+end
+
+local function recordCapture(m: Match): (cell: number, old: number, new: number) -> ()
+	return function(cell: number, old: number, new: number)
+		Wars.record(m.wars, cell, old, new)
+	end
 end
 
 -- Ничейный город: войска атаки берут его, если могут оплатить гарнизон силой.
@@ -510,16 +665,16 @@ local function stepAttacks(m: Match, simDt: number): number
 	local captured = 0
 
 	-- Фронты против держав: длины фронтов нужны, чтобы делить гарнизон защитника.
-	type FrontInfo = { list: { number }, touching: { [number]: number } }
-	local fronts: { [Attack]: FrontInfo } = {}
+	local fronts: { [Attack]: Expansion.FrontLine } = {}
 	local frontLength: { [number]: number } = {}
 	for _, a in m.attacks do
 		if a.target ~= 0 then
-			local list, touching = Expansion.frontier(g, a.attacker, a.target, true)
-			fronts[a] = { list = list, touching = touching }
+			local list, touching, river = Expansion.frontier(g, a.attacker, a.target, true, m.map)
+			fronts[a] = { list = list, touching = touching, river = river }
 			frontLength[a.target] = (frontLength[a.target] or 0) + #list
 		end
 	end
+	local record = recordCapture(m)
 
 	local battled: { [Attack]: boolean } = {}
 	local k = 1
@@ -527,13 +682,25 @@ local function stepAttacks(m: Match, simDt: number): number
 		local a = m.attacks[k]
 		local done = false
 		if a.target == 0 then
-			local d, cells = Expansion.advance(m.map, g, m.nations, a, m.tick, m.seed, simDt, neutralCityTaker(a))
+			local d, cells = Expansion.advance(m.map, g, m.nations, a, m.tick, m.seed, simDt, {
+				cityAllowed = neutralCityTaker(a),
+				canTake = enclaveRule(m, a.attacker),
+				record = record,
+			})
 			done = d
 			captured += cells
 		else
 			local front = fronts[a]
 			local defender = m.nations[a.target]
-			if front == nil or #front.list == 0 or defender == nil or not defender.alive then
+			local war = Wars.find(m.wars, a.attacker, a.target)
+			if
+				front == nil
+				or #front.list == 0
+				or defender == nil
+				or not defender.alive
+				or war == nil
+				or war.state ~= "active"
+			then
 				done = true
 			else
 				local _, counter = findAttack(m, a.target, a.attacker)
@@ -545,23 +712,26 @@ local function stepAttacks(m: Match, simDt: number): number
 					home = defender.home,
 					share = #front.list / totalLen,
 					counter = if counter ~= nil then counter.forces else nil,
-				}, Fronts.terrainDefense(m.map, front.list), m.rng, simDt, applyLosses)
+				}, Fronts.terrainDefense(m.map, front.list, front.river), m.rng, simDt, applyLosses)
 				battled[a] = true
 				a.ratio = result.ratio
 				a.fighting = result.fighting
+				Wars.addLosses(war, a.attacker, result.lostAttacker)
+				Wars.addLosses(war, a.target, result.lostDefender)
 				local mul = Fronts.advanceMul(a, result.ratio)
 				local allowCities = result.ratio >= Config.Combat.CityCaptureRatio
 				captured += Expansion.advanceFront(
+					m.map,
 					g,
 					m.nations,
 					a,
-					front.list,
-					front.touching,
+					front,
 					mul,
 					allowCities,
 					m.tick,
 					m.seed,
-					simDt
+					simDt,
+					{ canTake = enclaveRule(m, a.attacker), record = record }
 				)
 				done = Forces.total(a.forces) < 1
 			end
@@ -574,6 +744,33 @@ local function stepAttacks(m: Match, simDt: number): number
 		end
 	end
 	return captured
+end
+
+-- Боты отвечают на предложения мира (с небольшой задержкой, как человек).
+local function answerBotProposals(m: Match)
+	for _, war in table.clone(m.wars.list) do
+		local p = war.proposal
+		if p ~= nil and m.simTime >= p.madeAt + Config.War.BotReplyDelaySec then
+			local me = Wars.enemyOf(war, p.from)
+			local bot = m.nations[me]
+			if bot ~= nil and bot.isBot then
+				war.proposal = nil
+				local byA, byB = Wars.takenCells(war, m.grid)
+				local accept = BotBrain.answerPeace({
+					terms = p.terms,
+					myGain = if war.a == me then byA else byB,
+					theirGain = if war.a == me then byB else byA,
+					myPower = totalPower(m, me),
+					theirPower = totalPower(m, p.from),
+				})
+				if accept then
+					MatchSim.makePeace(m, war, p.terms)
+				else
+					table.insert(m.events, { kind = "peaceRejected", nation = me, target = p.from, expired = false })
+				end
+			end
+		end
+	end
 end
 
 -- Шаг симуляции на dt секунд (сервер зовёт с dt = 1 / TickRate).
@@ -597,7 +794,8 @@ function MatchSim.step(m: Match, dt: number)
 	-- Люди и найм.
 	for _, n in m.nations do
 		if n.alive then
-			n.people = Economy.grow(n.people, Economy.maxPeople(Grid.cellsOf(g, n.id)), simDt)
+			local growthMul = 1 - Wars.weariness(m.wars, n.id, m.simTime)
+			n.people = Economy.grow(n.people, Economy.maxPeople(Grid.cellsOf(g, n.id)), simDt, growthMul)
 			local first = n.queue[1]
 			if first ~= nil then
 				first.left -= simDt
@@ -608,6 +806,17 @@ function MatchSim.step(m: Match, dt: number)
 			end
 		end
 	end
+
+	-- Войны: конец мобилизации, истёкшие предложения мира, ответы ботов.
+	local started, expired = Wars.update(m.wars, m.simTime)
+	for _, war in started do
+		table.insert(m.events, { kind = "warStarted", nation = war.a, target = war.b })
+	end
+	for _, e in expired do
+		local to = Wars.enemyOf(e.war, e.proposal.from)
+		table.insert(m.events, { kind = "peaceRejected", nation = to, target = e.proposal.from, expired = true })
+	end
+	answerBotProposals(m)
 
 	m.lastCaptured = stepAttacks(m, simDt)
 

@@ -30,6 +30,7 @@ Protocol.SNAPSHOT = 1
 Protocol.DELTA = 2
 Protocol.STATS = 3
 Protocol.FORCES = 5
+Protocol.WARS = 6
 
 export type NationStats = {
 	id: number,
@@ -40,6 +41,8 @@ export type NationStats = {
 	power: number, -- сила гарнизона
 	frontPower: number, -- сила войск на фронтах
 	cities: number,
+	mix: { number }, -- доли типов войск в гарнизоне (для защитников на линии фронта)
+	weariness: number, -- штраф усталости к приросту людей (0..1)
 }
 
 export type AttackStats = {
@@ -51,6 +54,7 @@ export type AttackStats = {
 	supplied: boolean,
 	fighting: boolean,
 	ratio: number, -- перевес (math.huge — обороны нет)
+	focus: number?, -- главное направление удара (клетка)
 }
 
 export type Stats = {
@@ -59,6 +63,29 @@ export type Stats = {
 	nations: { NationStats },
 	attacks: { AttackStats },
 }
+
+-- Война (§6.7а) глазами клиента: стороны, мобилизация, захваченная земля, потери, сила, предложение мира.
+export type WarStats = {
+	a: number, -- объявил
+	b: number,
+	active: boolean,
+	timeLeft: number, -- секунд до конца мобилизации (0 — война идёт)
+	age: number, -- секунд активной войны
+	takenA: number, -- клеток a взял у b и держит
+	takenB: number,
+	lossesA: number, -- силы потеряно
+	lossesB: number,
+	powerA: number, -- вся сила сторон (гарнизон и фронты)
+	powerB: number,
+	proposalFrom: number, -- 0 — предложения мира нет
+	proposalTerms: Types.PeaceTerms,
+	proposalLeft: number, -- секунд на ответ
+}
+
+-- Запрет на новую войну после мира: пара и сколько секунд осталось.
+export type Cooldown = { a: number, b: number, left: number }
+
+export type WarsMessage = { wars: { WarStats }, cooldowns: { Cooldown } }
 
 export type KindForces = { home: number, xp: number, front: number }
 export type QueueItem = { kind: number, left: number }
@@ -375,9 +402,10 @@ end
 
 local RATIO_SCALE = 32
 local KINDS = #Types.LandUnits
+local NO_FOCUS = 0xFFFFFFFF
 
 function Protocol.encodeStats(s: Stats): buffer
-	local w = writer(32 + #s.nations * 26 + #s.attacks * 16)
+	local w = writer(32 + #s.nations * 31 + #s.attacks * 20)
 	u8(w, Protocol.STATS)
 	f32(w, s.tickMs)
 	u16(w, math.clamp(s.changed, 0, 65535))
@@ -391,6 +419,10 @@ function Protocol.encodeStats(s: Stats): buffer
 		f32(w, n.power)
 		f32(w, n.frontPower)
 		u8(w, math.clamp(n.cities, 0, 255))
+		for kind = 1, KINDS do
+			u8(w, math.clamp(math.round((n.mix[kind] or 0) * 255), 0, 255))
+		end
+		u8(w, math.clamp(math.round(n.weariness * 100), 0, 100))
 	end
 	u16(w, math.min(#s.attacks, 65535))
 	for k = 1, math.min(#s.attacks, 65535) do
@@ -404,6 +436,7 @@ function Protocol.encodeStats(s: Stats): buffer
 		end
 		u8(w, (if a.supplied then 1 else 0) + (if a.fighting then 2 else 0))
 		u8(w, if a.ratio == math.huge then 255 else math.clamp(math.round(a.ratio * RATIO_SCALE), 0, 254))
+		u32(w, if a.focus ~= nil then a.focus else NO_FOCUS)
 	end
 	return finish(w)
 end
@@ -425,6 +458,11 @@ function Protocol.decodeStats(b: buffer): Stats
 		local power = rf32(r)
 		local frontPower = rf32(r)
 		local cities = ru8(r)
+		local mix: { number } = {}
+		for kind = 1, KINDS do
+			mix[kind] = ru8(r) / 255
+		end
+		local weariness = ru8(r) / 100
 		table.insert(nations, {
 			id = id,
 			people = people,
@@ -434,6 +472,8 @@ function Protocol.decodeStats(b: buffer): Stats
 			power = power,
 			frontPower = frontPower,
 			cities = cities,
+			mix = mix,
+			weariness = weariness,
 		})
 	end
 	local attacks: { AttackStats } = {}
@@ -448,6 +488,7 @@ function Protocol.decodeStats(b: buffer): Stats
 		end
 		local flags = ru8(r)
 		local ratioByte = ru8(r)
+		local focus = ru32(r)
 		table.insert(attacks, {
 			attacker = attacker,
 			target = target,
@@ -457,6 +498,7 @@ function Protocol.decodeStats(b: buffer): Stats
 			supplied = flags % 2 == 1,
 			fighting = (flags // 2) % 2 == 1,
 			ratio = if ratioByte == 255 then math.huge else ratioByte / RATIO_SCALE,
+			focus = if focus == NO_FOCUS then nil else focus,
 		})
 	end
 	if r.pos ~= r.len then
@@ -509,6 +551,96 @@ function Protocol.decodeForces(b: buffer): MyForces
 		error("Protocol: лишние байты в войсках", 2)
 	end
 	return { kinds = kinds, queue = queue }
+end
+
+-- WARS -------------------------------------------------------------------------------------
+
+local TERMS: { Types.PeaceTerms } = { "white", "keep", "capitulate" }
+
+function Protocol.encodeWars(msg: WarsMessage): buffer
+	local w = writer(8 + #msg.wars * 40 + #msg.cooldowns * 5)
+	u8(w, Protocol.WARS)
+	u16(w, math.min(#msg.wars, 65535))
+	for k = 1, math.min(#msg.wars, 65535) do
+		local war = msg.wars[k]
+		u16(w, war.a)
+		u16(w, war.b)
+		u8(w, if war.active then 1 else 0)
+		u16(w, math.clamp(math.round(war.timeLeft * 10), 0, 65535))
+		u16(w, math.clamp(math.round(war.age), 0, 65535))
+		u32(w, war.takenA)
+		u32(w, war.takenB)
+		f32(w, war.lossesA)
+		f32(w, war.lossesB)
+		f32(w, war.powerA)
+		f32(w, war.powerB)
+		u16(w, war.proposalFrom)
+		u8(w, table.find(TERMS, war.proposalTerms) or 1)
+		u8(w, math.clamp(math.ceil(war.proposalLeft), 0, 255))
+	end
+	u16(w, math.min(#msg.cooldowns, 65535))
+	for k = 1, math.min(#msg.cooldowns, 65535) do
+		local c = msg.cooldowns[k]
+		u16(w, c.a)
+		u16(w, c.b)
+		u8(w, math.clamp(math.ceil(c.left), 0, 255))
+	end
+	return finish(w)
+end
+
+function Protocol.decodeWars(b: buffer): WarsMessage
+	local r = reader(b)
+	if ru8(r) ~= Protocol.WARS then
+		error("Protocol: не войны", 2)
+	end
+	local wars: { WarStats } = {}
+	for _ = 1, ru16(r) do
+		local a = ru16(r)
+		local bSide = ru16(r)
+		local active = ru8(r) == 1
+		local timeLeft = ru16(r) / 10
+		local age = ru16(r)
+		local takenA = ru32(r)
+		local takenB = ru32(r)
+		local lossesA = rf32(r)
+		local lossesB = rf32(r)
+		local powerA = rf32(r)
+		local powerB = rf32(r)
+		local proposalFrom = ru16(r)
+		local termsIndex = ru8(r)
+		local proposalLeft = ru8(r)
+		local terms: Types.PeaceTerms? = TERMS[termsIndex]
+		if terms == nil then
+			error("Protocol: неверные условия мира", 2)
+		end
+		table.insert(wars, {
+			a = a,
+			b = bSide,
+			active = active,
+			timeLeft = timeLeft,
+			age = age,
+			takenA = takenA,
+			takenB = takenB,
+			lossesA = lossesA,
+			lossesB = lossesB,
+			powerA = powerA,
+			powerB = powerB,
+			proposalFrom = proposalFrom,
+			proposalTerms = terms,
+			proposalLeft = proposalLeft,
+		})
+	end
+	local cooldowns: { Cooldown } = {}
+	for _ = 1, ru16(r) do
+		local a = ru16(r)
+		local bSide = ru16(r)
+		local left = ru8(r)
+		table.insert(cooldowns, { a = a, b = bSide, left = left })
+	end
+	if r.pos ~= r.len then
+		error("Protocol: лишние байты в войнах", 2)
+	end
+	return { wars = wars, cooldowns = cooldowns }
 end
 
 return table.freeze(Protocol)

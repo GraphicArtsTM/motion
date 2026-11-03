@@ -31,6 +31,8 @@ export type Defense = {
 export type BattleResult = {
 	ratio: number, -- атака / оборона (math.huge — обороны нет)
 	fighting: boolean, -- у защитника есть войска на этом фронте
+	lostAttacker: number, -- силы потеряно за этот шаг (бой и нехватка снабжения)
+	lostDefender: number,
 }
 
 local Fronts = {}
@@ -77,15 +79,19 @@ function Fronts.supplied(g: Grid, cities: { number }, attacker: number, front: {
 	return sum / n <= range
 end
 
--- Средняя защита местности вдоль фронта (§6.1).
-function Fronts.terrainDefense(map: MapData, front: { number }): number
+-- Средняя защита местности вдоль фронта (§6.1); клетки за рекой (river) — с бонусом берега RiverBankDefense.
+function Fronts.terrainDefense(map: MapData, front: { number }, river: { [number]: boolean }?): number
 	local list = sample(front, Config.Combat.SupplySamples)
 	if #list == 0 then
 		return 1
 	end
 	local sum = 0
 	for _, i in list do
-		sum += Config.Terrain[MapData.getTerrain(map, i)].defense
+		local d = Config.Terrain[MapData.getTerrain(map, i)].defense
+		if river ~= nil and river[i] then
+			d *= Config.Combat.RiverBankDefense
+		end
+		sum += d
 	end
 	return sum / #list
 end
@@ -122,16 +128,17 @@ function Fronts.battle(
 
 	local fighting = defensePower > 0
 	local ratio = if fighting then attackPower / defensePower else math.huge
+	local lostA, lostD = 0, 0
 
 	if applyLosses and fighting then
 		local spreadA = 1 + (Rng.nextFloat(rng) * 2 - 1) * cfg.DamageSpread
 		local spreadD = 1 + (Rng.nextFloat(rng) * 2 - 1) * cfg.DamageSpread
 		local toAttacker = defensePower * cfg.LossRate * dt * spreadA
 		local toDefender = attackPower * cfg.LossRate * dt * spreadD
-		local lostA = Forces.applyDamage(attack.forces, toAttacker)
+		lostA = Forces.applyDamage(attack.forces, toAttacker)
 		-- Урон защитнику делится между гарнизоном и встречным фронтом по их вкладу в оборону.
 		local homeShare = if homeDef + counterDef > 0 then homeDef / (homeDef + counterDef) else 1
-		local lostD = Forces.applyDamage(defense.home, toDefender * homeShare)
+		lostD = Forces.applyDamage(defense.home, toDefender * homeShare)
 		if counter ~= nil then
 			lostD += Forces.applyDamage(counter, toDefender * (1 - homeShare))
 		end
@@ -142,9 +149,11 @@ function Fronts.battle(
 		end
 	end
 	if applyLosses and not attack.supplied then
+		local before = Forces.total(attack.forces)
 		Forces.attrition(attack.forces, cfg.OutOfSupplyLossPerSec * dt)
+		lostA += before - Forces.total(attack.forces)
 	end
-	return { ratio = ratio, fighting = fighting }
+	return { ratio = ratio, fighting = fighting, lostAttacker = lostA, lostDefender = lostD }
 end
 
 -- Множитель скорости фронта по перевесу и составу войск (танки быстрее, звёзды ускоряют).

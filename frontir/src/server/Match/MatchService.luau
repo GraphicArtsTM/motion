@@ -6,7 +6,7 @@
 	- тик 10 Гц на Heartbeat с фиксированным шагом;
 	- рассылка: info (таблица) при смене фазы и держав, снимок сетки частями (начало игры, опоздавшие),
 	  дельты изменений каждый тик (только изменённые клетки), Config.Net.StatsHz раз в секунду — статистика
-	  (державы, фронты) всем и войска с очередью найма каждому игроку.
+	  (державы, фронты), войны и запреты после мира всем, войска с очередью найма — каждому игроку.
 	Всё идёт по одному RemoteEvent ReplicatedStorage.Remotes.Match, поэтому порядок сообщений сохраняется.
 ]]
 
@@ -148,9 +148,10 @@ function MatchService.start(map: MapData)
 	local statsAcc = 0
 	local lastTickMs = 0
 	local lastChanged = 0
-	-- Всем — общая статистика (державы, атаки и фронты); каждому игроку — его войска и очередь найма.
+	-- Всем — общая статистика (державы, атаки и фронты) и войны; каждому игроку — его войска и очередь найма.
 	local function sendStats()
 		matchEvent:FireAllClients(Protocol.encodeStats(MatchStats.build(m, lastTickMs, lastChanged)))
+		matchEvent:FireAllClients(Protocol.encodeWars(MatchStats.wars(m)))
 		for player, id in nationOf do
 			matchEvent:FireClient(player, Protocol.encodeForces(MatchStats.forcesOf(m, id)))
 		end

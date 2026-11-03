@@ -9,6 +9,7 @@ local Grid = require("../src/shared/Grid")
 local MatchSim = require("../src/shared/MatchSim")
 local Rng = require("../src/shared/Rng")
 local Types = require("../src/shared/Types")
+local Wars = require("../src/shared/Wars")
 
 local DT = 1 / Config.Sim.TickRate
 local INF = Forces.kindIndex("Infantry") :: number
@@ -37,6 +38,13 @@ local function frontAttack(forces: Types.Forces): Types.Attack
 end
 
 -- Две державы на равнине 40×12: 1 — слева, 2 — справа, по одному городу у каждой.
+-- Война между a и b сразу активна (мобилизация пропущена).
+local function atWar(m: MatchSim.Match, a: number, b: number)
+	local war = Wars.declare(m.wars, a, b, m.simTime)
+	war.state = "active"
+	war.activeAt = m.simTime
+end
+
 local function duel(): (MatchSim.Match, number, number)
 	local map = TinyMap.plains(40, 12)
 	local m = MatchSim.new(map, 5)
@@ -58,6 +66,7 @@ local function duel(): (MatchSim.Match, number, number)
 		n.colorIndex = n.id
 		n.people = 5000
 	end
+	atWar(m, 1, 2)
 	return m, cityA, cityB
 end
 
