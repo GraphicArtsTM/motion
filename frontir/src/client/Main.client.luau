@@ -1,16 +1,20 @@
 --!strict
 --[[
 	Точка входа клиента. Клиент только отправляет намерения и рисует (docs/GDD.md §0, п. 4).
-	Этап 1: загрузка карты, выбранной сервером, рендер через EditableImage, камера, блики, F3.
+	Карта, выбранная сервером, рендер через EditableImage, камера, блики, F3;
+	этап 2: приём матча (MatchClient), слой территорий, подписи держав, HUD, нажатия на карту.
 ]]
 
 local LocalizationService = game:GetService("LocalizationService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local StarterGui = game:GetService("StarterGui")
+local TextChatService = game:GetService("TextChatService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local CameraMath = require(Shared:WaitForChild("CameraMath"))
+local ClientState = require(Shared:WaitForChild("ClientState"))
 local Config = require(Shared:WaitForChild("Config"))
 local MapFormat = require(Shared:WaitForChild("MapFormat"))
 local MapPaint = require(Shared:WaitForChild("MapPaint"))
@@ -23,6 +27,10 @@ local Camera2D = require(Render:WaitForChild("Camera2D"))
 local CameraInput = require(Client:WaitForChild("Input"):WaitForChild("CameraInput"))
 local DebugOverlay = require(UI:WaitForChild("DebugOverlay"))
 local MapRenderer = require(Render:WaitForChild("MapRenderer"))
+local MatchClient = require(Client:WaitForChild("Net"):WaitForChild("MatchClient"))
+local MatchHud = require(UI:WaitForChild("MatchHud"))
+local NationLabels = require(UI:WaitForChild("NationLabels"))
+local TerritoryLayer = require(Render:WaitForChild("TerritoryLayer"))
 local Theme = require(UI:WaitForChild("Theme"))
 local WaterSparkles = require(Render:WaitForChild("WaterSparkles"))
 
@@ -49,6 +57,12 @@ StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
 StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Health, false)
 -- Справа сверху по GDD §10 будет своя таблица лидеров; стандартный список игроков её перекрывал бы.
 StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)
+-- Окно чата — на середину левого края: слева сверху по GDD §10 панель державы, слева снизу — ползунок атаки.
+pcall(function()
+	local chatWindow = TextChatService.ChatWindowConfiguration
+	chatWindow.HorizontalAlignment = Enum.HorizontalAlignment.Left
+	chatWindow.VerticalAlignment = Enum.VerticalAlignment.Center
+end)
 
 -- Карту выбирает сервер (атрибут MapId у ReplicatedStorage), данные лежат в ReplicatedStorage.Maps.
 local mapId = ReplicatedStorage:GetAttribute("MapId")
@@ -108,18 +122,76 @@ camera.onChanged(function(state)
 	sparklesOnCamera(state)
 end)
 
-local input = CameraInput.bind(camera, viewport)
+-- Матч: состояние с сервера, слой территорий, подписи, HUD.
+local cs = ClientState.new(map.width, map.height)
+local territory = TerritoryLayer.new(view, map, colors, cs)
+local labels = NationLabels.new(view.canvas, cs, lang, map.width)
+camera.onChanged(function(state)
+	labels.onCamera(state)
+end)
+
+local hud: MatchHud.Hud
+local client = MatchClient.connect(cs, {
+	onInfo = function(colorsChanged: boolean)
+		if colorsChanged and cs.hasSnapshot then
+			territory.repaintAll()
+		end
+		labels.refresh()
+		hud.refresh()
+	end,
+	onSnapshot = function()
+		territory.repaintAll()
+	end,
+	onDelta = function(cells: { number })
+		territory.cellsChanged(cells, os.clock())
+	end,
+	onStats = function()
+		hud.refresh()
+	end,
+	onEvents = function(events: { any })
+		hud.onEvents(events)
+	end,
+	onRejected = function(reason: string)
+		hud.toast(Strings.get("reject." .. reason, lang))
+	end,
+})
+hud = MatchHud.new(gui, cs, lang, map, client.send)
+hud.refresh()
+
+local input = CameraInput.bind(camera, viewport, function(sx: number, sy: number)
+	local cx, cy = CameraMath.cellAt(camera.state, sx, sy)
+	if cx ~= nil and cy ~= nil then
+		hud.tapCell(cy * map.width + cx)
+	end
+end)
+
+local frameConn = RunService.RenderStepped:Connect(function()
+	local now = os.clock()
+	territory.update(now)
+	hud.update(now)
+end)
+
 DebugOverlay.create(gui, {
 	map = map,
 	state = camera.state,
 	chunkCount = view.chunkCount,
 	memoryBytes = view.memoryBytes,
 	hover = input.hover,
+	extra = function(): { string }
+		local lines: { string } = {}
+		local stats = cs.stats
+		if stats ~= nil then
+			table.insert(lines, string.format(Strings.get("debug.server", lang), stats.tickMs, stats.changed))
+		end
+		table.insert(lines, string.format(Strings.get("debug.ping", lang), math.round(player:GetNetworkPing() * 1000)))
+		return lines
+	end,
 }, lang)
 
 player.AncestryChanged:Connect(function()
 	if not player:IsDescendantOf(game) then
 		stopSparkles()
+		frameConn:Disconnect()
 		input.disconnect()
 		camera.destroy()
 		view.destroy()

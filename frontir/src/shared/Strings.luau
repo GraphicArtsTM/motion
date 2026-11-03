@@ -35,6 +35,67 @@ local TABLE: { [string]: Entry } = {
 	["debug.cell.none"] = { ru = "Клетка: —", en = "Cell: —" },
 	["debug.memory"] = { ru = "EditableImage: чанков %d, %.2f МБ", en = "EditableImage: %d chunks, %.2f MB" },
 
+	["debug.server"] = {
+		ru = "Сервер: тик %.2f мс, клеток за тик %d",
+		en = "Server: tick %.2f ms, cells/tick %d",
+	},
+	["debug.ping"] = { ru = "Пинг: %d мс", en = "Ping: %d ms" },
+
+	["hud.waiting"] = { ru = "Ожидание игроков…", en = "Waiting for players…" },
+	["hud.pick"] = { ru = "Выберите точку старта: %d с", en = "Choose your start: %d s" },
+	["hud.pick.hint"] = { ru = "Нажмите на свободную сушу", en = "Tap free land" },
+	["hud.pick.done"] = {
+		ru = "Точка выбрана — можно перевыбрать",
+		en = "Start chosen — you can change it",
+	},
+	["hud.spectator"] = {
+		ru = "Матч уже идёт — вы зритель",
+		en = "Match in progress — you are spectating",
+	},
+	["hud.defeated"] = {
+		ru = "Ваша держава пала — вы зритель",
+		en = "Your nation has fallen — spectating",
+	},
+	["hud.time"] = { ru = "%d:%02d", en = "%d:%02d" },
+	["hud.people"] = { ru = "Люди: %s / %s", en = "People: %s / %s" },
+	["hud.growth"] = { ru = "Прирост: %s/с", en = "Growth: %s/s" },
+	["hud.land"] = { ru = "Суша: %s%%", en = "Land: %s%%" },
+	["hud.troops"] = { ru = "В атаках: %s", en = "Attacking: %s" },
+	["hud.attack"] = { ru = "Атака %d%%", en = "Attack %d%%" },
+	["hud.attack.hint"] = {
+		ru = "Нажмите на соседа или ничью землю",
+		en = "Tap a neighbour or free land",
+	},
+	["hud.neutral"] = { ru = "ничья земля", en = "free land" },
+	["hud.leaders"] = { ru = "Лидеры", en = "Leaders" },
+	["hud.you"] = { ru = "вы", en = "you" },
+	["event.eliminated"] = { ru = "Держава %s пала", en = "%s has fallen" },
+	["event.capitalLost"] = { ru = "%s потеряла столицу", en = "%s lost its capital" },
+
+	["reject.TooClose"] = {
+		ru = "Слишком близко к другой державе",
+		en = "Too close to another nation",
+	},
+	["reject.NotLand"] = {
+		ru = "Здесь нельзя: нужна свободная суша",
+		en = "Not here: pick free land",
+	},
+	["reject.TooSmall"] = { ru = "Слишком мало суши вокруг", en = "Not enough land around" },
+	["reject.OutOfMap"] = { ru = "Вне карты", en = "Outside the map" },
+	["reject.notAdjacent"] = {
+		ru = "Нет общей границы с целью",
+		en = "No shared border with the target",
+	},
+	["reject.tooMany"] = { ru = "Слишком много атак сразу", en = "Too many attacks at once" },
+	["reject.noTroops"] = { ru = "Не хватает людей", en = "Not enough people" },
+	["reject.phase"] = { ru = "Сейчас нельзя", en = "Not now" },
+	["reject.dead"] = { ru = "Ваша держава пала", en = "Your nation has fallen" },
+	["reject.self"] = { ru = "Это ваша земля", en = "This is your land" },
+	["reject.target"] = { ru = "Такой державы нет", en = "No such nation" },
+	["reject.focus"] = { ru = "Неверная точка", en = "Invalid point" },
+	["reject.noAttack"] = { ru = "Такой атаки нет", en = "No such attack" },
+	["reject.noNation"] = { ru = "У вас нет державы", en = "You have no nation" },
+
 	["error.editable.disabled"] = {
 		ru = "Не удалось создать EditableImage. В опубликованной игре включите Allow Mesh / Image APIs (Experience Settings → Security).",
 		en = "Could not create EditableImage. For a published game enable Allow Mesh / Image APIs (Experience Settings → Security).",
@@ -79,6 +140,19 @@ for _, entry in TABLE do
 	table.freeze(entry)
 end
 
+-- Целое с разделителем тысяч (узкий неразрывный пробел): 1234567 → «1 234 567».
+local function formatInt(n: number): string
+	local negative = n < 0
+	local digits = tostring(math.floor(math.abs(n) + 0.5))
+	local groups: { string } = {}
+	while #digits > 3 do
+		table.insert(groups, 1, string.sub(digits, -3))
+		digits = string.sub(digits, 1, -4)
+	end
+	table.insert(groups, 1, digits)
+	return (if negative then "-" else "") .. table.concat(groups, "\u{202F}")
+end
+
 export type StringsModule = {
 	DefaultLang: Lang,
 	Langs: { Lang },
@@ -86,6 +160,7 @@ export type StringsModule = {
 	pick: (entry: Entry, lang: Lang) -> string,
 	langFromLocale: (localeId: string) -> Lang,
 	get: (key: string, lang: Lang?) -> string,
+	formatInt: (n: number) -> string,
 }
 
 local Strings: StringsModule = {
@@ -95,6 +170,7 @@ local Strings: StringsModule = {
 	pick = pick,
 	langFromLocale = langFromLocale,
 	get = get,
+	formatInt = formatInt,
 }
 
 return table.freeze(Strings)

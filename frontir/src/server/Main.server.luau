@@ -2,7 +2,7 @@
 --[[
 	Точка входа сервера. Сервер решает всё: принимает намерения клиентов,
 	считает симуляцию и рассылает изменения (docs/GDD.md §12).
-	Этап 1: выбирает карту, проверяет, что она распаковывается, и сообщает клиентам её id.
+	Выбирает карту, распаковывает её, сообщает клиентам её id и запускает матч (Match/MatchService).
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -12,6 +12,8 @@ local Config = require(Shared:WaitForChild("Config"))
 local MapData = require(Shared:WaitForChild("MapData"))
 local MapFormat = require(Shared:WaitForChild("MapFormat"))
 local Types = require(Shared:WaitForChild("Types"))
+
+local MatchService = require(script.Parent:WaitForChild("Match"):WaitForChild("MatchService"))
 
 local mapId = Config.Match.DefaultMap
 local started = os.clock()
@@ -34,3 +36,5 @@ print(
 		Config.Sim.TickRate
 	)
 )
+
+MatchService.start(map)

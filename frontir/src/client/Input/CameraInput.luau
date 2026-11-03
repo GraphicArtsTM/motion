@@ -3,7 +3,8 @@
 	CameraInput — управление камерой (GDD §3):
 	- мышь: колесо — плавный зум к курсору (от ×2 — только целые шаги), перетаскивание правой или средней кнопкой — сдвиг;
 	- клавиатура: WASD и стрелки — сдвиг, Space — показать всю карту;
-	- телефон: перетаскивание пальцем — сдвиг, щипок двумя пальцами — зум к центру щипка.
+	- телефон: перетаскивание пальцем — сдвиг, щипок двумя пальцами — зум к центру щипка;
+	- нажатие (левая кнопка или короткое касание без сдвига) — onTap(точка экрана): выбор старта, атака.
 	Координаты ввода переводятся в координаты области карты через её AbsolutePosition,
 	поэтому верхняя панель Roblox (GUI inset) не сбивает зум к курсору.
 ]]
@@ -42,7 +43,7 @@ local function anyDown(keys: { Enum.KeyCode }): boolean
 	return false
 end
 
-function CameraInput.bind(camera: Camera2D, viewport: GuiObject): Binding
+function CameraInput.bind(camera: Camera2D, viewport: GuiObject, onTap: ((sx: number, sy: number) -> ())?): Binding
 	local state = camera.state
 	local connections: { RBXScriptConnection } = {}
 
@@ -50,6 +51,12 @@ function CameraInput.bind(camera: Camera2D, viewport: GuiObject): Binding
 		local origin = viewport.AbsolutePosition
 		return pos.X - origin.X, pos.Y - origin.Y
 	end
+
+	local slop = Config.Render.TapSlopPx
+
+	-- Нажатие левой кнопкой: срабатывает при отпускании, если мышь почти не сдвинулась.
+	local clickX: number?, clickY: number? = nil, nil
+	local clickAt = 0
 
 	-- Мышь
 	local dragging = false
@@ -63,7 +70,10 @@ function CameraInput.bind(camera: Camera2D, viewport: GuiObject): Binding
 				return
 			end
 			local t = input.UserInputType
-			if t == Enum.UserInputType.MouseButton2 or t == Enum.UserInputType.MouseButton3 then
+			if t == Enum.UserInputType.MouseButton1 then
+				clickX, clickY = toLocal(input.Position)
+				clickAt = os.clock()
+			elseif t == Enum.UserInputType.MouseButton2 or t == Enum.UserInputType.MouseButton3 then
 				dragging = true
 				lastX, lastY = toLocal(input.Position)
 			elseif t == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.Space then
@@ -78,6 +88,13 @@ function CameraInput.bind(camera: Camera2D, viewport: GuiObject): Binding
 			local t = input.UserInputType
 			if t == Enum.UserInputType.MouseButton2 or t == Enum.UserInputType.MouseButton3 then
 				dragging = false
+			elseif t == Enum.UserInputType.MouseButton1 and clickX ~= nil and clickY ~= nil then
+				local x, y = toLocal(input.Position)
+				local quick = os.clock() - clickAt <= Config.Render.TapMaxSec
+				if onTap and quick and math.abs(x - clickX) <= slop and math.abs(y - clickY) <= slop then
+					onTap(x, y)
+				end
+				clickX, clickY = nil, nil
 			end
 		end)
 	)
@@ -106,7 +123,7 @@ function CameraInput.bind(camera: Camera2D, viewport: GuiObject): Binding
 	)
 
 	-- Касания: один палец — сдвиг, два — щипок.
-	type Touch = { x: number, y: number }
+	type Touch = { x: number, y: number, startX: number, startY: number, startAt: number, moved: boolean }
 	local touches: { [InputObject]: Touch } = {}
 	local touchCount = 0
 	local pinchStartDist = 0
@@ -141,10 +158,14 @@ function CameraInput.bind(camera: Camera2D, viewport: GuiObject): Binding
 				return
 			end
 			local x, y = toLocal(input.Position)
-			touches[input] = { x = x, y = y }
+			touches[input] = { x = x, y = y, startX = x, startY = y, startAt = os.clock(), moved = false }
 			touchCount += 1
 			if touchCount == 2 then
 				camera.cancelZoom()
+				-- Второй палец — это щипок, а не нажатие.
+				for _, t in touches do
+					t.moved = true
+				end
 				beginPinch()
 			end
 		end)
@@ -158,6 +179,9 @@ function CameraInput.bind(camera: Camera2D, viewport: GuiObject): Binding
 				return
 			end
 			local x, y = toLocal(input.Position)
+			if math.abs(x - touch.startX) > slop or math.abs(y - touch.startY) > slop then
+				touch.moved = true
+			end
 			if touchCount == 1 then
 				CameraMath.pan(state, x - touch.x, y - touch.y)
 				touch.x, touch.y = x, y
@@ -180,9 +204,18 @@ function CameraInput.bind(camera: Camera2D, viewport: GuiObject): Binding
 	table.insert(
 		connections,
 		UserInputService.TouchEnded:Connect(function(input: InputObject)
-			if touches[input] ~= nil then
+			local touch = touches[input]
+			if touch ~= nil then
 				touches[input] = nil
 				touchCount -= 1
+				if
+					onTap
+					and touchCount == 0
+					and not touch.moved
+					and os.clock() - touch.startAt <= Config.Render.TapMaxSec
+				then
+					onTap(touch.startX, touch.startY)
+				end
 				if touchCount == 2 then
 					beginPinch()
 				elseif touchCount == 1 then

@@ -24,6 +24,7 @@ selene src tests tools
 rojo serve              # синхронизация со Studio
 lune run tools/genmap Pangea   # пересоздать maps/Pangea.luau (+ превью build/Pangea.bmp)
 lune run tools/palette_preview # пересоздать docs/palette.png после правки цветов
+lune run tools/match_preview 120  # партия ботов на 120 с → build/match.bmp (форма границ, цвета, темп)
 rojo sourcemap default.project.json -o sourcemap.json   # для luau-lsp
 lune setup              # типы Lune (алиас @lune в .luaurc)
 luau-lsp analyze --platform=roblox --definitions:@roblox=types/globalTypes.d.luau --sourcemap=sourcemap.json --base-luaurc=.luaurc src tests tools
@@ -47,6 +48,16 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
 - EditableImage: максимум 1024×1024, на экране обновляется один EditableImage за кадр, бюджет памяти клиента
   (CreateEditableImage → nil), в опубликованной игре нужен флаг Allow Mesh / Image APIs.
 - Pure-модули, которые нужны клиенту, кладём в `src/shared` (клиентская папка не видит shared по относительному пути).
+
+## Матч (этап 2)
+- Симуляция целиком в `src/shared/MatchSim.luau` (+ `Grid`, `Economy`, `Expansion`, `StartPositions`, `BotBrain`,
+  `NameGen`, `Intents`, `RateLimiter`) — без Roblox API, тестируется в Lune. Сервер (`src/server/Match/MatchService`)
+  только кормит её игроками, намерениями и временем и рассылает результат.
+- Сеть: один RemoteEvent `Remotes.Match` (сервер → клиент, порядок сохраняется): buffer-сообщения `Net/Protocol`
+  (снимок частями, дельты, статистика) и таблицы (`info`, `events`, `rejected`). Клиент → сервер: `Remotes.Intent`
+  (kind, payload), сервер проверяет лимитом, `Intents.parse` и `MatchSim.applyIntent`.
+- Клиент собирает состояние в `ClientState` (тест сверяет его с сеткой сервера побайтно).
+- StyLua 2.6 падает на `//` внутри длинного конструктора таблицы — выноси вычисление в локальную переменную.
 
 ## Require
 Внутри `src/shared` модули подключают друг друга строкой: `require("./Types")` — так работает и в Roblox (`./` = `script.Parent`), и в Lune.

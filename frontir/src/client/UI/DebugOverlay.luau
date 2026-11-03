@@ -1,10 +1,9 @@
 --!strict
 --[[
 	DebugOverlay — окно F3 (GDD §12): FPS, карта, зум, камера, клетка под курсором, память EditableImage.
-	В Studio открыто сразу, в игре — по F3. Время тика и пинг появятся вместе с сервером симуляции (этап 2).
+	В Studio открыто сразу, в игре — по F3. Время тика сервера, клеток за тик и пинг — строками extra.
 ]]
 
-local GuiService = game:GetService("GuiService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -27,6 +26,7 @@ export type DebugSource = {
 	chunkCount: number,
 	memoryBytes: number,
 	hover: () -> (number?, number?),
+	extra: (() -> { string })?, -- дополнительные строки (сервер, пинг)
 }
 
 local DebugOverlay = {}
@@ -39,10 +39,9 @@ end
 function DebugOverlay.create(parent: Instance, source: DebugSource, lang: Strings.Lang): () -> ()
 	local panel = Instance.new("Frame")
 	panel.Name = "DebugOverlay"
-	-- Справа сверху, под верхней панелью Roblox (слева её кнопки и чат).
-	local inset = GuiService:GetGuiInset()
-	panel.AnchorPoint = Vector2.new(1, 0)
-	panel.Position = UDim2.new(1, -8, 0, inset.Y + 8)
+	-- Справа снизу: справа сверху — таблица лидеров, слева — панели игрока.
+	panel.AnchorPoint = Vector2.new(1, 1)
+	panel.Position = UDim2.new(1, -8, 1, -8)
 	panel.Size = UDim2.fromOffset(330, 0)
 	panel.AutomaticSize = Enum.AutomaticSize.Y
 	panel.BackgroundColor3 = Theme.Colors.PanelBg
@@ -114,6 +113,12 @@ function DebugOverlay.create(parent: Instance, source: DebugSource, lang: String
 			lines,
 			string.format(Strings.get("debug.memory", lang), source.chunkCount, source.memoryBytes / (1024 * 1024))
 		)
+		local extra = source.extra
+		if extra then
+			for _, line in extra() do
+				table.insert(lines, line)
+			end
+		end
 		text.Text = table.concat(lines, "\n")
 	end
 

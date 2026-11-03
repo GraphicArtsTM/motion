@@ -105,4 +105,37 @@ export type MapGenParams = {
 	RiverMeander: number, -- вероятность шага «вбок» вместо шага к воде
 }
 
+-- Державы и матч (этап 2) -----------------------------------------------------------------
+
+-- Id державы: 1..N; 0 — нейтральная земля.
+export type NationId = number
+
+export type Nation = {
+	id: NationId,
+	name: string, -- имя для русского интерфейса
+	nameEn: string, -- имя для английского (у игроков совпадает)
+	isBot: boolean,
+	userId: number?, -- игрок Roblox; nil — бот
+	colorIndex: number, -- 1..24 (NationColors); 0 — ещё не назначен (идёт выбор старта)
+	capital: number?, -- клетка столицы; nil — старт ещё не выбран
+	people: number, -- люди дома (без отправленных в атаки)
+	alive: boolean,
+}
+
+-- Атака вдоль границы (§6.4): attacker тратит troops на клетки target (0 — нейтральные).
+export type Attack = {
+	attacker: NationId,
+	target: NationId,
+	troops: number,
+	focus: number?, -- клетка, к которой тянется атака
+}
+
+-- Намерения игрока — всё, что клиент может попросить у сервера (GDD §0 п. 4).
+export type PickIntent = { kind: "pick", cell: number }
+export type AttackIntent = { kind: "attack", target: NationId, percent: number, focus: number? }
+export type CancelIntent = { kind: "cancel", target: NationId }
+export type Intent = PickIntent | AttackIntent | CancelIntent
+
+export type Phase = "Waiting" | "Pick" | "Play"
+
 return Types

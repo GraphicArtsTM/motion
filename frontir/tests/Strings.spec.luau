@@ -41,6 +41,38 @@ T.describe("Strings", function()
 		end
 	end)
 
+	T.it("числа с разделителем тысяч", function()
+		local sep = "\u{202F}"
+		T.expect(Strings.formatInt(0)).toBe("0")
+		T.expect(Strings.formatInt(999)).toBe("999")
+		T.expect(Strings.formatInt(1000)).toBe("1" .. sep .. "000")
+		T.expect(Strings.formatInt(1234567.4)).toBe("1" .. sep .. "234" .. sep .. "567")
+		T.expect(Strings.formatInt(-12345)).toBe("-12" .. sep .. "345")
+	end)
+
+	T.it("у каждой причины отказа сервера есть текст", function()
+		for _, reason in
+			{
+				"TooClose",
+				"NotLand",
+				"TooSmall",
+				"OutOfMap",
+				"notAdjacent",
+				"tooMany",
+				"noTroops",
+				"phase",
+				"dead",
+				"self",
+				"target",
+				"focus",
+				"noAttack",
+				"noNation",
+			}
+		do
+			T.expect(Strings.Table["reject." .. reason] ~= nil).toBe(true)
+		end
+	end)
+
 	T.it("локаль Roblox сводится к языку", function()
 		T.expect(Strings.langFromLocale("ru-ru")).toBe("ru")
 		T.expect(Strings.langFromLocale("en-us")).toBe("en")
