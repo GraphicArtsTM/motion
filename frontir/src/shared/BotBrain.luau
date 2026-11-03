@@ -5,7 +5,8 @@
 	никаких читов (GDD §9).
 
 	- Иногда нанимает юниты (очередь не длиннее Bots.MaxQueue).
-	- Долго воюет и сильно слабее врага — просит мира (белый, а если сам взял больше — «забрать захваченное»).
+	- Долго воюет и сильно слабее врага — просит мира: сначала белого, потом (или сразу, если совсем слаб
+	  или сам взял больше) «забрать захваченное» — победитель на такое соглашается.
 	- Идёт война — открывает или подкрепляет фронт против самого слабого врага, если войск хватает.
 	- Людей мало (меньше AttackWhenFill от максимума) — копит.
 	- Рядом ничья земля — расширяется на неё людьми (NeutralPercent); войска в той же доле идут
@@ -39,6 +40,7 @@ export type WarView = {
 	theirGain: number, -- клеток враг взял у нас
 	theirPower: number, -- вся сила врага (гарнизон и фронты)
 	canPropose: boolean, -- нет висящего предложения и давно не просили
+	proposedBefore: boolean, -- уже просил мира в этой войне
 }
 
 export type BotView = {
@@ -96,7 +98,11 @@ function BotBrain.decide(view: BotView, rng: Rng): Types.Intent?
 			and war.age >= cfg.MinWarSec
 			and view.totalPower < war.theirPower * cfg.PeaceWhenWeaker
 		then
-			local terms: Types.PeaceTerms = if war.myGain > war.theirGain then "keep" else "white"
+			-- Сначала просит белый мир; не вышло — готов отдать захваченное, лишь бы война кончилась.
+			local keep = war.myGain > war.theirGain
+				or war.proposedBefore
+				or view.totalPower < war.theirPower * cfg.ConcedeWhenWeaker
+			local terms: Types.PeaceTerms = if keep then "keep" else "white"
 			return { kind = "peace", target = war.enemy, terms = terms }
 		end
 	end

@@ -5,11 +5,13 @@
 	- слева сверху: держава, люди / максимум, прирост в секунду, доля суши, люди в атаках;
 	- справа сверху: лидеры по доле суши;
 	- слева снизу: ползунок «Атака N%» (кнопки −/+ и полоса, всё от 44 px), активные атаки и фронты с отменой
-	  (сила войск, перевес, «нет снабжения» красным), над ними — всплывающие сообщения (отказы, павшие державы).
+	  (сила войск, перевес, «нет снабжения» красным), над ними — лента событий (4 строки, гаснут через 8 с:
+	  отказы сервера, войны, мир, павшие державы; нападение на вас — красным).
 	HUD живёт в отдельном ScreenGui с ScreenInsets = CoreUISafeInsets: Roblox сам держит его вне своих кнопок
 	(лого, меню, чат) и выреза экрана телефона, поэтому отступы считаются от 0.
-	Нажатие на карту (tapCell): в фазе выбора — точка старта; в игре — атака на соседа или ничью землю
-	с силой из ползунка, нажатая клетка становится точкой, к которой тянется атака.
+	Нажатие на карту (tapCell): в фазе выбора — точка старта; в игре — атака на ничью землю или страну, с которой
+	идёт война, с силой из ползунка (нажатая клетка — главное направление удара); страна без войны —
+	onNationTap (предложить объявить войну, §6.7а).
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -34,6 +36,7 @@ export type Hud = {
 	update: (now: number) -> (),
 	tapCell: (cell: number) -> (),
 	toast: (text: string) -> (),
+	alert: (text: string) -> (), -- строка ленты красным (на вас напали)
 	onEvents: (events: { any }) -> (),
 }
 
@@ -127,7 +130,8 @@ function MatchHud.new(
 	cs: ClientState,
 	lang: Strings.Lang,
 	map: MapData,
-	send: (string, { [string]: any }) -> ()
+	send: (string, { [string]: any }) -> (),
+	onNationTap: (owner: number) -> () -- нажатие на страну, с которой нет войны (объявление войны)
 ): Hud
 	local cfg = Config.Expansion
 	local percent = cfg.DefaultPercent
@@ -186,13 +190,21 @@ function MatchHud.new(
 	bottomLayout.Padding = UDim.new(0, 6)
 	bottomLayout.Parent = bottom
 
-	local toastLabel = richLabel(bottom, 15)
-	toastLabel.LayoutOrder = 1
-	toastLabel.TextColor3 = Theme.Colors.Gold
-	toastLabel.TextStrokeColor3 = Theme.Colors.Backdrop
-	toastLabel.TextStrokeTransparency = 0.2
-	toastLabel.Visible = false
-	local toastUntil = 0
+	-- Лента событий (GDD §10): до FeedLines строк, каждая гаснет через FeedSec; новые — снизу.
+	local feed = Instance.new("Frame")
+	feed.Name = "Feed"
+	feed.BackgroundTransparency = 1
+	feed.Size = UDim2.fromOffset(320, 0)
+	feed.AutomaticSize = Enum.AutomaticSize.Y
+	feed.LayoutOrder = 1
+	feed.Parent = bottom
+	local feedLayout = Instance.new("UIListLayout")
+	feedLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	feedLayout.Padding = UDim.new(0, 2)
+	feedLayout.Parent = feed
+	type FeedLine = { label: TextLabel, untilTime: number }
+	local feedLines: { FeedLine } = {}
+	local feedOrder = 0
 
 	-- Строки активных атак (пул, чтобы кнопки не пересоздавались 5 раз в секунду).
 	type Row = { frame: Frame, text: TextLabel, cancel: TextButton, target: number }
@@ -349,10 +361,34 @@ function MatchHud.new(
 		)
 	end
 
+	local function push(text: string, color: Color3)
+		local line: FeedLine
+		if #feedLines >= Config.Render.FeedLines then
+			line = table.remove(feedLines, 1) :: FeedLine -- самая старая строка уходит
+		else
+			local label = richLabel(feed, 15)
+			label.TextStrokeColor3 = Theme.Colors.Backdrop
+			label.TextStrokeTransparency = 0.2
+			label.TextWrapped = true
+			label.AutomaticSize = Enum.AutomaticSize.Y
+			label.Size = UDim2.fromOffset(320, 0)
+			line = { label = label, untilTime = 0 }
+		end
+		feedOrder += 1
+		line.label.LayoutOrder = feedOrder
+		line.label.Text = escape(text)
+		line.label.TextColor3 = color
+		line.label.Visible = true
+		line.untilTime = os.clock() + Config.Render.FeedSec
+		table.insert(feedLines, line)
+	end
+
 	local function toast(text: string)
-		toastLabel.Text = escape(text)
-		toastLabel.Visible = true
-		toastUntil = os.clock() + Config.Render.ToastSec
+		push(text, Theme.Colors.Gold)
+	end
+
+	local function alertLine(text: string)
+		push(text, Theme.Colors.Alert)
 	end
 
 	local function refresh()
@@ -373,6 +409,9 @@ function MatchHud.new(
 			}
 			if myStats ~= nil then
 				local growth = Economy.growthPerSec(myStats.people, myStats.maxPeople)
+				if growth > 0 then
+					growth *= 1 - myStats.weariness -- усталость от войны (§6.7а)
+				end
 				table.insert(
 					lines,
 					string.format(
@@ -401,6 +440,16 @@ function MatchHud.new(
 					)
 				)
 				table.insert(lines, string.format(Strings.get("hud.troops", lang), Strings.formatInt(myStats.troops)))
+				if myStats.weariness > 0 then
+					table.insert(
+						lines,
+						string.format(
+							'<font color="%s">%s</font>',
+							alert,
+							string.format(Strings.get("hud.weariness", lang), math.round(myStats.weariness * 100))
+						)
+					)
+				end
 			end
 			nationText.Text = table.concat(lines, "\n")
 		end
@@ -485,8 +534,15 @@ function MatchHud.new(
 			lastBanner = text
 			bannerText.Text = text
 		end
-		if toastLabel.Visible and now > toastUntil then
-			toastLabel.Visible = false
+		local j = 1
+		while j <= #feedLines do
+			local line = feedLines[j]
+			if now > line.untilTime then
+				line.label:Destroy()
+				table.remove(feedLines, j)
+			else
+				j += 1
+			end
 		end
 	end
 
@@ -513,13 +569,48 @@ function MatchHud.new(
 		if owner == myNation then
 			return
 		end
+		if owner ~= 0 then
+			-- Чужая страна: войну сначала объявляют, бои — после мобилизации (§6.7а).
+			local war = ClientState.warBetween(cs, myNation, owner)
+			if war == nil then
+				onNationTap(owner)
+				return
+			elseif not war.active then
+				toast(Strings.get("reject.mobilizing", lang))
+				return
+			end
+		end
+		-- Ничья земля или враг: атака; точка нажатия — главное направление удара.
 		send("attack", { target = owner, percent = percent, focus = cell })
 	end
 
 	local function onEvents(events: { any })
 		for _, e in events do
-			if type(e) == "table" and (e.kind == "eliminated" or e.kind == "capitalLost") then
-				toast(string.format(Strings.get("event." .. e.kind, lang), nationName(tonumber(e.nation) or 0)))
+			if type(e) ~= "table" then
+				continue
+			end
+			local a, b = nationName(tonumber(e.nation) or 0), nationName(tonumber(e.target) or 0)
+			if e.kind == "eliminated" or e.kind == "capitalLost" then
+				toast(string.format(Strings.get("event." .. e.kind, lang), a))
+			elseif e.kind == "warDeclared" then
+				if e.target == cs.myNation then
+					alertLine(string.format(Strings.get("event.attacked", lang), a, Config.War.MobilizationSec))
+				else
+					toast(string.format(Strings.get("event.warDeclared", lang), a, b))
+				end
+			elseif e.kind == "warStarted" then
+				toast(string.format(Strings.get("event.warStarted", lang), a, b))
+			elseif e.kind == "peace" then
+				local terms = Strings.get("peace.terms." .. tostring(e.terms), lang)
+				toast(string.format(Strings.get("event.peace", lang), a, b, terms))
+			elseif e.kind == "peaceRejected" and e.target == cs.myNation then
+				-- Наше предложение мира отклонили или оставили без ответа.
+				toast(
+					string.format(
+						Strings.get(if e.expired then "event.peaceExpired" else "event.peaceRejected", lang),
+						a
+					)
+				)
 			end
 		end
 	end
@@ -529,6 +620,7 @@ function MatchHud.new(
 		update = update,
 		tapCell = tapCell,
 		toast = toast,
+		alert = alertLine,
 		onEvents = onEvents,
 	}
 end

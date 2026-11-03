@@ -476,7 +476,8 @@ T.describe("BotBrain", function()
 		"долгая проигранная война — просит мира; на мир соглашается, если слабее",
 		function()
 			local v = view()
-			v.people, v.hasNeutral, v.power, v.totalPower = 900, false, 0, 100
+			-- Слабее врага (меньше 0.6 его силы), но не безнадёжно.
+			v.people, v.hasNeutral, v.power, v.totalPower = 900, false, 0, 1500
 			v.neighbours = { neighbour(4, 3000, true) }
 			v.wars = {
 				{
@@ -487,10 +488,20 @@ T.describe("BotBrain", function()
 					theirGain = 50,
 					theirPower = 3000,
 					canPropose = true,
+					proposedBefore = false,
 				},
 			}
 			local p = BotBrain.decide(v, rng)
 			T.expect(p ~= nil and p.kind == "peace" and p.target == 4 and p.terms == "white").toBe(true)
+			-- Белый мир не приняли — второй раз готов отдать захваченное.
+			v.wars[1].proposedBefore = true
+			local again = BotBrain.decide(v, rng)
+			T.expect(again ~= nil and again.kind == "peace" and again.terms == "keep").toBe(true)
+			-- Совсем слабый — сразу готов отдать захваченное.
+			v.wars[1].proposedBefore = false
+			v.totalPower = 100
+			local desperate = BotBrain.decide(v, rng)
+			T.expect(desperate ~= nil and desperate.kind == "peace" and desperate.terms == "keep").toBe(true)
 			local offer =
 				{ terms = "white" :: Types.PeaceTerms, myGain = 0, theirGain = 50, myPower = 100, theirPower = 3000 }
 			T.expect(BotBrain.answerPeace(offer)).toBe(true)

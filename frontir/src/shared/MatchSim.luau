@@ -550,6 +550,7 @@ local function botView(m: Match, n: Nation): BotBrain.BotView
 			theirGain = if war.a == n.id then byB else byA,
 			theirPower = totalPower(m, enemy),
 			canPropose = war.proposal == nil and (last == nil or m.simTime - last >= Config.Bots.PeaceRetrySec),
+			proposedBefore = last ~= nil,
 		})
 	end
 	table.sort(neighbours, function(a: BotBrain.Neighbour, b: BotBrain.Neighbour): boolean

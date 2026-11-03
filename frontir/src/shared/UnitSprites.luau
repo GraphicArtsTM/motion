@@ -1,12 +1,11 @@
 --!strict
 --[[
-	UnitSprites — программные спрайты юнитов на линии фронта (пока нет арта, docs/ART_LIST.md) и раскладка
-	юнитов вдоль линии. Общие для клиента (Render/FrontLayer) и превью партии (tools/match_preview),
-	поэтому чистые данные и функции без Roblox API.
+	UnitSprites — программные спрайты юнитов на линии фронта (пока нет арта, docs/ART_LIST.md) и их размер
+	на разных зумах. Общие для клиента (Render/FrontLayer) и превью партии (tools/match_preview), поэтому
+	чистые данные без Roblox API. Где юниты стоят — Shared.BattleLayout.
 ]]
 
 local Config = require("./Config")
-local Types = require("./Types")
 
 -- Деталь спрайта 8×6: прямоугольник; ink — тёмная деталь, иначе цвет державы.
 export type Part = { x: number, y: number, w: number, h: number, ink: boolean }
@@ -53,35 +52,6 @@ function UnitSprites.scaleFor(zoom: number): number
 		end
 	end
 	return scale
-end
-
--- Тип юнита на позиции k из n по долям состава mix (индексы Types.LandUnits): доли раскладываются
--- подряд, так что 60% пехоты и 40% танков дают 6 солдат и 4 танка из 10.
-function UnitSprites.kindAt(mix: { number }, k: number, n: number): string
-	local x = (k - 0.5) / n
-	local acc = 0
-	for kind, share in mix do
-		acc += share
-		if x <= acc then
-			return Types.LandUnits[kind]
-		end
-	end
-	return Types.LandUnits[1]
-end
-
--- Равномерно выбрать до count элементов списка (юниты вдоль линии фронта).
-function UnitSprites.spread(list: { number }, count: number): { number }
-	if count <= 0 then
-		return {}
-	end
-	if #list <= count then
-		return list
-	end
-	local out: { number } = {}
-	for k = 1, count do
-		table.insert(out, list[math.floor((k - 0.5) * #list / count) + 1])
-	end
-	return out
 end
 
 return table.freeze(UnitSprites)

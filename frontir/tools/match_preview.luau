@@ -4,16 +4,20 @@
 	теми же функциями, что и клиент (MapPaint + TerritoryPaint). Для проверки формы границ, цветов и темпа.
 	Запуск из frontir/:  lune run tools/match_preview [секунд=75] [сид=12345] [файл=build/match.png]
 	Картинка (PNG): сверху вся карта ×2 с городами и юнитами вдоль фронтов (как на клиенте на зуме ×2),
-	снизу — крупно самый большой бой (как на зуме ×8: юниты крупнее, вспышки и разрывы).
+	снизу — крупно бой (как на зуме ×8): если есть бой через реку — он, иначе самый большой. Юниты стоят
+	по той же раскладке, что у клиента (Shared.BattleLayout): ничейная полоса, артиллерия в тылу; снаряды
+	по дуге, разрывы, воронки и дым — как кадр боя.
 	Превью для отчёта этапа: lune run tools/match_preview 75 12345 docs/previews/stage-N.png
 ]]
 
 local fs = require("@lune/fs")
 local process = require("@lune/process")
 
+local BattleLayout = require("../src/shared/BattleLayout")
 local Config = require("../src/shared/Config")
 local Forces = require("../src/shared/Forces")
 local Grid = require("../src/shared/Grid")
+local MapData = require("../src/shared/MapData")
 local MapGen = require("../src/shared/MapGen")
 local MapPaint = require("../src/shared/MapPaint")
 local MatchSim = require("../src/shared/MatchSim")
@@ -35,8 +39,16 @@ local dt = 1 / Config.Sim.TickRate
 while m.phase ~= "Play" do
 	MatchSim.step(m, dt)
 end
+local declared, peaces = 0, 0
 for _ = 1, math.floor(seconds * Config.Sim.TickRate) do
 	MatchSim.step(m, dt)
+	for _, e in MatchSim.takeEvents(m) do
+		if e.kind == "warDeclared" then
+			declared += 1
+		elseif e.kind == "peace" then
+			peaces += 1
+		end
+	end
 end
 
 local out = process.args[3] or "build/match.png"
@@ -49,6 +61,8 @@ local mist = Palette.rgb("Mist")
 local gold = Palette.rgb("Gold")
 local orange = Palette.rgb("Orange")
 local red = Palette.rgb("Red")
+local basalt = Palette.rgb("Basalt")
+local riverId = Types.Terrain.River
 
 local function colorOf(owner: number): number
 	local n = m.nations[owner]
@@ -58,40 +72,75 @@ local function ownerRgb(owner: number): Palette.Rgb
 	local ci = colorOf(owner)
 	return if ci >= 1 then NationColors.Colors[ci] else mist
 end
+local function ownerAt(i: number): number
+	return Grid.getOwner(g, i)
+end
+local function isRiver(i: number): boolean
+	return MapData.getTerrain(map, i) == riverId
+end
 
--- Фронты с войсками и их линии: клетки атакующего у границы с целью и клетки цели напротив
--- (тот же разбор, что в клиентском Render/FrontLayer, только по всей карте).
-type Front = { attack: Types.Attack, power: number, mix: { number }, own: { number }, enemy: { number } }
+-- Фронты с войсками и их линии по всей карте (тот же разбор, что у клиента).
+type Front = { attack: Types.Attack, power: number, mix: { number } }
 local fronts: { Front } = {}
 local pairIndex: { [number]: number } = {}
 for _, a in m.attacks do
 	local power = Forces.total(a.forces)
 	if a.target ~= 0 and power > 0 then
-		table.insert(fronts, { attack = a, power = power, mix = Forces.composition(a.forces), own = {}, enemy = {} })
+		table.insert(fronts, { attack = a, power = power, mix = Forces.composition(a.forces) })
 		pairIndex[a.attacker * 65536 + a.target] = #fronts
 	end
 end
-for i = 0, w * h - 1 do
-	local o = Grid.getOwner(g, i)
-	if o ~= 0 then
-		Grid.forNeighbours(g, i, function(j: number)
-			local p = Grid.getOwner(g, j)
-			if p ~= o then
-				local k = pairIndex[o * 65536 + p]
-				if k ~= nil then
-					table.insert(fronts[k].own, i)
-				end
-				local back = pairIndex[p * 65536 + o]
-				if back ~= nil then
-					table.insert(fronts[back].enemy, i)
-				end
-			end
-		end)
+-- Юниты каждой стороны в прямоугольнике rect (как у клиента: он раскладывает только видимую часть линии):
+-- войска фронта; напротив — встречный фронт или доля гарнизона.
+type Side = { owner: number, slots: { BattleLayout.Slot }, front: number, attackerSide: boolean }
+type Lines = { { BattleLayout.LinePoint } }
+local against: { [number]: number } = {}
+for _, f in fronts do
+	against[f.attack.target] = (against[f.attack.target] or 0) + 1
+end
+local function buildSides(rect: { x0: number, y0: number, x1: number, y1: number }): ({ Side }, Lines, Lines)
+	local lineA, lineD = BattleLayout.scan(ownerAt, isRiver, w, h, rect, 1, pairIndex, #fronts)
+	local visibleFronts = 0
+	for k = 1, #fronts do
+		if #lineA[k] > 0 or #lineD[k] > 0 then
+			visibleFronts += 1
+		end
 	end
+	local cap = math.max(4, math.floor(Config.Render.Battle.MaxUnitsOnScreen / (math.max(1, visibleFronts) * 2)))
+	local out: { Side } = {}
+	for k, f in fronts do
+		local a = f.attack
+		local n = math.min(BattleLayout.unitsFor(f.power), cap)
+		local slots = BattleLayout.place(lineA[k], n, f.mix, a.focus, ownerAt, a.attacker, w, h)
+		table.insert(out, { owner = a.attacker, slots = slots, front = k, attackerSide = true })
+		local target = m.nations[a.target]
+		local hasCounter = pairIndex[a.target * 65536 + a.attacker] ~= nil
+		if not hasCounter and target ~= nil and Forces.total(target.home) > 0 then
+			local share = Forces.total(target.home) / math.max(1, against[a.target] or 1)
+			local nd = math.min(BattleLayout.unitsFor(share), cap)
+			local mix = Forces.composition(target.home)
+			local def = BattleLayout.place(lineD[k], nd, mix, nil, ownerAt, a.target, w, h)
+			table.insert(out, { owner = a.target, slots = def, front = k, attackerSide = false })
+		end
+	end
+	return out, lineA, lineD
+end
+local sides, lineA, lineD = buildSides({ x0 = 0, y0 = 0, x1 = w - 1, y1 = h - 1 })
+
+-- Сколько точек линии фронта k проходит по реке (клетка у реки, враг за ней).
+local function riverPoints(k: number): number
+	local count = 0
+	for _, p in lineA[k] do
+		local x, y = p.cell % w + p.dx, p.cell // w + p.dy
+		if x >= 0 and y >= 0 and x < w and y < h and isRiver(y * w + x) then
+			count += 1
+		end
+	end
+	return count
 end
 
 -- Рисует область карты (клетки x0..x0+cw-1, y0..y0+ch-1) в картинку со сдвигом (ox, oy):
--- клетка = cell пикселей, пиксель спрайта = sprite пикселей.
+-- клетка = cell пикселей, пиксель спрайта = sprite пикселей. fx — кадр боя: снаряды, разрывы, воронки, дым.
 local function renderRegion(
 	pixels: buffer,
 	W: number,
@@ -104,26 +153,31 @@ local function renderRegion(
 	ch: number,
 	cell: number,
 	sprite: number,
-	bursts: number
+	fx: boolean,
+	sides: { Side },
+	lineD: Lines
 )
-	local function rect(px: number, py: number, pw: number, ph: number, c: Palette.Rgb)
-		local left, top = math.max(ox, px), math.max(oy, py)
-		local right, bottom = math.min(ox + cw * cell, px + pw), math.min(oy + ch * cell, py + ph)
-		for yy = top, math.min(H, bottom) - 1 do
-			for xx = left, math.min(W, right) - 1 do
+	local right, bottom = math.min(W, ox + cw * cell), math.min(H, oy + ch * cell)
+	local function blend(px: number, py: number, pw: number, ph: number, c: Palette.Rgb, alpha: number)
+		for yy = math.max(oy, py), math.min(bottom, py + ph) - 1 do
+			for xx = math.max(ox, px), math.min(right, px + pw) - 1 do
 				local o = (yy * W + xx) * 3
-				buffer.writeu8(pixels, o, c.r)
-				buffer.writeu8(pixels, o + 1, c.g)
-				buffer.writeu8(pixels, o + 2, c.b)
+				local r0, g0, b0 = buffer.readu8(pixels, o), buffer.readu8(pixels, o + 1), buffer.readu8(pixels, o + 2)
+				buffer.writeu8(pixels, o, math.round(r0 + (c.r - r0) * alpha))
+				buffer.writeu8(pixels, o + 1, math.round(g0 + (c.g - g0) * alpha))
+				buffer.writeu8(pixels, o + 2, math.round(b0 + (c.b - b0) * alpha))
 			end
 		end
 	end
-	local function inRegion(i: number): boolean
-		local x, y = i % w, i // w
+	local function rect(px: number, py: number, pw: number, ph: number, c: Palette.Rgb)
+		blend(px, py, pw, ph, c, 1)
+	end
+	local function inRegion(x: number, y: number): boolean
 		return x >= x0 and x < x0 + cw and y >= y0 and y < y0 + ch
 	end
-	local function px(i: number): (number, number)
-		return ox + (i % w - x0) * cell, oy + (i // w - y0) * cell
+	-- Клетки (дробные) → пиксели.
+	local function px(x: number, y: number): (number, number)
+		return ox + math.round((x - x0) * cell), oy + math.round((y - y0) * cell)
 	end
 	-- Территории.
 	for y = y0, y0 + ch - 1 do
@@ -135,85 +189,176 @@ local function renderRegion(
 	-- Города: квадрат цвета владельца с белой точкой.
 	local citySize = math.max(8, cell * 2)
 	for _, c in MatchSim.cities(m) do
-		if inRegion(c) then
-			local cx, cy = px(c)
-			cx += cell // 2
-			cy += cell // 2
+		local cx, cy = c % w, c // w
+		if inRegion(cx, cy) then
+			local sx, sy = px(cx + 0.5, cy + 0.5)
 			local half = citySize // 2
-			rect(cx - half - 1, cy - half - 1, citySize + 2, citySize + 2, ink)
-			rect(cx - half, cy - half, citySize, citySize, ownerRgb(Grid.getOwner(g, c)))
-			rect(cx - 1, cy - 1, 2, 2, white)
+			rect(sx - half - 1, sy - half - 1, citySize + 2, citySize + 2, ink)
+			rect(sx - half, sy - half, citySize, citySize, ownerRgb(Grid.getOwner(g, c)))
+			rect(sx - 1, sy - 1, 2, 2, white)
 		end
 	end
-	-- Юниты вдоль линий фронтов (тот же предел и та же раскладка, что у клиента).
-	local function unit(kind: string, owner: number, i: number, unsupplied: boolean)
-		local cx, cy = px(i)
-		local left = cx + cell // 2 - UnitSprites.Width * sprite // 2
-		local top = cy + cell - UnitSprites.Height * sprite
-		local body = ownerRgb(owner)
+	local rng = Rng.new(seed + cell)
+	local bcfg = Config.Render.Battle
+	-- Кадр боя: последние CraterSec секунд обстрела. Каждая пушка стреляет раз в ~3 с: её прошлые снаряды
+	-- оставили воронки (старые — без огня, но дымят), последние — ещё горят, один снаряд в полёте.
+	type Point = { x: number, y: number }
+	type Blast = { x: number, y: number, age: number }
+	local blasts: { Blast } = {}
+	local arcs: { { from: Point, to: Point, t: number } } = {}
+	local flashes: { Point } = {}
+	if fx then
+		local shots = math.floor(bcfg.CraterSec / ((bcfg.ArtilleryFireMinSec + bcfg.ArtilleryFireMaxSec) / 2))
+		for _, side in sides do
+			local f = fronts[side.front]
+			if f.attack.fighting then
+				-- Цели: юниты другой стороны этой пары стран (свой фронт, встречный фронт или гарнизон).
+				local enemyOwner = if side.owner == f.attack.attacker then f.attack.target else f.attack.attacker
+				local enemies: { BattleLayout.Slot } = {}
+				for _, other in sides do
+					local of = fronts[other.front].attack
+					local samePair = (of.attacker == side.owner and of.target == enemyOwner)
+						or (of.attacker == enemyOwner and of.target == side.owner)
+					if other.owner == enemyOwner and samePair then
+						for _, sl in other.slots do
+							table.insert(enemies, sl)
+						end
+					end
+				end
+				for _, sl in side.slots do
+					if #enemies > 0 and inRegion(sl.x, sl.y) then
+						if sl.kind == "Artillery" then
+							for shot = 1, shots do
+								local target = enemies[Rng.range(rng, 1, #enemies)]
+								table.insert(blasts, {
+									x = target.x + Rng.nextFloat(rng) * 3 - 1.5,
+									y = target.y + Rng.nextFloat(rng) * 3 - 1.5,
+									age = (shot - 1) / shots, -- 0 — только что, 1 — 20 с назад
+								})
+							end
+							local target = enemies[Rng.range(rng, 1, #enemies)]
+							table.insert(arcs, {
+								from = { x = sl.x, y = sl.y - 0.4 },
+								to = { x = target.x, y = target.y },
+								t = 0.35 + Rng.nextFloat(rng) * 0.4,
+							})
+						elseif Rng.nextFloat(rng) < 0.4 then
+							table.insert(flashes, { x = sl.x + sl.dx * 1.2, y = sl.y + sl.dy * 1.2 - 0.3 })
+						end
+					end
+				end
+			end
+		end
+		-- Воронки (старые снизу), дым над ними, свежие разрывы — огнём.
+		table.sort(blasts, function(p: Blast, q: Blast): boolean
+			return p.age > q.age
+		end)
+		for _, bl in blasts do
+			local sx, sy = px(bl.x, bl.y)
+			local size = math.round(cell * 1.6)
+			blend(sx - size // 2, sy - size // 2, size, size, basalt, 0.85)
+			local inner = math.round(cell * 0.8)
+			blend(sx - inner // 2, sy - inner // 2, inner, inner, ink, 0.7)
+		end
+		for _, bl in blasts do
+			local sx, sy = px(bl.x, bl.y)
+			local thick = 1 - bl.age * 0.7
+			for puff = 1, 4 do
+				local ps = math.round(cell * (1 + puff * 0.5))
+				local dy = math.round(cell * puff * 0.8)
+				local dx = math.round(cell * (Rng.nextFloat(rng) - 0.5) * 1.2)
+				blend(sx - ps // 2 + dx, sy - ps // 2 - dy, ps, ps, mist, (0.5 - puff * 0.09) * thick)
+			end
+		end
+		for _, bl in blasts do
+			if bl.age < 0.2 then
+				local sx, sy = px(bl.x, bl.y)
+				local s1, s2, s3 = math.round(cell * 2.8), math.round(cell * 1.7), math.round(cell * 0.7)
+				blend(sx - s1 // 2, sy - s1 // 2, s1, s1, orange, 0.85)
+				rect(sx - s2 // 2, sy - s2 // 2, s2, s2, red)
+				rect(sx - s3 // 2, sy - s3 // 2, s3, s3, gold)
+			end
+		end
+	end
+	-- Юниты (как у клиента: якорь 0.5 × 0.75, смотрят на врага, без снабжения — красная обводка).
+	for _, side in sides do
+		local f = fronts[side.front]
+		local unsupplied = side.attackerSide and not f.attack.supplied
+		local body = ownerRgb(side.owner)
 		local outline = if unsupplied then red else ink
-		local shape = UnitSprites.Shapes[kind]
-		-- Обводка в 1 пиксель, как UIStroke у клиента.
-		for _, p in shape do
-			if not p.ink then
-				rect(left + p.x * sprite - 1, top + p.y * sprite - 1, p.w * sprite + 2, p.h * sprite + 2, outline)
+		for _, sl in side.slots do
+			if inRegion(sl.x, sl.y) then
+				local sx, sy = px(sl.x, sl.y)
+				local left = sx - UnitSprites.Width * sprite // 2
+				local top = sy - math.round(UnitSprites.Height * sprite * 0.75)
+				local flip = sl.dx < 0
+				local shape = UnitSprites.Shapes[sl.kind]
+				for _, p in shape do
+					if not p.ink then
+						local x = if flip then UnitSprites.Width - p.x - p.w else p.x
+						rect(left + x * sprite - 1, top + p.y * sprite - 1, p.w * sprite + 2, p.h * sprite + 2, outline)
+					end
+				end
+				for _, p in shape do
+					local x = if flip then UnitSprites.Width - p.x - p.w else p.x
+					rect(left + x * sprite, top + p.y * sprite, p.w * sprite, p.h * sprite, if p.ink then ink else body)
+				end
 			end
-		end
-		for _, p in shape do
-			rect(left + p.x * sprite, top + p.y * sprite, p.w * sprite, p.h * sprite, if p.ink then ink else body)
 		end
 	end
-	local function visible(list: { number }): { number }
-		local outList: { number } = {}
-		for _, i in list do
-			if inRegion(i) then
-				table.insert(outList, i)
-			end
-		end
-		return outList
+	-- Выстрелы пехоты и танков.
+	for _, fl in flashes do
+		local sx, sy = px(fl.x, fl.y)
+		local s = math.max(2, math.round(cell * 0.5))
+		rect(sx - s // 2, sy - s // 2, s, s, gold)
 	end
-	local cfg = Config.Render
-	local budget = cfg.FrontSpritesTotal
-	local perFront = math.min(cfg.FrontSpritesPerFront, math.max(4, math.floor(budget / math.max(1, #fronts))))
-	local rng = Rng.new(seed)
-	for _, f in fronts do
-		local a = f.attack
-		local hasCounter = pairIndex[a.target * 65536 + a.attacker] ~= nil
-		local target = m.nations[a.target]
-		local defended = not hasCounter and target ~= nil and Forces.total(target.home) > 0
-		local nAttack = if defended then math.ceil(perFront * 0.65) else perFront
-		local own = UnitSprites.spread(visible(f.own), math.min(nAttack, budget))
-		for idx, i in own do
-			unit(UnitSprites.kindAt(f.mix, idx, #own), a.attacker, i, not a.supplied)
+	-- Снаряды в полёте: пунктир дуги и сам снаряд.
+	for _, arc in arcs do
+		local range = math.sqrt((arc.to.x - arc.from.x) ^ 2 + (arc.to.y - arc.from.y) ^ 2)
+		local function at(t: number): (number, number)
+			local x = arc.from.x + (arc.to.x - arc.from.x) * t
+			local y = arc.from.y + (arc.to.y - arc.from.y) * t - Config.Render.Battle.ShellArc * range * 4 * t * (1 - t)
+			return px(x, y)
 		end
-		budget -= #own
-		local enemyLine = visible(f.enemy)
-		if defended then
-			local enemy = UnitSprites.spread(enemyLine, math.min(perFront - nAttack, budget))
-			for _, i in enemy do
-				unit(Types.LandUnits[1], a.target, i, false)
+		for k = 1, 14 do
+			local t = k / 15
+			if t < arc.t then
+				local sx, sy = at(t)
+				blend(sx - 1, sy - 1, 3, 3, white, 0.35 + 0.4 * t / arc.t)
 			end
-			budget -= #enemy
 		end
-		-- Бой: вспышки выстрелов и разрывы на линии.
-		if a.fighting and #enemyLine > 0 then
-			for _ = 1, bursts do
-				local i = enemyLine[Rng.range(rng, 1, #enemyLine)]
-				local cx, cy = px(i)
-				local big = Rng.nextFloat(rng) < 0.35
-				local size = if big then math.max(3, cell * 2) else math.max(2, cell)
-				local c = if not big then gold elseif Rng.nextFloat(rng) < 0.5 then orange else red
-				rect(cx + Rng.range(rng, 0, cell) - size // 2, cy + Rng.range(rng, 0, cell) - size // 2, size, size, c)
+		local sx, sy = at(arc.t)
+		local s = math.max(3, math.round(cell * 0.5))
+		rect(sx - s // 2, sy - s // 2, s, s, ink)
+		rect(sx - s // 2, sy - s // 2 - 1, s, 1, gold)
+	end
+	-- На всей карте — только отметки боёв на линиях.
+	if not fx then
+		for _, side in sides do
+			local f = fronts[side.front]
+			if f.attack.fighting and side.attackerSide then
+				for _ = 1, 3 do
+					local line = lineD[side.front]
+					if #line > 0 then
+						local p = line[Rng.range(rng, 1, #line)]
+						local sx, sy = px(p.cell % w + 0.5, p.cell // w + 0.5)
+						rect(sx - 2, sy - 2, 4, 4, if Rng.nextFloat(rng) < 0.5 then orange else red)
+					end
+				end
 			end
 		end
 	end
 end
 
--- Самый большой бой — для крупного плана.
-local hottest: Front? = nil
-for _, f in fronts do
-	if f.attack.fighting and #f.enemy > 0 and (hottest == nil or f.power > hottest.power) then
-		hottest = f
+-- Крупный план: бой через реку, если он есть, иначе самый большой бой.
+local closeUp: number? = nil
+local bestScore = -1
+for k, f in fronts do
+	if f.attack.fighting and #lineA[k] > 0 then
+		local score = riverPoints(k) * 1e6 + f.power
+		if score > bestScore then
+			closeUp, bestScore = k, score
+		end
 	end
 end
 
@@ -222,30 +367,39 @@ local ZOOM = 8
 local W = w * SCALE
 local mapH = h * SCALE
 local cropW = W // ZOOM
-local cropH = if hottest ~= nil then 44 else 0
+local cropH = if closeUp ~= nil then 44 else 0
 local H = mapH + (if cropH > 0 then 4 + cropH * ZOOM else 0)
 local pixels = buffer.create(W * H * 3)
-renderRegion(pixels, W, H, 0, 0, 0, 0, w, h, SCALE, UnitSprites.scaleFor(SCALE), 4)
-if hottest ~= nil then
-	-- Центр крупного плана — средняя точка линии фронта.
-	local sx, sy = 0, 0
-	for _, i in hottest.enemy do
-		sx += i % w
-		sy += i // w
+renderRegion(pixels, W, H, 0, 0, 0, 0, w, h, SCALE, UnitSprites.scaleFor(SCALE), false, sides, lineD)
+if closeUp ~= nil then
+	-- Центр крупного плана — средняя точка линии фронта (на реке — её речной участок).
+	local sx, sy, n = 0, 0, 0
+	local river = riverPoints(closeUp) > 0
+	for _, p in lineA[closeUp] do
+		local x, y = p.cell % w, p.cell // w
+		local nx, ny = x + p.dx, y + p.dy
+		if not river or (nx >= 0 and ny >= 0 and nx < w and ny < h and isRiver(ny * w + nx)) then
+			sx += x
+			sy += y
+			n += 1
+		end
 	end
-	local cx, cy = sx // #hottest.enemy, sy // #hottest.enemy
+	local cx, cy = sx // math.max(1, n), sy // math.max(1, n)
 	local x0 = math.clamp(cx - cropW // 2, 0, w - cropW)
 	local y0 = math.clamp(cy - cropH // 2, 0, h - cropH)
-	local strip = { r = ink.r, g = ink.g, b = ink.b }
 	for yy = mapH, mapH + 3 do
 		for xx = 0, W - 1 do
 			local o = (yy * W + xx) * 3
-			buffer.writeu8(pixels, o, strip.r)
-			buffer.writeu8(pixels, o + 1, strip.g)
-			buffer.writeu8(pixels, o + 2, strip.b)
+			buffer.writeu8(pixels, o, ink.r)
+			buffer.writeu8(pixels, o + 1, ink.g)
+			buffer.writeu8(pixels, o + 2, ink.b)
 		end
 	end
-	renderRegion(pixels, W, H, 0, mapH + 4, x0, y0, cropW, cropH, ZOOM, UnitSprites.scaleFor(ZOOM), 30)
+	-- Как у клиента на этом зуме: юниты раскладываются только по видимой части линии.
+	local cropRect = { x0 = x0, y0 = y0, x1 = x0 + cropW - 1, y1 = y0 + cropH - 1 }
+	local cropSides, _, cropLineD = buildSides(cropRect)
+	local zoomScale = UnitSprites.scaleFor(ZOOM)
+	renderRegion(pixels, W, H, 0, mapH + 4, x0, y0, cropW, cropH, ZOOM, zoomScale, true, cropSides, cropLineD)
 end
 
 local dir = string.match(out, "^(.*)/[^/]*$")
@@ -259,11 +413,14 @@ fs.writeFile(
 
 print(
 	string.format(
-		"Партия %d с, сид %d → %s, фронтов с войсками %d",
+		"Партия %d с, сид %d → %s, фронтов с войсками %d, войн объявлено %d, миров %d, идёт войн %d",
 		seconds,
 		seed,
 		out,
-		#fronts
+		#fronts,
+		declared,
+		peaces,
+		#m.wars.list
 	)
 )
 for _, n in m.nations do
@@ -280,17 +437,19 @@ for _, n in m.nations do
 		)
 	)
 end
-for _, f in fronts do
+for k, f in fronts do
 	local a = f.attack
 	print(
 		string.format(
-			"  фронт %d → %d: сила %.0f, перевес %s%s%s",
+			"  фронт %d → %d: сила %.0f, перевес %s%s%s%s%s",
 			a.attacker,
 			a.target,
 			f.power,
 			if a.ratio == math.huge then "∞" else string.format("%.2f", a.ratio),
 			if a.fighting then ", бой" else "",
-			if a.supplied then "" else ", без снабжения"
+			if a.supplied then "" else ", без снабжения",
+			if riverPoints(k) > 0 then string.format(", через реку (%d)", riverPoints(k)) else "",
+			if k == closeUp then "  ← крупный план" else ""
 		)
 	)
 end

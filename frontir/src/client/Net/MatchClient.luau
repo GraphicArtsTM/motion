@@ -20,6 +20,7 @@ export type Handlers = {
 	onDelta: (cells: { number }) -> (),
 	onStats: () -> (),
 	onForces: () -> (),
+	onWars: () -> (),
 	onEvents: (events: { any }) -> (),
 	onRejected: (reason: string) -> (),
 }
@@ -50,6 +51,9 @@ function MatchClient.connect(cs: ClientState, handlers: Handlers): MatchClient
 				handlers.onStats()
 			elseif result == "forces" then
 				handlers.onForces()
+			elseif result == "wars" then
+				cs.warsAt = os.clock()
+				handlers.onWars()
 			end
 		elseif type(msg) == "table" then
 			-- Таблицы (info, events) редкие: их размер для F3 оцениваем по JSON.

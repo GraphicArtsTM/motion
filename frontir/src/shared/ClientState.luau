@@ -30,7 +30,7 @@ export type Info = {
 	cities: { number }?, -- клетки городов (владелец — по сетке)
 }
 
-export type ApplyResult = "snapshot" | "delta" | "stats" | "forces" | "partial" | "ignored"
+export type ApplyResult = "snapshot" | "delta" | "stats" | "forces" | "wars" | "partial" | "ignored"
 
 export type ClientState = {
 	width: number,
@@ -49,6 +49,8 @@ export type ClientState = {
 	stats: Protocol.Stats?,
 	cities: { number },
 	myForces: Protocol.MyForces?, -- свои войска (только у игрока с державой)
+	wars: Protocol.WarsMessage, -- войны и запреты после мира (§6.7а)
+	warsAt: number, -- когда пришли wars (часы клиента; для обратных отсчётов)
 	bytes: number, -- принято байт с начала (для F3: байт/с)
 }
 
@@ -72,6 +74,8 @@ function ClientState.new(width: number, height: number): ClientState
 		stats = nil,
 		cities = {},
 		myForces = nil,
+		wars = { wars = {}, cooldowns = {} },
+		warsAt = 0,
 		bytes = 0,
 	}
 end
@@ -117,6 +121,10 @@ function ClientState.applyBuffer(cs: ClientState, b: buffer): (ApplyResult, { nu
 		cs.myForces = Protocol.decodeForces(b)
 		return "forces", nil
 	end
+	if kind == Protocol.WARS then
+		cs.wars = Protocol.decodeWars(b)
+		return "wars", nil
+	end
 	if kind == Protocol.SNAPSHOT then
 		local owners = Protocol.assemble(cs.assembler, Protocol.decodeSnapshotPart(b), cs.size)
 		if owners == nil then
@@ -154,6 +162,37 @@ function ClientState.statsOf(cs: ClientState, nationId: number): Protocol.Nation
 		end
 	end
 	return nil
+end
+
+-- Война между a и b (в мобилизации или идущая) или nil.
+function ClientState.warBetween(cs: ClientState, a: number, b: number): Protocol.WarStats?
+	for _, war in cs.wars.wars do
+		if (war.a == a and war.b == b) or (war.a == b and war.b == a) then
+			return war
+		end
+	end
+	return nil
+end
+
+-- Войны державы.
+function ClientState.warsOf(cs: ClientState, nation: number): { Protocol.WarStats }
+	local out: { Protocol.WarStats } = {}
+	for _, war in cs.wars.wars do
+		if war.a == nation or war.b == nation then
+			table.insert(out, war)
+		end
+	end
+	return out
+end
+
+-- Сколько секунд (на момент прихода сообщения) a и b ещё не могут объявить друг другу войну.
+function ClientState.cooldownBetween(cs: ClientState, a: number, b: number): number
+	for _, c in cs.wars.cooldowns do
+		if (c.a == a and c.b == b) or (c.a == b and c.b == a) then
+			return c.left
+		end
+	end
+	return 0
 end
 
 return table.freeze(ClientState)

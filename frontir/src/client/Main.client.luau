@@ -3,7 +3,8 @@
 	Точка входа клиента. Клиент только отправляет намерения и рисует (docs/GDD.md §0, п. 4).
 	Карта, выбранная сервером, рендер через EditableImage, камера, блики, F3;
 	этап 2: приём матча (MatchClient), слой территорий, подписи держав, HUD, нажатия на карту;
-	этап 3а: города; этап 3б: войска державы (найм Z/X/C/V, панель войск), юниты и бой на линиях фронтов.
+	этап 3а: города; этап 3б: войска державы (найм Z/X/C/V, панель войск), юниты и бой на линиях фронтов;
+	этап 3в: война и мир (объявление, баннер войны, окно мира), бой на фронте с артиллерией, воронками и дымом.
 ]]
 
 local LocalizationService = game:GetService("LocalizationService")
@@ -35,6 +36,7 @@ local MatchHud = require(UI:WaitForChild("MatchHud"))
 local NationLabels = require(UI:WaitForChild("NationLabels"))
 local TerritoryLayer = require(Render:WaitForChild("TerritoryLayer"))
 local Theme = require(UI:WaitForChild("Theme"))
+local WarPanel = require(UI:WaitForChild("WarPanel"))
 local WaterSparkles = require(Render:WaitForChild("WaterSparkles"))
 
 local player = Players.LocalPlayer
@@ -131,7 +133,7 @@ end)
 local cs = ClientState.new(map.width, map.height)
 local territory = TerritoryLayer.new(view, map, colors, cs)
 local labels = NationLabels.new(view.canvas, cs, lang, map.width)
-local frontLayer = FrontLayer.new(view.canvas, cs)
+local frontLayer = FrontLayer.new(view.canvas, cs, map)
 camera.onChanged(function(state)
 	labels.onCamera(state)
 end)
@@ -152,8 +154,26 @@ hudGui.ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets
 hudGui.DisplayOrder = 1
 hudGui.Parent = player:WaitForChild("PlayerGui")
 
-local hud = MatchHud.new(hudGui, cs, lang, map, send)
+-- Нажатие на страну без войны → окно «Объявить войну» (WarPanel создаётся после HUD: ей нужна лента HUD).
+local warPanel: WarPanel.WarPanel? = nil
+local hud = MatchHud.new(hudGui, cs, lang, map, send, function(owner: number)
+	if warPanel ~= nil then
+		warPanel.offerDeclare(owner)
+	end
+end)
 hud.refresh()
+-- «К фронту»: камера на линию фронта, приблизить хотя бы до ×4, чтобы был виден бой.
+local function toFront(x: number, y: number)
+	CameraMath.centerOn(camera.state, x, y)
+	camera.refresh()
+	local s = camera.state
+	if s.zoom < 4 then
+		camera.zoomTo(4, s.viewW / 2, s.viewH / 2)
+	end
+end
+local wars = WarPanel.new(hudGui, cs, lang, send, hud.toast, toFront)
+warPanel = wars
+wars.refresh()
 local forcesPanel = ForcesPanel.new(hudGui, cs, lang, send)
 forcesPanel.refresh()
 
@@ -165,6 +185,7 @@ client = MatchClient.connect(cs, {
 		labels.refresh()
 		hud.refresh()
 		forcesPanel.refresh()
+		wars.refresh()
 	end,
 	onSnapshot = function()
 		territory.repaintAll()
@@ -181,8 +202,12 @@ client = MatchClient.connect(cs, {
 	onForces = function()
 		forcesPanel.refresh()
 	end,
+	onWars = function()
+		wars.refresh()
+	end,
 	onEvents = function(events: { any })
 		hud.onEvents(events)
+		wars.onEvents(events)
 	end,
 	onRejected = function(reason: string)
 		hud.toast(Strings.get("reject." .. reason, lang))
@@ -214,6 +239,7 @@ local frameConn = RunService.RenderStepped:Connect(function()
 	territory.update(now)
 	frontLayer.update(now, camera.state)
 	hud.update(now)
+	wars.update(now)
 end)
 
 local netBytes, netAt, netRate = 0, os.clock(), 0
