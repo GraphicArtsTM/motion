@@ -1,25 +1,23 @@
 --!strict
 --[[
-	Expansion — расширение границ (GDD §6.4), основной макро-механизм.
+	Expansion — захват клеток вдоль границы (GDD §6.4, §6.6).
 
-	Атака — это отряд людей (troops), которых держава отправила на цель: ничью землю (0) или соседа.
-	Каждый тик фронт продвигается: из клеток цели, касающихся границы атакующего, выбирается доля
-	FrontAdvancePerSec / TickRate (фронт идёт со скоростью ~FrontAdvancePerSec клеток в секунду)
-	и захватывается, пока хватает людей. Стоимость клетки = местность × защита:
-	- ничья земля: NeutralCellCost;
-	- держава: NationCellCostBase + плотность её людей (людей на клетку) × DensityCostFactor.
-	Защитник теряет людей, живших на потерянной клетке. Реки и вода не захватываются.
+	Два вида атаки:
+	- на ничью землю — людьми (troops): клетка стоит людей (местность × NeutralCellCost), фронт идёт
+	  ~FrontAdvancePerSec клеток в секунду. Если в атаке есть войска, они берут и ничейные города
+	  (теряя силу гарнизона города, решает вызывающий через cityAllowed);
+	- на державу — фронтом войск (advanceFront): людей не тратит; скорость и право брать города задаёт
+	  исход боя на фронте (MatchSim + Forces): множитель mul и allowCities. Защитник теряет людей
+	  с каждой клеткой. Реки и вода не захватываются.
 
 	Окружение: если после захвата кусок чужой или ничьей земли со всех сторон окружён атакующим
 	(вода и реки тоже считаются стеной), он переходит к атакующему целиком — без «дыр» в территории.
 	Не окружаются: кусок со столицей или городом, кусок больше EnclaveMaxCells, кусок у третьей державы.
-	Города ползущая граница не берёт вовсе — только армии (GDD §6.5).
 
-	Порядок захвата: сначала «щели» — клетки, у которых NotchTouch и больше наших соседей (не остаётся
-	одиночных пикселей), затем клетки, ближайшие к «центру» атаки — точке focus, если игрок нажал на карту,
-	иначе к своей столице (фронт идёт кругом, а не квадратом). К расстоянию добавляется плавный
-	пространственный шум (граница с «языками», а не циркульная) и бонус за число наших соседей
-	(заливаются щели в один пиксель), плюс крошечный шум тика для разрешения ничьих.
+	Порядок захвата: сначала «щели» — клетки, у которых NotchTouch и больше наших соседей, затем клетки,
+	ближайшие к «центру» атаки — точке focus, если игрок нажал на карту, иначе к своей столице (фронт
+	идёт кругом). К расстоянию добавляется плавный пространственный шум (граница с «языками») и бонус
+	за число наших соседей, плюс крошечный шум тика для разрешения ничьих.
 ]]
 
 local Bits = require("./Bits")
@@ -36,23 +34,28 @@ type Attack = Types.Attack
 
 local Expansion = {}
 
--- Людей за захват клетки с местностью terrainCost у защитника (nil — ничья земля).
-function Expansion.cellCost(terrainCost: number, defender: Nation?, defenderCells: number): number
-	local cfg = Config.Expansion
-	if defender == nil then
-		return cfg.NeutralCellCost * terrainCost
-	end
-	local density = defender.people / math.max(1, defenderCells)
-	return terrainCost * (cfg.NationCellCostBase + density * cfg.DensityCostFactor)
+-- Людей за захват клетки ничьей земли с местностью terrainCost.
+function Expansion.cellCost(terrainCost: number): number
+	return Config.Expansion.NeutralCellCost * terrainCost
 end
 
 -- Клетки цели, которые касаются границы атакующего, и сколько у каждой наших соседей.
-function Expansion.frontier(g: Grid, attacker: number, target: number): ({ number }, { [number]: number })
+-- Города — только если includeCities.
+function Expansion.frontier(
+	g: Grid,
+	attacker: number,
+	target: number,
+	includeCities: boolean?
+): ({ number }, { [number]: number })
 	local list: { number } = {}
 	local touching: { [number]: number } = {}
 	for i in Grid.borderCells(g, attacker) do
 		Grid.forNeighbours(g, i, function(j)
-			if Grid.getOwner(g, j) == target and Grid.isCapturable(g, j) and not Grid.isCity(g, j) then
+			if
+				Grid.getOwner(g, j) == target
+				and Grid.isCapturable(g, j)
+				and (includeCities or not Grid.isCity(g, j))
+			then
 				local c = touching[j]
 				if c == nil then
 					table.insert(list, j)
@@ -66,12 +69,17 @@ function Expansion.frontier(g: Grid, attacker: number, target: number): ({ numbe
 	return list, touching
 end
 
--- Есть ли у атакующего общая граница с целью.
-function Expansion.hasFrontier(g: Grid, attacker: number, target: number): boolean
+-- Есть ли у атакующего общая граница с целью (с городами — если includeCities).
+function Expansion.hasFrontier(g: Grid, attacker: number, target: number, includeCities: boolean?): boolean
 	for i in Grid.borderCells(g, attacker) do
 		local found = false
 		Grid.forNeighbours(g, i, function(j)
-			if not found and Grid.getOwner(g, j) == target and Grid.isCapturable(g, j) and not Grid.isCity(g, j) then
+			if
+				not found
+				and Grid.getOwner(g, j) == target
+				and Grid.isCapturable(g, j)
+				and (includeCities or not Grid.isCity(g, j))
+			then
 				found = true
 			end
 		end)
@@ -154,24 +162,17 @@ function Expansion.captureEnclaves(
 	return captured
 end
 
--- Шаг атаки на dt секунд игрового времени. Возвращает: закончилась ли атака и сколько клеток захвачено.
--- Остаток людей при окончании возвращает вызывающий (MatchSim), здесь troops только тратятся.
-function Expansion.advance(
-	map: MapData,
+-- Сортирует клетки фронта по приоритету захвата (см. шапку модуля).
+local function orderFront(
 	g: Grid,
 	nations: { Nation },
 	attack: Attack,
+	front: { number },
+	touching: { [number]: number },
 	tick: number,
-	seed: number,
-	dt: number
-): (boolean, number)
+	seed: number
+)
 	local cfg = Config.Expansion
-	local front, touching = Expansion.frontier(g, attack.attacker, attack.target)
-	if #front == 0 then
-		return true, 0
-	end
-
-	-- Приоритет клеток фронта: ближе к центру атаки — раньше.
 	local priority: { [number]: number } = {}
 	local origin = attack.focus
 	if origin == nil then
@@ -198,27 +199,52 @@ function Expansion.advance(
 		end
 		return a < b
 	end)
+end
 
-	local budget = math.min(cfg.MaxCellsPerTick, math.max(1, math.ceil(#front * cfg.FrontAdvancePerSec * dt)))
-	local defender: Nation? = if attack.target ~= 0 then nations[attack.target] else nil
+-- Сколько клеток фронта брать за dt при множителе скорости mul.
+local function budgetFor(frontSize: number, dt: number, mul: number): number
+	if mul <= 0 then
+		return 0
+	end
+	local cfg = Config.Expansion
+	return math.min(cfg.MaxCellsPerTick, math.max(1, math.ceil(frontSize * cfg.FrontAdvancePerSec * dt * mul)))
+end
+
+-- Атака на ничью землю людьми, шаг на dt секунд игрового времени. Возвращает: закончилась ли атака
+-- (кончились люди или фронт) и сколько клеток захвачено. cityAllowed(cell) — можно ли взять ничейный
+-- город (вызывающий списывает силы гарнизона); nil — города не трогаем.
+function Expansion.advance(
+	map: MapData,
+	g: Grid,
+	nations: { Nation },
+	attack: Attack,
+	tick: number,
+	seed: number,
+	dt: number,
+	cityAllowed: ((cell: number) -> boolean)?
+): (boolean, number)
+	local cfg = Config.Expansion
+	local front, touching = Expansion.frontier(g, attack.attacker, attack.target, cityAllowed ~= nil)
+	if #front == 0 then
+		return true, 0
+	end
+	orderFront(g, nations, attack, front, touching, tick, seed)
+	local budget = budgetFor(#front, dt, 1)
 	local captured = 0
 	local taken: { number } = {}
 	local finished = false
 	for k = 1, math.min(budget, #front) do
 		local i = front[k]
 		if Grid.getOwner(g, i) == attack.target then
-			local defenderCells = Grid.cellsOf(g, attack.target)
-			local terrainCost = Config.Terrain[MapData.getTerrain(map, i)].captureCost
-			local cost = Expansion.cellCost(terrainCost, defender, defenderCells)
+			if Grid.isCity(g, i) and not (cityAllowed :: (number) -> boolean)(i) then
+				continue
+			end
+			local cost = Expansion.cellCost(Config.Terrain[MapData.getTerrain(map, i)].captureCost)
 			if attack.troops < cost then
 				finished = true
 				break
 			end
 			attack.troops -= cost
-			if defender ~= nil then
-				local density = defender.people / math.max(1, defenderCells)
-				defender.people = math.max(0, defender.people - density * cfg.DefenderLossFactor)
-			end
 			Grid.setOwner(g, i, attack.attacker)
 			table.insert(taken, i)
 			captured += 1
@@ -226,6 +252,47 @@ function Expansion.advance(
 	end
 	captured += Expansion.captureEnclaves(g, nations, attack.attacker, taken, tick)
 	return finished or attack.troops < cfg.MinTroops, captured
+end
+
+-- Фронт войск против державы: захват клеток с множителем скорости mul (исход боя). Людей не тратит;
+-- защитник теряет людей, живших на клетке. Города — только при allowCities. Возвращает число клеток.
+function Expansion.advanceFront(
+	g: Grid,
+	nations: { Nation },
+	attack: Attack,
+	front: { number },
+	touching: { [number]: number },
+	mul: number,
+	allowCities: boolean,
+	tick: number,
+	seed: number,
+	dt: number
+): number
+	if #front == 0 or mul <= 0 then
+		return 0
+	end
+	orderFront(g, nations, attack, front, touching, tick, seed)
+	local budget = budgetFor(#front, dt, mul)
+	local defender = nations[attack.target]
+	local captured = 0
+	local taken: { number } = {}
+	local loss = Config.Expansion.DefenderLossFactor
+	for k = 1, #front do
+		if captured >= budget then
+			break
+		end
+		local i = front[k]
+		if Grid.getOwner(g, i) == attack.target and (allowCities or not Grid.isCity(g, i)) then
+			if defender ~= nil then
+				local density = defender.people / math.max(1, Grid.cellsOf(g, attack.target))
+				defender.people = math.max(0, defender.people - density * loss)
+			end
+			Grid.setOwner(g, i, attack.attacker)
+			table.insert(taken, i)
+			captured += 1
+		end
+	end
+	return captured + Expansion.captureEnclaves(g, nations, attack.attacker, taken, tick)
 end
 
 return table.freeze(Expansion)

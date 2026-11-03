@@ -5,7 +5,8 @@
 	- намерения клиентов: лимит запросов → разбор (Intents) → MatchSim.applyIntent;
 	- тик 10 Гц на Heartbeat с фиксированным шагом;
 	- рассылка: info (таблица) при смене фазы и держав, снимок сетки частями (начало игры, опоздавшие),
-	  дельты изменений и армии каждый тик, статистика Config.Net.StatsHz раз в секунду.
+	  дельты изменений каждый тик (только изменённые клетки), Config.Net.StatsHz раз в секунду — статистика
+	  (державы, фронты) всем и войска с очередью найма каждому игроку.
 	Всё идёт по одному RemoteEvent ReplicatedStorage.Remotes.Match, поэтому порядок сообщений сохраняется.
 ]]
 
@@ -14,14 +15,13 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-local Armies = require(Shared:WaitForChild("Armies"))
 local ClientState = require(Shared:WaitForChild("ClientState"))
 local Config = require(Shared:WaitForChild("Config"))
-local Economy = require(Shared:WaitForChild("Economy"))
 local Grid = require(Shared:WaitForChild("Grid"))
 local Intents = require(Shared:WaitForChild("Intents"))
 local MapDataModule = require(Shared:WaitForChild("MapData"))
 local MatchSim = require(Shared:WaitForChild("MatchSim"))
+local MatchStats = require(Shared:WaitForChild("Net"):WaitForChild("MatchStats"))
 local Protocol = require(Shared:WaitForChild("Net"):WaitForChild("Protocol"))
 local RateLimiter = require(Shared:WaitForChild("RateLimiter"))
 
@@ -148,56 +148,12 @@ function MatchService.start(map: MapData)
 	local statsAcc = 0
 	local lastTickMs = 0
 	local lastChanged = 0
-	local lastArmyCount = 0
-
-	local function sendArmies()
-		local list: { Protocol.ArmyView } = {}
-		for _, a in m.armies do
-			local progress = if a.state == "recruit"
-				then 1 - a.recruitLeft / math.max(0.001, Armies.stats(a.kind).recruitSec)
-				else Armies.captureProgress(a)
-			table.insert(list, {
-				id = a.id,
-				owner = a.owner,
-				kind = a.kind :: string, -- поля таблиц инвариантны: юнион-строку приводим к string явно
-				x = a.x,
-				y = a.y,
-				strength = a.strength,
-				maxStrength = a.maxStrength,
-				state = a.state :: string,
-				stars = a.stars,
-				progress = progress,
-				auto = a.auto,
-			})
-		end
-		if #list > 0 or lastArmyCount > 0 then
-			matchEvent:FireAllClients(Protocol.encodeArmies(m.tick, list))
-		end
-		lastArmyCount = #list
-	end
-
+	-- Всем — общая статистика (державы, атаки и фронты); каждому игроку — его войска и очередь найма.
 	local function sendStats()
-		local nations: { Protocol.NationStats } = {}
-		for _, n in m.nations do
-			local cells = Grid.cellsOf(m.grid, n.id)
-			table.insert(nations, {
-				id = n.id,
-				people = n.people,
-				maxPeople = Economy.maxPeople(cells),
-				cells = cells,
-				troops = MatchSim.troopsOf(m, n.id),
-			})
+		matchEvent:FireAllClients(Protocol.encodeStats(MatchStats.build(m, lastTickMs, lastChanged)))
+		for player, id in nationOf do
+			matchEvent:FireClient(player, Protocol.encodeForces(MatchStats.forcesOf(m, id)))
 		end
-		local attacks: { Protocol.AttackStats } = {}
-		for _, a in m.attacks do
-			table.insert(attacks, { attacker = a.attacker, target = a.target, troops = a.troops })
-		end
-		matchEvent:FireAllClients(Protocol.encodeStats({
-			tickMs = lastTickMs,
-			changed = lastChanged,
-			nations = nations,
-			attacks = attacks,
-		}))
 	end
 
 	RunService.Heartbeat:Connect(function(dt: number)
@@ -222,9 +178,6 @@ function MatchService.start(map: MapData)
 				sendSnapshot(nil) -- начало игры: расстановка целиком
 			elseif #changes > 0 then
 				matchEvent:FireAllClients(Protocol.encodeDelta(m.tick, changes, m.grid.owner))
-			end
-			if m.phase == "Play" then
-				sendArmies()
 			end
 			local events = MatchSim.takeEvents(m)
 			if #events > 0 then

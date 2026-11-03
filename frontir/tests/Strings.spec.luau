@@ -67,10 +67,9 @@ T.describe("Strings", function()
 				"focus",
 				"noAttack",
 				"noNation",
-				"tooManyArmies",
 				"noCapital",
-				"noArmy",
-				"noPath",
+				"noUnits",
+				"queueFull",
 			}
 		do
 			T.expect(Strings.Table["reject." .. reason] ~= nil).toBe(true)

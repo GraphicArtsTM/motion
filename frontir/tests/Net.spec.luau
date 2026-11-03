@@ -1,4 +1,6 @@
 --!strict
+local serde = require("@lune/serde")
+
 local T = require("./lib/TestKit")
 local Fixtures = require("./lib/Fixtures")
 local ClientState = require("../src/shared/ClientState")
@@ -7,11 +9,13 @@ local Grid = require("../src/shared/Grid")
 local MapPaint = require("../src/shared/MapPaint")
 local MatchSim = require("../src/shared/MatchSim")
 local NationColors = require("../src/shared/NationColors")
+local MatchStats = require("../src/shared/Net/MatchStats")
 local Protocol = require("../src/shared/Net/Protocol")
 local Rng = require("../src/shared/Rng")
 local TerritoryPaint = require("../src/shared/TerritoryPaint")
 
 local DT = 1 / Config.Sim.TickRate
+local OVERHEAD = 16 -- оценка служебных байт Roblox на одно сообщение RemoteEvent (с запасом)
 
 local function randomOwners(count: number, seed: number): buffer
 	local rng = Rng.new(seed)
@@ -94,70 +98,161 @@ T.describe("Protocol", function()
 			Protocol.decodeStats(msg)
 		end).toThrow()
 	end)
+end)
 
-	T.it("статистика туда и обратно", function()
+T.describe("Protocol: войска и фронты", function()
+	T.it("статистика с войсками и фронтами туда и обратно", function()
 		local s: Protocol.Stats = {
-			tickMs = 1.5,
-			changed = 321,
-			nations = { { id = 3, people = 1234.5, maxPeople = 5000, cells = 777, troops = 12.25 } },
-			attacks = { { attacker = 3, target = 0, troops = 99.5 } },
+			tickMs = 2.5,
+			changed = 77,
+			nations = {
+				{
+					id = 4,
+					people = 1234.5,
+					maxPeople = 9000,
+					cells = 4321,
+					troops = 10,
+					power = 3000,
+					frontPower = 1500,
+					cities = 6,
+				},
+			},
+			attacks = {
+				{
+					attacker = 4,
+					target = 2,
+					troops = 0,
+					power = 1500,
+					mix = { 0.5, 0.25, 0.25, 0 },
+					supplied = false,
+					fighting = true,
+					ratio = 1.75,
+				},
+				{
+					attacker = 4,
+					target = 0,
+					troops = 99,
+					power = 0,
+					mix = { 0, 0, 0, 0 },
+					supplied = true,
+					fighting = false,
+					ratio = math.huge,
+				},
+			},
 		}
 		local back = Protocol.decodeStats(Protocol.encodeStats(s))
-		T.expect(back.changed).toBe(321)
-		T.expect(back.nations[1].cells).toBe(777)
-		T.expect(back.nations[1].people).toBeNear(1234.5, 0.01)
-		T.expect(back.attacks[1].target).toBe(0)
-		T.expect(back.tickMs).toBeNear(1.5, 1e-6)
+		T.expect(back.nations[1].power).toBe(3000)
+		T.expect(back.nations[1].cities).toBe(6)
+		local a = back.attacks[1]
+		T.expect(a.supplied).toBe(false)
+		T.expect(a.fighting).toBe(true)
+		T.expect(a.ratio).toBeNear(1.75, 1 / 32)
+		T.expect(a.mix[2]).toBeNear(0.25, 1 / 255)
+		T.expect(back.attacks[2].ratio).toBe(math.huge)
+	end)
+
+	T.it("свои войска и очередь найма туда и обратно", function()
+		local f: Protocol.MyForces = {
+			kinds = {
+				{ home = 900, xp = 1.5, front = 300 },
+				{ home = 0, xp = 0, front = 600 },
+				{ home = 250, xp = 0, front = 0 },
+				{ home = 0, xp = 0, front = 0 },
+			},
+			queue = { { kind = 2, left = 3.5 }, { kind = 1, left = 3 } },
+		}
+		local back = Protocol.decodeForces(Protocol.encodeForces(f))
+		T.expect(back.kinds[1].xp).toBeNear(1.5, 1e-6)
+		T.expect(back.kinds[2].front).toBe(600)
+		T.expect(#back.queue).toBe(2)
+		T.expect(back.queue[1].kind).toBe(2)
 	end)
 end)
 
-T.describe("Protocol: армии", function()
-	local function view(id: number, kind: string, state: string, x: number): Protocol.ArmyView
-		return {
-			id = id,
-			owner = 3,
-			kind = kind,
-			x = x,
-			y = 55.5,
-			strength = 287.4,
-			maxStrength = 300,
-			state = state,
-			stars = 2,
-			progress = 0.63,
-			auto = true,
-		}
-	end
-
-	T.it("армии туда и обратно, позиция с точностью 1/32 клетки", function()
-		local tick, back = Protocol.decodeArmies(
-			Protocol.encodeArmies(42, { view(7, "Tanks", "capture", 101.37), view(9, "Artillery", "recruit", 2) })
-		)
-		T.expect(tick).toBe(42)
-		T.expect(#back).toBe(2)
-		T.expect(back[1].kind).toBe("Tanks")
-		T.expect(back[1].state).toBe("capture")
-		T.expect(back[1].x).toBeNear(101.37, 1 / 64)
-		T.expect(back[1].progress).toBeNear(0.63, 1 / 255)
-		T.expect(back[1].auto).toBe(true)
-		T.expect(back[1].strength).toBe(287)
-		T.expect(back[2].kind).toBe("Artillery")
-		T.expect(back[2].state).toBe("recruit")
-	end)
-
-	T.it(
-		"клиент двигает армию плавно между тиками и забывает исчезнувшие",
-		function()
-			local cs = ClientState.new(10, 10)
-			ClientState.applyBuffer(cs, Protocol.encodeArmies(1, { view(1, "Infantry", "move", 2) }), 10)
-			ClientState.applyBuffer(cs, Protocol.encodeArmies(2, { view(1, "Infantry", "move", 3) }), 10.1)
-			local a = cs.armies[1]
-			T.expect((ClientState.armyPosition(a, 10.1))).toBeNear(2, 1e-6)
-			T.expect((ClientState.armyPosition(a, 10.15))).toBeNear(2.5, 1e-6)
-			T.expect((ClientState.armyPosition(a, 11))).toBeNear(3, 1e-6)
-			ClientState.applyBuffer(cs, Protocol.encodeArmies(3, {}), 10.2)
-			T.expect(cs.armies[1]).toBe(nil)
+T.describe("Трафик", function()
+	T.it("60 держав: трафик на клиента не больше Config.Net.BudgetBytesPerSec", function()
+		local m = MatchSim.new(Fixtures.pangea, 60)
+		m.targetNations = 60
+		MatchSim.startPick(m)
+		while m.phase ~= "Play" do
+			MatchSim.step(m, DT)
 		end
-	)
+		T.expect(#m.nations).toBe(60)
+		Grid.takeChanges(m.grid)
+		local snapshot = 0
+		for _, part in Protocol.encodeSnapshot(m.tick, m.grid.owner, m.grid.size) do
+			snapshot += buffer.len(part) + OVERHEAD
+		end
+		-- info — таблица; её размер оцениваем по JSON (Roblox сериализует компактнее).
+		local function infoBytes(): number
+			local nations = {}
+			for _, n in m.nations do
+				table.insert(nations, {
+					id = n.id,
+					name = n.name,
+					nameEn = n.nameEn,
+					colorIndex = n.colorIndex,
+					capital = n.capital,
+					isBot = n.isBot,
+					alive = n.alive,
+				})
+			end
+			local info = {
+				kind = "info",
+				phase = m.phase,
+				phaseLeft = 0,
+				time = m.time,
+				myNation = 1,
+				nations = nations,
+				cities = MatchSim.cities(m),
+			}
+			return #serde.encode("json", info) + OVERHEAD
+		end
+		local statsEvery = Config.Sim.TickRate // Config.Net.StatsHz
+		local perTick: { number } = {}
+		for tick = 1, 180 * Config.Sim.TickRate do
+			MatchSim.step(m, DT)
+			local bytes = 0
+			local changes = Grid.takeChanges(m.grid)
+			if #changes > 0 then
+				bytes += buffer.len(Protocol.encodeDelta(m.tick, changes, m.grid.owner)) + OVERHEAD
+			end
+			if tick % statsEvery == 0 then
+				bytes += buffer.len(Protocol.encodeStats(MatchStats.build(m, 0, #changes))) + OVERHEAD
+				bytes += buffer.len(Protocol.encodeForces(MatchStats.forcesOf(m, 1))) + OVERHEAD
+			end
+			if m.infoDirty then
+				m.infoDirty = false
+				bytes += infoBytes()
+			end
+			local events = MatchSim.takeEvents(m)
+			if #events > 0 then
+				bytes += #serde.encode("json", { kind = "events", events = events }) + OVERHEAD
+			end
+			table.insert(perTick, bytes)
+		end
+		-- Скользящее окно в 1 секунду.
+		local window = Config.Sim.TickRate
+		local sum, peak, total = 0, 0, 0
+		for k, b in perTick do
+			sum += b
+			total += b
+			if k > window then
+				sum -= perTick[k - window]
+			end
+			peak = math.max(peak, sum)
+		end
+		local avg = total / (#perTick / Config.Sim.TickRate)
+		print(
+			string.format(
+				"      трафик на клиента (60 держав): средний %.1f КБ/с, пик %.1f КБ/с, снимок при входе %.1f КБ",
+				avg / 1000,
+				peak / 1000,
+				snapshot / 1000
+			)
+		)
+		T.expect(peak <= Config.Net.BudgetBytesPerSec).toBe(true)
+	end)
 end)
 
 T.describe("ClientState: клиенты видят ту же сетку, что и сервер", function()

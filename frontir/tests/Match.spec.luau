@@ -5,6 +5,7 @@ local TinyMap = require("./lib/TinyMap")
 local BotBrain = require("../src/shared/BotBrain")
 local Config = require("../src/shared/Config")
 local Expansion = require("../src/shared/Expansion")
+local Forces = require("../src/shared/Forces")
 local Grid = require("../src/shared/Grid")
 local Intents = require("../src/shared/Intents")
 local MatchSim = require("../src/shared/MatchSim")
@@ -29,6 +30,22 @@ local function nation(id: number, people: number): Nation
 		capital = nil,
 		people = people,
 		alive = true,
+		home = Forces.new(),
+		queue = {},
+	}
+end
+
+-- Атака с пустыми войсками (для тестов захвата людьми).
+local function attackOf(attacker: number, target: number, troops: number, focus: number?): Types.Attack
+	return {
+		attacker = attacker,
+		target = target,
+		troops = troops,
+		focus = focus,
+		forces = Forces.new(),
+		supplied = true,
+		ratio = math.huge,
+		fighting = false,
 	}
 end
 
@@ -129,7 +146,7 @@ T.describe("Expansion", function()
 			Grid.setOwner(g, 1 * 8 + 1, 1)
 			-- Третья сторона в углу, иначе ничья земля «окружится» и перейдёт без оплаты.
 			Grid.setOwner(g, 2 * 8 + 6, 2)
-			local attack: Types.Attack = { attacker = 1, target = 0, troops = 1000 }
+			local attack: Types.Attack = attackOf(1, 0, 1000)
 			local spent = 0
 			for tick = 1, 40 do
 				local before = attack.troops
@@ -151,7 +168,7 @@ T.describe("Expansion", function()
 		local map = TinyMap.fromRows({ "~~~~~~~", "~..r..~", "~..r..~", "~..r..~", "~~~~~~~" })
 		local g = Grid.new(map)
 		Grid.setOwner(g, 1 * 7 + 1, 1)
-		local attack: Types.Attack = { attacker = 1, target = 0, troops = 1000 }
+		local attack: Types.Attack = attackOf(1, 0, 1000)
 		for tick = 1, 50 do
 			if Expansion.advance(map, g, { nation(1, 0) }, attack, tick, 1, DT) then
 				break
@@ -168,7 +185,7 @@ T.describe("Expansion", function()
 			local map = TinyMap.plains(60, 60)
 			local g = Grid.new(map)
 			Grid.setOwner(g, 30 * 60 + 30, 1)
-			local attack: Types.Attack = { attacker = 1, target = 0, troops = 1e9 }
+			local attack: Types.Attack = attackOf(1, 0, 1e9)
 			for tick = 1, 50 do
 				local front = Expansion.frontier(g, 1, 0)
 				local before = Grid.cellsOf(g, 1)
@@ -189,7 +206,7 @@ T.describe("Expansion", function()
 		for y = 8, 11 do
 			Grid.setOwner(g, y * 80 + 40, 1)
 		end
-		local attack: Types.Attack = { attacker = 1, target = 0, troops = 1e9, focus = 10 * 80 + 78 }
+		local attack: Types.Attack = attackOf(1, 0, 1e9, 10 * 80 + 78)
 		for tick = 1, 30 do
 			Expansion.advance(map, g, { nation(1, 0) }, attack, tick, 5, DT)
 		end
@@ -206,31 +223,10 @@ T.describe("Expansion", function()
 		T.expect(east > west * 2).toBe(true)
 	end)
 
-	T.it(
-		"атака на державу: стоимость растёт с плотностью, защитник теряет людей и землю",
-		function()
-			local cheap = Expansion.cellCost(1, nation(2, 100), 100)
-			local dense = Expansion.cellCost(1, nation(2, 1000), 100)
-			T.expect(dense > cheap).toBe(true)
-			T.expect(Expansion.cellCost(1, nil, 0)).toBe(Config.Expansion.NeutralCellCost)
-
-			local map = TinyMap.plains(20, 6)
-			local g = Grid.new(map)
-			for x = 1, 18 do
-				for y = 1, 4 do
-					Grid.setOwner(g, y * 20 + x, if x <= 9 then 1 else 2)
-				end
-			end
-			local nations = { nation(1, 0), nation(2, 200) }
-			local attack: Types.Attack = { attacker = 1, target = 2, troops = 500 }
-			for tick = 1, 10 do
-				Expansion.advance(map, g, nations, attack, tick, 2, DT)
-			end
-			T.expect(Grid.cellsOf(g, 1) > 36).toBe(true)
-			T.expect(nations[2].people < 200).toBe(true)
-			T.expect(attack.troops < 500).toBe(true)
-		end
-	)
+	T.it("клетка ничьей земли стоит людей по местности", function()
+		T.expect(Expansion.cellCost(1)).toBe(Config.Expansion.NeutralCellCost)
+		T.expect(Expansion.cellCost(2.5)).toBe(2.5 * Config.Expansion.NeutralCellCost)
+	end)
 end)
 
 T.describe("Expansion: без дыр", function()
@@ -300,7 +296,7 @@ T.describe("Expansion: без дыр", function()
 				end
 			end
 			-- (10, 4) — «зуб» в границе: три соседа наши. Фокус далеко справа.
-			local attack: Types.Attack = { attacker = 1, target = 0, troops = 1e9, focus = 4 * 30 + 28 }
+			local attack: Types.Attack = attackOf(1, 0, 1e9, 4 * 30 + 28)
 			Expansion.advance(map, g, { nation(1, 0) }, attack, 1, 1, DT)
 			T.expect(Grid.getOwner(g, 4 * 30 + 10)).toBe(1)
 		end
@@ -401,30 +397,53 @@ end)
 
 T.describe("BotBrain", function()
 	local rng = Rng.new(1)
+	local function view(): BotBrain.BotView
+		return {
+			people = 100,
+			maxPeople = 1000,
+			attacks = 0,
+			queue = Config.Bots.MaxQueue, -- очередь полна — найм не мешает проверять атаки
+			power = 0,
+			hasCapital = true,
+			hasNeutral = true,
+			neighbours = {},
+		}
+	end
+
+	T.it("копит, расширяется на ничью землю, нанимает войска", function()
+		T.expect(BotBrain.decide(view(), rng)).toBe(nil) -- мало людей
+		local rich = view()
+		rich.people = 900
+		local i = BotBrain.decide(rich, rng)
+		T.expect(i ~= nil and i.kind == "attack" and i.target == 0).toBe(true)
+		local hiring = view()
+		hiring.people = 900
+		hiring.queue = 0
+		local hired = false
+		for _ = 1, 50 do
+			local h = BotBrain.decide(hiring, rng)
+			if h ~= nil and h.kind == "hire" then
+				hired = true
+			end
+		end
+		T.expect(hired).toBe(true)
+	end)
+
 	T.it(
-		"копит, расширяется на ничью землю, бьёт слабого соседа",
+		"без ничьей земли открывает фронт против слабого гарнизона, сильного не трогает",
 		function()
-			local base: BotBrain.BotView = {
-				people = 100,
-				maxPeople = 1000,
-				attacks = 0,
-				armies = Config.Bots.MaxArmies, -- найм не мешает проверять атаки
-				hasCapital = true,
-				hasNeutral = true,
-				neighbours = {},
-			}
-			T.expect(BotBrain.decide(base, rng)).toBe(nil) -- мало людей
-			local rich = table.clone(base)
-			rich.people = 900
-			local i = BotBrain.decide(rich, rng)
-			T.expect(i ~= nil and i.kind == "attack" and i.target == 0).toBe(true)
-			local war = table.clone(rich)
+			local war = view()
+			war.people = 900
 			war.hasNeutral = false
-			war.neighbours = { { id = 3, people = 2000 }, { id = 4, people = 300 } }
+			war.power = 2000
+			war.neighbours = { { id = 3, people = 1, power = 5000 }, { id = 4, people = 1, power = 300 } }
 			local j = BotBrain.decide(war, rng)
 			T.expect(j ~= nil and j.kind == "attack" and j.target == 4).toBe(true)
-			war.neighbours = { { id = 3, people = 2000 } }
-			T.expect(BotBrain.decide(war, rng)).toBe(nil) -- слишком сильный сосед
+			war.neighbours = { { id = 3, people = 1, power = 5000 } }
+			T.expect(BotBrain.decide(war, rng)).toBe(nil)
+			war.power = 0 -- без войск войны нет
+			war.neighbours = { { id = 4, people = 1, power = 0 } }
+			T.expect(BotBrain.decide(war, rng)).toBe(nil)
 		end
 	)
 end)
@@ -521,41 +540,64 @@ T.describe("MatchSim", function()
 		T.expect(run() == run()).toBe(true)
 	end)
 
-	T.it("держава без земли выбывает, её атаки снимаются", function()
-		local map = TinyMap.plains(30, 6)
-		local m = MatchSim.new(map, 1)
-		MatchSim.addPlayer(m, 1, "A")
-		MatchSim.addPlayer(m, 2, "B")
-		m.phase = "Play"
-		for x = 1, 28 do
-			for y = 1, 4 do
-				Grid.setOwner(m.grid, y * 30 + x, if x <= 25 then 1 else 2)
+	T.it(
+		"держава выбывает, когда пал последний город: земля ничья, событие в ленте",
+		function()
+			local m = startedMatch(17, 0)
+			local victim = m.nations[2]
+			local cities: { number } = {}
+			for _, cell in m.cityOf do
+				if Grid.getOwner(m.grid, cell) == victim.id then
+					table.insert(cities, cell)
+				end
 			end
-		end
-		m.nations[1].people = 100000
-		m.nations[2].people = 10
-		m.nations[1].colorIndex, m.nations[2].colorIndex = 1, 2
-		m.nations[2].capital = 2 * 30 + 27
-		m.nations[1].capital = 2 * 30 + 5
-		MatchSim.applyIntent(m, 2, { kind = "attack", target = 1, percent = 0.9 })
-		T.expect((MatchSim.applyIntent(m, 1, { kind = "attack", target = 2, percent = 0.5 }))).toBe(true)
-		for _ = 1, 100 do
+			T.expect(#cities >= 1).toBe(true)
+			local cellsBefore = Grid.cellsOf(m.grid, victim.id)
+			-- Отдаём все города жертвы соседу 1 — как будто их взял фронт.
+			for _, cell in cities do
+				Grid.setOwner(m.grid, cell, 1)
+			end
 			MatchSim.step(m, DT)
-		end
-		T.expect(m.nations[2].alive).toBe(false)
-		T.expect(Grid.cellsOf(m.grid, 2)).toBe(0)
-		for _, att in m.attacks do
-			T.expect(att.attacker ~= 2 and att.target ~= 2).toBe(true)
-		end
-		local events = MatchSim.takeEvents(m)
-		local eliminated = false
-		for _, e in events do
-			if e.kind == "eliminated" and e.nation == 2 then
-				eliminated = true
+			T.expect(victim.alive).toBe(false)
+			T.expect(cellsBefore > 1).toBe(true)
+			T.expect(Grid.cellsOf(m.grid, victim.id)).toBe(0)
+			local events = MatchSim.takeEvents(m)
+			local found = false
+			for _, e in events do
+				if e.kind == "eliminated" and e.nation == victim.id and e.by == 1 then
+					found = true
+				end
+			end
+			T.expect(found).toBe(true)
+			for _, att in m.attacks do
+				T.expect(att.attacker ~= victim.id and att.target ~= victim.id).toBe(true)
 			end
 		end
-		T.expect(eliminated).toBe(true)
-	end)
+	)
+
+	T.it(
+		"пока остался хоть один город — держава жива, столица переезжает",
+		function()
+			local m = startedMatch(19, 0)
+			local victim = m.nations[3]
+			-- Даём жертве второй город рядом со столицей (её же клетка).
+			local capital = victim.capital :: number
+			local spare: number? = nil
+			for i in Grid.borderCells(m.grid, victim.id) do
+				if i ~= capital and not Grid.isCity(m.grid, i) then
+					spare = i
+					break
+				end
+			end
+			local extra = spare :: number
+			Grid.setCity(m.grid, extra, true)
+			m.cityOf[-1] = extra -- искусственный город вне провинций
+			Grid.setOwner(m.grid, capital, 1)
+			MatchSim.step(m, DT)
+			T.expect(victim.alive).toBe(true)
+			T.expect(victim.capital).toBe(extra)
+		end
+	)
 
 	T.it("ушедший игрок становится ботом и продолжает играть", function()
 		local m = startedMatch(5, 2)

@@ -75,8 +75,6 @@ Config.People = {
 -- §6.4 Расширение границ
 Config.Expansion = {
 	NeutralCellCost = 1.0, -- людей за клетку нейтральной равнины (× стоимость местности)
-	NationCellCostBase = 3, -- людей за клетку державы при нулевой плотности (× местность)
-	DensityCostFactor = 2.0, -- + плотность защитника (людей на клетку) × это
 	DefenderLossFactor = 0.5, -- защитник теряет плотность × это за каждую потерянную клетку
 	FrontAdvancePerSec = 1.0, -- скорость продвижения фронта, клеток в секунду
 	MaxCellsPerTick = 600, -- предел захвата одной атакой за тик (бюджет сервера)
@@ -104,12 +102,12 @@ Config.Bots = {
 	ThinkMaxSec = 2,
 	AttackWhenFill = 0.45, -- атакует, когда людей больше этой доли от максимума
 	NeutralPercent = 0.35,
-	NationPercent = 0.5,
-	NationAdvantage = 1.5, -- нападает на соседа, если людей в 1.5 раза больше, чем у него
+	NationAdvantage = 1.0, -- нападает на соседа, если отправит войск не меньше его гарнизона
 	MaxAttacks = 2,
-	HireWhenFill = 0.45, -- нанимает армию, когда людей больше этой доли от максимума
+	HireWhenFill = 0.45, -- нанимает юнит, когда людей больше этой доли от максимума
 	HireChance = 0.5, -- вероятность выбрать найм, если можно
-	MaxArmies = 4,
+	MaxQueue = 2, -- бот держит в очереди найма не больше
+	FrontPercent = 0.6, -- какую долю войск бот шлёт на фронт
 }
 
 -- Для разработки
@@ -124,6 +122,9 @@ Config.Net = {
 	SnapshotPartBytes = 32000, -- полный снимок сетки уходит частями не больше этого
 	StatsHz = 5, -- частота рассылки статистики держав
 	MaxStepsPerFrame = 3, -- сколько тиков сервер догоняет за кадр после подвисания
+	-- Ориентир трафика сервер → клиент. В документации Roblox явного лимита нет (там только ~500 запросов/с
+	-- клиент → сервер и 1000 байт на ненадёжное событие); 50 КБ/с — распространённая рекомендация сообщества.
+	BudgetBytesPerSec = 50000,
 }
 
 -- §3 Рендер карты и камера
@@ -155,6 +156,12 @@ Config.Render = {
 	TapSlopPx = 10, -- сдвиг пальца/мыши, после которого это уже не нажатие, а перетаскивание
 	TapMaxSec = 0.4, -- дольше — не нажатие
 	ToastSec = 3, -- сколько висит всплывающее сообщение
+	FrontSpritesPerFront = 24, -- юнитов на линии одного фронта (рисуются вдоль границы)
+	FrontSpritesTotal = 160, -- всего юнитов на фронтах на экране
+	UnitSpriteScales = { { zoom = 4, scale = 2 }, { zoom = 8, scale = 3 } }, -- с какого зума спрайты юнитов крупнее
+	FrontScanSec = 0.5, -- как часто клиент пересчитывает линию фронта
+	BattleEffectsPerSec = 10, -- вспышек и взрывов в секунду на фронте с боем
+	BattleEffectsMax = 60, -- вспышек и взрывов на экране одновременно
 	NarrowScreenPx = 1000, -- уже — раскладка HUD для телефона (карточки найма справа)
 	-- Блики воды — отдельные пиксели поверх карты, текстуру не перерисовываем.
 	SparkleMax = 48,
@@ -180,14 +187,14 @@ Config.Terrain = terrain
 -- §7 Юниты. Скорость в клетках/с для эталонной ширины карты UnitsReferenceMapWidth.
 Config.UnitsReferenceMapWidth = 512
 local units: Types.UnitTable = {
-	-- people / recruitSec / strength — этап 3: найм стоит людей (деньги и нефть — этап 4, cost и oil).
+	-- people / recruitSec / strength — найм стоит людей (деньги и нефть — этап 4, cost и oil).
+	-- speed — темп фронта относительно пехоты (§7); attack/defense — сила в бою на фронте (§6.7).
 	Infantry = {
 		cost = 1000,
 		oil = 0,
 		speed = 2.4,
 		attack = 1.0,
 		defense = 1.2,
-		captureRate = 26,
 		requires = nil,
 		people = 300,
 		recruitSec = 3,
@@ -199,7 +206,6 @@ local units: Types.UnitTable = {
 		speed = 3.6,
 		attack = 1.6,
 		defense = 1.0,
-		captureRate = 18,
 		requires = "Factory",
 		people = 450,
 		recruitSec = 5,
@@ -211,7 +217,6 @@ local units: Types.UnitTable = {
 		speed = 1.8,
 		attack = 1.4,
 		defense = 0.6,
-		captureRate = 12,
 		range = 4,
 		requires = "Factory",
 		people = 400,
@@ -224,7 +229,6 @@ local units: Types.UnitTable = {
 		speed = 2.0,
 		attack = 0.6,
 		defense = 1.0,
-		captureRate = 10,
 		requires = "Factory",
 		people = 300,
 		recruitSec = 4,
@@ -236,7 +240,6 @@ local units: Types.UnitTable = {
 		speed = 4.0,
 		attack = 0,
 		defense = 0.5,
-		captureRate = 0,
 		requires = "Port",
 		people = 100,
 		recruitSec = 4,
@@ -248,7 +251,6 @@ local units: Types.UnitTable = {
 		speed = 4.5,
 		attack = 1.4,
 		defense = 1.2,
-		captureRate = 0,
 		requires = "Port",
 		people = 300,
 		recruitSec = 6,
@@ -260,7 +262,6 @@ local units: Types.UnitTable = {
 		speed = 7.0,
 		attack = 1.2,
 		defense = 1.0,
-		captureRate = 0,
 		requires = "Airfield",
 		people = 150,
 		recruitSec = 6,
@@ -272,7 +273,6 @@ local units: Types.UnitTable = {
 		speed = 5.0,
 		attack = 2.0,
 		defense = 0.6,
-		captureRate = 0,
 		requires = "Airfield",
 		people = 200,
 		recruitSec = 8,
@@ -281,27 +281,40 @@ local units: Types.UnitTable = {
 }
 Config.Units = units
 
--- §6.6 Армии (этап 3а)
-Config.Armies = {
-	MaxPerNation = 20, -- армий у державы, включая нанимаемые
-	PathMaxNodes = 120000, -- предел поиска пути (клеток), дальше — «нет пути»
-	MaxOrderArmies = 40, -- армий в одном приказе
-	CityCaptureSlowdown = 0.5, -- провинцию с чужим городом армия захватывает в 2 раза медленнее
-	IdleRecheckSec = 0.5, -- как часто стоящая армия проверяет, не надо ли снова захватывать
-	-- Приказ «авто»: выбор соседней непокорённой провинции (GDD §6.6).
-	AutoCityWeight = 3, -- провинция с городом
-	AutoNeutralWeight = 1, -- ничья провинция
-	AutoWeakWeight = 1.5, -- провинция более слабой державы
-	AutoDistancePenalty = 0.02, -- за клетку расстояния
+-- §6.6 Войска и фронты
+Config.Forces = {
+	MaxQueue = 5, -- юнитов в очереди найма
+	MinFrontStrength = 50, -- меньше войск — фронт против державы не открыть
 }
 
--- §6.7 Бой
+-- §6.7 Бой на фронте
 Config.Combat = {
-	DamageSpread = 0.40, -- случайный разброс ±40%
+	DamageSpread = 0.40, -- случайный разброс урона ±40%
+	LossRate = 0.02, -- урона в секунду на единицу силы противника
+	FrontSpeedMul = 0.5, -- фронт против державы идёт медленнее, чем экспансия на ничью землю
+	FullSpeedRatio = 2.0, -- при таком перевесе фронт идёт с полной скоростью; при 1 — стоит
+	BreakthroughRatio = 3.0, -- прорыв: перевес от этого числа
+	BreakthroughMul = 1.5, -- …и фронт идёт во столько раз быстрее
+	DefenderHomeBonus = 1.25, -- защитник на своей земле сильнее
+	CityCaptureRatio = 1.5, -- город державы фронт берёт только при таком перевесе
+	NeutralCityGarrison = 300, -- силы теряют войска, беря ничейный город
+	CounterBonus = 1.3, -- контр-тип (камень-ножницы-бумага)
+	ArtilleryLossMul = 0.5, -- артиллерия бьёт издалека и теряет меньше
 	MaxVeteranStars = 3,
-	VeteranStarBonus = 0.30, -- +30% к силе и скорости захвата за звезду
-	SupplyRange = 12, -- клеток от своей/союзной земли
-	OutOfSupplyLossPerSec = 0.02,
+	VeteranStarBonus = 0.30, -- +30% к силе и скорости фронта за звезду
+	StarXp = { 1, 3, 6 }, -- опыт для звёзд: нанесённый урон в «своих силах»
+	SupplyRange = 60, -- клеток от своих городов на карте шириной 512 (масштабируется)
+	SupplySamples = 24, -- сколько клеток фронта проверять на снабжение
+	OutOfSupplyLossPerSec = 0.02, -- без снабжения войска фронта теряют 2% силы в секунду
+	UnsuppliedPowerMul = 0.7, -- …и бьют на 30% слабее
+}
+
+-- Контр-типы: кто против кого силён (GDD §6.7). Индексы — Types.LandUnits.
+Config.Counters = {
+	Infantry = { "Artillery", "AntiAir" },
+	Tanks = { "Infantry" },
+	Artillery = { "Tanks" },
+	AntiAir = {},
 }
 
 -- §6.9 Здания (цены в деньгах)

@@ -23,8 +23,8 @@ Types.Terrain = table.freeze({
 -- Все id местности по порядку — для перебора (record-таблицу выше перебирать неудобно в strict).
 Types.TerrainIds = table.freeze({ 0, 1, 2, 3, 4, 5, 6, 7 }) :: { TerrainId }
 
--- Сухопутные армии этапа 3, по порядку (индекс — номер типа в сетевом протоколе).
-Types.LandUnits = table.freeze({ "Infantry", "Tanks", "Artillery" }) :: { string }
+-- Сухопутные войска (§6.6), по порядку: индекс — номер типа в пуле войск и в сетевом протоколе.
+Types.LandUnits = table.freeze({ "Infantry", "Tanks", "Artillery", "AntiAir" }) :: { string }
 
 export type TerrainStats = {
 	captureCost: number, -- множитель стоимости захвата клетки
@@ -55,12 +55,11 @@ export type UnitStats = {
 	speed: number, -- клеток/с на эталонной карте
 	attack: number,
 	defense: number,
-	captureRate: number, -- клеток/с при захвате провинции
 	range: number?,
 	requires: BuildingKind?,
 	people: number, -- людей на найм (этап 3: найм стоит людей; деньги и нефть — этап 4)
 	recruitSec: number, -- время найма, игровые секунды
-	strength: number, -- сила армии при найме (полоска силы)
+	strength: number, -- сила юнита, добавляемая в пул войск
 }
 
 -- Таблица параметров всех юнитов (запись, чтобы обращение Config.Units.Infantry проверялось типами).
@@ -135,55 +134,40 @@ export type Nation = {
 	capital: number?, -- клетка столицы; nil — старт ещё не выбран
 	people: number, -- люди дома (без отправленных в атаки)
 	alive: boolean,
+	home: Forces, -- гарнизон: войска дома (защищают державу)
+	queue: { Recruit }, -- очередь найма
 }
 
--- Атака вдоль границы (§6.4): attacker тратит troops на клетки target (0 — нейтральные).
+-- Отряд одного типа в пуле: суммарная сила и средний опыт (§6.7: ветераны).
+export type Squad = { strength: number, xp: number }
+
+-- Войска по типам — индексы как в Types.LandUnits.
+export type Forces = { Squad }
+
+export type Recruit = { kind: number, left: number }
+
+-- Атака вдоль границы (§6.4) или фронт (§6.6): attacker тратит troops (людей) на ничью землю,
+-- а forces (войска) воюют с державой target (0 — ничья земля).
 export type Attack = {
 	attacker: NationId,
 	target: NationId,
 	troops: number,
 	focus: number?, -- клетка, к которой тянется атака
+	forces: Forces, -- войска на этом фронте
+	supplied: boolean, -- есть снабжение (§6.7)
+	ratio: number, -- последний перевес: атака / оборона (math.huge — обороны нет)
+	fighting: boolean, -- идёт бой (у защитника есть войска на этом фронте)
 }
 
--- Сухопутные армии этапа 3 (флот и авиация — этап 7).
-export type LandUnit = "Infantry" | "Tanks" | "Artillery"
-
--- recruit — нанимается в столице; idle — стоит; move — идёт по пути; capture — заливает провинцию.
-export type ArmyState = "recruit" | "idle" | "move" | "capture"
-
-export type Army = {
-	id: number,
-	owner: NationId,
-	kind: LandUnit,
-	x: number, -- позиция в клетках (центр клетки — +0.5)
-	y: number,
-	cell: number,
-	strength: number,
-	maxStrength: number,
-	stars: number, -- ветеранство (этап 3б)
-	state: ArmyState,
-	recruitLeft: number, -- игровых секунд до конца найма
-	path: { number },
-	pathIndex: number,
-	auto: boolean, -- сама выбирает соседнюю непокорённую провинцию (GDD §6.6)
-	captureProvince: number, -- 0 — не захватывает
-	captureQueue: { number }, -- клетки провинции в порядке «волны» от армии
-	captureIndex: number,
-	captureTotal: number,
-	captureDone: number,
-	captureAcc: number, -- накопленная дробная часть захвата
-	recheckLeft: number, -- через сколько проверить, не нужно ли снова захватывать
-}
+-- Сухопутные войска (флот и авиация — этап 7).
+export type LandUnit = "Infantry" | "Tanks" | "Artillery" | "AntiAir"
 
 -- Намерения игрока — всё, что клиент может попросить у сервера (GDD §0 п. 4).
 export type PickIntent = { kind: "pick", cell: number }
 export type AttackIntent = { kind: "attack", target: NationId, percent: number, focus: number? }
 export type CancelIntent = { kind: "cancel", target: NationId }
 export type HireIntent = { kind: "hire", unit: LandUnit }
-export type MoveIntent = { kind: "move", armies: { number }, cell: number }
-export type StopIntent = { kind: "stop", armies: { number } }
-export type AutoIntent = { kind: "auto", armies: { number }, on: boolean }
-export type Intent = PickIntent | AttackIntent | CancelIntent | HireIntent | MoveIntent | StopIntent | AutoIntent
+export type Intent = PickIntent | AttackIntent | CancelIntent | HireIntent
 
 export type Phase = "Waiting" | "Pick" | "Play"
 

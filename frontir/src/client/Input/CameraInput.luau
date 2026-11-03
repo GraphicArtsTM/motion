@@ -1,12 +1,11 @@
 --!strict
 --[[
 	CameraInput — управление камерой (GDD §3):
-	- мышь: колесо — плавный зум к курсору (от ×2 — только целые шаги), перетаскивание правой или средней кнопкой — сдвиг;
+	- мышь: колесо — плавный зум к курсору (от ×2 — только целые шаги), перетаскивание любой кнопкой — сдвиг
+	  (левой — когда мышь ушла дальше порога нажатия, как пальцем на телефоне);
 	- клавиатура: WASD и стрелки — сдвиг, Space — показать всю карту;
 	- телефон: перетаскивание пальцем — сдвиг, щипок двумя пальцами — зум к центру щипка;
-	- нажатие (левая кнопка или короткое касание без сдвига) — onTap(точка экрана, Shift): выбор старта,
-	  атака, выбор армии или приказ ей;
-	- рамка левой кнопкой (ПК) — onBox: выделение армий; onBoxPreview рисует рамку;
+	- нажатие (левая кнопка или короткое касание без сдвига) — onTap(точка экрана, Shift): выбор старта, атака;
 	- Space — onHome (к своей столице), если задан, иначе вся карта.
 	Координаты ввода переводятся в координаты области карты через её AbsolutePosition,
 	поэтому верхняя панель Roblox (GUI inset) не сбивает зум к курсору.
@@ -48,9 +47,6 @@ end
 
 export type Handlers = {
 	onTap: ((sx: number, sy: number, shift: boolean) -> ())?,
-	onBox: ((x0: number, y0: number, x1: number, y1: number, shift: boolean) -> ())?,
-	onBoxPreview: ((x0: number, y0: number, x1: number, y1: number) -> ())?,
-	onBoxEnd: (() -> ())?,
 	onHome: (() -> ())?,
 }
 
@@ -74,7 +70,7 @@ function CameraInput.bind(camera: Camera2D, viewport: GuiObject, handlers: Handl
 	-- Нажатие левой кнопкой: срабатывает при отпускании, если мышь почти не сдвинулась.
 	local clickX: number?, clickY: number? = nil, nil
 	local clickAt = 0
-	local boxing = false
+	local leftPanning = false -- левая кнопка ушла дальше порога: это сдвиг, а не нажатие
 
 	-- Мышь
 	local dragging = false
@@ -113,22 +109,18 @@ function CameraInput.bind(camera: Camera2D, viewport: GuiObject, handlers: Handl
 				dragging = false
 			elseif t == Enum.UserInputType.MouseButton1 and clickX ~= nil and clickY ~= nil then
 				local x, y = toLocal(input.Position)
-				if boxing then
-					local onBox, onBoxEnd = h.onBox, h.onBoxEnd
-					if onBox then
-						onBox(clickX, clickY, x, y, shiftDown())
-					end
-					if onBoxEnd then
-						onBoxEnd()
-					end
-				else
-					local quick = os.clock() - clickAt <= Config.Render.TapMaxSec
-					if onTap and quick and math.abs(x - clickX) <= slop and math.abs(y - clickY) <= slop then
-						onTap(x, y, shiftDown())
-					end
+				local quick = os.clock() - clickAt <= Config.Render.TapMaxSec
+				if
+					onTap
+					and not leftPanning
+					and quick
+					and math.abs(x - clickX) <= slop
+					and math.abs(y - clickY) <= slop
+				then
+					onTap(x, y, shiftDown())
 				end
 				clickX, clickY = nil, nil
-				boxing = false
+				leftPanning = false
 			end
 		end)
 	)
@@ -140,17 +132,14 @@ function CameraInput.bind(camera: Camera2D, viewport: GuiObject, handlers: Handl
 			if t == Enum.UserInputType.MouseMovement then
 				local x, y = toLocal(input.Position)
 				hoverX, hoverY = x, y
-				-- Левая кнопка зажата и мышь ушла дальше порога — это рамка выделения.
-				if clickX ~= nil and clickY ~= nil and h.onBox ~= nil then
-					if not boxing and (math.abs(x - clickX) > slop or math.abs(y - clickY) > slop) then
-						boxing = true
-					end
-					local onBoxPreview = h.onBoxPreview
-					if boxing and onBoxPreview then
-						onBoxPreview(clickX, clickY, x, y)
+				-- Левая кнопка зажата и мышь ушла дальше порога — сдвигаем карту.
+				if clickX ~= nil and clickY ~= nil and not leftPanning then
+					if math.abs(x - clickX) > slop or math.abs(y - clickY) > slop then
+						leftPanning = true
+						lastX, lastY = clickX, clickY
 					end
 				end
-				if dragging then
+				if dragging or leftPanning then
 					CameraMath.pan(state, x - lastX, y - lastY)
 					lastX, lastY = x, y
 					camera.refresh()

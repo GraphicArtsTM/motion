@@ -10,14 +10,15 @@
 	  u8 тип, u32 тик, varint число клеток, затем по клеткам в порядке возрастания индекса:
 	  varint (шаг от прошлой клетки × 2 + флаг «владелец тот же, что у прошлой»), [u16 владелец, если флаг 0].
 	  Фронт атаки — это много соседних клеток одного владельца, поэтому клетка стоит ~1–2 байта.
-	ARMIES (4) — армии (этап 3а), каждый тик, пока они есть:
-	  u8 тип, u32 тик, u16 число армий, по армии: u16 id, u8 владелец, u8 тип (индекс Types.LandUnits),
-	  u16 x×32, u16 y×32 (позиция в клетках, 1/32 клетки), u16 сила, u16 макс. сила, u8 состояние,
-	  u8 звёзды, u8 прогресс (захват или найм, 0..255), u8 флаги (бит 0 — «авто»).
-	STATS (3) — состояние держав и атак (для HUD, таблицы лидеров и F3):
+	STATS (3) — всем, Config.Net.StatsHz раз в секунду: держава и атаки/фронты (HUD, лидеры, рисование фронтов):
 	  u8 тип, f32 время тика (мс), u16 изменено клеток, u8 число держав,
-	  по державе: u8 id, f32 люди, f32 максимум, u32 клеток, f32 в атаках;
-	  u8 число атак, по атаке: u8 атакующий, u8 цель, f32 людей.
+	  по державе: u8 id, f32 люди, f32 максимум, u32 клеток, f32 люди в атаках, f32 сила гарнизона,
+	  f32 сила на фронтах, u8 городов;
+	  u16 число атак, по атаке: u8 атакующий, u8 цель, f32 люди, f32 сила войск, 4 × u8 доли типов (×255),
+	  u8 флаги (бит 0 — снабжение, бит 1 — идёт бой), u8 перевес × 32 (255 — обороны нет).
+	FORCES (5) — только владельцу, с той же частотой: свои войска по типам и очередь найма:
+	  u8 тип, по типу (Types.LandUnits): f32 сила дома, f32 опыт дома, f32 сила на фронтах;
+	  u8 длина очереди, по юниту: u8 тип, f32 осталось секунд.
 ]]
 
 local Config = require("../Config")
@@ -28,23 +29,7 @@ local Protocol = {}
 Protocol.SNAPSHOT = 1
 Protocol.DELTA = 2
 Protocol.STATS = 3
-Protocol.ARMIES = 4
-
-Protocol.ArmyStates = table.freeze({ "recruit", "idle", "move", "capture" }) :: { string }
-
-export type ArmyView = {
-	id: number,
-	owner: number,
-	kind: string,
-	x: number,
-	y: number,
-	strength: number,
-	maxStrength: number,
-	state: string,
-	stars: number,
-	progress: number, -- 0..1
-	auto: boolean,
-}
+Protocol.FORCES = 5
 
 export type NationStats = {
 	id: number,
@@ -52,9 +37,21 @@ export type NationStats = {
 	maxPeople: number,
 	cells: number,
 	troops: number,
+	power: number, -- сила гарнизона
+	frontPower: number, -- сила войск на фронтах
+	cities: number,
 }
 
-export type AttackStats = { attacker: number, target: number, troops: number }
+export type AttackStats = {
+	attacker: number,
+	target: number,
+	troops: number,
+	power: number, -- сила войск атаки
+	mix: { number }, -- доли типов войск (Types.LandUnits), сумма ≈ 1
+	supplied: boolean,
+	fighting: boolean,
+	ratio: number, -- перевес (math.huge — обороны нет)
+}
 
 export type Stats = {
 	tickMs: number,
@@ -62,6 +59,10 @@ export type Stats = {
 	nations: { NationStats },
 	attacks: { AttackStats },
 }
+
+export type KindForces = { home: number, xp: number, front: number }
+export type QueueItem = { kind: number, left: number }
+export type MyForces = { kinds: { KindForces }, queue: { QueueItem } }
 
 export type Delta = {
 	tick: number,
@@ -370,77 +371,13 @@ function Protocol.decodeDelta(b: buffer, count: number): Delta
 	return { tick = tick, cells = cells, owners = owners }
 end
 
--- ARMIES -----------------------------------------------------------------------------------
-
-local POS_SCALE = 32
-
-function Protocol.encodeArmies(tick: number, armies: { ArmyView }): buffer
-	local w = writer(8 + #armies * 17)
-	u8(w, Protocol.ARMIES)
-	u32(w, tick)
-	u16(w, #armies)
-	for _, a in armies do
-		u16(w, a.id)
-		u8(w, a.owner)
-		u8(w, math.max(1, table.find(Types.LandUnits, a.kind) or 1))
-		u16(w, math.clamp(math.round(a.x * POS_SCALE), 0, 65535))
-		u16(w, math.clamp(math.round(a.y * POS_SCALE), 0, 65535))
-		u16(w, math.clamp(math.round(a.strength), 0, 65535))
-		u16(w, math.clamp(math.round(a.maxStrength), 0, 65535))
-		u8(w, table.find(Protocol.ArmyStates, a.state) or 2)
-		u8(w, a.stars)
-		u8(w, math.clamp(math.round(a.progress * 255), 0, 255))
-		u8(w, if a.auto then 1 else 0)
-	end
-	return finish(w)
-end
-
-function Protocol.decodeArmies(b: buffer): (number, { ArmyView })
-	local r = reader(b)
-	if ru8(r) ~= Protocol.ARMIES then
-		error("Protocol: не армии", 2)
-	end
-	local tick = ru32(r)
-	local out: { ArmyView } = {}
-	for _ = 1, ru16(r) do
-		local id = ru16(r)
-		local owner = ru8(r)
-		local kind = Types.LandUnits[ru8(r)]
-		local x = ru16(r) / POS_SCALE
-		local y = ru16(r) / POS_SCALE
-		local strength = ru16(r)
-		local maxStrength = ru16(r)
-		local state = Protocol.ArmyStates[ru8(r)]
-		local stars = ru8(r)
-		local progress = ru8(r) / 255
-		local flags = ru8(r)
-		if kind == nil or state == nil then
-			error("Protocol: неизвестный тип или состояние армии", 2)
-		end
-		table.insert(out, {
-			id = id,
-			owner = owner,
-			kind = kind,
-			x = x,
-			y = y,
-			strength = strength,
-			maxStrength = maxStrength,
-			state = state,
-			stars = stars,
-			progress = progress,
-			auto = flags % 2 == 1,
-		})
-	end
-	if r.pos ~= r.len then
-		error("Protocol: лишние байты в армиях", 2)
-	end
-	return tick, out
-end
-
 -- STATS ------------------------------------------------------------------------------------
 
+local RATIO_SCALE = 32
+local KINDS = #Types.LandUnits
+
 function Protocol.encodeStats(s: Stats): buffer
-	local w = writer(32 + #s.nations * 17 + #s.attacks * 6)
+	local w = writer(32 + #s.nations * 26 + #s.attacks * 16)
 	u8(w, Protocol.STATS)
 	f32(w, s.tickMs)
 	u16(w, math.clamp(s.changed, 0, 65535))
@@ -451,13 +388,22 @@ function Protocol.encodeStats(s: Stats): buffer
 		f32(w, n.maxPeople)
 		u32(w, n.cells)
 		f32(w, n.troops)
+		f32(w, n.power)
+		f32(w, n.frontPower)
+		u8(w, math.clamp(n.cities, 0, 255))
 	end
-	u8(w, math.min(#s.attacks, 255))
-	for k = 1, math.min(#s.attacks, 255) do
+	u16(w, math.min(#s.attacks, 65535))
+	for k = 1, math.min(#s.attacks, 65535) do
 		local a = s.attacks[k]
 		u8(w, a.attacker)
 		u8(w, a.target)
 		f32(w, a.troops)
+		f32(w, a.power)
+		for kind = 1, KINDS do
+			u8(w, math.clamp(math.round((a.mix[kind] or 0) * 255), 0, 255))
+		end
+		u8(w, (if a.supplied then 1 else 0) + (if a.fighting then 2 else 0))
+		u8(w, if a.ratio == math.huge then 255 else math.clamp(math.round(a.ratio * RATIO_SCALE), 0, 254))
 	end
 	return finish(w)
 end
@@ -476,19 +422,93 @@ function Protocol.decodeStats(b: buffer): Stats
 		local maxPeople = rf32(r)
 		local cells = ru32(r)
 		local troops = rf32(r)
-		table.insert(nations, { id = id, people = people, maxPeople = maxPeople, cells = cells, troops = troops })
+		local power = rf32(r)
+		local frontPower = rf32(r)
+		local cities = ru8(r)
+		table.insert(nations, {
+			id = id,
+			people = people,
+			maxPeople = maxPeople,
+			cells = cells,
+			troops = troops,
+			power = power,
+			frontPower = frontPower,
+			cities = cities,
+		})
 	end
 	local attacks: { AttackStats } = {}
-	for _ = 1, ru8(r) do
+	for _ = 1, ru16(r) do
 		local attacker = ru8(r)
 		local target = ru8(r)
 		local troops = rf32(r)
-		table.insert(attacks, { attacker = attacker, target = target, troops = troops })
+		local power = rf32(r)
+		local mix: { number } = {}
+		for kind = 1, KINDS do
+			mix[kind] = ru8(r) / 255
+		end
+		local flags = ru8(r)
+		local ratioByte = ru8(r)
+		table.insert(attacks, {
+			attacker = attacker,
+			target = target,
+			troops = troops,
+			power = power,
+			mix = mix,
+			supplied = flags % 2 == 1,
+			fighting = (flags // 2) % 2 == 1,
+			ratio = if ratioByte == 255 then math.huge else ratioByte / RATIO_SCALE,
+		})
 	end
 	if r.pos ~= r.len then
 		error("Protocol: лишние байты в статистике", 2)
 	end
 	return { tickMs = tickMs, changed = changed, nations = nations, attacks = attacks }
+end
+
+-- FORCES -----------------------------------------------------------------------------------
+
+function Protocol.encodeForces(f: MyForces): buffer
+	local w = writer(8 + KINDS * 12 + #f.queue * 5)
+	u8(w, Protocol.FORCES)
+	for kind = 1, KINDS do
+		local k = f.kinds[kind]
+		f32(w, k.home)
+		f32(w, k.xp)
+		f32(w, k.front)
+	end
+	u8(w, math.min(#f.queue, 255))
+	for i = 1, math.min(#f.queue, 255) do
+		u8(w, f.queue[i].kind)
+		f32(w, f.queue[i].left)
+	end
+	return finish(w)
+end
+
+function Protocol.decodeForces(b: buffer): MyForces
+	local r = reader(b)
+	if ru8(r) ~= Protocol.FORCES then
+		error("Protocol: не войска", 2)
+	end
+	local kinds: { KindForces } = {}
+	for kind = 1, KINDS do
+		local home = rf32(r)
+		local xp = rf32(r)
+		local front = rf32(r)
+		kinds[kind] = { home = home, xp = xp, front = front }
+	end
+	local queue: { QueueItem } = {}
+	for _ = 1, ru8(r) do
+		local kind = ru8(r)
+		local left = rf32(r)
+		if kind < 1 or kind > KINDS then
+			error("Protocol: неизвестный тип юнита", 2)
+		end
+		table.insert(queue, { kind = kind, left = left })
+	end
+	if r.pos ~= r.len then
+		error("Protocol: лишние байты в войсках", 2)
+	end
+	return { kinds = kinds, queue = queue }
 end
 
 return table.freeze(Protocol)

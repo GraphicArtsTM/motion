@@ -1,11 +1,11 @@
 --!strict
 --[[
-	MatchHud — интерфейс матча, этап 2 (полный HUD — этап 4, GDD §10):
+	MatchHud — интерфейс матча, этапы 2–3 (полный HUD — этап 4, GDD §10):
 	- сверху по центру: фаза — ожидание, выбор старта с таймером, время матча;
 	- слева сверху: держава, люди / максимум, прирост в секунду, доля суши, люди в атаках;
 	- справа сверху: лидеры по доле суши;
-	- слева снизу: ползунок «Атака N%» (кнопки −/+ и полоса, всё от 44 px), активные атаки с отменой,
-	  над ними — всплывающие сообщения (отказы сервера, павшие державы).
+	- слева снизу: ползунок «Атака N%» (кнопки −/+ и полоса, всё от 44 px), активные атаки и фронты с отменой
+	  (сила войск, перевес, «нет снабжения» красным), над ними — всплывающие сообщения (отказы, павшие державы).
 	HUD живёт в отдельном ScreenGui с ScreenInsets = CoreUISafeInsets: Roblox сам держит его вне своих кнопок
 	(лого, меню, чат) и выреза экрана телефона, поэтому отступы считаются от 0.
 	Нажатие на карту (tapCell): в фазе выбора — точка старта; в игре — атака на соседа или ничью землю
@@ -21,6 +21,7 @@ local Config = require(Shared:WaitForChild("Config"))
 local Economy = require(Shared:WaitForChild("Economy"))
 local MapDataModule = require(Shared:WaitForChild("MapData"))
 local NationColors = require(Shared:WaitForChild("NationColors"))
+local Protocol = require(Shared:WaitForChild("Net"):WaitForChild("Protocol"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
 local Theme = require(script.Parent:WaitForChild("Theme"))
@@ -130,7 +131,7 @@ function MatchHud.new(
 ): Hud
 	local cfg = Config.Expansion
 	local percent = cfg.DefaultPercent
-	local gold, sky = hex(Theme.Colors.Gold), hex(Theme.Colors.Sky)
+	local gold, sky, alert = hex(Theme.Colors.Gold), hex(Theme.Colors.Sky), hex(Theme.Colors.Alert)
 
 	local totalLand = 0
 	for i = 0, map.width * map.height - 1 do
@@ -202,8 +203,8 @@ function MatchHud.new(
 		rowFrame.Size = UDim2.fromOffset(320, BUTTON + 4)
 		rowFrame.LayoutOrder = 1 + k
 		rowFrame.Visible = false
-		local text = richLabel(rowFrame, 15)
-		text.Position = UDim2.fromOffset(0, 12)
+		local text = richLabel(rowFrame, 14)
+		text.Position = UDim2.fromOffset(0, 2)
 		local cancel = button(rowFrame, "×", BUTTON)
 		cancel.AnchorPoint = Vector2.new(1, 0.5)
 		cancel.Position = UDim2.fromScale(1, 0.5)
@@ -286,6 +287,67 @@ function MatchHud.new(
 			dragging = false
 		end
 	end)
+
+	-- Строка атаки: цель; ниже — люди (ничья земля) или сила войск, перевес и снабжение (фронт).
+	local function frontText(a: Protocol.AttackStats): string
+		local parts: { string } = {}
+		if a.target == 0 then
+			table.insert(
+				parts,
+				string.format(
+					Strings.get("hud.front.people", lang),
+					string.format('<font color="%s">%s</font>', gold, Strings.formatInt(a.troops))
+				)
+			)
+		end
+		if a.power >= 1 then
+			table.insert(
+				parts,
+				string.format(
+					Strings.get("hud.front.power", lang),
+					string.format('<font color="%s">%s</font>', gold, Strings.formatInt(a.power))
+				)
+			)
+		end
+		if a.target ~= 0 then
+			if a.ratio == math.huge then
+				table.insert(
+					parts,
+					string.format('<font color="%s">%s</font>', sky, Strings.get("hud.front.open", lang))
+				)
+			elseif a.ratio <= 1 then
+				table.insert(
+					parts,
+					string.format(
+						'<font color="%s">%s · %s</font>',
+						alert,
+						string.format(Strings.get("hud.front.ratio", lang), a.ratio),
+						Strings.get("hud.front.stalled", lang)
+					)
+				)
+			else
+				table.insert(
+					parts,
+					string.format(
+						'<font color="%s">%s</font>',
+						sky,
+						string.format(Strings.get("hud.front.ratio", lang), a.ratio)
+					)
+				)
+			end
+			if not a.supplied then
+				table.insert(
+					parts,
+					string.format('<font color="%s">%s</font>', alert, Strings.get("hud.front.noSupply", lang))
+				)
+			end
+		end
+		return string.format(
+			'→ %s\n<font size="12">%s</font>',
+			escape(nationName(a.target)),
+			table.concat(parts, " · ")
+		)
+	end
 
 	local function toast(text: string)
 		toastLabel.Text = escape(text)
@@ -385,12 +447,7 @@ function MatchHud.new(
 					k += 1
 					local row = rows[k]
 					row.target = a.target
-					row.text.Text = string.format(
-						'→ %s · <font color="%s">%s</font>',
-						escape(nationName(a.target)),
-						gold,
-						Strings.formatInt(a.troops)
-					)
+					row.text.Text = frontText(a)
 					row.frame.Visible = true
 				end
 			end

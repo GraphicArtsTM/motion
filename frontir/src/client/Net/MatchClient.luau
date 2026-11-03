@@ -2,9 +2,11 @@
 --[[
 	MatchClient — приём сообщений сервера и отправка намерений.
 	Сервер шлёт всё по одному RemoteEvent (порядок сохраняется): buffer — бинарные сообщения
-	(Net/Protocol), таблица — info / events / rejected. Состояние копится в Shared.ClientState.
+	(Net/Protocol), таблица — info / events / rejected. Состояние копится в Shared.ClientState,
+	там же счётчик принятых байт (buffer — точно, таблицы — по длине JSON) для строки «Сеть» в F3.
 ]]
 
+local HttpService = game:GetService("HttpService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
@@ -17,7 +19,7 @@ export type Handlers = {
 	onSnapshot: () -> (),
 	onDelta: (cells: { number }) -> (),
 	onStats: () -> (),
-	onArmies: () -> (),
+	onForces: () -> (),
 	onEvents: (events: { any }) -> (),
 	onRejected: (reason: string) -> (),
 }
@@ -35,7 +37,7 @@ function MatchClient.connect(cs: ClientState, handlers: Handlers): MatchClient
 
 	matchEvent.OnClientEvent:Connect(function(msg: any)
 		if typeof(msg) == "buffer" then
-			local ok, result, cells = pcall(ClientState.applyBuffer, cs, msg, os.clock())
+			local ok, result, cells = pcall(ClientState.applyBuffer, cs, msg)
 			if not ok then
 				warn("[Frontir] не удалось разобрать сообщение сервера:", result)
 				return
@@ -46,10 +48,15 @@ function MatchClient.connect(cs: ClientState, handlers: Handlers): MatchClient
 				handlers.onDelta(cells)
 			elseif result == "stats" then
 				handlers.onStats()
-			elseif result == "armies" then
-				handlers.onArmies()
+			elseif result == "forces" then
+				handlers.onForces()
 			end
 		elseif type(msg) == "table" then
+			-- Таблицы (info, events) редкие: их размер для F3 оцениваем по JSON.
+			local okSize, json = pcall(HttpService.JSONEncode, HttpService, msg)
+			if okSize then
+				cs.bytes += #json
+			end
 			if msg.kind == "info" then
 				handlers.onInfo(ClientState.applyInfo(cs, msg :: ClientState.Info, os.clock()))
 			elseif msg.kind == "events" and type(msg.events) == "table" then

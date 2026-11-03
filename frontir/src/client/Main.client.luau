@@ -3,7 +3,7 @@
 	Точка входа клиента. Клиент только отправляет намерения и рисует (docs/GDD.md §0, п. 4).
 	Карта, выбранная сервером, рендер через EditableImage, камера, блики, F3;
 	этап 2: приём матча (MatchClient), слой территорий, подписи держав, HUD, нажатия на карту;
-	этап 3а: города, армии (слой, выделение, приказы, найм).
+	этап 3а: города; этап 3б: войска державы (найм Z/X/C/V, панель войск), юниты и бой на линиях фронтов.
 ]]
 
 local LocalizationService = game:GetService("LocalizationService")
@@ -27,10 +27,10 @@ local UI = Client:WaitForChild("UI")
 local Camera2D = require(Render:WaitForChild("Camera2D"))
 local CameraInput = require(Client:WaitForChild("Input"):WaitForChild("CameraInput"))
 local DebugOverlay = require(UI:WaitForChild("DebugOverlay"))
+local ForcesPanel = require(UI:WaitForChild("ForcesPanel"))
+local FrontLayer = require(Render:WaitForChild("FrontLayer"))
 local MapRenderer = require(Render:WaitForChild("MapRenderer"))
 local MatchClient = require(Client:WaitForChild("Net"):WaitForChild("MatchClient"))
-local ArmyLayer = require(Render:WaitForChild("ArmyLayer"))
-local ArmyPanel = require(UI:WaitForChild("ArmyPanel"))
 local MatchHud = require(UI:WaitForChild("MatchHud"))
 local NationLabels = require(UI:WaitForChild("NationLabels"))
 local TerritoryLayer = require(Render:WaitForChild("TerritoryLayer"))
@@ -127,11 +127,11 @@ camera.onChanged(function(state)
 	sparklesOnCamera(state)
 end)
 
--- Матч: состояние с сервера, слой территорий, города и подписи, армии, HUD.
+-- Матч: состояние с сервера, слой территорий, города и подписи, юниты на фронтах, HUD.
 local cs = ClientState.new(map.width, map.height)
 local territory = TerritoryLayer.new(view, map, colors, cs)
 local labels = NationLabels.new(view.canvas, cs, lang, map.width)
-local armyLayer = ArmyLayer.new(view.canvas, cs)
+local frontLayer = FrontLayer.new(view.canvas, cs)
 camera.onChanged(function(state)
 	labels.onCamera(state)
 end)
@@ -154,8 +154,8 @@ hudGui.Parent = player:WaitForChild("PlayerGui")
 
 local hud = MatchHud.new(hudGui, cs, lang, map, send)
 hud.refresh()
-local armyPanel = ArmyPanel.new(hudGui, cs, lang, armyLayer, send)
-armyPanel.refresh()
+local forcesPanel = ForcesPanel.new(hudGui, cs, lang, send)
+forcesPanel.refresh()
 
 client = MatchClient.connect(cs, {
 	onInfo = function(colorsChanged: boolean)
@@ -164,6 +164,7 @@ client = MatchClient.connect(cs, {
 		end
 		labels.refresh()
 		hud.refresh()
+		forcesPanel.refresh()
 	end,
 	onSnapshot = function()
 		territory.repaintAll()
@@ -175,9 +176,11 @@ client = MatchClient.connect(cs, {
 	end,
 	onStats = function()
 		hud.refresh()
-		armyPanel.refresh()
+		forcesPanel.refresh()
 	end,
-	onArmies = function() end, -- армии рисуются каждый кадр из ClientState
+	onForces = function()
+		forcesPanel.refresh()
+	end,
 	onEvents = function(events: { any })
 		hud.onEvents(events)
 	end,
@@ -186,42 +189,12 @@ client = MatchClient.connect(cs, {
 	end,
 })
 
--- Рамка выделения армий (ПК): рисуется в той же системе координат, что и карта.
-local boxFrame = Instance.new("Frame")
-boxFrame.Name = "SelectionBox"
-boxFrame.BackgroundColor3 = Theme.Colors.Gold
-boxFrame.BackgroundTransparency = 0.85
-boxFrame.BorderSizePixel = 0
-boxFrame.Visible = false
-boxFrame.ZIndex = 20
-local boxStroke = Instance.new("UIStroke")
-boxStroke.Color = Theme.Colors.Gold
-boxStroke.Thickness = 1
-boxStroke.Parent = boxFrame
-boxFrame.Parent = viewport
-
 local input = CameraInput.bind(camera, viewport, {
-	onTap = function(sx: number, sy: number, shift: boolean)
+	onTap = function(sx: number, sy: number)
 		local cx, cy = CameraMath.cellAt(camera.state, sx, sy)
-		local cell = if cx ~= nil and cy ~= nil then cy * map.width + cx else nil
-		-- Сначала армии (выбор или приказ), потом HUD (старт, атака границей).
-		if armyPanel.tap(sx, sy, cell, shift, camera.state) then
-			return
+		if cx ~= nil and cy ~= nil then
+			hud.tapCell(cy * map.width + cx)
 		end
-		if cell ~= nil then
-			hud.tapCell(cell)
-		end
-	end,
-	onBox = function(x0: number, y0: number, x1: number, y1: number, shift: boolean)
-		armyPanel.box(x0, y0, x1, y1, shift, camera.state)
-	end,
-	onBoxPreview = function(x0: number, y0: number, x1: number, y1: number)
-		boxFrame.Visible = true
-		boxFrame.Position = UDim2.fromOffset(math.min(x0, x1), math.min(y0, y1))
-		boxFrame.Size = UDim2.fromOffset(math.abs(x1 - x0), math.abs(y1 - y0))
-	end,
-	onBoxEnd = function()
-		boxFrame.Visible = false
 	end,
 	-- Space — к своей столице (GDD §10); нет столицы — вся карта.
 	onHome = function()
@@ -239,11 +212,11 @@ local input = CameraInput.bind(camera, viewport, {
 local frameConn = RunService.RenderStepped:Connect(function()
 	local now = os.clock()
 	territory.update(now)
-	armyLayer.update(now, camera.state)
-	armyPanel.update()
+	frontLayer.update(now, camera.state)
 	hud.update(now)
 end)
 
+local netBytes, netAt, netRate = 0, os.clock(), 0
 DebugOverlay.create(hudGui, {
 	map = map,
 	state = camera.state,
@@ -257,11 +230,25 @@ DebugOverlay.create(hudGui, {
 			table.insert(lines, string.format(Strings.get("debug.server", lang), stats.tickMs, stats.changed))
 		end
 		table.insert(lines, string.format(Strings.get("debug.ping", lang), math.round(player:GetNetworkPing() * 1000)))
-		local armies = 0
-		for _ in cs.armies do
-			armies += 1
+		-- Сеть: принятые байты за последнюю секунду (buffer-сообщения и таблицы).
+		local now = os.clock()
+		if now - netAt >= 1 then
+			netRate = (cs.bytes - netBytes) / (now - netAt)
+			netBytes, netAt = cs.bytes, now
 		end
-		table.insert(lines, string.format(Strings.get("debug.armies", lang), armies))
+		table.insert(lines, string.format(Strings.get("debug.net", lang), netRate / 1024))
+		if stats ~= nil then
+			local fronts, fighting = 0, 0
+			for _, a in stats.attacks do
+				if a.target ~= 0 then
+					fronts += 1
+					if a.fighting then
+						fighting += 1
+					end
+				end
+			end
+			table.insert(lines, string.format(Strings.get("debug.fronts", lang), fronts, fighting))
+		end
 		return lines
 	end,
 }, lang)
