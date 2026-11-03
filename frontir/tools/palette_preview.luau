@@ -8,10 +8,10 @@
 ]]
 
 local fs = require("@lune/fs")
-local serde = require("@lune/serde")
 
 local NationColors = require("../src/shared/NationColors")
 local Palette = require("../src/shared/Palette")
+local Png = require("./lib/Png")
 
 type Rgb = Palette.Rgb
 
@@ -136,58 +136,11 @@ for i = 1, NationColors.Count do
 	text(x0, y0 + 44, NationColors.Hex[i], Palette.rgb("Mist"))
 end
 
--- PNG: сигнатура, IHDR, tEXt, IDAT (zlib), IEND.
-local crcTable: { number } = table.create(256, 0)
-for n = 0, 255 do
-	local c = n
-	for _ = 1, 8 do
-		if bit32.band(c, 1) == 1 then
-			c = bit32.bxor(0xEDB88320, bit32.rshift(c, 1))
-		else
-			c = bit32.rshift(c, 1)
-		end
-	end
-	crcTable[n + 1] = c
-end
-
-local function crc32(s: string): number
-	local c = 0xFFFFFFFF
-	for i = 1, #s do
-		c = bit32.bxor(crcTable[bit32.band(bit32.bxor(c, string.byte(s, i)), 0xFF) + 1], bit32.rshift(c, 8))
-	end
-	return bit32.bxor(c, 0xFFFFFFFF)
-end
-
-local function u32be(n: number): string
-	return string.char(
-		bit32.band(bit32.rshift(n, 24), 0xFF),
-		bit32.band(bit32.rshift(n, 16), 0xFF),
-		bit32.band(bit32.rshift(n, 8), 0xFF),
-		bit32.band(n, 0xFF)
-	)
-end
-
-local function chunk(kind: string, data: string): string
-	return u32be(#data) .. kind .. data .. u32be(crc32(kind .. data))
-end
-
-local rows: { string } = table.create(height)
-for yy = 0, height - 1 do
-	rows[yy + 1] = "\0" .. buffer.readstring(pixels, yy * width * 3, width * 3)
-end
-local raw = table.concat(rows)
-
 local hexes: { string } = {}
 for _, swatch in Palette.Swatches do
 	table.insert(hexes, swatch.hex)
 end
 local stamp = table.concat(hexes, ",") .. "|" .. table.concat(NationColors.Hex, ",")
-
-local png = "\137PNG\r\n\26\n"
-	.. chunk("IHDR", u32be(width) .. u32be(height) .. string.char(8, 2, 0, 0, 0))
-	.. chunk("tEXt", "Frontir-Palette\0" .. stamp)
-	.. chunk("IDAT", serde.compress("zlib", raw))
-	.. chunk("IEND", "")
-
+local png = Png.encodeRgb(width, height, pixels, { ["Frontir-Palette"] = stamp })
 fs.writeFile("docs/palette.png", png)
 print(string.format("docs/palette.png: %d×%d, %d байт", width, height, #png))

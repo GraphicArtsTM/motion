@@ -43,7 +43,9 @@ export type Match = {
 	seed: number,
 	phase: Types.Phase,
 	phaseLeft: number, -- секунд до конца фазы выбора
-	time: number, -- секунд с начала фазы Play
+	time: number, -- секунд реального времени с начала фазы Play (часы матча)
+	speed: number, -- множитель скорости игрового времени (Config.Match.Speed, «Блиц» — 2)
+	simTime: number, -- игровое время: time × speed
 	tick: number,
 	nations: { Nation },
 	attacks: { Attack },
@@ -64,6 +66,8 @@ function MatchSim.new(map: MapData, seed: number): Match
 		phase = "Waiting",
 		phaseLeft = 0,
 		time = 0,
+		speed = Config.Match.Speed,
+		simTime = 0,
 		tick = 0,
 		nations = {},
 		attacks = {},
@@ -107,7 +111,7 @@ function MatchSim.removePlayer(m: Match, nationId: number)
 	end
 	n.isBot = true
 	n.userId = nil
-	m.botNextThink[nationId] = m.time + BotBrain.nextThinkDelay(m.rng)
+	m.botNextThink[nationId] = m.simTime + BotBrain.nextThinkDelay(m.rng)
 	m.infoDirty = true
 end
 
@@ -179,6 +183,7 @@ function MatchSim.finishPick(m: Match)
 	m.phase = "Play"
 	m.phaseLeft = 0
 	m.time = 0
+	m.simTime = 0
 	m.infoDirty = true
 end
 
@@ -328,12 +333,14 @@ function MatchSim.step(m: Match, dt: number)
 
 	m.tick += 1
 	m.time += dt
+	local simDt = dt * m.speed
+	m.simTime += simDt
 	local g = m.grid
 
 	-- Люди.
 	for _, n in m.nations do
 		if n.alive then
-			n.people = Economy.grow(n.people, Economy.maxPeople(Grid.cellsOf(g, n.id)), dt)
+			n.people = Economy.grow(n.people, Economy.maxPeople(Grid.cellsOf(g, n.id)), simDt)
 		end
 	end
 
@@ -342,7 +349,7 @@ function MatchSim.step(m: Match, dt: number)
 	local k = 1
 	while k <= #m.attacks do
 		local a = m.attacks[k]
-		local done, cells = Expansion.advance(m.map, g, m.nations, a, m.tick, m.seed)
+		local done, cells = Expansion.advance(m.map, g, m.nations, a, m.tick, m.seed, simDt)
 		captured += cells
 		if done then
 			local attacker = m.nations[a.attacker]
@@ -384,8 +391,8 @@ function MatchSim.step(m: Match, dt: number)
 	-- Боты.
 	for _, n in m.nations do
 		local due = m.botNextThink[n.id]
-		if n.alive and n.isBot and due ~= nil and m.time >= due then
-			m.botNextThink[n.id] = m.time + BotBrain.nextThinkDelay(m.rng)
+		if n.alive and n.isBot and due ~= nil and m.simTime >= due then
+			m.botNextThink[n.id] = m.simTime + BotBrain.nextThinkDelay(m.rng)
 			local intent = BotBrain.decide(botView(m, n), m.rng)
 			if intent ~= nil then
 				MatchSim.applyIntent(m, n.id, intent)

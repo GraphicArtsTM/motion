@@ -125,23 +125,25 @@ T.describe("Expansion", function()
 		function()
 			local map = TinyMap.fromRows({ "~~~~~~~~", "~..^^^^~", "~..^^^^~", "~~~~~~~~" })
 			local g = Grid.new(map)
-			local nations = { nation(1, 0) }
+			local nations = { nation(1, 0), nation(2, 0) }
 			Grid.setOwner(g, 1 * 8 + 1, 1)
+			-- Третья сторона в углу, иначе ничья земля «окружится» и перейдёт без оплаты.
+			Grid.setOwner(g, 2 * 8 + 6, 2)
 			local attack: Types.Attack = { attacker = 1, target = 0, troops = 1000 }
 			local spent = 0
 			for tick = 1, 40 do
 				local before = attack.troops
-				local done = Expansion.advance(map, g, nations, attack, tick, 7)
+				local done = Expansion.advance(map, g, nations, attack, tick, 7, DT)
 				spent += before - attack.troops
 				if done then
 					break
 				end
 			end
-			-- Захвачены все 11 клеток: 3 равнины × 1.0 + 8 гор × 2.5.
-			T.expect(Grid.cellsOf(g, 1)).toBe(12)
+			-- Захвачены все 10 ничьих клеток: 3 равнины × 1.0 + 7 гор × 2.5 (угол — у третьей державы).
+			T.expect(Grid.cellsOf(g, 1)).toBe(11)
 			local mountain = Config.Terrain[Types.Terrain.Mountains].captureCost
 			T.expect(spent)
-				.toBeNear(3 * Config.Expansion.NeutralCellCost + 8 * mountain * Config.Expansion.NeutralCellCost, 1e-9)
+				.toBeNear(3 * Config.Expansion.NeutralCellCost + 7 * mountain * Config.Expansion.NeutralCellCost, 1e-9)
 		end
 	)
 
@@ -151,7 +153,7 @@ T.describe("Expansion", function()
 		Grid.setOwner(g, 1 * 7 + 1, 1)
 		local attack: Types.Attack = { attacker = 1, target = 0, troops = 1000 }
 		for tick = 1, 50 do
-			if Expansion.advance(map, g, { nation(1, 0) }, attack, tick, 1) then
+			if Expansion.advance(map, g, { nation(1, 0) }, attack, tick, 1, DT) then
 				break
 			end
 		end
@@ -170,7 +172,7 @@ T.describe("Expansion", function()
 			for tick = 1, 50 do
 				local front = Expansion.frontier(g, 1, 0)
 				local before = Grid.cellsOf(g, 1)
-				Expansion.advance(map, g, { nation(1, 0) }, attack, tick, 3)
+				Expansion.advance(map, g, { nation(1, 0) }, attack, tick, 3, DT)
 				local share = Config.Expansion.FrontAdvancePerSec / Config.Sim.TickRate
 				T.expect(Grid.cellsOf(g, 1) - before <= math.ceil(#front * share)).toBe(true)
 			end
@@ -189,7 +191,7 @@ T.describe("Expansion", function()
 		end
 		local attack: Types.Attack = { attacker = 1, target = 0, troops = 1e9, focus = 10 * 80 + 78 }
 		for tick = 1, 30 do
-			Expansion.advance(map, g, { nation(1, 0) }, attack, tick, 5)
+			Expansion.advance(map, g, { nation(1, 0) }, attack, tick, 5, DT)
 		end
 		local east, west = 0, 0
 		for i = 0, g.size - 1 do
@@ -222,11 +224,142 @@ T.describe("Expansion", function()
 			local nations = { nation(1, 0), nation(2, 200) }
 			local attack: Types.Attack = { attacker = 1, target = 2, troops = 500 }
 			for tick = 1, 10 do
-				Expansion.advance(map, g, nations, attack, tick, 2)
+				Expansion.advance(map, g, nations, attack, tick, 2, DT)
 			end
 			T.expect(Grid.cellsOf(g, 1) > 36).toBe(true)
 			T.expect(nations[2].people < 200).toBe(true)
 			T.expect(attack.troops < 500).toBe(true)
+		end
+	)
+end)
+
+T.describe("Expansion: без дыр", function()
+	-- Карта 12×7: атакующий 1 вокруг куска ничьей земли / державы 2.
+	local function ring(): (any, any)
+		local map = TinyMap.plains(12, 7)
+		local g = Grid.new(map)
+		for y = 1, 5 do
+			for x = 1, 10 do
+				Grid.setOwner(g, y * 12 + x, 1)
+			end
+		end
+		return map, g
+	end
+
+	T.it(
+		"окружённый кусок ничьей земли переходит к окружившему",
+		function()
+			local _, g = ring()
+			for _, i in { 3 * 12 + 5, 3 * 12 + 6, 2 * 12 + 6 } do
+				Grid.setOwner(g, i, 0)
+			end
+			local got = Expansion.captureEnclaves(g, { nation(1, 0) }, 1, { 3 * 12 + 4 }, 1)
+			T.expect(got).toBe(3)
+			T.expect(Grid.getOwner(g, 3 * 12 + 6)).toBe(1)
+		end
+	)
+
+	T.it(
+		"окружённый кусок державы переходит, защитник теряет людей",
+		function()
+			local _, g = ring()
+			for _, i in { 3 * 12 + 5, 3 * 12 + 6 } do
+				Grid.setOwner(g, i, 2)
+			end
+			local nations = { nation(1, 0), nation(2, 100) }
+			nations[2].capital = 1 * 12 + 1 -- столица далеко (и не в этом куске)
+			T.expect(Expansion.captureEnclaves(g, nations, 1, { 3 * 12 + 4 }, 1)).toBe(2)
+			T.expect(nations[2].people < 100).toBe(true)
+		end
+	)
+
+	T.it(
+		"кусок со столицей и кусок у третьей державы не окружаются",
+		function()
+			local _, g = ring()
+			Grid.setOwner(g, 3 * 12 + 5, 2)
+			local nations = { nation(1, 0), nation(2, 100), nation(3, 100) }
+			nations[2].capital = 3 * 12 + 5
+			T.expect(Expansion.captureEnclaves(g, nations, 1, { 3 * 12 + 4 }, 1)).toBe(0)
+			Grid.setOwner(g, 3 * 12 + 7, 2)
+			Grid.setOwner(g, 3 * 12 + 8, 3) -- сосед — третья держава
+			T.expect(Expansion.captureEnclaves(g, nations, 1, { 3 * 12 + 6 }, 100)).toBe(0)
+		end
+	)
+
+	T.it(
+		"щель в одну клетку закрывается первой, даже если фокус в другой стороне",
+		function()
+			local map = TinyMap.plains(30, 9)
+			local g = Grid.new(map)
+			for y = 1, 7 do
+				for x = 1, 10 do
+					if not (x == 10 and y == 4) then
+						Grid.setOwner(g, y * 30 + x, 1)
+					end
+				end
+			end
+			-- (10, 4) — «зуб» в границе: три соседа наши. Фокус далеко справа.
+			local attack: Types.Attack = { attacker = 1, target = 0, troops = 1e9, focus = 4 * 30 + 28 }
+			Expansion.advance(map, g, { nation(1, 0) }, attack, 1, 1, DT)
+			T.expect(Grid.getOwner(g, 4 * 30 + 10)).toBe(1)
+		end
+	)
+
+	T.it(
+		"долгая атака с фокусом не оставляет дыр внутри территории",
+		function()
+			local m = startedMatch(31, 1)
+			local me = m.nations[1]
+			local far = (m.grid.height // 2) * m.grid.width + m.grid.width // 2
+			for _ = 1, 40 do
+				MatchSim.applyIntent(m, 1, { kind = "attack", target = 0, percent = 0.5, focus = far })
+				for _ = 1, 10 do
+					MatchSim.step(m, DT)
+				end
+			end
+			-- Ничья захватываемая клетка, у которой все 4 соседа наши, — это дыра.
+			local holes = 0
+			for i in Grid.borderCells(m.grid, me.id) do
+				Grid.forNeighbours(m.grid, i, function(j)
+					if Grid.getOwner(m.grid, j) == 0 and Grid.isCapturable(m.grid, j) then
+						local mine = 0
+						Grid.forNeighbours(m.grid, j, function(k)
+							if Grid.getOwner(m.grid, k) == me.id or not Grid.isCapturable(m.grid, k) then
+								mine += 1
+							end
+						end)
+						if mine == 4 then
+							holes += 1
+						end
+					end
+				end)
+			end
+			T.expect(holes).toBe(0)
+		end
+	)
+end)
+
+T.describe("Match.Speed", function()
+	T.it(
+		"множитель скорости ускоряет игровое время, а часы матча — нет",
+		function()
+			T.expect(Config.Match.Speed > 0).toBe(true)
+			local slow = startedMatch(8, 0)
+			local fast = startedMatch(8, 0)
+			fast.speed = 2
+			for _ = 1, 10 * Config.Sim.TickRate do
+				MatchSim.step(slow, DT)
+				MatchSim.step(fast, DT)
+			end
+			T.expect(fast.time).toBeNear(slow.time, 1e-9)
+			T.expect(fast.simTime).toBeNear(slow.simTime * 2, 1e-6)
+			local cellsSlow, cellsFast = 0, 0
+			for _, n in slow.nations do
+				cellsSlow += Grid.cellsOf(slow.grid, n.id)
+				cellsFast += Grid.cellsOf(fast.grid, n.id)
+			end
+			T.expect(cellsFast > cellsSlow).toBe(true)
 		end
 	)
 end)

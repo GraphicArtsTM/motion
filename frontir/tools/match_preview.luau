@@ -2,8 +2,8 @@
 --[[
 	Превью партии: прогоняет матч на карте без игроков-людей (только боты) и рисует территории
 	теми же функциями, что и клиент (MapPaint + TerritoryPaint). Для проверки формы границ, цветов и темпа.
-	Запуск из frontir/:  lune run tools/match_preview [секунд=75] [сид=12345] [держав=Config]
-	Пишет build/match.bmp (в git не идёт) и печатает доли суши.
+	Запуск из frontir/:  lune run tools/match_preview [секунд=75] [сид=12345] [файл=build/match.png]
+	Картинка ×2 (PNG). Превью для отчёта этапа: lune run tools/match_preview 75 12345 docs/previews/stage-N.png
 ]]
 
 local fs = require("@lune/fs")
@@ -15,6 +15,7 @@ local MapGen = require("../src/shared/MapGen")
 local MapPaint = require("../src/shared/MapPaint")
 local MatchSim = require("../src/shared/MatchSim")
 local TerritoryPaint = require("../src/shared/TerritoryPaint")
+local Png = require("./lib/Png")
 
 local seconds = tonumber(process.args[1]) or 75
 local seed = tonumber(process.args[2]) or 12345
@@ -30,38 +31,39 @@ for _ = 1, math.floor(seconds * Config.Sim.TickRate) do
 	MatchSim.step(m, dt)
 end
 
+local out = process.args[3] or "build/match.png"
+local SCALE = 2
 local terrain = MapPaint.paint(map)
 local w, h = map.width, map.height
-local rowSize = (w * 3 + 3) // 4 * 4
-local bmp = buffer.create(54 + rowSize * h)
-buffer.writestring(bmp, 0, "BM")
-buffer.writeu32(bmp, 2, buffer.len(bmp))
-buffer.writeu32(bmp, 10, 54)
-buffer.writeu32(bmp, 14, 40)
-buffer.writei32(bmp, 18, w)
-buffer.writei32(bmp, 22, h)
-buffer.writeu16(bmp, 26, 1)
-buffer.writeu16(bmp, 28, 24)
-buffer.writeu32(bmp, 34, rowSize * h)
+local W, H = w * SCALE, h * SCALE
+local pixels = buffer.create(W * H * 3)
 local function colorOf(owner: number): number
 	local n = m.nations[owner]
 	return if n ~= nil then n.colorIndex else 0
 end
 for y = 0, h - 1 do
-	local row = 54 + (h - 1 - y) * rowSize
 	for x = 0, w - 1 do
 		local r, g, b = TerritoryPaint.cellColor(terrain, m.grid.owner, w, h, y * w + x, colorOf, 0)
-		buffer.writeu8(bmp, row + x * 3, b)
-		buffer.writeu8(bmp, row + x * 3 + 1, g)
-		buffer.writeu8(bmp, row + x * 3 + 2, r)
+		for dy = 0, SCALE - 1 do
+			for dx = 0, SCALE - 1 do
+				local o = ((y * SCALE + dy) * W + x * SCALE + dx) * 3
+				buffer.writeu8(pixels, o, r)
+				buffer.writeu8(pixels, o + 1, g)
+				buffer.writeu8(pixels, o + 2, b)
+			end
+		end
 	end
 end
-if not fs.isDir("build") then
-	fs.writeDir("build")
+local dir = string.match(out, "^(.*)/[^/]*$")
+if dir ~= nil and not fs.isDir(dir) then
+	fs.writeDir(dir)
 end
-fs.writeFile("build/match.bmp", bmp)
+fs.writeFile(
+	out,
+	Png.encodeRgb(W, H, pixels, { ["Frontir-Preview"] = string.format("seconds=%d seed=%d", seconds, seed) })
+)
 
-print(string.format("Партия %d с, сид %d → build/match.bmp", seconds, seed))
+print(string.format("Партия %d с, сид %d → %s", seconds, seed, out))
 for _, n in m.nations do
 	print(
 		string.format(

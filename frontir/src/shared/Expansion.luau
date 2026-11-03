@@ -10,7 +10,12 @@
 	- держава: NationCellCostBase + плотность её людей (людей на клетку) × DensityCostFactor.
 	Защитник теряет людей, живших на потерянной клетке. Реки и вода не захватываются.
 
-	Порядок захвата: сначала клетки, ближайшие к «центру» атаки — точке focus, если игрок нажал на карту,
+	Окружение: если после захвата кусок чужой или ничьей земли со всех сторон окружён атакующим
+	(вода и реки тоже считаются стеной), он переходит к атакующему целиком — без «дыр» в территории.
+	Не окружаются: кусок со столицей, кусок больше EnclaveMaxCells, кусок, касающийся третьей державы.
+
+	Порядок захвата: сначала «щели» — клетки, у которых NotchTouch и больше наших соседей (не остаётся
+	одиночных пикселей), затем клетки, ближайшие к «центру» атаки — точке focus, если игрок нажал на карту,
 	иначе к своей столице (фронт идёт кругом, а не квадратом). К расстоянию добавляется плавный
 	пространственный шум (граница с «языками», а не циркульная) и бонус за число наших соседей
 	(заливаются щели в один пиксель), плюс крошечный шум тика для разрешения ничьих.
@@ -76,7 +81,79 @@ function Expansion.hasFrontier(g: Grid, attacker: number, target: number): boole
 	return false
 end
 
--- Один тик атаки. Возвращает: закончилась ли атака и сколько клеток захвачено.
+-- Окружённые куски земли рядом с клетками seeds переходят к attacker. Возвращает число клеток.
+-- Чтобы не заливать одни и те же большие области каждый тик, клетки «открытых» кусков помечаются
+-- тиком; до EnclaveRecheckTicks тиков заливка, дойдя до такой клетки, сразу останавливается.
+function Expansion.captureEnclaves(
+	g: Grid,
+	nations: { Nation },
+	attacker: number,
+	seeds: { number },
+	tick: number
+): number
+	local cfg = Config.Expansion
+	local function recentlyOpen(i: number): boolean
+		local stamp = buffer.readu32(g.openStamp, i * 4)
+		return stamp > 0 and tick - stamp < cfg.EnclaveRecheckTicks
+	end
+	local visited: { [number]: boolean } = {}
+	local captured = 0
+	for _, s in seeds do
+		Grid.forNeighbours(g, s, function(start)
+			local owner = Grid.getOwner(g, start)
+			if visited[start] or owner == attacker or not Grid.isCapturable(g, start) or recentlyOpen(start) then
+				return
+			end
+			-- Заливка куска владельца owner, пока он окружён только атакующим и «стенами».
+			local defender: Nation? = if owner ~= 0 then nations[owner] else nil
+			local capital = if defender ~= nil then defender.capital else nil
+			local piece: { number } = { start }
+			visited[start] = true
+			local enclosed = true
+			local head = 1
+			while head <= #piece and enclosed do
+				local i = piece[head]
+				head += 1
+				if i == capital or #piece > cfg.EnclaveMaxCells or recentlyOpen(i) then
+					enclosed = false
+					break
+				end
+				Grid.forNeighbours(g, i, function(j)
+					if not enclosed or not Grid.isCapturable(g, j) then
+						return
+					end
+					local o = Grid.getOwner(g, j)
+					if o == owner then
+						if not visited[j] then
+							visited[j] = true
+							table.insert(piece, j)
+						end
+					elseif o ~= attacker then
+						enclosed = false -- кусок касается третьей стороны
+					end
+				end)
+			end
+			if not enclosed then
+				for _, i in piece do
+					buffer.writeu32(g.openStamp, i * 4, tick)
+				end
+				return
+			end
+			for _, i in piece do
+				if defender ~= nil then
+					local cells = Grid.cellsOf(g, owner)
+					local density = defender.people / math.max(1, cells)
+					defender.people = math.max(0, defender.people - density * cfg.DefenderLossFactor)
+				end
+				Grid.setOwner(g, i, attacker)
+				captured += 1
+			end
+		end)
+	end
+	return captured
+end
+
+-- Шаг атаки на dt секунд игрового времени. Возвращает: закончилась ли атака и сколько клеток захвачено.
 -- Остаток людей при окончании возвращает вызывающий (MatchSim), здесь troops только тратятся.
 function Expansion.advance(
 	map: MapData,
@@ -84,7 +161,8 @@ function Expansion.advance(
 	nations: { Nation },
 	attack: Attack,
 	tick: number,
-	seed: number
+	seed: number,
+	dt: number
 ): (boolean, number)
 	local cfg = Config.Expansion
 	local front, touching = Expansion.frontier(g, attack.attacker, attack.target)
@@ -103,7 +181,8 @@ function Expansion.advance(
 	local oy = if origin ~= nil then origin // g.width else 0
 	for _, i in front do
 		local x, y = i % g.width, i // g.width
-		local p = touching[i] * cfg.TouchWeight
+		local p = (if touching[i] >= cfg.NotchTouch then cfg.NotchBonus else 0)
+			+ touching[i] * cfg.TouchWeight
 			+ Noise.value2(x / cfg.BorderNoiseScale, y / cfg.BorderNoiseScale, seed) * cfg.BorderNoise
 			+ Bits.hash2f(i, tick, seed) * cfg.TickJitter
 		if origin ~= nil then
@@ -119,10 +198,11 @@ function Expansion.advance(
 		return a < b
 	end)
 
-	local share = cfg.FrontAdvancePerSec / Config.Sim.TickRate
-	local budget = math.min(cfg.MaxCellsPerTick, math.max(1, math.ceil(#front * share)))
+	local budget = math.min(cfg.MaxCellsPerTick, math.max(1, math.ceil(#front * cfg.FrontAdvancePerSec * dt)))
 	local defender: Nation? = if attack.target ~= 0 then nations[attack.target] else nil
 	local captured = 0
+	local taken: { number } = {}
+	local finished = false
 	for k = 1, math.min(budget, #front) do
 		local i = front[k]
 		if Grid.getOwner(g, i) == attack.target then
@@ -130,7 +210,8 @@ function Expansion.advance(
 			local terrainCost = Config.Terrain[MapData.getTerrain(map, i)].captureCost
 			local cost = Expansion.cellCost(terrainCost, defender, defenderCells)
 			if attack.troops < cost then
-				return true, captured
+				finished = true
+				break
 			end
 			attack.troops -= cost
 			if defender ~= nil then
@@ -138,10 +219,12 @@ function Expansion.advance(
 				defender.people = math.max(0, defender.people - density * cfg.DefenderLossFactor)
 			end
 			Grid.setOwner(g, i, attack.attacker)
+			table.insert(taken, i)
 			captured += 1
 		end
 	end
-	return attack.troops < cfg.MinTroops, captured
+	captured += Expansion.captureEnclaves(g, nations, attack.attacker, taken, tick)
+	return finished or attack.troops < cfg.MinTroops, captured
 end
 
 return table.freeze(Expansion)

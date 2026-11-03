@@ -126,7 +126,11 @@ lune run tools/genmap Pangea
 ```bash
 lune run tools/match_preview 120
 ```
-Прогоняет 120 секунд партии ботов и пишет картинку `build/match.bmp` — теми же функциями, что рисует клиент.
+Прогоняет 120 секунд партии ботов и пишет `build/match.png` — теми же функциями, что рисует клиент.
+Превью этапов лежат в `docs/previews/` (третий аргумент — путь к файлу).
+
+### Русский интерфейс при английском Roblox
+В `src/shared/Config.luau` поставь `Config.Dev.ForceLang = "ru"` (пустая строка — язык Roblox).
 
 ### Обновление определений Roblox
 Определения для selene (`roblox.yml`) и luau-lsp (`types/globalTypes.d.luau`) закоммичены, чтобы проверки работали одинаково локально и в CI без сети.

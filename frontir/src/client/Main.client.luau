@@ -35,7 +35,9 @@ local Theme = require(UI:WaitForChild("Theme"))
 local WaterSparkles = require(Render:WaitForChild("WaterSparkles"))
 
 local player = Players.LocalPlayer
-local lang: Strings.Lang = Strings.langFromLocale(LocalizationService.RobloxLocaleId)
+local lang: Strings.Lang = Strings.langFromLocale(
+	if Config.Dev.ForceLang ~= "" then Config.Dev.ForceLang else LocalizationService.RobloxLocaleId
+)
 
 -- 3D-камера и управление персонажем не нужны: игра целиком в GUI. Фиксируем камеру, чтобы правая
 -- кнопка мыши и пальцы её не вращали, и выключаем стандартные контролы (джойстик на телефоне, WASD).
@@ -155,7 +157,15 @@ local client = MatchClient.connect(cs, {
 		hud.toast(Strings.get("reject." .. reason, lang))
 	end,
 })
-hud = MatchHud.new(gui, cs, lang, map, client.send)
+-- HUD — отдельный ScreenGui: ScreenInsets = CoreUISafeInsets держит его вне кнопок Roblox и выреза экрана.
+local hudGui = Instance.new("ScreenGui")
+hudGui.Name = "FrontirHud"
+hudGui.ResetOnSpawn = false
+hudGui.ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets
+hudGui.DisplayOrder = 1
+hudGui.Parent = player:WaitForChild("PlayerGui")
+
+hud = MatchHud.new(hudGui, cs, lang, map, client.send)
 hud.refresh()
 
 local input = CameraInput.bind(camera, viewport, function(sx: number, sy: number)
@@ -171,7 +181,7 @@ local frameConn = RunService.RenderStepped:Connect(function()
 	hud.update(now)
 end)
 
-DebugOverlay.create(gui, {
+DebugOverlay.create(hudGui, {
 	map = map,
 	state = camera.state,
 	chunkCount = view.chunkCount,

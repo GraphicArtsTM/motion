@@ -6,11 +6,12 @@
 	- справа сверху: лидеры по доле суши;
 	- слева снизу: ползунок «Атака N%» (кнопки −/+ и полоса, всё от 44 px), активные атаки с отменой,
 	  над ними — всплывающие сообщения (отказы сервера, павшие державы).
+	HUD живёт в отдельном ScreenGui с ScreenInsets = CoreUISafeInsets: Roblox сам держит его вне своих кнопок
+	(лого, меню, чат) и выреза экрана телефона, поэтому отступы считаются от 0.
 	Нажатие на карту (tapCell): в фазе выбора — точка старта; в игре — атака на соседа или ничью землю
 	с силой из ползунка, нажатая клетка становится точкой, к которой тянется атака.
 ]]
 
-local GuiService = game:GetService("GuiService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 
@@ -127,7 +128,6 @@ function MatchHud.new(
 	map: MapData,
 	send: (string, { [string]: any }) -> ()
 ): Hud
-	local inset = GuiService:GetGuiInset()
 	local cfg = Config.Expansion
 	local percent = cfg.DefaultPercent
 	local gold, sky = hex(Theme.Colors.Gold), hex(Theme.Colors.Sky)
@@ -153,20 +153,20 @@ function MatchHud.new(
 	-- Сверху по центру: фаза.
 	local banner = panel(gui, "PhaseBanner")
 	banner.AnchorPoint = Vector2.new(0.5, 0)
-	banner.Position = UDim2.new(0.5, 0, 0, inset.Y + GAP)
+	banner.Position = UDim2.new(0.5, 0, 0, GAP)
 	local bannerText = richLabel(banner, 18)
 	bannerText.TextXAlignment = Enum.TextXAlignment.Center
 
 	-- Слева сверху: держава.
 	local nationPanel = panel(gui, "NationPanel")
-	nationPanel.Position = UDim2.fromOffset(12, inset.Y + GAP)
+	nationPanel.Position = UDim2.fromOffset(12, GAP)
 	local nationText = richLabel(nationPanel, 15)
 	nationPanel.Visible = false
 
 	-- Справа сверху: лидеры.
 	local leaders = panel(gui, "Leaders")
 	leaders.AnchorPoint = Vector2.new(1, 0)
-	leaders.Position = UDim2.new(1, -12, 0, inset.Y + GAP)
+	leaders.Position = UDim2.new(1, -12, 0, GAP)
 	local leadersText = richLabel(leaders, 14)
 	leaders.Visible = false
 

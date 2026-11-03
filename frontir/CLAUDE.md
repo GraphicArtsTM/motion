@@ -14,6 +14,15 @@
 - **Оригинальность** (уточнено геймдизайнером): механики жанра можно брать у других игр, если они делают игру интереснее. Не копируем только чужой код, арт, звуки, названия, логотипы и узнаваемый интерфейс один в один — это авторское право и правила Roblox.
 - **Никаких реальных стран, флагов, лидеров**, любой текст игроков — через фильтр Roblox.
 - Изменения записывать в `docs/CHANGELOG.md`.
+- **Превью партии** каждого этапа — в репозиторий: `lune run tools/match_preview <сек> <сид> docs/previews/stage-N.png`,
+  ссылку на картинку — в отчёт.
+- **Темп матча** крутится одним числом `Config.Match.Speed` (всё игровое время); новые механики со временем
+  (армии, найм, перезарядки) обязаны идти через `simDt`/`simTime`, а не через реальное время.
+
+## Отчёт по этапу (GDD §16) — всегда в конце
+Что сделано · Как проверить в Studio · Тесты · Известные проблемы · Что дальше · ссылка на `docs/previews/stage-N.png` ·
+чек-лист для геймдизайнера (заполняет он): карта/кириллица (для кириллицы при английском Roblox —
+`Config.Dev.ForceLang = "ru"`); границы в двух окнах одинаковые — да/нет; атака и отмена; ошибки в Output; телефон.
 
 ## Команды (из папки `frontir/`)
 ```bash
@@ -24,7 +33,7 @@ selene src tests tools
 rojo serve              # синхронизация со Studio
 lune run tools/genmap Pangea   # пересоздать maps/Pangea.luau (+ превью build/Pangea.bmp)
 lune run tools/palette_preview # пересоздать docs/palette.png после правки цветов
-lune run tools/match_preview 120  # партия ботов на 120 с → build/match.bmp (форма границ, цвета, темп)
+lune run tools/match_preview 120  # партия ботов на 120 с → build/match.png (форма границ, цвета, темп)
 rojo sourcemap default.project.json -o sourcemap.json   # для luau-lsp
 lune setup              # типы Lune (алиас @lune в .luaurc)
 luau-lsp analyze --platform=roblox --definitions:@roblox=types/globalTypes.d.luau --sourcemap=sourcemap.json --base-luaurc=.luaurc src tests tools

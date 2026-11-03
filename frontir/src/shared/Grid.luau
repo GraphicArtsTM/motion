@@ -27,6 +27,8 @@ export type Grid = {
 	changed: { number },
 	changedFlag: buffer,
 	capturableCount: number,
+	-- Служебное для Expansion.captureEnclaves: тик, когда клетка оказалась в «открытом» (не окружённом) куске.
+	openStamp: buffer,
 }
 
 local Grid = {}
@@ -54,6 +56,7 @@ function Grid.new(map: MapData): Grid
 		changed = {},
 		changedFlag = buffer.create(size),
 		capturableCount = count,
+		openStamp = buffer.create(size * 4),
 	}
 end
 
