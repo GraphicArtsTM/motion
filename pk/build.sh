@@ -21,6 +21,7 @@ cp build/docx/*.docx build/docx/*.pdf "$N/3_Объективка/"
 [ -f screenshots/hh.uz.png ]    && cp screenshots/hh.uz.png screenshots/LinkedIn.png "$N/4_Профили_hh_LinkedIn/"
 [ -f screenshots/argos.png ]    && cp screenshots/argos.png "$N/5_Профиль_argos/vacancy.argos.uz.png"
 cp build/pdf/interview_script.pdf для_себя/Сценарий_видеоинтервью.pdf
+cp build/pdf/interview_script_uz.pdf для_себя/Videointervyu_ssenariy_UZ.pdf
 cp build/pdf/profiles_guide.pdf   для_себя/Профили_что_заполнить.pdf
 
 python3 - "$N" <<'PY'

@@ -180,3 +180,77 @@ Adobe After Effects · Color Correction · Unity · C# · Graphic Design</div>
 </table>
 <p>Для сдачи: скриншоты главной страницы и вкладок (Umumiy ma’lumotlar, Ma’lumoti, Mehnat faoliyati, Qarindoshlari).</p>
 """, CSS, "Профили")
+
+# =========================================================================== ВИДЕОИНТЕРВЬЮ (UZ)
+# Учитель: «расскажи о себе, что ты сделал и что сможешь сделать».
+UZ_BLOCKS = [
+    ("1. Salomlashish va o‘zim haqimda", "≈ 40 s",
+     "Assalomu alaykum! Mening ismim Muxammad Ro‘ziboyev. Men Toshkent davlat iqtisodiyot universitetining "
+     "«Sun’iy intellekt» yo‘nalishida 4-kursda o‘qiyman. Termiz shahrida tug‘ilganman, hozir Toshkentda yashayman. "
+     "Videomontajchi va motion-dizayner lavozimiga da’vogarman. Qisqacha aytganda, raqamli kontent bilan yetti "
+     "yildan beri shug‘ullanaman: avval o‘yinlar yaratdim, keyin grafik dizayn bilan ishladim, hozir esa video "
+     "bilan shug‘ullanaman.",
+     "Ism → TDIU, «Sun’iy intellekt», 4-kurs → Termiz / Toshkent → lavozim → 7 yil: o‘yinlar → dizayn → video"),
+    ("2. Nima qildim — o‘yinlar", "≈ 35 s",
+     "Hammasi 2019-yilda, maktabda o‘qib yurgan paytimda boshlangan. Unity’ni va C# tilini mustaqil o‘rgandim va "
+     "Android uchun ikkita o‘yin yaratdim — AirFly va UzbekAdventure. Geympley, interfeys, grafika — hammasini "
+     "o‘zim qildim.",
+     "2019, maktab → Unity + C# mustaqil → AirFly, UzbekAdventure → hammasini o‘zim"),
+    ("3. Nima qildim — eng muhim tajribam", "≈ 50 s",
+     "UzbekAdventure chiqqanda uning reklamasiga bir necha ming dollar sarfladim. Bu men uchun katta pul edi, "
+     "uni behuda sarflab bo‘lmasdi. Shuning uchun tayyor reklama buyurtma qilmadim — treylerlarni o‘zim montaj "
+     "qildim. Geympleyni yozib oldim, boshlanishi har xil bo‘lgan bir nechta qisqa versiya tayyorladim va qaysi "
+     "biri ko‘proq o‘rnatish olib kelayotganini kuzatib, byudjetni eng yaxshisiga o‘tkazdim. Natijada pul eng "
+     "kuchli roliklarga ishladi, o‘yinni yuklab olib, baholay boshlashdi. Eng muhimi — videoning dastlabki "
+     "soniyalari hamma narsani hal qilishini tushundim. Videomontajga aynan shu yo‘l bilan kelganman.",
+     "Reklama — bir necha ming $ → behuda ketmasin → treylerlarni o‘zim → bir nechta versiya → byudjet eng yaxshisiga → "
+     "o‘rnatishlar → «birinchi soniyalar hal qiladi» → videomontajga keldim"),
+    ("4. Nima qildim — dizayn, YouTube, frilans", "≈ 45 s",
+     "2021–2023-yillarda Termizda oilaviy biznesimizda grafik dizayner bo‘lib ishladim: logotiplar, bannerlar, "
+     "ijtimoiy tarmoqlar uchun postlar tayyorladim. U yerda reklama shunchaki chiroyli emas, sotadigan bo‘lishi "
+     "kerakligini o‘rgandim. 2023–2025-yillarda YouTube-kanalni yuritdim: roliklarni montaj qildim, prevyular "
+     "yasadim, sarlavha va tavsiflarni yozdim, YouTube Studio’da statistikani tahlil qildim. 2023-yildan beri esa "
+     "GraphicArts brendi ostida frilans ishlayman: Reels, Shorts va TikTok uchun roliklar montaj qilaman, "
+     "animatsion logotip va titrlar yarataman.",
+     "2021–2023: oilaviy biznes, dizayn → reklama sotishi kerak → 2023–2025: YouTube → 2023-dan: GraphicArts, Reels/Shorts"),
+    ("5. Nima qila olaman", "≈ 50 s",
+     "Birinchidan, ijtimoiy tarmoqlar uchun qisqa roliklarni brifdan tayyor variantgacha olib bora olaman: kesish, "
+     "rang korreksiyasi, titrlar, ovoz — 9:16, 4:5 va 16:9 formatlarida. Ikkinchidan, motion-grafika: animatsion "
+     "logotip, zastavka, titrlar. Uchinchidan, birinchi soniyalardanoq e’tiborni ushlaydigan reklama roliklarini "
+     "tayyorlay olaman va natijasini raqamlarda tekshiraman. To‘rtinchidan, YouTube-kanalni yurita olaman. Bundan "
+     "tashqari, dasturlashni bilaman — C# va Python, shuning uchun yangi dasturlarni tez o‘rganaman va sun’iy "
+     "intellekt vositalaridan foydalanaman. Kelgusi yilda After Effects’ni chuqurroq o‘rganib, Blender’da 3D ni "
+     "o‘zlashtirmoqchiman, besh yildan keyin esa o‘zimni yetakchi motion-dizayner sifatida ko‘raman.",
+     "1) qisqa roliklar brifdan tayyorgacha → 2) motion-grafika → 3) reklama + raqamlar → 4) YouTube → "
+     "C#, Python, AI → After Effects + Blender → 5 yildan keyin yetakchi motion-dizayner"),
+    ("6. Yakun", "≈ 15 s",
+     "Videoga bir vaqtning o‘zida dizayner, dasturchi va montajchi ko‘zi bilan qarayman, reklama natija berishi "
+     "kerakligini esa o‘z pulim orqali bilganman. Jamoangizga foyda keltirishga tayyorman. E’tiboringiz uchun rahmat!",
+     "Dizayner + dasturchi + montajchi → reklama natija berishi kerak → «Rahmat!»"),
+]
+
+uz = "".join(f"<div class='q'><div class='t'>{q} · {t}</div><div class='ans'>{a}</div>"
+             f"<div class='cue'><b>Tezislar:</b> {c}</div></div>" for q, t, a, c in UZ_BLOCKS)
+save("interview_script_uz.html", f"""
+<h1>Videointervyu — ssenariy (o‘zbekcha)</h1>
+<p class="muted">Reja (o‘qituvchi aytganidek): o‘zim haqimda → nima qildim → nima qila olaman.
+Lavozim: videomontajchi / motion-dizayner. Umumiy davomiyligi ≈ 4 daqiqa (talab 3–5 daqiqa).
+Varaqdan o‘qima: matnni 3–5 marta ovoz chiqarib o‘qib chiq, keyin tezislarga qarab o‘z so‘zlaring bilan gapir.
+Reklama byudjetining aniq summasini aytma — «bir necha ming dollar» de.</p>
+{uz}
+<h2>Yozishdan oldin — tekshiruv ro‘yxati</h2>
+<ul>
+<li>Telefon gorizontal, shtativda yoki tayanchda, kamera ko‘z darajasida; «Bezovta qilmang» rejimi.</li>
+<li>Yorug‘lik old tomondan (derazaga yuzlanib o‘tir), orqa fon — bir xil rangli devor.</li>
+<li>Ko‘ylak yoki pidjak, yozuvlarsiz; kadrda yuz va yelkalar ko‘rinsin.</li>
+<li>10 soniyalik sinov yozuvi → ovozni quloqchinda tekshir.</li>
+<li>Bitta dubl, montajsiz. Tabassum bilan boshla, ekranga emas, kamera ob’ektiviga qara.</li>
+<li>Fayl nomi: <b>Ro‘ziboyev_Muxammad</b> · Telegram guruhiga yubor, shaxsiy xabarga emas.</li>
+</ul>
+<h2>O‘qituvchi so‘rashi mumkin bo‘lgan savollar</h2>
+<ul>
+<li>O‘yinlaring nima haqida? → AirFly va UzbekAdventure’ning mazmunini bir gapda aytib bera ol.</li>
+<li>YouTube-kanal qanday edi? → kanal nomi va mavzusini ayt.</li>
+<li>Qaysi dasturlarda ishlaysan? → faqat haqiqatan biladigan dasturlaringni ayt.</li>
+</ul>
+""", CSS, "Videointervyu")
