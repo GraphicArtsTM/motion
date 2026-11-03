@@ -22,6 +22,7 @@ local function pair(rows: { string }?): (MatchSim.Match, number, number)
 	local map = if rows ~= nil then TinyMap.fromRows(rows) else TinyMap.plains(40, 12)
 	local w = map.width
 	local m = MatchSim.new(map, 9)
+	m.victory = false -- крошечная карта: 60% суши набирается сразу
 	MatchSim.addPlayer(m, 1, "A")
 	MatchSim.addPlayer(m, 2, "B")
 	m.phase = "Play"

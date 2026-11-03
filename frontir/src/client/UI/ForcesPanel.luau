@@ -94,7 +94,7 @@ function ForcesPanel.new(
 	local function placeCards()
 		if gui.AbsoluteSize.X < Config.Render.NarrowScreenPx then
 			cards.AnchorPoint = Vector2.new(1, 1)
-			cards.Position = UDim2.new(1, -12, 1, -12)
+			cards.Position = UDim2.new(1, -20 - Config.Render.MinimapSide, 1, -12) -- справа мини-карта
 			cards.AutomaticSize = Enum.AutomaticSize.Y
 			cards.Size = UDim2.fromOffset(2 * CARD_W + 6, 0)
 			cardsLayout.Wraps = true

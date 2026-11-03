@@ -59,6 +59,7 @@ export type MatchEvent =
 	| { kind: "peaceRejected", nation: number, target: number, expired: boolean }
 	| { kind: "peace", nation: number, target: number, terms: Types.PeaceTerms, returned: number }
 	| { kind: "pocketSurrendered", nation: number, by: number, cells: number }
+	| { kind: "victory", nation: number, reason: Types.VictoryReason }
 
 export type Match = {
 	map: MapData,
@@ -87,6 +88,10 @@ export type Match = {
 	pockets: { [number]: Pockets.NationPockets }, -- котлы по державам (§6.7)
 	pocketCursor: number, -- чья связность проверяется следующей
 	pocketCheck: { [number]: { version: number, at: number } }, -- когда и при какой территории считали котлы
+	result: Types.MatchResult?, -- итог (фаза Over)
+	victory: boolean, -- проверять ли победу (тесты на крошечных картах выключают)
+	history: { times: { number }, shares: { [number]: { number } } }, -- доля суши по времени
+	nextHistoryAt: number,
 }
 
 -- Экономика державы за последний тик, в секунду (§6.8).
@@ -132,6 +137,10 @@ function MatchSim.new(map: MapData, seed: number): Match
 		pockets = {},
 		pocketCursor = 1,
 		pocketCheck = {},
+		result = nil,
+		victory = true,
+		history = { times = {}, shares = {} },
+		nextHistoryAt = 0,
 	}
 end
 
@@ -206,7 +215,7 @@ end
 
 -- Добавляет игрока (только до начала игры). Возвращает id державы или nil, если мест нет / игра идёт.
 function MatchSim.addPlayer(m: Match, userId: number, name: string): number?
-	if m.phase == "Play" or #m.nations >= Config.Match.MaxPlayers then
+	if m.phase == "Play" or m.phase == "Over" or #m.nations >= Config.Match.MaxPlayers then
 		return nil
 	end
 	return newNation(m, name, name, false, userId).id
@@ -224,8 +233,19 @@ function MatchSim.removePlayer(m: Match, nationId: number)
 	m.infoDirty = true
 end
 
-function MatchSim.startPick(m: Match)
+-- Лобби (этап 4в): игроки собираются, через LobbySec начинается выбор старта.
+function MatchSim.startLobby(m: Match)
 	if m.phase ~= "Waiting" then
+		return
+	end
+	m.phase = "Lobby"
+	m.phaseLeft = Config.Match.LobbySec
+	m.infoDirty = true
+end
+
+-- Выбор старта (из ожидания — сразу, минуя лобби: так делают тесты и превью).
+function MatchSim.startPick(m: Match)
+	if m.phase ~= "Waiting" and m.phase ~= "Lobby" then
 		return
 	end
 	m.phase = "Pick"
@@ -699,6 +719,7 @@ end
 -- Держава выбыла: войска гибнут, её клетки становятся ничьими, атаки на неё заканчиваются.
 local function eliminate(m: Match, n: Nation, by: number)
 	n.alive = false
+	n.eliminatedAt = m.time
 	n.people = 0
 	n.home = Forces.new()
 	n.queue = {}
@@ -1017,9 +1038,110 @@ local function stepPockets(m: Match)
 	end
 end
 
+-- Точка графика доли суши (раз в HistoryEverySec секунд матча).
+local function recordHistory(m: Match, force: boolean?)
+	if m.time < m.nextHistoryAt and not force then
+		return
+	end
+	m.nextHistoryAt = m.time + Config.Match.HistoryEverySec
+	table.insert(m.history.times, math.floor(m.time))
+	for _, n in m.nations do
+		local list = m.history.shares[n.id]
+		if list == nil then
+			list = {}
+			m.history.shares[n.id] = list
+		end
+		table.insert(list, math.floor(Grid.cellsOf(m.grid, n.id) / math.max(1, m.grid.capturableCount) * 100 + 0.5))
+	end
+end
+
+-- Места: победитель; дальше живые по доле суши; дальше выбывшие — кто продержался дольше.
+function MatchSim.places(m: Match, winner: number): { number }
+	local order: { Nation } = table.clone(m.nations)
+	table.sort(order, function(a: Nation, b: Nation): boolean
+		if (a.id == winner) ~= (b.id == winner) then
+			return a.id == winner
+		end
+		if a.alive ~= b.alive then
+			return a.alive
+		end
+		if a.alive then
+			local ca, cb = Grid.cellsOf(m.grid, a.id), Grid.cellsOf(m.grid, b.id)
+			if ca ~= cb then
+				return ca > cb
+			end
+		else
+			local ea, eb = a.eliminatedAt or 0, b.eliminatedAt or 0
+			if ea ~= eb then
+				return ea > eb
+			end
+		end
+		return a.id < b.id
+	end)
+	local out: { number } = {}
+	for _, n in order do
+		table.insert(out, n.id)
+	end
+	return out
+end
+
+-- Победа (§2): 60% суши, последний выживший или больше всех суши к лимиту времени. Возвращает true, если матч кончился.
+local function checkVictory(m: Match): boolean
+	if not m.victory then
+		return false
+	end
+	local alive, last = 0, 0
+	local leader, leaderCells = 0, -1
+	for _, n in m.nations do
+		if n.alive then
+			alive += 1
+			last = n.id
+			local cells = Grid.cellsOf(m.grid, n.id)
+			if cells > leaderCells then
+				leader, leaderCells = n.id, cells
+			end
+		end
+	end
+	local reason: Types.VictoryReason? = nil
+	local winner = leader
+	if leaderCells >= m.grid.capturableCount * Config.Match.VictoryLandShareFfa then
+		reason = "land"
+	elseif alive <= 1 and #m.nations > 1 then
+		reason, winner = "last", last
+	elseif m.time >= Config.Match.TimeLimitSec then
+		reason = "time"
+	end
+	if reason == nil or winner == 0 then
+		return false
+	end
+	m.nextHistoryAt = 0
+	recordHistory(m, true) -- последняя точка графика — момент победы
+	m.result = {
+		winner = winner,
+		reason = reason,
+		places = MatchSim.places(m, winner),
+		times = m.history.times,
+		shares = m.history.shares,
+	}
+	m.phase = "Over"
+	m.phaseLeft = Config.Match.ResultsSec
+	m.infoDirty = true
+	table.insert(m.events, { kind = "victory", nation = winner, reason = reason })
+	return true
+end
+
 -- Шаг симуляции на dt секунд (сервер зовёт с dt = 1 / TickRate).
 function MatchSim.step(m: Match, dt: number)
 	if m.phase == "Waiting" then
+		return
+	elseif m.phase == "Over" then
+		m.phaseLeft -= dt -- экран результатов; сервер начнёт новый матч, когда время выйдет
+		return
+	elseif m.phase == "Lobby" then
+		m.phaseLeft -= dt
+		if m.phaseLeft <= 0 then
+			MatchSim.startPick(m)
+		end
 		return
 	elseif m.phase == "Pick" then
 		m.phaseLeft -= dt
@@ -1079,6 +1201,11 @@ function MatchSim.step(m: Match, dt: number)
 				eliminate(m, n, by)
 			end
 		end
+	end
+
+	recordHistory(m)
+	if checkVictory(m) then
+		return
 	end
 
 	-- Боты.

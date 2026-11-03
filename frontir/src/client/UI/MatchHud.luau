@@ -159,8 +159,27 @@ function MatchHud.new(
 	local banner = panel(gui, "PhaseBanner")
 	banner.AnchorPoint = Vector2.new(0.5, 0)
 	banner.Position = UDim2.new(0.5, 0, 0, GAP)
+	local bannerLayout = Instance.new("UIListLayout")
+	bannerLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	bannerLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	bannerLayout.Padding = UDim.new(0, 4)
+	bannerLayout.Parent = banner
 	local bannerText = richLabel(banner, 18)
 	bannerText.TextXAlignment = Enum.TextXAlignment.Center
+	bannerText.LayoutOrder = 1
+	-- Полоска лидера к победе (60% суши) в его цвете (HUD v1, §10).
+	local leaderBar = Instance.new("Frame")
+	leaderBar.Name = "LeaderBar"
+	leaderBar.BackgroundColor3 = Theme.Colors.Backdrop
+	leaderBar.BorderSizePixel = 0
+	leaderBar.Size = UDim2.fromOffset(240, 6)
+	leaderBar.LayoutOrder = 2
+	leaderBar.Visible = false
+	leaderBar.Parent = banner
+	local leaderFill = Instance.new("Frame")
+	leaderFill.BorderSizePixel = 0
+	leaderFill.Size = UDim2.fromScale(0, 1)
+	leaderFill.Parent = leaderBar
 
 	-- Слева сверху: держава.
 	local nationPanel = panel(gui, "NationPanel")
@@ -546,15 +565,69 @@ function MatchHud.new(
 				local hint = if me ~= nil and me.capital ~= nil then "hud.pick.done" else "hud.pick.hint"
 				text ..= string.format('\n<font color="%s" size="14">%s</font>', sky, Strings.get(hint, lang))
 			end
+		elseif cs.phase == "Lobby" then
+			local left = math.max(0, math.ceil(cs.phaseEndsAt - now))
+			local players = 0
+			for _, n in cs.nations do
+				if not n.isBot then
+					players += 1
+				end
+			end
+			text = string.format(Strings.get("hud.lobby", lang), Strings.get("map." .. map.name, lang), left)
+				.. string.format(
+					'\n<font color="%s" size="14">%s</font>',
+					sky,
+					string.format(Strings.get("hud.lobby.players", lang), players, cs.targetNations)
+				)
+		elseif cs.phase == "Over" then
+			local left = math.max(0, math.ceil(cs.phaseEndsAt - now))
+			text = string.format(Strings.get("hud.over", lang), left)
 		else
+			-- Время матча / лимит (цифры — пиксельным Arcade), державы в игре.
 			local t = math.floor(cs.time + (now - cs.timeAt))
-			text = string.format(Strings.get("hud.time", lang), t // 60, t % 60)
+			local limit = math.floor(cs.timeLimit)
+			local alive = 0
+			local total = 0
+			for _, n in cs.nations do
+				total += 1
+				if n.alive then
+					alive += 1
+				end
+			end
+			text = string.format(
+				'<font face="Arcade" size="22">%s</font>  <font color="%s" size="14">%s</font>',
+				string.format(Strings.get("hud.timeLimit", lang), t // 60, t % 60, limit // 60, limit % 60),
+				sky,
+				string.format(Strings.get("hud.nations", lang), alive, total)
+			)
 			local me = if cs.myNation ~= nil then cs.nations[cs.myNation] else nil
 			if me == nil then
 				text ..= "\n" .. Strings.get("hud.spectator", lang)
 			elseif not me.alive then
 				text ..= "\n" .. Strings.get("hud.defeated", lang)
 			end
+		end
+		-- Лидер к победе: доля суши / порог победы.
+		local stats = cs.stats
+		local showBar = cs.phase == "Play" and stats ~= nil
+		leaderBar.Visible = showBar
+		if showBar and stats ~= nil then
+			local best, bestCells = 0, -1
+			for _, s in stats.nations do
+				if s.cells > bestCells then
+					best, bestCells = s.id, s.cells
+				end
+			end
+			local share = bestCells / math.max(1, totalLand)
+			leaderFill.Size = UDim2.fromScale(math.clamp(share / Config.Match.VictoryLandShareFfa, 0, 1), 1)
+			local n = cs.nations[best]
+			leaderFill.BackgroundColor3 = if n ~= nil and n.colorIndex >= 1
+				then Color3.fromRGB(
+					NationColors.Colors[n.colorIndex].r,
+					NationColors.Colors[n.colorIndex].g,
+					NationColors.Colors[n.colorIndex].b
+				)
+				else Theme.Colors.Gold
 		end
 		if text ~= lastBanner then
 			lastBanner = text
@@ -629,6 +702,8 @@ function MatchHud.new(
 			elseif e.kind == "peace" then
 				local terms = Strings.get("peace.terms." .. tostring(e.terms), lang)
 				toast(string.format(Strings.get("event.peace", lang), a, b, terms))
+			elseif e.kind == "victory" then
+				toast(string.format(Strings.get("event.victory", lang), a))
 			elseif e.kind == "pocketSurrendered" then
 				toast(string.format(Strings.get("event.pocketSurrendered", lang), a, nationName(tonumber(e.by) or 0)))
 			elseif e.kind == "peaceRejected" and e.target == cs.myNation then

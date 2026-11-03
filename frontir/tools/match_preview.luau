@@ -24,6 +24,7 @@ local MapData = require("../src/shared/MapData")
 local MapFormat = require("../src/shared/MapFormat")
 local MapPaint = require("../src/shared/MapPaint")
 local MatchSim = require("../src/shared/MatchSim")
+local MinimapPaint = require("../src/shared/MinimapPaint")
 local TerritoryPaint = require("../src/shared/TerritoryPaint")
 local NationColors = require("../src/shared/NationColors")
 local Palette = require("../src/shared/Palette")
@@ -54,8 +55,12 @@ for _ = 1, math.floor(seconds * Config.Sim.TickRate) do
 			peaces += 1
 		end
 	end
+	if m.phase == "Over" then
+		break -- матч кончился (победа или лимит времени) — картинка на момент победы
+	end
 end
 
+local result = m.result
 local out = process.args[3] or "build/match.png"
 local terrain = MapPaint.paint(map)
 local w, h = map.width, map.height
@@ -464,6 +469,92 @@ if closeUp ~= nil then
 	renderRegion(pixels, W, H, 0, mapH + 4, x0, y0, cropW, cropH, ZOOM, zoomScale, true, cropSides, cropLineD)
 end
 
+-- HUD v1 поверх карты: мини-карта справа снизу (MinimapPaint, как у клиента) и график доли суши за матч
+-- (как на экране результатов, лучшие Render.ResultsChartLines держав).
+local function put(x: number, y: number, c: Palette.Rgb)
+	if x >= 0 and y >= 0 and x < W and y < mapH then
+		local o = (y * W + x) * 3
+		buffer.writeu8(pixels, o, c.r)
+		buffer.writeu8(pixels, o + 1, c.g)
+		buffer.writeu8(pixels, o + 2, c.b)
+	end
+end
+local function frame(x0: number, y0: number, fw: number, fh: number, c: Palette.Rgb)
+	for x = x0 - 1, x0 + fw do
+		put(x, y0 - 1, c)
+		put(x, y0 + fh, c)
+	end
+	for y = y0 - 1, y0 + fh do
+		put(x0 - 1, y, c)
+		put(x0 + fw, y, c)
+	end
+end
+do
+	local mw, mh = MinimapPaint.size(w, h, Config.Render.MinimapSide)
+	local mini = MinimapPaint.paint(terrain, g.owner, w, h, mw, mh, function(owner: number)
+		local ci = colorOf(owner)
+		if ci < 1 then
+			return nil, nil, nil
+		end
+		local c = NationColors.Colors[ci]
+		return c.r, c.g, c.b
+	end)
+	local mx, my = W - mw - 12, mapH - mh - 12
+	for y = 0, mh - 1 do
+		for x = 0, mw - 1 do
+			local o = (y * mw + x) * 4
+			put(
+				mx + x,
+				my + y,
+				{ r = buffer.readu8(mini, o), g = buffer.readu8(mini, o + 1), b = buffer.readu8(mini, o + 2) }
+			)
+		end
+	end
+	frame(mx, my, mw, mh, basalt)
+end
+if result ~= nil and #result.times >= 2 then
+	local cw, ch = 240, 150
+	local cx0, cy0 = 16, mapH - ch - 16
+	for y = cy0, cy0 + ch - 1 do
+		for x = cx0, cx0 + cw - 1 do
+			put(x, y, ink)
+		end
+	end
+	frame(cx0, cy0, cw, ch, gold)
+	local times = result.times
+	local t0, t1 = times[1], math.max(times[#times], times[1] + 1)
+	local top = 10
+	local shown: { number } = {}
+	for place = 1, math.min(#result.places, Config.Render.ResultsChartLines) do
+		local id = result.places[place]
+		table.insert(shown, id)
+		for _, v in result.shares[id] do
+			top = math.max(top, v)
+		end
+	end
+	for order = #shown, 1, -1 do
+		local id = shown[order]
+		local list = result.shares[id]
+		local c = ownerRgb(id)
+		local px0, py0 = nil :: number?, nil :: number?
+		for k, v in list do
+			local x = cx0 + 2 + math.round((times[k] - t0) / (t1 - t0) * (cw - 5))
+			local y = cy0 + ch - 3 - math.round(v / top * (ch - 6))
+			if px0 ~= nil and py0 ~= nil then
+				-- Отрезок: шагаем по большей оси.
+				local steps = math.max(math.abs(x - px0), math.abs(y - py0), 1)
+				for s = 0, steps do
+					local xx = math.round(px0 + (x - px0) * s / steps)
+					local yy = math.round(py0 + (y - py0) * s / steps)
+					put(xx, yy, c)
+					put(xx, yy + 1, c)
+				end
+			end
+			px0, py0 = x, y
+		end
+	end
+end
+
 local dir = string.match(out, "^(.*)/[^/]*$")
 if dir ~= nil and not fs.isDir(dir) then
 	fs.writeDir(dir)
@@ -502,6 +593,28 @@ for _, n in m.nations do
 				return string.format("з%d р%d в%d у%d г%d", o.factories, o.markets, o.rigs, o.forts, o.cityLevels)
 			end)(),
 			if n.alive then "" else "  (пала)"
+		)
+	)
+end
+if result ~= nil then
+	local winner = m.nations[result.winner]
+	print(
+		string.format(
+			"  ИТОГ на %d:%02d: победа %s (%s); места: %s",
+			math.floor(m.time / 60),
+			math.floor(m.time % 60),
+			if winner ~= nil then winner.name else "?",
+			result.reason,
+			table.concat(
+				(function(): { string }
+					local names: { string } = {}
+					for place, id in result.places do
+						table.insert(names, string.format("%d.%s", place, m.nations[id].name))
+					end
+					return names
+				end)(),
+				" "
+			)
 		)
 	)
 end

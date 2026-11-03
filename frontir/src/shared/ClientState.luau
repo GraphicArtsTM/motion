@@ -29,6 +29,10 @@ export type Info = {
 	nations: { NationInfo },
 	cities: { number }?, -- клетки городов (владелец — по сетке)
 	buildings: { Types.Building }?, -- все здания и уровни городов (§6.9)
+	matchId: number?, -- новый матч — клиент сбрасывает состояние
+	targetNations: number?,
+	timeLimit: number?, -- лимит времени матча, с
+	result: Types.MatchResult?, -- итог (фаза Over)
 }
 
 export type ApplyResult = "snapshot" | "delta" | "stats" | "forces" | "wars" | "partial" | "ignored"
@@ -54,6 +58,10 @@ export type ClientState = {
 	buildings: { [number]: Types.Building }, -- клетка → здание (владелец — по сетке)
 	warsAt: number, -- когда пришли wars (часы клиента; для обратных отсчётов)
 	bytes: number, -- принято байт с начала (для F3: байт/с)
+	matchId: number,
+	targetNations: number,
+	timeLimit: number,
+	result: Types.MatchResult?,
 }
 
 local ClientState = {}
@@ -78,6 +86,10 @@ function ClientState.new(width: number, height: number): ClientState
 		myForces = nil,
 		wars = { wars = {}, cooldowns = {} },
 		buildings = {},
+		matchId = 0,
+		targetNations = 0,
+		timeLimit = 0,
+		result = nil,
 		warsAt = 0,
 		bytes = 0,
 	}
@@ -94,8 +106,26 @@ function ClientState.colorIndexOf(cs: ClientState, owner: number): number
 end
 
 -- Применяет info. Возвращает true, если поменялись цвета держав (нужна полная перерисовка).
+-- Новый матч (другой matchId) — сетка, статистика, войны, здания и войска сбрасываются.
 function ClientState.applyInfo(cs: ClientState, info: Info, now: number): boolean
 	local colorsChanged = false
+	if info.matchId ~= nil and info.matchId ~= cs.matchId then
+		if cs.matchId ~= 0 then
+			buffer.fill(cs.owners, 0, 0)
+			cs.hasSnapshot = false
+			cs.snapshotTick = -1
+			cs.assembler = Protocol.newAssembler()
+			cs.stats = nil
+			cs.myForces = nil
+			cs.wars = { wars = {}, cooldowns = {} }
+			table.clear(cs.buildings)
+			colorsChanged = true
+		end
+		cs.matchId = info.matchId
+	end
+	cs.targetNations = info.targetNations or cs.targetNations
+	cs.timeLimit = info.timeLimit or cs.timeLimit
+	cs.result = info.result
 	local fresh: { [number]: NationInfo } = {}
 	for _, n in info.nations do
 		local old = cs.nations[n.id]

@@ -50,6 +50,7 @@ end
 local function duel(): (MatchSim.Match, number, number)
 	local map = TinyMap.plains(40, 12)
 	local m = MatchSim.new(map, 5)
+	m.victory = false -- крошечная карта: 60% суши набирается сразу
 	MatchSim.addPlayer(m, 1, "A")
 	MatchSim.addPlayer(m, 2, "B")
 	m.phase = "Play"
@@ -313,6 +314,7 @@ T.describe("Фронты в матче", function()
 		function()
 			local map = TinyMap.plains(20, 6)
 			local m = MatchSim.new(map, 2)
+			m.victory = false -- крошечная карта: 60% суши набирается сразу
 			MatchSim.addPlayer(m, 1, "A")
 			m.phase = "Play"
 			local home, neutralCity = 2 * 20 + 2, 2 * 20 + 12

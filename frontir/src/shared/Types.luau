@@ -129,6 +129,7 @@ export type RealMapParams = {
 	Lat1: number, -- север
 	Width: number, -- клеток
 	Height: number,
+	Nations: number, -- держав в матче (игроки + боты)
 	Provinces: number, -- сколько провинций хотим (GDD: 60–250)
 	RiverMaxRank: number, -- реки Natural Earth со scalerank не больше этого (меньше — только крупные)
 	MaxPlayers: number,
@@ -165,6 +166,7 @@ export type Nation = {
 	queue: { Recruit }, -- очередь найма
 	money: number, -- §6.8
 	oil: number,
+	eliminatedAt: number?, -- секунда матча, когда выбыла (для мест)
 }
 
 -- Отряд одного типа в пуле: суммарная сила и средний опыт (§6.7: ветераны).
@@ -216,6 +218,16 @@ export type Intent =
 	| PeaceReplyIntent
 	| BuildIntent
 
-export type Phase = "Waiting" | "Pick" | "Play"
+export type Phase = "Waiting" | "Lobby" | "Pick" | "Play" | "Over"
+
+-- Итог матча (§2, §5): кто и как победил, места, доля суши по времени для графика результатов.
+export type VictoryReason = "land" | "last" | "time"
+export type MatchResult = {
+	winner: NationId,
+	reason: VictoryReason,
+	places: { NationId }, -- от первого места
+	times: { number }, -- секунды матча точек графика
+	shares: { [NationId]: { number } }, -- доля суши в процентах (целые) в эти моменты
+}
 
 return Types

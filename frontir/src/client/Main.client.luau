@@ -4,7 +4,8 @@
 	Карта, выбранная сервером, рендер через EditableImage, камера, блики, F3;
 	этап 2: приём матча (MatchClient), слой территорий, подписи держав, HUD, нажатия на карту;
 	этап 3а: города; этап 3б: войска державы (найм Z/X/C/V, панель войск), юниты и бой на линиях фронтов;
-	этап 3в: война и мир (объявление, баннер войны, окно мира), бой на фронте с артиллерией, воронками и дымом.
+	этап 3в: война и мир (объявление, баннер войны, окно мира), бой на фронте с артиллерией, воронками и дымом;
+	этап 4в: цикл матча (лобби → выбор → игра → итоги → новый матч), экран результатов, мини-карта.
 ]]
 
 local LocalizationService = game:GetService("LocalizationService")
@@ -36,7 +37,9 @@ local FrontLayer = require(Render:WaitForChild("FrontLayer"))
 local MapRenderer = require(Render:WaitForChild("MapRenderer"))
 local MatchClient = require(Client:WaitForChild("Net"):WaitForChild("MatchClient"))
 local MatchHud = require(UI:WaitForChild("MatchHud"))
+local Minimap = require(UI:WaitForChild("Minimap"))
 local NationLabels = require(UI:WaitForChild("NationLabels"))
+local ResultsPanel = require(UI:WaitForChild("ResultsPanel"))
 local TerritoryLayer = require(Render:WaitForChild("TerritoryLayer"))
 local Theme = require(UI:WaitForChild("Theme"))
 local WarPanel = require(UI:WaitForChild("WarPanel"))
@@ -185,11 +188,25 @@ local build = BuildPanel.new(hudGui, cs, lang, send, hud.toast)
 build.refresh()
 local forcesPanel = ForcesPanel.new(hudGui, cs, lang, send)
 forcesPanel.refresh()
+-- Мини-карта справа снизу: нажатие — камера туда. Нет памяти под EditableImage — играем без неё.
+local minimap = Minimap.new(hudGui, cs, colors, map.width, map.height, function(wx: number, wy: number)
+	CameraMath.centerOn(camera.state, wx, wy)
+	camera.refresh()
+end)
+local results = ResultsPanel.new(hudGui, cs, lang)
+results.refresh()
+local function gridChanged()
+	if minimap ~= nil then
+		minimap.changed()
+	end
+end
 
 client = MatchClient.connect(cs, {
 	onInfo = function(colorsChanged: boolean)
-		if colorsChanged and cs.hasSnapshot then
+		-- Новый матч тоже приходит как смена цветов: ClientState уже сбросил сетку, перерисовываем всё.
+		if colorsChanged then
 			territory.repaintAll()
+			gridChanged()
 		end
 		labels.refresh()
 		hud.refresh()
@@ -197,14 +214,17 @@ client = MatchClient.connect(cs, {
 		wars.refresh()
 		build.refresh()
 		buildingLayer.refresh()
+		results.refresh()
 	end,
 	onSnapshot = function()
 		territory.repaintAll()
+		gridChanged()
 		labels.recolor()
 		buildingLayer.recolor()
 	end,
 	onDelta = function(cells: { number })
 		territory.cellsChanged(cells, os.clock())
+		gridChanged()
 		labels.recolor()
 		buildingLayer.recolor()
 	end,
@@ -262,6 +282,10 @@ local frameConn = RunService.RenderStepped:Connect(function()
 	frontLayer.update(now, camera.state)
 	hud.update(now)
 	wars.update(now)
+	results.update(now)
+	if minimap ~= nil then
+		minimap.update(now, camera.state)
+	end
 end)
 
 local netBytes, netAt, netRate = 0, os.clock(), 0
@@ -271,6 +295,7 @@ DebugOverlay.create(hudGui, {
 	chunkCount = view.chunkCount,
 	memoryBytes = view.memoryBytes,
 	hover = input.hover,
+	bottomInset = if minimap ~= nil then minimap.height + 12 else 0,
 	extra = function(): { string }
 		local lines: { string } = {}
 		local stats = cs.stats

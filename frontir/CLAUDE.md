@@ -108,6 +108,14 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   (значки из `BuildingSprites`, общие с превью).
 - Нагрузку проверять `lune run tools/bench Europe 12 300` и `tools/bench World 60 180`: тик в среднем ≤ 10 мс.
 
+## Цикл матча и HUD (этап 4в)
+- Фазы `Waiting → Lobby → Pick → Play → Over` в `MatchSim`; победа (`checkVictory`): доля суши, последняя держава,
+  `Match.TimeLimitSec`. Итог (`m.result`: места, график долей) — в info. Сервер после `Over` создаёт новый матч
+  на той же карте; клиент сбрасывает состояние по новому `matchId` (`ClientState.applyInfo` → colorsChanged).
+- Флаг `m.victory = false` выключает проверку победы — для тестов на крошечных картах.
+- Клиент: `UI/ResultsPanel` (итоги), `UI/Minimap` + `MinimapPaint` (своё EditableImage, перерисовка по таймеру
+  и только при изменениях). Превью рисует мини-карту и график так же.
+
 ## Require
 Внутри `src/shared` модули подключают друг друга строкой: `require("./Types")` — так работает и в Roblox (`./` = `script.Parent`), и в Lune.
 Сервер и клиент берут общие модули через `ReplicatedStorage.Shared`.

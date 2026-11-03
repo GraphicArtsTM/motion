@@ -72,7 +72,7 @@ function BuildPanel.new(
 	local function placeMain()
 		if gui.AbsoluteSize.X < Config.Render.NarrowScreenPx then
 			main.AnchorPoint = Vector2.new(1, 1)
-			main.Position = UDim2.new(1, -12, 1, -12 - 2 * 56 - 12)
+			main.Position = UDim2.new(1, -20 - Config.Render.MinimapSide, 1, -12 - 2 * 56 - 12)
 		else
 			main.AnchorPoint = Vector2.new(0.5, 1)
 			main.Position = UDim2.new(0.5, 0, 1, -12 - 56 - 6)

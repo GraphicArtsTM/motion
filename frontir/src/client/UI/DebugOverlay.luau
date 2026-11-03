@@ -27,6 +27,7 @@ export type DebugSource = {
 	memoryBytes: number,
 	hover: () -> (number?, number?),
 	extra: (() -> { string })?, -- дополнительные строки (сервер, пинг)
+	bottomInset: number?, -- отступ снизу (над мини-картой)
 }
 
 local DebugOverlay = {}
@@ -41,7 +42,7 @@ function DebugOverlay.create(parent: Instance, source: DebugSource, lang: String
 	panel.Name = "DebugOverlay"
 	-- Справа снизу: справа сверху — таблица лидеров, слева — панели игрока.
 	panel.AnchorPoint = Vector2.new(1, 1)
-	panel.Position = UDim2.new(1, -8, 1, -8)
+	panel.Position = UDim2.new(1, -8, 1, -8 - (source.bottomInset or 0))
 	panel.Size = UDim2.fromOffset(330, 0)
 	panel.AutomaticSize = Enum.AutomaticSize.Y
 	panel.BackgroundColor3 = Theme.Colors.PanelBg

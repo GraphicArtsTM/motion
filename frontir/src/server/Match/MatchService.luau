@@ -1,7 +1,8 @@
 --!strict
 --[[
 	MatchService — связь симуляции матча (Shared.MatchSim) с Roblox:
-	- игроки входят и выходят, получают державы;
+	- игроки входят и выходят, получают державы; первый игрок открывает лобби;
+	- цикл матча: лобби → выбор старта → игра → результаты → новый матч на той же карте (этап 4в);
 	- намерения клиентов: лимит запросов → разбор (Intents) → MatchSim.applyIntent;
 	- тик 10 Гц на Heartbeat с фиксированным шагом;
 	- рассылка: info (таблица) при смене фазы и держав, снимок сетки частями (начало игры, опоздавшие),
@@ -25,6 +26,7 @@ local MatchSim = require(Shared:WaitForChild("MatchSim"))
 local MatchStats = require(Shared:WaitForChild("Net"):WaitForChild("MatchStats"))
 local Protocol = require(Shared:WaitForChild("Net"):WaitForChild("Protocol"))
 local RateLimiter = require(Shared:WaitForChild("RateLimiter"))
+local Types = require(Shared:WaitForChild("Types"))
 
 type MapData = MapDataModule.MapData
 
@@ -41,8 +43,15 @@ function MatchService.start(map: MapData)
 	intentEvent.Parent = remotes
 	remotes.Parent = ReplicatedStorage
 
-	local seed = Random.new():NextInteger(1, 2 ^ 31 - 1)
-	local m = MatchSim.new(map, seed)
+	local seedRng = Random.new()
+	local realMap = (Config.RealMaps :: any)[map.name] :: Types.RealMapParams?
+	local function newMatch(): MatchSim.Match
+		local match = MatchSim.new(map, seedRng:NextInteger(1, 2 ^ 31 - 1))
+		match.targetNations = if realMap ~= nil then realMap.Nations else Config.Match.TargetNations
+		return match
+	end
+	local m = newMatch()
+	local seed = m.seed
 	local nationOf: { [Player]: number } = {}
 	local limiters: { [Player]: RateLimiter.RateLimiter } = {}
 
@@ -66,6 +75,10 @@ function MatchService.start(map: MapData)
 			time = m.time,
 			myNation = nationOf[player],
 			nations = nations,
+			matchId = m.seed,
+			targetNations = m.targetNations,
+			timeLimit = Config.Match.TimeLimitSec,
+			result = m.result,
 			cities = MatchSim.cities(m),
 			buildings = Buildings.list(m.buildings),
 		}
@@ -92,7 +105,7 @@ function MatchService.start(map: MapData)
 			return
 		end
 		if m.phase == "Waiting" then
-			MatchSim.startPick(m)
+			MatchSim.startLobby(m)
 		end
 		local id = MatchSim.addPlayer(m, player.UserId, player.DisplayName)
 		if id ~= nil then
@@ -195,6 +208,20 @@ function MatchService.start(map: MapData)
 		if acc > step * Config.Net.MaxStepsPerFrame then
 			acc = 0 -- сервер не успевает: лучше пропустить время, чем копить отставание
 		end
+		-- Результаты показаны — новый матч на той же карте: все игроки снова в лобби (смена карты — этап 8).
+		if m.phase == "Over" and m.phaseLeft <= 0 then
+			m = newMatch()
+			table.clear(nationOf)
+			for _, player in Players:GetPlayers() do
+				local id = MatchSim.addPlayer(m, player.UserId, player.DisplayName)
+				if id ~= nil then
+					nationOf[player] = id
+				end
+			end
+			MatchSim.startLobby(m)
+			sendInfoAll()
+			print(string.format("[Frontir] новый матч, сид %d", m.seed))
+		end
 		if m.phase == "Play" and statsAcc >= 1 / Config.Net.StatsHz then
 			statsAcc = 0
 			sendStats()
@@ -205,7 +232,7 @@ function MatchService.start(map: MapData)
 		string.format(
 			"[Frontir] матч запущен, сид %d, держав по плану %d",
 			seed,
-			Config.Match.TargetNations
+			m.targetNations
 		)
 	)
 end

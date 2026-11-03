@@ -262,6 +262,7 @@ T.describe("Укрепления и котлы", function()
 		function()
 			local map = TinyMap.plains(30, 10)
 			local m = MatchSim.new(map, 3)
+			m.victory = false -- крошечная карта: 60% суши набирается сразу
 			MatchSim.addPlayer(m, 1, "A")
 			MatchSim.addPlayer(m, 2, "B")
 			m.phase = "Play"
