@@ -80,21 +80,28 @@ T.describe("MapPaint", function()
 		end
 	end)
 
-	T.it("все пиксели — цвета палитры", function()
-		local allowed: { [number]: boolean } = {}
-		for _, s in Palette.Swatches do
-			allowed[Palette.pack(Palette.rgb(s.name))] = true
-		end
-		for i = 0, map.width * map.height - 1 do
-			local o = i * 4
-			local packed = buffer.readu8(colors, o) * 65536
-				+ buffer.readu8(colors, o + 1) * 256
-				+ buffer.readu8(colors, o + 2)
-			if not allowed[packed] then
-				error(string.format("клетка %d: цвет %06x не из палитры", i, packed))
+	T.it(
+		"все пиксели — цвета палитры (или палитры в тени границы провинции)",
+		function()
+			local allowed: { [number]: boolean } = {}
+			local k = Config.Render.ProvinceBorderShade
+			for _, s in Palette.Swatches do
+				local c = Palette.rgb(s.name)
+				allowed[Palette.pack(c)] = true
+				allowed[Palette.pack({ r = math.floor(c.r * k), g = math.floor(c.g * k), b = math.floor(c.b * k) })] =
+					true
+			end
+			for i = 0, map.width * map.height - 1 do
+				local o = i * 4
+				local packed = buffer.readu8(colors, o) * 65536
+					+ buffer.readu8(colors, o + 1) * 256
+					+ buffer.readu8(colors, o + 2)
+				if not allowed[packed] then
+					error(string.format("клетка %d: цвет %06x не из палитры", i, packed))
+				end
 			end
 		end
-	end)
+	)
 
 	T.it("глубина воды: у берега мель, вдали глубина", function()
 		local shallows = Palette.pack(Palette.rgb("Shallows"))

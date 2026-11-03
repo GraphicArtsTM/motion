@@ -111,6 +111,55 @@ T.describe("Protocol", function()
 	end)
 end)
 
+T.describe("Protocol: армии", function()
+	local function view(id: number, kind: string, state: string, x: number): Protocol.ArmyView
+		return {
+			id = id,
+			owner = 3,
+			kind = kind,
+			x = x,
+			y = 55.5,
+			strength = 287.4,
+			maxStrength = 300,
+			state = state,
+			stars = 2,
+			progress = 0.63,
+			auto = true,
+		}
+	end
+
+	T.it("армии туда и обратно, позиция с точностью 1/32 клетки", function()
+		local tick, back = Protocol.decodeArmies(
+			Protocol.encodeArmies(42, { view(7, "Tanks", "capture", 101.37), view(9, "Artillery", "recruit", 2) })
+		)
+		T.expect(tick).toBe(42)
+		T.expect(#back).toBe(2)
+		T.expect(back[1].kind).toBe("Tanks")
+		T.expect(back[1].state).toBe("capture")
+		T.expect(back[1].x).toBeNear(101.37, 1 / 64)
+		T.expect(back[1].progress).toBeNear(0.63, 1 / 255)
+		T.expect(back[1].auto).toBe(true)
+		T.expect(back[1].strength).toBe(287)
+		T.expect(back[2].kind).toBe("Artillery")
+		T.expect(back[2].state).toBe("recruit")
+	end)
+
+	T.it(
+		"клиент двигает армию плавно между тиками и забывает исчезнувшие",
+		function()
+			local cs = ClientState.new(10, 10)
+			ClientState.applyBuffer(cs, Protocol.encodeArmies(1, { view(1, "Infantry", "move", 2) }), 10)
+			ClientState.applyBuffer(cs, Protocol.encodeArmies(2, { view(1, "Infantry", "move", 3) }), 10.1)
+			local a = cs.armies[1]
+			T.expect((ClientState.armyPosition(a, 10.1))).toBeNear(2, 1e-6)
+			T.expect((ClientState.armyPosition(a, 10.15))).toBeNear(2.5, 1e-6)
+			T.expect((ClientState.armyPosition(a, 11))).toBeNear(3, 1e-6)
+			ClientState.applyBuffer(cs, Protocol.encodeArmies(3, {}), 10.2)
+			T.expect(cs.armies[1]).toBe(nil)
+		end
+	)
+end)
+
 T.describe("ClientState: клиенты видят ту же сетку, что и сервер", function()
 	T.it(
 		"матч 60 с через сериализацию: копия клиента совпадает с сервером побайтно, опоздавший тоже",

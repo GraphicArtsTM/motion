@@ -7,8 +7,10 @@
 	- Людей мало (меньше AttackWhenFill от максимума) — копит.
 	- Рядом ничья земля — расширяется на неё (NeutralPercent).
 	- Ничьей земли нет — бьёт самого слабого соседа, если сильнее его в NationAdvantage раз.
+	- Этап 3а: иногда нанимает армию (в режиме «авто» она сама берёт соседние провинции и города).
 ]]
 
+local Armies = require("./Armies")
 local Config = require("./Config")
 local Rng = require("./Rng")
 local Types = require("./Types")
@@ -21,6 +23,8 @@ export type BotView = {
 	people: number,
 	maxPeople: number,
 	attacks: number, -- активных атак
+	armies: number, -- своих армий (включая нанимаемые)
+	hasCapital: boolean,
 	hasNeutral: boolean, -- рядом есть ничья земля
 	neighbours: { Neighbour }, -- соседние державы
 }
@@ -33,8 +37,22 @@ function BotBrain.nextThinkDelay(rng: Rng): number
 	return cfg.ThinkMinSec + Rng.nextFloat(rng) * (cfg.ThinkMaxSec - cfg.ThinkMinSec)
 end
 
-function BotBrain.decide(view: BotView, _rng: Rng): Types.Intent?
+-- Какую армию нанять: пехота чаще, танки и пушки реже.
+local HIRE_ORDER: { Types.LandUnit } = { "Infantry", "Infantry", "Infantry", "Tanks", "Artillery" }
+
+function BotBrain.decide(view: BotView, rng: Rng): Types.Intent?
 	local cfg = Config.Bots
+	if
+		view.hasCapital
+		and view.armies < cfg.MaxArmies
+		and view.people >= view.maxPeople * cfg.HireWhenFill
+		and Rng.nextFloat(rng) < cfg.HireChance
+	then
+		local unit: Types.LandUnit = HIRE_ORDER[Rng.range(rng, 1, #HIRE_ORDER)]
+		if view.people >= Armies.stats(unit).people then
+			return { kind = "hire", unit = unit }
+		end
+	end
 	if view.attacks >= cfg.MaxAttacks or view.people < view.maxPeople * cfg.AttackWhenFill then
 		return nil
 	end

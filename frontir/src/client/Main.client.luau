@@ -2,7 +2,8 @@
 --[[
 	Точка входа клиента. Клиент только отправляет намерения и рисует (docs/GDD.md §0, п. 4).
 	Карта, выбранная сервером, рендер через EditableImage, камера, блики, F3;
-	этап 2: приём матча (MatchClient), слой территорий, подписи держав, HUD, нажатия на карту.
+	этап 2: приём матча (MatchClient), слой территорий, подписи держав, HUD, нажатия на карту;
+	этап 3а: города, армии (слой, выделение, приказы, найм).
 ]]
 
 local LocalizationService = game:GetService("LocalizationService")
@@ -28,6 +29,8 @@ local CameraInput = require(Client:WaitForChild("Input"):WaitForChild("CameraInp
 local DebugOverlay = require(UI:WaitForChild("DebugOverlay"))
 local MapRenderer = require(Render:WaitForChild("MapRenderer"))
 local MatchClient = require(Client:WaitForChild("Net"):WaitForChild("MatchClient"))
+local ArmyLayer = require(Render:WaitForChild("ArmyLayer"))
+local ArmyPanel = require(UI:WaitForChild("ArmyPanel"))
 local MatchHud = require(UI:WaitForChild("MatchHud"))
 local NationLabels = require(UI:WaitForChild("NationLabels"))
 local TerritoryLayer = require(Render:WaitForChild("TerritoryLayer"))
@@ -124,16 +127,37 @@ camera.onChanged(function(state)
 	sparklesOnCamera(state)
 end)
 
--- Матч: состояние с сервера, слой территорий, подписи, HUD.
+-- Матч: состояние с сервера, слой территорий, города и подписи, армии, HUD.
 local cs = ClientState.new(map.width, map.height)
 local territory = TerritoryLayer.new(view, map, colors, cs)
 local labels = NationLabels.new(view.canvas, cs, lang, map.width)
+local armyLayer = ArmyLayer.new(view.canvas, cs)
 camera.onChanged(function(state)
 	labels.onCamera(state)
 end)
 
-local hud: MatchHud.Hud
-local client = MatchClient.connect(cs, {
+-- Интерфейс создаётся до подключения к серверу: сообщения из очереди могут прийти сразу при подключении.
+local client: MatchClient.MatchClient? = nil
+local function send(kind: string, payload: { [string]: any })
+	if client ~= nil then
+		client.send(kind, payload)
+	end
+end
+
+-- HUD — отдельный ScreenGui: ScreenInsets = CoreUISafeInsets держит его вне кнопок Roblox и выреза экрана.
+local hudGui = Instance.new("ScreenGui")
+hudGui.Name = "FrontirHud"
+hudGui.ResetOnSpawn = false
+hudGui.ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets
+hudGui.DisplayOrder = 1
+hudGui.Parent = player:WaitForChild("PlayerGui")
+
+local hud = MatchHud.new(hudGui, cs, lang, map, send)
+hud.refresh()
+local armyPanel = ArmyPanel.new(hudGui, cs, lang, armyLayer, send)
+armyPanel.refresh()
+
+client = MatchClient.connect(cs, {
 	onInfo = function(colorsChanged: boolean)
 		if colorsChanged and cs.hasSnapshot then
 			territory.repaintAll()
@@ -143,13 +167,17 @@ local client = MatchClient.connect(cs, {
 	end,
 	onSnapshot = function()
 		territory.repaintAll()
+		labels.recolor()
 	end,
 	onDelta = function(cells: { number })
 		territory.cellsChanged(cells, os.clock())
+		labels.recolor()
 	end,
 	onStats = function()
 		hud.refresh()
+		armyPanel.refresh()
 	end,
+	onArmies = function() end, -- армии рисуются каждый кадр из ClientState
 	onEvents = function(events: { any })
 		hud.onEvents(events)
 	end,
@@ -157,27 +185,62 @@ local client = MatchClient.connect(cs, {
 		hud.toast(Strings.get("reject." .. reason, lang))
 	end,
 })
--- HUD — отдельный ScreenGui: ScreenInsets = CoreUISafeInsets держит его вне кнопок Roblox и выреза экрана.
-local hudGui = Instance.new("ScreenGui")
-hudGui.Name = "FrontirHud"
-hudGui.ResetOnSpawn = false
-hudGui.ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets
-hudGui.DisplayOrder = 1
-hudGui.Parent = player:WaitForChild("PlayerGui")
 
-hud = MatchHud.new(hudGui, cs, lang, map, client.send)
-hud.refresh()
+-- Рамка выделения армий (ПК): рисуется в той же системе координат, что и карта.
+local boxFrame = Instance.new("Frame")
+boxFrame.Name = "SelectionBox"
+boxFrame.BackgroundColor3 = Theme.Colors.Gold
+boxFrame.BackgroundTransparency = 0.85
+boxFrame.BorderSizePixel = 0
+boxFrame.Visible = false
+boxFrame.ZIndex = 20
+local boxStroke = Instance.new("UIStroke")
+boxStroke.Color = Theme.Colors.Gold
+boxStroke.Thickness = 1
+boxStroke.Parent = boxFrame
+boxFrame.Parent = viewport
 
-local input = CameraInput.bind(camera, viewport, function(sx: number, sy: number)
-	local cx, cy = CameraMath.cellAt(camera.state, sx, sy)
-	if cx ~= nil and cy ~= nil then
-		hud.tapCell(cy * map.width + cx)
-	end
-end)
+local input = CameraInput.bind(camera, viewport, {
+	onTap = function(sx: number, sy: number, shift: boolean)
+		local cx, cy = CameraMath.cellAt(camera.state, sx, sy)
+		local cell = if cx ~= nil and cy ~= nil then cy * map.width + cx else nil
+		-- Сначала армии (выбор или приказ), потом HUD (старт, атака границей).
+		if armyPanel.tap(sx, sy, cell, shift, camera.state) then
+			return
+		end
+		if cell ~= nil then
+			hud.tapCell(cell)
+		end
+	end,
+	onBox = function(x0: number, y0: number, x1: number, y1: number, shift: boolean)
+		armyPanel.box(x0, y0, x1, y1, shift, camera.state)
+	end,
+	onBoxPreview = function(x0: number, y0: number, x1: number, y1: number)
+		boxFrame.Visible = true
+		boxFrame.Position = UDim2.fromOffset(math.min(x0, x1), math.min(y0, y1))
+		boxFrame.Size = UDim2.fromOffset(math.abs(x1 - x0), math.abs(y1 - y0))
+	end,
+	onBoxEnd = function()
+		boxFrame.Visible = false
+	end,
+	-- Space — к своей столице (GDD §10); нет столицы — вся карта.
+	onHome = function()
+		local me = if cs.myNation ~= nil then cs.nations[cs.myNation] else nil
+		local capital = if me ~= nil then me.capital else nil
+		if capital ~= nil then
+			CameraMath.centerOn(camera.state, capital % map.width + 0.5, capital // map.width + 0.5)
+			camera.refresh()
+		else
+			camera.fit()
+		end
+	end,
+})
 
 local frameConn = RunService.RenderStepped:Connect(function()
 	local now = os.clock()
 	territory.update(now)
+	armyLayer.update(now, camera.state)
+	armyPanel.update()
 	hud.update(now)
 end)
 
@@ -194,6 +257,11 @@ DebugOverlay.create(hudGui, {
 			table.insert(lines, string.format(Strings.get("debug.server", lang), stats.tickMs, stats.changed))
 		end
 		table.insert(lines, string.format(Strings.get("debug.ping", lang), math.round(player:GetNetworkPing() * 1000)))
+		local armies = 0
+		for _ in cs.armies do
+			armies += 1
+		end
+		table.insert(lines, string.format(Strings.get("debug.armies", lang), armies))
 		return lines
 	end,
 }, lang)

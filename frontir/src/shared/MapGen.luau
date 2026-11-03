@@ -10,11 +10,14 @@
 	4. Биомы: тундра у полюсов (верх и низ карты), пустыня в сухих тёплых местах, лес во влажных.
 	5. Озёра — пятна воды вдали от моря.
 	6. Реки — линии от гор и холмов к ближайшей воде (4-связные, чтобы граница их не перепрыгивала).
-	Провинции (id в MapData.province) появятся на этапе 3, пока везде 0.
+	7. Провинции (этап 3): затравки по суше на расстоянии друг от друга, рост от них по «стоимости пути»
+	   (холмы, горы и реки дороже, плюс шум — границы ложатся по хребтам и рекам и не выглядят ячейками),
+	   мелкие провинции сливаются с соседом, с которым у них самая длинная граница. Вода — без провинции (0).
 ]]
 
 local MapData = require("./MapData")
 local Noise = require("./Noise")
+local Heap = require("./Heap")
 local Rng = require("./Rng")
 local Types = require("./Types")
 
@@ -22,6 +25,7 @@ type MapData = MapData.MapData
 
 export type GenStats = {
 	landShare: number,
+	provinces: number,
 	islands: number,
 	lakes: number,
 	rivers: number,
@@ -387,6 +391,8 @@ function MapGen.generate(p: Types.MapGenParams): (MapData, GenStats)
 		end
 	end
 
+	local provinces = MapGen.generateProvinces(map, p, Rng.new(seed + 6007))
+
 	local land = 0
 	for i = 0, n - 1 do
 		if isLand(i) then
@@ -394,12 +400,192 @@ function MapGen.generate(p: Types.MapGenParams): (MapData, GenStats)
 		end
 	end
 
-	return map, {
-		landShare = land / n,
-		islands = islands,
-		lakes = lakes,
-		rivers = rivers,
-	}
+	return map,
+		{
+			landShare = land / n,
+			provinces = provinces,
+			islands = islands,
+			lakes = lakes,
+			rivers = rivers,
+		}
+end
+
+-- 7. Провинции: заполняет map.province (u16, 1..P на суше, 0 на воде). Возвращает число провинций.
+function MapGen.generateProvinces(map: MapData, p: Types.MapGenParams, rng: Rng.Rng): number
+	local w, h = map.width, map.height
+	local n = w * h
+	local T = Types.Terrain
+	local terrain = map.terrain
+	local function isLand(i: number): boolean
+		return buffer.readu8(terrain, i) ~= T.Water
+	end
+
+	-- Затравки: в каждом куске суши — пропорционально его площади, на расстоянии друг от друга.
+	local landMask = buffer.create(n)
+	for i = 0, n - 1 do
+		if isLand(i) then
+			buffer.writeu8(landMask, i, 1)
+		end
+	end
+	local labels, sizes = components(w, h, landMask, 1)
+	local cellsOf: { { number } } = {}
+	for label = 1, #sizes do
+		cellsOf[label] = table.create(sizes[label])
+	end
+	for i = 0, n - 1 do
+		local label = buffer.readu32(labels, i * 4)
+		if label ~= 0 then
+			table.insert(cellsOf[label], i)
+		end
+	end
+	local spacing = math.sqrt(p.ProvinceTargetCells) * p.ProvinceSeedSpacing
+	local seeds: { number } = {}
+	for label = 1, #sizes do
+		local cells = cellsOf[label]
+		local want = math.max(1, math.floor(#cells / p.ProvinceTargetCells + 0.5))
+		local mine: { number } = {}
+		for _ = 1, want * 80 do
+			if #mine >= want then
+				break
+			end
+			local c = cells[Rng.range(rng, 1, #cells)]
+			if buffer.readu8(terrain, c) ~= T.River then
+				local ok = true
+				local cx, cy = c % w, c // w
+				for _, s in mine do
+					if (s % w - cx) ^ 2 + (s // w - cy) ^ 2 < spacing * spacing then
+						ok = false
+						break
+					end
+				end
+				if ok then
+					table.insert(mine, c)
+				end
+			end
+		end
+		if #mine == 0 then
+			table.insert(mine, cells[1])
+		end
+		for _, s in mine do
+			table.insert(seeds, s)
+		end
+	end
+
+	-- Рост от затравок (Dijkstra): клетка достаётся затравке с самым «дешёвым» путём.
+	local function cost(i: number): number
+		local t = buffer.readu8(terrain, i)
+		local base = if t == T.Mountains
+			then p.ProvinceMountainCost
+			elseif t == T.Hills then p.ProvinceHillCost
+			elseif t == T.River then p.ProvinceRiverCost
+			else 1
+		local nx, ny = i % w / p.ProvinceNoiseScale, i // w / p.ProvinceNoiseScale
+		return base * (1 + Noise.value2(nx, ny, map.seed + 5003) * p.ProvinceNoise)
+	end
+	local province = map.province
+	local dist: { number } = table.create(n, math.huge)
+	local heap = Heap.new(n)
+	for k, s in seeds do
+		dist[s + 1] = 0
+		buffer.writeu16(province, s * 2, k)
+		Heap.push(heap, 0, s)
+	end
+	while not Heap.isEmpty(heap) do
+		local i, d = Heap.pop(heap)
+		if d <= dist[i + 1] then
+			local owner = buffer.readu16(province, i * 2)
+			local ci = cost(i)
+			forNeighbours4(w, h, i, function(j)
+				if isLand(j) then
+					local nd = d + (ci + cost(j)) / 2
+					if nd < dist[j + 1] then
+						dist[j + 1] = nd
+						buffer.writeu16(province, j * 2, owner)
+						Heap.push(heap, nd, j)
+					end
+				end
+			end)
+		end
+	end
+
+	-- Слияние мелких провинций с соседом по самой длинной общей границе (острова остаются).
+	local members: { [number]: { number } } = {}
+	for i = 0, n - 1 do
+		local id = buffer.readu16(province, i * 2)
+		if id ~= 0 then
+			local list = members[id]
+			if list == nil then
+				list = {}
+				members[id] = list
+			end
+			table.insert(list, i)
+		end
+	end
+	local changed = true
+	while changed do
+		changed = false
+		local smallest, smallestSize = 0, math.huge
+		for id, list in members do
+			if #list < p.ProvinceMinCells and #list < smallestSize then
+				-- Есть ли сосед? У острова соседей нет — он остаётся отдельной провинцией.
+				local hasNeighbour = false
+				for _, i in list do
+					forNeighbours4(w, h, i, function(j)
+						local o = buffer.readu16(province, j * 2)
+						if o ~= 0 and o ~= id then
+							hasNeighbour = true
+						end
+					end)
+					if hasNeighbour then
+						break
+					end
+				end
+				if hasNeighbour then
+					smallest, smallestSize = id, #list
+				end
+			end
+		end
+		if smallest ~= 0 then
+			local shared: { [number]: number } = {}
+			for _, i in members[smallest] do
+				forNeighbours4(w, h, i, function(j)
+					local o = buffer.readu16(province, j * 2)
+					if o ~= 0 and o ~= smallest then
+						shared[o] = (shared[o] or 0) + 1
+					end
+				end)
+			end
+			local target, best = 0, -1
+			for o, count in shared do
+				if count > best or (count == best and o < target) then
+					target, best = o, count
+				end
+			end
+			for _, i in members[smallest] do
+				buffer.writeu16(province, i * 2, target)
+				table.insert(members[target], i)
+			end
+			members[smallest] = nil
+			changed = true
+		end
+	end
+
+	-- Перенумерация 1..P по первой клетке (детерминированно).
+	local remap: { [number]: number } = {}
+	local count = 0
+	for i = 0, n - 1 do
+		local id = buffer.readu16(province, i * 2)
+		if id ~= 0 then
+			local newId = remap[id]
+			if newId == nil then
+				count += 1
+				newId = count
+				remap[id] = newId
+			end
+			buffer.writeu16(province, i * 2, newId)
+		end
+	end
+	return count
 end
 
 -- Экспорт для тестов и инструментов.

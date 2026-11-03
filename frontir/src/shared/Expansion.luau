@@ -12,7 +12,8 @@
 
 	Окружение: если после захвата кусок чужой или ничьей земли со всех сторон окружён атакующим
 	(вода и реки тоже считаются стеной), он переходит к атакующему целиком — без «дыр» в территории.
-	Не окружаются: кусок со столицей, кусок больше EnclaveMaxCells, кусок, касающийся третьей державы.
+	Не окружаются: кусок со столицей или городом, кусок больше EnclaveMaxCells, кусок у третьей державы.
+	Города ползущая граница не берёт вовсе — только армии (GDD §6.5).
 
 	Порядок захвата: сначала «щели» — клетки, у которых NotchTouch и больше наших соседей (не остаётся
 	одиночных пикселей), затем клетки, ближайшие к «центру» атаки — точке focus, если игрок нажал на карту,
@@ -51,7 +52,7 @@ function Expansion.frontier(g: Grid, attacker: number, target: number): ({ numbe
 	local touching: { [number]: number } = {}
 	for i in Grid.borderCells(g, attacker) do
 		Grid.forNeighbours(g, i, function(j)
-			if Grid.getOwner(g, j) == target and Grid.isCapturable(g, j) then
+			if Grid.getOwner(g, j) == target and Grid.isCapturable(g, j) and not Grid.isCity(g, j) then
 				local c = touching[j]
 				if c == nil then
 					table.insert(list, j)
@@ -70,7 +71,7 @@ function Expansion.hasFrontier(g: Grid, attacker: number, target: number): boole
 	for i in Grid.borderCells(g, attacker) do
 		local found = false
 		Grid.forNeighbours(g, i, function(j)
-			if not found and Grid.getOwner(g, j) == target and Grid.isCapturable(g, j) then
+			if not found and Grid.getOwner(g, j) == target and Grid.isCapturable(g, j) and not Grid.isCity(g, j) then
 				found = true
 			end
 		end)
@@ -114,7 +115,7 @@ function Expansion.captureEnclaves(
 			while head <= #piece and enclosed do
 				local i = piece[head]
 				head += 1
-				if i == capital or #piece > cfg.EnclaveMaxCells or recentlyOpen(i) then
+				if i == capital or Grid.isCity(g, i) or #piece > cfg.EnclaveMaxCells or recentlyOpen(i) then
 					enclosed = false
 					break
 				end

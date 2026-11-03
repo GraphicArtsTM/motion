@@ -4,6 +4,7 @@ local Fixtures = require("./lib/Fixtures")
 local Config = require("../src/shared/Config")
 local MapData = require("../src/shared/MapData")
 local MapGen = require("../src/shared/MapGen")
+local Provinces = require("../src/shared/Provinces")
 local Types = require("../src/shared/Types")
 
 local Terrain = Types.Terrain
@@ -135,9 +136,85 @@ T.describe("MapGen «Пангея»", function()
 		end
 	end)
 
-	T.it("провинций пока нет (этап 3)", function()
-		for i = 0, w * h - 1, 97 do
-			T.expect(MapData.getProvince(map, i)).toBe(0)
+	T.it(
+		"провинции: 60–250, вода без провинции, суша — с провинцией",
+		function()
+			T.expect(stats.provinces >= 60 and stats.provinces <= 250).toBe(true)
+			for i = 0, w * h - 1 do
+				local id = MapData.getProvince(map, i)
+				if isLand(i) then
+					T.expect(id >= 1 and id <= stats.provinces).toBe(true)
+				else
+					T.expect(id).toBe(0)
+				end
+			end
+		end
+	)
+
+	T.it(
+		"каждая провинция связна; меньше минимума — только острова",
+		function()
+			local set = Provinces.build(map)
+			T.expect(set.count).toBe(stats.provinces)
+			for _, p in set.list do
+				-- Связность по 4 соседям внутри провинции.
+				local inP: { [number]: boolean } = {}
+				for _, i in p.cells do
+					inP[i] = true
+				end
+				local seen: { [number]: boolean } = { [p.cells[1]] = true }
+				local queue = { p.cells[1] }
+				local head = 1
+				while head <= #queue do
+					local i = queue[head]
+					head += 1
+					for _, j in { i - 1, i + 1, i - w, i + w } do
+						if inP[j] and not seen[j] and math.abs(j % w - i % w) <= 1 then
+							seen[j] = true
+							table.insert(queue, j)
+						end
+					end
+				end
+				T.expect(#queue).toBe(#p.cells)
+				if not p.island then
+					T.expect(#p.cells >= params.ProvinceMinCells).toBe(true)
+				end
+			end
+		end
+	)
+
+	T.it("центры, соседи, имена и нейтральные города провинций", function()
+		local set = Provinces.build(map)
+		local names: { [string]: boolean } = {}
+		local cities: { number } = {}
+		for _, p in set.list do
+			T.expect(MapData.getProvince(map, p.center)).toBe(p.id)
+			T.expect(Config.Terrain[MapData.getTerrain(map, p.center)].borderPassable).toBe(true)
+			for _, o in p.neighbours do
+				T.expect(table.find(set.list[o].neighbours, p.id) ~= nil).toBe(true) -- соседство взаимно
+			end
+			T.expect(names[p.name]).toBe(nil)
+			names[p.name] = true
+			T.expect(#p.nameEn > 0).toBe(true)
+			if p.city ~= nil then
+				T.expect(p.city).toBe(p.center)
+				T.expect(MapData.getTerrain(map, p.city) ~= Types.Terrain.Mountains).toBe(true)
+				table.insert(cities, p.city)
+			end
+		end
+		local want = math.floor(set.count * Config.Cities.ProvinceShare + 0.5)
+		T.expect(#cities >= want * 0.8 and #cities <= want).toBe(true)
+		for a = 1, #cities do
+			for b = a + 1, #cities do
+				local d2 = (cities[a] % w - cities[b] % w) ^ 2 + (cities[a] // w - cities[b] // w) ^ 2
+				T.expect(d2 >= Config.Cities.MinDistance ^ 2).toBe(true)
+			end
+		end
+		-- Одинаково на сервере и клиенте: повторный расчёт даёт то же самое.
+		local again = Provinces.build(map)
+		for id, p in set.list do
+			T.expect(again.list[id].name).toBe(p.name)
+			T.expect(again.list[id].city).toBe(p.city)
 		end
 	end)
 end)

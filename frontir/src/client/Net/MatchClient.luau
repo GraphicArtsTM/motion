@@ -17,6 +17,7 @@ export type Handlers = {
 	onSnapshot: () -> (),
 	onDelta: (cells: { number }) -> (),
 	onStats: () -> (),
+	onArmies: () -> (),
 	onEvents: (events: { any }) -> (),
 	onRejected: (reason: string) -> (),
 }
@@ -34,7 +35,7 @@ function MatchClient.connect(cs: ClientState, handlers: Handlers): MatchClient
 
 	matchEvent.OnClientEvent:Connect(function(msg: any)
 		if typeof(msg) == "buffer" then
-			local ok, result, cells = pcall(ClientState.applyBuffer, cs, msg)
+			local ok, result, cells = pcall(ClientState.applyBuffer, cs, msg, os.clock())
 			if not ok then
 				warn("[Frontir] не удалось разобрать сообщение сервера:", result)
 				return
@@ -45,6 +46,8 @@ function MatchClient.connect(cs: ClientState, handlers: Handlers): MatchClient
 				handlers.onDelta(cells)
 			elseif result == "stats" then
 				handlers.onStats()
+			elseif result == "armies" then
+				handlers.onArmies()
 			end
 		elseif type(msg) == "table" then
 			if msg.kind == "info" then

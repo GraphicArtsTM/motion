@@ -8,6 +8,8 @@
 	- Суша: основной цвет местности и «дизеринг» — часть клеток альтернативным оттенком
 	  по хешу координат (стабильная пиксельная фактура).
 	- Горы, вокруг которых в радиусе SnowRadius только горы, — снежные вершины.
+	- Граница провинций (слой 5): клетка суши, у которой сосед справа или снизу из другой провинции,
+	  чуть темнее (× ProvinceBorderShade). Только одна сторона — линия получается в 1 клетку.
 ]]
 
 local Bits = require("./Bits")
@@ -61,6 +63,28 @@ local function isMountain(map: MapData, x: number, y: number): boolean
 	return buffer.readu8(map.terrain, y * map.width + x) == T.Mountains
 end
 
+-- Граница провинций: сосед справа или снизу — суша другой провинции.
+function MapPaint.isProvinceEdge(map: MapData, x: number, y: number): boolean
+	local i = y * map.width + x
+	local id = MapData.getProvince(map, i)
+	if id == 0 then
+		return false
+	end
+	if x + 1 < map.width then
+		local r = MapData.getProvince(map, i + 1)
+		if r ~= 0 and r ~= id then
+			return true
+		end
+	end
+	if y + 1 < map.height then
+		local b = MapData.getProvince(map, i + map.width)
+		if b ~= 0 and b ~= id then
+			return true
+		end
+	end
+	return false
+end
+
 -- RGBA-буфер всей карты (4 байта на клетку, строки сверху вниз).
 function MapPaint.paint(map: MapData, depth: buffer?): buffer
 	local w, h = map.width, map.height
@@ -101,10 +125,15 @@ function MapPaint.paint(map: MapData, depth: buffer?): buffer
 				local pair = LAND_COLORS[t]
 				c = if Bits.hash2f(x, y, DITHER_SALT) < cfg.DitherShare then pair[2] else pair[1]
 			end
+			local r, g, b = c.r, c.g, c.b
+			if t ~= T.Water and MapPaint.isProvinceEdge(map, x, y) then
+				local k = cfg.ProvinceBorderShade
+				r, g, b = math.floor(r * k), math.floor(g * k), math.floor(b * k)
+			end
 			local o = i * 4
-			buffer.writeu8(out, o, c.r)
-			buffer.writeu8(out, o + 1, c.g)
-			buffer.writeu8(out, o + 2, c.b)
+			buffer.writeu8(out, o, r)
+			buffer.writeu8(out, o + 1, g)
+			buffer.writeu8(out, o + 2, b)
 			buffer.writeu8(out, o + 3, 255)
 		end
 	end

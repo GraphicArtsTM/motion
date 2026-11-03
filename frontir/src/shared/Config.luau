@@ -107,6 +107,9 @@ Config.Bots = {
 	NationPercent = 0.5,
 	NationAdvantage = 1.5, -- нападает на соседа, если людей в 1.5 раза больше, чем у него
 	MaxAttacks = 2,
+	HireWhenFill = 0.45, -- нанимает армию, когда людей больше этой доли от максимума
+	HireChance = 0.5, -- вероятность выбрать найм, если можно
+	MaxArmies = 4,
 }
 
 -- Для разработки
@@ -144,6 +147,7 @@ Config.Render = {
 	WaterMidDistance = 4,
 	DitherShare = 0.22, -- доля клеток с альтернативным оттенком местности
 	SnowRadius = 3, -- снег на горе, если все клетки в этом радиусе — горы
+	ProvinceBorderShade = 0.84, -- граница провинций: местность чуть темнее (тонкая, едва заметная линия)
 	OwnerTint = 0.55, -- доля цвета державы поверх местности (местность просвечивает)
 	CaptureFlashStrength = 0.6, -- насколько свежезахваченная клетка вспыхивает к белому
 	NationLabelSize = 14, -- размер подписи державы на карте, px
@@ -151,6 +155,7 @@ Config.Render = {
 	TapSlopPx = 10, -- сдвиг пальца/мыши, после которого это уже не нажатие, а перетаскивание
 	TapMaxSec = 0.4, -- дольше — не нажатие
 	ToastSec = 3, -- сколько висит всплывающее сообщение
+	NarrowScreenPx = 1000, -- уже — раскладка HUD для телефона (карточки найма справа)
 	-- Блики воды — отдельные пиксели поверх карты, текстуру не перерисовываем.
 	SparkleMax = 48,
 	SparklesPerSec = 24,
@@ -175,8 +180,31 @@ Config.Terrain = terrain
 -- §7 Юниты. Скорость в клетках/с для эталонной ширины карты UnitsReferenceMapWidth.
 Config.UnitsReferenceMapWidth = 512
 local units: Types.UnitTable = {
-	Infantry = { cost = 1000, oil = 0, speed = 2.4, attack = 1.0, defense = 1.2, captureRate = 26, requires = nil },
-	Tanks = { cost = 2500, oil = 20, speed = 3.6, attack = 1.6, defense = 1.0, captureRate = 18, requires = "Factory" },
+	-- people / recruitSec / strength — этап 3: найм стоит людей (деньги и нефть — этап 4, cost и oil).
+	Infantry = {
+		cost = 1000,
+		oil = 0,
+		speed = 2.4,
+		attack = 1.0,
+		defense = 1.2,
+		captureRate = 26,
+		requires = nil,
+		people = 300,
+		recruitSec = 3,
+		strength = 300,
+	},
+	Tanks = {
+		cost = 2500,
+		oil = 20,
+		speed = 3.6,
+		attack = 1.6,
+		defense = 1.0,
+		captureRate = 18,
+		requires = "Factory",
+		people = 450,
+		recruitSec = 5,
+		strength = 300,
+	},
 	Artillery = {
 		cost = 3000,
 		oil = 10,
@@ -186,10 +214,46 @@ local units: Types.UnitTable = {
 		captureRate = 12,
 		range = 4,
 		requires = "Factory",
+		people = 400,
+		recruitSec = 6,
+		strength = 250,
 	},
-	AntiAir = { cost = 2000, oil = 5, speed = 2.0, attack = 0.6, defense = 1.0, captureRate = 10, requires = "Factory" },
-	Transport = { cost = 1500, oil = 10, speed = 4.0, attack = 0, defense = 0.5, captureRate = 0, requires = "Port" },
-	Destroyer = { cost = 3500, oil = 25, speed = 4.5, attack = 1.4, defense = 1.2, captureRate = 0, requires = "Port" },
+	AntiAir = {
+		cost = 2000,
+		oil = 5,
+		speed = 2.0,
+		attack = 0.6,
+		defense = 1.0,
+		captureRate = 10,
+		requires = "Factory",
+		people = 300,
+		recruitSec = 4,
+		strength = 200,
+	},
+	Transport = {
+		cost = 1500,
+		oil = 10,
+		speed = 4.0,
+		attack = 0,
+		defense = 0.5,
+		captureRate = 0,
+		requires = "Port",
+		people = 100,
+		recruitSec = 4,
+		strength = 100,
+	},
+	Destroyer = {
+		cost = 3500,
+		oil = 25,
+		speed = 4.5,
+		attack = 1.4,
+		defense = 1.2,
+		captureRate = 0,
+		requires = "Port",
+		people = 300,
+		recruitSec = 6,
+		strength = 300,
+	},
 	Fighter = {
 		cost = 4000,
 		oil = 30,
@@ -198,10 +262,38 @@ local units: Types.UnitTable = {
 		defense = 1.0,
 		captureRate = 0,
 		requires = "Airfield",
+		people = 150,
+		recruitSec = 6,
+		strength = 150,
 	},
-	Bomber = { cost = 5000, oil = 40, speed = 5.0, attack = 2.0, defense = 0.6, captureRate = 0, requires = "Airfield" },
+	Bomber = {
+		cost = 5000,
+		oil = 40,
+		speed = 5.0,
+		attack = 2.0,
+		defense = 0.6,
+		captureRate = 0,
+		requires = "Airfield",
+		people = 200,
+		recruitSec = 8,
+		strength = 200,
+	},
 }
 Config.Units = units
+
+-- §6.6 Армии (этап 3а)
+Config.Armies = {
+	MaxPerNation = 20, -- армий у державы, включая нанимаемые
+	PathMaxNodes = 120000, -- предел поиска пути (клеток), дальше — «нет пути»
+	MaxOrderArmies = 40, -- армий в одном приказе
+	CityCaptureSlowdown = 0.5, -- провинцию с чужим городом армия захватывает в 2 раза медленнее
+	IdleRecheckSec = 0.5, -- как часто стоящая армия проверяет, не надо ли снова захватывать
+	-- Приказ «авто»: выбор соседней непокорённой провинции (GDD §6.6).
+	AutoCityWeight = 3, -- провинция с городом
+	AutoNeutralWeight = 1, -- ничья провинция
+	AutoWeakWeight = 1.5, -- провинция более слабой державы
+	AutoDistancePenalty = 0.02, -- за клетку расстояния
+}
 
 -- §6.7 Бой
 Config.Combat = {
@@ -260,6 +352,14 @@ local pangea: Types.MapGenParams = {
 	RiverMinLength = 14,
 	RiverMaxLength = 260,
 	RiverMeander = 0.3,
+	ProvinceTargetCells = 550,
+	ProvinceMinCells = 160,
+	ProvinceSeedSpacing = 0.85,
+	ProvinceNoise = 0.6,
+	ProvinceNoiseScale = 12,
+	ProvinceHillCost = 1.5,
+	ProvinceMountainCost = 3,
+	ProvinceRiverCost = 6,
 }
 
 Config.MapGen = {
@@ -269,6 +369,12 @@ Config.MapGen = {
 -- Упаковка карт в ModuleScript (maps/*.luau)
 Config.MapFile = {
 	ChunkChars = 8000, -- длина одной строки base64 в модуле карты
+}
+
+-- §6.5 Провинции и города (этап 3)
+Config.Cities = {
+	ProvinceShare = 0.3, -- доля провинций с нейтральным городом на старте
+	MinDistance = 28, -- минимальное расстояние между городами, клеток
 }
 
 -- Цвета держав (отдельный набор, не входит в 32 цвета палитры — см. NationColors.luau)

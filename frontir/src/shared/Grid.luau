@@ -29,6 +29,8 @@ export type Grid = {
 	capturableCount: number,
 	-- Служебное для Expansion.captureEnclaves: тик, когда клетка оказалась в «открытом» (не окружённом) куске.
 	openStamp: buffer,
+	-- u8: 1 — в клетке город. Города не берёт ползущая граница, только армии (GDD §6.5).
+	city: buffer,
 }
 
 local Grid = {}
@@ -57,6 +59,7 @@ function Grid.new(map: MapData): Grid
 		changedFlag = buffer.create(size),
 		capturableCount = count,
 		openStamp = buffer.create(size * 4),
+		city = buffer.create(size),
 	}
 end
 
@@ -66,6 +69,14 @@ end
 
 function Grid.isCapturable(g: Grid, i: number): boolean
 	return buffer.readu8(g.capturable, i) == 1
+end
+
+function Grid.isCity(g: Grid, i: number): boolean
+	return buffer.readu8(g.city, i) == 1
+end
+
+function Grid.setCity(g: Grid, i: number, isCity: boolean)
+	buffer.writeu8(g.city, i, if isCity then 1 else 0)
 end
 
 function Grid.cellsOf(g: Grid, nation: number): number

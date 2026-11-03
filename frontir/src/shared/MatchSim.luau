@@ -9,11 +9,15 @@
 	- Play — люди растут, атаки двигают границы, боты думают.
 	Лобби, победа и возврат в лобби — этап 4.
 
+	Этап 3а: провинции и нейтральные города (из карты), столица — город; армии нанимаются, ходят
+	и захватывают провинции (Armies). Города ползущая граница не берёт — только армии.
+
 	В конце выбора: кто не выбрал — получает точку автоматически, свободные места до
 	Config.Match.TargetNations занимают боты, цвета раздаются по точкам старта (NationColors.assign),
 	на месте столицы появляется круг клеток.
 ]]
 
+local Armies = require("./Armies")
 local BotBrain = require("./BotBrain")
 local Config = require("./Config")
 local Economy = require("./Economy")
@@ -22,6 +26,8 @@ local Grid = require("./Grid")
 local MapData = require("./MapData")
 local NameGen = require("./NameGen")
 local NationColors = require("./NationColors")
+local Pathfind = require("./Pathfind")
+local Provinces = require("./Provinces")
 local Rng = require("./Rng")
 local StartPositions = require("./StartPositions")
 local Types = require("./Types")
@@ -31,6 +37,7 @@ type MapData = MapData.MapData
 type Rng = Rng.Rng
 type Nation = Types.Nation
 type Attack = Types.Attack
+type Army = Types.Army
 
 export type MatchEvent =
 	{ kind: "eliminated", nation: number, by: number }
@@ -53,14 +60,30 @@ export type Match = {
 	infoDirty: boolean, -- изменились державы или фаза — разослать клиентам
 	events: { MatchEvent },
 	lastCaptured: number, -- клеток захвачено за последний тик
+	provinces: Provinces.ProvinceSet,
+	cityOf: { [number]: number }, -- провинция → клетка города (нейтрального, державы или столицы)
+	armies: { Army },
+	nextArmyId: number,
+	armyCtx: Armies.Context,
 }
 
 local MatchSim = {}
 
 function MatchSim.new(map: MapData, seed: number): Match
-	return {
+	local grid = Grid.new(map)
+	local provinces = Provinces.build(map)
+	local cityOf: { [number]: number } = {}
+	for _, p in provinces.list do
+		local city = p.city
+		if city ~= nil then
+			cityOf[p.id] = city
+			Grid.setCity(grid, city, true)
+		end
+	end
+	local m: Match
+	m = {
 		map = map,
-		grid = Grid.new(map),
+		grid = grid,
 		rng = Rng.new(seed),
 		seed = seed,
 		phase = "Waiting",
@@ -75,7 +98,60 @@ function MatchSim.new(map: MapData, seed: number): Match
 		infoDirty = true,
 		events = {},
 		lastCaptured = 0,
+		provinces = provinces,
+		cityOf = cityOf,
+		armies = {},
+		nextArmyId = 1,
+		armyCtx = {
+			map = map,
+			grid = grid,
+			provinces = provinces,
+			nations = {},
+			cityOf = cityOf,
+			onCapitalLost = function(nation: number, by: number)
+				MatchSim.capitalLost(m, nation, by)
+			end,
+		},
 	}
+	m.armyCtx.nations = m.nations
+	return m
+end
+
+-- Все города на карте (клетки) — для клиентов.
+function MatchSim.cities(m: Match): { number }
+	local out: { number } = {}
+	for _, cell in m.cityOf do
+		table.insert(out, cell)
+	end
+	table.sort(out)
+	return out
+end
+
+-- Ближайший к from город державы или nil.
+local function nearestOwnedCity(m: Match, nationId: number, from: number): number?
+	local w = m.grid.width
+	local best: number? = nil
+	local bestD = math.huge
+	for _, cell in m.cityOf do
+		if Grid.getOwner(m.grid, cell) == nationId then
+			local d = (cell % w - from % w) ^ 2 + (cell // w - from // w) ^ 2
+			if d < bestD or (d == bestD and best ~= nil and cell < best) then
+				best, bestD = cell, d
+			end
+		end
+	end
+	return best
+end
+
+-- Армия взяла столицу: столица переезжает в ближайший свой город (если он есть).
+function MatchSim.capitalLost(m: Match, nationId: number, by: number)
+	local n = m.nations[nationId]
+	if n == nil or n.capital == nil then
+		return
+	end
+	n.capital = nearestOwnedCity(m, nationId, n.capital)
+	table.insert(m.events, { kind = "capitalLost", nation = nationId, by = by })
+	m.infoDirty = true
 end
 
 local function newNation(m: Match, name: string, nameEn: string, isBot: boolean, userId: number?): Nation
@@ -170,8 +246,18 @@ function MatchSim.finishPick(m: Match)
 	local colors = NationColors.assign(starts)
 	for k, n in order do
 		n.colorIndex = colors[k]
-		for _, cell in StartPositions.circle(m.grid, n.capital :: number, Config.Start.Radius) do
-			if Grid.getOwner(m.grid, cell) == 0 then
+		-- Столица — город. В провинции один город: нейтральный город провинции столицы исчезает.
+		local cap = n.capital :: number
+		local province = MapData.getProvince(m.map, cap)
+		local oldCity = m.cityOf[province]
+		if oldCity ~= nil and oldCity ~= cap then
+			Grid.setCity(m.grid, oldCity, false)
+		end
+		m.cityOf[province] = cap
+		Grid.setCity(m.grid, cap, true)
+		for _, cell in StartPositions.circle(m.grid, cap, Config.Start.Radius) do
+			-- Чужие города в круг не попадают: города берут только армии.
+			if Grid.getOwner(m.grid, cell) == 0 and (cell == cap or not Grid.isCity(m.grid, cell)) then
 				Grid.setOwner(m.grid, cell, n.id)
 			end
 		end
@@ -242,6 +328,79 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 		return true, nil
 	end
 
+	if intent.kind == "hire" then
+		local count = 0
+		for _, a in m.armies do
+			if a.owner == nationId then
+				count += 1
+			end
+		end
+		if count >= Config.Armies.MaxPerNation then
+			return false, "tooManyArmies"
+		end
+		local capital = n.capital
+		if capital == nil then
+			return false, "noCapital"
+		end
+		local stats = Armies.stats(intent.unit)
+		if n.people < stats.people then
+			return false, "noTroops"
+		end
+		n.people -= stats.people
+		local army = Armies.new(m.nextArmyId, nationId, intent.unit, capital, m.grid.width)
+		army.auto = n.isBot
+		m.nextArmyId += 1
+		table.insert(m.armies, army)
+		return true, nil
+	end
+
+	if intent.kind == "move" or intent.kind == "stop" or intent.kind == "auto" then
+		local mine: { Army } = {}
+		local ids: { number } = intent.armies
+		for _, id in ids do
+			for _, a in m.armies do
+				if a.id == id and a.owner == nationId and a.state ~= "recruit" then
+					table.insert(mine, a)
+				end
+			end
+		end
+		if #mine == 0 then
+			return false, "noArmy"
+		end
+		if intent.kind == "stop" then
+			for _, a in mine do
+				a.auto = false
+				Armies.stop(a)
+			end
+			return true, nil
+		elseif intent.kind == "auto" then
+			for _, a in mine do
+				a.auto = intent.on
+				if intent.on and a.state == "idle" then
+					a.recheckLeft = 0
+				end
+			end
+			return true, nil
+		end
+		-- move
+		if intent.cell >= m.grid.size or not Pathfind.passable(m.map, intent.cell) then
+			return false, "noPath"
+		end
+		local moved = 0
+		for _, a in mine do
+			local path = Pathfind.find(m.map, a.cell, intent.cell)
+			if path ~= nil then
+				a.auto = false
+				Armies.setPath(a, path)
+				moved += 1
+			end
+		end
+		if moved == 0 then
+			return false, "noPath"
+		end
+		return true, nil
+	end
+
 	-- attack
 	local target = intent.target
 	if target == nationId then
@@ -293,30 +452,21 @@ local function botView(m: Match, n: Nation): BotBrain.BotView
 	table.sort(neighbours, function(a: BotBrain.Neighbour, b: BotBrain.Neighbour): boolean
 		return a.id < b.id
 	end)
+	local armies = 0
+	for _, a in m.armies do
+		if a.owner == n.id then
+			armies += 1
+		end
+	end
 	return {
 		people = n.people,
 		maxPeople = Economy.maxPeople(Grid.cellsOf(m.grid, n.id)),
 		attacks = attacksOf(m, n.id),
+		armies = armies,
+		hasCapital = n.capital ~= nil,
 		hasNeutral = adjacent[0] ~= nil,
 		neighbours = neighbours,
 	}
-end
-
--- Ближайшая к old клетка державы (новая столица после потери старой).
-local function nearestOwned(m: Match, nationId: number, old: number): number?
-	local g = m.grid
-	local ox, oy = old % g.width, old // g.width
-	local best: number? = nil
-	local bestD = math.huge
-	for i = 0, g.size - 1 do
-		if Grid.getOwner(g, i) == nationId then
-			local d = (i % g.width - ox) ^ 2 + (i // g.width - oy) ^ 2
-			if d < bestD then
-				best, bestD = i, d
-			end
-		end
-	end
-	return best
 end
 
 -- Шаг симуляции на dt секунд (сервер зовёт с dt = 1 / TickRate).
@@ -359,6 +509,10 @@ function MatchSim.step(m: Match, dt: number)
 			k += 1
 		end
 	end
+	-- Армии.
+	for _, a in m.armies do
+		captured += Armies.step(m.armyCtx, a, simDt)
+	end
 	m.lastCaptured = captured
 
 	-- Потеря столицы и выбывание.
@@ -379,11 +533,16 @@ function MatchSim.step(m: Match, dt: number)
 						j += 1
 					end
 				end
+				j = 1
+				while j <= #m.armies do
+					if m.armies[j].owner == n.id then
+						table.remove(m.armies, j)
+					else
+						j += 1
+					end
+				end
 			elseif n.capital ~= nil and Grid.getOwner(g, n.capital) ~= n.id then
-				local by = Grid.getOwner(g, n.capital)
-				n.capital = nearestOwned(m, n.id, n.capital)
-				table.insert(m.events, { kind = "capitalLost", nation = n.id, by = by })
-				m.infoDirty = true
+				MatchSim.capitalLost(m, n.id, Grid.getOwner(g, n.capital))
 			end
 		end
 	end

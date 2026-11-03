@@ -404,7 +404,15 @@ T.describe("BotBrain", function()
 	T.it(
 		"копит, расширяется на ничью землю, бьёт слабого соседа",
 		function()
-			local base = { people = 100, maxPeople = 1000, attacks = 0, hasNeutral = true, neighbours = {} }
+			local base: BotBrain.BotView = {
+				people = 100,
+				maxPeople = 1000,
+				attacks = 0,
+				armies = Config.Bots.MaxArmies, -- найм не мешает проверять атаки
+				hasCapital = true,
+				hasNeutral = true,
+				neighbours = {},
+			}
 			T.expect(BotBrain.decide(base, rng)).toBe(nil) -- мало людей
 			local rich = table.clone(base)
 			rich.people = 900

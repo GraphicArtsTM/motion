@@ -72,6 +72,27 @@ local TABLE: { [string]: Entry } = {
 	["event.eliminated"] = { ru = "Держава %s пала", en = "%s has fallen" },
 	["event.capitalLost"] = { ru = "%s потеряла столицу", en = "%s lost its capital" },
 
+	["unit.Infantry"] = { ru = "Пехота", en = "Infantry" },
+	["unit.Tanks"] = { ru = "Танки", en = "Tanks" },
+	["unit.Artillery"] = { ru = "Артиллерия", en = "Artillery" },
+	["hire.cost"] = { ru = "%s людей · %d с", en = "%s people · %d s" },
+	["army.state.recruit"] = { ru = "Найм %d%%", en = "Recruiting %d%%" },
+	["army.state.idle"] = { ru = "Стоит", en = "Holding" },
+	["army.state.move"] = { ru = "Марш", en = "Marching" },
+	["army.state.capture"] = { ru = "Захват %d%%", en = "Capturing %d%%" },
+	["army.strength"] = { ru = "Сила: %s / %s", en = "Strength: %s / %s" },
+	["army.auto.on"] = { ru = "Авто: вкл", en = "Auto: on" },
+	["army.auto.off"] = { ru = "Авто: выкл", en = "Auto: off" },
+	["army.selected"] = { ru = "Выбрано армий: %d", en = "Armies selected: %d" },
+	["army.hint"] = {
+		ru = "Нажмите на карту — армия пойдёт туда",
+		en = "Tap the map to send the army",
+	},
+	["army.stop"] = { ru = "Стоп", en = "Stop" },
+	["army.auto"] = { ru = "Авто", en = "Auto" },
+	["army.deselect"] = { ru = "Снять", en = "Deselect" },
+	["debug.armies"] = { ru = "Армий на карте: %d", en = "Armies on map: %d" },
+
 	["reject.TooClose"] = {
 		ru = "Слишком близко к другой державе",
 		en = "Too close to another nation",
@@ -95,6 +116,13 @@ local TABLE: { [string]: Entry } = {
 	["reject.focus"] = { ru = "Неверная точка", en = "Invalid point" },
 	["reject.noAttack"] = { ru = "Такой атаки нет", en = "No such attack" },
 	["reject.noNation"] = { ru = "У вас нет державы", en = "You have no nation" },
+	["reject.tooManyArmies"] = { ru = "Слишком много армий", en = "Too many armies" },
+	["reject.noCapital"] = {
+		ru = "Нет столицы — нанимать негде",
+		en = "No capital to recruit in",
+	},
+	["reject.noArmy"] = { ru = "Армия не выбрана", en = "No army selected" },
+	["reject.noPath"] = { ru = "Туда не пройти", en = "No path there" },
 
 	["error.editable.disabled"] = {
 		ru = "Не удалось создать EditableImage. В опубликованной игре включите Allow Mesh / Image APIs (Experience Settings → Security).",

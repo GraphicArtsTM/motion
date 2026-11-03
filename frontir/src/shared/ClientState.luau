@@ -6,6 +6,7 @@
 	и сравнивает копию клиента с сеткой сервера побайтно.
 ]]
 
+local Config = require("./Config")
 local Protocol = require("./Net/Protocol")
 local Types = require("./Types")
 
@@ -27,9 +28,17 @@ export type Info = {
 	time: number, -- секунд с начала игры
 	myNation: number?, -- держава этого игрока (nil — зритель)
 	nations: { NationInfo },
+	cities: { number }?, -- клетки городов (владелец — по сетке)
 }
 
-export type ApplyResult = "snapshot" | "delta" | "stats" | "partial" | "ignored"
+-- Армия на клиенте: текущая позиция с сервера и предыдущая — для плавного движения между тиками.
+export type ClientArmy = Protocol.ArmyView & {
+	prevX: number,
+	prevY: number,
+	updatedAt: number,
+}
+
+export type ApplyResult = "snapshot" | "delta" | "stats" | "armies" | "partial" | "ignored"
 
 export type ClientState = {
 	width: number,
@@ -46,6 +55,8 @@ export type ClientState = {
 	time: number,
 	myNation: number?,
 	stats: Protocol.Stats?,
+	cities: { number },
+	armies: { [number]: ClientArmy },
 }
 
 local ClientState = {}
@@ -66,6 +77,8 @@ function ClientState.new(width: number, height: number): ClientState
 		time = 0,
 		myNation = nil,
 		stats = nil,
+		cities = {},
+		armies = {},
 	}
 end
 
@@ -96,12 +109,35 @@ function ClientState.applyInfo(cs: ClientState, info: Info, now: number): boolea
 	cs.time = info.time
 	cs.timeAt = now
 	cs.myNation = info.myNation
+	if info.cities ~= nil then
+		cs.cities = info.cities
+	end
 	return colorsChanged
 end
 
 -- Применяет бинарное сообщение. Возвращает, что это было, и изменённые клетки (для дельты).
-function ClientState.applyBuffer(cs: ClientState, b: buffer): (ApplyResult, { number }?)
+-- now — часы клиента (для плавного движения армий).
+function ClientState.applyBuffer(cs: ClientState, b: buffer, now: number?): (ApplyResult, { number }?)
 	local kind = Protocol.kind(b)
+	if kind == Protocol.ARMIES then
+		local _, list = Protocol.decodeArmies(b)
+		local t = now or 0
+		local fresh: { [number]: ClientArmy } = {}
+		for _, a in list do
+			local old = cs.armies[a.id]
+			local army = a :: ClientArmy
+			-- Плавно едем от того места, где армия сейчас нарисована.
+			if old ~= nil then
+				army.prevX, army.prevY = ClientState.armyPosition(old, t)
+			else
+				army.prevX, army.prevY = a.x, a.y
+			end
+			army.updatedAt = t
+			fresh[a.id] = army
+		end
+		cs.armies = fresh
+		return "armies", nil
+	end
 	if kind == Protocol.SNAPSHOT then
 		local owners = Protocol.assemble(cs.assembler, Protocol.decodeSnapshotPart(b), cs.size)
 		if owners == nil then
@@ -125,6 +161,12 @@ function ClientState.applyBuffer(cs: ClientState, b: buffer): (ApplyResult, { nu
 		return "stats", nil
 	end
 	return "ignored", nil
+end
+
+-- Позиция армии в момент now: от предыдущей к текущей за один тик сервера.
+function ClientState.armyPosition(a: ClientArmy, now: number): (number, number)
+	local f = math.clamp((now - a.updatedAt) * Config.Sim.TickRate, 0, 1)
+	return a.prevX + (a.x - a.prevX) * f, a.prevY + (a.y - a.prevY) * f
 end
 
 -- Статистика державы из последнего сообщения STATS.

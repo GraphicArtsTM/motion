@@ -42,6 +42,45 @@ function Intents.parse(kind: any, payload: any): (Types.Intent?, string?)
 			return nil, "bad focus"
 		end
 		return { kind = "attack", target = target, percent = percent, focus = focus }, nil
+	elseif kind == "hire" then
+		local unit = payload.unit
+		if type(unit) ~= "string" or table.find(Types.LandUnits, unit) == nil then
+			return nil, "bad unit"
+		end
+		return { kind = "hire", unit = unit :: Types.LandUnit }, nil
+	elseif kind == "move" or kind == "stop" or kind == "auto" then
+		local list = payload.armies
+		if type(list) ~= "table" then
+			return nil, "bad armies"
+		end
+		local armies: { number } = {}
+		local count = 0
+		for _ in list do
+			count += 1
+		end
+		if count == 0 or count > Config.Armies.MaxOrderArmies or count ~= #list then
+			return nil, "bad armies"
+		end
+		for k = 1, #list do
+			local id = list[k]
+			if not isInt(id) or id < 1 then
+				return nil, "bad army id"
+			end
+			table.insert(armies, id)
+		end
+		if kind == "move" then
+			local cell = payload.cell
+			if not isInt(cell) or cell < 0 then
+				return nil, "bad cell"
+			end
+			return { kind = "move", armies = armies, cell = cell }, nil
+		elseif kind == "stop" then
+			return { kind = "stop", armies = armies }, nil
+		end
+		if type(payload.on) ~= "boolean" then
+			return nil, "bad flag"
+		end
+		return { kind = "auto", armies = armies, on = payload.on }, nil
 	elseif kind == "cancel" then
 		local target = payload.target
 		if not isInt(target) or target < 0 then

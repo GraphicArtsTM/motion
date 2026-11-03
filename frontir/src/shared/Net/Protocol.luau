@@ -10,6 +10,10 @@
 	  u8 тип, u32 тик, varint число клеток, затем по клеткам в порядке возрастания индекса:
 	  varint (шаг от прошлой клетки × 2 + флаг «владелец тот же, что у прошлой»), [u16 владелец, если флаг 0].
 	  Фронт атаки — это много соседних клеток одного владельца, поэтому клетка стоит ~1–2 байта.
+	ARMIES (4) — армии (этап 3а), каждый тик, пока они есть:
+	  u8 тип, u32 тик, u16 число армий, по армии: u16 id, u8 владелец, u8 тип (индекс Types.LandUnits),
+	  u16 x×32, u16 y×32 (позиция в клетках, 1/32 клетки), u16 сила, u16 макс. сила, u8 состояние,
+	  u8 звёзды, u8 прогресс (захват или найм, 0..255), u8 флаги (бит 0 — «авто»).
 	STATS (3) — состояние держав и атак (для HUD, таблицы лидеров и F3):
 	  u8 тип, f32 время тика (мс), u16 изменено клеток, u8 число держав,
 	  по державе: u8 id, f32 люди, f32 максимум, u32 клеток, f32 в атаках;
@@ -17,12 +21,30 @@
 ]]
 
 local Config = require("../Config")
+local Types = require("../Types")
 
 local Protocol = {}
 
 Protocol.SNAPSHOT = 1
 Protocol.DELTA = 2
 Protocol.STATS = 3
+Protocol.ARMIES = 4
+
+Protocol.ArmyStates = table.freeze({ "recruit", "idle", "move", "capture" }) :: { string }
+
+export type ArmyView = {
+	id: number,
+	owner: number,
+	kind: string,
+	x: number,
+	y: number,
+	strength: number,
+	maxStrength: number,
+	state: string,
+	stars: number,
+	progress: number, -- 0..1
+	auto: boolean,
+}
 
 export type NationStats = {
 	id: number,
@@ -346,6 +368,73 @@ function Protocol.decodeDelta(b: buffer, count: number): Delta
 		error("Protocol: лишние байты в дельте", 2)
 	end
 	return { tick = tick, cells = cells, owners = owners }
+end
+
+-- ARMIES -----------------------------------------------------------------------------------
+
+local POS_SCALE = 32
+
+function Protocol.encodeArmies(tick: number, armies: { ArmyView }): buffer
+	local w = writer(8 + #armies * 17)
+	u8(w, Protocol.ARMIES)
+	u32(w, tick)
+	u16(w, #armies)
+	for _, a in armies do
+		u16(w, a.id)
+		u8(w, a.owner)
+		u8(w, math.max(1, table.find(Types.LandUnits, a.kind) or 1))
+		u16(w, math.clamp(math.round(a.x * POS_SCALE), 0, 65535))
+		u16(w, math.clamp(math.round(a.y * POS_SCALE), 0, 65535))
+		u16(w, math.clamp(math.round(a.strength), 0, 65535))
+		u16(w, math.clamp(math.round(a.maxStrength), 0, 65535))
+		u8(w, table.find(Protocol.ArmyStates, a.state) or 2)
+		u8(w, a.stars)
+		u8(w, math.clamp(math.round(a.progress * 255), 0, 255))
+		u8(w, if a.auto then 1 else 0)
+	end
+	return finish(w)
+end
+
+function Protocol.decodeArmies(b: buffer): (number, { ArmyView })
+	local r = reader(b)
+	if ru8(r) ~= Protocol.ARMIES then
+		error("Protocol: не армии", 2)
+	end
+	local tick = ru32(r)
+	local out: { ArmyView } = {}
+	for _ = 1, ru16(r) do
+		local id = ru16(r)
+		local owner = ru8(r)
+		local kind = Types.LandUnits[ru8(r)]
+		local x = ru16(r) / POS_SCALE
+		local y = ru16(r) / POS_SCALE
+		local strength = ru16(r)
+		local maxStrength = ru16(r)
+		local state = Protocol.ArmyStates[ru8(r)]
+		local stars = ru8(r)
+		local progress = ru8(r) / 255
+		local flags = ru8(r)
+		if kind == nil or state == nil then
+			error("Protocol: неизвестный тип или состояние армии", 2)
+		end
+		table.insert(out, {
+			id = id,
+			owner = owner,
+			kind = kind,
+			x = x,
+			y = y,
+			strength = strength,
+			maxStrength = maxStrength,
+			state = state,
+			stars = stars,
+			progress = progress,
+			auto = flags % 2 == 1,
+		})
+	end
+	if r.pos ~= r.len then
+		error("Protocol: лишние байты в армиях", 2)
+	end
+	return tick, out
 end
 
 -- STATS ------------------------------------------------------------------------------------

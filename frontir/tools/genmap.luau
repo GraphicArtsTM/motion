@@ -86,8 +86,9 @@ end
 print(string.format("Карта %s %d×%d, сид %d, генерация %.2f с", name, w, h, map.seed, genSec))
 print(
 	string.format(
-		"Суша %.1f%%, островов %d, озёр %d, рек %d",
+		"Суша %.1f%%, провинций %d, островов %d, озёр %d, рек %d",
 		stats.landShare * 100,
+		stats.provinces,
 		stats.islands,
 		stats.lakes,
 		stats.rivers

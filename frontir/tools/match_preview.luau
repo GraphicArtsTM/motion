@@ -15,6 +15,8 @@ local MapGen = require("../src/shared/MapGen")
 local MapPaint = require("../src/shared/MapPaint")
 local MatchSim = require("../src/shared/MatchSim")
 local TerritoryPaint = require("../src/shared/TerritoryPaint")
+local NationColors = require("../src/shared/NationColors")
+local Palette = require("../src/shared/Palette")
 local Png = require("./lib/Png")
 
 local seconds = tonumber(process.args[1]) or 75
@@ -54,6 +56,38 @@ for y = 0, h - 1 do
 		end
 	end
 end
+-- Города (квадрат цвета владельца с белой точкой) и армии (прямоугольник цвета державы с тёмной обводкой).
+local function rect(px: number, py: number, pw: number, ph: number, r: number, g: number, b: number)
+	for yy = math.max(0, py), math.min(H, py + ph) - 1 do
+		for xx = math.max(0, px), math.min(W, px + pw) - 1 do
+			local o = (yy * W + xx) * 3
+			buffer.writeu8(pixels, o, r)
+			buffer.writeu8(pixels, o + 1, g)
+			buffer.writeu8(pixels, o + 2, b)
+		end
+	end
+end
+local ink = Palette.rgb("Ink")
+local white = Palette.rgb("White")
+local mist = Palette.rgb("Mist")
+local function ownerRgb(owner: number): Palette.Rgb
+	local ci = colorOf(owner)
+	return if ci >= 1 then NationColors.Colors[ci] else mist
+end
+for _, cell in MatchSim.cities(m) do
+	local cx, cy = (cell % w) * SCALE, (cell // w) * SCALE
+	local c = ownerRgb(Grid.getOwner(m.grid, cell))
+	rect(cx - 4, cy - 4, 10, 10, ink.r, ink.g, ink.b)
+	rect(cx - 3, cy - 3, 8, 8, c.r, c.g, c.b)
+	rect(cx, cy, 2, 2, white.r, white.g, white.b)
+end
+for _, a in m.armies do
+	local ax, ay = math.floor(a.x * SCALE), math.floor(a.y * SCALE)
+	local c = ownerRgb(a.owner)
+	rect(ax - 6, ay - 4, 12, 8, ink.r, ink.g, ink.b)
+	rect(ax - 5, ay - 3, 10, 6, c.r, c.g, c.b)
+end
+
 local dir = string.match(out, "^(.*)/[^/]*$")
 if dir ~= nil and not fs.isDir(dir) then
 	fs.writeDir(dir)
@@ -63,7 +97,7 @@ fs.writeFile(
 	Png.encodeRgb(W, H, pixels, { ["Frontir-Preview"] = string.format("seconds=%d seed=%d", seconds, seed) })
 )
 
-print(string.format("Партия %d с, сид %d → %s", seconds, seed, out))
+print(string.format("Партия %d с, сид %d → %s, армий %d", seconds, seed, out, #m.armies))
 for _, n in m.nations do
 	print(
 		string.format(

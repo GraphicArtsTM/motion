@@ -23,6 +23,9 @@ Types.Terrain = table.freeze({
 -- Все id местности по порядку — для перебора (record-таблицу выше перебирать неудобно в strict).
 Types.TerrainIds = table.freeze({ 0, 1, 2, 3, 4, 5, 6, 7 }) :: { TerrainId }
 
+-- Сухопутные армии этапа 3, по порядку (индекс — номер типа в сетевом протоколе).
+Types.LandUnits = table.freeze({ "Infantry", "Tanks", "Artillery" }) :: { string }
+
 export type TerrainStats = {
 	captureCost: number, -- множитель стоимости захвата клетки
 	defense: number, -- множитель защиты
@@ -55,6 +58,9 @@ export type UnitStats = {
 	captureRate: number, -- клеток/с при захвате провинции
 	range: number?,
 	requires: BuildingKind?,
+	people: number, -- людей на найм (этап 3: найм стоит людей; деньги и нефть — этап 4)
+	recruitSec: number, -- время найма, игровые секунды
+	strength: number, -- сила армии при найме (полоска силы)
 }
 
 -- Таблица параметров всех юнитов (запись, чтобы обращение Config.Units.Infantry проверялось типами).
@@ -103,6 +109,15 @@ export type MapGenParams = {
 	RiverMinLength: number,
 	RiverMaxLength: number,
 	RiverMeander: number, -- вероятность шага «вбок» вместо шага к воде
+	-- Провинции (этап 3): рост от затравок по «стоимости пути», мелкие сливаются с соседями.
+	ProvinceTargetCells: number, -- средний размер провинции, клеток суши
+	ProvinceMinCells: number, -- провинции меньше сливаются с соседом (кроме островов)
+	ProvinceSeedSpacing: number, -- минимальное расстояние между затравками, в долях √ProvinceTargetCells
+	ProvinceNoise: number, -- насколько шум искривляет границы провинций (0 — ровные ячейки)
+	ProvinceNoiseScale: number,
+	ProvinceHillCost: number, -- «стоимость» прохода через холмы, горы и реку: границы ложатся по хребтам и рекам
+	ProvinceMountainCost: number,
+	ProvinceRiverCost: number,
 }
 
 -- Державы и матч (этап 2) -----------------------------------------------------------------
@@ -130,11 +145,45 @@ export type Attack = {
 	focus: number?, -- клетка, к которой тянется атака
 }
 
+-- Сухопутные армии этапа 3 (флот и авиация — этап 7).
+export type LandUnit = "Infantry" | "Tanks" | "Artillery"
+
+-- recruit — нанимается в столице; idle — стоит; move — идёт по пути; capture — заливает провинцию.
+export type ArmyState = "recruit" | "idle" | "move" | "capture"
+
+export type Army = {
+	id: number,
+	owner: NationId,
+	kind: LandUnit,
+	x: number, -- позиция в клетках (центр клетки — +0.5)
+	y: number,
+	cell: number,
+	strength: number,
+	maxStrength: number,
+	stars: number, -- ветеранство (этап 3б)
+	state: ArmyState,
+	recruitLeft: number, -- игровых секунд до конца найма
+	path: { number },
+	pathIndex: number,
+	auto: boolean, -- сама выбирает соседнюю непокорённую провинцию (GDD §6.6)
+	captureProvince: number, -- 0 — не захватывает
+	captureQueue: { number }, -- клетки провинции в порядке «волны» от армии
+	captureIndex: number,
+	captureTotal: number,
+	captureDone: number,
+	captureAcc: number, -- накопленная дробная часть захвата
+	recheckLeft: number, -- через сколько проверить, не нужно ли снова захватывать
+}
+
 -- Намерения игрока — всё, что клиент может попросить у сервера (GDD §0 п. 4).
 export type PickIntent = { kind: "pick", cell: number }
 export type AttackIntent = { kind: "attack", target: NationId, percent: number, focus: number? }
 export type CancelIntent = { kind: "cancel", target: NationId }
-export type Intent = PickIntent | AttackIntent | CancelIntent
+export type HireIntent = { kind: "hire", unit: LandUnit }
+export type MoveIntent = { kind: "move", armies: { number }, cell: number }
+export type StopIntent = { kind: "stop", armies: { number } }
+export type AutoIntent = { kind: "auto", armies: { number }, on: boolean }
+export type Intent = PickIntent | AttackIntent | CancelIntent | HireIntent | MoveIntent | StopIntent | AutoIntent
 
 export type Phase = "Waiting" | "Pick" | "Play"
 
