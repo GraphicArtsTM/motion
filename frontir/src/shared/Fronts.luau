@@ -24,8 +24,9 @@ type Forces = Types.Forces
 
 export type Defense = {
 	home: Forces, -- гарнизон защитника (весь)
-	share: number, -- доля гарнизона на этом фронте (0..1)
+	share: number, -- доля гарнизона на этом фронте (0..1); котёл защитника её уменьшает
 	counter: Forces?, -- войска встречного фронта защитника на этой границе
+	bonus: number?, -- множитель обороны (укреплённая линия, §6.9)
 }
 
 export type BattleResult = {
@@ -79,8 +80,14 @@ function Fronts.supplied(g: Grid, cities: { number }, attacker: number, front: {
 	return sum / n <= range
 end
 
--- Средняя защита местности вдоль фронта (§6.1); клетки за рекой (river) — с бонусом берега RiverBankDefense.
-function Fronts.terrainDefense(map: MapData, front: { number }, river: { [number]: boolean }?): number
+-- Средняя защита местности вдоль фронта (§6.1); клетки за рекой (river) — с бонусом берега RiverBankDefense,
+-- клетки провинций с укреплением защитника (fortified) — ×Buildings.Fort.defenseMultiplier.
+function Fronts.terrainDefense(
+	map: MapData,
+	front: { number },
+	river: { [number]: boolean }?,
+	fortified: ((cell: number) -> boolean)?
+): number
 	local list = sample(front, Config.Combat.SupplySamples)
 	if #list == 0 then
 		return 1
@@ -90,6 +97,9 @@ function Fronts.terrainDefense(map: MapData, front: { number }, river: { [number
 		local d = Config.Terrain[MapData.getTerrain(map, i)].defense
 		if river ~= nil and river[i] then
 			d *= Config.Combat.RiverBankDefense
+		end
+		if fortified ~= nil and fortified(i) then
+			d *= Config.Buildings.Fort.defenseMultiplier
 		end
 		sum += d
 	end
@@ -124,7 +134,7 @@ function Fronts.battle(
 	local attackPower = Forces.power(attack.forces, defenders, "attack") * supplyMul
 	local homeDef = Forces.power(defense.home, attack.forces, "defense") * defense.share
 	local counterDef = if counter ~= nil then Forces.power(counter, attack.forces, "defense") else 0
-	local defensePower = (homeDef + counterDef) * cfg.DefenderHomeBonus * terrainDef
+	local defensePower = (homeDef + counterDef) * cfg.DefenderHomeBonus * terrainDef * (defense.bonus or 1)
 
 	local fighting = defensePower > 0
 	local ratio = if fighting then attackPower / defensePower else math.huge

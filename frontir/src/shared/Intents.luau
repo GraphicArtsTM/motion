@@ -78,6 +78,15 @@ function Intents.parse(kind: any, payload: any): (Types.Intent?, string?)
 			return nil, "bad accept"
 		end
 		return { kind = "peaceReply", target = target, accept = accept }, nil
+	elseif kind == "build" then
+		local building, cell = payload.building, payload.cell
+		if type(building) ~= "string" or table.find(Config.Buildable, building) == nil then
+			return nil, "bad building"
+		end
+		if not isInt(cell) or cell < 0 then
+			return nil, "bad cell"
+		end
+		return { kind = "build", building = building :: Types.BuildingKind, cell = cell }, nil
 	end
 	return nil, "unknown kind"
 end

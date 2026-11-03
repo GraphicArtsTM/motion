@@ -23,6 +23,7 @@ export type Province = {
 	name: string,
 	nameEn: string,
 	city: number?, -- клетка нейтрального города на старте матча
+	oil: boolean, -- нефтяное поле: можно поставить нефтяную вышку (§6.8)
 }
 
 export type ProvinceSet = {
@@ -57,6 +58,7 @@ function Provinces.build(map: MapData): ProvinceSet
 					name = "",
 					nameEn = "",
 					city = nil,
+					oil = false,
 				}
 				list[id] = p
 				neighbourSets[id] = {}
@@ -152,6 +154,29 @@ function Provinces.build(map: MapData): ProvinceSet
 			if ok then
 				table.insert(cities, c)
 				list[id].city = c
+			end
+		end
+	end
+
+	-- Нефтяные поля (§6.8): доля провинций, чаще в пустынях, тундре и на равнинах (вес местности центра).
+	local oilWant = math.floor(count * Config.Oil.ProvinceShare + 0.5)
+	local maxWeight = 0
+	for _, weight in Config.Oil.TerrainWeight do
+		maxWeight = math.max(maxWeight, weight)
+	end
+	local oilCount = 0
+	for _ = 1, 4 do -- несколько проходов: на картах без пустынь доля всё равно набирается
+		for _, id in order do
+			if oilCount >= oilWant then
+				break
+			end
+			local p = list[id]
+			if not p.oil then
+				local weight = Config.Oil.TerrainWeight[MapData.getTerrain(map, p.center)] or 0
+				if Rng.nextFloat(rng) * maxWeight < weight then
+					p.oil = true
+					oilCount += 1
+				end
 			end
 		end
 	end

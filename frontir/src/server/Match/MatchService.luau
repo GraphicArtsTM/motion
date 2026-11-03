@@ -15,6 +15,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Buildings = require(Shared:WaitForChild("Buildings"))
 local ClientState = require(Shared:WaitForChild("ClientState"))
 local Config = require(Shared:WaitForChild("Config"))
 local Grid = require(Shared:WaitForChild("Grid"))
@@ -66,6 +67,7 @@ function MatchService.start(map: MapData)
 			myNation = nationOf[player],
 			nations = nations,
 			cities = MatchSim.cities(m),
+			buildings = Buildings.list(m.buildings),
 		}
 	end
 
@@ -179,6 +181,11 @@ function MatchService.start(map: MapData)
 				sendSnapshot(nil) -- начало игры: расстановка целиком
 			elseif #changes > 0 then
 				matchEvent:FireAllClients(Protocol.encodeDelta(m.tick, changes, m.grid.owner))
+			end
+			-- Новые здания и уровни городов — только изменения (полный список уходит в info).
+			local built = Buildings.takeChanges(m.buildings)
+			if #built > 0 then
+				matchEvent:FireAllClients({ kind = "buildings", list = built })
 			end
 			local events = MatchSim.takeEvents(m)
 			if #events > 0 then

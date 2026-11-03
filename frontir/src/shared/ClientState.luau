@@ -28,6 +28,7 @@ export type Info = {
 	myNation: number?, -- держава этого игрока (nil — зритель)
 	nations: { NationInfo },
 	cities: { number }?, -- клетки городов (владелец — по сетке)
+	buildings: { Types.Building }?, -- все здания и уровни городов (§6.9)
 }
 
 export type ApplyResult = "snapshot" | "delta" | "stats" | "forces" | "wars" | "partial" | "ignored"
@@ -50,6 +51,7 @@ export type ClientState = {
 	cities: { number },
 	myForces: Protocol.MyForces?, -- свои войска (только у игрока с державой)
 	wars: Protocol.WarsMessage, -- войны и запреты после мира (§6.7а)
+	buildings: { [number]: Types.Building }, -- клетка → здание (владелец — по сетке)
 	warsAt: number, -- когда пришли wars (часы клиента; для обратных отсчётов)
 	bytes: number, -- принято байт с начала (для F3: байт/с)
 }
@@ -75,6 +77,7 @@ function ClientState.new(width: number, height: number): ClientState
 		cities = {},
 		myForces = nil,
 		wars = { wars = {}, cooldowns = {} },
+		buildings = {},
 		warsAt = 0,
 		bytes = 0,
 	}
@@ -109,6 +112,10 @@ function ClientState.applyInfo(cs: ClientState, info: Info, now: number): boolea
 	cs.myNation = info.myNation
 	if info.cities ~= nil then
 		cs.cities = info.cities
+	end
+	if info.buildings ~= nil then
+		table.clear(cs.buildings)
+		ClientState.applyBuildings(cs, info.buildings)
 	end
 	return colorsChanged
 end
@@ -193,6 +200,21 @@ function ClientState.cooldownBetween(cs: ClientState, a: number, b: number): num
 		end
 	end
 	return 0
+end
+
+-- Новые здания (сообщение buildings или полный список из info). Неверные записи пропускаются.
+function ClientState.applyBuildings(cs: ClientState, list: { any })
+	for _, b in list do
+		if type(b) == "table" and type(b.cell) == "number" and type(b.kind) == "string" and type(b.level) == "number" then
+			cs.buildings[b.cell] = { kind = b.kind :: Types.BuildingKind, cell = b.cell, level = b.level }
+		end
+	end
+end
+
+-- Уровень города в клетке (1, если не улучшали).
+function ClientState.cityLevel(cs: ClientState, cell: number): number
+	local b = cs.buildings[cell]
+	return if b ~= nil and b.kind == "City" then b.level else 1
 end
 
 return table.freeze(ClientState)

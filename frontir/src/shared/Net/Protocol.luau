@@ -89,7 +89,16 @@ export type WarsMessage = { wars: { WarStats }, cooldowns: { Cooldown } }
 
 export type KindForces = { home: number, xp: number, front: number }
 export type QueueItem = { kind: number, left: number }
-export type MyForces = { kinds: { KindForces }, queue: { QueueItem } }
+-- Экономика своей державы (§6.8): запасы и прирост в секунду, есть ли завод.
+export type MyEconomy = {
+	money: number,
+	oil: number,
+	income: number,
+	oilIncome: number,
+	upkeep: number,
+	factories: number,
+}
+export type MyForces = { kinds: { KindForces }, queue: { QueueItem }, economy: MyEconomy }
 
 export type Delta = {
 	tick: number,
@@ -523,6 +532,13 @@ function Protocol.encodeForces(f: MyForces): buffer
 		u8(w, f.queue[i].kind)
 		f32(w, f.queue[i].left)
 	end
+	local e = f.economy
+	f32(w, e.money)
+	f32(w, e.oil)
+	f32(w, e.income)
+	f32(w, e.oilIncome)
+	f32(w, e.upkeep)
+	u8(w, math.clamp(e.factories, 0, 255))
 	return finish(w)
 end
 
@@ -547,10 +563,27 @@ function Protocol.decodeForces(b: buffer): MyForces
 		end
 		table.insert(queue, { kind = kind, left = left })
 	end
+	local money = rf32(r)
+	local oil = rf32(r)
+	local income = rf32(r)
+	local oilIncome = rf32(r)
+	local upkeep = rf32(r)
+	local factories = ru8(r)
 	if r.pos ~= r.len then
 		error("Protocol: лишние байты в войсках", 2)
 	end
-	return { kinds = kinds, queue = queue }
+	return {
+		kinds = kinds,
+		queue = queue,
+		economy = {
+			money = money,
+			oil = oil,
+			income = income,
+			oilIncome = oilIncome,
+			upkeep = upkeep,
+			factories = factories,
+		},
+	}
 end
 
 -- WARS -------------------------------------------------------------------------------------

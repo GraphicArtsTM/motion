@@ -27,6 +27,7 @@
 ]]
 
 local BotBrain = require("./BotBrain")
+local Buildings = require("./Buildings")
 local Config = require("./Config")
 local Economy = require("./Economy")
 local Expansion = require("./Expansion")
@@ -36,6 +37,7 @@ local Grid = require("./Grid")
 local MapData = require("./MapData")
 local NameGen = require("./NameGen")
 local NationColors = require("./NationColors")
+local Pockets = require("./Pockets")
 local Provinces = require("./Provinces")
 local Rng = require("./Rng")
 local StartPositions = require("./StartPositions")
@@ -56,6 +58,7 @@ export type MatchEvent =
 	| { kind: "peaceProposed", nation: number, target: number, terms: Types.PeaceTerms }
 	| { kind: "peaceRejected", nation: number, target: number, expired: boolean }
 	| { kind: "peace", nation: number, target: number, terms: Types.PeaceTerms, returned: number }
+	| { kind: "pocketSurrendered", nation: number, by: number, cells: number }
 
 export type Match = {
 	map: MapData,
@@ -78,7 +81,15 @@ export type Match = {
 	provinces: Provinces.ProvinceSet,
 	cityOf: { [number]: number }, -- провинция → клетка города (нейтрального, державы или столицы)
 	wars: Wars.WarSet,
+	buildings: Buildings.BuildingSet, -- §6.9
+	owned: { [number]: Buildings.Owned }, -- здания и уровни городов по державам (пересчёт каждый тик)
+	economy: { [number]: NationEconomy }, -- доход и содержание по державам (последний тик)
+	pockets: { [number]: Pockets.NationPockets }, -- котлы по державам (§6.7)
+	pocketCursor: number, -- чья связность проверяется следующей
 }
+
+-- Экономика державы за последний тик, в секунду (§6.8).
+export type NationEconomy = { income: number, oilIncome: number, upkeep: number }
 
 local MatchSim = {}
 
@@ -114,6 +125,11 @@ function MatchSim.new(map: MapData, seed: number): Match
 		provinces = provinces,
 		cityOf = cityOf,
 		wars = Wars.new(),
+		buildings = Buildings.new(),
+		owned = {},
+		economy = {},
+		pockets = {},
+		pocketCursor = 1,
 	}
 end
 
@@ -178,6 +194,8 @@ local function newNation(m: Match, name: string, nameEn: string, isBot: boolean,
 		alive = true,
 		home = Forces.new(),
 		queue = {},
+		money = 0,
+		oil = 0,
 	}
 	table.insert(m.nations, nation)
 	m.infoDirty = true
@@ -275,6 +293,7 @@ function MatchSim.finishPick(m: Match)
 			end
 		end
 		n.people = Config.People.Start
+		n.money = Config.Economy.StartMoney
 		if n.isBot then
 			m.botNextThink[n.id] = BotBrain.nextThinkDelay(m.rng)
 		end
@@ -284,6 +303,7 @@ function MatchSim.finishPick(m: Match)
 	m.time = 0
 	m.simTime = 0
 	m.infoDirty = true
+	MatchSim.refreshOwned(m)
 end
 
 local function findAttack(m: Match, attacker: number, target: number): (number?, Attack?)
@@ -373,11 +393,58 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 		end
 		local kind = Forces.kindIndex(intent.unit) :: number
 		local stats = Forces.stats(kind)
+		local owned = MatchSim.ownedOf(m, nationId)
+		if stats.requires == "Factory" and owned.factories == 0 then
+			return false, "needFactory"
+		end
 		if n.people < stats.people then
 			return false, "noTroops"
 		end
+		if n.money < stats.cost then
+			return false, "noMoney"
+		end
+		if n.oil < stats.oil then
+			return false, "noOil"
+		end
 		n.people -= stats.people
-		table.insert(n.queue, { kind = kind, left = stats.recruitSec })
+		n.money -= stats.cost
+		n.oil -= stats.oil
+		-- Свой завод ускоряет найм (§6.9).
+		local speed = if owned.factories > 0 then 1 - Config.Buildings.Factory.recruitSpeedBonus else 1
+		table.insert(n.queue, { kind = kind, left = stats.recruitSec * speed })
+		return true, nil
+	end
+
+	if intent.kind == "build" then
+		local spot, reason = Buildings.check(
+			m.buildings,
+			m.grid,
+			m.map,
+			m.provinces,
+			function(cell: number): boolean
+				return Grid.isCity(m.grid, cell)
+			end,
+			nationId,
+			intent.building,
+			intent.cell
+		)
+		if spot == nil then
+			return false, reason
+		end
+		local money, oil = Buildings.cost(m.buildings, intent.building, spot)
+		if money == nil then
+			return false, "maxLevel"
+		end
+		if n.money < money then
+			return false, "noMoney"
+		end
+		if n.oil < oil then
+			return false, "noOil"
+		end
+		n.money -= money
+		n.oil -= oil
+		Buildings.place(m.buildings, intent.building, spot, MapData.getProvince(m.map, spot))
+		MatchSim.refreshOwned(m)
 		return true, nil
 	end
 
@@ -505,12 +572,31 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 			supplied = true,
 			ratio = math.huge,
 			fighting = false,
+			lastAdvance = m.simTime,
 		})
 	end
 	return true, nil
 end
 
 -- Что бот «видит» о своей державе.
+local NO_BUILDINGS: Buildings.Owned = table.freeze({ factories = 0, markets = 0, rigs = 0, forts = 0, cityLevels = 0 })
+
+-- Здания и уровни городов державы (пересчитываются каждый тик и после постройки).
+function MatchSim.ownedOf(m: Match, nationId: number): Buildings.Owned
+	return m.owned[nationId] or NO_BUILDINGS
+end
+
+function MatchSim.refreshOwned(m: Match)
+	m.owned = Buildings.owned(m.buildings, m.grid, MatchSim.cities(m))
+end
+
+-- Максимум людей державы: клетки вне котлов и уровни своих городов (§6.3, §6.7, §6.8).
+function MatchSim.maxPeopleOf(m: Match, nationId: number): number
+	local pocket = m.pockets[nationId]
+	local cells = Grid.cellsOf(m.grid, nationId) - (if pocket ~= nil then pocket.cells else 0)
+	return Economy.maxPeople(cells, MatchSim.ownedOf(m, nationId).cityLevels)
+end
+
 -- Вся сила державы: гарнизон и фронты.
 local function totalPower(m: Match, id: number): number
 	local n = m.nations[id]
@@ -518,6 +604,43 @@ local function totalPower(m: Match, id: number): number
 		return 0
 	end
 	return Forces.total(n.home) + Forces.total(MatchSim.frontForces(m, id))
+end
+
+-- Где боту можно строить: первая подходящая провинция для каждого здания (§6.9).
+local function buildSpots(m: Match, n: Nation): BotBrain.BuildSpots
+	local spots: BotBrain.BuildSpots = {}
+	local g = m.grid
+	for _, p in m.provinces.list do
+		if Grid.getOwner(g, p.center) == n.id and m.buildings.byProvince[p.id] == nil then
+			if p.oil and spots.oilRig == nil then
+				spots.oilRig = p.center
+			elseif not p.oil and spots.free == nil then
+				spots.free = p.center
+			end
+			-- Укрепление — в провинции у границы с врагом.
+			if spots.fort == nil then
+				local touches = false
+				for _, other in p.neighbours do
+					local o = Grid.getOwner(g, m.provinces.list[other].center)
+					if o ~= 0 and o ~= n.id and Wars.isActive(m.wars, n.id, o) then
+						touches = true
+						break
+					end
+				end
+				if touches then
+					spots.fort = p.center
+				end
+			end
+		end
+	end
+	for _, cell in m.cityOf do
+		if Grid.getOwner(g, cell) == n.id and Buildings.cityLevel(m.buildings, cell) < Config.Economy.MaxCityLevel then
+			if spots.city == nil or cell == n.capital then
+				spots.city = cell
+			end
+		end
+	end
+	return spots
 end
 
 local function botView(m: Match, n: Nation): BotBrain.BotView
@@ -558,7 +681,7 @@ local function botView(m: Match, n: Nation): BotBrain.BotView
 	end)
 	return {
 		people = n.people,
-		maxPeople = Economy.maxPeople(Grid.cellsOf(m.grid, n.id)),
+		maxPeople = MatchSim.maxPeopleOf(m, n.id),
 		attacks = attacksOf(m, n.id),
 		queue = #n.queue,
 		power = Forces.total(n.home),
@@ -572,6 +695,11 @@ local function botView(m: Match, n: Nation): BotBrain.BotView
 			),
 		neighbours = neighbours,
 		wars = wars,
+		money = n.money,
+		oil = n.oil,
+		economy = m.economy[n.id] or { income = 0, oilIncome = 0, upkeep = 0 },
+		owned = MatchSim.ownedOf(m, n.id),
+		spots = buildSpots(m, n),
 	}
 end
 
@@ -724,14 +852,41 @@ local function stepAttacks(m: Match, simDt: number): number
 			else
 				local _, counter = findAttack(m, a.target, a.attacker)
 				local totalLen = math.max(1, frontLength[a.target] or #front.list)
-				a.supplied = Fronts.supplied(g, cities, a.attacker, front.list)
+				-- Котлы: клетки фронта в котле защитника гарнизон не защищает; фронт из котла атакующего —
+				-- без снабжения (§6.7).
+				local defPockets, atkPockets = m.pockets[a.target], m.pockets[a.attacker]
+				local inDefPocket, fromAtkPocket = 0, 0
+				for _, cell in front.list do
+					if defPockets ~= nil and defPockets.inPocket[cell] ~= nil then
+						inDefPocket += 1
+					end
+					if atkPockets ~= nil and atkPockets.cells > 0 then
+						local fromPocket = false
+						Grid.forNeighbours(g, cell, function(j)
+							if atkPockets.inPocket[j] ~= nil then
+								fromPocket = true
+							end
+						end)
+						if fromPocket then
+							fromAtkPocket += 1
+						end
+					end
+				end
+				a.supplied = Fronts.supplied(g, cities, a.attacker, front.list) and fromAtkPocket * 2 <= #front.list
+				local homeShare = #front.list / totalLen * (1 - inDefPocket / #front.list)
+				-- Укреплённая линия: фронт долго стоит — защитнику бонус (§6.9).
+				local still = m.simTime - a.lastAdvance >= Config.Fortify.AfterSec
+				local function fortified(cell: number): boolean
+					return Buildings.fortified(m.buildings, g, m.map, cell)
+				end
 				-- Встречные фронты пары — один бой: потери считаются один раз за тик.
 				local applyLosses = not (counter ~= nil and battled[counter])
 				local result = Fronts.battle(a, {
 					home = defender.home,
-					share = #front.list / totalLen,
+					share = homeShare,
 					counter = if counter ~= nil then counter.forces else nil,
-				}, Fronts.terrainDefense(m.map, front.list, front.river), m.rng, simDt, applyLosses)
+					bonus = if still then Config.Fortify.LineBonus else 1,
+				}, Fronts.terrainDefense(m.map, front.list, front.river, fortified), m.rng, simDt, applyLosses)
 				battled[a] = true
 				a.ratio = result.ratio
 				a.fighting = result.fighting
@@ -739,7 +894,7 @@ local function stepAttacks(m: Match, simDt: number): number
 				Wars.addLosses(war, a.target, result.lostDefender)
 				local mul = Fronts.advanceMul(a, result.ratio)
 				local allowCities = result.ratio >= Config.Combat.CityCaptureRatio
-				captured += Expansion.advanceFront(
+				local took = Expansion.advanceFront(
 					m.map,
 					g,
 					m.nations,
@@ -752,6 +907,10 @@ local function stepAttacks(m: Match, simDt: number): number
 					simDt,
 					{ canTake = enclaveRule(m, a.attacker), record = record }
 				)
+				if took > 0 then
+					a.lastAdvance = m.simTime
+				end
+				captured += took
 				done = Forces.total(a.forces) < 1
 			end
 		end
@@ -792,6 +951,70 @@ local function answerBotProposals(m: Match)
 	end
 end
 
+-- Деньги и нефть державы за simDt (§6.8): доход, вышки, содержание войск; денег нет — войска тают.
+local function stepEconomy(m: Match, n: Nation, simDt: number)
+	local owned = MatchSim.ownedOf(m, n.id)
+	local strength = Forces.total(n.home) + Forces.total(MatchSim.frontForces(m, n.id))
+	local e: NationEconomy = {
+		income = Economy.income(Grid.cellsOf(m.grid, n.id), owned.cityLevels, owned.markets),
+		oilIncome = Economy.oilIncome(owned.rigs),
+		upkeep = Economy.upkeep(strength),
+	}
+	m.economy[n.id] = e
+	n.oil += e.oilIncome * simDt
+	n.money += (e.income - e.upkeep) * simDt
+	if n.money < 0 then
+		n.money = 0
+		-- Платить нечем: войска разбегаются.
+		local loss = Config.Economy.UnpaidAttritionPerSec * simDt
+		Forces.attrition(n.home, loss)
+		for _, a in m.attacks do
+			if a.attacker == n.id then
+				Forces.attrition(a.forces, loss)
+			end
+		end
+	end
+end
+
+-- Котлы (§6.7): по NationsPerTick держав за тик пересчитать связность; котёл без города, который
+-- держится дольше SurrenderSec, переходит соседу, с которым идёт война.
+local function stepPockets(m: Match)
+	local count = #m.nations
+	if count == 0 then
+		return
+	end
+	for _ = 1, Config.Pocket.NationsPerTick do
+		local n = m.nations[(m.pocketCursor - 1) % count + 1]
+		m.pocketCursor = m.pocketCursor % count + 1
+		if n.alive then
+			local result = Pockets.compute(m.grid, n.id, n.capital, function(cell: number): boolean
+				return Grid.isCity(m.grid, cell)
+			end, m.simTime, m.pockets[n.id])
+			m.pockets[n.id] = result
+			for _, pocket in result.pockets do
+				if not pocket.hasCity and m.simTime - pocket.since >= Config.Pocket.SurrenderSec then
+					local captor = Pockets.captor(m.grid, n.id, pocket, function(other: number): boolean
+						return Wars.isActive(m.wars, n.id, other)
+					end)
+					if captor ~= 0 then
+						for _, cell in pocket.cells do
+							Grid.setOwner(m.grid, cell, captor)
+							Wars.record(m.wars, cell, n.id, captor)
+						end
+						table.insert(m.events, {
+							kind = "pocketSurrendered",
+							nation = n.id,
+							by = captor,
+							cells = #pocket.cells,
+						})
+						m.pockets[n.id] = nil -- пересчитать при следующей проверке
+					end
+				end
+			end
+		end
+	end
+end
+
 -- Шаг симуляции на dt секунд (сервер зовёт с dt = 1 / TickRate).
 function MatchSim.step(m: Match, dt: number)
 	if m.phase == "Waiting" then
@@ -810,11 +1033,13 @@ function MatchSim.step(m: Match, dt: number)
 	m.simTime += simDt
 	local g = m.grid
 
-	-- Люди и найм.
+	-- Здания, экономика, люди и найм.
+	MatchSim.refreshOwned(m)
 	for _, n in m.nations do
 		if n.alive then
+			stepEconomy(m, n, simDt)
 			local growthMul = 1 - Wars.weariness(m.wars, n.id, m.simTime)
-			n.people = Economy.grow(n.people, Economy.maxPeople(Grid.cellsOf(g, n.id)), simDt, growthMul)
+			n.people = Economy.grow(n.people, MatchSim.maxPeopleOf(m, n.id), simDt, growthMul)
 			local first = n.queue[1]
 			if first ~= nil then
 				first.left -= simDt
@@ -838,6 +1063,7 @@ function MatchSim.step(m: Match, dt: number)
 	answerBotProposals(m)
 
 	m.lastCaptured = stepAttacks(m, simDt)
+	stepPockets(m)
 
 	-- Столицы и выбывание: держава живёт, пока у неё есть хоть один город.
 	for _, n in m.nations do

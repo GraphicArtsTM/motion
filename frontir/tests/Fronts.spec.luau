@@ -2,6 +2,7 @@
 local T = require("./lib/TestKit")
 local Fixtures = require("./lib/Fixtures")
 local TinyMap = require("./lib/TinyMap")
+local Buildings = require("../src/shared/Buildings")
 local Config = require("../src/shared/Config")
 local Forces = require("../src/shared/Forces")
 local Fronts = require("../src/shared/Fronts")
@@ -65,6 +66,8 @@ local function duel(): (MatchSim.Match, number, number)
 	for _, n in m.nations do
 		n.colorIndex = n.id
 		n.people = 5000
+		n.money = 1e6
+		n.oil = 1e4
 	end
 	atWar(m, 1, 2)
 	return m, cityA, cityB
@@ -214,12 +217,20 @@ T.describe("Фронты в матче", function()
 	T.it(
 		"найм: очередь, время, войска в гарнизоне; очередь не бесконечна",
 		function()
-			local m = duel()
+			local m, cityA = duel()
 			local me = m.nations[1]
-			local before = me.people
+			-- Танкам нужен завод (§6.9); он же ускоряет найм.
+			T.expect(select(2, MatchSim.applyIntent(m, 1, { kind = "hire", unit = "Tanks" }))).toBe("needFactory")
+			Buildings.place(m.buildings, "Factory", cityA + 1, 0)
+			MatchSim.refreshOwned(m)
+			local before, money, oil = me.people, me.money, me.oil
 			T.expect((MatchSim.applyIntent(m, 1, { kind = "hire", unit = "Tanks" }))).toBe(true)
 			T.expect(me.people).toBe(before - Config.Units.Tanks.people)
+			T.expect(me.money).toBe(money - Config.Units.Tanks.cost)
+			T.expect(me.oil).toBe(oil - Config.Units.Tanks.oil)
 			T.expect(#me.queue).toBe(1)
+			T.expect(me.queue[1].left)
+				.toBeNear(Config.Units.Tanks.recruitSec * (1 - Config.Buildings.Factory.recruitSpeedBonus), 1e-9)
 			runFor(m, Config.Units.Tanks.recruitSec + 0.2)
 			T.expect(#me.queue).toBe(0)
 			T.expect(me.home[TANKS].strength).toBe(Config.Units.Tanks.strength)

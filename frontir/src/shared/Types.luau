@@ -163,6 +163,8 @@ export type Nation = {
 	alive: boolean,
 	home: Forces, -- гарнизон: войска дома (защищают державу)
 	queue: { Recruit }, -- очередь найма
+	money: number, -- §6.8
+	oil: number,
 }
 
 -- Отряд одного типа в пуле: суммарная сила и средний опыт (§6.7: ветераны).
@@ -184,7 +186,11 @@ export type Attack = {
 	supplied: boolean, -- есть снабжение (§6.7)
 	ratio: number, -- последний перевес: атака / оборона (math.huge — обороны нет)
 	fighting: boolean, -- идёт бой (у защитника есть войска на этом фронте)
+	lastAdvance: number, -- simTime, когда фронт последний раз взял клетку (укреплённая линия, §6.9)
 }
+
+-- Здание (§6.9): стоит в клетке (центр провинции или город), принадлежит владельцу этой клетки.
+export type Building = { kind: BuildingKind, cell: number, level: number }
 
 -- Сухопутные войска (флот и авиация — этап 7).
 export type LandUnit = "Infantry" | "Tanks" | "Artillery" | "AntiAir"
@@ -199,6 +205,7 @@ export type PeaceTerms = "white" | "keep" | "capitulate"
 export type DeclareIntent = { kind: "declare", target: NationId }
 export type PeaceIntent = { kind: "peace", target: NationId, terms: PeaceTerms }
 export type PeaceReplyIntent = { kind: "peaceReply", target: NationId, accept: boolean }
+export type BuildIntent = { kind: "build", building: BuildingKind, cell: number }
 export type Intent =
 	PickIntent
 	| AttackIntent
@@ -207,6 +214,7 @@ export type Intent =
 	| DeclareIntent
 	| PeaceIntent
 	| PeaceReplyIntent
+	| BuildIntent
 
 export type Phase = "Waiting" | "Pick" | "Play"
 

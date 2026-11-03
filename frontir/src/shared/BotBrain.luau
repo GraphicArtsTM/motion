@@ -4,7 +4,10 @@
 	Бот видит только то, что видел бы игрок (BotView), и отвечает тем же намерением (Intent), что и игрок:
 	никаких читов (GDD §9).
 
-	- Иногда нанимает юниты (очередь не длиннее Bots.MaxQueue).
+	- Строит (§6.9): сначала завод, потом нефтяные вышки, рынки, укрепления у фронта и улучшает города —
+	  если денег хватает с запасом BuildReserve.
+	- Иногда нанимает юниты (очередь не длиннее Bots.MaxQueue), если хватает денег и нефти, а доход покроет
+	  содержание; без завода — только пехоту.
 	- Долго воюет и сильно слабее врага — просит мира: сначала белого, потом (или сразу, если совсем слаб
 	  или сам взял больше) «забрать захваченное» — победитель на такое соглашается.
 	- Идёт война — открывает или подкрепляет фронт против самого слабого врага, если войск хватает.
@@ -17,6 +20,7 @@
 ]]
 
 local Config = require("./Config")
+local Economy = require("./Economy")
 local Forces = require("./Forces")
 local Rng = require("./Rng")
 local Types = require("./Types")
@@ -54,6 +58,19 @@ export type BotView = {
 	hasNeutral: boolean, -- рядом есть ничья земля, которую можно взять
 	neighbours: { Neighbour }, -- соседние державы
 	wars: { WarView },
+	money: number,
+	oil: number,
+	economy: { income: number, oilIncome: number, upkeep: number }, -- в секунду
+	owned: { factories: number, markets: number, rigs: number, forts: number, cityLevels: number },
+	spots: BuildSpots,
+}
+
+-- Где можно строить (клетка для намерения build) — подбирает MatchSim.
+export type BuildSpots = {
+	free: number?, -- провинция без здания и без нефти
+	oilRig: number?, -- провинция с нефтяным полем без вышки
+	fort: number?, -- провинция у границы с врагом
+	city: number?, -- свой город, который можно улучшить
 }
 
 -- Что бот знает, отвечая на предложение мира.
@@ -76,8 +93,38 @@ end
 -- Какой юнит нанять: пехота чаще, танки и артиллерия реже.
 local HIRE_ORDER: { Types.LandUnit } = { "Infantry", "Infantry", "Infantry", "Tanks", "Tanks", "Artillery" }
 
+-- Что построить (§6.9): завод, потом вышки, рынки, города, укрепления у фронта — если хватает денег с запасом.
+local function chooseBuild(view: BotView): Types.Intent?
+	local cfg = Config.Bots
+	local spots, owned = view.spots, view.owned
+	local function want(kind: Types.BuildingKind, cell: number?): Types.Intent?
+		if cell == nil then
+			return nil
+		end
+		local stats = (Config.Buildings :: any)[kind]
+		local price = stats.cost -- город ур. 3 дороже: не хватит — MatchSim откажет, бот попробует позже
+		if view.money >= price + cfg.BuildReserve then
+			return { kind = "build", building = kind, cell = cell }
+		end
+		return nil
+	end
+	if owned.factories == 0 then
+		return want("Factory", spots.free or spots.oilRig)
+	end
+	return want("OilRig", if owned.rigs < cfg.MaxRigs then spots.oilRig else nil)
+		or want("Market", if owned.markets < cfg.MaxMarkets then spots.free else nil)
+		or want("Fort", spots.fort)
+		or want("City", spots.city)
+end
+
 function BotBrain.decide(view: BotView, rng: Rng): Types.Intent?
 	local cfg = Config.Bots
+	if Rng.nextFloat(rng) < cfg.BuildChance then
+		local build = chooseBuild(view)
+		if build ~= nil then
+			return build
+		end
+	end
 	if
 		view.hasCapital
 		and view.queue < cfg.MaxQueue
@@ -85,8 +132,19 @@ function BotBrain.decide(view: BotView, rng: Rng): Types.Intent?
 		and Rng.nextFloat(rng) < cfg.HireChance
 	then
 		local unit: Types.LandUnit = HIRE_ORDER[Rng.range(rng, 1, #HIRE_ORDER)]
+		if unit ~= "Infantry" and view.owned.factories == 0 then
+			unit = "Infantry" -- без завода — только пехота
+		end
 		local kind = Forces.kindIndex(unit) :: number
-		if view.people >= Forces.stats(kind).people then
+		local stats = Forces.stats(kind)
+		-- Хватает людей, денег, нефти, и доход покроет содержание нового юнита.
+		local net = view.economy.income - view.economy.upkeep
+		if
+			view.people >= stats.people
+			and view.money >= stats.cost
+			and view.oil >= stats.oil
+			and net >= Economy.upkeep(stats.strength)
+		then
 			return { kind = "hire", unit = unit }
 		end
 	end

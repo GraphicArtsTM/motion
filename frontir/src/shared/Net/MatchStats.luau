@@ -4,7 +4,6 @@
 	Чистый модуль: им пользуются MatchService (рассылка) и тест трафика (Net.spec — 60 держав).
 ]]
 
-local Economy = require("../Economy")
 local Forces = require("../Forces")
 local Grid = require("../Grid")
 local MatchSim = require("../MatchSim")
@@ -21,7 +20,7 @@ function MatchStats.build(m: MatchSim.Match, tickMs: number, changed: number): P
 		table.insert(nations, {
 			id = n.id,
 			people = n.people,
-			maxPeople = Economy.maxPeople(cells),
+			maxPeople = MatchSim.maxPeopleOf(m, n.id),
 			cells = cells,
 			troops = MatchSim.troopsOf(m, n.id),
 			power = Forces.total(n.home),
@@ -66,7 +65,19 @@ function MatchStats.forcesOf(m: MatchSim.Match, nationId: number): Protocol.MyFo
 			table.insert(queue, { kind = r.kind, left = r.left })
 		end
 	end
-	return { kinds = kinds, queue = queue }
+	local e = m.economy[nationId]
+	return {
+		kinds = kinds,
+		queue = queue,
+		economy = {
+			money = if n ~= nil then n.money else 0,
+			oil = if n ~= nil then n.oil else 0,
+			income = if e ~= nil then e.income else 0,
+			oilIncome = if e ~= nil then e.oilIncome else 0,
+			upkeep = if e ~= nil then e.upkeep else 0,
+			factories = MatchSim.ownedOf(m, nationId).factories,
+		},
+	}
 end
 
 -- Войны и запреты на новую войну после мира (§6.7а). Обратные отсчёты — в секундах реального времени

@@ -10,9 +10,27 @@ local Config = require("./Config")
 local Economy = {}
 
 -- Максимум людей при данном числе клеток.
-function Economy.maxPeople(cells: number): number
+-- Максимум людей: база, клетки (без котлов — их передаёт вызывающий) и уровни своих городов.
+function Economy.maxPeople(cells: number, cityLevels: number?): number
 	local cfg = Config.People
-	return cfg.BaseMax + cfg.PerCell * cells
+	return cfg.BaseMax + cfg.PerCell * cells + (cityLevels or 0) * Config.Economy.CityMaxPeoplePerLevel
+end
+
+-- Доход денег в секунду (§6.8): налог с клеток и уровни городов, рынки дают +incomeBonus каждый.
+function Economy.income(cells: number, cityLevels: number, markets: number): number
+	local cfg = Config.Economy
+	local base = cfg.TaxPerCellPerSec * cells + cfg.CityIncomePerLevel * cityLevels
+	return base * (1 + Config.Buildings.Market.incomeBonus * markets)
+end
+
+-- Нефть в секунду с вышек.
+function Economy.oilIncome(rigs: number): number
+	return Config.Oil.PerRigPerSec * rigs
+end
+
+-- Содержание войск в секунду за всю силу (гарнизон и фронты).
+function Economy.upkeep(strength: number): number
+	return Config.Economy.UpkeepPerStrengthPerSec * strength
 end
 
 -- Прирост людей в секунду (может быть отрицательным, если людей больше максимума).

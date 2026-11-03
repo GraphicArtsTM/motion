@@ -425,6 +425,11 @@ T.describe("BotBrain", function()
 			neighbours = {},
 			totalPower = 0,
 			wars = {},
+			money = 1e6,
+			oil = 1e4,
+			economy = { income = 1000, oilIncome = 0, upkeep = 0 },
+			owned = { factories = 1, markets = 2, rigs = 3, forts = 0, cityLevels = 1 },
+			spots = {},
 		}
 	end
 	local function neighbour(id: number, power: number, atWar: boolean?): BotBrain.Neighbour

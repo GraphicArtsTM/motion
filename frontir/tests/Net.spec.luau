@@ -3,6 +3,7 @@ local serde = require("@lune/serde")
 
 local T = require("./lib/TestKit")
 local Fixtures = require("./lib/Fixtures")
+local Buildings = require("../src/shared/Buildings")
 local ClientState = require("../src/shared/ClientState")
 local Config = require("../src/shared/Config")
 local Grid = require("../src/shared/Grid")
@@ -218,12 +219,16 @@ T.describe("Protocol: войска и фронты", function()
 				{ home = 0, xp = 0, front = 0 },
 			},
 			queue = { { kind = 2, left = 3.5 }, { kind = 1, left = 3 } },
+			economy = { money = 12345.5, oil = 42, income = 88.25, oilIncome = 2, upkeep = 31.5, factories = 1 },
 		}
 		local back = Protocol.decodeForces(Protocol.encodeForces(f))
 		T.expect(back.kinds[1].xp).toBeNear(1.5, 1e-6)
 		T.expect(back.kinds[2].front).toBe(600)
 		T.expect(#back.queue).toBe(2)
 		T.expect(back.queue[1].kind).toBe(2)
+		T.expect(back.economy.money).toBeNear(12345.5, 1e-3)
+		T.expect(back.economy.upkeep).toBeNear(31.5, 1e-6)
+		T.expect(back.economy.factories).toBe(1)
 	end)
 end)
 
@@ -283,6 +288,10 @@ T.describe("Трафик", function()
 			if m.infoDirty then
 				m.infoDirty = false
 				bytes += infoBytes()
+			end
+			local built = Buildings.takeChanges(m.buildings)
+			if #built > 0 then
+				bytes += #serde.encode("json", { kind = "buildings", list = built }) + OVERHEAD
 			end
 			local events = MatchSim.takeEvents(m)
 			if #events > 0 then
