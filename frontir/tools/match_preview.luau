@@ -16,7 +16,6 @@ local fs = require("@lune/fs")
 local process = require("@lune/process")
 
 local BattleLayout = require("../src/shared/BattleLayout")
-local Buildings = require("../src/shared/Buildings")
 local BuildingSprites = require("../src/shared/BuildingSprites")
 local Config = require("../src/shared/Config")
 local Forces = require("../src/shared/Forces")
