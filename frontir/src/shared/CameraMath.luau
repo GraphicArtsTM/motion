@@ -165,6 +165,11 @@ function CameraMath.cellAt(s: CameraState, sx: number, sy: number): (number?, nu
 	return cx, cy
 end
 
+-- Видимый прямоугольник клеток (включительно) без обрезки по карте: за картой — океан.
+function CameraMath.viewRect(s: CameraState): (number, number, number, number)
+	return math.floor(s.x), math.floor(s.y), math.floor(s.x + s.viewW / s.zoom), math.floor(s.y + s.viewH / s.zoom)
+end
+
 -- Видимый прямоугольник клеток (включительно), обрезанный по карте.
 function CameraMath.visibleRect(s: CameraState): (number, number, number, number)
 	local x0 = math.max(0, math.floor(s.x))

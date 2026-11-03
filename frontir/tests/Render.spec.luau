@@ -104,6 +104,17 @@ T.describe("MapPaint", function()
 			return buffer.readu8(colors, o) * 65536 + buffer.readu8(colors, o + 1) * 256 + buffer.readu8(colors, o + 2)
 		end
 		T.expect(packedAt(0)).toBe(abyss) -- угол карты — открытое море
+		-- Все клетки по краю карты — цвет фона вокруг неё: шва между картой и океаном нет.
+		local ocean = Palette.pack(Palette.rgb(MapPaint.OceanColorName))
+		T.expect(ocean).toBe(abyss)
+		for x = 0, map.width - 1 do
+			T.expect(packedAt(x)).toBe(ocean)
+			T.expect(packedAt((map.height - 1) * map.width + x)).toBe(ocean)
+		end
+		for y = 0, map.height - 1 do
+			T.expect(packedAt(y * map.width)).toBe(ocean)
+			T.expect(packedAt(y * map.width + map.width - 1)).toBe(ocean)
+		end
 		local foundShallow = false
 		for i = 0, map.width * map.height - 1 do
 			if buffer.readu8(map.terrain, i) == Types.Terrain.Water and buffer.readu16(depth, i * 2) == 1 then
@@ -278,6 +289,8 @@ T.describe("CameraMath", function()
 		local x0, y0, x1, y1 = CameraMath.visibleRect(s)
 		T.expect(x0 <= 100 and 100 <= x1 and y0 <= 50 and 50 <= y1).toBe(true)
 		T.expect(x1 - x0 + 1 >= 1280 / 10).toBe(true)
+		local vx0, vy0, vx1, vy1 = CameraMath.viewRect(CameraMath.new(W, H, 1280, 720))
+		T.expect(vx0 < 0 and vy0 < 0 and vx1 >= W and vy1 >= H).toBe(true) -- вокруг карты видно океан
 		local s2 = CameraMath.new(W, H, 1280, 720)
 		T.expect((CameraMath.cellAt(s2, 1, 1))).toBe(nil) -- поле вне карты
 	end)

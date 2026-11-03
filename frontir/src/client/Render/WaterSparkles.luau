@@ -3,7 +3,7 @@
 	WaterSparkles — блики на воде (слой 1 из GDD §3). Это не перерисовка текстуры, а пул маленьких
 	квадратов размером в одну клетку поверх холста карты: EditableImage обновлять каждый кадр нельзя
 	(на экране обновляется лишь один EditableImage за кадр), а квадраты дешёвые.
-	Блики появляются только в видимой части моря на глубине от Config.Render.SparkleMinDepth.
+	Блики появляются в видимой части моря на глубине от Config.Render.SparkleMinDepth и в океане за картой.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -76,7 +76,7 @@ function WaterSparkles.start(
 	local spawnDebt = 0
 	local conn = RunService.RenderStepped:Connect(function(dt: number)
 		spawnDebt += dt * cfg.SparklesPerSec
-		local x0, y0, x1, y1 = CameraMath.visibleRect(state)
+		local x0, y0, x1, y1 = CameraMath.viewRect(state)
 		for _, s in pool do
 			if s.active then
 				s.age += dt
@@ -95,7 +95,8 @@ function WaterSparkles.start(
 				for _ = 1, 6 do
 					local cx = rng:NextInteger(x0, x1)
 					local cy = rng:NextInteger(y0, y1)
-					if buffer.readu8(mask, cy * map.width + cx) == 1 then
+					local outside = cx < 0 or cy < 0 or cx >= map.width or cy >= map.height
+					if outside or buffer.readu8(mask, cy * map.width + cx) == 1 then
 						s.cx, s.cy = cx, cy
 						s.age = 0
 						s.life = cfg.SparkleLifeSec * rng:NextNumber(0.7, 1.3)

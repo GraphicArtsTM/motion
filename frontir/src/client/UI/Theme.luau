@@ -6,7 +6,9 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Palette = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Palette"))
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local MapPaint = require(Shared:WaitForChild("MapPaint"))
+local Palette = require(Shared:WaitForChild("Palette"))
 
 local function color(name: string): Color3
 	local c = Palette.rgb(name)
@@ -22,6 +24,8 @@ Theme.BorderPx = 1
 
 Theme.Colors = table.freeze({
 	Backdrop = color("Ink"),
+	-- Фон вокруг карты — цвет открытого моря из MapPaint, край карты не виден.
+	Ocean = color(MapPaint.OceanColorName),
 	PanelBg = color("Night"),
 	PanelBorder = color("Steel"),
 	Text = color("White"),

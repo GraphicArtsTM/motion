@@ -36,9 +36,13 @@ local LAND_COLORS: { [number]: { Rgb } } = {
 local SNOW = Palette.rgb("Snow")
 local SHALLOWS = Palette.rgb("Shallows")
 local SEA = Palette.rgb("Sea")
-local ABYSS = Palette.rgb("Abyss")
+-- Цвет открытого моря. Им же залит фон вокруг карты, поэтому край карты не виден — океан бесконечный.
+local OCEAN_COLOR_NAME = "Abyss"
+local ABYSS = Palette.rgb(OCEAN_COLOR_NAME)
 
 local MapPaint = {}
+
+MapPaint.OceanColorName = OCEAN_COLOR_NAME
 
 -- Расстояние от каждой водной клетки до ближайшей суши (u16 на клетку, для суши 0).
 function MapPaint.waterDepth(map: MapData): buffer
