@@ -16,6 +16,8 @@ local fs = require("@lune/fs")
 local process = require("@lune/process")
 
 local BattleLayout = require("../src/shared/BattleLayout")
+local Buildings = require("../src/shared/Buildings")
+local BuildingSprites = require("../src/shared/BuildingSprites")
 local Config = require("../src/shared/Config")
 local Forces = require("../src/shared/Forces")
 local Grid = require("../src/shared/Grid")
@@ -200,6 +202,63 @@ local function renderRegion(
 			rect(sx - half - 1, sy - half - 1, citySize + 2, citySize + 2, ink)
 			rect(sx - half, sy - half, citySize, citySize, ownerRgb(Grid.getOwner(g, c)))
 			rect(sx - 1, sy - 1, 2, 2, white)
+		end
+	end
+	-- Здания и нефтяные поля (как у клиента, Render/BuildingLayer): значок над центром провинции.
+	local iconScale = if cell >= 6 then 2 else 1
+	local function icon(kind: string, at: number, owner: number)
+		local x, y = at % w, at // w
+		if not inRegion(x, y) then
+			return
+		end
+		local sx, sy = px(x + 0.5, y)
+		local size = BuildingSprites.Size * iconScale
+		local left, top = sx - size // 2, sy - size
+		local body = ownerRgb(owner)
+		for _, p in BuildingSprites.Shapes[kind] do
+			if not p.ink then
+				rect(
+					left + p.x * iconScale - 1,
+					top + p.y * iconScale - 1,
+					p.w * iconScale + 2,
+					p.h * iconScale + 2,
+					ink
+				)
+			end
+		end
+		for _, p in BuildingSprites.Shapes[kind] do
+			rect(
+				left + p.x * iconScale,
+				top + p.y * iconScale,
+				p.w * iconScale,
+				p.h * iconScale,
+				if p.ink then ink else body
+			)
+		end
+	end
+	for _, prov in m.provinces.list do
+		local b = m.buildings.byCell[prov.center]
+		if prov.oil and (b == nil or b.kind ~= "OilRig") then
+			icon("OilField", prov.center, 0)
+		end
+	end
+	for at, b in m.buildings.byCell do
+		if b.kind == "City" then
+			local x, y = at % w, at // w
+			if inRegion(x, y) then
+				local sx, sy = px(x + 0.5, y)
+				for k = 1, b.level - 1 do
+					rect(
+						sx + 4 * iconScale + (k - 1) * 3 * iconScale,
+						sy - 2 * iconScale,
+						2 * iconScale,
+						2 * iconScale,
+						gold
+					)
+				end
+			end
+		else
+			icon(b.kind, at, Grid.getOwner(g, at))
 		end
 	end
 	local rng = Rng.new(seed + cell)
@@ -430,13 +489,19 @@ print(
 for _, n in m.nations do
 	print(
 		string.format(
-			"  %d %-12s цвет %2d  суша %5.1f%%  люди %8.0f  гарнизон %6.0f%s",
+			"  %d %-12s цвет %2d  суша %5.1f%%  люди %8.0f  гарнизон %6.0f  $%7.0f нефть %4.0f  здания %s%s",
 			n.id,
 			n.name,
 			n.colorIndex,
 			Grid.cellsOf(g, n.id) / g.capturableCount * 100,
 			n.people,
 			Forces.total(n.home),
+			n.money,
+			n.oil,
+			(function(): string
+				local o = MatchSim.ownedOf(m, n.id)
+				return string.format("з%d р%d в%d у%d г%d", o.factories, o.markets, o.rigs, o.forts, o.cityLevels)
+			end)(),
 			if n.alive then "" else "  (пала)"
 		)
 	)

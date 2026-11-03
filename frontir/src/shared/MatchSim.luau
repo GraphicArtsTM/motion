@@ -86,6 +86,7 @@ export type Match = {
 	economy: { [number]: NationEconomy }, -- доход и содержание по державам (последний тик)
 	pockets: { [number]: Pockets.NationPockets }, -- котлы по державам (§6.7)
 	pocketCursor: number, -- чья связность проверяется следующей
+	pocketCheck: { [number]: { version: number, at: number } }, -- когда и при какой территории считали котлы
 }
 
 -- Экономика державы за последний тик, в секунду (§6.8).
@@ -130,6 +131,7 @@ function MatchSim.new(map: MapData, seed: number): Match
 		economy = {},
 		pockets = {},
 		pocketCursor = 1,
+		pocketCheck = {},
 	}
 end
 
@@ -416,18 +418,9 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 	end
 
 	if intent.kind == "build" then
-		local spot, reason = Buildings.check(
-			m.buildings,
-			m.grid,
-			m.map,
-			m.provinces,
-			function(cell: number): boolean
-				return Grid.isCity(m.grid, cell)
-			end,
-			nationId,
-			intent.building,
-			intent.cell
-		)
+		local spot, reason = Buildings.check(m.buildings, m.grid, m.map, m.provinces, function(cell: number): boolean
+			return Grid.isCity(m.grid, cell)
+		end, nationId, intent.building, intent.cell)
 		if spot == nil then
 			return false, reason
 		end
@@ -986,11 +979,19 @@ local function stepPockets(m: Match)
 	for _ = 1, Config.Pocket.NationsPerTick do
 		local n = m.nations[(m.pocketCursor - 1) % count + 1]
 		m.pocketCursor = m.pocketCursor % count + 1
-		if n.alive then
-			local result = Pockets.compute(m.grid, n.id, n.capital, function(cell: number): boolean
+		local previous = m.pockets[n.id]
+		local version = m.grid.version[n.id] or 0
+		local check = m.pocketCheck[n.id]
+		-- Пересчёт — только если территория менялась и не чаще CheckEverySec.
+		local stale = check == nil or (check.version ~= version and m.simTime - check.at >= Config.Pocket.CheckEverySec)
+		if n.alive and stale then
+			m.pocketCheck[n.id] = { version = version, at = m.simTime }
+			m.pockets[n.id] = Pockets.compute(m.grid, n.id, n.capital, function(cell: number): boolean
 				return Grid.isCity(m.grid, cell)
-			end, m.simTime, m.pockets[n.id])
-			m.pockets[n.id] = result
+			end, m.simTime, previous)
+		end
+		local result = m.pockets[n.id]
+		if n.alive and result ~= nil then
 			for _, pocket in result.pockets do
 				if not pocket.hasCity and m.simTime - pocket.since >= Config.Pocket.SurrenderSec then
 					local captor = Pockets.captor(m.grid, n.id, pocket, function(other: number): boolean
@@ -1008,6 +1009,7 @@ local function stepPockets(m: Match)
 							cells = #pocket.cells,
 						})
 						m.pockets[n.id] = nil -- пересчитать при следующей проверке
+						m.pocketCheck[n.id] = nil
 					end
 				end
 			end

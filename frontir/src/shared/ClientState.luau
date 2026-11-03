@@ -205,7 +205,12 @@ end
 -- Новые здания (сообщение buildings или полный список из info). Неверные записи пропускаются.
 function ClientState.applyBuildings(cs: ClientState, list: { any })
 	for _, b in list do
-		if type(b) == "table" and type(b.cell) == "number" and type(b.kind) == "string" and type(b.level) == "number" then
+		if
+			type(b) == "table"
+			and type(b.cell) == "number"
+			and type(b.kind) == "string"
+			and type(b.level) == "number"
+		then
 			cs.buildings[b.cell] = { kind = b.kind :: Types.BuildingKind, cell = b.cell, level = b.level }
 		end
 	end

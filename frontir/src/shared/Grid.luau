@@ -31,6 +31,11 @@ export type Grid = {
 	openStamp: buffer,
 	-- u8: 1 — в клетке город. Города не берёт ползущая граница, только армии (GDD §6.5).
 	city: buffer,
+	-- Счётчик изменений территории каждой державы (котлы пересчитываются, только если она менялась).
+	version: { [number]: number },
+	-- Служебное для заливок (Pockets): u32 метка на клетку и последнее выданное значение метки.
+	stamp: buffer,
+	stampValue: number,
 }
 
 local Grid = {}
@@ -60,6 +65,9 @@ function Grid.new(map: MapData): Grid
 		capturableCount = count,
 		openStamp = buffer.create(size * 4),
 		city = buffer.create(size),
+		version = {},
+		stamp = buffer.create(size * 4),
+		stampValue = 0,
 	}
 end
 
@@ -151,9 +159,11 @@ function Grid.setOwner(g: Grid, i: number, owner: number)
 	buffer.writeu16(g.owner, i * 2, owner)
 	if old ~= 0 then
 		g.cellCount[old] = (g.cellCount[old] or 1) - 1
+		g.version[old] = (g.version[old] or 0) + 1
 	end
 	if owner ~= 0 then
 		g.cellCount[owner] = (g.cellCount[owner] or 0) + 1
+		g.version[owner] = (g.version[owner] or 0) + 1
 	end
 	refreshBorder(g, i)
 	Grid.forNeighbours(g, i, function(j)
@@ -163,6 +173,16 @@ function Grid.setOwner(g: Grid, i: number, owner: number)
 		buffer.writeu8(g.changedFlag, i, 1)
 		table.insert(g.changed, i)
 	end
+end
+
+-- Новая метка для заливки по g.stamp (клетки с другой меткой считаются непосещёнными).
+function Grid.newStamp(g: Grid): number
+	g.stampValue += 1
+	if g.stampValue >= 4294967295 then
+		buffer.fill(g.stamp, 0, 0)
+		g.stampValue = 1
+	end
+	return g.stampValue
 end
 
 -- Забирает изменённые с прошлого раза клетки (по возрастанию индекса) и очищает журнал.

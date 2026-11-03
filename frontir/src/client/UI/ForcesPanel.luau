@@ -29,7 +29,7 @@ export type ForcesPanel = {
 
 local ForcesPanel = {}
 
-local CARD_W, CARD_H = 132, 56
+local CARD_W, CARD_H = 172, 56
 -- Клавиши найма по порядку Types.LandUnits (GDD §10: Z/X/C/V; WASD занята камерой).
 local KEYS = { Enum.KeyCode.Z, Enum.KeyCode.X, Enum.KeyCode.C, Enum.KeyCode.V }
 local KEY_NAMES = { "Z", "X", "C", "V" }
@@ -187,20 +187,40 @@ function ForcesPanel.new(
 			end
 		end
 
-		-- Карточки: клавиша, тип, цена и время; затемнены, если людей не хватает.
+		-- Карточки: клавиша, тип; деньги и нефть, люди и время; без завода техника недоступна.
+		local economy = if forces ~= nil then forces.economy else nil
+		local hasFactory = economy ~= nil and economy.factories > 0
 		for k, b in cardButtons do
 			local stats = Forces.stats(k)
 			local inQueue = queued[k] or 0
+			local needsFactory = stats.requires == "Factory" and not hasFactory
+			local price = string.format(Strings.get("hire.money", lang), Strings.formatInt(stats.cost))
+			if stats.oil > 0 then
+				price ..= " · " .. string.format(Strings.get("hire.oil", lang), Strings.formatInt(stats.oil))
+			end
+			local second = if needsFactory
+				then string.format('<font color="%s">%s</font>', alert, Strings.get("hire.needFactory", lang))
+				else string.format(
+					'<font color="%s">%s</font> · %s',
+					gold,
+					price,
+					string.format(Strings.get("hire.cost", lang), Strings.formatInt(stats.people), stats.recruitSec)
+				)
 			b.Text = string.format(
-				'<font color="%s">%s</font> %s%s\n<font size="12" color="%s">%s</font>',
+				'<font color="%s">%s</font> %s%s\n<font size="11" color="%s">%s</font>',
 				gold,
 				KEY_NAMES[k],
 				Strings.get("unit." .. Types.LandUnits[k], lang),
 				if inQueue > 0 then string.format(' <font color="%s">+%d</font>', sky, inQueue) else "",
 				sky,
-				string.format(Strings.get("hire.cost", lang), Strings.formatInt(stats.people), stats.recruitSec)
+				second
 			)
-			local affordable = myStats ~= nil and myStats.people >= stats.people
+			local affordable = myStats ~= nil
+				and myStats.people >= stats.people
+				and economy ~= nil
+				and economy.money >= stats.cost
+				and economy.oil >= stats.oil
+				and not needsFactory
 			b.TextTransparency = if affordable then 0 else 0.5
 		end
 

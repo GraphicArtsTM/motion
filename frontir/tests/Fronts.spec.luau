@@ -35,6 +35,7 @@ local function frontAttack(forces: Types.Forces): Types.Attack
 		supplied = true,
 		ratio = math.huge,
 		fighting = false,
+		lastAdvance = 0,
 	}
 end
 

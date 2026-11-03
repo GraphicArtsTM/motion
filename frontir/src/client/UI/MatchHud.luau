@@ -432,6 +432,32 @@ function MatchHud.new(
 						)
 					)
 				)
+				-- Деньги и нефть (§6.8): запас и прирост в секунду (доход минус содержание войск).
+				local economy = if cs.myForces ~= nil then cs.myForces.economy else nil
+				if economy ~= nil then
+					local net = economy.income - economy.upkeep
+					table.insert(
+						lines,
+						string.format(
+							Strings.get("hud.money", lang),
+							string.format('<font color="%s">%s</font>', gold, Strings.formatInt(economy.money)),
+							string.format(
+								'<font color="%s">%s%s</font>',
+								if net >= 0 then sky else alert,
+								if net >= 0 then "+" else "",
+								Strings.formatInt(net)
+							)
+						)
+					)
+					table.insert(
+						lines,
+						string.format(
+							Strings.get("hud.oil", lang),
+							string.format('<font color="%s">%s</font>', gold, Strings.formatInt(economy.oil)),
+							string.format('<font color="%s">+%s</font>', sky, Strings.formatInt(economy.oilIncome))
+						)
+					)
+				end
 				table.insert(
 					lines,
 					string.format(
@@ -603,6 +629,8 @@ function MatchHud.new(
 			elseif e.kind == "peace" then
 				local terms = Strings.get("peace.terms." .. tostring(e.terms), lang)
 				toast(string.format(Strings.get("event.peace", lang), a, b, terms))
+			elseif e.kind == "pocketSurrendered" then
+				toast(string.format(Strings.get("event.pocketSurrendered", lang), a, nationName(tonumber(e.by) or 0)))
 			elseif e.kind == "peaceRejected" and e.target == cs.myNation then
 				-- Наше предложение мира отклонили или оставили без ответа.
 				toast(

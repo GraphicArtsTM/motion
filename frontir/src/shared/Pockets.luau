@@ -27,6 +27,35 @@ function Pockets.empty(): NationPockets
 	return { pockets = {}, inPocket = {}, cells = 0 }
 end
 
+-- Заливка своих клеток державы от start с меткой mark (Grid.stamp), не заходя в клетки с меткой skip.
+-- Клетки дописываются в out. Без замыканий и таблиц-множеств: на «Европе» держава — до 60 тыс. клеток.
+local function flood(g: Grid, nation: number, start: number, mark: number, skip: number, out: { number })
+	local w, size = g.width, g.size
+	local owner, stamp = g.owner, g.stamp
+	buffer.writeu32(stamp, start * 4, mark)
+	table.insert(out, start)
+	local head = #out
+	while head <= #out do
+		local i = out[head]
+		head += 1
+		local x = i % w
+		for d = 1, 4 do
+			local j = if d == 1
+				then (if x > 0 then i - 1 else -1)
+				elseif d == 2 then (if x < w - 1 then i + 1 else -1)
+				elseif d == 3 then i - w
+				else i + w
+			if j >= 0 and j < size and buffer.readu16(owner, j * 2) == nation then
+				local s = buffer.readu32(stamp, j * 4)
+				if s ~= mark and s ~= skip then
+					buffer.writeu32(stamp, j * 4, mark)
+					table.insert(out, j)
+				end
+			end
+		end
+	end
+end
+
 -- Котлы державы nation. isCity(cell) — город ли клетка; previous — прошлый результат (сохраняет since).
 function Pockets.compute(
 	g: Grid,
@@ -39,63 +68,25 @@ function Pockets.compute(
 	if capital == nil or Grid.getOwner(g, capital) ~= nation then
 		return Pockets.empty()
 	end
-	-- Все клетки державы: заливка от её границы (у каждого куска есть пограничная клетка).
-	local all: { number } = {}
-	local seen: { [number]: boolean } = {}
-	local function flood(starts: { number }, mark: { [number]: boolean }, out: { number })
-		local head = #out + 1
-		for _, s in starts do
-			if not mark[s] then
-				mark[s] = true
-				table.insert(out, s)
-			end
-		end
-		while head <= #out do
-			Grid.forNeighbours(g, out[head], function(j)
-				if not mark[j] and Grid.getOwner(g, j) == nation then
-					mark[j] = true
-					table.insert(out, j)
-				end
-			end)
-			head += 1
-		end
-	end
-	local starts: { number } = {}
-	for i in Grid.borderCells(g, nation) do
-		table.insert(starts, i)
-	end
-	table.insert(starts, capital)
-	flood(starts, seen, all)
-	-- Связанные со столицей.
-	local connected: { [number]: boolean } = {}
-	flood({ capital }, connected, {})
-	if #all == 0 then
+	-- Всё, что связано со столицей.
+	local connectedMark = Grid.newStamp(g)
+	local connected: { number } = table.create(Grid.cellsOf(g, nation))
+	flood(g, nation, capital, connectedMark, -1, connected) -- -1: ничего не пропускать (метки ≥ 0)
+	if #connected >= Grid.cellsOf(g, nation) then
 		return Pockets.empty()
 	end
+	-- Котлы: у каждого есть пограничная клетка (рядом чужая земля, вода или край карты).
+	local pocketMark = Grid.newStamp(g)
 	local result: NationPockets = { pockets = {}, inPocket = {}, cells = 0 }
-	local grouped: { [number]: boolean } = {}
-	for _, i in all do
-		if not connected[i] and not grouped[i] then
+	for i in Grid.borderCells(g, nation) do
+		local s = buffer.readu32(g.stamp, i * 4)
+		if s ~= connectedMark and s ~= pocketMark then
 			local cells: { number } = {}
-			local mark: { [number]: boolean } = {}
-			-- Заливка внутри котла: только свои клетки, не связанные со столицей.
-			mark[i] = true
-			table.insert(cells, i)
-			local head = 1
-			while head <= #cells do
-				Grid.forNeighbours(g, cells[head], function(j)
-					if not mark[j] and not connected[j] and Grid.getOwner(g, j) == nation then
-						mark[j] = true
-						table.insert(cells, j)
-					end
-				end)
-				head += 1
-			end
+			flood(g, nation, i, pocketMark, connectedMark, cells)
 			local index = #result.pockets + 1
 			local hasCity = false
 			local since = now
 			for _, c in cells do
-				grouped[c] = true
 				result.inPocket[c] = index
 				if isCity(c) then
 					hasCity = true

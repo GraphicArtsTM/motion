@@ -20,6 +20,7 @@ local ClientState = require(Shared:WaitForChild("ClientState"))
 local Config = require(Shared:WaitForChild("Config"))
 local MapFormat = require(Shared:WaitForChild("MapFormat"))
 local MapPaint = require(Shared:WaitForChild("MapPaint"))
+local Provinces = require(Shared:WaitForChild("Provinces"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
 local Client = script.Parent
@@ -27,6 +28,8 @@ local Render = Client:WaitForChild("Render")
 local UI = Client:WaitForChild("UI")
 local Camera2D = require(Render:WaitForChild("Camera2D"))
 local CameraInput = require(Client:WaitForChild("Input"):WaitForChild("CameraInput"))
+local BuildPanel = require(UI:WaitForChild("BuildPanel"))
+local BuildingLayer = require(Render:WaitForChild("BuildingLayer"))
 local DebugOverlay = require(UI:WaitForChild("DebugOverlay"))
 local ForcesPanel = require(UI:WaitForChild("ForcesPanel"))
 local FrontLayer = require(Render:WaitForChild("FrontLayer"))
@@ -134,8 +137,12 @@ local cs = ClientState.new(map.width, map.height)
 local territory = TerritoryLayer.new(view, map, colors, cs)
 local labels = NationLabels.new(view.canvas, cs, lang, map.width)
 local frontLayer = FrontLayer.new(view.canvas, cs, map)
+-- Провинции считаются из карты так же, как на сервере (нефтяные поля, центры) — по сети не идут.
+local provinces = Provinces.build(map)
+local buildingLayer = BuildingLayer.new(view.canvas, cs, provinces)
 camera.onChanged(function(state)
 	labels.onCamera(state)
+	buildingLayer.onCamera(state)
 end)
 
 -- Интерфейс создаётся до подключения к серверу: сообщения из очереди могут прийти сразу при подключении.
@@ -174,6 +181,8 @@ end
 local wars = WarPanel.new(hudGui, cs, lang, send, hud.toast, toFront)
 warPanel = wars
 wars.refresh()
+local build = BuildPanel.new(hudGui, cs, lang, send, hud.toast)
+build.refresh()
 local forcesPanel = ForcesPanel.new(hudGui, cs, lang, send)
 forcesPanel.refresh()
 
@@ -186,14 +195,18 @@ client = MatchClient.connect(cs, {
 		hud.refresh()
 		forcesPanel.refresh()
 		wars.refresh()
+		build.refresh()
+		buildingLayer.refresh()
 	end,
 	onSnapshot = function()
 		territory.repaintAll()
 		labels.recolor()
+		buildingLayer.recolor()
 	end,
 	onDelta = function(cells: { number })
 		territory.cellsChanged(cells, os.clock())
 		labels.recolor()
+		buildingLayer.recolor()
 	end,
 	onStats = function()
 		hud.refresh()
@@ -201,6 +214,11 @@ client = MatchClient.connect(cs, {
 	end,
 	onForces = function()
 		forcesPanel.refresh()
+		hud.refresh()
+		build.refresh()
+	end,
+	onBuildings = function()
+		buildingLayer.refresh()
 	end,
 	onWars = function()
 		wars.refresh()
@@ -218,7 +236,11 @@ local input = CameraInput.bind(camera, viewport, {
 	onTap = function(sx: number, sy: number)
 		local cx, cy = CameraMath.cellAt(camera.state, sx, sy)
 		if cx ~= nil and cy ~= nil then
-			hud.tapCell(cy * map.width + cx)
+			local cell = cy * map.width + cx
+			-- Режим стройки забирает нажатие; иначе — старт, атака, война.
+			if not build.tap(cell) then
+				hud.tapCell(cell)
+			end
 		end
 	end,
 	-- Space — к своей столице (GDD §10); нет столицы — вся карта.

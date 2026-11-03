@@ -32,6 +32,8 @@ local function nation(id: number, people: number): Nation
 		alive = true,
 		home = Forces.new(),
 		queue = {},
+		money = 0,
+		oil = 0,
 	}
 end
 
@@ -46,6 +48,7 @@ local function attackOf(attacker: number, target: number, troops: number, focus:
 		supplied = true,
 		ratio = math.huge,
 		fighting = false,
+		lastAdvance = 0,
 	}
 end
 

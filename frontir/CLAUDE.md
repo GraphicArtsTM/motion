@@ -98,6 +98,16 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   пределы в `Config.Render.Battle`; `UI/WarPanel` — баннер войны и окна войны и мира.
 - Карты в игре — только реальная география (этап 4); «Пангея» — для тестов и превью.
 
+## Экономика и здания (этап 4б)
+- `Economy` — доход, нефть, содержание, максимум людей; `Buildings` — правила стройки и что у кого есть
+  (владелец здания = владелец его клетки); `Pockets` — котлы (заливка по меткам `Grid.stamp`, пересчёт только
+  при изменении территории — `Grid.version`). `MatchSim.refreshOwned` раз в тик собирает здания по державам.
+- Нефтяные поля — в `Provinces.build` (детерминированно, по сети не идут). Здания — в info и сообщением `buildings`,
+  деньги и нефть игрока — в FORCES.
+- Клиент: `UI/BuildPanel` (B, меню, режим стройки забирает нажатие на карту), `Render/BuildingLayer`
+  (значки из `BuildingSprites`, общие с превью).
+- Нагрузку проверять `lune run tools/bench Europe 12 300` и `tools/bench World 60 180`: тик в среднем ≤ 10 мс.
+
 ## Require
 Внутри `src/shared` модули подключают друг друга строкой: `require("./Types")` — так работает и в Roblox (`./` = `script.Parent`), и в Lune.
 Сервер и клиент берут общие модули через `ReplicatedStorage.Shared`.
