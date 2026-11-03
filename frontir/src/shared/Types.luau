@@ -119,6 +119,33 @@ export type MapGenParams = {
 	ProvinceRiverCost: number,
 }
 
+-- Карта с реальной географией (§4, tools/realmap): окно в градусах (равнопромежуточная проекция) и сетка.
+export type RealMapParams = {
+	Name: string,
+	Seed: number, -- для провинций, городов и шума лесов
+	Lon0: number, -- запад, градусы
+	Lon1: number, -- восток
+	Lat0: number, -- юг
+	Lat1: number, -- север
+	Width: number, -- клеток
+	Height: number,
+	Provinces: number, -- сколько провинций хотим (GDD: 60–250)
+	RiverMaxRank: number, -- реки Natural Earth со scalerank не больше этого (меньше — только крупные)
+	MaxPlayers: number,
+}
+
+-- Только параметры провинций (MapGen.generateProvinces) — их задают и выдуманные, и реальные карты.
+export type ProvinceParams = {
+	ProvinceTargetCells: number,
+	ProvinceMinCells: number,
+	ProvinceSeedSpacing: number,
+	ProvinceNoise: number,
+	ProvinceNoiseScale: number,
+	ProvinceHillCost: number,
+	ProvinceMountainCost: number,
+	ProvinceRiverCost: number,
+}
+
 -- Державы и матч (этап 2) -----------------------------------------------------------------
 
 -- Id державы: 1..N; 0 — нейтральная земля.

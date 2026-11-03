@@ -44,7 +44,7 @@ Config.Match = {
 	VictoryLandShareFfa = 0.60,
 	VictoryLandShareTeams = 0.70,
 	MaxAlliesFfa = 2,
-	DefaultMap = "Pangea",
+	DefaultMap = "Europe", -- карта сервера, пока нет лобби (этап 4в); «Пангея» — только тесты
 	-- Общий множитель скорости матча: всё, что идёт в игровом времени — рост людей, фронт атак,
 	-- решения ботов (дальше — армии, найм, перезарядки) — идёт в Speed раз быстрее.
 	-- 1 — обычный матч, 2 — «Блиц» (GDD §5). Таймер выбора старта и часы матча — реальное время.
@@ -127,6 +127,8 @@ Config.Dev = {
 	-- Язык интерфейса: "" — по языку Roblox у игрока, "ru" или "en" — принудительно
 	-- (например, проверить кириллицу, когда Roblox в Studio на английском).
 	ForceLang = "",
+	-- Карта матча: "" — Config.Match.DefaultMap; имя из Config.RealMaps (или "Pangea" — тестовая) — эта.
+	Map = "",
 }
 
 -- §12 Сеть
@@ -427,6 +429,130 @@ local pangea: Types.MapGenParams = {
 
 Config.MapGen = {
 	Pangea = pangea,
+}
+
+-- §4 Карты с реальной географией (этап 4а, tools/realmap). Данные: Natural Earth 1:50m (суша, озёра, реки,
+-- географические подписи) и ETOPO1 (рельеф, NOAA). Реальных стран и границ нет — только береговые линии,
+-- горы, реки и имена гор, равнин, пустынь. Окна подобраны так, чтобы клетка была почти квадратной.
+Config.RealMaps = {
+	World = {
+		Name = "World",
+		Seed = 4001,
+		Lon0 = -180,
+		Lon1 = 180,
+		Lat0 = -56,
+		Lat1 = 80,
+		Width = 1024,
+		Height = 512,
+		Provinces = 170,
+		RiverMaxRank = 3,
+		MaxPlayers = 60,
+	},
+	Europe = {
+		Name = "Europe",
+		Seed = 4002,
+		Lon0 = -24,
+		Lon1 = 60,
+		Lat0 = 34,
+		Lat1 = 72,
+		Width = 768,
+		Height = 576,
+		Provinces = 150,
+		RiverMaxRank = 5,
+		MaxPlayers = 40,
+	},
+	Mediterranean = {
+		Name = "Mediterranean",
+		Seed = 4003,
+		Lon0 = -9,
+		Lon1 = 37,
+		Lat0 = 27.5,
+		Lat1 = 48.7,
+		Width = 768,
+		Height = 448,
+		Provinces = 110,
+		RiverMaxRank = 6,
+		MaxPlayers = 30,
+	},
+	Asia = {
+		Name = "Asia",
+		Seed = 4004,
+		Lon0 = 25,
+		Lon1 = 180,
+		Lat0 = -11,
+		Lat1 = 68,
+		Width = 1024,
+		Height = 640,
+		Provinces = 170,
+		RiverMaxRank = 4,
+		MaxPlayers = 50,
+	},
+	Americas = {
+		Name = "Americas",
+		Seed = 4005,
+		Lon0 = -168,
+		Lon1 = -34,
+		Lat0 = -56,
+		Lat1 = 72,
+		Width = 640,
+		Height = 1024,
+		Provinces = 160,
+		RiverMaxRank = 4,
+		MaxPlayers = 40,
+	},
+	Africa = {
+		Name = "Africa",
+		Seed = 4006,
+		Lon0 = -20,
+		Lon1 = 56,
+		Lat0 = -36,
+		Lat1 = 38,
+		Width = 640,
+		Height = 704,
+		Provinces = 170,
+		RiverMaxRank = 4,
+		MaxPlayers = 30,
+	},
+}
+-- Порядок карт (ротация, лобби — этап 4в).
+Config.RealMapOrder = { "Europe", "Mediterranean", "Africa", "Asia", "Americas", "World" }
+
+-- Местность реальных карт по рельефу (метры, перепад — в окне 3×3 клетки) и широте.
+Config.RealMapTerrain = {
+	MountainMeters = 2200, -- выше — горы
+	MountainBaseMeters = 1200, -- …или выше этого при перепаде MountainRelief
+	MountainRelief = 900,
+	HillMeters = 800, -- выше — холмы
+	HillRelief = 350, -- …или такой перепад
+	-- Перепад меряется в окне 3×3 клетки, поэтому на крупных клетках он больше: пороги перепада
+	-- умножаются на √(размер клетки / ReliefRefCellKm).
+	ReliefRefCellKm = 7,
+	TundraLatitude = 65, -- севернее (и южнее −65) — тундра…
+	TundraJitter = 3, -- …граница тундры неровная: ±3° по шуму
+	-- Доля леса по широте (между точками — плавно): тропики, сухой пояс, умеренный пояс, тайга, тундра.
+	ForestByLatitude = {
+		{ lat = 0, share = 0.62 },
+		{ lat = 12, share = 0.6 },
+		{ lat = 20, share = 0.12 },
+		{ lat = 32, share = 0.15 },
+		{ lat = 42, share = 0.3 },
+		{ lat = 50, share = 0.4 },
+		{ lat = 58, share = 0.6 },
+		{ lat = 66, share = 0.55 },
+		{ lat = 72, share = 0.1 },
+	},
+	ForestNoiseScale = 16, -- размер лесных массивов, клеток (шум из нескольких октав)
+	ForestNoiseSpread = 0.22, -- разброс этого шума вокруг 0.5 (чтобы доля леса совпадала с заданной)
+	MinIslandCells = 8, -- острова меньше — в воду (каждый остров — своя провинция)
+	FillLakeCells = 3, -- лужи меньше (не моря) — в сушу
+	LabelSearchCells = 40, -- имя провинции — от подписи не дальше стольких клеток
+	ProvinceMinShare = 0.3, -- провинции меньше этой доли среднего сливаются с соседом
+	ProvinceSeedSpacing = 0.85,
+	ProvinceNoise = 0.6,
+	ProvinceNoiseScale = 12,
+	ProvinceHillCost = 1.5,
+	ProvinceMountainCost = 3,
+	ProvinceRiverCost = 6,
 }
 
 -- Упаковка карт в ModuleScript (maps/*.luau)

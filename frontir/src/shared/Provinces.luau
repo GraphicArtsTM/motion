@@ -114,9 +114,14 @@ function Provinces.build(map: MapData): ProvinceSet
 		end
 		table.sort(p.neighbours)
 		p.island = #p.neighbours == 0
-		local name = NameGen.generate(rng, taken)
-		taken[name.ru] = true
-		p.name, p.nameEn = name.ru, name.en
+		local given = if map.provinceNames ~= nil then map.provinceNames[id] else nil
+		if given ~= nil then
+			p.name, p.nameEn = given.ru, given.en -- реальная карта: имя от географической подписи
+		else
+			local name = NameGen.generate(rng, taken)
+			taken[name.ru] = true
+			p.name, p.nameEn = name.ru, name.en
+		end
 	end
 
 	-- Нейтральные города: доля провинций, не в горах, не ближе MinDistance друг к другу.

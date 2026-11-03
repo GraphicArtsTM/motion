@@ -5,13 +5,17 @@
 	Владельцы клеток (динамика матча) живут отдельно, в Grid (этап 2).
 ]]
 
+-- Имя провинции на двух языках (на реальных картах — от географических подписей, §4).
+export type ProvinceName = { ru: string, en: string }
+
 export type MapData = {
 	name: string,
 	seed: number,
 	width: number,
 	height: number,
 	terrain: buffer, -- u8 на клетку, значения Types.Terrain
-	province: buffer, -- u16 на клетку, 0 — нет провинции (провинции появятся на этапе 3)
+	province: buffer, -- u16 на клетку, 0 — нет провинции
+	provinceNames: { ProvinceName }?, -- имена провинций по id; nil — имена придумает Provinces (NameGen)
 }
 
 local MapData = {}
@@ -28,6 +32,7 @@ function MapData.new(name: string, seed: number, width: number, height: number):
 		height = height,
 		terrain = buffer.create(width * height),
 		province = buffer.create(width * height * 2),
+		provinceNames = nil,
 	}
 end
 

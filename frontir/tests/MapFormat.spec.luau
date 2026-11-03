@@ -84,7 +84,8 @@ T.describe("MapFormat", function()
 	T.it(
 		"закоммиченный maps/Pangea.luau совпадает с генератором (иначе: lune run tools/genmap Pangea)",
 		function()
-			local fromFile = MapFormat.fromModule(PangeaModule)
+			-- Модуль — обычная таблица без необязательных полей (provinceNames только у реальных карт).
+			local fromFile = MapFormat.fromModule(PangeaModule :: any)
 			T.expect(MapData.equals(fromFile, map)).toBe(true)
 			T.expect(PangeaModule.seed).toBe(Config.MapGen.Pangea.Seed)
 		end

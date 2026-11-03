@@ -411,7 +411,7 @@ function MapGen.generate(p: Types.MapGenParams): (MapData, GenStats)
 end
 
 -- 7. Провинции: заполняет map.province (u16, 1..P на суше, 0 на воде). Возвращает число провинций.
-function MapGen.generateProvinces(map: MapData, p: Types.MapGenParams, rng: Rng.Rng): number
+function MapGen.generateProvinces(map: MapData, p: Types.ProvinceParams, rng: Rng.Rng): number
 	local w, h = map.width, map.height
 	local n = w * h
 	local T = Types.Terrain
@@ -591,5 +591,9 @@ end
 -- Экспорт для тестов и инструментов.
 MapGen.components = components
 MapGen.distanceField = distanceField
+
+-- Связные куски клеток со значением value в маске (4-соседство): метки (u32 на клетку), размеры и
+-- касается ли кусок края карты. Нужно и генератору реальных карт (tools/realmap).
+MapGen.components = components
 
 return table.freeze(MapGen)

@@ -3,6 +3,8 @@
 	Превью партии: прогоняет матч на карте без игроков-людей (только боты) и рисует территории
 	теми же функциями, что и клиент (MapPaint + TerritoryPaint). Для проверки формы границ, цветов и темпа.
 	Запуск из frontir/:  lune run tools/match_preview [секунд=75] [сид=12345] [файл=build/match.png]
+	                     [карта=Config.Match.DefaultMap] [держав=Config.Match.TargetNations]
+	Карта — модуль из maps/ (реальные карты пишет tools/realmap; «Pangea» — тестовая).
 	Картинка (PNG): сверху вся карта ×2 с городами и юнитами вдоль фронтов (как на клиенте на зуме ×2),
 	снизу — крупно бой (как на зуме ×8): если есть бой через реку — он, иначе самый большой. Юниты стоят
 	по той же раскладке, что у клиента (Shared.BattleLayout): ничейная полоса, артиллерия в тылу; снаряды
@@ -18,7 +20,7 @@ local Config = require("../src/shared/Config")
 local Forces = require("../src/shared/Forces")
 local Grid = require("../src/shared/Grid")
 local MapData = require("../src/shared/MapData")
-local MapGen = require("../src/shared/MapGen")
+local MapFormat = require("../src/shared/MapFormat")
 local MapPaint = require("../src/shared/MapPaint")
 local MatchSim = require("../src/shared/MatchSim")
 local TerritoryPaint = require("../src/shared/TerritoryPaint")
@@ -32,8 +34,10 @@ local Png = require("./lib/Png")
 local seconds = tonumber(process.args[1]) or 75
 local seed = tonumber(process.args[2]) or 12345
 
-local map = MapGen.generate(Config.MapGen.Pangea)
+local mapName = process.args[4] or Config.Match.DefaultMap
+local map = MapFormat.fromModule((require :: any)("../maps/" .. mapName) :: MapFormat.MapModule)
 local m = MatchSim.new(map, seed)
+m.targetNations = tonumber(process.args[5]) or Config.Match.TargetNations
 MatchSim.startPick(m)
 local dt = 1 / Config.Sim.TickRate
 while m.phase ~= "Play" do

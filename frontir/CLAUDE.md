@@ -31,9 +31,12 @@ lune run tests          # все тесты; `lune run tests Config` — тол�
 stylua --check src tests tools
 selene src tests tools
 rojo serve              # синхронизация со Studio
-lune run tools/genmap Pangea   # пересоздать maps/Pangea.luau (+ превью build/Pangea.bmp)
+lune run tools/realmap all     # пересоздать реальные карты maps/*.luau (данные кешируются в build/geo/)
+lune run tools/maps_preview    # лист всех карт → build/maps.png
+lune run tools/bench World 60 180  # нагрузка: время тика и трафик на 60 ботах
+lune run tools/genmap Pangea   # пересоздать тестовую maps/Pangea.luau (+ превью build/Pangea.bmp)
 lune run tools/palette_preview # пересоздать docs/palette.png после правки цветов
-lune run tools/match_preview 120  # партия ботов на 120 с → build/match.png (форма границ, цвета, темп)
+lune run tools/match_preview 120 12345 build/match.png Europe 12  # партия ботов → картинка (секунды, сид, файл, карта, держав)
 rojo sourcemap default.project.json -o sourcemap.json   # для luau-lsp
 lune setup              # типы Lune (алиас @lune в .luaurc)
 luau-lsp analyze --platform=roblox --definitions:@roblox=types/globalTypes.d.luau --sourcemap=sourcemap.json --base-luaurc=.luaurc src tests tools
@@ -47,7 +50,7 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
 
 ## Раскладка в Roblox (default.project.json)
 - `src/shared` → `ReplicatedStorage.Shared`
-- `maps` → `ReplicatedStorage.Maps`
+- `maps` → `ServerStorage.Maps` (сервер копирует выбранную карту в `ReplicatedStorage.Maps` — клиенты получают только её)
 - `src/server` → `ServerScriptService.Server`
 - `src/client` → `StarterPlayer.StarterPlayerScripts.Client`
 
@@ -57,6 +60,10 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
 - EditableImage: максимум 1024×1024, на экране обновляется один EditableImage за кадр, бюджет памяти клиента
   (CreateEditableImage → nil), в опубликованной игре нужен флаг Allow Mesh / Image APIs.
 - Pure-модули, которые нужны клиенту, кладём в `src/shared` (клиентская папка не видит shared по относительному пути).
+- **Реальные карты (этап 4а):** `tools/realmap` + `tools/lib/Geo` (проекция, заливка многоугольников, реки, высоты,
+  местность, фильтр имён `Geo.isNameAllowed` — без реальных стран). Параметры — `Config.RealMaps`,
+  `Config.RealMapTerrain`. Имена провинций лежат в модуле карты (`provinceNames`), `Provinces.build` берёт их оттуда.
+  Тест `RealMaps.spec` проверяет все карты: размер ≤ 1024, провинций 60–250, имена, места для старта.
 
 ## Матч (этап 2)
 - Симуляция целиком в `src/shared/MatchSim.luau` (+ `Grid`, `Economy`, `Expansion`, `StartPositions`, `BotBrain`,

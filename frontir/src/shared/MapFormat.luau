@@ -13,9 +13,10 @@
 	  .. RLE провинций:  [varint длина серии][u16 id провинции]...
 	varint — беззнаковый LEB128. Серии идут по клеткам в порядке индекса (y * width + x).
 
-	Модуль карты (maps/<Имя>.luau, пишет tools/genmap.luau) возвращает MapModule:
-	  { name, seed, width, height, formatVersion, data = { "<base64>", ... } }
-	Строки data склеиваются и декодируются из base64 в бинарный буфер выше.
+	Модуль карты (maps/<Имя>.luau, пишут tools/genmap.luau и tools/realmap.luau) возвращает MapModule:
+	  { name, seed, width, height, formatVersion, data = { "<base64>", ... }, provinceNames = { { ru, en }, ... }? }
+	Строки data склеиваются и декодируются из base64 в бинарный буфер выше. provinceNames (реальные карты) —
+	имена провинций по id; без них имена придумывает Provinces.
 ]]
 
 local Base64 = require("./Base64")
@@ -31,6 +32,7 @@ export type MapModule = {
 	height: number,
 	formatVersion: number,
 	data: { string },
+	provinceNames: { { string } }?, -- { ru, en } по id провинции
 }
 
 local MAGIC = "FRMP"
@@ -223,6 +225,14 @@ function MapFormat.fromModule(module: MapModule): MapData
 		)
 	end
 	local map = MapFormat.decode(Base64.decode(table.concat(module.data)), module.name, module.seed)
+	local names = module.provinceNames
+	if names ~= nil then
+		local list: { MapData.ProvinceName } = {}
+		for id, pair in names do
+			list[id] = { ru = pair[1], en = pair[2] }
+		end
+		map.provinceNames = list
+	end
 	if map.width ~= module.width or map.height ~= module.height then
 		error(
 			string.format(

@@ -582,11 +582,29 @@ local function eliminate(m: Match, n: Nation, by: number)
 	n.home = Forces.new()
 	n.queue = {}
 	n.capital = nil
+	-- Клетки державы ищем заливкой от её границы (у каждого её куска есть пограничная клетка),
+	-- а не перебором всей карты: на «Мире» это 524 тыс. клеток.
 	local g = m.grid
-	for i = 0, g.size - 1 do
-		if Grid.getOwner(g, i) == n.id then
-			Grid.setOwner(g, i, 0)
+	local cells: { number } = {}
+	local seen: { [number]: boolean } = {}
+	for i in Grid.borderCells(g, n.id) do
+		if not seen[i] then
+			seen[i] = true
+			table.insert(cells, i)
 		end
+	end
+	local head = 1
+	while head <= #cells do
+		Grid.forNeighbours(g, cells[head], function(j)
+			if not seen[j] and Grid.getOwner(g, j) == n.id then
+				seen[j] = true
+				table.insert(cells, j)
+			end
+		end)
+		head += 1
+	end
+	for _, i in cells do
+		Grid.setOwner(g, i, 0)
 	end
 	local j = 1
 	while j <= #m.attacks do

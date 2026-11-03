@@ -5,7 +5,9 @@
 		"ReplicatedStorage": {
 			"Shared": {
 				"$path": "src/shared"
-			},
+			}
+		},
+		"ServerStorage": {
 			"Maps": {
 				"$path": "maps"
 			}
