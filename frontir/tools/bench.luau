@@ -8,6 +8,8 @@
 local process = require("@lune/process")
 
 local Config = require("../src/shared/Config")
+local Diplomacy = require("../src/shared/Diplomacy")
+local Fog = require("../src/shared/Fog")
 local Grid = require("../src/shared/Grid")
 local MapFormat = require("../src/shared/MapFormat")
 local MatchSim = require("../src/shared/MatchSim")
@@ -48,7 +50,8 @@ for t = 1, seconds * Config.Sim.TickRate do
 		second += buffer.len(Protocol.encodeDelta(m.tick, changes, m.grid.owner)) + OVERHEAD
 	end
 	if t % statsEvery == 0 then
-		second += buffer.len(Protocol.encodeStats(MatchStats.build(m, 0, #changes))) + OVERHEAD
+		-- STATS — каждому свой (туман, §6.11): меряем глазами первой державы.
+		second += buffer.len(Protocol.encodeStats(MatchStats.forViewer(m, MatchStats.build(m, 0, #changes), 1))) + OVERHEAD
 		second += buffer.len(Protocol.encodeWars(MatchStats.wars(m))) + OVERHEAD
 	end
 	if t % Config.Sim.TickRate == 0 then
@@ -72,5 +75,47 @@ print(
 		ticks,
 		bytes / seconds / 1000,
 		peak / 1000
+	)
+)
+
+-- Туман (§6.11): пересчёт обзора клиентом у самой большой державы и STATS каждому игроку (сервер, раз в секунду).
+local biggest = m.nations[1]
+for _, n in m.nations do
+	if n.alive and Grid.cellsOf(m.grid, n.id) > Grid.cellsOf(m.grid, biggest.id) then
+		biggest = n
+	end
+end
+local fs = Fog.new(m.grid.width, m.grid.height)
+local friends = Diplomacy.friends(m.diplo, biggest.id)
+local fronts: { { mine: number, other: number } } = {}
+for _, a in m.attacks do
+	if friends[a.attacker] and a.target ~= 0 then
+		table.insert(fronts, { mine = a.attacker, other = a.target })
+	elseif friends[a.target] then
+		table.insert(fronts, { mine = a.target, other = a.attacker })
+	end
+end
+local sources = { friends = friends, fronts = fronts, radars = MatchStats.radarsOf(m, friends) }
+Fog.compute(fs, m.grid.owner, sources) -- первый раз — из «видно всё»
+local runs, fogMs = 10, 0
+for _ = 1, runs do
+	local t0 = os.clock()
+	Fog.compute(fs, m.grid.owner, sources)
+	fogMs += (os.clock() - t0) * 1000
+end
+local t0 = os.clock()
+local full = MatchStats.build(m, 0, 0)
+local head = Protocol.encodeStatsHead(full)
+for _, n in m.nations do
+	Protocol.encodeStats(MatchStats.forViewer(m, full, n.id), head)
+end
+local statsMs = (os.clock() - t0) * 1000
+print(
+	string.format(
+		"туман: обзор клиента у крупнейшей державы (%.0f%% суши) — %.1f мс; STATS для %d держав — %.1f мс",
+		Grid.cellsOf(m.grid, biggest.id) / m.grid.capturableCount * 100,
+		fogMs / runs,
+		#m.nations,
+		statsMs
 	)
 )

@@ -24,6 +24,7 @@ local Economy = require(Shared:WaitForChild("Economy"))
 local MapDataModule = require(Shared:WaitForChild("MapData"))
 local NationColors = require(Shared:WaitForChild("NationColors"))
 local Protocol = require(Shared:WaitForChild("Net"):WaitForChild("Protocol"))
+local Provinces = require(Shared:WaitForChild("Provinces"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
 local Theme = require(script.Parent:WaitForChild("Theme"))
@@ -131,12 +132,14 @@ function MatchHud.new(
 	lang: Strings.Lang,
 	map: MapData,
 	send: (string, { [string]: any }) -> (),
-	onNationTap: (owner: number) -> () -- нажатие на страну, с которой нет войны (объявление войны)
+	onNationTap: (owner: number) -> (), -- нажатие на страну, с которой нет войны (объявление войны)
+	provinces: Provinces.ProvinceSet -- имена провинций (восстания в ленте, §6.10)
 ): Hud
 	local cfg = Config.Expansion
 	local percent = cfg.DefaultPercent
 	local gold, sky, alert = hex(Theme.Colors.Gold), hex(Theme.Colors.Sky), hex(Theme.Colors.Alert)
 	local muted = hex(Theme.Colors.Muted)
+	local green = hex(Theme.color("Lime"))
 
 	local totalLand = 0
 	for i = 0, map.width * map.height - 1 do
@@ -485,6 +488,23 @@ function MatchHud.new(
 						string.format('<font color="%s">%.1f</font>', sky, myStats.cells / math.max(1, totalLand) * 100)
 					)
 				)
+				-- Средняя стабильность (§6.10): зелёная от 50, жёлтая от 30, красная ниже; клетки с половинным доходом.
+				if #cs.stability.ids > 0 then
+					local avg = cs.stability.average
+					local c = if avg >= 50 then green elseif avg >= Config.Stability.LowBelow then gold else alert
+					local text = string.format(
+						Strings.get("hud.stability", lang),
+						string.format('<font color="%s">%d</font>', c, avg)
+					)
+					if cs.stability.lowCells > 0 then
+						text ..= string.format(
+							' <font color="%s">%s</font>',
+							alert,
+							string.format(Strings.get("hud.lowIncome", lang), Strings.formatInt(cs.stability.lowCells))
+						)
+					end
+					table.insert(lines, text)
+				end
 				table.insert(lines, string.format(Strings.get("hud.troops", lang), Strings.formatInt(myStats.troops)))
 				if myStats.weariness > 0 then
 					table.insert(
@@ -804,6 +824,16 @@ function MatchHud.new(
 				and table.find(Config.Pings.Phrases, e.phrase) ~= nil
 			then
 				toast(string.format(Strings.get("event.ping", lang), a, Strings.get("ping." .. e.phrase, lang)))
+			elseif e.kind == "revolt" then
+				-- Восстание (§6.10): у нас — красной строкой.
+				local province = provinces.list[tonumber(e.province) or 0]
+				local where = if province ~= nil then (if lang == "en" then province.nameEn else province.name) else "?"
+				local text = string.format(Strings.get("event.revolt", lang), where, a)
+				if e.nation == cs.myNation then
+					alertLine(text)
+				else
+					toast(text)
+				end
 			elseif e.kind == "peaceRejected" and e.target == cs.myNation then
 				-- Наше предложение мира отклонили или оставили без ответа.
 				toast(

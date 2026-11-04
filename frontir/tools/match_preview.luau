@@ -9,6 +9,8 @@
 	снизу — крупно бой (как на зуме ×8): если есть бой через реку — он, иначе самый большой. Юниты стоят
 	по той же раскладке, что у клиента (Shared.BattleLayout): ничейная полоса, артиллерия в тылу; снаряды
 	по дуге, разрывы, воронки и дым — как кадр боя.
+	Этап 7а: провинции повстанцев — штриховкой; ещё ниже две панели ×1 одной державы (у кого больше всего восстаний):
+	слева — карта её глазами в тумане (последнее увиденное, темнее вне обзора), справа — режим «Стабильность».
 	Превью для отчёта этапа: lune run tools/match_preview 75 12345 docs/previews/stage-N.png
 ]]
 
@@ -18,12 +20,16 @@ local process = require("@lune/process")
 local BattleLayout = require("../src/shared/BattleLayout")
 local BuildingSprites = require("../src/shared/BuildingSprites")
 local Config = require("../src/shared/Config")
+local Diplomacy = require("../src/shared/Diplomacy")
+local Fog = require("../src/shared/Fog")
 local Forces = require("../src/shared/Forces")
 local Grid = require("../src/shared/Grid")
 local MapData = require("../src/shared/MapData")
 local MapFormat = require("../src/shared/MapFormat")
 local MapPaint = require("../src/shared/MapPaint")
 local MatchSim = require("../src/shared/MatchSim")
+local MatchStats = require("../src/shared/Net/MatchStats")
+local Stability = require("../src/shared/Stability")
 local MinimapPaint = require("../src/shared/MinimapPaint")
 local TerritoryPaint = require("../src/shared/TerritoryPaint")
 local NationColors = require("../src/shared/NationColors")
@@ -49,8 +55,43 @@ local declared, peaces = 0, 0
 local resolutions: { string } = {}
 local transfers, councils = 0, 0
 local betrayals: { string } = {}
+-- Туман (§6.11) каждой державы: пересчёт раз в FogEverySec игрового времени — «последнее увиденное».
+local FOG_EVERY = 2
+local fogOf: { [number]: Fog.FogState } = {}
+local nextFog = 0
+local function fogSources(id: number): Fog.Sources
+	local friends = Diplomacy.friends(m.diplo, id)
+	local list: { { mine: number, other: number } } = {}
+	for _, a in m.attacks do
+		if a.target ~= 0 then
+			if friends[a.attacker] then
+				table.insert(list, { mine = a.attacker, other = a.target })
+			end
+			if friends[a.target] then
+				table.insert(list, { mine = a.target, other = a.attacker })
+			end
+		end
+	end
+	return { friends = friends, fronts = list, radars = MatchStats.radarsOf(m, friends) }
+end
+local revolts: { [number]: number } = {}
+local revoltLog: { string } = {}
 for _ = 1, math.floor(seconds * Config.Sim.TickRate) do
 	MatchSim.step(m, dt)
+	if m.simTime >= nextFog then
+		nextFog = m.simTime + FOG_EVERY
+		for _, n in m.nations do
+			if n.alive then
+				local fog = fogOf[n.id]
+				if fog == nil then
+					fog = Fog.new(map.width, map.height)
+					buffer.copy(fog.known, 0, m.grid.owner, 0, m.grid.size * 2) -- старт виден всем
+					fogOf[n.id] = fog
+				end
+				Fog.compute(fog, m.grid.owner, fogSources(n.id))
+			end
+		end
+	end
 	for _, e in MatchSim.takeEvents(m) do
 		if e.kind == "warDeclared" then
 			declared += 1
@@ -58,6 +99,12 @@ for _ = 1, math.floor(seconds * Config.Sim.TickRate) do
 			peaces += 1
 		elseif e.kind == "resolution" then
 			table.insert(resolutions, string.format("%d:%02d %s", m.time // 60, math.floor(m.time % 60), e.resolution))
+		elseif e.kind == "revolt" then
+			revolts[e.nation] = (revolts[e.nation] or 0) + 1
+			table.insert(
+				revoltLog,
+				string.format("%d:%02d %d/пр.%d", m.time // 60, math.floor(m.time % 60), e.nation, e.province)
+			)
 		elseif e.kind == "councilClosed" then
 			councils += 1
 		elseif e.kind == "transfer" then
@@ -171,6 +218,8 @@ local function riverPoints(k: number): number
 	return count
 end
 
+local rebelExtra: TerritoryPaint.Extra = {}
+
 -- Рисует область карты (клетки x0..x0+cw-1, y0..y0+ch-1) в картинку со сдвигом (ox, oy):
 -- клетка = cell пикселей, пиксель спрайта = sprite пикселей. fx — кадр боя: снаряды, разрывы, воронки, дым.
 local function renderRegion(
@@ -214,7 +263,9 @@ local function renderRegion(
 	-- Территории.
 	for y = y0, y0 + ch - 1 do
 		for x = x0, x0 + cw - 1 do
-			local r, gg, b = TerritoryPaint.cellColor(terrain, g.owner, w, h, y * w + x, colorOf, 0)
+			local i = y * w + x
+			rebelExtra.rebel = Grid.getOwner(g, i) == 0 and Stability.isRebel(m.stability, MapData.getProvince(map, i))
+			local r, gg, b = TerritoryPaint.cellColor(terrain, g.owner, w, h, i, colorOf, 0, rebelExtra)
 			rect(ox + (x - x0) * cell, oy + (y - y0) * cell, cell, cell, { r = r, g = gg, b = b })
 		end
 	end
@@ -457,7 +508,21 @@ local W = w * SCALE
 local mapH = h * SCALE
 local cropW = W // ZOOM
 local cropH = if closeUp ~= nil then 44 else 0
-local H = mapH + (if cropH > 0 then 4 + cropH * ZOOM else 0)
+-- Держава для панелей тумана и стабильности: больше всего восстаний, иначе самая большая живая.
+local viewer = 0
+do
+	local best = -1
+	for _, n in m.nations do
+		if n.alive then
+			local score = (revolts[n.id] or 0) * 1e7 + Grid.cellsOf(g, n.id)
+			if score > best then
+				viewer, best = n.id, score
+			end
+		end
+	end
+end
+local panelsY = mapH + (if cropH > 0 then 4 + cropH * ZOOM else 0)
+local H = panelsY + (if viewer ~= 0 then 4 + h else 0)
 local pixels = buffer.create(W * H * 3)
 renderRegion(pixels, W, H, 0, 0, 0, 0, w, h, SCALE, UnitSprites.scaleFor(SCALE), false, sides, lineD)
 if closeUp ~= nil then
@@ -489,6 +554,48 @@ if closeUp ~= nil then
 	local cropSides, _, cropLineD = buildSides(cropRect)
 	local zoomScale = UnitSprites.scaleFor(ZOOM)
 	renderRegion(pixels, W, H, 0, mapH + 4, x0, y0, cropW, cropH, ZOOM, zoomScale, true, cropSides, cropLineD)
+end
+
+-- Этап 7а: слева — карта глазами viewer в тумане, справа — его режим «Стабильность» (обе ×1).
+if viewer ~= 0 then
+	for yy = panelsY, panelsY + 3 do
+		for xx = 0, W - 1 do
+			local o = (yy * W + xx) * 3
+			buffer.writeu8(pixels, o, ink.r)
+			buffer.writeu8(pixels, o + 1, ink.g)
+			buffer.writeu8(pixels, o + 2, ink.b)
+		end
+	end
+	local view = fogOf[viewer] or Fog.new(w, h)
+	Fog.compute(view, g.owner, fogSources(viewer))
+	local extra: TerritoryPaint.Extra = {}
+	local oy = panelsY + 4
+	local function write(px: number, py: number, r: number, gg: number, b: number)
+		local o = (py * W + px) * 3
+		buffer.writeu8(pixels, o, r)
+		buffer.writeu8(pixels, o + 1, gg)
+		buffer.writeu8(pixels, o + 2, b)
+	end
+	for y = 0, h - 1 do
+		for x = 0, w - 1 do
+			local i = y * w + x
+			local p = MapData.getProvince(map, i)
+			local rebel = p ~= 0 and Stability.isRebel(m.stability, p)
+			-- Туман: последний увиденный владелец, вне обзора темнее.
+			extra.fogged = not Fog.isVisible(view, i)
+			extra.rebel = rebel and Fog.knownOwner(view, i) == 0
+			extra.stability = nil
+			local r, gg, b = TerritoryPaint.cellColor(terrain, view.known, w, h, i, colorOf, 0, extra)
+			write(x, oy + y, r, gg, b)
+			-- Стабильность: свои клетки цветом стабильности провинции.
+			extra.fogged = false
+			extra.rebel = rebel and Grid.getOwner(g, i) == 0
+			local s = if p ~= 0 and Grid.getOwner(g, i) == viewer then Stability.valueOf(m.stability, p) else nil
+			extra.stability = if s ~= nil and m.stability.provinces[p].owner == viewer then s else nil
+			r, gg, b = TerritoryPaint.cellColor(terrain, g.owner, w, h, i, colorOf, 0, extra)
+			write(w + x, oy + y, r, gg, b)
+		end
+	end
 end
 
 -- HUD v1 поверх карты: мини-карта справа снизу (MinimapPaint, как у клиента) и график доли суши за матч
@@ -704,6 +811,55 @@ do
 		)
 	)
 	print("  ИСТОРИЯ: " .. table.concat(hist, ", "))
+	local avg: { string } = {}
+	for _, n in m.nations do
+		if n.alive then
+			local sum = Stability.summaryOf(m.stability, n.id)
+			table.insert(avg, string.format("%d:%.0f(½%d)", n.id, sum.average, sum.lowCells))
+		end
+	end
+	print("  СТАБИЛЬНОСТЬ (средняя, клеток с ½ дохода): " .. table.concat(avg, " "))
+	local rebelCells, rebelProvinces = 0, 0
+	for province in m.stability.rebels do
+		rebelProvinces += 1
+		for _, cell in m.provinces.list[province].cells do
+			if Grid.getOwner(g, cell) == 0 then
+				rebelCells += 1
+			end
+		end
+	end
+	print(
+		string.format(
+			"  ПОВСТАНЦЫ сейчас: провинций %d, ничьих клеток в штриховке %d",
+			rebelProvinces,
+			rebelCells
+		)
+	)
+	print(
+		string.format(
+			"  ВОССТАНИЯ: %d — %s",
+			#revoltLog,
+			if #revoltLog > 0 then table.concat(revoltLog, ", ") else "нет"
+		)
+	)
+	if viewer ~= 0 then
+		local view = fogOf[viewer]
+		local seen = 0
+		if view ~= nil then
+			for i = 0, g.size - 1 do
+				if Fog.isVisible(view, i) then
+					seen += 1
+				end
+			end
+		end
+		print(
+			string.format(
+				"  ПАНЕЛИ СНИЗУ: держава %d — в обзоре %.0f%% карты (слева), её стабильность (справа)",
+				viewer,
+				seen / g.size * 100
+			)
+		)
+	end
 end
 if result ~= nil then
 	local winner = m.nations[result.winner]

@@ -6,6 +6,8 @@
 	и сравнивает копию клиента с сеткой сервера побайтно.
 ]]
 
+local Config = require("./Config")
+local Fog = require("./Fog")
 local Protocol = require("./Net/Protocol")
 local Types = require("./Types")
 
@@ -59,6 +61,17 @@ export type DiploCouncil = {
 	nextLeft: number,
 }
 
+-- Стабильность (§6.10, этап 7а): своя (средняя, провинции) и повстанцы на карте. Сроки — секунды игрового времени.
+export type StabilityMessage = {
+	kind: "stability",
+	average: number, -- средняя стабильность своих провинций (по клеткам), целое
+	lowCells: number, -- клеток с половинным доходом
+	ids: { number }, -- свои провинции…
+	values: { number }, -- …и их стабильность (целые)
+	rebels: { number }, -- провинции повстанцев…
+	rebelLeft: { number }, -- …и сколько им осталось
+}
+
 export type ApplyResult = "snapshot" | "delta" | "stats" | "forces" | "wars" | "partial" | "ignored"
 
 export type ClientState = {
@@ -88,6 +101,11 @@ export type ClientState = {
 	result: Types.MatchResult?,
 	diplo: DiploMessage, -- договоры (§8.1)
 	diploAt: number, -- когда пришло diplo (часы клиента; для обратных отсчётов)
+	-- Туман (§6.11, этап 7а): обзор, последний увиденный владелец; fogOff — «Туман выкл» панели разработчика.
+	fog: Fog.FogState,
+	fogOff: boolean,
+	stability: StabilityMessage, -- своя стабильность и повстанцы (§6.10)
+	rebelSet: { [number]: boolean }, -- провинции повстанцев (из stability)
 }
 
 local ClientState = {}
@@ -134,11 +152,29 @@ function ClientState.new(width: number, height: number): ClientState
 		diploAt = 0,
 		warsAt = 0,
 		bytes = 0,
+		fog = Fog.new(width, height),
+		fogOff = false,
+		stability = ClientState.emptyStability(),
+		rebelSet = {},
 	}
+end
+
+function ClientState.emptyStability(): StabilityMessage
+	return { kind = "stability", average = 0, lowCells = 0, ids = {}, values = {}, rebels = {}, rebelLeft = {} }
 end
 
 function ClientState.ownerAt(cs: ClientState, i: number): number
 	return buffer.readu16(cs.owners, i * 2)
+end
+
+-- Владелец, которого игрок видит на карте: в тумане — последний увиденный (§6.11).
+function ClientState.knownOwnerAt(cs: ClientState, i: number): number
+	return Fog.knownOwner(cs.fog, i)
+end
+
+-- Владельцы клеток для рисования карты (последние увиденные).
+function ClientState.knownOwners(cs: ClientState): buffer
+	return cs.fog.known
 end
 
 -- Индекс цвета державы (1..24) или 0, если цвета ещё нет.
@@ -162,6 +198,9 @@ function ClientState.applyInfo(cs: ClientState, info: Info, now: number): boolea
 			cs.wars = { wars = {}, cooldowns = {} }
 			cs.diplo = ClientState.emptyDiplo()
 			table.clear(cs.buildings)
+			cs.fog = Fog.new(cs.width, cs.height)
+			cs.stability = ClientState.emptyStability()
+			cs.rebelSet = {}
 			colorsChanged = true
 		end
 		cs.matchId = info.matchId
@@ -213,6 +252,9 @@ function ClientState.applyBuffer(cs: ClientState, b: buffer): (ApplyResult, { nu
 		cs.owners = owners
 		cs.hasSnapshot = true
 		cs.snapshotTick = cs.assembler.tick
+		if cs.fog.all then
+			buffer.copy(cs.fog.known, 0, owners, 0, cs.size * 2)
+		end
 		return "snapshot", nil
 	elseif kind == Protocol.DELTA then
 		local d = Protocol.decodeDelta(b, cs.size)
@@ -222,7 +264,8 @@ function ClientState.applyBuffer(cs: ClientState, b: buffer): (ApplyResult, { nu
 		for k, i in d.cells do
 			buffer.writeu16(cs.owners, i * 2, d.owners[k])
 		end
-		return "delta", d.cells
+		-- В тумане видны только изменения в обзоре (§6.11): их и возвращаем для перерисовки.
+		return "delta", Fog.applyDelta(cs.fog, cs.owners, d.cells)
 	elseif kind == Protocol.STATS then
 		cs.stats = Protocol.decodeStats(b)
 		return "stats", nil
@@ -365,6 +408,106 @@ function ClientState.embargoBy(cs: ClientState, from: number, to: number): boole
 		end
 	end
 	return false
+end
+
+-- Друзья державы для обзора (§6.11): она сама, союзники, вассалы, сюзерен.
+function ClientState.friendsOf(cs: ClientState, id: number): { [number]: boolean }
+	local out: { [number]: boolean } = { [id] = true }
+	for _, ally in ClientState.alliesOf(cs, id) do
+		out[ally] = true
+	end
+	for _, v in cs.diplo.vassals do
+		if v.overlord == id then
+			out[v.vassal] = true
+		elseif v.vassal == id then
+			out[v.overlord] = true
+		end
+	end
+	return out
+end
+
+-- Что даёт обзор игроку сейчас; nil — видно всё (нет своей живой державы, не фаза игры, туман выключен).
+function ClientState.fogSources(cs: ClientState): Fog.Sources?
+	local me = cs.myNation
+	local n = if me ~= nil then cs.nations[me] else nil
+	if me == nil or n == nil or not n.alive or cs.phase ~= "Play" or not Config.Fog.Enabled or cs.fogOff then
+		return nil
+	end
+	local friends = ClientState.friendsOf(cs, me)
+	local fronts: { { mine: number, other: number } } = {}
+	local stats = cs.stats
+	if stats ~= nil then
+		for _, a in stats.attacks do
+			if a.target ~= 0 then
+				if friends[a.attacker] then
+					table.insert(fronts, { mine = a.attacker, other = a.target })
+				end
+				if friends[a.target] then
+					table.insert(fronts, { mine = a.target, other = a.attacker })
+				end
+			end
+		end
+	end
+	local radars: { number } = {}
+	for cell, b in cs.buildings do
+		if b.kind == "Radar" and friends[ClientState.ownerAt(cs, cell)] then
+			table.insert(radars, cell)
+		end
+	end
+	return { friends = friends, fronts = fronts, radars = radars }
+end
+
+-- Пересчитать обзор. Возвращает: перерисовать всё (сменился режим «туман / видно всё») и клетки,
+-- у которых сменилась видимость или известный владелец.
+function ClientState.refreshFog(cs: ClientState): (boolean, { number })
+	if not cs.hasSnapshot then
+		return false, {}
+	end
+	local sources = ClientState.fogSources(cs)
+	if sources == nil then
+		return Fog.revealAll(cs.fog, cs.owners), {}
+	end
+	return Fog.compute(cs.fog, cs.owners, sources)
+end
+
+-- Стабильность (сообщение stability). Возвращает провинции, где появились или ушли повстанцы (перерисовать).
+function ClientState.applyStability(cs: ClientState, msg: any): { number }
+	local changed: { number } = {}
+	if type(msg) ~= "table" or type(msg.ids) ~= "table" or type(msg.values) ~= "table" then
+		return changed
+	end
+	local rebels = if type(msg.rebels) == "table" then msg.rebels else {}
+	cs.stability = {
+		kind = "stability",
+		average = if type(msg.average) == "number" then msg.average else 0,
+		lowCells = if type(msg.lowCells) == "number" then msg.lowCells else 0,
+		ids = msg.ids,
+		values = msg.values,
+		rebels = rebels,
+		rebelLeft = if type(msg.rebelLeft) == "table" then msg.rebelLeft else {},
+	}
+	local fresh: { [number]: boolean } = {}
+	for _, p in rebels do
+		if type(p) == "number" then
+			fresh[p] = true
+			if not cs.rebelSet[p] then
+				table.insert(changed, p)
+			end
+		end
+	end
+	for p in cs.rebelSet do
+		if not fresh[p] then
+			table.insert(changed, p)
+		end
+	end
+	cs.rebelSet = fresh
+	return changed
+end
+
+-- Стабильность своей провинции (nil — не своя).
+function ClientState.stabilityOf(cs: ClientState, province: number): number?
+	local k = table.find(cs.stability.ids, province)
+	return if k ~= nil then cs.stability.values[k] else nil
 end
 
 function ClientState.alliesOf(cs: ClientState, id: number): { number }

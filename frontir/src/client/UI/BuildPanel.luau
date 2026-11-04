@@ -102,7 +102,7 @@ function BuildPanel.new(
 		return stats.cost
 	end
 	for k, kind in Config.Buildable do
-		local b = button(menu, 240, 52)
+		local b = button(menu, 240, 46) -- 6 зданий: меню не выше экрана телефона
 		b.LayoutOrder = k
 		b.TextXAlignment = Enum.TextXAlignment.Left
 		local pad = Instance.new("UIPadding")

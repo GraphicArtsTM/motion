@@ -50,6 +50,8 @@ export type MapView = {
 	setCellColor: (x: number, y: number, r: number, g: number, b: number) -> (),
 	-- Выгружает изменения одного «грязного» чанка (за кадр на экране обновляется один EditableImage).
 	flush: () -> (),
+	-- Заменяет пиксели всей карты (RGBA размером с карту) в памяти; на экран — чанк за кадром (flush).
+	blit: (colors: buffer) -> (),
 	destroy: () -> (),
 }
 
@@ -156,6 +158,13 @@ function MapRenderer.create(parent: GuiObject, map: MapData, colors: buffer): (M
 		end
 	end
 
+	local function blit(source: buffer)
+		for _, chunk in chunks do
+			chunk.pixels = MapPaint.copyRect(source, map.width, chunk.x0, chunk.y0, chunk.w, chunk.h)
+			chunk.dx0, chunk.dy0, chunk.dx1, chunk.dy1 = 0, 0, chunk.w - 1, chunk.h - 1
+		end
+	end
+
 	local lastZoom = -1
 	local function setView(zoom: number, offsetX: number, offsetY: number)
 		canvas.Position = UDim2.fromOffset(offsetX, offsetY)
@@ -184,6 +193,7 @@ function MapRenderer.create(parent: GuiObject, map: MapData, colors: buffer): (M
 		setView = setView,
 		setCellColor = setCellColor,
 		flush = flush,
+		blit = blit,
 		destroy = cleanup,
 	},
 		nil,

@@ -9,6 +9,9 @@
 	- botWar: бот объявляет войну игроку (если они союзники или в пакте — это предательство бота).
 	- councilNow: Совет держав собирается сейчас.
 	- endMatch: до лимита времени матча остаётся Dev.EndLeadSec секунд.
+	- setStability: все провинции державы — сразу Dev.StabilityLow или Dev.StabilityHigh (§6.10, этап 7а).
+	- revoltNow: восстание в самой нестабильной своей провинции, кроме столицы.
+	Туман вкл/выкл для себя — в MatchService (кому слать все фронты) и на клиенте.
 	Ускорение времени — в MatchService (шагов симуляции за кадр больше).
 ]]
 
@@ -16,6 +19,7 @@ local Config = require("./Config")
 local Diplomacy = require("./Diplomacy")
 local Forces = require("./Forces")
 local MatchSim = require("./MatchSim")
+local Stability = require("./Stability")
 local Types = require("./Types")
 local Wars = require("./Wars")
 
@@ -114,6 +118,39 @@ function DevTools.endMatch(m: Match): (boolean, string?)
 		return false, "phase"
 	end
 	m.time = math.max(m.time, Config.Match.TimeLimitSec - Config.Dev.EndLeadSec)
+	return true, nil
+end
+
+function DevTools.setStability(m: Match, id: number, high: boolean): (boolean, string?)
+	local n = m.nations[id]
+	if n == nil or not n.alive then
+		return false, "dead"
+	end
+	-- Хозяева провинций могли смениться с прошлого пересчёта — пересчитать сейчас.
+	m.stability.nextUpdateAt = 0
+	Stability.update(m.stability, MatchSim.stabilityContext(m))
+	Stability.setAll(m.stability, id, if high then Config.Dev.StabilityHigh else Config.Dev.StabilityLow)
+	m.stability.nextUpdateAt = 0 -- итоги (доход, средняя) — сразу
+	return true, nil
+end
+
+function DevTools.revoltNow(m: Match, id: number): (boolean, string?)
+	local n = m.nations[id]
+	if n == nil or not n.alive then
+		return false, "dead"
+	end
+	local capital = if n.capital ~= nil then buffer.readu16(m.grid.province, n.capital * 2) else 0
+	local best: number? = nil
+	local bestValue = math.huge
+	for _, e in Stability.provincesOf(m.stability, id) do
+		if e.province ~= capital and e.value < bestValue then
+			best, bestValue = e.province, e.value
+		end
+	end
+	if best == nil then
+		return false, "noProvince"
+	end
+	MatchSim.revolt(m, best, id)
 	return true, nil
 end
 

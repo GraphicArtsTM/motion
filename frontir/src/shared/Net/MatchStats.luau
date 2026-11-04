@@ -7,17 +7,49 @@
 local ClientState = require("../ClientState")
 local Config = require("../Config")
 local Council = require("../Council")
+local Diplomacy = require("../Diplomacy")
+local Fog = require("../Fog")
 local Forces = require("../Forces")
 local Grid = require("../Grid")
 local MatchSim = require("../MatchSim")
+local Stability = require("../Stability")
 local Types = require("../Types")
 local Wars = require("../Wars")
 local Protocol = require("./Protocol")
 
 local MatchStats = {}
 
--- Общая статистика: все державы и все атаки/фронты.
-function MatchStats.build(m: MatchSim.Match, tickMs: number, changed: number): Protocol.Stats
+-- Клетки радаров держав из набора (§6.11).
+function MatchStats.radarsOf(m: MatchSim.Match, friends: { [number]: boolean }): { number }
+	local out: { number } = {}
+	for cell, b in m.buildings.byCell do
+		if b.kind == "Radar" and friends[Grid.getOwner(m.grid, cell)] then
+			table.insert(out, cell)
+		end
+	end
+	table.sort(out)
+	return out
+end
+
+-- Какие атаки и фронты видит держава viewer (туман, §6.11): свои и друзей — всегда, чужие — если линия фронта
+-- в грубом обзоре (блоки вокруг границ друзей и их радаров). Возвращает фильтр.
+function MatchStats.attackFilter(m: MatchSim.Match, viewer: number): (a: Types.Attack) -> boolean
+	local friends = Diplomacy.friends(m.diplo, viewer)
+	local borders: { { [number]: boolean } } = {}
+	for id in friends do
+		table.insert(borders, Grid.borderCells(m.grid, id))
+	end
+	local blocks = Fog.visionBlocks(m.grid.width, m.grid.height, borders, MatchStats.radarsOf(m, friends))
+	return function(a: Types.Attack): boolean
+		return friends[a.attacker] == true
+			or friends[a.target] == true
+			or (a.target ~= 0 and Fog.lineVisible(m.grid.width, blocks, a.line))
+	end
+end
+
+-- Общая статистика: все державы и атаки/фронты. viewer — держава игрока: чужие фронты вне его обзора
+-- не попадают (туман, §6.11); nil — все (зритель, туман выключен).
+function MatchStats.build(m: MatchSim.Match, tickMs: number, changed: number, viewer: number?): Protocol.Stats
 	local nations: { Protocol.NationStats } = {}
 	for _, n in m.nations do
 		local cells = Grid.cellsOf(m.grid, n.id)
@@ -35,7 +67,11 @@ function MatchStats.build(m: MatchSim.Match, tickMs: number, changed: number): P
 		})
 	end
 	local attacks: { Protocol.AttackStats } = {}
+	local visible = if viewer ~= nil and Config.Fog.Enabled then MatchStats.attackFilter(m, viewer) else nil
 	for _, a in m.attacks do
+		if visible ~= nil and not visible(a) then
+			continue
+		end
 		table.insert(attacks, {
 			attacker = a.attacker,
 			target = a.target,
@@ -49,6 +85,22 @@ function MatchStats.build(m: MatchSim.Match, tickMs: number, changed: number): P
 		})
 	end
 	return { tickMs = tickMs, changed = changed, nations = nations, attacks = attacks }
+end
+
+-- Та же статистика (full — build без viewer) глазами державы viewer: чужие фронты вне обзора убраны (§6.11).
+-- Державы те же — их начало сообщения можно закодировать один раз (Protocol.encodeStatsHead).
+function MatchStats.forViewer(m: MatchSim.Match, full: Protocol.Stats, viewer: number?): Protocol.Stats
+	if viewer == nil or not Config.Fog.Enabled then
+		return full
+	end
+	local visible = MatchStats.attackFilter(m, viewer)
+	local attacks: { Protocol.AttackStats } = {}
+	for k, a in m.attacks do
+		if visible(a) and full.attacks[k] ~= nil then
+			table.insert(attacks, full.attacks[k])
+		end
+	end
+	return { tickMs = full.tickMs, changed = full.changed, nations = full.nations, attacks = attacks }
 end
 
 -- Свои войска державы: дома, на фронтах, очередь найма.
@@ -81,6 +133,38 @@ function MatchStats.forcesOf(m: MatchSim.Match, nationId: number): Protocol.MyFo
 			upkeep = if e ~= nil then e.upkeep else 0,
 			factories = MatchSim.ownedOf(m, nationId).factories,
 		},
+	}
+end
+
+-- Стабильность (§6.10) игроку: средняя и его провинции, всем — повстанцы. Таблица stability.
+export type StabilityMessage = ClientState.StabilityMessage
+
+function MatchStats.stability(m: MatchSim.Match, viewer: number?): StabilityMessage
+	local st = m.stability
+	local ids, values = {}, {}
+	local average, lowCells = 0, 0
+	if viewer ~= nil then
+		for _, e in Stability.provincesOf(st, viewer) do
+			table.insert(ids, e.province)
+			table.insert(values, math.floor(e.value + 0.5))
+		end
+		local sum = Stability.summaryOf(st, viewer)
+		average = math.floor(sum.average + 0.5)
+		lowCells = sum.lowCells
+	end
+	local rebels, rebelLeft = {}, {}
+	for p, r in st.rebels do
+		table.insert(rebels, p)
+		table.insert(rebelLeft, math.max(0, math.floor(r.untilTime - m.simTime)))
+	end
+	return {
+		kind = "stability",
+		average = average,
+		lowCells = lowCells,
+		ids = ids,
+		values = values,
+		rebels = rebels,
+		rebelLeft = rebelLeft,
 	}
 end
 

@@ -23,6 +23,7 @@ local BattleLayout = require(Shared:WaitForChild("BattleLayout"))
 local CameraMath = require(Shared:WaitForChild("CameraMath"))
 local ClientState = require(Shared:WaitForChild("ClientState"))
 local Config = require(Shared:WaitForChild("Config"))
+local Fog = require(Shared:WaitForChild("Fog"))
 local MapDataModule = require(Shared:WaitForChild("MapData"))
 local NationColors = require(Shared:WaitForChild("NationColors"))
 local Types = require(Shared:WaitForChild("Types"))
@@ -122,6 +123,22 @@ function FrontLayer.new(canvas: Frame, cs: ClientState, map: MapData): FrontLaye
 
 	local function ownerAt(i: number): number
 		return ClientState.ownerAt(cs, i)
+	end
+	-- Туман (§6.11): юниты стоят только в клетках, которые видно.
+	local function inSight(slots: { BattleLayout.Slot }): { BattleLayout.Slot }
+		if cs.fog.all then
+			return slots
+		end
+		local out: { BattleLayout.Slot } = {}
+		local w, h = cs.width, cs.height
+		for _, slot in slots do
+			local x = math.clamp(math.floor(slot.x), 0, w - 1)
+			local y = math.clamp(math.floor(slot.y), 0, h - 1)
+			if Fog.isVisible(cs.fog, y * w + x) then
+				table.insert(out, slot)
+			end
+		end
+		return out
 	end
 	local function isRiver(i: number): boolean
 		return MapDataModule.getTerrain(map, i) == riverId
@@ -483,7 +500,8 @@ function FrontLayer.new(canvas: Frame, cs: ClientState, map: MapData): FrontLaye
 					local hasCounter = pairIndex[counterKey] ~= nil
 					if #lineA[k] > 0 then
 						local n = math.min(BattleLayout.unitsFor(a.power), cap)
-						local slots = BattleLayout.place(lineA[k], n, a.mix, a.focus, ownerAt, a.attacker, w, h)
+						local slots =
+							inSight(BattleLayout.place(lineA[k], n, a.mix, a.focus, ownerAt, a.attacker, w, h))
 						reconcile(key, slots, {
 							owner = a.attacker,
 							power = a.power,
@@ -497,7 +515,7 @@ function FrontLayer.new(canvas: Frame, cs: ClientState, map: MapData): FrontLaye
 					if not hasCounter and def ~= nil and def.power > 0 and #lineD[k] > 0 then
 						local share = def.power / math.max(1, against[a.target] or 1)
 						local n = math.min(BattleLayout.unitsFor(share), cap)
-						local slots = BattleLayout.place(lineD[k], n, def.mix, nil, ownerAt, a.target, w, h)
+						local slots = inSight(BattleLayout.place(lineD[k], n, def.mix, nil, ownerAt, a.target, w, h))
 						reconcile(-key, slots, {
 							owner = a.target,
 							power = share,

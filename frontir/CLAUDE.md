@@ -3,8 +3,9 @@
 Источник истины по игре: [`docs/GDD.md`](docs/GDD.md). Читай его перед любой задачей.
 
 ## Где мы сейчас
-Сделаны этапы **0–6** (смержены в `main` через PR #2). Следующий — **этап 7**, по частям **7а → 7б → 7в → 7г**
-(см. «Статус» в начале GDD §15). Обновляй «Статус» в GDD и этот раздел в конце каждого этапа.
+Сделаны этапы **0–6** (смержены в `main` через PR #2) и **7а** (туман, стабильность, восстания — отдельный PR в `main`,
+ждёт проверки геймдизайнера). Следующий — **7б** (флот и авиация), потом 7в и 7г (см. «Статус» в начале GDD §15).
+Обновляй «Статус» в GDD и этот раздел в конце каждого этапа.
 
 ## Порядок работы (договорённости с геймдизайнером)
 - Каждый этап (или его часть) — **ветка от свежего `main` и отдельный PR в `main`**. PR мержит **геймдизайнер сам**
@@ -156,11 +157,29 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
 - Сеть: всё в `diplo` (версия договоров + версия Совета). Клиент: `UI/CouncilPanel`, `UI/Pings` (G, метки на canvas),
   торговля в `UI/DiplomacyPanel`.
 
+## Туман войны, стабильность и восстания (этап 7а)
+- `Stability` — чистый модуль: хозяин провинции (город или больше половины клеток — счётчики `Grid.provinceCells`),
+  целевая и текущая стабильность, итоги по державам (`summary`: средняя, клетки с половинным доходом), восстания и
+  «Повстанцы». Что нужно о матче — через `Stability.Context` (`MatchSim.stabilityContext`). `MatchSim`: пересчёт
+  раз в `Stability.UpdateSec` (`stepStability`), восстание — `MatchSim.revolt` (клетки ничьи, город повстанцев
+  с гарнизоном `RebelGarrison` в `neutralCityTaker`), ничья земля повстанцев дороже (`Expansion.Hooks.costMul`),
+  доход — в `stepEconomy`. Боты: `spots.unstable` / `unstableCity` и мир раньше (`BotBrain`).
+- `Fog` — чистый модуль: обзор клиента (фаска 5/7 в прямоугольнике вокруг источников, два прохода), последний
+  увиденный владелец (`known`), «видно всё» (`all`, так начинается матч и так у зрителя); грубый обзор сервера
+  блоками (`visionBlocks`, `lineVisible` по выборке линии фронта `Attack.line`).
+- Сеть: STATS у каждого игрока свой — `MatchStats.forViewer` (державы кодируются один раз: `Protocol.encodeStatsHead`),
+  таблица `stability` раз в `Net.StabilityEverySec` (`MatchStats.stability`, `ClientState.applyStability`).
+  Клиент: `ClientState.refreshFog` (раз в `Fog.RefreshSec`), дельта возвращает только клетки в обзоре;
+  `TerritoryLayer` рисует `knownOwners` (туман — `TerritoryPaint.Extra`, вся карта — `MapRenderer.blit`),
+  `UI/StabilityPanel` (N), строка стабильности в `MatchHud`.
+- Замер: `lune run tools/bench World 60 180` в конце печатает время тумана у клиента и STATS для всех.
+
 ## Панель разработчика (F4)
 - Только в Studio: `MatchService` создаёт `Remotes.Dev` при `RunService:IsStudio()`; действия — чистый `DevTools`
-  (grant, forceOffer, warNow, peaceNow, councilNow, endMatch), ускорение ×5 — шагов симуляции за кадр в `MatchService`.
+  (grant, forceOffer, warNow, peaceNow, councilNow, endMatch, setStability, revoltNow), ускорение ×5 — шагов
+  симуляции за кадр в `MatchService`, «Туман выкл» — `devNoFog` в `MatchService` и `cs.fogOff` на клиенте.
   Клиент: `UI/DevPanel`. Новые механики — сразу добавлять в панель и в чек-лист README.
-- С этапа 7 каждый этап — отдельный PR в `main` (PR #2 мержит геймдизайнер).
+- С этапа 7 каждый этап — отдельный PR в `main` (мержит геймдизайнер).
 
 ## Require
 Внутри `src/shared` модули подключают друг друга строкой: `require("./Types")` — так работает и в Roblox (`./` = `script.Parent`), и в Lune.

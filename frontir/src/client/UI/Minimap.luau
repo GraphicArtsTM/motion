@@ -119,7 +119,9 @@ function Minimap.new(
 		if dirty and now >= nextPaint and cs.hasSnapshot then
 			dirty = false
 			nextPaint = now + Config.Render.MinimapEverySec
-			local pixels = MinimapPaint.paint(terrainColors, cs.owners, mapW, mapH, outW, outH, colorOf)
+			-- Туман (§6.11): мини-карта — по последнему увиденному владельцу.
+			local pixels =
+				MinimapPaint.paint(terrainColors, ClientState.knownOwners(cs), mapW, mapH, outW, outH, colorOf)
 			editable:WritePixelsBuffer(Vector2.zero, Vector2.new(outW, outH), pixels)
 		end
 		local x0, y0, x1, y1 = CameraMath.visibleRect(state)
