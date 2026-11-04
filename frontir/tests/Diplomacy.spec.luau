@@ -431,3 +431,227 @@ T.describe("Дипломатия ботов", function()
 		T.expect(signed).toBe(true)
 	end)
 end)
+
+T.describe("Торговля (§8.2)", function()
+	T.it(
+		"перевод: налог 10%, лимит за минуту, не во время войны и эмбарго",
+		function()
+			local m = trio()
+			local a, b = m.nations[1], m.nations[2]
+			a.money, a.oil, b.money, b.oil = 50000, 1000, 0, 0
+			T.expect(
+				(MatchSim.applyIntent(m, 1, { kind = "transfer", target = 2, money = 10000, oil = 100, people = 0 }))
+			)
+				.toBe(true)
+			T.expect(a.money).toBe(40000)
+			T.expect(b.money).toBe(10000 * (1 - Config.Trade.TaxShare))
+			T.expect(b.oil).toBe(100 * (1 - Config.Trade.TaxShare))
+			-- Лимит денег за минуту: 20 000 — ещё 10 001 не пройдёт, через минуту — пройдёт.
+			local limit = Config.Trade.LimitPerMinute.money
+			T.expect(
+				select(
+					2,
+					MatchSim.applyIntent(
+						m,
+						1,
+						{ kind = "transfer", target = 2, money = limit - 9999, oil = 0, people = 0 }
+					)
+				)
+			).toBe("tradeLimit")
+			runFor(m, 60)
+			T.expect(
+				(
+					MatchSim.applyIntent(
+						m,
+						1,
+						{ kind = "transfer", target = 2, money = limit - 9999, oil = 0, people = 0 }
+					)
+				)
+			)
+				.toBe(true)
+			T.expect(
+				select(
+					2,
+					MatchSim.applyIntent(m, 1, { kind = "transfer", target = 2, money = 1e8, oil = 0, people = 0 })
+				)
+			)
+				.toBe("noMoney")
+			-- Эмбарго — переводов нет.
+			MatchSim.applyIntent(m, 2, { kind = "embargo", target = 1, on = true })
+			T.expect(
+				select(
+					2,
+					MatchSim.applyIntent(m, 1, { kind = "transfer", target = 2, money = 10, oil = 0, people = 0 })
+				)
+			)
+				.toBe("embargo")
+			MatchSim.applyIntent(m, 2, { kind = "embargo", target = 1, on = false })
+			-- Война — тоже нет.
+			MatchSim.applyIntent(m, 3, { kind = "declare", target = 2 })
+			T.expect(
+				select(
+					2,
+					MatchSim.applyIntent(m, 3, { kind = "transfer", target = 2, money = 10, oil = 0, people = 0 })
+				)
+			)
+				.toBe("atWar")
+		end
+	)
+
+	T.it(
+		"торговое соглашение: +5% дохода обоим, рвётся войной и эмбарго",
+		function()
+			local m = trio()
+			T.expect((offer(m, 1, 2, "trade"))).toBe(true)
+			reply(m, 2, 1, true)
+			T.expect(Diplomacy.hasTrade(m.diplo, 1, 2)).toBe(true)
+			MatchSim.step(m, DT)
+			local owned = MatchSim.ownedOf(m, 1)
+			local base =
+				require("../src/shared/Economy").income(Grid.cellsOf(m.grid, 1), owned.cityLevels, owned.markets)
+			T.expect(m.economy[1].income).toBeNear(base * (1 + Config.Trade.AgreementIncome), 1e-6)
+			-- Эмбарго рвёт и не даёт заключить снова.
+			MatchSim.applyIntent(m, 1, { kind = "embargo", target = 2, on = true })
+			T.expect(Diplomacy.hasTrade(m.diplo, 1, 2)).toBe(false)
+			runFor(m, Config.Diplomacy.OfferRetrySec)
+			T.expect(select(2, offer(m, 2, 1, "trade"))).toBe("embargo")
+			MatchSim.applyIntent(m, 1, { kind = "embargo", target = 2, on = false })
+			offer(m, 2, 1, "trade")
+			reply(m, 1, 2, true)
+			T.expect(Diplomacy.hasTrade(m.diplo, 1, 2)).toBe(true)
+			-- Война рвёт соглашение.
+			MatchSim.takeEvents(m)
+			MatchSim.applyIntent(m, 1, { kind = "declare", target = 2 })
+			T.expect(Diplomacy.hasTrade(m.diplo, 1, 2)).toBe(false)
+			T.expect(hasEvent(MatchSim.takeEvents(m), "tradeEnded")).toBe(true)
+		end
+	)
+end)
+
+T.describe("Совет держав (§8.2)", function()
+	local Council = require("../src/shared/Council")
+
+	-- Совет с заданными вариантами (без случайности): сдвигаем время к созыву и подменяем варианты.
+	local function openWith(m: MatchSim.Match, options: { Types.Resolution })
+		m.council.nextAt = m.simTime
+		for _, n in m.nations do
+			n.isBot = false -- игроки: голосуем сами
+		end
+		MatchSim.step(m, DT)
+		local vote = m.council.vote :: Council.Vote
+		vote.options = options
+		table.clear(vote.votes)
+	end
+
+	T.it(
+		"созыв, голоса, победитель большинством; ничья — верхний вариант; без голосов — ничего",
+		function()
+			local vote: Council.Vote = { options = { "sanctions", "truce", "aid" }, endsAt = 0, votes = {} }
+			T.expect(Council.winner(vote)).toBe(nil)
+			vote.votes = { [1] = 2, [2] = 3 }
+			T.expect(Council.winner(vote)).toBe("truce")
+			vote.votes[3] = 3
+			T.expect(Council.winner(vote)).toBe("aid")
+			local m = trio()
+			T.expect(m.council.nextAt).toBe(Config.Council.EverySec)
+			openWith(m, { "sanctions", "truce", "aid" })
+			T.expect(select(2, MatchSim.applyIntent(m, 1, { kind = "vote", option = 5 }))).toBe("badOption")
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "vote", option = 1 }))).toBe(true)
+			T.expect((MatchSim.applyIntent(m, 2, { kind = "vote", option = 1 }))).toBe(true)
+			MatchSim.takeEvents(m)
+			runFor(m, Config.Council.VoteSec + 0.2)
+			local closed = false
+			for _, e in MatchSim.takeEvents(m) do
+				if e.kind == "councilClosed" then
+					closed = true
+					T.expect(e.winner).toBe("sanctions")
+				end
+			end
+			T.expect(closed).toBe(true)
+			T.expect(Council.active(m.council, "sanctions", m.simTime) ~= nil).toBe(true)
+			T.expect(m.council.nextAt > m.simTime).toBe(true)
+		end
+	)
+
+	T.it(
+		"санкции: лидеру −25% дохода; перемирие: войну не объявить, фронты стоят; помощь слабым",
+		function()
+			local m = trio()
+			-- Лидер — держава 2 (у неё больше всех суши).
+			for y = 1, H - 2 do
+				Grid.setOwner(m.grid, y * W + 14, 2)
+			end
+			MatchSim.applyResolution(m, "sanctions")
+			MatchSim.step(m, DT)
+			local owned = MatchSim.ownedOf(m, 2)
+			local base =
+				require("../src/shared/Economy").income(Grid.cellsOf(m.grid, 2), owned.cityLevels, owned.markets)
+			T.expect(m.economy[2].income).toBeNear(base * Config.Council.SanctionsIncomeMul, 1e-6)
+			-- Перемирие.
+			Forces.add(m.nations[1].home, INF, 5000)
+			MatchSim.applyIntent(m, 1, { kind = "declare", target = 2 }) -- 1 и 2 — соседи
+			runFor(m, Config.War.MobilizationSec + 0.2)
+			MatchSim.applyIntent(m, 1, { kind = "attack", target = 2, percent = 1 })
+			MatchSim.applyResolution(m, "truce")
+			T.expect(select(2, MatchSim.applyIntent(m, 1, { kind = "declare", target = 3 }))).toBe("truce")
+			local before = Grid.cellsOf(m.grid, 1)
+			runFor(m, Config.Council.TruceSec - 1)
+			T.expect(Grid.cellsOf(m.grid, 1)).toBe(before)
+			runFor(m, 10)
+			T.expect(Grid.cellsOf(m.grid, 1) > before).toBe(true)
+			-- Помощь: трём последним по суше — здесь всем живым (держава 2 могла пасть в войне).
+			local money = { m.nations[1].money, m.nations[2].money, m.nations[3].money }
+			MatchSim.applyResolution(m, "aid")
+			for k = 1, 3 do
+				local alive = m.nations[k].alive
+				T.expect(m.nations[k].money).toBe(money[k] + (if alive then Config.Council.AidMoney else 0))
+			end
+			-- Свободная торговля: перевод без налога (1 и 3 не воюют).
+			MatchSim.applyResolution(m, "freeTrade")
+			local before3 = m.nations[3].money
+			MatchSim.applyIntent(m, 1, { kind = "transfer", target = 3, money = 1000, oil = 0, people = 0 })
+			T.expect(m.nations[3].money).toBe(before3 + 1000)
+		end
+	)
+
+	T.it("голоса ботов по выгоде", function()
+		local options: { Types.Resolution } = { "sanctions", "truce", "aid" }
+		local p = BotBrain.profile("Normal", "Admiral")
+		T.expect(BotBrain.councilVote({ options = options, isLeader = false, losingWar = false, inTail = false }, p))
+			.toBe(1)
+		T.expect(
+			BotBrain.councilVote({ options = options, isLeader = true, losingWar = false, inTail = false }, p) ~= 1
+		)
+			.toBe(true)
+		T.expect(BotBrain.councilVote({ options = options, isLeader = false, losingWar = false, inTail = true }, p))
+			.toBe(3)
+		T.expect(BotBrain.councilVote({ options = options, isLeader = true, losingWar = true, inTail = false }, p))
+			.toBe(2)
+	end)
+
+	T.it(
+		"пинги: фраза на карте для всех, не чаще CooldownSec; намерения проверяются",
+		function()
+			local m = trio()
+			MatchSim.takeEvents(m)
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "ping", cell = 100, phrase = "help" }))).toBe(true)
+			T.expect(select(2, MatchSim.applyIntent(m, 1, { kind = "ping", cell = 101, phrase = "thanks" })))
+				.toBe("pingCooldown")
+			T.expect(hasEvent(MatchSim.takeEvents(m), "ping")).toBe(true)
+			runFor(m, Config.Pings.CooldownSec)
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "ping", cell = 101, phrase = "thanks" }))).toBe(true)
+			T.expect(select(2, Intents.parse("ping", { cell = 5, phrase = "hello" }))).toBe("bad phrase")
+			T.expect(select(2, Intents.parse("vote", { option = 0 }))).toBe("bad option")
+			T.expect((Intents.parse("transfer", { target = 2, money = 10.7 }))).toEqual({
+				kind = "transfer",
+				target = 2,
+				money = 10,
+				oil = 0,
+				people = 0,
+			})
+			T.expect(select(2, Intents.parse("transfer", { target = 2, money = -1 }))).toBe("bad amount")
+			T.expect((Intents.parse("embargo", { target = 2, on = true })))
+				.toEqual({ kind = "embargo", target = 2, on = true })
+		end
+	)
+end)

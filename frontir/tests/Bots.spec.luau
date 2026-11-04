@@ -175,14 +175,16 @@ T.describe("Боты v2: решения", function()
 			v.neighbours = { neighbour(3, 500) }
 			local nv = BotBrain.decide(v, rng, profile("Novice"))
 			T.expect(nv ~= nil and nv.kind == "declare").toBe(true)
-			T.expect(BotBrain.decide(v, rng, profile("General"))).toBe(nil)
+			local g0 = BotBrain.decide(v, rng, profile("General"))
+			T.expect(g0 == nil or g0.kind ~= "declare").toBe(true) -- может предложить торговлю, но не войну
 			v.power = 2000
 			local g = BotBrain.decide(v, rng, profile("General"))
 			T.expect(g ~= nil and g.kind == "declare").toBe(true)
 			v.power = 1200 -- Обычный отправит 720 ≥ 500, Миролюбивый — нет (нужно 750, отправит 648)
 			local plain = BotBrain.decide(v, rng, profile("Normal"))
 			T.expect(plain ~= nil and plain.kind == "declare").toBe(true)
-			T.expect(BotBrain.decide(v, rng, profile("Normal", "Peaceful"))).toBe(nil)
+			local p0 = BotBrain.decide(v, rng, profile("Normal", "Peaceful"))
+			T.expect(p0 == nil or p0.kind ~= "declare").toBe(true)
 		end
 	)
 

@@ -92,7 +92,7 @@ function Intents.parse(kind: any, payload: any): (Types.Intent?, string?)
 		if not isInt(target) or target <= 0 then
 			return nil, "bad target"
 		end
-		if offer ~= "pact3" and offer ~= "pact5" and offer ~= "alliance" and offer ~= "demand" then
+		if offer ~= "pact3" and offer ~= "pact5" and offer ~= "alliance" and offer ~= "demand" and offer ~= "trade" then
 			return nil, "bad offer"
 		end
 		if offer == "demand" and (not isInt(province) or province <= 0) then
@@ -122,6 +122,49 @@ function Intents.parse(kind: any, payload: any): (Types.Intent?, string?)
 		return { kind = "breakTreaty", target = target }, nil
 	elseif kind == "rebel" then
 		return { kind = "rebel" }, nil
+	elseif kind == "transfer" then
+		local target = payload.target
+		if not isInt(target) or target <= 0 then
+			return nil, "bad target"
+		end
+		local money, oil, people = payload.money or 0, payload.oil or 0, payload.people or 0
+		for _, v in { money, oil, people } do
+			if not isFinite(v) or v < 0 or v > 1e9 then
+				return nil, "bad amount"
+			end
+		end
+		return {
+			kind = "transfer",
+			target = target,
+			money = math.floor(money),
+			oil = math.floor(oil),
+			people = math.floor(people),
+		},
+			nil
+	elseif kind == "embargo" then
+		local target, on = payload.target, payload.on
+		if not isInt(target) or target <= 0 then
+			return nil, "bad target"
+		end
+		if type(on) ~= "boolean" then
+			return nil, "bad on"
+		end
+		return { kind = "embargo", target = target, on = on }, nil
+	elseif kind == "vote" then
+		local option = payload.option
+		if not isInt(option) or option < 1 or option > Config.Council.Options then
+			return nil, "bad option"
+		end
+		return { kind = "vote", option = option }, nil
+	elseif kind == "ping" then
+		local cell, phrase = payload.cell, payload.phrase
+		if not isInt(cell) or cell < 0 then
+			return nil, "bad cell"
+		end
+		if type(phrase) ~= "string" or table.find(Config.Pings.Phrases, phrase) == nil then
+			return nil, "bad phrase"
+		end
+		return { kind = "ping", cell = cell, phrase = phrase :: Types.Phrase }, nil
 	end
 	return nil, "unknown kind"
 end

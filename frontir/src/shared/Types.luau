@@ -223,6 +223,10 @@ export type Intent =
 	| OfferReplyIntent
 	| BreakIntent
 	| RebelIntent
+	| TransferIntent
+	| EmbargoIntent
+	| VoteIntent
+	| PingIntent
 
 -- Боты v2 (§9.1): уровни и личности. Списки — для перебора и проверки имён.
 export type BotLevel = "Novice" | "Normal" | "General"
@@ -271,11 +275,18 @@ export type BotPersonalityParams = {
 	betray: number, -- готовность предать союзника
 	demand: number, -- готовность требовать провинции
 	loyalty: number, -- вступает в войны союзника
+	trade: number, -- охота к торговым соглашениям (§8.2)
 }
 
 -- Договоры (§8.1).
 export type TreatyKind = "pact" | "alliance"
-export type OfferKind = "pact3" | "pact5" | "alliance" | "demand"
+export type OfferKind = "pact3" | "pact5" | "alliance" | "demand" | "trade"
+export type Resolution = "sanctions" | "truce" | "aid" | "freeTrade" | "superweaponBan"
+export type Phrase = "help" | "attack" | "alliance" | "thanks" | "traitor"
+export type TransferIntent = { kind: "transfer", target: NationId, money: number, oil: number, people: number }
+export type EmbargoIntent = { kind: "embargo", target: NationId, on: boolean }
+export type VoteIntent = { kind: "vote", option: number }
+export type PingIntent = { kind: "ping", cell: number, phrase: Phrase }
 export type OfferIntent = { kind: "offer", target: NationId, offer: OfferKind, province: number? }
 export type OfferReplyIntent = { kind: "offerReply", target: NationId, accept: boolean }
 export type BreakIntent = { kind: "breakTreaty", target: NationId }

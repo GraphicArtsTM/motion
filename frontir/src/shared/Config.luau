@@ -213,6 +213,7 @@ local botPersonalities: { [string]: Types.BotPersonalityParams } = {
 		betray = 0, -- готовность предать союзника (0 — никогда)
 		demand = 0, -- готовность требовать провинции (0 — никогда)
 		loyalty = 1.2, -- вступает в войны союзника
+		trade = 1.0, -- охота к торговым соглашениям (§8.2)
 	},
 	Aggressor = {
 		declare = 0.8,
@@ -229,6 +230,7 @@ local botPersonalities: { [string]: Types.BotPersonalityParams } = {
 		betray = 0.3, -- готовность предать союзника (0 — никогда)
 		demand = 1.0, -- готовность требовать провинции (0 — никогда)
 		loyalty = 1.0, -- вступает в войны союзника
+		trade = 0.2, -- охота к торговым соглашениям (§8.2)
 	},
 	Trader = {
 		declare = 1.3,
@@ -245,6 +247,7 @@ local botPersonalities: { [string]: Types.BotPersonalityParams } = {
 		betray = 0, -- готовность предать союзника (0 — никогда)
 		demand = 0.3, -- готовность требовать провинции (0 — никогда)
 		loyalty = 1.0, -- вступает в войны союзника
+		trade = 2.0, -- охота к торговым соглашениям (§8.2)
 	},
 	Cunning = {
 		declare = 1.0,
@@ -261,6 +264,7 @@ local botPersonalities: { [string]: Types.BotPersonalityParams } = {
 		betray = 1.0, -- готовность предать союзника (0 — никогда)
 		demand = 1.0, -- готовность требовать провинции (0 — никогда)
 		loyalty = 0.6, -- вступает в войны союзника
+		trade = 0.6, -- охота к торговым соглашениям (§8.2)
 	},
 	-- Флотоводец: до флота (этап 7) — как Обычный.
 	Admiral = {
@@ -278,6 +282,7 @@ local botPersonalities: { [string]: Types.BotPersonalityParams } = {
 		betray = 0.1, -- готовность предать союзника (0 — никогда)
 		demand = 0.3, -- готовность требовать провинции (0 — никогда)
 		loyalty = 1.0, -- вступает в войны союзника
+		trade = 0.6, -- охота к торговым соглашениям (§8.2)
 	},
 }
 Config.BotPersonalities = botPersonalities
@@ -556,6 +561,40 @@ Config.Diplomacy = {
 	BetrayAdvantage = 2.0, -- Хитрец предаёт союзника-соседа, если сильнее его во столько раз
 	RebelAbove = 0.8, -- вассал объявляет независимость, если у него войск не меньше этой доли от сюзерена
 	OfferChance = 0.15, -- вероятность за раздумье заняться дипломатией (× личность)
+}
+
+-- §8.2 Торговля, Совет держав, пинги (этап 6б)
+Config.Trade = {
+	TaxShare = 0.10, -- налог на перевод (сгорает)
+	-- Лимит отправки за скользящую минуту (против прокачки через вторые аккаунты).
+	LimitPerMinute = { money = 20000, oil = 400, people = 3000 },
+	QuickAmounts = { money = 1000, oil = 50, people = 300 }, -- кнопки быстрых переводов в окне дипломатии
+	AgreementIncome = 0.05, -- торговое соглашение: +5% дохода обоим
+	MaxAgreements = 3,
+	-- Боты
+	BotGiftReserve = 6000, -- бот переводит союзнику в войне, если денег больше этого
+	BotGiftShare = 0.25, -- …такую долю излишка
+}
+
+Config.Council = {
+	EverySec = 360, -- Совет собирается каждые 6 минут (первый — через 6 минут)
+	VoteSec = 30,
+	Options = 3, -- резолюций на голосовании
+	-- Пул резолюций; «Запрет супероружия» добавится с ракетной шахтой (этап 7).
+	Pool = { "sanctions", "truce", "aid", "freeTrade" },
+	SanctionsIncomeMul = 0.75, -- санкции против лидера: −25% дохода…
+	SanctionsSec = 120, -- …на 2 минуты
+	TruceSec = 60, -- всеобщее перемирие
+	AidMoney = 5000, -- помощь слабым: каждому из трёх последних
+	AidCount = 3,
+	FreeTradeSec = 180, -- переводы без налога
+	SuperweaponBanSec = 180,
+}
+
+Config.Pings = {
+	Phrases = { "help", "attack", "alliance", "thanks", "traitor" },
+	ShowSec = 6, -- метка на карте
+	CooldownSec = 2, -- не чаще (на державу)
 }
 
 -- Контр-типы: кто против кого силён (GDD §6.7). Индексы — Types.LandUnits.

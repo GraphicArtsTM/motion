@@ -39,7 +39,17 @@ export type Vassalage = { overlord: number, since: number }
 
 -- Запись истории договоров (для окна дипломатии).
 export type Entry = {
-	kind: "pact" | "alliance" | "broken" | "expired" | "betrayal" | "vassal" | "independence" | "ceded" | "refused",
+	kind: "pact"
+		| "alliance"
+		| "broken"
+		| "expired"
+		| "betrayal"
+		| "vassal"
+		| "independence"
+		| "ceded"
+		| "refused"
+		| "trade"
+		| "embargo",
 	a: number,
 	b: number,
 	at: number,
@@ -52,6 +62,8 @@ export type DiploSet = {
 	traitors: { [number]: number }, -- держава → simTime конца метки
 	vassals: { [number]: Vassalage }, -- вассал → сюзерен
 	lastOffer: { [number]: number }, -- пара (от кого → кому) → simTime последнего предложения
+	trade: { [number]: number }, -- торговые соглашения (§8.2): пара → simTime заключения
+	embargo: { [number]: boolean }, -- эмбарго: (кто * 65536 + кому) → true
 	history: { Entry },
 	version: number, -- растёт при каждом изменении (сервер рассылает diplo)
 }
@@ -70,7 +82,17 @@ local function pairKey(a: number, b: number): number
 end
 
 function Diplomacy.new(): DiploSet
-	return { treaties = {}, offers = {}, traitors = {}, vassals = {}, lastOffer = {}, history = {}, version = 0 }
+	return {
+		treaties = {},
+		offers = {},
+		traitors = {},
+		vassals = {},
+		lastOffer = {},
+		trade = {},
+		embargo = {},
+		history = {},
+		version = 0,
+	}
 end
 
 local function touch(ds: DiploSet)
@@ -156,6 +178,72 @@ function Diplomacy.markTraitor(ds: DiploSet, a: number, now: number)
 	touch(ds)
 end
 
+-- Торговые соглашения и эмбарго (§8.2).
+function Diplomacy.hasTrade(ds: DiploSet, a: number, b: number): boolean
+	return ds.trade[pairKey(a, b)] ~= nil
+end
+
+function Diplomacy.tradeCount(ds: DiploSet, a: number): number
+	local count = 0
+	for key in ds.trade do
+		if key // 65536 == a or key % 65536 == a then
+			count += 1
+		end
+	end
+	return count
+end
+
+-- Партнёры державы по торговым соглашениям.
+function Diplomacy.tradePartners(ds: DiploSet, a: number): { number }
+	local out: { number } = {}
+	for key in ds.trade do
+		local x, y = key // 65536, key % 65536
+		if x == a then
+			table.insert(out, y)
+		elseif y == a then
+			table.insert(out, x)
+		end
+	end
+	table.sort(out)
+	return out
+end
+
+function Diplomacy.signTrade(ds: DiploSet, a: number, b: number, now: number)
+	ds.trade[pairKey(a, b)] = now
+	log(ds, { kind = "trade", a = a, b = b, at = now })
+	touch(ds)
+end
+
+-- Соглашение рвётся (война, эмбарго). Возвращает true, если оно было.
+function Diplomacy.endTrade(ds: DiploSet, a: number, b: number): boolean
+	local key = pairKey(a, b)
+	if ds.trade[key] == nil then
+		return false
+	end
+	ds.trade[key] = nil
+	touch(ds)
+	return true
+end
+
+-- Есть ли эмбарго между a и b (в любую сторону).
+function Diplomacy.embargoed(ds: DiploSet, a: number, b: number): boolean
+	return ds.embargo[a * 65536 + b] == true or ds.embargo[b * 65536 + a] == true
+end
+
+-- a объявляет (on) или снимает эмбарго против b. Объявление рвёт торговое соглашение.
+function Diplomacy.setEmbargo(ds: DiploSet, a: number, b: number, on: boolean, now: number)
+	if on then
+		ds.embargo[a * 65536 + b] = true
+	else
+		ds.embargo[a * 65536 + b] = nil
+	end
+	if on then
+		Diplomacy.endTrade(ds, a, b)
+		log(ds, { kind = "embargo", a = a, b = b, at = now })
+	end
+	touch(ds)
+end
+
 -- Можно ли from предложить to договор kind. Война между ними проверяется в MatchSim.
 function Diplomacy.canOffer(
 	ds: DiploSet,
@@ -185,6 +273,19 @@ function Diplomacy.canOffer(
 	if kind == "demand" then
 		if t ~= nil or vassalPair then
 			return false, "treaty"
+		end
+		return cooldown()
+	end
+	if kind == "trade" then
+		if Diplomacy.hasTrade(ds, from, to) then
+			return false, "already"
+		end
+		if Diplomacy.embargoed(ds, from, to) then
+			return false, "embargo"
+		end
+		local max = Config.Trade.MaxAgreements
+		if Diplomacy.tradeCount(ds, from) >= max or Diplomacy.tradeCount(ds, to) >= max then
+			return false, "maxTrade"
 		end
 		return cooldown()
 	end
@@ -394,6 +495,16 @@ function Diplomacy.removeNation(ds: DiploSet, id: number)
 		end
 	end
 	ds.traitors[id] = nil
+	for key in ds.trade do
+		if key // 65536 == id or key % 65536 == id then
+			ds.trade[key] = nil
+		end
+	end
+	for key in ds.embargo do
+		if key // 65536 == id or key % 65536 == id then
+			ds.embargo[key] = nil
+		end
+	end
 	touch(ds)
 end
 

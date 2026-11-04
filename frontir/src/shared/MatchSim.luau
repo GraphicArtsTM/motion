@@ -29,6 +29,7 @@
 local BotBrain = require("./BotBrain")
 local Buildings = require("./Buildings")
 local Config = require("./Config")
+local Council = require("./Council")
 local Diplomacy = require("./Diplomacy")
 local Economy = require("./Economy")
 local Expansion = require("./Expansion")
@@ -72,6 +73,14 @@ export type MatchEvent =
 	| { kind: "vassal", nation: number, target: number }
 	| { kind: "independence", nation: number, target: number }
 	| { kind: "allyAttacked", nation: number, target: number, ally: number }
+	-- Торговля, Совет, пинги (§8.2)
+	| { kind: "transfer", nation: number, target: number, money: number, oil: number, people: number }
+	| { kind: "embargo", nation: number, target: number, on: boolean }
+	| { kind: "tradeEnded", nation: number, target: number }
+	| { kind: "councilOpened", options: { Types.Resolution } }
+	| { kind: "councilClosed", winner: Types.Resolution?, votes: { number } }
+	| { kind: "resolution", resolution: Types.Resolution, target: number? }
+	| { kind: "ping", nation: number, cell: number, phrase: Types.Phrase }
 
 export type Match = {
 	map: MapData,
@@ -98,6 +107,9 @@ export type Match = {
 	cityOf: { [number]: number }, -- провинция → клетка города (нейтрального, державы или столицы)
 	wars: Wars.WarSet,
 	diplo: Diplomacy.DiploSet, -- договоры (§8.1)
+	council: Council.CouncilState, -- Совет держав (§8.2)
+	sent: { [number]: { { at: number, money: number, oil: number, people: number } } }, -- переводы за минуту
+	pingAt: { [number]: number }, -- когда держава последний раз ставила пинг
 	buildings: Buildings.BuildingSet, -- §6.9
 	owned: { [number]: Buildings.Owned }, -- здания и уровни городов по державам (пересчёт каждый тик)
 	economy: { [number]: NationEconomy }, -- доход и содержание по державам (последний тик)
@@ -151,6 +163,9 @@ function MatchSim.new(map: MapData, seed: number): Match
 		cityOf = cityOf,
 		wars = Wars.new(),
 		diplo = Diplomacy.new(),
+		council = Council.new(),
+		sent = {},
+		pingAt = {},
 		buildings = Buildings.new(),
 		owned = {},
 		economy = {},
@@ -530,6 +545,9 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 		if Diplomacy.overlordOf(m.diplo, intent.target) == nationId then
 			return false, "ownVassal"
 		end
+		if Council.active(m.council, "truce", m.simTime) ~= nil then
+			return false, "truce" -- всеобщее перемирие (§8.2)
+		end
 		local ok, reason = Wars.canDeclare(m.wars, nationId, intent.target, m.simTime)
 		if not ok then
 			return false, reason
@@ -615,7 +633,45 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 		return true, nil
 	end
 
+	if intent.kind == "transfer" then
+		return MatchSim.transfer(m, nationId, intent.target, intent.money, intent.oil, intent.people)
+	end
+
+	if intent.kind == "embargo" then
+		local t = m.nations[intent.target]
+		if t == nil or intent.target == nationId then
+			return false, "target"
+		end
+		local hadTrade = Diplomacy.hasTrade(m.diplo, nationId, intent.target)
+		Diplomacy.setEmbargo(m.diplo, nationId, intent.target, intent.on, m.simTime)
+		table.insert(m.events, { kind = "embargo", nation = nationId, target = intent.target, on = intent.on })
+		if hadTrade and intent.on then
+			table.insert(m.events, { kind = "tradeEnded", nation = nationId, target = intent.target })
+		end
+		return true, nil
+	end
+
+	if intent.kind == "vote" then
+		return Council.vote(m.council, nationId, intent.option)
+	end
+
+	if intent.kind == "ping" then
+		if intent.cell < 0 or intent.cell >= m.grid.size then
+			return false, "focus"
+		end
+		local last = m.pingAt[nationId]
+		if last ~= nil and m.time - last < Config.Pings.CooldownSec then
+			return false, "pingCooldown"
+		end
+		m.pingAt[nationId] = m.time
+		table.insert(m.events, { kind = "ping", nation = nationId, cell = intent.cell, phrase = intent.phrase })
+		return true, nil
+	end
+
 	if intent.kind == "rebel" then
+		if Council.active(m.council, "truce", m.simTime) ~= nil then
+			return false, "truce"
+		end
 		local ok, reason = Diplomacy.canRebel(m.diplo, nationId, m.simTime)
 		local overlord = Diplomacy.overlordOf(m.diplo, nationId)
 		if not ok or overlord == nil then
@@ -832,6 +888,8 @@ local function botView(m: Match, n: Nation): BotBrain.BotView
 					treaty = treaty,
 					traitor = Diplomacy.isTraitor(ds, owner, m.simTime),
 					demandProvince = demandOf[owner],
+					trade = Diplomacy.hasTrade(ds, n.id, owner),
+					embargo = Diplomacy.embargoed(ds, n.id, owner),
 					border = border,
 					share = Grid.cellsOf(g, owner) / math.max(1, g.capturableCount),
 					distracted = distracted,
@@ -844,7 +902,11 @@ local function botView(m: Match, n: Nation): BotBrain.BotView
 	end
 	-- Враги союзников (вступить в их войну) и лидер к победе (союз против него).
 	local allyEnemies: { number } = {}
+	local alliesAtWar: { number } = {}
 	for _, ally in Diplomacy.alliesOf(ds, n.id) do
+		if #Wars.of(m.wars, ally) > 0 then
+			table.insert(alliesAtWar, ally)
+		end
 		for _, war in Wars.of(m.wars, ally) do
 			local enemy = Wars.enemyOf(war, ally)
 			if enemy ~= n.id and table.find(allyEnemies, enemy) == nil then
@@ -916,6 +978,8 @@ local function botView(m: Match, n: Nation): BotBrain.BotView
 		overlordPower = if myLord ~= nil then totalPower(m, myLord) else nil,
 		canRebel = (Diplomacy.canRebel(ds, n.id, m.simTime)),
 		leader = leader,
+		tradeDeals = Diplomacy.tradeCount(ds, n.id),
+		alliesAtWar = alliesAtWar,
 		money = n.money,
 		oil = n.oil,
 		economy = m.economy[n.id] or { income = 0, oilIncome = 0, upkeep = 0 },
@@ -1006,6 +1070,71 @@ function MatchSim.makePeace(m: Match, war: Wars.War, terms: Types.PeaceTerms, fr
 	end
 end
 
+-- Перевод денег, нефти и людей (§8.2): нет войны и эмбарго, хватает своего, лимит за минуту;
+-- налог сгорает (при «Свободной торговле» — нет).
+function MatchSim.transfer(
+	m: Match,
+	from: number,
+	to: number,
+	money: number,
+	oil: number,
+	people: number
+): (boolean, string?)
+	local n, t = m.nations[from], m.nations[to]
+	if n == nil or t == nil or not t.alive or from == to then
+		return false, "target"
+	end
+	if Wars.find(m.wars, from, to) ~= nil then
+		return false, "atWar"
+	end
+	if Diplomacy.embargoed(m.diplo, from, to) then
+		return false, "embargo"
+	end
+	if money < 0 or oil < 0 or people < 0 or money + oil + people <= 0 then
+		return false, "amount"
+	end
+	if money > n.money then
+		return false, "noMoney"
+	end
+	if oil > n.oil then
+		return false, "noOil"
+	end
+	if people > n.people then
+		return false, "noTroops"
+	end
+	-- Лимит за скользящую минуту (часы матча).
+	local log: { { at: number, money: number, oil: number, people: number } } = m.sent[from] or {}
+	m.sent[from] = log
+	local j = 1
+	while j <= #log do
+		if m.time - log[j].at >= 60 then
+			table.remove(log, j)
+		else
+			j += 1
+		end
+	end
+	local sumMoney, sumOil, sumPeople = money, oil, people
+	for _, e in log do
+		sumMoney += e.money
+		sumOil += e.oil
+		sumPeople += e.people
+	end
+	local limit = Config.Trade.LimitPerMinute
+	if sumMoney > limit.money or sumOil > limit.oil or sumPeople > limit.people then
+		return false, "tradeLimit"
+	end
+	table.insert(log, { at = m.time, money = money, oil = oil, people = people })
+	local keep = 1 - (if Council.active(m.council, "freeTrade", m.simTime) ~= nil then 0 else Config.Trade.TaxShare)
+	n.money -= money
+	n.oil -= oil
+	n.people -= people
+	t.money += money * keep
+	t.oil += oil * keep
+	t.people += people * keep
+	table.insert(m.events, { kind = "transfer", nation = from, target = to, money = money, oil = oil, people = people })
+	return true, nil
+end
+
 -- Объявление войны (§6.7а) с правилами договоров (§8.1): война партнёру по пакту или союзнику до конца
 -- договора — предательство; союзникам жертвы — запись в ленту (боты-союзники вступают сами).
 function MatchSim.declareWar(m: Match, a: number, b: number)
@@ -1013,6 +1142,10 @@ function MatchSim.declareWar(m: Match, a: number, b: number)
 	if Diplomacy.warIsBetrayal(m.diplo, a, b, m.simTime) then
 		Diplomacy.betray(m.diplo, a, b, m.simTime)
 		table.insert(m.events, { kind = "betrayal", nation = a, target = b })
+	end
+	-- Война рвёт торговое соглашение (§8.2).
+	if Diplomacy.endTrade(m.diplo, a, b) then
+		table.insert(m.events, { kind = "tradeEnded", nation = a, target = b })
 	end
 	Wars.declare(m.wars, a, b, m.simTime)
 	table.insert(m.events, { kind = "warDeclared", nation = a, target = b })
@@ -1065,6 +1198,9 @@ function MatchSim.offer(
 		return false, reason
 	end
 	if kind == "demand" then
+		if Council.active(m.council, "truce", m.simTime) ~= nil then
+			return false, "truce"
+		end
 		if province == nil then
 			return false, "province"
 		end
@@ -1114,6 +1250,13 @@ function MatchSim.resolveOffer(m: Match, offer: Diplomacy.Offer, accept: boolean
 			if province ~= nil and MatchSim.demandable(m, from, to, province) then
 				cedeProvince(m, province, to, from)
 				Diplomacy.note(m.diplo, "ceded", to, from, m.simTime)
+			end
+		elseif kind == "trade" then
+			-- Те же проверки, что при предложении (без паузы между предложениями: оно уже сделано).
+			if Diplomacy.canOffer(m.diplo, from, to, "trade", m.simTime + Config.Diplomacy.OfferRetrySec) then
+				Diplomacy.signTrade(m.diplo, from, to, m.simTime)
+			else
+				accept = false
 			end
 		elseif kind == "alliance" then
 			local max = Config.Match.MaxAlliesFfa
@@ -1199,10 +1342,16 @@ local function stepAttacks(m: Match, simDt: number): number
 	local record = recordCapture(m)
 
 	local battled: { [Attack]: boolean } = {}
+	local truce = Council.active(m.council, "truce", m.simTime) ~= nil
 	local k = 1
 	while k <= #m.attacks do
 		local a = m.attacks[k]
 		local done = false
+		if truce and a.target ~= 0 then
+			-- Всеобщее перемирие (§8.2): фронты против держав стоят — без боя и захвата.
+			k += 1
+			continue
+		end
 		if a.target == 0 then
 			local d, cells = Expansion.advance(m.map, g, m.nations, a, m.tick, m.seed, simDt, {
 				cityAllowed = neutralCityTaker(a),
@@ -1328,6 +1477,98 @@ local function answerBotProposals(m: Match)
 	end
 end
 
+-- Что бот знает, голосуя в Совете: лидер ли он, проигрывает ли войну, в хвосте ли по суше.
+local function councilView(m: Match, id: number, options: { Types.Resolution }): BotBrain.CouncilView
+	local g = m.grid
+	local mine = Grid.cellsOf(g, id)
+	local leader, leaderCells, below = 0, -1, 0
+	for _, other in m.nations do
+		if other.alive then
+			local cells = Grid.cellsOf(g, other.id)
+			if cells > leaderCells then
+				leader, leaderCells = other.id, cells
+			end
+			if other.id ~= id and cells < mine then
+				below += 1
+			end
+		end
+	end
+	local losing = false
+	for _, war in Wars.of(m.wars, id) do
+		local enemy = Wars.enemyOf(war, id)
+		if totalPower(m, id) < totalPower(m, enemy) then
+			losing = true
+		end
+	end
+	return {
+		options = options,
+		isLeader = leader == id,
+		losingWar = losing,
+		inTail = below < Config.Council.AidCount,
+	}
+end
+
+-- Резолюция Совета вступает в силу.
+function MatchSim.applyResolution(m: Match, kind: Types.Resolution)
+	local cfg = Config.Council
+	local now = m.simTime
+	local target: number? = nil
+	if kind == "sanctions" then
+		local best = -1
+		for _, n in m.nations do
+			if n.alive and Grid.cellsOf(m.grid, n.id) > best then
+				target, best = n.id, Grid.cellsOf(m.grid, n.id)
+			end
+		end
+		Council.addActive(m.council, kind, now + cfg.SanctionsSec, target)
+	elseif kind == "truce" then
+		Council.addActive(m.council, kind, now + cfg.TruceSec)
+	elseif kind == "freeTrade" then
+		Council.addActive(m.council, kind, now + cfg.FreeTradeSec)
+	elseif kind == "superweaponBan" then
+		Council.addActive(m.council, kind, now + cfg.SuperweaponBanSec)
+	elseif kind == "aid" then
+		local alive: { Nation } = {}
+		for _, n in m.nations do
+			if n.alive then
+				table.insert(alive, n)
+			end
+		end
+		table.sort(alive, function(a: Nation, b: Nation): boolean
+			local ca, cb = Grid.cellsOf(m.grid, a.id), Grid.cellsOf(m.grid, b.id)
+			if ca ~= cb then
+				return ca < cb
+			end
+			return a.id < b.id
+		end)
+		for k = 1, math.min(cfg.AidCount, #alive) do
+			alive[k].money += cfg.AidMoney
+		end
+	end
+	table.insert(m.events, { kind = "resolution", resolution = kind, target = target })
+end
+
+-- Совет держав (§8.2): открыть голосование (боты голосуют сразу), закрыть и применить резолюцию.
+local function stepCouncil(m: Match)
+	for _, c in Council.update(m.council, m.simTime, m.rng) do
+		if c.kind == "opened" then
+			table.insert(m.events, { kind = "councilOpened", options = c.vote.options })
+			for _, n in m.nations do
+				if n.alive and n.isBot then
+					local option = BotBrain.councilVote(councilView(m, n.id, c.vote.options), profileOf(m, n.id))
+					Council.vote(m.council, n.id, option)
+				end
+			end
+		else
+			local winner: Types.Resolution? = (c :: any).winner
+			table.insert(m.events, { kind = "councilClosed", winner = winner, votes = (c :: any).votes })
+			if winner ~= nil then
+				MatchSim.applyResolution(m, winner)
+			end
+		end
+	end
+end
+
 -- Бот решает, принять ли предложение или требование (§8.1).
 local function botAnswersOffer(m: Match, offer: Diplomacy.Offer): boolean
 	local g = m.grid
@@ -1393,6 +1634,12 @@ local function stepEconomy(m: Match, n: Nation, simDt: number)
 		oilIncome = Economy.oilIncome(owned.rigs),
 		upkeep = Economy.upkeep(strength),
 	}
+	-- Торговые соглашения +5% каждое, санкции Совета −25% (§8.2).
+	e.income *= 1 + Config.Trade.AgreementIncome * Diplomacy.tradeCount(m.diplo, n.id)
+	local sanctions = Council.active(m.council, "sanctions", m.simTime)
+	if sanctions ~= nil and sanctions.target == n.id then
+		e.income *= Config.Council.SanctionsIncomeMul
+	end
 	-- Вассал отдаёт долю дохода сюзерену (§8.1); в доходе вассала — уже без дани.
 	local overlord = Diplomacy.overlordOf(m.diplo, n.id)
 	local lord = if overlord ~= nil then m.nations[overlord] else nil
@@ -1666,6 +1913,7 @@ function MatchSim.step(m: Match, dt: number)
 	end
 	answerBotProposals(m)
 	stepDiplomacy(m)
+	stepCouncil(m)
 
 	m.lastCaptured = stepAttacks(m, simDt)
 	stepPockets(m)

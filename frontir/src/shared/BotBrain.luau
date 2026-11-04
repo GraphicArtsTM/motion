@@ -42,6 +42,8 @@ export type Neighbour = {
 	treaty: ("pact" | "alliance" | "vassal" | "overlord")?, -- договор с нами (§8.1)
 	traitor: boolean?, -- метка «Предатель»
 	demandProvince: number?, -- его провинция у нашей границы, которую можно потребовать
+	trade: boolean?, -- с ним торговое соглашение (§8.2)
+	embargo: boolean?, -- между нами эмбарго
 }
 
 -- Свой фронт или атака глазами бота.
@@ -87,6 +89,8 @@ export type BotView = {
 	overlordPower: number?,
 	canRebel: boolean?,
 	leader: number?, -- держава ближе всех к победе (не мы), если её доля суши от Bots.StopLeaderShare
+	tradeDeals: number?, -- сколько торговых соглашений (§8.2)
+	alliesAtWar: { number }?, -- союзники, которые воюют (им можно помочь деньгами)
 	money: number,
 	oil: number,
 	economy: { income: number, oilIncome: number, upkeep: number }, -- в секунду
@@ -112,6 +116,14 @@ export type OfferView = {
 	threat: boolean, -- есть лидер (не мы и не предлагающий) — общая угроза
 	atWarElsewhere: boolean, -- бот воюет с кем-то
 	allies: number,
+}
+
+-- Что бот знает, голосуя в Совете держав (§8.2).
+export type CouncilView = {
+	options: { Types.Resolution },
+	isLeader: boolean,
+	losingWar: boolean,
+	inTail: boolean, -- среди последних по суше (помощь слабым)
 }
 
 -- Что бот знает, отвечая на предложение мира.
@@ -378,6 +390,21 @@ local function diplomacy(view: BotView, p: Profile, rng: Rng, memory: Memory?, n
 			end
 		end
 	end
+	-- Богатый бот помогает союзнику, который воюет (§8.2).
+	local allyAtWar = (view.alliesAtWar or {})[1]
+	if
+		allyAtWar ~= nil
+		and view.money > Config.Trade.BotGiftReserve
+		and Rng.nextFloat(rng) < 0.3 * personality.loyalty
+	then
+		local gift = math.min(
+			Config.Trade.LimitPerMinute.money,
+			math.floor((view.money - Config.Trade.BotGiftReserve) * Config.Trade.BotGiftShare)
+		)
+		if gift > 0 then
+			return { kind = "transfer", target = allyAtWar, money = gift, oil = 0, people = 0 }
+		end
+	end
 	-- Предложения — не чаще OfferRetrySec и с вероятностью по личности.
 	local last = if memory ~= nil then memory.lastOfferAt else nil
 	if last ~= nil and now - last < cfg.OfferRetrySec then
@@ -410,6 +437,14 @@ local function diplomacy(view: BotView, p: Profile, rng: Rng, memory: Memory?, n
 		end
 		if best ~= nil then
 			return made({ kind = "offer", target = best.id, offer = "alliance" })
+		end
+	end
+	-- Торговое соглашение с соседом в мире (Торговцы — охотнее всех).
+	if (view.tradeDeals or 0) < Config.Trade.MaxAgreements and Rng.nextFloat(rng) < 0.5 * personality.trade then
+		for _, n in view.neighbours do
+			if not n.trade and not n.embargo and not n.atWar and not n.traitor and n.treaty ~= "overlord" then
+				return made({ kind = "offer", target = n.id, offer = "trade" })
+			end
 		end
 	end
 	-- Воюем — пакт с сильным соседом, чтобы не получить второй фронт.
@@ -618,6 +653,30 @@ function BotBrain.answerPeace(offer: PeaceOffer, profile: Profile?): boolean
 	return offer.myGain >= offer.theirGain or offer.myPower < offer.theirPower * cfg.AcceptKeepWhenWeaker * peace
 end
 
+-- Голос бота в Совете (§8.2): номер варианта.
+function BotBrain.councilVote(view: CouncilView, profile: Profile?): number
+	local p = profile or BotBrain.profile(nil, nil)
+	local best, bestScore = 1, -math.huge
+	for k, option in view.options do
+		local score = 0
+		if option == "sanctions" then
+			score = if view.isLeader then -10 else 1
+		elseif option == "truce" then
+			score = if view.losingWar then 1.5 elseif view.isLeader then -0.5 else 0.2
+		elseif option == "aid" then
+			score = if view.inTail then 2 else 0.3
+		elseif option == "freeTrade" then
+			score = 0.4 * p.personality.trade
+		elseif option == "superweaponBan" then
+			score = if view.isLeader then -1 else 0.5
+		end
+		if score > bestScore then
+			best, bestScore = k, score
+		end
+	end
+	return best
+end
+
 -- Ответ бота на предложение договора или требование (§8.1). С «Предателем» договоров нет.
 function BotBrain.answerOffer(offer: OfferView, profile: Profile?): boolean
 	local p = profile or BotBrain.profile(nil, nil)
@@ -629,6 +688,9 @@ function BotBrain.answerOffer(offer: OfferView, profile: Profile?): boolean
 	end
 	if offer.fromTraitor then
 		return false
+	end
+	if offer.kind == "trade" then
+		return true -- +5% дохода обоим; войны и эмбарго проверены при предложении
 	end
 	if offer.kind == "alliance" then
 		if offer.allies >= Config.Match.MaxAlliesFfa or offer.fromIsLeader then
