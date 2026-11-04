@@ -42,6 +42,7 @@ export type Hooks = {
 	cityAllowed: ((cell: number) -> boolean)?, -- можно ли взять ничейный город (атака людьми с войсками)
 	canTake: ((owner: number) -> boolean)?, -- чьи окружённые куски можно забрать (nil — любые)
 	record: ((cell: number, oldOwner: number, newOwner: number) -> ())?, -- журнал захвата (для войн)
+	costMul: ((cell: number) -> number)?, -- множитель цены ничьей клетки в людях (повстанцы, §6.10)
 }
 
 local Expansion = {}
@@ -340,6 +341,7 @@ function Expansion.advance(
 	local cfg = Config.Expansion
 	local cityAllowed = if hooks ~= nil then hooks.cityAllowed else nil
 	local record = if hooks ~= nil then hooks.record else nil
+	local costMul = if hooks ~= nil then hooks.costMul else nil
 	local front, touching = Expansion.frontier(g, attack.attacker, attack.target, cityAllowed ~= nil)
 	if #front == 0 then
 		return true, 0
@@ -357,6 +359,9 @@ function Expansion.advance(
 				continue
 			end
 			local cost = Expansion.cellCost(Config.Terrain[MapData.getTerrain(map, i)].captureCost)
+			if costMul ~= nil then
+				cost *= costMul(i)
+			end
 			if attack.troops < cost then
 				finished = true
 				break

@@ -303,7 +303,9 @@ T.describe("Укрепления и котлы", function()
 	)
 
 	T.it("боты строят завод и нанимают технику", function()
-		local m = MatchSim.new(Fixtures.pangea, 51)
+		-- Сид подобран: техника к 5-й минуте может и погибнуть в войне (до 7а так было на сиде 54,
+		-- после 7а — на 51: проверки восстаний тратят случайные числа, партия идёт иначе).
+		local m = MatchSim.new(Fixtures.pangea, 52)
 		MatchSim.startPick(m)
 		while m.phase ~= "Play" do
 			MatchSim.step(m, DT)

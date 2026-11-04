@@ -97,6 +97,7 @@ export type BotView = {
 	economy: { income: number, oilIncome: number, upkeep: number }, -- в секунду
 	owned: { factories: number, markets: number, rigs: number, forts: number, cityLevels: number },
 	spots: BuildSpots,
+	stability: number?, -- средняя стабильность своих провинций (§6.10, этап 7а)
 }
 
 -- Где можно строить (клетка для намерения build) — подбирает MatchSim.
@@ -105,6 +106,8 @@ export type BuildSpots = {
 	oilRig: number?, -- провинция с нефтяным полем без вышки
 	fort: number?, -- провинция у границы с врагом
 	city: number?, -- свой город, который можно улучшить
+	unstable: number?, -- своя провинция со стабильностью ниже Stability.LowBelow и без здания (§6.10)
+	unstableCity: number?, -- свой город в такой провинции, который можно улучшить
 }
 
 -- Что бот знает, отвечая на предложение договора или требование (§8.1).
@@ -278,6 +281,14 @@ local function chooseBuild(view: BotView, profile: Profile, rng: Rng, atWar: boo
 	end
 	if owned.factories == 0 then
 		return want("Factory", spots.free or spots.oilRig)
+	end
+	-- Нестабильная провинция (§6.10): укрепление или улучшение города поднимают стабильность.
+	-- Не больше Stability.BotCalmForts укреплений: деньги нужны и на войска.
+	if owned.forts < Config.Stability.BotCalmForts then
+		local calm = want("Fort", spots.unstable) or want("City", spots.unstableCity)
+		if calm ~= nil then
+			return calm
+		end
 	end
 	-- Генерал в войне сначала укрепляет границу с врагом.
 	if level.smartTarget and atWar and owned.forts < 1 + owned.factories then
@@ -566,13 +577,16 @@ function BotBrain.decide(view: BotView, rng: Rng, profile: Profile?, memory: Mem
 		end
 	end
 
-	-- Мир: долгая война, а мы сильно слабее.
+	-- Мир: долгая война, а мы сильно слабее. Земля бунтует (§6.10) — просим раньше.
+	local unrest = if view.stability ~= nil and view.stability < Config.Stability.BotPeaceBelow
+		then Config.Stability.BotPeaceMul
+		else 1
 	for _, war in view.wars do
 		if
 			war.active
 			and war.canPropose
 			and war.age >= level.peaceAfterSec
-			and view.totalPower < war.theirPower * cfg.PeaceWhenWeaker * personality.peace
+			and view.totalPower < war.theirPower * cfg.PeaceWhenWeaker * personality.peace * unrest
 		then
 			-- Сначала просит белый мир; не вышло — готов отдать захваченное, лишь бы война кончилась.
 			local keep = war.myGain > war.theirGain

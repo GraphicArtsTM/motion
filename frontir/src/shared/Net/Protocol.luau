@@ -413,8 +413,9 @@ local RATIO_SCALE = 32
 local KINDS = #Types.LandUnits
 local NO_FOCUS = 0xFFFFFFFF
 
-function Protocol.encodeStats(s: Stats): buffer
-	local w = writer(32 + #s.nations * 31 + #s.attacks * 20)
+-- Начало STATS: заголовок и державы (одинаковые для всех; фронты — у каждого игрока свои из-за тумана, §6.11).
+function Protocol.encodeStatsHead(s: Stats): buffer
+	local w = writer(16 + #s.nations * 31)
 	u8(w, Protocol.STATS)
 	f32(w, s.tickMs)
 	u16(w, math.clamp(s.changed, 0, 65535))
@@ -433,6 +434,15 @@ function Protocol.encodeStats(s: Stats): buffer
 		end
 		u8(w, math.clamp(math.round(n.weariness * 100), 0, 100))
 	end
+	return finish(w)
+end
+
+-- STATS целиком. head — готовое начало (encodeStatsHead) тех же держав, чтобы не кодировать их для каждого игрока.
+function Protocol.encodeStats(s: Stats, head: buffer?): buffer
+	local start = head or Protocol.encodeStatsHead(s)
+	local w = writer(buffer.len(start) + 2 + #s.attacks * 20)
+	buffer.copy(w.buf, 0, start, 0, buffer.len(start))
+	w.pos = buffer.len(start)
 	u16(w, math.min(#s.attacks, 65535))
 	for k = 1, math.min(#s.attacks, 65535) do
 		local a = s.attacks[k]

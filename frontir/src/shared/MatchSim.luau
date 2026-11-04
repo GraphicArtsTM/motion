@@ -42,6 +42,7 @@ local NationColors = require("./NationColors")
 local Pockets = require("./Pockets")
 local Provinces = require("./Provinces")
 local Rng = require("./Rng")
+local Stability = require("./Stability")
 local StartPositions = require("./StartPositions")
 local Types = require("./Types")
 local Wars = require("./Wars")
@@ -81,6 +82,8 @@ export type MatchEvent =
 	| { kind: "councilClosed", winner: Types.Resolution?, votes: { number } }
 	| { kind: "resolution", resolution: Types.Resolution, target: number? }
 	| { kind: "ping", nation: number, cell: number, phrase: Types.Phrase }
+	-- Стабильность (§6.10, этап 7а)
+	| { kind: "revolt", nation: number, province: number }
 
 export type Match = {
 	map: MapData,
@@ -116,6 +119,7 @@ export type Match = {
 	pockets: { [number]: Pockets.NationPockets }, -- котлы по державам (§6.7)
 	pocketCursor: number, -- чья связность проверяется следующей
 	pocketCheck: { [number]: { version: number, at: number } }, -- когда и при какой территории считали котлы
+	stability: Stability.State, -- стабильность провинций и повстанцы (§6.10)
 	result: Types.MatchResult?, -- итог (фаза Over)
 	victory: boolean, -- проверять ли победу (тесты на крошечных картах выключают)
 	history: { times: { number }, shares: { [number]: { number } } }, -- доля суши по времени
@@ -172,6 +176,7 @@ function MatchSim.new(map: MapData, seed: number): Match
 		pockets = {},
 		pocketCursor = 1,
 		pocketCheck = {},
+		stability = Stability.new(),
 		result = nil,
 		victory = true,
 		history = { times = {}, shares = {} },
@@ -817,6 +822,23 @@ local function buildSpots(m: Match, n: Nation): BotBrain.BuildSpots
 			end
 		end
 	end
+	-- Самая нестабильная своя провинция ниже LowBelow (§6.10): укрепление в центре или улучшение города.
+	local worst = Config.Stability.LowBelow
+	for _, entry in Stability.provincesOf(m.stability, n.id) do
+		if entry.value < worst then
+			local p = m.provinces.list[entry.province]
+			local city = m.cityOf[entry.province]
+			local free = Grid.getOwner(g, p.center) == n.id and m.buildings.byProvince[p.id] == nil
+			local upgradable = city ~= nil
+				and Grid.getOwner(g, city) == n.id
+				and Buildings.cityLevel(m.buildings, city) < Config.Economy.MaxCityLevel
+			if free or upgradable then
+				worst = entry.value
+				spots.unstable = if free then p.center else nil
+				spots.unstableCity = if upgradable then city else nil
+			end
+		end
+	end
 	return spots
 end
 
@@ -1004,12 +1026,14 @@ local function botView(m: Match, n: Nation): BotBrain.BotView
 		economy = m.economy[n.id] or { income = 0, oilIncome = 0, upkeep = 0 },
 		owned = MatchSim.ownedOf(m, n.id),
 		spots = buildSpots(m, n),
+		stability = Stability.summaryOf(m.stability, n.id).average,
 	}
 end
 
 -- Держава выбыла: войска гибнут, её клетки становятся ничьими, атаки на неё заканчиваются.
 local function eliminate(m: Match, n: Nation, by: number)
 	Diplomacy.removeNation(m.diplo, n.id)
+	Stability.removeNation(m.stability, n.id)
 	n.alive = false
 	n.eliminatedAt = m.time
 	n.people = 0
@@ -1327,13 +1351,14 @@ local function recordCapture(m: Match): (cell: number, old: number, new: number)
 	end
 end
 
--- Ничейный город: войска атаки берут его, если могут оплатить гарнизон силой.
-local function neutralCityTaker(a: Attack): ((cell: number) -> boolean)?
+-- Ничейный город: войска атаки берут его, если могут оплатить гарнизон силой (у повстанцев он больше, §6.10).
+local function neutralCityTaker(m: Match, a: Attack): ((cell: number) -> boolean)?
 	if Forces.total(a.forces) <= 0 then
 		return nil
 	end
-	return function(_cell: number): boolean
-		local garrison = Config.Combat.NeutralCityGarrison
+	return function(cell: number): boolean
+		local rebel = Stability.isRebel(m.stability, MapData.getProvince(m.map, cell))
+		local garrison = if rebel then Config.Stability.RebelGarrison else Config.Combat.NeutralCityGarrison
 		if Forces.total(a.forces) < garrison then
 			return false
 		end
@@ -1355,11 +1380,27 @@ local function stepAttacks(m: Match, simDt: number): number
 		if a.target ~= 0 then
 			local list, touching, river = Expansion.frontier(g, a.attacker, a.target, true, m.map)
 			fronts[a] = { list = list, touching = touching, river = river }
+			-- Выборка линии фронта для тумана (§6.11): сервер шлёт чужой фронт, только если он в обзоре.
+			local line: { number } = {}
+			local stride = math.max(1, math.ceil(#list / Config.Fog.LineSamples))
+			for j = 1, #list, stride do
+				table.insert(line, list[j])
+			end
+			a.line = line
 			frontLength[a.target] = (frontLength[a.target] or 0) + #list
 		end
 	end
 	local record = recordCapture(m)
 
+	-- Ничья земля повстанцев дороже для границы людей (§6.10).
+	local rebelCost: ((cell: number) -> number)? = nil
+	if next(m.stability.rebels) ~= nil then
+		rebelCost = function(cell: number): number
+			return if Stability.isRebel(m.stability, MapData.getProvince(m.map, cell))
+				then Config.Stability.RebelCellCostMul
+				else 1
+		end
+	end
 	local battled: { [Attack]: boolean } = {}
 	local truce = Council.active(m.council, "truce", m.simTime) ~= nil
 	local k = 1
@@ -1373,9 +1414,10 @@ local function stepAttacks(m: Match, simDt: number): number
 		end
 		if a.target == 0 then
 			local d, cells = Expansion.advance(m.map, g, m.nations, a, m.tick, m.seed, simDt, {
-				cityAllowed = neutralCityTaker(a),
+				cityAllowed = neutralCityTaker(m, a),
 				canTake = enclaveRule(m, a.attacker),
 				record = record,
+				costMul = rebelCost,
 			})
 			done = d
 			captured += cells
@@ -1646,9 +1688,14 @@ end
 local function stepEconomy(m: Match, n: Nation, simDt: number)
 	local owned = MatchSim.ownedOf(m, n.id)
 	local strength = Forces.total(n.home) + Forces.total(MatchSim.frontForces(m, n.id))
+	-- Провинции ниже Stability.LowBelow дают меньше дохода (§6.10): их клетки и города — с множителем.
+	local unrest = Stability.summaryOf(m.stability, n.id)
+	local cut = 1 - Config.Stability.LowIncomeMul
+	local cells = Grid.cellsOf(m.grid, n.id) - unrest.lowCells * cut
+	local cityLevels = owned.cityLevels - unrest.lowCityLevels * cut
 	local e: NationEconomy = {
 		-- Генералу +10% дохода — единственное послабление ботам (§9).
-		income = Economy.income(Grid.cellsOf(m.grid, n.id), owned.cityLevels, owned.markets)
+		income = Economy.income(math.max(0, cells), math.max(0, cityLevels), owned.markets)
 			* (1 + (if n.isBot then profileOf(m, n.id).level.incomeBonus else 0)),
 		oilIncome = Economy.oilIncome(owned.rigs),
 		upkeep = Economy.upkeep(strength),
@@ -1727,6 +1774,71 @@ local function stepPockets(m: Match)
 					end
 				end
 			end
+		end
+	end
+end
+
+-- Что Stability знает о матче (§6.10).
+function MatchSim.stabilityContext(m: Match): Stability.Context
+	return {
+		grid = m.grid,
+		provinces = m.provinces,
+		cityOf = m.cityOf,
+		rng = m.rng,
+		now = m.simTime,
+		capitalOf = function(id: number): number?
+			local n = m.nations[id]
+			return if n ~= nil then n.capital else nil
+		end,
+		cityLevel = function(cell: number): number
+			return Buildings.cityLevel(m.buildings, cell)
+		end,
+		fort = function(p: number, owner: number): boolean
+			local spot = m.buildings.byProvince[p]
+			local b = if spot ~= nil then m.buildings.byCell[spot] else nil
+			return b ~= nil and b.kind == "Fort" and Grid.getOwner(m.grid, spot :: number) == owner
+		end,
+		atWar = function(id: number): boolean
+			for _, war in Wars.of(m.wars, id) do
+				if war.state == "active" then
+					return true
+				end
+			end
+			return false
+		end,
+		weariness = function(id: number): number
+			return Wars.weariness(m.wars, id, m.simTime)
+		end,
+		traitor = function(id: number): boolean
+			return Diplomacy.isTraitor(m.diplo, id, m.simTime)
+		end,
+	}
+end
+
+-- Восстание (§6.10): клетки хозяина в провинции становятся ничьими, его город — городом повстанцев.
+function MatchSim.revolt(m: Match, provinceId: number, owner: number)
+	local p = m.provinces.list[provinceId]
+	if p == nil then
+		return
+	end
+	for _, cell in p.cells do
+		if Grid.getOwner(m.grid, cell) == owner then
+			Grid.setOwner(m.grid, cell, 0)
+		end
+	end
+	Stability.revolt(m.stability, provinceId, owner, m.simTime)
+	table.insert(m.events, { kind = "revolt", nation = owner, province = provinceId })
+end
+
+-- Стабильность раз в Stability.UpdateSec и восстания.
+local function stepStability(m: Match)
+	if m.simTime < m.stability.nextUpdateAt then
+		return
+	end
+	for _, r in Stability.update(m.stability, MatchSim.stabilityContext(m)) do
+		local n = m.nations[r.owner]
+		if n ~= nil and n.alive then
+			MatchSim.revolt(m, r.province, r.owner)
 		end
 	end
 end
@@ -1936,6 +2048,7 @@ function MatchSim.step(m: Match, dt: number)
 
 	m.lastCaptured = stepAttacks(m, simDt)
 	stepPockets(m)
+	stepStability(m)
 
 	-- Столицы и выбывание: держава живёт, пока у неё есть хоть один город.
 	for _, n in m.nations do

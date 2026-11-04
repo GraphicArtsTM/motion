@@ -36,6 +36,10 @@ export type Grid = {
 	-- Служебное для заливок (Pockets): u32 метка на клетку и последнее выданное значение метки.
 	stamp: buffer,
 	stampValue: number,
+	-- Провинции (этап 7а): id провинции клетки (слой карты, u16) и сколько клеток в ней у каждого владельца
+	-- (без ничьих) — для хозяина провинции и стабильности (§6.10).
+	province: buffer,
+	provinceCells: { [number]: { [number]: number } },
 }
 
 local Grid = {}
@@ -68,6 +72,8 @@ function Grid.new(map: MapData): Grid
 		version = {},
 		stamp = buffer.create(size * 4),
 		stampValue = 0,
+		province = map.province,
+		provinceCells = {},
 	}
 end
 
@@ -157,13 +163,34 @@ function Grid.setOwner(g: Grid, i: number, owner: number)
 		return
 	end
 	buffer.writeu16(g.owner, i * 2, owner)
+	local p = buffer.readu16(g.province, i * 2)
+	local inProvince: { [number]: number }? = nil
+	if p ~= 0 then
+		local t = g.provinceCells[p]
+		if t == nil then
+			t = {}
+			g.provinceCells[p] = t
+		end
+		inProvince = t
+	end
 	if old ~= 0 then
 		g.cellCount[old] = (g.cellCount[old] or 1) - 1
 		g.version[old] = (g.version[old] or 0) + 1
+		if inProvince ~= nil then
+			local left = (inProvince[old] or 1) - 1
+			if left > 0 then
+				inProvince[old] = left
+			else
+				inProvince[old] = nil
+			end
+		end
 	end
 	if owner ~= 0 then
 		g.cellCount[owner] = (g.cellCount[owner] or 0) + 1
 		g.version[owner] = (g.version[owner] or 0) + 1
+		if inProvince ~= nil then
+			inProvince[owner] = (inProvince[owner] or 0) + 1
+		end
 	end
 	refreshBorder(g, i)
 	Grid.forNeighbours(g, i, function(j)
@@ -194,6 +221,17 @@ function Grid.takeChanges(g: Grid): { number }
 	end
 	table.sort(out)
 	return out
+end
+
+-- Сколько клеток провинции p у владельца owner (не 0).
+function Grid.provinceCells(g: Grid, p: number, owner: number): number
+	local t = g.provinceCells[p]
+	return if t ~= nil then t[owner] or 0 else 0
+end
+
+-- Владельцы клеток провинции p: держава → клеток (не изменять).
+function Grid.provinceOwners(g: Grid, p: number): { [number]: number }
+	return g.provinceCells[p] or {}
 end
 
 -- Пограничные клетки державы (множество; не изменять).

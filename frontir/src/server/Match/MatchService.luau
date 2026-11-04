@@ -182,6 +182,7 @@ function MatchService.start(map: MapData)
 
 	-- Панель разработчика (F4): только в Studio. В опубликованной игре канала Remotes.Dev нет вовсе.
 	local devSpeed = 1
+	local devNoFog: { [Player]: boolean } = {} -- «Туман выкл»: игроку уходят все фронты
 	if RunService:IsStudio() then
 		local devEvent = Instance.new("RemoteEvent")
 		devEvent.Name = "Dev"
@@ -216,6 +217,17 @@ function MatchService.start(map: MapData)
 				ok, reason = DevTools.councilNow(m)
 			elseif action == "end" then
 				ok, reason = DevTools.endMatch(m)
+			elseif action == "fog" then
+				if devNoFog[player] then
+					devNoFog[player] = nil
+				else
+					devNoFog[player] = true
+				end
+				matchEvent:FireClient(player, { kind = "dev", fog = not devNoFog[player] })
+			elseif action == "stability" and (arg == "low" or arg == "high") then
+				ok, reason = DevTools.setStability(m, id, arg == "high")
+			elseif action == "revolt" then
+				ok, reason = DevTools.revoltNow(m, id)
 			else
 				ok, reason = false, "target"
 			end
@@ -228,14 +240,38 @@ function MatchService.start(map: MapData)
 	local step = 1 / Config.Sim.TickRate
 	local acc = 0
 	local statsAcc = 0
+	local stabilityAcc = 0
 	local lastTickMs = 0
 	local lastChanged = 0
-	-- Всем — общая статистика (державы, атаки и фронты) и войны; каждому игроку — его войска и очередь найма.
+	-- Кому из игроков туман не нужен: зритель (нет живой державы) и «Туман выкл» в панели разработчика.
+	local function viewerOf(player: Player): number?
+		local id = nationOf[player]
+		local n = if id ~= nil then m.nations[id] else nil
+		if n == nil or not n.alive or devNoFog[player] then
+			return nil
+		end
+		return id
+	end
+
+	-- Всем — статистика (державы одинаковые, фронты — каждому свои из-за тумана, §6.11) и войны;
+	-- каждому игроку — его войска и очередь найма.
 	local function sendStats()
-		matchEvent:FireAllClients(Protocol.encodeStats(MatchStats.build(m, lastTickMs, lastChanged)))
+		local full = MatchStats.build(m, lastTickMs, lastChanged)
+		local head = Protocol.encodeStatsHead(full)
+		for _, player in Players:GetPlayers() do
+			matchEvent:FireClient(player, Protocol.encodeStats(MatchStats.forViewer(m, full, viewerOf(player)), head))
+		end
 		matchEvent:FireAllClients(Protocol.encodeWars(MatchStats.wars(m)))
 		for player, id in nationOf do
 			matchEvent:FireClient(player, Protocol.encodeForces(MatchStats.forcesOf(m, id)))
+		end
+	end
+
+	-- Стабильность (§6.10): каждому — свои провинции и средняя, всем — повстанцы.
+	local function sendStability()
+		for _, player in Players:GetPlayers() do
+			local id = nationOf[player]
+			matchEvent:FireClient(player, MatchStats.stability(m, id))
 		end
 	end
 
@@ -300,6 +336,11 @@ function MatchService.start(map: MapData)
 		if m.phase == "Play" and statsAcc >= 1 / Config.Net.StatsHz then
 			statsAcc = 0
 			sendStats()
+		end
+		stabilityAcc += dt
+		if m.phase == "Play" and stabilityAcc >= Config.Net.StabilityEverySec then
+			stabilityAcc = 0
+			sendStability()
 		end
 	end)
 
