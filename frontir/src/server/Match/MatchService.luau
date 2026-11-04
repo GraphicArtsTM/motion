@@ -19,6 +19,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Buildings = require(Shared:WaitForChild("Buildings"))
 local ClientState = require(Shared:WaitForChild("ClientState"))
 local Config = require(Shared:WaitForChild("Config"))
+local DevTools = require(Shared:WaitForChild("DevTools"))
 local Grid = require(Shared:WaitForChild("Grid"))
 local Intents = require(Shared:WaitForChild("Intents"))
 local MapDataModule = require(Shared:WaitForChild("MapData"))
@@ -179,6 +180,51 @@ function MatchService.start(map: MapData)
 		end
 	end)
 
+	-- Панель разработчика (F4): только в Studio. В опубликованной игре канала Remotes.Dev нет вовсе.
+	local devSpeed = 1
+	if RunService:IsStudio() then
+		local devEvent = Instance.new("RemoteEvent")
+		devEvent.Name = "Dev"
+		devEvent.Parent = remotes
+		devEvent.OnServerEvent:Connect(function(player: Player, action: any, arg: any)
+			local id = nationOf[player]
+			if id == nil or type(action) ~= "string" then
+				return
+			end
+			local target = if type(arg) == "number" and m.nations[arg] ~= nil then arg else nil
+			local ok, reason = true, nil :: string?
+			if action == "grant" and (arg == "forces" or arg == "people" or arg == "money") then
+				ok, reason = DevTools.grant(m, id, arg)
+			elseif action == "speed" then
+				devSpeed = if devSpeed == 1 then Config.Dev.FastSpeed else 1
+				matchEvent:FireClient(player, { kind = "dev", speed = devSpeed })
+			elseif action == "war" and target ~= nil then
+				ok, reason = DevTools.warNow(m, id, target)
+			elseif action == "botWar" and target ~= nil then
+				ok, reason = DevTools.warNow(m, target, id)
+			elseif action == "peace" and target ~= nil then
+				ok, reason = DevTools.peaceNow(m, id, target)
+			elseif
+				action == "offer"
+				and type(arg) == "table"
+				and type(arg.bot) == "number"
+				and m.nations[arg.bot] ~= nil
+				and (arg.offer == "alliance" or arg.offer == "pact" or arg.offer == "trade" or arg.offer == "demand")
+			then
+				ok, reason = DevTools.forceOffer(m, arg.bot, id, arg.offer)
+			elseif action == "council" then
+				ok, reason = DevTools.councilNow(m)
+			elseif action == "end" then
+				ok, reason = DevTools.endMatch(m)
+			else
+				ok, reason = false, "target"
+			end
+			if not ok then
+				matchEvent:FireClient(player, { kind = "rejected", reason = reason or "?", intent = "dev" })
+			end
+		end)
+	end
+
 	local step = 1 / Config.Sim.TickRate
 	local acc = 0
 	local statsAcc = 0
@@ -194,10 +240,10 @@ function MatchService.start(map: MapData)
 	end
 
 	RunService.Heartbeat:Connect(function(dt: number)
-		acc += dt
+		acc += dt * devSpeed -- «Время ×5» панели разработчика: больше шагов симуляции за кадр
 		statsAcc += dt
 		local steps = 0
-		while acc >= step and steps < Config.Net.MaxStepsPerFrame do
+		while acc >= step and steps < Config.Net.MaxStepsPerFrame * devSpeed do
 			acc -= step
 			steps += 1
 			local wasPlaying = m.phase == "Play"
@@ -234,7 +280,7 @@ function MatchService.start(map: MapData)
 				matchEvent:FireAllClients({ kind = "events", events = events })
 			end
 		end
-		if acc > step * Config.Net.MaxStepsPerFrame then
+		if acc > step * Config.Net.MaxStepsPerFrame * devSpeed then
 			acc = 0 -- сервер не успевает: лучше пропустить время, чем копить отставание
 		end
 		-- Результаты показаны — новый матч на той же карте: все игроки снова в лобби (смена карты — этап 8).

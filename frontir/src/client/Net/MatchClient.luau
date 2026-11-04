@@ -23,6 +23,7 @@ export type Handlers = {
 	onWars: () -> (),
 	onBuildings: () -> (),
 	onDiplo: () -> (),
+	onDev: ((msg: any) -> ())?, -- ответ панели разработчика (только Studio)
 	onEvents: (events: { any }) -> (),
 	onRejected: (reason: string) -> (),
 }
@@ -75,6 +76,8 @@ function MatchClient.connect(cs: ClientState, handlers: Handlers): MatchClient
 				handlers.onBuildings()
 			elseif msg.kind == "rejected" then
 				handlers.onRejected(tostring(msg.reason))
+			elseif msg.kind == "dev" and handlers.onDev ~= nil then
+				handlers.onDev(msg)
 			end
 		end
 	end)

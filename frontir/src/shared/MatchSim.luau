@@ -820,6 +820,24 @@ local function buildSpots(m: Match, n: Nation): BotBrain.BuildSpots
 	return spots
 end
 
+-- Держава id «ослабла» для Хитреца (§8.1): воюет не с viewer и потеряла в этих войнах больше
+-- Diplomacy.BetrayLossShare своих войск (потери / (потери + что осталось)).
+local function weakenedElsewhere(m: Match, id: number, viewer: number): boolean
+	local lost = 0
+	local fighting = false
+	for _, war in Wars.of(m.wars, id) do
+		if Wars.enemyOf(war, id) ~= viewer then
+			fighting = true
+			lost += if war.a == id then war.lossesA else war.lossesB
+		end
+	end
+	if not fighting or lost <= 0 then
+		return false
+	end
+	return lost / (lost + totalPower(m, id)) > Config.Diplomacy.BetrayLossShare
+end
+MatchSim.weakenedElsewhere = weakenedElsewhere
+
 local function botView(m: Match, n: Nation): BotBrain.BotView
 	local g = m.grid
 	local adjacent = Grid.adjacentOwners(g, n.id)
@@ -889,6 +907,7 @@ local function botView(m: Match, n: Nation): BotBrain.BotView
 					traitor = Diplomacy.isTraitor(ds, owner, m.simTime),
 					demandProvince = demandOf[owner],
 					trade = Diplomacy.hasTrade(ds, n.id, owner),
+					weakened = weakenedElsewhere(m, owner, n.id),
 					embargo = Diplomacy.embargoed(ds, n.id, owner),
 					border = border,
 					share = Grid.cellsOf(g, owner) / math.max(1, g.capturableCount),

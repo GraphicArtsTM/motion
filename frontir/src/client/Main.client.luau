@@ -35,6 +35,7 @@ local BuildPanel = require(UI:WaitForChild("BuildPanel"))
 local BuildingLayer = require(Render:WaitForChild("BuildingLayer"))
 local CouncilPanel = require(UI:WaitForChild("CouncilPanel"))
 local DebugOverlay = require(UI:WaitForChild("DebugOverlay"))
+local DevPanel = require(UI:WaitForChild("DevPanel"))
 local DiplomacyPanel = require(UI:WaitForChild("DiplomacyPanel"))
 local ForcesPanel = require(UI:WaitForChild("ForcesPanel"))
 local FrontLayer = require(Render:WaitForChild("FrontLayer"))
@@ -205,6 +206,11 @@ diplomacy.refresh()
 local council = CouncilPanel.new(hudGui, cs, lang, send)
 council.refresh()
 local pings = Pings.new(hudGui, view.canvas, cs, lang, send, hud.toast)
+-- Панель разработчика (F4) — только в Studio; создаётся в фоне (ждёт канал Remotes.Dev от сервера).
+local devPanel: DevPanel.DevPanel? = nil
+task.spawn(function()
+	devPanel = DevPanel.new(hudGui, cs, lang)
+end)
 pings.refresh()
 camera.onChanged(function(state)
 	pings.onCamera(state)
@@ -272,6 +278,11 @@ client = MatchClient.connect(cs, {
 		hud.onEvents(events)
 		wars.onEvents(events)
 		pings.onEvents(events)
+	end,
+	onDev = function(msg: any)
+		if devPanel ~= nil then
+			devPanel.onDev(msg)
+		end
 	end,
 	onRejected = function(reason: string)
 		hud.toast(Strings.get("reject." .. reason, lang))

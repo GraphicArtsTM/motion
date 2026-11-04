@@ -144,6 +144,12 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
 - Сеть: всё в `diplo` (версия договоров + версия Совета). Клиент: `UI/CouncilPanel`, `UI/Pings` (G, метки на canvas),
   торговля в `UI/DiplomacyPanel`.
 
+## Панель разработчика (F4)
+- Только в Studio: `MatchService` создаёт `Remotes.Dev` при `RunService:IsStudio()`; действия — чистый `DevTools`
+  (grant, forceOffer, warNow, peaceNow, councilNow, endMatch), ускорение ×5 — шагов симуляции за кадр в `MatchService`.
+  Клиент: `UI/DevPanel`. Новые механики — сразу добавлять в панель и в чек-лист README.
+- С этапа 7 каждый этап — отдельный PR в `main` (PR #2 мержит геймдизайнер).
+
 ## Require
 Внутри `src/shared` модули подключают друг друга строкой: `require("./Types")` — так работает и в Roblox (`./` = `script.Parent`), и в Lune.
 Сервер и клиент берут общие модули через `ReplicatedStorage.Shared`.

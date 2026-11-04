@@ -43,6 +43,7 @@ export type Neighbour = {
 	traitor: boolean?, -- метка «Предатель»
 	demandProvince: number?, -- его провинция у нашей границы, которую можно потребовать
 	trade: boolean?, -- с ним торговое соглашение (§8.2)
+	weakened: boolean?, -- воюет с кем-то ещё и потерял больше Diplomacy.BetrayLossShare войск
 	embargo: boolean?, -- между нами эмбарго
 }
 
@@ -377,16 +378,26 @@ local function diplomacy(view: BotView, p: Profile, rng: Rng, memory: Memory?, n
 			end
 		end
 	end
-	-- Хитрец предаёт слабого союзника-соседа, если сам ни с кем не воюет.
-	if personality.betray > 0 and #view.wars == 0 then
+	-- Хитрец бьёт в спину партнёру по союзу или пакту (§8.1):
+	-- 1) партнёр воюет с кем-то ещё и потерял больше трети войск — удобный момент, хватит и равных сил
+	--    (так поступают только записные предатели: betray от Diplomacy.OpportunistBetray — Хитрец);
+	-- 2) или партнёр просто намного слабее, а сам Хитрец ни с кем не воюет.
+	if personality.betray > 0 and #view.wars <= 1 then
 		for _, n in view.neighbours do
-			if
-				n.treaty == "alliance"
-				and send >= n.power * Config.Combat.DefenderHomeBonus * cfg.BetrayAdvantage
-				and send >= Config.Forces.MinFrontStrength
-				and Rng.nextFloat(rng) < 0.2 * personality.betray
-			then
-				return { kind = "declare", target = n.id }
+			if (n.treaty == "alliance" or n.treaty == "pact") and send >= Config.Forces.MinFrontStrength then
+				local defense = n.power * Config.Combat.DefenderHomeBonus
+				local opportunity = personality.betray >= cfg.OpportunistBetray
+					and n.weakened == true
+					and send >= defense * cfg.BetrayWeakenedAdvantage
+					and Rng.nextFloat(rng) < cfg.BetrayWeakenedChance * personality.betray
+				-- Пакт ломают только записные предатели; союзника — любой, у кого betray > 0 (как в 6а).
+				local crushing = #view.wars == 0
+					and (n.treaty == "alliance" or personality.betray >= cfg.OpportunistBetray)
+					and send >= defense * cfg.BetrayAdvantage
+					and Rng.nextFloat(rng) < 0.2 * personality.betray
+				if opportunity or crushing then
+					return { kind = "declare", target = n.id }
+				end
 			end
 		end
 	end
@@ -456,6 +467,14 @@ local function diplomacy(view: BotView, p: Profile, rng: Rng, memory: Memory?, n
 				and not n.traitor
 				and n.power >= view.power * cfg.PactAgainstStronger
 			then
+				return made({ kind = "offer", target = n.id, offer = "pact5" })
+			end
+		end
+	end
+	-- Хитрец сам набирает пакты с соседями: чем больше договоров, тем больше удобных моментов для удара в спину.
+	if personality.betray >= Config.Diplomacy.OpportunistBetray then
+		for _, n in view.neighbours do
+			if n.treaty == nil and not n.atWar and not n.traitor and n.canDeclare then
 				return made({ kind = "offer", target = n.id, offer = "pact5" })
 			end
 		end

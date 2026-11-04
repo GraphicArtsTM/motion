@@ -48,6 +48,7 @@ end
 local declared, peaces = 0, 0
 local resolutions: { string } = {}
 local transfers, councils = 0, 0
+local betrayals: { string } = {}
 for _ = 1, math.floor(seconds * Config.Sim.TickRate) do
 	MatchSim.step(m, dt)
 	for _, e in MatchSim.takeEvents(m) do
@@ -61,6 +62,19 @@ for _ = 1, math.floor(seconds * Config.Sim.TickRate) do
 			councils += 1
 		elseif e.kind == "transfer" then
 			transfers += 1
+		elseif e.kind == "betrayal" then
+			local who = m.nations[e.nation]
+			table.insert(
+				betrayals,
+				string.format(
+					"%d:%02d %d(%s)→%d",
+					m.time // 60,
+					math.floor(m.time % 60),
+					e.nation,
+					if who ~= nil then who.personality or "игрок" else "?",
+					e.target
+				)
+			)
 		end
 	end
 	if m.phase == "Over" then
@@ -679,6 +693,7 @@ do
 		deals += 1
 	end
 	print("  ДОГОВОРЫ: " .. (if #parts > 0 then table.concat(parts, ", ") else "нет"))
+	print("  ПРЕДАТЕЛЬСТВА: " .. (if #betrayals > 0 then table.concat(betrayals, ", ") else "нет"))
 	print(
 		string.format(
 			"  ТОРГОВЛЯ И СОВЕТ: соглашений %d, переводов %d, Советов %d, резолюции: %s",

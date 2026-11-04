@@ -286,6 +286,11 @@ T.describe("Договоры", function()
 	end)
 end)
 
+-- Война сразу (как панель разработчика): без мобилизации.
+local function DevToolsWar(m: MatchSim.Match, a: number, b: number)
+	require("../src/shared/DevTools").warNow(m, a, b)
+end
+
 T.describe("Дипломатия ботов", function()
 	local function profile(personality: Types.BotPersonality): BotBrain.Profile
 		local p = BotBrain.profile("Normal", personality)
@@ -404,6 +409,54 @@ T.describe("Дипломатия ботов", function()
 				end
 			end
 			T.expect(joined).toBe(true)
+		end
+	)
+
+	T.it(
+		"Хитрец бьёт в спину ослабшего партнёра по пакту; Агрессор пакт не ломает",
+		function()
+			local rng = Rng.new(3)
+			local v = view()
+			v.power = 600 -- отправит 360: против гарнизона 250 × бонус обороны хватает, но вдвое сильнее не выходит
+			v.neighbours = { neighbour(7, 250, { treaty = "pact", canDeclare = false, weakened = true }) }
+			local betrayed = false
+			for _ = 1, 50 do
+				local i = BotBrain.decide(v, rng, profile("Cunning"), BotBrain.newMemory())
+				if i ~= nil and i.kind == "declare" and i.target == 7 then
+					betrayed = true
+				end
+			end
+			T.expect(betrayed).toBe(true)
+			-- Партнёр не ослаб — повода нет.
+			local calm = view()
+			calm.power = 600
+			calm.neighbours = { neighbour(7, 250, { treaty = "pact", canDeclare = false }) }
+			for _ = 1, 100 do
+				local i = BotBrain.decide(calm, rng, profile("Cunning"), BotBrain.newMemory())
+				T.expect(i == nil or i.kind ~= "declare").toBe(true)
+			end
+			-- Агрессор пакт не ломает даже у ослабшего (это манера Хитреца).
+			for _ = 1, 100 do
+				local i = BotBrain.decide(v, rng, profile("Aggressor"), BotBrain.newMemory())
+				T.expect(i == nil or i.kind ~= "declare").toBe(true)
+			end
+		end
+	)
+
+	T.it(
+		"«ослаб» в матче: воюет с другим и потерял больше трети войск",
+		function()
+			local m = trio()
+			Forces.add(m.nations[2].home, INF, 600)
+			Forces.add(m.nations[3].home, INF, 3000)
+			DevToolsWar(m, 3, 2)
+			local war = Wars.find(m.wars, 2, 3) :: Wars.War
+			-- Потери 2: 400 при оставшихся 600 — 40% больше трети.
+			Wars.addLosses(war, 2, 400)
+			T.expect(MatchSim.weakenedElsewhere(m, 2, 1)).toBe(true)
+			T.expect(MatchSim.weakenedElsewhere(m, 2, 3)).toBe(false) -- для самого врага это не «другая» война
+			local fresh = trio()
+			T.expect(MatchSim.weakenedElsewhere(fresh, 2, 1)).toBe(false)
 		end
 	)
 
@@ -674,6 +727,60 @@ T.describe("Совет держав (§8.2)", function()
 			T.expect(select(2, Intents.parse("transfer", { target = 2, money = -1 }))).toBe("bad amount")
 			T.expect((Intents.parse("embargo", { target = 2, on = true })))
 				.toEqual({ kind = "embargo", target = 2, on = true })
+		end
+	)
+end)
+
+T.describe("Панель разработчика (DevTools)", function()
+	local DevTools = require("../src/shared/DevTools")
+
+	T.it(
+		"дать себе войска, людей, деньги; бот присылает предложения и требование",
+		function()
+			local m = trio()
+			local n = m.nations[1]
+			local people, money = n.people, n.money
+			DevTools.grant(m, 1, "forces")
+			DevTools.grant(m, 1, "people")
+			DevTools.grant(m, 1, "money")
+			T.expect(Forces.total(n.home)).toBe(Config.Dev.GrantForces * 4)
+			T.expect(n.people).toBe(people + Config.Dev.GrantPeople)
+			T.expect(n.money).toBe(money + Config.Dev.GrantMoney)
+			-- Бот 2 предлагает союз — предложение ждёт ответа игрока 1; повтор без паузы — тоже можно.
+			T.expect((DevTools.forceOffer(m, 2, 1, "alliance"))).toBe(true)
+			T.expect(Diplomacy.offerBetween(m.diplo, 2, 1) ~= nil).toBe(true)
+			reply(m, 1, 2, false)
+			T.expect((DevTools.forceOffer(m, 2, 1, "pact"))).toBe(true)
+			T.expect((Diplomacy.offerBetween(m.diplo, 2, 1) :: Diplomacy.Offer).kind).toBe("pact5")
+			reply(m, 1, 2, false)
+			-- Требование: провинция 3 у игрока 1 граничит с ботом 2 и без столицы.
+			T.expect((DevTools.forceOffer(m, 2, 1, "demand"))).toBe(true)
+			T.expect((Diplomacy.offerBetween(m.diplo, 2, 1) :: Diplomacy.Offer).province).toBe(3)
+		end
+	)
+
+	T.it(
+		"война и мир сразу; бот-союзник объявляет войну — предательство; Совет и конец матча",
+		function()
+			local m = trio()
+			T.expect((DevTools.warNow(m, 1, 2))).toBe(true)
+			T.expect(Wars.isActive(m.wars, 1, 2)).toBe(true)
+			T.expect((DevTools.peaceNow(m, 1, 2))).toBe(true)
+			T.expect(Wars.find(m.wars, 1, 2)).toBe(nil)
+			T.expect(select(2, DevTools.peaceNow(m, 1, 2))).toBe("notAtWar")
+			offer(m, 3, 1, "alliance")
+			reply(m, 1, 3, true)
+			MatchSim.takeEvents(m)
+			DevTools.warNow(m, 3, 1)
+			T.expect(Diplomacy.isTraitor(m.diplo, 3, m.simTime)).toBe(true)
+			T.expect(Wars.isActive(m.wars, 1, 3)).toBe(true)
+			T.expect((DevTools.councilNow(m))).toBe(true)
+			MatchSim.step(m, DT)
+			T.expect(m.council.vote ~= nil).toBe(true)
+			m.victory = true
+			T.expect((DevTools.endMatch(m))).toBe(true)
+			runFor(m, Config.Dev.EndLeadSec + 0.5)
+			T.expect(m.phase).toBe("Over")
 		end
 	)
 end)
