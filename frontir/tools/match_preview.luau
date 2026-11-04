@@ -579,9 +579,11 @@ print(
 for _, n in m.nations do
 	print(
 		string.format(
-			"  %d %-12s цвет %2d  суша %5.1f%%  люди %8.0f  гарнизон %6.0f  $%7.0f нефть %4.0f  здания %s%s",
+			"  %d %-12s %-8s %-9s цвет %2d  суша %5.1f%%  люди %8.0f  гарнизон %6.0f  $%7.0f нефть %4.0f  здания %s%s",
 			n.id,
 			n.name,
+			n.botLevel or "игрок",
+			n.personality or "",
 			n.colorIndex,
 			Grid.cellsOf(g, n.id) / g.capturableCount * 100,
 			n.people,

@@ -136,6 +136,7 @@ function MatchHud.new(
 	local cfg = Config.Expansion
 	local percent = cfg.DefaultPercent
 	local gold, sky, alert = hex(Theme.Colors.Gold), hex(Theme.Colors.Sky), hex(Theme.Colors.Alert)
+	local muted = hex(Theme.Colors.Muted)
 
 	local totalLand = 0
 	for i = 0, map.width * map.height - 1 do
@@ -515,12 +516,21 @@ function MatchHud.new(
 				local n = cs.nations[s.id]
 				if n ~= nil and n.alive then
 					local you = if s.id == cs.myNation then " (" .. Strings.get("hud.you", lang) .. ")" else ""
+					-- Бот — метка уровня (§9.1): «бот·Генерал».
+					local tag = if n.isBot and n.botLevel ~= nil
+						then string.format(
+							' <font size="11" color="%s">%s</font>',
+							muted,
+							Strings.get("bot.level." .. n.botLevel, lang)
+						)
+						else ""
 					table.insert(
 						lines,
 						string.format(
-							'<font color="%s">■</font> %s%s  <font color="%s">%.1f%%</font>',
+							'<font color="%s">■</font> %s%s%s  <font color="%s">%.1f%%</font>',
 							nationHex(n.colorIndex),
 							escape(nationName(s.id)),
+							tag,
 							you,
 							sky,
 							s.cells / math.max(1, totalLand) * 100

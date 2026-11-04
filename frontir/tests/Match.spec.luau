@@ -416,12 +416,16 @@ end)
 
 T.describe("BotBrain", function()
 	local rng = Rng.new(1)
+	-- Обычный бот без ошибок (пропуск хода по Config.BotLevels.Normal.mistake мешал бы проверкам).
+	local normal = BotBrain.profile("Normal", "Admiral")
+	normal.level = table.clone(normal.level)
+	normal.level.mistake = 0
 	local function view(): BotBrain.BotView
 		return {
 			people = 100,
 			maxPeople = 1000,
 			attacks = 0,
-			queue = Config.Bots.MaxQueue, -- очередь полна — найм не мешает проверять атаки
+			queue = Config.Forces.MaxQueue, -- очередь полна — найм не мешает проверять атаки
 			power = 0,
 			hasCapital = true,
 			hasNeutral = true,
@@ -440,17 +444,17 @@ T.describe("BotBrain", function()
 	end
 
 	T.it("копит, расширяется на ничью землю, нанимает войска", function()
-		T.expect(BotBrain.decide(view(), rng)).toBe(nil) -- мало людей
+		T.expect(BotBrain.decide(view(), rng, normal)).toBe(nil) -- мало людей
 		local rich = view()
 		rich.people = 900
-		local i = BotBrain.decide(rich, rng)
+		local i = BotBrain.decide(rich, rng, normal)
 		T.expect(i ~= nil and i.kind == "attack" and i.target == 0).toBe(true)
 		local hiring = view()
 		hiring.people = 900
 		hiring.queue = 0
 		local hired = false
 		for _ = 1, 50 do
-			local h = BotBrain.decide(hiring, rng)
+			local h = BotBrain.decide(hiring, rng, normal)
 			if h ~= nil and h.kind == "hire" then
 				hired = true
 			end
@@ -466,17 +470,17 @@ T.describe("BotBrain", function()
 			war.hasNeutral = false
 			war.power = 2000
 			war.neighbours = { neighbour(3, 5000), neighbour(4, 300) }
-			local j = BotBrain.decide(war, rng)
+			local j = BotBrain.decide(war, rng, normal)
 			T.expect(j ~= nil and j.kind == "declare" and j.target == 4).toBe(true)
 			war.neighbours = { neighbour(3, 5000) }
-			T.expect(BotBrain.decide(war, rng)).toBe(nil)
+			T.expect(BotBrain.decide(war, rng, normal)).toBe(nil)
 			-- Война с 4 идёт — фронт против него.
 			war.neighbours = { neighbour(3, 5000), neighbour(4, 300, true) }
-			local k = BotBrain.decide(war, rng)
+			local k = BotBrain.decide(war, rng, normal)
 			T.expect(k ~= nil and k.kind == "attack" and k.target == 4).toBe(true)
 			war.power = 0 -- без войск ни войны, ни фронта
 			war.neighbours = { neighbour(4, 0) }
-			T.expect(BotBrain.decide(war, rng)).toBe(nil)
+			T.expect(BotBrain.decide(war, rng, normal)).toBe(nil)
 		end
 	)
 
@@ -491,7 +495,7 @@ T.describe("BotBrain", function()
 				{
 					enemy = 4,
 					active = true,
-					age = Config.Bots.MinWarSec + 1,
+					age = Config.BotLevels.Normal.peaceAfterSec + 1,
 					myGain = 0,
 					theirGain = 50,
 					theirPower = 3000,
@@ -499,16 +503,16 @@ T.describe("BotBrain", function()
 					proposedBefore = false,
 				},
 			}
-			local p = BotBrain.decide(v, rng)
+			local p = BotBrain.decide(v, rng, normal)
 			T.expect(p ~= nil and p.kind == "peace" and p.target == 4 and p.terms == "white").toBe(true)
 			-- Белый мир не приняли — второй раз готов отдать захваченное.
 			v.wars[1].proposedBefore = true
-			local again = BotBrain.decide(v, rng)
+			local again = BotBrain.decide(v, rng, normal)
 			T.expect(again ~= nil and again.kind == "peace" and again.terms == "keep").toBe(true)
 			-- Совсем слабый — сразу готов отдать захваченное.
 			v.wars[1].proposedBefore = false
 			v.totalPower = 100
-			local desperate = BotBrain.decide(v, rng)
+			local desperate = BotBrain.decide(v, rng, normal)
 			T.expect(desperate ~= nil and desperate.kind == "peace" and desperate.terms == "keep").toBe(true)
 			local offer =
 				{ terms = "white" :: Types.PeaceTerms, myGain = 0, theirGain = 50, myPower = 100, theirPower = 3000 }

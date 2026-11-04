@@ -16,6 +16,8 @@ export type NationInfo = {
 	colorIndex: number,
 	capital: number?,
 	isBot: boolean,
+	botLevel: Types.BotLevel?, -- уровень бота (§9.1), метка в таблице лидеров
+	personality: Types.BotPersonality?,
 	alive: boolean,
 }
 

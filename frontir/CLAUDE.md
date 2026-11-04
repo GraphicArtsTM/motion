@@ -37,6 +37,7 @@ lune run tools/bench World 60 180  # нагрузка: время тика и т
 lune run tools/genmap Pangea   # пересоздать тестовую maps/Pangea.luau (+ превью build/Pangea.bmp)
 lune run tools/palette_preview # пересоздать docs/palette.png после правки цветов
 lune run tools/match_preview 120 12345 build/match.png Europe 12  # партия ботов → картинка (секунды, сид, файл, карта, держав)
+lune run tools/bot_arena Europe 4  # «игрок» (Обычный бот) против трёх Новичков / Обычных / Генералов, 4 сида
 rojo sourcemap default.project.json -o sourcemap.json   # для luau-lsp
 lune setup              # типы Lune (алиас @lune в .luaurc)
 luau-lsp analyze --platform=roblox --definitions:@roblox=types/globalTypes.d.luau --sourcemap=sourcemap.json --base-luaurc=.luaurc src tests tools
@@ -115,6 +116,16 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
 - Флаг `m.victory = false` выключает проверку победы — для тестов на крошечных картах.
 - Клиент: `UI/ResultsPanel` (итоги), `UI/Minimap` + `MinimapPaint` (своё EditableImage, перерисовка по таймеру
   и только при изменениях). Превью рисует мини-карту и график так же.
+
+## Боты v2 (этап 5)
+- `BotBrain` — решения бота по `BotView` (то, что видит игрок) и профилю: уровень (`Config.BotLevels`: Новичок,
+  Обычный, Генерал) и личность (`Config.BotPersonalities`, множители). `MatchSim` хранит профили в `m.botProfiles`,
+  уровень и личность — в `Nation.botLevel/personality` (уходят клиенту в info).
+- Бюджет: `Bots.MaxThinksPerTick` раздумий за тик. Генералу +10% дохода — в `stepEconomy` (единственное послабление).
+- `MatchSim.setBot(m, id, level, personality?)` — сделать державу ботом (арена, тесты). Автостарт —
+  на крупном массиве суши (`StartPositions.landmasses`, `Start.MinLandmassShare`).
+- Проверка силы уровней — `lune run tools/bot_arena Europe 4`; тесты — `Bots.spec`.
+- Для Studio: `Config.Dev.BotLevel` и `Config.Dev.Nations`.
 
 ## Require
 Внутри `src/shared` модули подключают друг друга строкой: `require("./Types")` — так работает и в Roblox (`./` = `script.Parent`), и в Lune.

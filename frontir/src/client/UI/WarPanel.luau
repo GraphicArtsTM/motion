@@ -364,7 +364,20 @@ function WarPanel.new(
 		local cooldown = if me ~= nil
 			then math.max(0, math.ceil(ClientState.cooldownBetween(cs, me, target) - (now - cs.warsAt)))
 			else 0
+		-- Бот — уровень и личность (§9.1): знать, с кем связываешься.
+		local tn = cs.nations[target]
 		declareTitle.Text = coloredName(target)
+			.. if tn ~= nil
+					and tn.isBot
+					and tn.botLevel ~= nil
+					and tn.personality ~= nil
+				then string.format(
+					' <font size="12" color="#%s">%s, %s</font>',
+					Theme.Colors.Muted:ToHex(),
+					Strings.get("bot.level." .. tn.botLevel, lang),
+					Strings.get("bot.personality." .. tn.personality, lang)
+				)
+				else ""
 		if cooldown > 0 then
 			declareButton.Text = string.format(Strings.get("war.declare.cooldown", lang), cooldown)
 			declareButton.TextColor3 = Theme.Colors.Muted

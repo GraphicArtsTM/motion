@@ -64,6 +64,7 @@ Config.Start = {
 	Radius = 4, -- радиус круга клеток вокруг столицы на старте
 	MinCircleShare = 0.7, -- круг старта должен быть хотя бы на 70% сушей (не мыс и не островок)
 	AutoPickTries = 300, -- кандидатов при автоматическом выборе старта
+	MinLandmassShare = 0.08, -- автостарт — на массиве суши не меньше этой доли всей суши (не на острове)
 }
 
 -- §6.3 Люди: логистический рост, максимум зависит от территории.
@@ -102,28 +103,164 @@ Config.Expansion = {
 
 -- §9 Боты (этап 2 — простые; уровни и личности — этап 5)
 Config.Bots = {
-	ThinkMinSec = 1,
-	ThinkMaxSec = 2,
-	AttackWhenFill = 0.45, -- атакует, когда людей больше этой доли от максимума
+	-- Состав матча (§9.1): уровни ботов по весам; личности — поровну случайно.
+	LevelMix = { Novice = 3, Normal = 5, General = 2 },
+	MaxThinksPerTick = 12, -- бюджет: столько ботов думают за тик, остальные — в следующем
 	NeutralPercent = 0.35,
-	NationAdvantage = 1.0, -- нападает на соседа, если отправит войск не меньше его гарнизона
-	MaxAttacks = 2,
-	HireWhenFill = 0.45, -- нанимает юнит, когда людей больше этой доли от максимума
-	HireChance = 0.5, -- вероятность выбрать найм, если можно
-	MaxQueue = 2, -- бот держит в очереди найма не больше
-	FrontPercent = 0.6, -- какую долю войск бот шлёт на фронт
-	MaxWars = 1, -- сам объявляет войну, только если воюет меньше чем с таким числом стран
-	MinWarSec = 30, -- раньше этого мира не просит
-	PeaceWhenWeaker = 0.6, -- просит мира, если его сила меньше этой доли силы врага
+	MaxAttacks = 2, -- одновременно атак и фронтов (подкрепление существующего не считается)
+	MaxRigs = 3, -- нефтяных вышек боту хватит
+	PeaceWhenWeaker = 0.6, -- просит мира, если его сила меньше этой доли силы врага (× личность)
 	ConcedeWhenWeaker = 0.35, -- …а если меньше этой доли — сразу готов отдать захваченное
 	PeaceRetrySec = 20, -- повторно просит мира не чаще
 	AcceptWhiteWhenWeaker = 1.0, -- соглашается на белый мир, если слабее врага (сила < его × это)
 	AcceptKeepWhenWeaker = 0.7, -- отдаёт захваченное врагом, только если сильно слабее
-	BuildChance = 0.3, -- вероятность за раздумье подумать о стройке
-	BuildReserve = 1500, -- строит, только если после стройки останется столько денег
-	MaxRigs = 3, -- нефтяных вышек боту хватит
-	MaxMarkets = 2,
+	StopLeaderShare = 0.35, -- у соседа столько суши — он лидер, умные боты бьют его в первую очередь
+	MinInfantryShare = 0.35, -- Генерал держит хотя бы столько пехоты в войсках (лучшая оборона)
+	RetreatSec = 20, -- после отмены фронта бот столько не открывает его снова (войска отдыхают дома)
+	ReinforceBelowRatio = 3.0, -- Генерал подкрепляет фронт, пока перевес ниже прорыва
+	SecondWarAboveRatio = 2.0, -- вторая война — только если все фронты идут с таким перевесом
+	NoviceTanksChance = 0.2, -- Новичок нанимает танки так редко (остальное — пехота)
 }
+
+-- Уровни ботов (§9.1): насколько бот умён. Обычный — поведение ботов до этапа 5.
+local botLevels: { [string]: Types.BotLevelParams } = {
+	Novice = {
+		thinkMinSec = 2.5,
+		thinkMaxSec = 4,
+		mistake = 0.3,
+		smartTarget = false,
+		randomTarget = true,
+		counterMix = false,
+		advantage = 0.7, -- лезет и на почти равного
+		frontPercent = 0.4,
+		cancelBelowRatio = 0,
+		cancelAfterSec = 0,
+		cancelUnsupplied = false,
+		useFocus = false,
+		buildChance = 0.12,
+		buildReserve = 3000,
+		hireChance = 0.3,
+		hireWhenFill = 0.6,
+		maxQueue = 1,
+		attackWhenFill = 0.6,
+		peaceAfterSec = 90,
+		incomeBonus = 0,
+		secondWar = false,
+	},
+	Normal = {
+		thinkMinSec = 1,
+		thinkMaxSec = 2,
+		mistake = 0.1,
+		smartTarget = false,
+		randomTarget = false,
+		counterMix = false,
+		advantage = 1.0,
+		frontPercent = 0.6,
+		cancelBelowRatio = 0.5,
+		cancelAfterSec = 20,
+		cancelUnsupplied = false,
+		useFocus = false,
+		buildChance = 0.3,
+		buildReserve = 1500,
+		hireChance = 0.5,
+		hireWhenFill = 0.45,
+		maxQueue = 2,
+		attackWhenFill = 0.45,
+		peaceAfterSec = 30,
+		incomeBonus = 0,
+		secondWar = false,
+	},
+	General = {
+		thinkMinSec = 0.7,
+		thinkMaxSec = 1.2,
+		mistake = 0,
+		smartTarget = true,
+		randomTarget = false,
+		counterMix = true,
+		advantage = 1.3,
+		frontPercent = 0.7,
+		cancelBelowRatio = 0.9,
+		cancelAfterSec = 10,
+		cancelUnsupplied = true,
+		useFocus = true,
+		buildChance = 0.5,
+		buildReserve = 800,
+		hireChance = 0.8,
+		hireWhenFill = 0.35,
+		maxQueue = 4,
+		attackWhenFill = 0.35,
+		peaceAfterSec = 20,
+		incomeBonus = 0.10, -- единственное послабление (GDD §9)
+		secondWar = true,
+	},
+}
+Config.BotLevels = botLevels
+
+-- Личности ботов (§9.1): множители к уровню и вкусы.
+local botPersonalities: { [string]: Types.BotPersonalityParams } = {
+	Peaceful = {
+		declare = 1.5,
+		hire = 0.8,
+		build = 1.5,
+		front = 0.9,
+		peace = 1.4,
+		maxWars = 1,
+		maxMarkets = 3,
+		distracted = 1.2,
+		leader = 1.5,
+		forts = true,
+	},
+	Aggressor = {
+		declare = 0.8,
+		hire = 1.4,
+		build = 0.7,
+		front = 1.15,
+		peace = 0.6,
+		maxWars = 2,
+		maxMarkets = 1,
+		distracted = 1.2,
+		leader = 1.3,
+		forts = false,
+	},
+	Trader = {
+		declare = 1.3,
+		hire = 0.8,
+		build = 1.6,
+		front = 0.9,
+		peace = 1.3,
+		maxWars = 1,
+		maxMarkets = 5,
+		distracted = 1.2,
+		leader = 1.5,
+		forts = true,
+	},
+	Cunning = {
+		declare = 1.0,
+		hire = 1.0,
+		build = 1.0,
+		front = 1.0,
+		peace = 1.0,
+		maxWars = 1,
+		maxMarkets = 2,
+		distracted = 2.0,
+		leader = 2.0,
+		forts = true,
+	},
+	-- Флотоводец: до флота (этап 7) — как Обычный.
+	Admiral = {
+		declare = 1.0,
+		hire = 1.0,
+		build = 1.0,
+		front = 1.0,
+		peace = 1.0,
+		maxWars = 1,
+		maxMarkets = 2,
+		distracted = 1.2,
+		leader = 1.5,
+		forts = true,
+	},
+}
+Config.BotPersonalities = botPersonalities
 
 -- Звуки (GDD §14): id ассетов. Пусто — заглушка, звук пока не играет (ассеты — этап 10).
 Config.Sounds = {
@@ -137,6 +274,10 @@ Config.Dev = {
 	ForceLang = "",
 	-- Карта матча: "" — Config.Match.DefaultMap; имя из Config.RealMaps (или "Pangea" — тестовая) — эта.
 	Map = "",
+	-- Все боты одного уровня (§9.1): "" — по Bots.LevelMix; "Novice", "Normal" или "General".
+	BotLevel = "",
+	-- Сколько держав в матче (игроки + боты): 0 — как у карты (RealMaps.<карта>.Nations).
+	Nations = 0,
 }
 
 -- §12 Сеть

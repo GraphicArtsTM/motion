@@ -3,12 +3,15 @@
 	StartPositions — выбор точки старта (GDD §6.2).
 	Точка годится, если это захватываемая суша, до других стартов не меньше Config.Start.MinDistance,
 	и круг старта радиуса Config.Start.Radius хотя бы на MinCircleShare состоит из суши (не мыс, не островок).
-	Боты и игроки, не успевшие выбрать, получают точку автоматически: самую далёкую от уже выбранных.
+	Боты и игроки, не успевшие выбрать, получают точку автоматически: самую далёкую от уже выбранных — на крупном
+	массиве суши (не меньше Start.MinLandmassShare всей суши), если такое место есть: на острове расти некуда.
 ]]
 
 local Config = require("./Config")
 local Grid = require("./Grid")
+local MapData = require("./MapData")
 local Rng = require("./Rng")
+local Types = require("./Types")
 
 type Grid = Grid.Grid
 type Rng = Rng.Rng
@@ -81,9 +84,61 @@ function StartPositions.check(g: Grid, cell: number, others: { number }, minDist
 	return true, nil
 end
 
+-- Размер массива суши каждой клетки (u32 на клетку, 0 — не суша): связность по 4 соседям, реки — часть суши
+-- (фронт их переходит). Считается один раз на матч.
+function StartPositions.landmasses(map: MapData.MapData, g: Grid): buffer
+	local sizes = buffer.create(g.size * 4)
+	local river = Types.Terrain.River
+	local function land(i: number): boolean
+		return Grid.isCapturable(g, i) or MapData.getTerrain(map, i) == river
+	end
+	local queue: { number } = {}
+	for start = 0, g.size - 1 do
+		if buffer.readu32(sizes, start * 4) == 0 and land(start) then
+			table.clear(queue)
+			queue[1] = start
+			buffer.writeu32(sizes, start * 4, 1) -- метка «в очереди»; размер допишем после заливки
+			local head = 1
+			while head <= #queue do
+				local i = queue[head]
+				head += 1
+				Grid.forNeighbours(g, i, function(j)
+					if buffer.readu32(sizes, j * 4) == 0 and land(j) then
+						buffer.writeu32(sizes, j * 4, 1)
+						table.insert(queue, j)
+					end
+				end)
+			end
+			-- Считаем только захватываемые клетки массива (реки не дают земли).
+			local count = 0
+			for _, i in queue do
+				if Grid.isCapturable(g, i) then
+					count += 1
+				end
+			end
+			for _, i in queue do
+				buffer.writeu32(sizes, i * 4, math.max(1, count))
+			end
+		end
+	end
+	return sizes
+end
+
 -- Автоматический выбор: из случайных кандидатов — самый далёкий от уже выбранных.
 -- Если по правилам места нет, требование дистанции постепенно ослабляется.
-function StartPositions.autoPick(g: Grid, others: { number }, rng: Rng): number?
+function StartPositions.autoPick(g: Grid, others: { number }, rng: Rng, landmass: buffer?): number?
+	local cfg = Config.Start
+	-- Сначала — только крупные массивы суши (если знаем размеры), потом — где угодно.
+	local minLand = if landmass ~= nil then g.capturableCount * cfg.MinLandmassShare else 0
+	local pick = StartPositions.pickFar(g, others, rng, landmass, minLand)
+	if pick == nil and minLand > 0 then
+		pick = StartPositions.pickFar(g, others, rng, landmass, 0)
+	end
+	return pick
+end
+
+-- Самая далёкая от others годная клетка на массиве суши не меньше minLand клеток.
+function StartPositions.pickFar(g: Grid, others: { number }, rng: Rng, landmass: buffer?, minLand: number): number?
 	local cfg = Config.Start
 	local minD = cfg.MinDistance
 	while minD >= 1 do
@@ -91,7 +146,8 @@ function StartPositions.autoPick(g: Grid, others: { number }, rng: Rng): number?
 		local bestScore = -1
 		for _ = 1, cfg.AutoPickTries do
 			local cell = Rng.range(rng, 0, g.size - 1)
-			if StartPositions.check(g, cell, others, minD) then
+			local bigEnough = landmass == nil or buffer.readu32(landmass, cell * 4) >= minLand
+			if bigEnough and StartPositions.check(g, cell, others, minD) then
 				local score = math.huge
 				for _, other in others do
 					score = math.min(score, dist2(g, cell, other))

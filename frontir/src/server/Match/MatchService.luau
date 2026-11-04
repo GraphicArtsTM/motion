@@ -47,7 +47,11 @@ function MatchService.start(map: MapData)
 	local realMap = (Config.RealMaps :: any)[map.name] :: Types.RealMapParams?
 	local function newMatch(): MatchSim.Match
 		local match = MatchSim.new(map, seedRng:NextInteger(1, 2 ^ 31 - 1))
-		match.targetNations = if realMap ~= nil then realMap.Nations else Config.Match.TargetNations
+		-- Держав в матче: Dev.Nations (проверка в Studio, например игрок + 3 Генерала) или как у карты.
+		match.targetNations = if Config.Dev.Nations > 0
+			then Config.Dev.Nations
+			elseif realMap ~= nil then realMap.Nations
+			else Config.Match.TargetNations
 		return match
 	end
 	local m = newMatch()
@@ -65,6 +69,8 @@ function MatchService.start(map: MapData)
 				colorIndex = n.colorIndex,
 				capital = n.capital,
 				isBot = n.isBot,
+				botLevel = n.botLevel,
+				personality = n.personality,
 				alive = n.alive,
 			})
 		end

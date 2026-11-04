@@ -167,6 +167,8 @@ export type Nation = {
 	money: number, -- §6.8
 	oil: number,
 	eliminatedAt: number?, -- секунда матча, когда выбыла (для мест)
+	botLevel: BotLevel?, -- уровень бота (§9.1); у игрока nil
+	personality: BotPersonality?, -- личность бота
 }
 
 -- Отряд одного типа в пуле: суммарная сила и средний опыт (§6.7: ветераны).
@@ -217,6 +219,51 @@ export type Intent =
 	| PeaceIntent
 	| PeaceReplyIntent
 	| BuildIntent
+
+-- Боты v2 (§9.1): уровни и личности. Списки — для перебора и проверки имён.
+export type BotLevel = "Novice" | "Normal" | "General"
+export type BotPersonality = "Peaceful" | "Aggressor" | "Trader" | "Cunning" | "Admiral"
+Types.BotLevels = table.freeze({ "Novice", "Normal", "General" } :: { BotLevel })
+Types.BotPersonalities = table.freeze({ "Peaceful", "Aggressor", "Trader", "Cunning", "Admiral" } :: { BotPersonality })
+
+-- Насколько бот умён (Config.BotLevels).
+export type BotLevelParams = {
+	thinkMinSec: number,
+	thinkMaxSec: number,
+	mistake: number, -- доля раздумий, которые бот пропускает
+	smartTarget: boolean, -- оценка цели войны (иначе — слабейший или случайный)
+	randomTarget: boolean, -- цель войны — случайный сосед (Новичок)
+	counterMix: boolean, -- состав войск против врага
+	advantage: number, -- объявляет войну, если отправит войск в столько раз сильнее обороны
+	frontPercent: number, -- доля гарнизона на фронт
+	cancelBelowRatio: number, -- отменяет фронт с перевесом ниже (0 — никогда)
+	cancelAfterSec: number, -- …который не двигался столько секунд
+	cancelUnsupplied: boolean, -- отменяет фронт без снабжения, который стоит
+	useFocus: boolean, -- бьёт в ближайший вражеский город
+	buildChance: number,
+	buildReserve: number,
+	hireChance: number,
+	hireWhenFill: number,
+	maxQueue: number, -- держит в очереди найма не больше (≤ Forces.MaxQueue)
+	attackWhenFill: number,
+	peaceAfterSec: number, -- раньше мира не просит
+	incomeBonus: number, -- доля к доходу (только Генерал, §9)
+	secondWar: boolean, -- вторая война, если первая выиграна
+}
+
+-- Что бот любит (Config.BotPersonalities): множители к уровню.
+export type BotPersonalityParams = {
+	declare: number, -- × к нужному перевесу для объявления войны (больше — осторожнее)
+	hire: number, -- × к вероятности найма
+	build: number, -- × к вероятности стройки
+	front: number, -- × к доле войск на фронт
+	peace: number, -- × к порогу «просить мира» (больше — раньше)
+	maxWars: number, -- сам объявляет войну, пока войн меньше
+	maxMarkets: number,
+	distracted: number, -- вес цели, которая уже воюет с другим
+	leader: number, -- вес цели-лидера
+	forts: boolean, -- строит укрепления у фронта
+}
 
 export type Phase = "Waiting" | "Lobby" | "Pick" | "Play" | "Over"
 

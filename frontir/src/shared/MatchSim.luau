@@ -76,6 +76,9 @@ export type Match = {
 	nations: { Nation },
 	attacks: { Attack },
 	botNextThink: { [number]: number },
+	botProfiles: { [number]: BotBrain.Profile }, -- уровень и личность ботов (§9.1)
+	botMemory: { [number]: BotBrain.Memory },
+	botThinks: number, -- сколько ботов подумало в последнем тике (бюджет)
 	infoDirty: boolean, -- изменились державы или фаза — разослать клиентам
 	events: { MatchEvent },
 	lastCaptured: number, -- клеток захвачено за последний тик
@@ -125,6 +128,9 @@ function MatchSim.new(map: MapData, seed: number): Match
 		nations = {},
 		attacks = {},
 		botNextThink = {},
+		botProfiles = {},
+		botMemory = {},
+		botThinks = 0,
 		infoDirty = true,
 		events = {},
 		lastCaptured = 0,
@@ -213,6 +219,42 @@ local function newNation(m: Match, name: string, nameEn: string, isBot: boolean,
 	return nation
 end
 
+-- Бот получает уровень и личность (§9.1); level — свой (игрок ушёл) или по Bots.LevelMix.
+local function makeBot(m: Match, n: Nation, level: Types.BotLevel?)
+	n.isBot = true
+	n.botLevel = level or BotBrain.rollLevel(m.rng)
+	n.personality = BotBrain.rollPersonality(m.rng)
+	m.botProfiles[n.id] = BotBrain.profile(n.botLevel, n.personality)
+	m.infoDirty = true
+end
+
+-- Профиль бота (Обычный — если не задан).
+local function profileOf(m: Match, id: number): BotBrain.Profile
+	local p = m.botProfiles[id]
+	if p == nil then
+		p = BotBrain.profile(nil, nil)
+		m.botProfiles[id] = p
+	end
+	return p
+end
+
+-- Держава id — бот уровня level (личность — заданная или случайная). Для арены, тестов и превью.
+function MatchSim.setBot(m: Match, id: number, level: Types.BotLevel, personality: Types.BotPersonality?)
+	local n = m.nations[id]
+	if n == nil then
+		return
+	end
+	n.userId = nil
+	makeBot(m, n, level)
+	if personality ~= nil then
+		n.personality = personality
+		m.botProfiles[id] = BotBrain.profile(level, personality)
+	end
+	if m.botNextThink[id] == nil then
+		m.botNextThink[id] = m.simTime + BotBrain.nextThinkDelay(m.rng, profileOf(m, id))
+	end
+end
+
 -- Добавляет игрока (только до начала игры). Возвращает id державы или nil, если мест нет / игра идёт.
 function MatchSim.addPlayer(m: Match, userId: number, name: string): number?
 	if m.phase == "Play" or m.phase == "Over" or #m.nations >= Config.Match.MaxPlayers then
@@ -227,10 +269,9 @@ function MatchSim.removePlayer(m: Match, nationId: number)
 	if n == nil then
 		return
 	end
-	n.isBot = true
 	n.userId = nil
-	m.botNextThink[nationId] = m.simTime + BotBrain.nextThinkDelay(m.rng)
-	m.infoDirty = true
+	makeBot(m, n, "Normal") -- держава ушедшего игрока — под Обычным ботом
+	m.botNextThink[nationId] = m.simTime + BotBrain.nextThinkDelay(m.rng, profileOf(m, nationId))
 end
 
 -- Лобби (этап 4в): игроки собираются, через LobbySec начинается выбор старта.
@@ -275,11 +316,13 @@ function MatchSim.finishPick(m: Match)
 	while #m.nations < m.targetNations and #m.nations < Config.Match.MaxPlayers do
 		local name = NameGen.generate(m.rng, taken)
 		taken[name.ru] = true
-		newNation(m, name.ru, name.en, true, nil)
+		makeBot(m, newNation(m, name.ru, name.en, true, nil))
 	end
+	local landmass: buffer? = nil
 	for _, n in m.nations do
 		if n.capital == nil then
-			n.capital = StartPositions.autoPick(m.grid, capitals(m), m.rng)
+			landmass = landmass or StartPositions.landmasses(m.map, m.grid)
+			n.capital = StartPositions.autoPick(m.grid, capitals(m), m.rng, landmass)
 		end
 	end
 
@@ -317,7 +360,7 @@ function MatchSim.finishPick(m: Match)
 		n.people = Config.People.Start
 		n.money = Config.Economy.StartMoney
 		if n.isBot then
-			m.botNextThink[n.id] = BotBrain.nextThinkDelay(m.rng)
+			m.botNextThink[n.id] = BotBrain.nextThinkDelay(m.rng, profileOf(m, n.id))
 		end
 	end
 	m.phase = "Play"
@@ -657,20 +700,65 @@ local function buildSpots(m: Match, n: Nation): BotBrain.BuildSpots
 end
 
 local function botView(m: Match, n: Nation): BotBrain.BotView
-	local adjacent = Grid.adjacentOwners(m.grid, n.id)
+	local g = m.grid
+	local adjacent = Grid.adjacentOwners(g, n.id)
+	-- Города соседей: сколько и какой ближе всего к нашей столице (направление удара Генерала).
+	local nearCity: { [number]: number } = {}
+	local nearDist: { [number]: number } = {}
+	local cityCount: { [number]: number } = {}
+	local cap = n.capital
+	local cx, cy = if cap ~= nil then cap % g.width else 0, if cap ~= nil then cap // g.width else 0
+	for _, cell in m.cityOf do
+		local o = Grid.getOwner(g, cell)
+		if o ~= 0 and o ~= n.id and adjacent[o] ~= nil then
+			cityCount[o] = (cityCount[o] or 0) + 1
+			local dx, dy = cell % g.width - cx, cell // g.width - cy
+			local d = dx * dx + dy * dy
+			if nearDist[o] == nil or d < nearDist[o] then
+				nearCity[o], nearDist[o] = cell, d
+			end
+		end
+	end
 	local neighbours: { BotBrain.Neighbour } = {}
-	for owner in adjacent do
+	for owner, border in adjacent do
 		if owner ~= 0 then
 			local other = m.nations[owner]
 			if other ~= nil and other.alive then
+				-- Отвлечён: уже воюет с кем-то, кроме нас.
+				local distracted = false
+				for _, war in Wars.of(m.wars, owner) do
+					if Wars.enemyOf(war, owner) ~= n.id then
+						distracted = true
+					end
+				end
 				table.insert(neighbours, {
 					id = owner,
 					people = other.people,
 					power = Forces.total(other.home),
+					frontPower = Forces.total(MatchSim.frontForces(m, owner)),
 					atWar = Wars.isActive(m.wars, n.id, owner),
 					canDeclare = (Wars.canDeclare(m.wars, n.id, owner, m.simTime)),
+					border = border,
+					share = Grid.cellsOf(g, owner) / math.max(1, g.capturableCount),
+					distracted = distracted,
+					mix = Forces.composition(other.home),
+					city = nearCity[owner],
+					cities = cityCount[owner] or 0,
 				})
 			end
+		end
+	end
+	local fronts: { BotBrain.FrontView } = {}
+	for _, a in m.attacks do
+		if a.attacker == n.id then
+			table.insert(fronts, {
+				target = a.target,
+				ratio = a.ratio,
+				supplied = a.supplied,
+				fighting = a.fighting,
+				stalledSec = m.simTime - a.lastAdvance,
+				power = Forces.total(a.forces),
+			})
 		end
 	end
 	local wars: { BotBrain.WarView } = {}
@@ -708,6 +796,9 @@ local function botView(m: Match, n: Nation): BotBrain.BotView
 			),
 		neighbours = neighbours,
 		wars = wars,
+		fronts = fronts,
+		mix = Forces.composition(n.home),
+		time = m.simTime,
 		money = n.money,
 		oil = n.oil,
 		economy = m.economy[n.id] or { income = 0, oilIncome = 0, upkeep = 0 },
@@ -954,7 +1045,7 @@ local function answerBotProposals(m: Match)
 					theirGain = if war.a == me then byB else byA,
 					myPower = totalPower(m, me),
 					theirPower = totalPower(m, p.from),
-				})
+				}, profileOf(m, me))
 				if accept then
 					MatchSim.makePeace(m, war, p.terms)
 				else
@@ -970,7 +1061,9 @@ local function stepEconomy(m: Match, n: Nation, simDt: number)
 	local owned = MatchSim.ownedOf(m, n.id)
 	local strength = Forces.total(n.home) + Forces.total(MatchSim.frontForces(m, n.id))
 	local e: NationEconomy = {
-		income = Economy.income(Grid.cellsOf(m.grid, n.id), owned.cityLevels, owned.markets),
+		-- Генералу +10% дохода — единственное послабление ботам (§9).
+		income = Economy.income(Grid.cellsOf(m.grid, n.id), owned.cityLevels, owned.markets)
+			* (1 + (if n.isBot then profileOf(m, n.id).level.incomeBonus else 0)),
 		oilIncome = Economy.oilIncome(owned.rigs),
 		upkeep = Economy.upkeep(strength),
 	}
@@ -1208,17 +1301,26 @@ function MatchSim.step(m: Match, dt: number)
 		return
 	end
 
-	-- Боты.
+	-- Боты: не больше Bots.MaxThinksPerTick раздумий за тик (§9), остальные подумают в следующем тике.
+	local thinks = 0
 	for _, n in m.nations do
 		local due = m.botNextThink[n.id]
-		if n.alive and n.isBot and due ~= nil and m.simTime >= due then
-			m.botNextThink[n.id] = m.simTime + BotBrain.nextThinkDelay(m.rng)
-			local intent = BotBrain.decide(botView(m, n), m.rng)
+		if n.alive and n.isBot and due ~= nil and m.simTime >= due and thinks < Config.Bots.MaxThinksPerTick then
+			thinks += 1
+			local profile = profileOf(m, n.id)
+			m.botNextThink[n.id] = m.simTime + BotBrain.nextThinkDelay(m.rng, profile)
+			local memory = m.botMemory[n.id]
+			if memory == nil then
+				memory = BotBrain.newMemory()
+				m.botMemory[n.id] = memory
+			end
+			local intent = BotBrain.decide(botView(m, n), m.rng, profile, memory)
 			if intent ~= nil then
 				MatchSim.applyIntent(m, n.id, intent)
 			end
 		end
 	end
+	m.botThinks = thinks
 end
 
 -- Забирает накопленные события (для ленты событий).
