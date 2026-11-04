@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(lune *)",
+      "Bash(stylua *)",
+      "Bash(selene *)",
+      "Bash(luau-lsp *)",
+      "Bash(rojo *)"
+    ]
+  }
+}
