@@ -232,7 +232,7 @@ function DiplomacyPanel.new(
 	local actions = row(window, 4, true)
 	local hint = label(window, 12, 5)
 	hint.TextColor3 = Theme.Colors.Muted
-	hint.Text = Strings.get("diplo.act.hint", lang)
+	hint.Text = Strings.get("diplo.act.hint", lang) .. "\n" .. Strings.get("diplo.taxHint", lang)
 	local historyText = label(window, 12, 6)
 
 	local selected: number? = nil
@@ -276,6 +276,34 @@ function DiplomacyPanel.new(
 		end
 	end)
 	warButton.TextColor3 = Theme.Colors.Alert
+	local tradeButton = act("trade", function()
+		offer("trade")
+	end)
+	local embargoButton = act("embargo", function()
+		local me = cs.myNation
+		if selected ~= nil and me ~= nil and playing() then
+			send("embargo", { target = selected, on = not ClientState.embargoBy(cs, me, selected) })
+		end
+	end)
+	-- Быстрые переводы (§8.2): налог и лимит проверяет сервер.
+	local quick = Config.Trade.QuickAmounts
+	local function give(money: number, oil: number, people: number)
+		if selected ~= nil and playing() then
+			send("transfer", { target = selected, money = money, oil = oil, people = people })
+		end
+	end
+	local moneyButton = act("giveMoney", function()
+		give(quick.money, 0, 0)
+	end)
+	moneyButton.Text = string.format(Strings.get("diplo.act.giveMoney", lang), Strings.formatInt(quick.money))
+	local oilButton = act("giveOil", function()
+		give(0, quick.oil, 0)
+	end)
+	oilButton.Text = string.format(Strings.get("diplo.act.giveOil", lang), Strings.formatInt(quick.oil))
+	local peopleButton = act("givePeople", function()
+		give(0, 0, quick.people)
+	end)
+	peopleButton.Text = string.format(Strings.get("diplo.act.givePeople", lang), Strings.formatInt(quick.people))
 	local rebelButton = act("rebel", function()
 		if playing() then
 			send("rebel", {})
@@ -352,6 +380,21 @@ function DiplomacyPanel.new(
 		end
 		return Strings.get("diplo.rel.peace", lang)
 	end
+	-- Торговля и эмбарго (§8.2) — довеском к отношению.
+	local function tradeTags(id: number): string
+		local me = cs.myNation
+		if me == nil then
+			return ""
+		end
+		local out = ""
+		if ClientState.hasTrade(cs, me, id) then
+			out ..= string.format(' <font color="%s">· %s</font>', gold, Strings.get("diplo.rel.trade", lang))
+		end
+		if ClientState.embargoBy(cs, me, id) or ClientState.embargoBy(cs, id, me) then
+			out ..= string.format(' <font color="%s">· %s</font>', alert, Strings.get("diplo.rel.embargo", lang))
+		end
+		return out
+	end
 
 	local function powerOf(id: number): number
 		local s = ClientState.statsOf(cs, id)
@@ -409,11 +452,12 @@ function DiplomacyPanel.new(
 					traitor
 				)
 				else string.format(
-					'<font color="%s">■</font> %s%s  ·  %s  <font size="12" color="%s">%s</font>',
+					'<font color="%s">■</font> %s%s  ·  %s%s  <font size="12" color="%s">%s</font>',
 					nationColor(id),
 					nameOf(id),
 					traitor,
 					relation(id),
+					tradeTags(id),
 					muted,
 					string.format(Strings.get("diplo.power", lang), approx(powerOf(id)))
 				)
@@ -431,8 +475,17 @@ function DiplomacyPanel.new(
 		selectedText.Text = if valid and target ~= nil
 			then nameOf(target) .. "  ·  " .. relation(target)
 			else string.format('<font color="%s">%s</font>', muted, Strings.get("diplo.pick", lang))
-		for _, b in { pact3Button, pact5Button, allianceButton, demandButton, warButton } do
+		for _, b in { pact3Button, pact5Button, allianceButton, demandButton, warButton, tradeButton } do
 			b.Visible = valid
+		end
+		for _, b in { embargoButton, moneyButton, oilButton, peopleButton } do
+			b.Visible = valid
+		end
+		if valid and me ~= nil and target ~= nil then
+			embargoButton.Text = Strings.get(
+				if ClientState.embargoBy(cs, me, target) then "diplo.act.unembargo" else "diplo.act.embargo",
+				lang
+			)
 		end
 		breakButton.Visible = valid and t ~= nil
 		rebelButton.Visible = lord ~= nil

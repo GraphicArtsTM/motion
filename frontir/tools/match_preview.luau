@@ -46,6 +46,8 @@ while m.phase ~= "Play" do
 	MatchSim.step(m, dt)
 end
 local declared, peaces = 0, 0
+local resolutions: { string } = {}
+local transfers, councils = 0, 0
 for _ = 1, math.floor(seconds * Config.Sim.TickRate) do
 	MatchSim.step(m, dt)
 	for _, e in MatchSim.takeEvents(m) do
@@ -53,6 +55,12 @@ for _ = 1, math.floor(seconds * Config.Sim.TickRate) do
 			declared += 1
 		elseif e.kind == "peace" then
 			peaces += 1
+		elseif e.kind == "resolution" then
+			table.insert(resolutions, string.format("%d:%02d %s", m.time // 60, math.floor(m.time % 60), e.resolution))
+		elseif e.kind == "councilClosed" then
+			councils += 1
+		elseif e.kind == "transfer" then
+			transfers += 1
 		end
 	end
 	if m.phase == "Over" then
@@ -501,7 +509,7 @@ do
 		end
 		return (cap % w) * SCALE + 1, (cap // w) * SCALE + 1
 	end
-	local function line(a: number, b: number, c: Palette.Rgb)
+	local function line(a: number, b: number, c: Palette.Rgb, dashed: boolean?)
 		local x0, y0 = capitalPx(a)
 		local x1, y1 = capitalPx(b)
 		if x0 == nil or y0 == nil or x1 == nil or y1 == nil then
@@ -511,9 +519,16 @@ do
 		for k = 0, steps do
 			local x = math.round(x0 + (x1 - x0) * k / steps)
 			local y = math.round(y0 + (y1 - y0) * k / steps)
-			put(x, y, c)
-			put(x + 1, y, c)
+			if not dashed or (k // 4) % 2 == 0 then
+				put(x, y, c)
+				put(x + 1, y, c)
+			end
 		end
+	end
+	-- Торговые соглашения (§8.2) — пунктир цвета светлого тумана.
+	for key in m.diplo.trade do
+		local a = key // 65536
+		line(a, key % 65536, mist, true)
 	end
 	for _, t in m.diplo.treaties do
 		if t.kind == "alliance" then
@@ -659,7 +674,20 @@ do
 	for _, e in m.diplo.history do
 		table.insert(hist, string.format("%s %d/%d", e.kind, e.a, e.b))
 	end
+	local deals = 0
+	for _ in m.diplo.trade do
+		deals += 1
+	end
 	print("  ДОГОВОРЫ: " .. (if #parts > 0 then table.concat(parts, ", ") else "нет"))
+	print(
+		string.format(
+			"  ТОРГОВЛЯ И СОВЕТ: соглашений %d, переводов %d, Советов %d, резолюции: %s",
+			deals,
+			transfers,
+			councils,
+			if #resolutions > 0 then table.concat(resolutions, ", ") else "нет"
+		)
+	)
 	print("  ИСТОРИЯ: " .. table.concat(hist, ", "))
 end
 if result ~= nil then

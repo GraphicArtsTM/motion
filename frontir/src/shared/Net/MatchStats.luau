@@ -6,9 +6,11 @@
 
 local ClientState = require("../ClientState")
 local Config = require("../Config")
+local Council = require("../Council")
 local Forces = require("../Forces")
 local Grid = require("../Grid")
 local MatchSim = require("../MatchSim")
+local Types = require("../Types")
 local Wars = require("../Wars")
 local Protocol = require("./Protocol")
 
@@ -164,6 +166,32 @@ function MatchStats.diplo(m: MatchSim.Match): ClientState.DiploMessage
 		local kind: string = e.kind
 		table.insert(history, { kind = kind, a = e.a, b = e.b, minutes = e.minutes })
 	end
+	local trade: { { a: number, b: number } } = {}
+	for key in ds.trade do
+		local a = key // 65536 -- StyLua 2.6 падает на «//» внутри конструктора таблицы
+		table.insert(trade, { a = a, b = key % 65536 })
+	end
+	local embargoes: { { from: number, to: number } } = {}
+	for key in ds.embargo do
+		local from = key // 65536
+		table.insert(embargoes, { from = from, to = key % 65536 })
+	end
+	-- Совет держав: голосование (варианты, сколько осталось, голоса), действующие резолюции.
+	local c = m.council
+	local active: { { kind: Types.Resolution, left: number, target: number? } } = {}
+	for _, a in c.active do
+		if a.untilTime > now then
+			table.insert(active, { kind = a.kind, left = a.untilTime - now, target = a.target })
+		end
+	end
+	local v = c.vote
+	local council: ClientState.DiploCouncil = {
+		vote = if v ~= nil
+			then { options = v.options, left = math.max(0, v.endsAt - now), tallies = Council.tally(v) }
+			else nil,
+		active = active,
+		nextLeft = math.max(0, c.nextAt - now),
+	}
 	return {
 		kind = "diplo",
 		treaties = treaties,
@@ -171,6 +199,9 @@ function MatchStats.diplo(m: MatchSim.Match): ClientState.DiploMessage
 		traitors = traitors,
 		vassals = vassals,
 		history = history,
+		trade = trade,
+		embargoes = embargoes,
+		council = council,
 	}
 end
 

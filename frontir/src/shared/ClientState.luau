@@ -47,6 +47,16 @@ export type DiploMessage = {
 	traitors: { { id: number, left: number } },
 	vassals: { { vassal: number, overlord: number, rebelLeft: number } },
 	history: { { kind: string, a: number, b: number, minutes: number? } },
+	-- §8.2: торговые соглашения, эмбарго (from → to), Совет держав
+	trade: { { a: number, b: number } },
+	embargoes: { { from: number, to: number } },
+	council: DiploCouncil,
+}
+
+export type DiploCouncil = {
+	vote: { options: { Types.Resolution }, left: number, tallies: { number } }?,
+	active: { { kind: Types.Resolution, left: number, target: number? } },
+	nextLeft: number,
 }
 
 export type ApplyResult = "snapshot" | "delta" | "stats" | "forces" | "wars" | "partial" | "ignored"
@@ -83,7 +93,17 @@ export type ClientState = {
 local ClientState = {}
 
 function ClientState.emptyDiplo(): DiploMessage
-	return { kind = "diplo", treaties = {}, offers = {}, traitors = {}, vassals = {}, history = {} }
+	return {
+		kind = "diplo",
+		treaties = {},
+		offers = {},
+		traitors = {},
+		vassals = {},
+		history = {},
+		trade = {},
+		embargoes = {},
+		council = { vote = nil, active = {}, nextLeft = 0 },
+	}
 end
 
 function ClientState.new(width: number, height: number): ClientState
@@ -287,6 +307,11 @@ function ClientState.applyDiplo(cs: ClientState, msg: any, now: number)
 		traitors = if type(msg.traitors) == "table" then msg.traitors else {},
 		vassals = if type(msg.vassals) == "table" then msg.vassals else {},
 		history = if type(msg.history) == "table" then msg.history else {},
+		trade = if type(msg.trade) == "table" then msg.trade else {},
+		embargoes = if type(msg.embargoes) == "table" then msg.embargoes else {},
+		council = if type(msg.council) == "table" and type(msg.council.active) == "table"
+			then msg.council
+			else { vote = nil, active = {}, nextLeft = 0 },
 	}
 	cs.diploAt = now
 end
@@ -318,6 +343,25 @@ function ClientState.isTraitor(cs: ClientState, id: number, now: number, speed: 
 	for _, t in cs.diplo.traitors do
 		if t.id == id then
 			return ClientState.diploLeft(cs, t.left, now, speed) > 0
+		end
+	end
+	return false
+end
+
+function ClientState.hasTrade(cs: ClientState, a: number, b: number): boolean
+	for _, t in cs.diplo.trade do
+		if (t.a == a and t.b == b) or (t.a == b and t.b == a) then
+			return true
+		end
+	end
+	return false
+end
+
+-- Объявил ли from эмбарго to.
+function ClientState.embargoBy(cs: ClientState, from: number, to: number): boolean
+	for _, e in cs.diplo.embargoes do
+		if e.from == from and e.to == to then
+			return true
 		end
 	end
 	return false

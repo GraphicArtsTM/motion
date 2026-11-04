@@ -765,6 +765,45 @@ function MatchHud.new(
 				toast(string.format(Strings.get("event." .. e.kind, lang), a, b))
 			elseif e.kind == "allyAttacked" and e.ally == cs.myNation then
 				alertLine(string.format(Strings.get("event.allyAttacked", lang), a, b))
+			-- Торговля, Совет, пинги (§8.2).
+			elseif e.kind == "transfer" and e.target == cs.myNation then
+				local parts: { string } = {}
+				if (tonumber(e.money) or 0) > 0 then
+					table.insert(parts, "$" .. Strings.formatInt(e.money))
+				end
+				if (tonumber(e.oil) or 0) > 0 then
+					table.insert(parts, string.format(Strings.get("hire.oil", lang), Strings.formatInt(e.oil)))
+				end
+				if (tonumber(e.people) or 0) > 0 then
+					table.insert(parts, Strings.formatInt(e.people))
+				end
+				toast(string.format(Strings.get("event.transfer", lang), a, table.concat(parts, ", ")))
+			elseif e.kind == "embargo" and e.on then
+				toast(string.format(Strings.get("event.embargo", lang), a, b))
+			elseif e.kind == "tradeEnded" then
+				toast(string.format(Strings.get("event.tradeEnded", lang), a, b))
+			elseif e.kind == "councilOpened" then
+				alertLine(Strings.get("event.councilOpened", lang))
+			elseif e.kind == "councilClosed" and e.winner == nil then
+				toast(Strings.get("event.councilNone", lang))
+			elseif e.kind == "resolution" then
+				if e.resolution == "sanctions" and e.target ~= nil then
+					toast(
+						string.format(
+							Strings.get("event.resolution.sanctions", lang),
+							nationName(tonumber(e.target) or 0)
+						)
+					)
+				else
+					local name = Strings.get("council.res." .. tostring(e.resolution), lang)
+					toast(string.format(Strings.get("event.resolution", lang), name))
+				end
+			elseif
+				e.kind == "ping"
+				and type(e.phrase) == "string"
+				and table.find(Config.Pings.Phrases, e.phrase) ~= nil
+			then
+				toast(string.format(Strings.get("event.ping", lang), a, Strings.get("ping." .. e.phrase, lang)))
 			elseif e.kind == "peaceRejected" and e.target == cs.myNation then
 				-- Наше предложение мира отклонили или оставили без ответа.
 				toast(

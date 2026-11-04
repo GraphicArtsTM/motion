@@ -137,6 +137,13 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   info и diplo — не чаще `Net.InfoMinSec` / `Net.DiploMinSec`. Клиент: `UI/DiplomacyPanel` (T, требование
   забирает нажатие на карту).
 
+## Совет и торговля (этап 6б)
+- Торговые соглашения и эмбарго — в `Diplomacy` (`trade`, `embargo`); переводы — `MatchSim.transfer` (налог, лимит
+  за минуту `m.sent`); `Council` — созыв, голосование, действующие резолюции; эффекты — `MatchSim.applyResolution`,
+  доход в `stepEconomy`, перемирие в `stepAttacks` и `declare`. Пинги — событие `ping` (только фразы из Strings).
+- Сеть: всё в `diplo` (версия договоров + версия Совета). Клиент: `UI/CouncilPanel`, `UI/Pings` (G, метки на canvas),
+  торговля в `UI/DiplomacyPanel`.
+
 ## Require
 Внутри `src/shared` модули подключают друг друга строкой: `require("./Types")` — так работает и в Roblox (`./` = `script.Parent`), и в Lune.
 Сервер и клиент берут общие модули через `ReplicatedStorage.Shared`.

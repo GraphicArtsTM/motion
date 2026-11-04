@@ -6,7 +6,8 @@
 	этап 3а: города; этап 3б: войска державы (найм Z/X/C/V, панель войск), юниты и бой на линиях фронтов;
 	этап 3в: война и мир (объявление, баннер войны, окно мира), бой на фронте с артиллерией, воронками и дымом;
 	этап 4в: цикл матча (лобби → выбор → игра → итоги → новый матч), экран результатов, мини-карта;
-	этап 6а: окно дипломатии (T), предложения и требования, метка «Предатель».
+	этап 6а: окно дипломатии (T), предложения и требования, метка «Предатель»;
+	этап 6б: Совет держав, торговля в окне дипломатии, пинги на карте (G).
 ]]
 
 local LocalizationService = game:GetService("LocalizationService")
@@ -32,6 +33,7 @@ local Camera2D = require(Render:WaitForChild("Camera2D"))
 local CameraInput = require(Client:WaitForChild("Input"):WaitForChild("CameraInput"))
 local BuildPanel = require(UI:WaitForChild("BuildPanel"))
 local BuildingLayer = require(Render:WaitForChild("BuildingLayer"))
+local CouncilPanel = require(UI:WaitForChild("CouncilPanel"))
 local DebugOverlay = require(UI:WaitForChild("DebugOverlay"))
 local DiplomacyPanel = require(UI:WaitForChild("DiplomacyPanel"))
 local ForcesPanel = require(UI:WaitForChild("ForcesPanel"))
@@ -41,6 +43,7 @@ local MatchClient = require(Client:WaitForChild("Net"):WaitForChild("MatchClient
 local MatchHud = require(UI:WaitForChild("MatchHud"))
 local Minimap = require(UI:WaitForChild("Minimap"))
 local NationLabels = require(UI:WaitForChild("NationLabels"))
+local Pings = require(UI:WaitForChild("Pings"))
 local ResultsPanel = require(UI:WaitForChild("ResultsPanel"))
 local TerritoryLayer = require(Render:WaitForChild("TerritoryLayer"))
 local Theme = require(UI:WaitForChild("Theme"))
@@ -199,6 +202,13 @@ local results = ResultsPanel.new(hudGui, cs, lang)
 results.refresh()
 local diplomacy = DiplomacyPanel.new(hudGui, cs, lang, map, provinces, send, hud.toast, wars.offerDeclare)
 diplomacy.refresh()
+local council = CouncilPanel.new(hudGui, cs, lang, send)
+council.refresh()
+local pings = Pings.new(hudGui, view.canvas, cs, lang, send, hud.toast)
+pings.refresh()
+camera.onChanged(function(state)
+	pings.onCamera(state)
+end)
 local function gridChanged()
 	if minimap ~= nil then
 		minimap.changed()
@@ -220,6 +230,8 @@ client = MatchClient.connect(cs, {
 		buildingLayer.refresh()
 		results.refresh()
 		diplomacy.refresh()
+		council.refresh()
+		pings.refresh()
 	end,
 	onSnapshot = function()
 		territory.repaintAll()
@@ -240,6 +252,7 @@ client = MatchClient.connect(cs, {
 	end,
 	onDiplo = function()
 		diplomacy.refresh()
+		council.refresh()
 		labels.refresh() -- метка «Предатель» на подписях
 		hud.refresh()
 	end,
@@ -258,6 +271,7 @@ client = MatchClient.connect(cs, {
 	onEvents = function(events: { any })
 		hud.onEvents(events)
 		wars.onEvents(events)
+		pings.onEvents(events)
 	end,
 	onRejected = function(reason: string)
 		hud.toast(Strings.get("reject." .. reason, lang))
@@ -270,7 +284,7 @@ local input = CameraInput.bind(camera, viewport, {
 		if cx ~= nil and cy ~= nil then
 			local cell = cy * map.width + cx
 			-- Режим стройки забирает нажатие; иначе — старт, атака, война.
-			if not build.tap(cell) and not diplomacy.tap(cell) then
+			if not build.tap(cell) and not diplomacy.tap(cell) and not pings.tap(cell) then
 				hud.tapCell(cell)
 			end
 		end
@@ -296,6 +310,8 @@ local frameConn = RunService.RenderStepped:Connect(function()
 	wars.update(now)
 	results.update(now)
 	diplomacy.update(now)
+	council.update(now)
+	pings.update(now)
 	if minimap ~= nil then
 		minimap.update(now, camera.state)
 	end

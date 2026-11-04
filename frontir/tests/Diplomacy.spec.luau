@@ -614,6 +614,28 @@ T.describe("Совет держав (§8.2)", function()
 		end
 	)
 
+	T.it(
+		"клиент видит торговлю, эмбарго, голосование и резолюции",
+		function()
+			local m = trio()
+			offer(m, 1, 2, "trade")
+			reply(m, 2, 1, true)
+			MatchSim.applyIntent(m, 3, { kind = "embargo", target = 1, on = true })
+			openWith(m, { "sanctions", "truce", "aid" })
+			MatchSim.applyIntent(m, 1, { kind = "vote", option = 2 })
+			MatchSim.applyResolution(m, "freeTrade")
+			local cs = ClientState.new(W, H)
+			ClientState.applyDiplo(cs, MatchStats.diplo(m), 0)
+			T.expect(ClientState.hasTrade(cs, 2, 1)).toBe(true)
+			T.expect(ClientState.embargoBy(cs, 3, 1)).toBe(true)
+			T.expect(ClientState.embargoBy(cs, 1, 3)).toBe(false)
+			local vote = cs.diplo.council.vote :: any
+			T.expect(vote.options[2]).toBe("truce")
+			T.expect(vote.tallies[2]).toBe(1)
+			T.expect(cs.diplo.council.active[1].kind).toBe("freeTrade")
+		end
+	)
+
 	T.it("голоса ботов по выгоде", function()
 		local options: { Types.Resolution } = { "sanctions", "truce", "aid" }
 		local p = BotBrain.profile("Normal", "Admiral")

@@ -98,7 +98,7 @@ function MatchService.start(map: MapData)
 		if player ~= nil then
 			matchEvent:FireClient(player, msg)
 		else
-			diploVersion, diploAt = m.diplo.version, os.clock()
+			diploVersion, diploAt = m.diplo.version + m.council.version * 65536, os.clock()
 			matchEvent:FireAllClients(msg)
 		end
 	end
@@ -225,7 +225,8 @@ function MatchService.start(map: MapData)
 				matchEvent:FireAllClients({ kind = "buildings", list = built })
 			end
 			-- Изменения договоров за Net.DiploMinSec уходят одним сообщением.
-			if m.diplo.version ~= diploVersion and os.clock() >= diploAt + Config.Net.DiploMinSec then
+			local version = m.diplo.version + m.council.version * 65536 -- договоры и Совет — одним сообщением
+			if version ~= diploVersion and os.clock() >= diploAt + Config.Net.DiploMinSec then
 				sendDiplo(nil)
 			end
 			local events = MatchSim.takeEvents(m)

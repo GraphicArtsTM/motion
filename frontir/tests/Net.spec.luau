@@ -300,8 +300,9 @@ T.describe("Трафик", function()
 				bytes += #serde.encode("json", { kind = "events", events = events }) + OVERHEAD
 			end
 			-- Договоры (§8.1): как на сервере — при изменении, не чаще Net.DiploMinSec.
-			if m.diplo.version ~= diploVersion and m.time >= diploAt + Config.Net.DiploMinSec then
-				diploVersion, diploAt = m.diplo.version, m.time
+			local version = m.diplo.version + m.council.version * 65536
+			if version ~= diploVersion and m.time >= diploAt + Config.Net.DiploMinSec then
+				diploVersion, diploAt = version, m.time
 				bytes += #serde.encode("json", MatchStats.diplo(m)) + OVERHEAD
 			end
 			table.insert(perTick, bytes)
