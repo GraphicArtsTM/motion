@@ -165,6 +165,32 @@ function Intents.parse(kind: any, payload: any): (Types.Intent?, string?)
 			return nil, "bad phrase"
 		end
 		return { kind = "ping", cell = cell, phrase = phrase :: Types.Phrase }, nil
+	-- Флот (§6.12, этап 7б-1).
+	elseif kind == "ship" then
+		local ship, port = payload.ship, payload.port
+		if ship ~= "Transport" and ship ~= "Destroyer" then
+			return nil, "bad ship"
+		end
+		if not isInt(port) or port < 0 then
+			return nil, "bad port"
+		end
+		return { kind = "ship", ship = ship :: Types.ShipKind, port = port }, nil
+	elseif kind == "land" then
+		local port, target, percent = payload.port, payload.target, payload.percent
+		if not isInt(port) or port < 0 or not isInt(target) or target < 0 then
+			return nil, "bad cell"
+		end
+		local cfg = Config.Expansion
+		if not isFinite(percent) or percent < cfg.MinPercent - 1e-9 or percent > cfg.MaxPercent + 1e-9 then
+			return nil, "bad percent"
+		end
+		return { kind = "land", port = port, target = target, percent = percent }, nil
+	elseif kind == "patrol" then
+		local ship, cell = payload.ship, payload.cell
+		if not isInt(ship) or ship <= 0 or not isInt(cell) or cell < 0 then
+			return nil, "bad patrol"
+		end
+		return { kind = "patrol", ship = ship, cell = cell }, nil
 	end
 	return nil, "unknown kind"
 end

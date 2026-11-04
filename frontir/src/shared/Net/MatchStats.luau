@@ -8,6 +8,7 @@ local ClientState = require("../ClientState")
 local Config = require("../Config")
 local Council = require("../Council")
 local Diplomacy = require("../Diplomacy")
+local Fleet = require("../Fleet")
 local Fog = require("../Fog")
 local Forces = require("../Forces")
 local Grid = require("../Grid")
@@ -31,20 +32,74 @@ function MatchStats.radarsOf(m: MatchSim.Match, friends: { [number]: boolean }):
 	return out
 end
 
--- Какие атаки и фронты видит держава viewer (туман, §6.11): свои и друзей — всегда, чужие — если линия фронта
--- в грубом обзоре (блоки вокруг границ друзей и их радаров). Возвращает фильтр.
-function MatchStats.attackFilter(m: MatchSim.Match, viewer: number): (a: Types.Attack) -> boolean
+-- Грубый обзор державы (туман, §6.11): друзья и блоки вокруг их границ, радаров и кораблей.
+export type Vision = { friends: { [number]: boolean }, blocks: { [number]: boolean } }
+
+function MatchStats.vision(m: MatchSim.Match, viewer: number): Vision
 	local friends = Diplomacy.friends(m.diplo, viewer)
 	local borders: { { [number]: boolean } } = {}
 	for id in friends do
 		table.insert(borders, Grid.borderCells(m.grid, id))
 	end
-	local blocks = Fog.visionBlocks(m.grid.width, m.grid.height, borders, MatchStats.radarsOf(m, friends))
+	local ships: { number } = {}
+	for _, ship in m.fleet.ships do
+		if ship.alive and friends[ship.owner] then
+			table.insert(ships, Fleet.cellOf(m.grid.width, ship))
+		end
+	end
+	local blocks = Fog.visionBlocks(m.grid.width, m.grid.height, borders, MatchStats.radarsOf(m, friends), ships)
+	return { friends = friends, blocks = blocks }
+end
+
+-- Какие атаки и фронты видит держава viewer (туман, §6.11): свои и друзей — всегда, чужие — если линия фронта
+-- в грубом обзоре. Возвращает фильтр.
+function MatchStats.attackFilter(m: MatchSim.Match, viewer: number, vision: Vision?): (a: Types.Attack) -> boolean
+	local v = vision or MatchStats.vision(m, viewer)
+	local friends, blocks = v.friends, v.blocks
 	return function(a: Types.Attack): boolean
 		return friends[a.attacker] == true
 			or friends[a.target] == true
 			or (a.target ~= 0 and Fog.lineVisible(m.grid.width, blocks, a.line))
 	end
+end
+
+-- Корабли глазами державы viewer (§6.12): свои и друзей — всегда (с грузом), чужие — в грубом обзоре
+-- (без груза); заблокированные порты — всем; своя очередь кораблей. viewer nil — зритель: все корабли без груза;
+-- all — все корабли (держава игрока выбыла или «Туман выкл»), груз и очередь — свои.
+function MatchStats.ships(m: MatchSim.Match, viewer: number?, vision: Vision?, all: boolean?): Protocol.ShipsMessage
+	local v = if viewer ~= nil and Config.Fog.Enabled and not all then vision or MatchStats.vision(m, viewer) else nil
+	local friends: { [number]: boolean } = if viewer ~= nil then Diplomacy.friends(m.diplo, viewer) else {}
+	local w = m.grid.width
+	local ships: { Protocol.ShipInfo } = {}
+	for _, s in m.fleet.ships do
+		if s.alive then
+			local mine = friends[s.owner] == true
+			local cell = Fleet.cellOf(w, s)
+			if mine or v == nil or v.blocks[Fog.blockOf(w, cell)] then
+				table.insert(ships, {
+					id = s.id,
+					owner = s.owner,
+					kind = s.kind,
+					x = s.x,
+					y = s.y,
+					state = s.state,
+					hp = math.clamp(s.hp / Fleet.maxHp(s.kind), 0, 1),
+					cargo = if mine then Fleet.cargoPower(s) else 0,
+				})
+			end
+		end
+	end
+	local blocked: { number } = {}
+	for cell in m.fleet.blocked do
+		table.insert(blocked, cell)
+	end
+	table.sort(blocked)
+	local queue: { { kind: "Transport" | "Destroyer", left: number } } = {}
+	local own: { Fleet.Build } = if viewer ~= nil then m.fleet.queues[viewer] or {} else {}
+	for _, b in own do
+		table.insert(queue, { kind = b.kind, left = b.left / m.speed })
+	end
+	return { ships = ships, blocked = blocked, queue = queue }
 end
 
 -- Общая статистика: все державы и атаки/фронты. viewer — держава игрока: чужие фронты вне его обзора
@@ -89,11 +144,11 @@ end
 
 -- Та же статистика (full — build без viewer) глазами державы viewer: чужие фронты вне обзора убраны (§6.11).
 -- Державы те же — их начало сообщения можно закодировать один раз (Protocol.encodeStatsHead).
-function MatchStats.forViewer(m: MatchSim.Match, full: Protocol.Stats, viewer: number?): Protocol.Stats
+function MatchStats.forViewer(m: MatchSim.Match, full: Protocol.Stats, viewer: number?, vision: Vision?): Protocol.Stats
 	if viewer == nil or not Config.Fog.Enabled then
 		return full
 	end
-	local visible = MatchStats.attackFilter(m, viewer)
+	local visible = MatchStats.attackFilter(m, viewer, vision)
 	local attacks: { Protocol.AttackStats } = {}
 	for k, a in m.attacks do
 		if visible(a) and full.attacks[k] ~= nil then

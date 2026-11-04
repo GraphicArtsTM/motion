@@ -31,6 +31,7 @@ Protocol.DELTA = 2
 Protocol.STATS = 3
 Protocol.FORCES = 5
 Protocol.WARS = 6
+Protocol.SHIPS = 7 -- корабли (§6.12, этап 7б-1)
 
 export type NationStats = {
 	id: number,
@@ -99,6 +100,23 @@ export type MyEconomy = {
 	factories: number,
 }
 export type MyForces = { kinds: { KindForces }, queue: { QueueItem }, economy: MyEconomy }
+
+-- Корабли (§6.12): позиция в клетках (точность 1/32), прочность 0..1, груз — сила (только свои и друзей).
+export type ShipInfo = {
+	id: number,
+	owner: number,
+	kind: "Transport" | "Destroyer",
+	x: number,
+	y: number,
+	state: "docked" | "planning" | "moving" | "patrol",
+	hp: number,
+	cargo: number,
+}
+export type ShipsMessage = {
+	ships: { ShipInfo },
+	blocked: { number }, -- клетки заблокированных портов
+	queue: { { kind: "Transport" | "Destroyer", left: number } }, -- своя очередь кораблей
+}
 
 export type Delta = {
 	tick: number,
@@ -629,6 +647,71 @@ function Protocol.encodeWars(msg: WarsMessage): buffer
 		u8(w, math.clamp(math.ceil(c.left), 0, 255))
 	end
 	return finish(w)
+end
+
+-- SHIPS ------------------------------------------------------------------------------------
+
+local SHIP_KINDS: { "Transport" | "Destroyer" } = { "Transport", "Destroyer" }
+local SHIP_STATES: { "docked" | "planning" | "moving" | "patrol" } = { "docked", "planning", "moving", "patrol" }
+local POS_SCALE = 32
+
+function Protocol.encodeShips(msg: ShipsMessage): buffer
+	local w = writer(8 + #msg.ships * 12 + #msg.blocked * 4 + #msg.queue * 3)
+	u8(w, Protocol.SHIPS)
+	u16(w, math.min(#msg.ships, 65535))
+	for k = 1, math.min(#msg.ships, 65535) do
+		local s = msg.ships[k]
+		u16(w, s.id)
+		u8(w, s.owner)
+		u8(w, table.find(SHIP_KINDS, s.kind) or 1)
+		u16(w, math.clamp(math.round(s.x * POS_SCALE), 0, 65535))
+		u16(w, math.clamp(math.round(s.y * POS_SCALE), 0, 65535))
+		u8(w, table.find(SHIP_STATES, s.state) or 1)
+		u8(w, math.clamp(math.round(s.hp * 255), 0, 255))
+		u16(w, math.clamp(math.round(s.cargo), 0, 65535))
+	end
+	u8(w, math.min(#msg.blocked, 255))
+	for k = 1, math.min(#msg.blocked, 255) do
+		u32(w, msg.blocked[k])
+	end
+	u8(w, math.min(#msg.queue, 255))
+	for k = 1, math.min(#msg.queue, 255) do
+		u8(w, table.find(SHIP_KINDS, msg.queue[k].kind) or 1)
+		u16(w, math.clamp(math.round(msg.queue[k].left * 10), 0, 65535))
+	end
+	return finish(w)
+end
+
+function Protocol.decodeShips(b: buffer): ShipsMessage
+	local r = reader(b)
+	if ru8(r) ~= Protocol.SHIPS then
+		error("Protocol: не корабли", 2)
+	end
+	local ships: { ShipInfo } = {}
+	for _ = 1, ru16(r) do
+		local id = ru16(r)
+		local owner = ru8(r)
+		local kind: "Transport" | "Destroyer" = SHIP_KINDS[ru8(r)] or "Transport"
+		local x = ru16(r) / POS_SCALE
+		local y = ru16(r) / POS_SCALE
+		local state: "docked" | "planning" | "moving" | "patrol" = SHIP_STATES[ru8(r)] or "docked"
+		local hp = ru8(r) / 255
+		local cargo = ru16(r)
+		table.insert(
+			ships,
+			{ id = id, owner = owner, kind = kind, x = x, y = y, state = state, hp = hp, cargo = cargo }
+		)
+	end
+	local blocked: { number } = {}
+	for _ = 1, ru8(r) do
+		table.insert(blocked, ru32(r))
+	end
+	local queue: { { kind: "Transport" | "Destroyer", left: number } } = {}
+	for _ = 1, ru8(r) do
+		local kind: "Transport" | "Destroyer" = SHIP_KINDS[ru8(r)] or "Transport"
+		table.insert(queue, { kind = kind, left = ru16(r) / 10 })
+	end
+	return { ships = ships, blocked = blocked, queue = queue }
 end
 
 function Protocol.decodeWars(b: buffer): WarsMessage

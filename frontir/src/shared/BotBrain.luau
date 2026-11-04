@@ -98,6 +98,20 @@ export type BotView = {
 	owned: { factories: number, markets: number, rigs: number, forts: number, cityLevels: number },
 	spots: BuildSpots,
 	stability: number?, -- средняя стабильность своих провинций (§6.10, этап 7а)
+	navy: NavyView?, -- флот (§6.12, этап 7б-1)
+}
+
+-- Флот бота (§6.12): что есть и что можно сделать — подбирает MatchSim.
+export type NavyView = {
+	port: number?, -- свой незаблокированный порт (там нанимать)
+	transports: number, -- с очередью
+	destroyers: number,
+	idlePort: number?, -- порт, у которого стоит свободный транспорт
+	landEnemy: number?, -- берег врага (активная война) в море этого порта
+	landNeutral: number?, -- ничей берег в море этого порта
+	idleDestroyer: number?, -- эсминец без приказа
+	blockade: number?, -- причал порта врага в море этого эсминца
+	need: boolean, -- флот нужен: по суше расти некуда, а за морем есть ничья земля, или враг за морем
 }
 
 -- Где можно строить (клетка для намерения build) — подбирает MatchSim.
@@ -108,6 +122,7 @@ export type BuildSpots = {
 	city: number?, -- свой город, который можно улучшить
 	unstable: number?, -- своя провинция со стабильностью ниже Stability.LowBelow и без здания (§6.10)
 	unstableCity: number?, -- свой город в такой провинции, который можно улучшить
+	port: number?, -- своя прибрежная провинция без здания (§6.12)
 }
 
 -- Что бот знает, отвечая на предложение договора или требование (§8.1).
@@ -282,6 +297,16 @@ local function chooseBuild(view: BotView, profile: Profile, rng: Rng, atWar: boo
 	if owned.factories == 0 then
 		return want("Factory", spots.free or spots.oilRig)
 	end
+	-- Порт (§6.12): Флотоводец — сразу после завода, остальные — когда без флота расти некуда.
+	local navy = view.navy
+	if spots.port ~= nil and (navy == nil or navy.port == nil) then
+		if personality.navy >= 1 or (navy ~= nil and navy.need and personality.navy > 0) then
+			local port = want("Port", spots.port)
+			if port ~= nil then
+				return port
+			end
+		end
+	end
 	-- Нестабильная провинция (§6.10): укрепление или улучшение города поднимают стабильность.
 	-- Не больше Stability.BotCalmForts укреплений: деньги нужны и на войска.
 	if owned.forts < Config.Stability.BotCalmForts then
@@ -301,6 +326,47 @@ local function chooseBuild(view: BotView, profile: Profile, rng: Rng, atWar: boo
 		or want("Market", if owned.markets < personality.maxMarkets then spots.free else nil)
 		or want("Fort", fortSpot)
 		or want("City", spots.city)
+end
+
+-- Флот (§6.12): высадка, патруль к порту врага, найм кораблей. Новичок флотом не пользуется.
+local function navyDecision(view: BotView, p: Profile, rng: Rng): Types.Intent?
+	local navy = view.navy
+	local level, personality = p.level, p.personality
+	if navy == nil or level.randomTarget or personality.navy <= 0 then
+		return nil
+	end
+	local keen = personality.navy >= 1
+	if not keen and not navy.need then
+		return nil
+	end
+	local cfg = Config.Naval
+	if Rng.nextFloat(rng) >= cfg.BotLandChance * personality.navy * (if navy.need then 2 else 1) then
+		return nil
+	end
+	-- Высадка: на врага — войсками, на ничью землю — людьми и войсками.
+	if navy.idlePort ~= nil and view.power >= Config.Forces.MinFrontStrength * 2 then
+		local target = navy.landEnemy or navy.landNeutral
+		if target ~= nil then
+			return { kind = "land", port = navy.idlePort, target = target, percent = cfg.BotLandShare }
+		end
+	end
+	if navy.idleDestroyer ~= nil and navy.blockade ~= nil then
+		return { kind = "patrol", ship = navy.idleDestroyer, cell = navy.blockade }
+	end
+	if navy.port ~= nil then
+		local scale = math.max(1, math.round(personality.navy * 2))
+		local kind: Types.ShipKind? = if navy.transports < cfg.BotTransports * scale
+			then "Transport"
+			elseif navy.destroyers < cfg.BotDestroyers * scale then "Destroyer"
+			else nil
+		if kind ~= nil then
+			local stats = (Config.Units :: any)[kind]
+			if view.money >= stats.cost + level.buildReserve and view.oil >= stats.oil then
+				return { kind = "ship", ship = kind, port = navy.port }
+			end
+		end
+	end
+	return nil
 end
 
 -- Оценка цели войны (Генерал, §9.1): перевес, длина границы, враг отвлечён, лидер, добыча.
@@ -543,6 +609,11 @@ function BotBrain.decide(view: BotView, rng: Rng, profile: Profile?, memory: Mem
 		if build ~= nil then
 			return build
 		end
+	end
+
+	local navalIntent = navyDecision(view, p, rng)
+	if navalIntent ~= nil then
+		return navalIntent
 	end
 
 	local frontPercent = math.clamp(level.frontPercent * personality.front, 0.1, 0.9)

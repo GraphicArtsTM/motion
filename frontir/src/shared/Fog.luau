@@ -37,6 +37,7 @@ export type Sources = {
 	friends: { [number]: boolean },
 	fronts: { { mine: number, other: number } },
 	radars: { number },
+	ships: { number }?, -- клетки кораблей друзей (обзор Naval.ShipVision, этап 7б-1)
 }
 
 local Fog = {}
@@ -164,13 +165,21 @@ function Fog.compute(fs: FogState, owners: buffer, sources: Sources): (boolean, 
 			end
 		end
 	end
-	for _, cell in sources.radars do
+	local function point(cell: number, value: number)
 		if cell >= 0 and cell < size then
-			buffer.writeu8(vision, cell, math.max(buffer.readu8(vision, cell), radar))
+			buffer.writeu8(vision, cell, math.max(buffer.readu8(vision, cell), value))
 			local x, y = cell % w, cell // w
 			bx0, by0 = math.min(bx0, x), math.min(by0, y)
 			bx1, by1 = math.max(bx1, x), math.max(by1, y)
 		end
+	end
+	for _, cell in sources.radars do
+		point(cell, radar)
+	end
+	local shipValue = Config.Naval.ShipVision * ORTHO + 1
+	local ships: { number } = sources.ships or {}
+	for _, cell in ships do
+		point(cell, shipValue)
 	end
 	if bx1 >= 0 then
 		bx0, by0 = math.max(0, bx0 - reach), math.max(0, by0 - reach)
@@ -309,7 +318,8 @@ function Fog.visionBlocks(
 	width: number,
 	height: number,
 	borderCells: { { [number]: boolean } },
-	radars: { number }
+	radars: { number },
+	ships: { number }?
 ): { [number]: boolean }
 	local cfg = Config.Fog
 	local bs = cfg.BlockSize
@@ -329,6 +339,14 @@ function Fog.visionBlocks(
 		local b = (i // width) // bs * bw + (i % width) // bs
 		if (base[b] or -1) < far then
 			base[b] = far
+		end
+	end
+	local shipReach = math.ceil(Config.Naval.ShipVision / bs)
+	local shipCells: { number } = ships or {}
+	for _, i in shipCells do
+		local b = (i // width) // bs * bw + (i % width) // bs
+		if (base[b] or -1) < shipReach then
+			base[b] = shipReach
 		end
 	end
 	local out: { [number]: boolean } = {}
