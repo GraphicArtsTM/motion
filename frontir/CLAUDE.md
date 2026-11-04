@@ -1,0 +1,167 @@
+# Фронтир — правила для Claude Code
+
+Источник истины по игре: [`docs/GDD.md`](docs/GDD.md). Читай его перед любой задачей.
+
+## Где мы сейчас
+Сделаны этапы **0–6** (смержены в `main` через PR #2). Следующий — **этап 7**, по частям **7а → 7б → 7в → 7г**
+(см. «Статус» в начале GDD §15). Обновляй «Статус» в GDD и этот раздел в конце каждого этапа.
+
+## Порядок работы (договорённости с геймдизайнером)
+- Каждый этап (или его часть) — **ветка от свежего `main` и отдельный PR в `main`**. PR мержит **геймдизайнер сам**
+  после проверки в Studio; Claude не мержит.
+- Большой этап делим на части (а/б/в…), после каждой — отчёт и «дальше».
+- Сначала правила этапа в GDD (отдельный коммит), потом код. Решения геймдизайнера — сразу в GDD.
+- Новые механики сразу добавлять в панель разработчика (F4) и в чек-лист README «Проверка этапа в Studio».
+- Отчёты и общение — по-русски, коротко; числа — из замеров (тесты, `tools/bench`, превью), не на глаз.
+
+## Как работаем
+- **Строго по этапам** из GDD §15, по одному. В конце этапа: commit + отчёт по GDD §16, потом ждать «дальше».
+- **Логика отдельно от Roblox.** `src/shared/` — чистый Luau без Roblox API (можно `buffer`, `math`, `table`, `bit32`). Всё в нём покрывается Lune-тестами в `tests/`.
+- **`--!strict` в каждом файле**, типы у всех публичных функций.
+- **Сервер решает всё.** Клиент шлёт намерения (intents) и рисует. Каждое намерение сервер валидирует.
+- **Все числа баланса — только в `src/shared/Config.luau`.** Никаких магических чисел. Изменения баланса — в `docs/BALANCE.md`.
+- **Все строки UI — через ключи** в `src/shared/Strings.luau` (RU/EN), не хардкодом.
+- **Плейсхолдеры вместо арта**: рисуем программно. Нужные спрайты и размеры — в `docs/ART_LIST.md`. Цвета — только из `docs/palette.md` (32 цвета палитры + 24 цвета держав из `NationColors`).
+- **Не выдумывать API Roblox.** Сверяться с create.roblox.com/docs. Упёрлись в лимит — сказать и предложить замену.
+- **Оригинальность** (уточнено геймдизайнером): механики жанра можно брать у других игр, если они делают игру интереснее. Не копируем только чужой код, арт, звуки, названия, логотипы и узнаваемый интерфейс один в один — это авторское право и правила Roblox.
+- **Никаких реальных стран, флагов, лидеров**, любой текст игроков — через фильтр Roblox.
+- Изменения записывать в `docs/CHANGELOG.md`.
+- **Превью партии** каждого этапа — в репозиторий: `lune run tools/match_preview <сек> <сид> docs/previews/stage-N.png`,
+  ссылку на картинку — в отчёт.
+- **Темп матча** крутится одним числом `Config.Match.Speed` (всё игровое время); новые механики со временем
+  (армии, найм, перезарядки) обязаны идти через `simDt`/`simTime`, а не через реальное время.
+
+## Отчёт по этапу (GDD §16) — всегда в конце
+Что сделано · Как проверить в Studio · Тесты · Известные проблемы · Что дальше · ссылка на `docs/previews/stage-N.png` ·
+чек-лист для геймдизайнера (заполняет он): карта/кириллица (для кириллицы при английском Roblox —
+`Config.Dev.ForceLang = "ru"`); границы в двух окнах одинаковые — да/нет; атака и отмена; ошибки в Output; телефон.
+
+## Команды (из папки `frontir/`)
+```bash
+rokit install           # поставить инструменты из rokit.toml
+lune run tests          # все тесты; `lune run tests Config` — только файлы с "Config" в имени
+stylua --check src tests tools
+selene src tests tools
+rojo serve              # синхронизация со Studio
+lune run tools/realmap all     # пересоздать реальные карты maps/*.luau (данные кешируются в build/geo/)
+lune run tools/maps_preview    # лист всех карт → build/maps.png
+lune run tools/bench World 60 180  # нагрузка: время тика и трафик на 60 ботах
+lune run tools/genmap Pangea   # пересоздать тестовую maps/Pangea.luau (+ превью build/Pangea.bmp)
+lune run tools/palette_preview # пересоздать docs/palette.png после правки цветов
+lune run tools/match_preview 120 12345 build/match.png Europe 12  # партия ботов → картинка (секунды, сид, файл, карта, держав)
+lune run tools/bot_arena Europe 4  # «игрок» (Обычный бот) против трёх Новичков / Обычных / Генералов, 4 сида
+rojo sourcemap default.project.json -o sourcemap.json   # для luau-lsp
+lune setup              # типы Lune (алиас @lune в .luaurc)
+luau-lsp analyze --platform=roblox --definitions:@roblox=types/globalTypes.d.luau --sourcemap=sourcemap.json --base-luaurc=.luaurc src tests tools
+```
+CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (strict) и тесты; любая ошибка роняет сборку.
+
+## Типы в strict
+- Singleton-юнионы (`"ru" | "en"`) расширяются до `string` на неаннотированных `local` и переменных цикла — аннотируй: `local lang: Strings.Lang = ...`.
+- Наборы с известными ключами (юниты, здания) — record-типы (`Types.UnitTable`), а не словари с юнион-ключами.
+- Для перебора перечислений держим отдельные списки (`Types.TerrainIds`).
+
+## Раскладка в Roblox (default.project.json)
+- `src/shared` → `ReplicatedStorage.Shared`
+- `maps` → `ServerStorage.Maps` (сервер копирует выбранную карту в `ReplicatedStorage.Maps` — клиенты получают только её)
+- `src/server` → `ServerScriptService.Server`
+- `src/client` → `StarterPlayer.StarterPlayerScripts.Client`
+
+## Карта и рендер
+- Чистые модули карты в `src/shared`: `MapGen` (генератор), `MapFormat` (бинарный формат + base64 в ModuleScript),
+  `MapPaint` (цвета клеток), `CameraMath`. Клиентская обвязка — `src/client/Render`, `src/client/Input`.
+- EditableImage: максимум 1024×1024, на экране обновляется один EditableImage за кадр, бюджет памяти клиента
+  (CreateEditableImage → nil), в опубликованной игре нужен флаг Allow Mesh / Image APIs.
+- Pure-модули, которые нужны клиенту, кладём в `src/shared` (клиентская папка не видит shared по относительному пути).
+- **Реальные карты (этап 4а):** `tools/realmap` + `tools/lib/Geo` (проекция, заливка многоугольников, реки, высоты,
+  местность, фильтр имён `Geo.isNameAllowed` — без реальных стран). Параметры — `Config.RealMaps`,
+  `Config.RealMapTerrain`. Имена провинций лежат в модуле карты (`provinceNames`), `Provinces.build` берёт их оттуда.
+  Тест `RealMaps.spec` проверяет все карты: размер ≤ 1024, провинций 60–250, имена, места для старта.
+
+## Матч (этап 2)
+- Симуляция целиком в `src/shared/MatchSim.luau` (+ `Grid`, `Economy`, `Expansion`, `StartPositions`, `BotBrain`,
+  `NameGen`, `Intents`, `RateLimiter`) — без Roblox API, тестируется в Lune. Сервер (`src/server/Match/MatchService`)
+  только кормит её игроками, намерениями и временем и рассылает результат.
+- Сеть: один RemoteEvent `Remotes.Match` (сервер → клиент, порядок сохраняется): buffer-сообщения `Net/Protocol`
+  (снимок частями, дельты, статистика) и таблицы (`info`, `events`, `rejected`). Клиент → сервер: `Remotes.Intent`
+  (kind, payload), сервер проверяет лимитом, `Intents.parse` и `MatchSim.applyIntent`.
+- Клиент собирает состояние в `ClientState` (тест сверяет его с сеткой сервера побайтно).
+- StyLua 2.6 падает на `//` внутри длинного конструктора таблицы — выноси вычисление в локальную переменную.
+
+## Провинции, города и фронты (этапы 3а–3б)
+- Провинции генерирует `MapGen.generateProvinces` (хранятся в слое province карты); всё остальное о них —
+  `Provinces.build(map)` одинаково на сервере и клиенте (центры, соседи, имена, нейтральные города).
+- Город — клетка с флагом `Grid.city`: ползущая граница людей (`Expansion`) города не берёт, берут только войска.
+- **Модель «Фронты» (решение геймдизайнера, 3б):** отрядов на карте нет. Войска — пул державы по типам
+  (`Types.Forces`, `Forces`): найм в очередь, гарнизон `nation.home`. Атака на державу — фронт: доля войск
+  уходит в `attack.forces`; бой, перевес, потери, опыт и снабжение — `Fronts`; клетки двигает `Expansion.advanceFront`.
+  Выбывание — когда пал последний город (`MatchSim`).
+- Сеть: фронты и сила держав — в STATS (`Net/MatchStats`), свои войска — FORCES каждому игроку; сетка — дельтами.
+  Трафик проверяет тест «60 держав» против `Config.Net.BudgetBytesPerSec`.
+- Клиент: `Render/FrontLayer` сам находит линии фронтов в своей копии сетки и ставит юнитов (`UnitSprites` —
+  общие спрайты с превью), `UI/ForcesPanel` — найм Z/X/C/V и панель войск.
+
+## Война и мир, бой на фронте (этап 3в)
+- `Wars` — чистое состояние войн: по умолчанию мир, `declare` → мобилизация → активная война, журнал взятой
+  в войне земли (`record` из `Expansion.Hooks`), потери, предложения мира, запрет новой войны после мира, усталость.
+  `MatchSim` решает правила: фронт против страны — только в активной войне, окружение не берёт куски стран без войны.
+- `Expansion.selectCells`: идёт вся граница (вероятность клетки по скорости), focus — главное направление удара,
+  щели и дыры берутся сразу. Фронт переходит реку (`frontier` с map), цена клетки ×RiverCrossCost.
+- `BattleLayout` — где стоят юниты в бою (общий для клиента и превью); `Render/FrontLayer` — анимация боя из пулов,
+  пределы в `Config.Render.Battle`; `UI/WarPanel` — баннер войны и окна войны и мира.
+- Карты в игре — только реальная география (этап 4); «Пангея» — для тестов и превью.
+
+## Экономика и здания (этап 4б)
+- `Economy` — доход, нефть, содержание, максимум людей; `Buildings` — правила стройки и что у кого есть
+  (владелец здания = владелец его клетки); `Pockets` — котлы (заливка по меткам `Grid.stamp`, пересчёт только
+  при изменении территории — `Grid.version`). `MatchSim.refreshOwned` раз в тик собирает здания по державам.
+- Нефтяные поля — в `Provinces.build` (детерминированно, по сети не идут). Здания — в info и сообщением `buildings`,
+  деньги и нефть игрока — в FORCES.
+- Клиент: `UI/BuildPanel` (B, меню, режим стройки забирает нажатие на карту), `Render/BuildingLayer`
+  (значки из `BuildingSprites`, общие с превью).
+- Нагрузку проверять `lune run tools/bench Europe 12 300` и `tools/bench World 60 180`: тик в среднем ≤ 10 мс.
+
+## Цикл матча и HUD (этап 4в)
+- Фазы `Waiting → Lobby → Pick → Play → Over` в `MatchSim`; победа (`checkVictory`): доля суши, последняя держава,
+  `Match.TimeLimitSec`. Итог (`m.result`: места, график долей) — в info. Сервер после `Over` создаёт новый матч
+  на той же карте; клиент сбрасывает состояние по новому `matchId` (`ClientState.applyInfo` → colorsChanged).
+- Флаг `m.victory = false` выключает проверку победы — для тестов на крошечных картах.
+- Клиент: `UI/ResultsPanel` (итоги), `UI/Minimap` + `MinimapPaint` (своё EditableImage, перерисовка по таймеру
+  и только при изменениях). Превью рисует мини-карту и график так же.
+
+## Боты v2 (этап 5)
+- `BotBrain` — решения бота по `BotView` (то, что видит игрок) и профилю: уровень (`Config.BotLevels`: Новичок,
+  Обычный, Генерал) и личность (`Config.BotPersonalities`, множители). `MatchSim` хранит профили в `m.botProfiles`,
+  уровень и личность — в `Nation.botLevel/personality` (уходят клиенту в info).
+- Бюджет: `Bots.MaxThinksPerTick` раздумий за тик. Генералу +10% дохода — в `stepEconomy` (единственное послабление).
+- `MatchSim.setBot(m, id, level, personality?)` — сделать державу ботом (арена, тесты). Автостарт —
+  на крупном массиве суши (`StartPositions.landmasses`, `Start.MinLandmassShare`).
+- Проверка силы уровней — `lune run tools/bot_arena Europe 4`; тесты — `Bots.spec`.
+- Для Studio: `Config.Dev.BotLevel` и `Config.Dev.Nations`.
+
+## Договоры (этап 6а)
+- `Diplomacy` — чистое состояние: пакты, союзы, разрыв (`startBreak` → `update`), «Предатель», вассалы, предложения
+  и требования, история; `version` растёт при изменениях. `MatchSim` решает правила: `declareWar` (предательство,
+  союзникам — событие), `offer`/`resolveOffer` (ответы игроков, ботов и по таймеру), уступка провинции, капитуляция
+  в `makePeace(..., from)`, дань вассала в `stepEconomy`, снабжение `Fronts.supplied(..., friends)`, победа союза.
+- Боты: `BotBrain.answerOffer` и дипломатия в `decide` (веса `alliance/betray/demand/loyalty` в личностях).
+- Сеть: таблица `diplo` (`MatchStats.diplo`, `ClientState.applyDiplo`), сроки — «осталось секунд игрового времени».
+  info и diplo — не чаще `Net.InfoMinSec` / `Net.DiploMinSec`. Клиент: `UI/DiplomacyPanel` (T, требование
+  забирает нажатие на карту).
+
+## Совет и торговля (этап 6б)
+- Торговые соглашения и эмбарго — в `Diplomacy` (`trade`, `embargo`); переводы — `MatchSim.transfer` (налог, лимит
+  за минуту `m.sent`); `Council` — созыв, голосование, действующие резолюции; эффекты — `MatchSim.applyResolution`,
+  доход в `stepEconomy`, перемирие в `stepAttacks` и `declare`. Пинги — событие `ping` (только фразы из Strings).
+- Сеть: всё в `diplo` (версия договоров + версия Совета). Клиент: `UI/CouncilPanel`, `UI/Pings` (G, метки на canvas),
+  торговля в `UI/DiplomacyPanel`.
+
+## Панель разработчика (F4)
+- Только в Studio: `MatchService` создаёт `Remotes.Dev` при `RunService:IsStudio()`; действия — чистый `DevTools`
+  (grant, forceOffer, warNow, peaceNow, councilNow, endMatch), ускорение ×5 — шагов симуляции за кадр в `MatchService`.
+  Клиент: `UI/DevPanel`. Новые механики — сразу добавлять в панель и в чек-лист README.
+- С этапа 7 каждый этап — отдельный PR в `main` (PR #2 мержит геймдизайнер).
+
+## Require
+Внутри `src/shared` модули подключают друг друга строкой: `require("./Types")` — так работает и в Roblox (`./` = `script.Parent`), и в Lune.
+Сервер и клиент берут общие модули через `ReplicatedStorage.Shared`.

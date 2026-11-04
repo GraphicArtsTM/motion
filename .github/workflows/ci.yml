@@ -1,0 +1,50 @@
+name: Frontir CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontir
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Rokit and tools
+        uses: CompeyDev/setup-rokit@v0.2.1
+        with:
+          path: frontir
+          cache: true
+          token: ${{ github.token }}
+
+      - name: Tool versions
+        run: |
+          rojo --version
+          lune --version
+          stylua --version
+          selene --version
+          luau-lsp --version
+
+      - name: StyLua
+        run: stylua --check src tests tools
+
+      - name: Selene
+        run: selene src tests tools
+
+      - name: Luau type check (strict)
+        run: |
+          lune setup
+          rojo sourcemap default.project.json -o sourcemap.json
+          luau-lsp analyze \
+            --platform=roblox \
+            --definitions:@roblox=types/globalTypes.d.luau \
+            --sourcemap=sourcemap.json \
+            --base-luaurc=.luaurc \
+            src tests tools
+
+      - name: Lune tests
+        run: lune run tests

@@ -1,0 +1,583 @@
+--!strict
+--[[
+	Strings — все тексты интерфейса по ключам (RU/EN), §10 «Локализация».
+	Пока это чистая таблица; позже из неё будет собираться LocalizationTable.
+	Никаких строк интерфейса хардкодом в UI — только Strings.get(key, lang).
+]]
+
+export type Lang = "ru" | "en"
+
+-- Каждая запись обязана иметь оба языка: пропуск перевода — ошибка типов.
+export type Entry = { ru: string, en: string }
+
+local DEFAULT_LANG: Lang = "ru"
+local LANGS: { Lang } = { "ru", "en" }
+
+local TABLE: { [string]: Entry } = {
+	["game.title"] = { ru = "Фронтир", en = "Frontir" },
+	["map.Pangea"] = { ru = "Пангея", en = "Pangaea" },
+
+	["terrain.Water"] = { ru = "вода", en = "water" },
+	["terrain.Plains"] = { ru = "равнина", en = "plains" },
+	["terrain.Forest"] = { ru = "лес", en = "forest" },
+	["terrain.Hills"] = { ru = "холмы", en = "hills" },
+	["terrain.Mountains"] = { ru = "горы", en = "mountains" },
+	["terrain.Desert"] = { ru = "пустыня", en = "desert" },
+	["terrain.Tundra"] = { ru = "тундра", en = "tundra" },
+	["terrain.River"] = { ru = "река", en = "river" },
+
+	["debug.title"] = { ru = "Отладка (F3)", en = "Debug (F3)" },
+	["debug.fps"] = { ru = "FPS: %d", en = "FPS: %d" },
+	["debug.map"] = { ru = "Карта: %s %d×%d, сид %d", en = "Map: %s %d×%d, seed %d" },
+	["debug.zoom"] = { ru = "Зум: ×%.2f (мин. ×%.2f)", en = "Zoom: ×%.2f (min ×%.2f)" },
+	["debug.camera"] = { ru = "Камера: %.1f, %.1f", en = "Camera: %.1f, %.1f" },
+	["debug.cell"] = { ru = "Клетка: %d, %d — %s", en = "Cell: %d, %d — %s" },
+	["debug.cell.none"] = { ru = "Клетка: —", en = "Cell: —" },
+	["debug.memory"] = { ru = "EditableImage: чанков %d, %.2f МБ", en = "EditableImage: %d chunks, %.2f MB" },
+
+	["debug.server"] = {
+		ru = "Сервер: тик %.2f мс, клеток за тик %d",
+		en = "Server: tick %.2f ms, cells/tick %d",
+	},
+	["debug.ping"] = { ru = "Пинг: %d мс", en = "Ping: %d ms" },
+	["debug.net"] = { ru = "Сеть: %.1f КБ/с", en = "Net: %.1f KB/s" },
+	["debug.fronts"] = { ru = "Фронтов: %d, в бою %d", en = "Fronts: %d, fighting %d" },
+
+	["hud.waiting"] = { ru = "Ожидание игроков…", en = "Waiting for players…" },
+	["hud.pick"] = { ru = "Выберите точку старта: %d с", en = "Choose your start: %d s" },
+	["hud.pick.hint"] = { ru = "Нажмите на свободную сушу", en = "Tap free land" },
+	["hud.pick.done"] = {
+		ru = "Точка выбрана — можно перевыбрать",
+		en = "Start chosen — you can change it",
+	},
+	["hud.spectator"] = {
+		ru = "Матч уже идёт — вы зритель",
+		en = "Match in progress — you are spectating",
+	},
+	["hud.defeated"] = {
+		ru = "Ваша держава пала — вы зритель",
+		en = "Your nation has fallen — spectating",
+	},
+	["hud.time"] = { ru = "%d:%02d", en = "%d:%02d" },
+	["hud.timeLimit"] = { ru = "%d:%02d / %d:%02d", en = "%d:%02d / %d:%02d" },
+	["hud.nations"] = { ru = "Державы %d/%d", en = "Nations %d/%d" },
+	["hud.leaderGoal"] = { ru = "%s: %d%% из %d%%", en = "%s: %d%% of %d%%" },
+	["hud.lobby"] = { ru = "Лобби · %s · старт через %d с", en = "Lobby · %s · starts in %d s" },
+	["hud.lobby.players"] = {
+		ru = "Игроков: %d · держав в матче: %d",
+		en = "Players: %d · nations: %d",
+	},
+	["hud.over"] = { ru = "Матч окончен · новый через %d с", en = "Match over · next in %d s" },
+	["map.World"] = { ru = "Мир", en = "World" },
+	["map.Europe"] = { ru = "Европа", en = "Europe" },
+	["map.Mediterranean"] = { ru = "Средиземноморье", en = "Mediterranean" },
+	["map.Asia"] = { ru = "Азия", en = "Asia" },
+	["map.Americas"] = { ru = "Америки", en = "Americas" },
+	["map.Africa"] = { ru = "Африка", en = "Africa" },
+	["result.title"] = { ru = "Победа: %s", en = "Victory: %s" },
+	["result.land"] = { ru = "%d%% суши", en = "%d%% of the land" },
+	["result.last"] = { ru = "последняя держава на карте", en = "the last nation standing" },
+	["result.time"] = {
+		ru = "время вышло — больше всех суши",
+		en = "time is up — the most land",
+	},
+	["result.yourPlace"] = { ru = "Ваше место: %d из %d", en = "Your place: %d of %d" },
+	["result.chart"] = { ru = "Доля суши за матч", en = "Land share over the match" },
+	["result.place"] = { ru = "%d. %s — %d%% суши", en = "%d. %s — %d%% land" },
+	["result.out"] = { ru = "выбыла", en = "eliminated" },
+	["result.next"] = { ru = "Новый матч через %d с", en = "Next match in %d s" },
+	["bot.level.Novice"] = { ru = "бот·Новичок", en = "bot·Novice" },
+	["bot.level.Normal"] = { ru = "бот·Обычный", en = "bot·Normal" },
+	["bot.level.General"] = { ru = "бот·Генерал", en = "bot·General" },
+	["bot.personality.Peaceful"] = { ru = "Миролюбивый", en = "Peaceful" },
+	["bot.personality.Aggressor"] = { ru = "Агрессор", en = "Aggressor" },
+	["bot.personality.Trader"] = { ru = "Торговец", en = "Trader" },
+	["bot.personality.Cunning"] = { ru = "Хитрец", en = "Cunning" },
+	["bot.personality.Admiral"] = { ru = "Флотоводец", en = "Admiral" },
+	["diplo.button"] = { ru = "Дипломатия (T)", en = "Diplomacy (T)" },
+	["diplo.title"] = { ru = "Дипломатия", en = "Diplomacy" },
+	["diplo.close"] = { ru = "Закрыть", en = "Close" },
+	["diplo.rel.peace"] = { ru = "мир", en = "peace" },
+	["diplo.rel.war"] = { ru = "война", en = "war" },
+	["diplo.rel.mobilizing"] = { ru = "мобилизация", en = "mobilizing" },
+	["diplo.rel.pact"] = { ru = "пакт %s", en = "pact %s" },
+	["diplo.rel.alliance"] = { ru = "союз", en = "alliance" },
+	["diplo.rel.vassal"] = { ru = "ваш вассал", en = "your vassal" },
+	["diplo.rel.overlord"] = { ru = "ваш сюзерен", en = "your overlord" },
+	["diplo.rel.breaking"] = { ru = "разрыв через %d с", en = "breaks in %d s" },
+	["diplo.traitor"] = { ru = "Предатель", en = "Traitor" },
+	["diplo.ally"] = { ru = "союзник", en = "ally" },
+	["diplo.power"] = { ru = "сила ≈ %s", en = "power ≈ %s" },
+	["diplo.you"] = { ru = "Вы", en = "You" },
+	["diplo.vassalOf"] = { ru = "вассал: %s", en = "vassal of %s" },
+	["diplo.pick"] = { ru = "Выберите державу в списке", en = "Pick a nation in the list" },
+	["diplo.act.pact3"] = { ru = "Пакт 3 мин", en = "Pact 3 min" },
+	["diplo.act.pact5"] = { ru = "Пакт 5 мин", en = "Pact 5 min" },
+	["diplo.act.alliance"] = { ru = "Союз", en = "Alliance" },
+	["diplo.act.break"] = { ru = "Разорвать", en = "Break" },
+	["diplo.act.demand"] = { ru = "Требование", en = "Demand" },
+	["diplo.act.war"] = { ru = "Объявить войну", en = "Declare war" },
+	["diplo.act.rebel"] = { ru = "Независимость", en = "Independence" },
+	["diplo.act.hint"] = {
+		ru = "Война союзнику или партнёру по пакту до конца договора — метка «Предатель» на 5 мин",
+		en = "War on an ally or pact partner before the treaty ends marks you «Traitor» for 5 min",
+	},
+	["diplo.demandHint"] = {
+		ru = "Нажмите провинцию державы %s у вашей границы",
+		en = "Tap a province of %s on your border",
+	},
+	["diplo.history"] = { ru = "История договоров", en = "Treaty history" },
+	["diplo.hist.pact"] = { ru = "%s и %s: пакт на %d мин", en = "%s and %s: pact for %d min" },
+	["diplo.hist.alliance"] = { ru = "%s и %s: союз", en = "%s and %s: alliance" },
+	["diplo.hist.broken"] = { ru = "%s разорвал договор с %s", en = "%s broke the treaty with %s" },
+	["diplo.hist.expired"] = { ru = "%s и %s: пакт истёк", en = "%s and %s: pact expired" },
+	["diplo.hist.betrayal"] = { ru = "%s предал %s", en = "%s betrayed %s" },
+	["diplo.hist.vassal"] = { ru = "%s — вассал %s", en = "%s is a vassal of %s" },
+	["diplo.hist.independence"] = { ru = "%s вышел из-под власти %s", en = "%s broke free from %s" },
+	["diplo.hist.ceded"] = { ru = "%s отдал провинцию %s", en = "%s ceded a province to %s" },
+	["diplo.hist.refused"] = { ru = "%s отказал %s — война", en = "%s refused %s — war" },
+	["diplo.offer.pact3"] = {
+		ru = "%s предлагает пакт о ненападении на 3 мин",
+		en = "%s offers a non-aggression pact for 3 min",
+	},
+	["diplo.offer.pact5"] = {
+		ru = "%s предлагает пакт о ненападении на 5 мин",
+		en = "%s offers a non-aggression pact for 5 min",
+	},
+	["diplo.offer.alliance"] = { ru = "%s предлагает союз", en = "%s offers an alliance" },
+	["diplo.offer.demand"] = {
+		ru = "%s требует провинцию «%s» — или война",
+		en = "%s demands the province «%s» — or war",
+	},
+	["diplo.offer.left"] = { ru = "ответ через %d с", en = "%d s to answer" },
+	["diplo.accept"] = { ru = "Принять", en = "Accept" },
+	["diplo.refuse"] = { ru = "Отказать", en = "Refuse" },
+	["diplo.cede"] = { ru = "Отдать", en = "Cede" },
+	["event.offerAccepted.pact"] = { ru = "%s и %s заключили пакт", en = "%s and %s signed a pact" },
+	["event.offerAccepted.alliance"] = { ru = "%s и %s — союз", en = "%s and %s are allies" },
+	["event.offerAccepted.demand"] = { ru = "%s отдала провинцию %s", en = "%s ceded a province to %s" },
+	["event.offerRefused"] = { ru = "%s отказала: %s", en = "%s refused: %s" },
+	["event.betrayal"] = { ru = "%s предала %s!", en = "%s betrayed %s!" },
+	["event.treatyBroken"] = { ru = "%s разорвала договор с %s", en = "%s broke the treaty with %s" },
+	["event.breakAnnounced"] = {
+		ru = "%s разорвёт договор с вами через 15 с",
+		en = "%s will break the treaty with you in 15 s",
+	},
+	["event.treatyExpired"] = { ru = "%s и %s: пакт истёк", en = "%s and %s: pact expired" },
+	["event.vassal"] = { ru = "%s стала вассалом %s", en = "%s became a vassal of %s" },
+	["event.independence"] = {
+		ru = "%s объявила независимость от %s",
+		en = "%s declared independence from %s",
+	},
+	["event.allyAttacked"] = {
+		ru = "%s напала на вашего союзника %s",
+		en = "%s attacked your ally %s",
+	},
+	["reject.offerPending"] = {
+		ru = "Предложение уже ждёт ответа",
+		en = "An offer is already pending",
+	},
+	["reject.offerCooldown"] = {
+		ru = "Слишком часто — подождите",
+		en = "Too often — wait a bit",
+	},
+	["reject.already"] = { ru = "Такой договор уже есть", en = "This treaty already exists" },
+	["reject.maxAllies"] = {
+		ru = "Союзников уже два — больше нельзя",
+		en = "Already two allies — no more",
+	},
+	["reject.vassal"] = { ru = "Вассалу это нельзя", en = "Vassals cannot do this" },
+	["reject.treaty"] = { ru = "Между вами договор", en = "There is a treaty between you" },
+	["reject.atWar"] = { ru = "Вы воюете", en = "You are at war" },
+	["reject.noOffer"] = { ru = "Предложения нет", en = "No offer" },
+	["reject.noTreaty"] = { ru = "Договора нет", en = "No treaty" },
+	["reject.breaking"] = { ru = "Договор уже разрывается", en = "The treaty is already breaking" },
+	["reject.notVassal"] = { ru = "Вы не вассал", en = "You are not a vassal" },
+	["reject.tooEarly"] = {
+		ru = "Независимость — через 5 минут вассалитета",
+		en = "Independence only after 5 minutes",
+	},
+	["reject.vassalRebel"] = {
+		ru = "Сюзерену — только «Независимость»",
+		en = "Against your overlord — only «Independence»",
+	},
+	["reject.ownVassal"] = { ru = "Это ваш вассал", en = "This is your vassal" },
+	["reject.notWeakEnough"] = {
+		ru = "Капитуляция — только если войск меньше трети врага",
+		en = "Capitulate only with under a third of the enemy's forces",
+	},
+	["reject.capital"] = {
+		ru = "Провинцию со столицей требовать нельзя",
+		en = "You cannot demand a capital province",
+	},
+	["reject.notBorder"] = {
+		ru = "Провинция должна граничить с вашей землёй",
+		en = "The province must border your land",
+	},
+	["reject.notTheirs"] = { ru = "Это не их провинция", en = "Not their province" },
+	["reject.province"] = { ru = "Нет такой провинции", en = "No such province" },
+	["diplo.act.trade"] = { ru = "Торговля +5%", en = "Trade +5%" },
+	["diplo.act.embargo"] = { ru = "Эмбарго", en = "Embargo" },
+	["diplo.act.unembargo"] = { ru = "Снять эмбарго", en = "Lift embargo" },
+	["diplo.act.giveMoney"] = { ru = "+%s $", en = "+%s $" },
+	["diplo.act.giveOil"] = { ru = "+%s нефти", en = "+%s oil" },
+	["diplo.act.givePeople"] = { ru = "+%s людей", en = "+%s people" },
+	["diplo.rel.trade"] = { ru = "торговля", en = "trade" },
+	["diplo.rel.embargo"] = { ru = "эмбарго", en = "embargo" },
+	["diplo.offer.trade"] = {
+		ru = "%s предлагает торговое соглашение (+5% дохода обоим)",
+		en = "%s offers a trade agreement (+5% income for both)",
+	},
+	["diplo.hist.trade"] = { ru = "%s и %s: торговое соглашение", en = "%s and %s: trade agreement" },
+	["diplo.hist.embargo"] = { ru = "%s объявил эмбарго %s", en = "%s embargoed %s" },
+	["diplo.taxHint"] = {
+		ru = "Переводы: налог 10%, лимит в минуту",
+		en = "Transfers: 10% tax, per-minute limit",
+	},
+	["council.title"] = { ru = "Совет держав", en = "Council of Nations" },
+	["council.vote"] = { ru = "Голосование: %d с", en = "Voting: %d s" },
+	["council.votes"] = { ru = "голосов: %d", en = "votes: %d" },
+	["council.voted"] = { ru = "Ваш голос учтён", en = "Your vote is counted" },
+	["council.next"] = { ru = "Совет через %s", en = "Council in %s" },
+	["council.res.sanctions"] = { ru = "Санкции против лидера", en = "Sanctions on the leader" },
+	["council.res.sanctions.hint"] = {
+		ru = "−25% дохода самой большой державе на 2 мин",
+		en = "−25% income for the largest nation for 2 min",
+	},
+	["council.res.truce"] = { ru = "Всеобщее перемирие", en = "General truce" },
+	["council.res.truce.hint"] = {
+		ru = "60 с без новых войн, фронты стоят",
+		en = "60 s without new wars, fronts stand still",
+	},
+	["council.res.aid"] = { ru = "Помощь слабым", en = "Aid to the weak" },
+	["council.res.aid.hint"] = {
+		ru = "деньги трём последним по суше",
+		en = "money for the three smallest nations",
+	},
+	["council.res.freeTrade"] = { ru = "Свободная торговля", en = "Free trade" },
+	["council.res.freeTrade.hint"] = {
+		ru = "переводы без налога 3 мин",
+		en = "tax-free transfers for 3 min",
+	},
+	["council.res.superweaponBan"] = { ru = "Запрет супероружия", en = "Superweapon ban" },
+	["council.res.superweaponBan.hint"] = { ru = "3 мин без ракет", en = "no missiles for 3 min" },
+	["council.active"] = { ru = "Действует: %s (%s)", en = "In force: %s (%s)" },
+	["event.councilOpened"] = {
+		ru = "Совет держав собрался — голосуйте!",
+		en = "The Council of Nations is in session — vote!",
+	},
+	["event.councilNone"] = {
+		ru = "Совет держав разошёлся без решения",
+		en = "The Council adjourned without a decision",
+	},
+	["event.resolution"] = { ru = "Совет принял: %s", en = "The Council passed: %s" },
+	["event.resolution.sanctions"] = {
+		ru = "Совет: санкции против %s",
+		en = "Council: sanctions on %s",
+	},
+	["event.transfer"] = { ru = "%s передала вам: %s", en = "%s sent you: %s" },
+	["event.embargo"] = { ru = "%s объявила эмбарго %s", en = "%s embargoed %s" },
+	["event.tradeEnded"] = {
+		ru = "%s и %s: торговое соглашение разорвано",
+		en = "%s and %s: trade agreement ended",
+	},
+	["event.ping"] = { ru = "%s: %s", en = "%s: %s" },
+	["ping.button"] = { ru = "Пинг (G)", en = "Ping (G)" },
+	["ping.hint"] = {
+		ru = "Нажмите на карту — туда встанет метка",
+		en = "Tap the map to place the marker",
+	},
+	["ping.help"] = { ru = "Помоги здесь!", en = "Help here!" },
+	["ping.attack"] = { ru = "Атакую сюда!", en = "Attacking here!" },
+	["ping.alliance"] = { ru = "Союз?", en = "Alliance?" },
+	["ping.thanks"] = { ru = "Спасибо!", en = "Thanks!" },
+	["ping.traitor"] = { ru = "Предатель!", en = "Traitor!" },
+	["reject.embargo"] = { ru = "Между вами эмбарго", en = "There is an embargo between you" },
+	["reject.maxTrade"] = {
+		ru = "Торговых соглашений уже три",
+		en = "Already three trade agreements",
+	},
+	["reject.tradeLimit"] = { ru = "Лимит переводов за минуту", en = "Per-minute transfer limit" },
+	["reject.amount"] = { ru = "Неверная сумма", en = "Invalid amount" },
+	["reject.truce"] = {
+		ru = "Всеобщее перемирие — войны нельзя",
+		en = "General truce — no wars",
+	},
+	["reject.noVote"] = { ru = "Совет сейчас не голосует", en = "The Council is not voting now" },
+	["reject.badOption"] = { ru = "Нет такого варианта", en = "No such option" },
+	["reject.pingCooldown"] = { ru = "Не так часто", en = "Not so often" },
+	["dev.title"] = { ru = "Разработчик (F4)", en = "Developer (F4)" },
+	["dev.grantForces"] = { ru = "+%s войск каждого типа", en = "+%s of each unit type" },
+	["dev.grantPeople"] = { ru = "+%s людей", en = "+%s people" },
+	["dev.grantMoney"] = { ru = "+%s $ и нефть", en = "+%s $ and oil" },
+	["dev.speed"] = { ru = "Время ×%d", en = "Time ×%d" },
+	["dev.speedOn"] = { ru = "Время ×%d — включено", en = "Time ×%d — on" },
+	["dev.bot"] = { ru = "Бот: %s", en = "Bot: %s" },
+	["dev.noBot"] = { ru = "Ботов нет", en = "No bots" },
+	["dev.botAlliance"] = { ru = "Бот → союз", en = "Bot → alliance" },
+	["dev.botPact"] = { ru = "Бот → пакт", en = "Bot → pact" },
+	["dev.botTrade"] = { ru = "Бот → торговля", en = "Bot → trade" },
+	["dev.botDemand"] = { ru = "Бот → требование", en = "Bot → demand" },
+	["dev.botWar"] = { ru = "Бот объявляет войну", en = "Bot declares war" },
+	["dev.war"] = { ru = "Война сейчас", en = "War now" },
+	["dev.peace"] = { ru = "Мир сейчас", en = "Peace now" },
+	["dev.council"] = { ru = "Совет сейчас", en = "Council now" },
+	["dev.end"] = { ru = "К концу матча", en = "To match end" },
+	["result.hide"] = { ru = "Смотреть карту", en = "View map" },
+	["result.show"] = { ru = "Итоги", en = "Results" },
+	["event.victory"] = { ru = "Победа: %s", en = "Victory: %s" },
+	["hud.people"] = { ru = "Люди: %s / %s", en = "People: %s / %s" },
+	["hud.growth"] = { ru = "Прирост: %s/с", en = "Growth: %s/s" },
+	["hud.land"] = { ru = "Суша: %s%%", en = "Land: %s%%" },
+	["hud.troops"] = { ru = "В атаках: %s", en = "Attacking: %s" },
+	["hud.attack"] = { ru = "Атака %d%%", en = "Attack %d%%" },
+	["hud.attack.hint"] = {
+		ru = "Нажмите на ничью землю или страну",
+		en = "Tap free land or a nation",
+	},
+	["hud.neutral"] = { ru = "ничья земля", en = "free land" },
+	["hud.leaders"] = { ru = "Лидеры", en = "Leaders" },
+	["hud.you"] = { ru = "вы", en = "you" },
+	["event.eliminated"] = { ru = "Держава %s пала", en = "%s has fallen" },
+	["event.capitalLost"] = { ru = "%s потеряла столицу", en = "%s lost its capital" },
+
+	["unit.Infantry"] = { ru = "Пехота", en = "Infantry" },
+	["unit.Tanks"] = { ru = "Танки", en = "Tanks" },
+	["unit.Artillery"] = { ru = "Артиллерия", en = "Artillery" },
+	["unit.AntiAir"] = { ru = "ПВО", en = "Anti-air" },
+	["hire.cost"] = { ru = "%s людей · %d с", en = "%s people · %d s" },
+	["forces.title"] = { ru = "Войска", en = "Troops" },
+	["forces.total"] = { ru = "Дома %s · на фронтах %s", en = "Home %s · at fronts %s" },
+	["forces.kind"] = { ru = "%s: %s · %s", en = "%s: %s · %s" },
+	["forces.empty"] = { ru = "Войск нет — наймите (Z/X/C/V)", en = "No troops — recruit (Z/X/C/V)" },
+	["forces.queue"] = { ru = "Найм: %s", en = "Recruiting: %s" },
+	["forces.queueItem"] = { ru = "%s %d с", en = "%s %d s" },
+	["forces.hint"] = { ru = "Z/X/C/V — найм", en = "Z/X/C/V — recruit" },
+	["hud.front.power"] = { ru = "сила %s", en = "power %s" },
+	["hud.front.people"] = { ru = "%s людей", en = "%s people" },
+	["hud.front.ratio"] = { ru = "перевес ×%.1f", en = "odds ×%.1f" },
+	["hud.front.open"] = { ru = "без обороны", en = "undefended" },
+	["hud.front.stalled"] = { ru = "стоит", en = "stalled" },
+	["hud.front.noSupply"] = { ru = "нет снабжения", en = "no supply" },
+
+	["reject.TooClose"] = {
+		ru = "Слишком близко к другой державе",
+		en = "Too close to another nation",
+	},
+	["reject.NotLand"] = {
+		ru = "Здесь нельзя: нужна свободная суша",
+		en = "Not here: pick free land",
+	},
+	["reject.TooSmall"] = { ru = "Слишком мало суши вокруг", en = "Not enough land around" },
+	["reject.OutOfMap"] = { ru = "Вне карты", en = "Outside the map" },
+	["reject.notAdjacent"] = {
+		ru = "Нет общей границы с целью",
+		en = "No shared border with the target",
+	},
+	["reject.tooMany"] = { ru = "Слишком много атак сразу", en = "Too many attacks at once" },
+	["reject.noTroops"] = { ru = "Не хватает людей", en = "Not enough people" },
+	["reject.phase"] = { ru = "Сейчас нельзя", en = "Not now" },
+	["reject.dead"] = { ru = "Ваша держава пала", en = "Your nation has fallen" },
+	["reject.self"] = { ru = "Это ваша земля", en = "This is your land" },
+	["reject.target"] = { ru = "Такой державы нет", en = "No such nation" },
+	["reject.focus"] = { ru = "Неверная точка", en = "Invalid point" },
+	["reject.noAttack"] = { ru = "Такой атаки нет", en = "No such attack" },
+	["reject.noNation"] = { ru = "У вас нет державы", en = "You have no nation" },
+	["reject.noCapital"] = {
+		ru = "Нет столицы — нанимать негде",
+		en = "No capital to recruit in",
+	},
+	["reject.noUnits"] = {
+		ru = "Нужны войска: наймите юниты (Z/X/C/V)",
+		en = "You need troops: recruit units (Z/X/C/V)",
+	},
+	["reject.queueFull"] = { ru = "Очередь найма полна", en = "Recruitment queue is full" },
+	["reject.notAtWar"] = {
+		ru = "С этой страной мир — сначала объявите войну",
+		en = "You are at peace — declare war first",
+	},
+	["reject.mobilizing"] = {
+		ru = "Идёт мобилизация — бои ещё не начались",
+		en = "Mobilization — the fighting has not started yet",
+	},
+	["reject.alreadyAtWar"] = { ru = "Война уже объявлена", en = "War is already declared" },
+	["reject.peaceCooldown"] = {
+		ru = "Мир заключён недавно — война пока нельзя",
+		en = "Peace was just signed — no war yet",
+	},
+	["reject.peacePending"] = {
+		ru = "Предложение мира уже ждёт ответа",
+		en = "A peace offer is already waiting",
+	},
+	["reject.noProposal"] = { ru = "Предложения мира нет", en = "No peace offer" },
+	["reject.needFactory"] = { ru = "Нужен свой завод", en = "You need a factory" },
+	["reject.noMoney"] = { ru = "Не хватает денег", en = "Not enough money" },
+	["reject.noOil"] = { ru = "Не хватает нефти", en = "Not enough oil" },
+	["reject.needCity"] = { ru = "Нажмите на свой город", en = "Tap your own city" },
+	["reject.maxLevel"] = {
+		ru = "Это уже самый высокий уровень",
+		en = "Already at the top level",
+	},
+	["reject.occupied"] = {
+		ru = "В провинции уже есть здание",
+		en = "This province already has a building",
+	},
+	["reject.needOil"] = {
+		ru = "Вышку ставят только на нефтяное поле",
+		en = "Oil rigs go only on oil fields",
+	},
+	["reject.notOwner"] = {
+		ru = "Центр провинции должен быть вашим",
+		en = "The province centre must be yours",
+	},
+	["reject.notYet"] = {
+		ru = "Капитуляция появится вместе с дипломатией",
+		en = "Capitulation comes with diplomacy",
+	},
+
+	["war.declare"] = { ru = "Объявить войну", en = "Declare war" },
+	["war.declare.cooldown"] = { ru = "Мир: ещё %d с", en = "Peace: %d s left" },
+	["war.cancel"] = { ru = "Отмена", en = "Cancel" },
+	["war.banner"] = { ru = "ВОЙНА: %s — %s", en = "WAR: %s — %s" },
+	["war.mobilizing"] = { ru = "МОБИЛИЗАЦИЯ: %s — %s · %d с", en = "MOBILIZATION: %s — %s · %d s" },
+	["war.stats"] = { ru = "Земля: %s / %s · Потери: %s / %s", en = "Land: %s / %s · Losses: %s / %s" },
+	["war.toFront"] = { ru = "К фронту", en = "To front" },
+	["war.peace"] = { ru = "Мир", en = "Peace" },
+	["peace.title"] = { ru = "Мир с %s", en = "Peace with %s" },
+	["peace.white"] = { ru = "Белый мир", en = "White peace" },
+	["peace.white.hint"] = {
+		ru = "взятая в войне земля возвращается",
+		en = "land taken in the war goes back",
+	},
+	["peace.keep"] = { ru = "Забрать захваченное", en = "Keep captured land" },
+	["peace.keep.hint"] = {
+		ru = "каждый оставляет то, что взял",
+		en = "each side keeps what it took",
+	},
+	["peace.capitulate"] = { ru = "Капитуляция", en = "Capitulation" },
+	["peace.capitulate.hint"] = {
+		ru = "стать вассалом: войск меньше трети врага",
+		en = "become a vassal: under a third of the enemy's forces",
+	},
+	["peace.offer"] = { ru = "%s предлагает мир: %s · %d с", en = "%s offers peace: %s · %d s" },
+	["peace.accept"] = { ru = "Принять", en = "Accept" },
+	["peace.decline"] = { ru = "Отклонить", en = "Decline" },
+	["peace.sent"] = { ru = "Предложение мира отправлено", en = "Peace offer sent" },
+	["peace.terms.white"] = { ru = "белый мир", en = "white peace" },
+	["peace.terms.keep"] = { ru = "забрать захваченное", en = "keep captured land" },
+	["peace.terms.capitulate"] = { ru = "капитуляция", en = "capitulation" },
+	["event.warDeclared"] = { ru = "%s объявила войну: %s", en = "%s declared war on %s" },
+	["event.attacked"] = {
+		ru = "На вас напала %s! Мобилизация %d с",
+		en = "%s declared war on you! Mobilization %d s",
+	},
+	["event.warStarted"] = { ru = "Война %s — %s началась", en = "War %s — %s has begun" },
+	["event.peace"] = { ru = "Мир: %s — %s (%s)", en = "Peace: %s — %s (%s)" },
+	["event.peaceRejected"] = { ru = "%s отклонила мир", en = "%s rejected peace" },
+	["event.peaceExpired"] = { ru = "%s не ответила на мир", en = "%s did not answer the peace offer" },
+	["hud.money"] = { ru = "Деньги: %s (%s/с)", en = "Money: %s (%s/s)" },
+	["hud.oil"] = { ru = "Нефть: %s (%s/с)", en = "Oil: %s (%s/s)" },
+	["hire.money"] = { ru = "$%s", en = "$%s" },
+	["hire.oil"] = { ru = "%s нефти", en = "%s oil" },
+	["hire.needFactory"] = { ru = "нужен завод", en = "needs a factory" },
+	["build.button"] = { ru = "Построить (B)", en = "Build (B)" },
+	["build.cancel"] = { ru = "Отмена (Esc): %s", en = "Cancel (Esc): %s" },
+	["build.pick"] = { ru = "%s: нажмите на свою провинцию", en = "%s: tap your province" },
+	["build.pickCity"] = { ru = "%s: нажмите на свой город", en = "%s: tap your city" },
+	["building.City"] = { ru = "Город +1 уровень", en = "City +1 level" },
+	["building.City.hint"] = { ru = "доход и максимум людей", en = "income and max people" },
+	["building.OilRig"] = { ru = "Нефтяная вышка", en = "Oil rig" },
+	["building.OilRig.hint"] = { ru = "только на нефтяном поле", en = "oil fields only" },
+	["building.Factory"] = { ru = "Завод", en = "Factory" },
+	["building.Factory.hint"] = {
+		ru = "танки, пушки, ПВО; найм быстрее",
+		en = "tanks, guns, AA; faster hiring",
+	},
+	["building.Fort"] = { ru = "Укрепление", en = "Fortification" },
+	["building.Fort.hint"] = { ru = "защита провинции ×1.5", en = "province defence ×1.5" },
+	["building.Market"] = { ru = "Рынок", en = "Market" },
+	["building.Market.hint"] = { ru = "+5% дохода", en = "+5% income" },
+	["event.pocketSurrendered"] = { ru = "Котёл сдался: %s → %s", en = "Pocket surrendered: %s → %s" },
+	["hud.weariness"] = {
+		ru = "Усталость от войны: −%d%% прироста",
+		en = "War weariness: −%d%% growth",
+	},
+
+	["error.editable.disabled"] = {
+		ru = "Не удалось создать EditableImage. В опубликованной игре включите Allow Mesh / Image APIs (Experience Settings → Security).",
+		en = "Could not create EditableImage. For a published game enable Allow Mesh / Image APIs (Experience Settings → Security).",
+	},
+	["error.editable.budget"] = {
+		ru = "Не хватает памяти устройства, чтобы показать карту (лимит EditableImage).",
+		en = "Not enough device memory to show the map (EditableImage budget).",
+	},
+}
+
+-- Перевод записи на язык.
+local function pick(entry: Entry, lang: Lang): string
+	if lang == "en" then
+		return entry.en
+	end
+	return entry.ru
+end
+
+-- Приводит код локали Roblox ("ru-ru", "en-us") к поддерживаемому языку.
+local function langFromLocale(localeId: string): Lang
+	local prefix = string.lower(string.sub(localeId, 1, 2))
+	if prefix == "ru" then
+		return "ru"
+	end
+	return "en"
+end
+
+-- Возвращает строку по ключу; пустой перевод заменяется русским; нет ключа — сам ключ.
+local function get(key: string, lang: Lang?): string
+	local entry = TABLE[key]
+	if entry == nil then
+		return key
+	end
+	local text = pick(entry, lang or DEFAULT_LANG)
+	if text == "" then
+		return pick(entry, DEFAULT_LANG)
+	end
+	return text
+end
+
+for _, entry in TABLE do
+	table.freeze(entry)
+end
+
+-- Целое с разделителем тысяч (узкий неразрывный пробел): 1234567 → «1 234 567».
+local function formatInt(n: number): string
+	local negative = n < 0
+	local digits = tostring(math.floor(math.abs(n) + 0.5))
+	local groups: { string } = {}
+	while #digits > 3 do
+		table.insert(groups, 1, string.sub(digits, -3))
+		digits = string.sub(digits, 1, -4)
+	end
+	table.insert(groups, 1, digits)
+	return (if negative then "-" else "") .. table.concat(groups, "\u{202F}")
+end
+
+export type StringsModule = {
+	DefaultLang: Lang,
+	Langs: { Lang },
+	Table: { [string]: Entry },
+	pick: (entry: Entry, lang: Lang) -> string,
+	langFromLocale: (localeId: string) -> Lang,
+	get: (key: string, lang: Lang?) -> string,
+	formatInt: (n: number) -> string,
+}
+
+local Strings: StringsModule = {
+	DefaultLang = DEFAULT_LANG,
+	Langs = table.freeze(LANGS),
+	Table = table.freeze(TABLE),
+	pick = pick,
+	langFromLocale = langFromLocale,
+	get = get,
+	formatInt = formatInt,
+}
+
+return table.freeze(Strings)
