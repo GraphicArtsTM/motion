@@ -1958,7 +1958,8 @@ function MatchSim.coastOf(m: Match, target: number, dock: number): number?
 	return best
 end
 
--- Флот глазами бота (§6.12): порт, корабли, куда высадиться и кого блокировать.
+-- Флот глазами бота (§6.12): порт, корабли; куда высадиться и где патрулировать — лениво (функции), чтобы не искать
+-- берег врага на каждое раздумье (это стоило до 25 мс за тик на «Европе»).
 function MatchSim.navyView(
 	m: Match,
 	n: Nation,
@@ -1991,7 +1992,8 @@ function MatchSim.navyView(
 			end
 		else
 			view.destroyers += 1
-			if (ship.state == "docked" or ship.state == "patrol") and ship.order == nil then
+			-- Свободен — стоит у причала (в патруле он уже при деле).
+			if ship.state == "docked" then
 				idleDestroyer = ship
 			end
 		end
@@ -2011,12 +2013,8 @@ function MatchSim.navyView(
 			end
 		end
 	end
-	-- Ничья прибрежная провинция (центр ничей), когда по суше расти некуда.
-	local function neutralCoast(dock: number?): number?
-		if hasNeutral then
-			return nil
-		end
-		local seaId = if dock ~= nil then Naval.seaAt(m.sea, dock) else 0
+	-- Ничья прибрежная провинция (центр ничей) в море seaId (0 — в любом): клетка суши у её причала.
+	local function neutralCoast(from: number?, seaId: number): number?
 		local best: number? = nil
 		local bestD = math.huge
 		for _, p in m.provinces.list do
@@ -2026,7 +2024,6 @@ function MatchSim.navyView(
 				and Grid.getOwner(m.grid, p.center) == 0
 				and (seaId == 0 or Naval.seaAt(m.sea, pd) == seaId)
 			then
-				-- Точка высадки — клетка суши провинции у причала.
 				for _, j in { pd - 1, pd + 1, pd - w, pd + w } do
 					if
 						j >= 0
@@ -2035,7 +2032,10 @@ function MatchSim.navyView(
 						and Grid.isCapturable(m.grid, j)
 						and Grid.getOwner(m.grid, j) == 0
 					then
-						local d = if dock ~= nil then (j % w - dock % w) ^ 2 + (j // w - dock // w) ^ 2 else 0
+						if from == nil then
+							return j
+						end
+						local d = (j % w - from % w) ^ 2 + (j // w - from // w) ^ 2
 						if d < bestD then
 							best, bestD = j, d
 						end
@@ -2046,7 +2046,10 @@ function MatchSim.navyView(
 		end
 		return best
 	end
-	if not hasNeutral and neutralCoast(nil) ~= nil then
+	if not hasNeutral and #fs.ships + #MatchSim.portsOf(m, n.id) == 0 then
+		-- Порта ещё нет: нужен ли флот вообще (есть ли ничья земля у моря).
+		view.need = view.need or neutralCoast(nil, 0) ~= nil
+	elseif not hasNeutral then
 		view.need = true
 	end
 	if idleTransport ~= nil then
@@ -2054,34 +2057,59 @@ function MatchSim.navyView(
 		local dock = m.sea.docks[MapData.getProvince(m.map, port)]
 		if dock ~= nil then
 			view.idlePort = port
-			local bestD = math.huge
-			for _, enemy in enemies do
-				local coast = MatchSim.coastOf(m, enemy, dock)
-				if coast ~= nil then
-					local d = (coast % w - dock % w) ^ 2 + (coast // w - dock // w) ^ 2
-					if d < bestD then
-						view.landEnemy, bestD = coast, d
+			view.landTarget = function(): number?
+				local best: number? = nil
+				local bestD = math.huge
+				for _, enemy in enemies do
+					local coast = MatchSim.coastOf(m, enemy, dock)
+					if coast ~= nil then
+						local d = (coast % w - dock % w) ^ 2 + (coast // w - dock // w) ^ 2
+						if d < bestD then
+							best, bestD = coast, d
+						end
 					end
 				end
+				if best ~= nil or hasNeutral then
+					return best
+				end
+				return neutralCoast(dock, Naval.seaAt(m.sea, dock))
 			end
-			view.landNeutral = neutralCoast(dock)
 		end
 	end
 	if idleDestroyer ~= nil and #enemies > 0 then
-		local here = Fleet.cellOf(w, idleDestroyer)
-		local seaId = Naval.seaAt(m.sea, Naval.waterNear(m.sea, here, 2) or here)
-		local bestD = math.huge
-		for _, p in MatchSim.ports(m) do
-			if table.find(enemies, p.owner) ~= nil and Naval.seaAt(m.sea, p.dock) == seaId then
-				local dx, dy = p.dock % w + 0.5 - idleDestroyer.x, p.dock // w + 0.5 - idleDestroyer.y
-				local d = dx * dx + dy * dy
-				if d < bestD then
-					view.blockade, bestD = p.dock, d
+		local ship = idleDestroyer :: Fleet.Ship
+		view.idleDestroyer = ship.id
+		view.patrolTarget = function(): number?
+			local here = Fleet.cellOf(w, ship)
+			local water = Naval.waterNear(m.sea, here, 2) or here
+			local seaId = Naval.seaAt(m.sea, water)
+			local best: number? = nil
+			local bestD = math.huge
+			-- Порт врага в этом море — блокада; нет порта — море у его берега (обстрел и перехват).
+			for _, p in MatchSim.ports(m) do
+				if table.find(enemies, p.owner) ~= nil and Naval.seaAt(m.sea, p.dock) == seaId then
+					local dx, dy = p.dock % w + 0.5 - ship.x, p.dock // w + 0.5 - ship.y
+					local d = dx * dx + dy * dy
+					if d < bestD then
+						best, bestD = p.dock, d
+					end
 				end
 			end
-		end
-		if view.blockade ~= nil then
-			view.idleDestroyer = idleDestroyer.id
+			if best ~= nil then
+				return best
+			end
+			for _, enemy in enemies do
+				local coast = MatchSim.coastOf(m, enemy, water)
+				local near = if coast ~= nil then Naval.waterNear(m.sea, coast, 2, seaId) else nil
+				if near ~= nil then
+					local dx, dy = near % w + 0.5 - ship.x, near // w + 0.5 - ship.y
+					local d = dx * dx + dy * dy
+					if d < bestD then
+						best, bestD = near, d
+					end
+				end
+			end
+			return best
 		end
 	end
 	return view
@@ -2341,6 +2369,19 @@ local function stepFleet(m: Match, simDt: number)
 				ship = ship.kind,
 				lost = Fleet.cargoPower(ship),
 			})
+		end
+	end
+	-- Транспорт без приказа в море (нет пути, порт потерян) — раз в секунду пробует вернуться в свой порт.
+	if m.simTime >= m.nextBlockadeAt then
+		for _, ship in fs.ships do
+			if ship.alive and ship.kind == "Transport" and ship.state == "patrol" and ship.order == nil then
+				local here = Fleet.cellOf(w, ship)
+				local seaId = Naval.seaAt(m.sea, Naval.waterNear(m.sea, here, 2) or here)
+				local port = nearestPort(m, ship.owner, ship.x, ship.y, seaId)
+				if port ~= nil then
+					Fleet.order(ship, "return", port.dock)
+				end
+			end
 		end
 	end
 	-- Обстрел берега: вражеские фронты, линия которых в радиусе эсминца, теряют силу.

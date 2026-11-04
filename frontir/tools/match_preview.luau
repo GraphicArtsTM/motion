@@ -35,6 +35,7 @@ local TerritoryPaint = require("../src/shared/TerritoryPaint")
 local NationColors = require("../src/shared/NationColors")
 local Palette = require("../src/shared/Palette")
 local Rng = require("../src/shared/Rng")
+local ShipSprites = require("../src/shared/ShipSprites")
 local Types = require("../src/shared/Types")
 local UnitSprites = require("../src/shared/UnitSprites")
 local Png = require("./lib/Png")
@@ -74,6 +75,7 @@ local function fogSources(id: number): Fog.Sources
 	end
 	return { friends = friends, fronts = list, radars = MatchStats.radarsOf(m, friends) }
 end
+local naval = { built = 0, sunk = 0, landed = 0, landedEnemy = 0, blockades = 0 }
 local revolts: { [number]: number } = {}
 local revoltLog: { string } = {}
 for _ = 1, math.floor(seconds * Config.Sim.TickRate) do
@@ -99,6 +101,17 @@ for _ = 1, math.floor(seconds * Config.Sim.TickRate) do
 			peaces += 1
 		elseif e.kind == "resolution" then
 			table.insert(resolutions, string.format("%d:%02d %s", m.time // 60, math.floor(m.time % 60), e.resolution))
+		elseif e.kind == "shipBuilt" then
+			naval.built += 1
+		elseif e.kind == "shipSunk" then
+			naval.sunk += 1
+		elseif e.kind == "landed" then
+			naval.landed += 1
+			if e.target ~= 0 then
+				naval.landedEnemy += 1
+			end
+		elseif e.kind == "blockade" and e.on then
+			naval.blockades += 1
 		elseif e.kind == "revolt" then
 			revolts[e.nation] = (revolts[e.nation] or 0) + 1
 			table.insert(
@@ -336,6 +349,38 @@ local function renderRegion(
 			end
 		else
 			icon(b.kind, at, Grid.getOwner(g, at))
+		end
+	end
+	-- Флот (§6.12): заблокированные порты — красная рамка, корабли — спрайты ShipSprites (как у клиента).
+	for at in m.fleet.blocked do
+		local x, y = at % w, at // w
+		if inRegion(x, y) then
+			local sx, sy = px(x + 0.5, y + 0.5)
+			local size = 9 * iconScale
+			for k = 0, size - 1 do
+				rect(sx - size // 2 + k, sy - size // 2, 1, 2, red)
+				rect(sx - size // 2 + k, sy + size // 2 - 1, 1, 2, red)
+				rect(sx - size // 2, sy - size // 2 + k, 2, 1, red)
+				rect(sx + size // 2 - 1, sy - size // 2 + k, 2, 1, red)
+			end
+		end
+	end
+	local shipScale = math.max(1, sprite)
+	for _, ship in m.fleet.ships do
+		if ship.alive and inRegion(math.floor(ship.x), math.floor(ship.y)) then
+			local sx, sy = px(ship.x, ship.y)
+			local sw, sh = ShipSprites.Width * shipScale, ShipSprites.Height * shipScale
+			local left, top = sx - sw // 2, sy - sh // 2
+			rect(left - 1, top - 1, sw + 2, sh + 2, ink)
+			for _, p in ShipSprites.Shapes[ship.kind] do
+				rect(
+					left + p.x * shipScale,
+					top + p.y * shipScale,
+					p.w * shipScale,
+					p.h * shipScale,
+					if p.ink then ink else ownerRgb(ship.owner)
+				)
+			end
 		end
 	end
 	local rng = Rng.new(seed + cell)
@@ -819,6 +864,18 @@ do
 		end
 	end
 	print("  СТАБИЛЬНОСТЬ (средняя, клеток с ½ дохода): " .. table.concat(avg, " "))
+	print(
+		string.format(
+			"  ФЛОТ: портов %d, кораблей сейчас %d, построено %d, потоплено %d, высадок %d (на врага %d), блокад %d",
+			#MatchSim.ports(m),
+			#m.fleet.ships,
+			naval.built,
+			naval.sunk,
+			naval.landed,
+			naval.landedEnemy,
+			naval.blockades
+		)
+	)
 	local rebelCells, rebelProvinces = 0, 0
 	for province in m.stability.rebels do
 		rebelProvinces += 1

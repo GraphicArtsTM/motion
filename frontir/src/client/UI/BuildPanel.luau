@@ -84,14 +84,17 @@ function BuildPanel.new(
 	local menu = Instance.new("Frame")
 	menu.Name = "BuildMenu"
 	menu.BackgroundTransparency = 1
-	menu.AnchorPoint = Vector2.new(0.5, 1)
-	menu.Position = UDim2.new(0.5, 0, 0, -6)
-	menu.Size = UDim2.fromOffset(240, 0)
+	-- Две колонки (с этапа 7б-1 зданий 7): меню не выше экрана телефона; правый край — у кнопки.
+	menu.AnchorPoint = Vector2.new(1, 1)
+	menu.Position = UDim2.new(1, 0, 0, -6)
+	menu.Size = UDim2.fromOffset(2 * 220 + 4, 0)
 	menu.AutomaticSize = Enum.AutomaticSize.Y
 	menu.Visible = false
 	menu.Parent = main
-	local layout = Instance.new("UIListLayout")
-	layout.Padding = UDim.new(0, 4)
+	local layout = Instance.new("UIGridLayout")
+	layout.CellSize = UDim2.fromOffset(220, 48)
+	layout.CellPadding = UDim2.fromOffset(4, 4)
+	layout.FillDirectionMaxCells = 2
 	layout.SortOrder = Enum.SortOrder.LayoutOrder
 	layout.VerticalAlignment = Enum.VerticalAlignment.Bottom
 	layout.Parent = menu
@@ -102,7 +105,7 @@ function BuildPanel.new(
 		return stats.cost
 	end
 	for k, kind in Config.Buildable do
-		local b = button(menu, 240, 46) -- 6 зданий: меню не выше экрана телефона
+		local b = button(menu, 220, 48)
 		b.LayoutOrder = k
 		b.TextXAlignment = Enum.TextXAlignment.Left
 		local pad = Instance.new("UIPadding")

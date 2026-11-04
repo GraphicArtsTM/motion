@@ -107,10 +107,10 @@ export type NavyView = {
 	transports: number, -- с очередью
 	destroyers: number,
 	idlePort: number?, -- порт, у которого стоит свободный транспорт
-	landEnemy: number?, -- берег врага (активная война) в море этого порта
-	landNeutral: number?, -- ничей берег в море этого порта
-	idleDestroyer: number?, -- эсминец без приказа
-	blockade: number?, -- причал порта врага в море этого эсминца
+	-- Куда высадиться: берег врага (активная война), иначе ничий берег (если по суше расти некуда). Ищется лениво.
+	landTarget: (() -> number?)?,
+	idleDestroyer: number?, -- эсминец без приказа (есть война)
+	patrolTarget: (() -> number?)?, -- причал порта врага в море эсминца, иначе море у его берега
 	need: boolean, -- флот нужен: по суше расти некуда, а за морем есть ничья земля, или враг за морем
 }
 
@@ -344,14 +344,19 @@ local function navyDecision(view: BotView, p: Profile, rng: Rng): Types.Intent?
 		return nil
 	end
 	-- Высадка: на врага — войсками, на ничью землю — людьми и войсками.
-	if navy.idlePort ~= nil and view.power >= Config.Forces.MinFrontStrength * 2 then
-		local target = navy.landEnemy or navy.landNeutral
+	local landTarget = navy.landTarget
+	if navy.idlePort ~= nil and landTarget ~= nil and view.power >= Config.Forces.MinFrontStrength * 2 then
+		local target = landTarget()
 		if target ~= nil then
 			return { kind = "land", port = navy.idlePort, target = target, percent = cfg.BotLandShare }
 		end
 	end
-	if navy.idleDestroyer ~= nil and navy.blockade ~= nil then
-		return { kind = "patrol", ship = navy.idleDestroyer, cell = navy.blockade }
+	local patrolTarget = navy.patrolTarget
+	if navy.idleDestroyer ~= nil and patrolTarget ~= nil then
+		local cell = patrolTarget()
+		if cell ~= nil then
+			return { kind = "patrol", ship = navy.idleDestroyer, cell = cell }
+		end
 	end
 	if navy.port ~= nil then
 		local scale = math.max(1, math.round(personality.navy * 2))
