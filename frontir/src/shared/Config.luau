@@ -214,6 +214,7 @@ local botPersonalities: { [string]: Types.BotPersonalityParams } = {
 		demand = 0, -- готовность требовать провинции (0 — никогда)
 		loyalty = 1.2, -- вступает в войны союзника
 		trade = 1.0, -- охота к торговым соглашениям (§8.2)
+		navy = 0.2, -- охота к флоту и высадкам (§6.12)
 	},
 	Aggressor = {
 		declare = 0.8,
@@ -231,6 +232,7 @@ local botPersonalities: { [string]: Types.BotPersonalityParams } = {
 		demand = 1.0, -- готовность требовать провинции (0 — никогда)
 		loyalty = 1.0, -- вступает в войны союзника
 		trade = 0.2, -- охота к торговым соглашениям (§8.2)
+		navy = 0.4, -- охота к флоту и высадкам (§6.12)
 	},
 	Trader = {
 		declare = 1.3,
@@ -248,6 +250,7 @@ local botPersonalities: { [string]: Types.BotPersonalityParams } = {
 		demand = 0.3, -- готовность требовать провинции (0 — никогда)
 		loyalty = 1.0, -- вступает в войны союзника
 		trade = 2.0, -- охота к торговым соглашениям (§8.2)
+		navy = 0.3, -- охота к флоту и высадкам (§6.12)
 	},
 	Cunning = {
 		declare = 1.0,
@@ -265,6 +268,7 @@ local botPersonalities: { [string]: Types.BotPersonalityParams } = {
 		demand = 1.0, -- готовность требовать провинции (0 — никогда)
 		loyalty = 0.6, -- вступает в войны союзника
 		trade = 0.6, -- охота к торговым соглашениям (§8.2)
+		navy = 0.4, -- охота к флоту и высадкам (§6.12)
 	},
 	-- Флотоводец: до флота (этап 7) — как Обычный.
 	Admiral = {
@@ -283,6 +287,7 @@ local botPersonalities: { [string]: Types.BotPersonalityParams } = {
 		demand = 0.3, -- готовность требовать провинции (0 — никогда)
 		loyalty = 1.0, -- вступает в войны союзника
 		trade = 0.6, -- охота к торговым соглашениям (§8.2)
+		navy = 1.0, -- охота к флоту и высадкам (§6.12)
 	},
 }
 Config.BotPersonalities = botPersonalities
@@ -481,7 +486,7 @@ local units: Types.UnitTable = {
 		defense = 0.5,
 		requires = "Port",
 		people = 100,
-		recruitSec = 4,
+		recruitSec = 8,
 		strength = 100,
 	},
 	Destroyer = {
@@ -492,7 +497,7 @@ local units: Types.UnitTable = {
 		defense = 1.2,
 		requires = "Port",
 		people = 300,
-		recruitSec = 6,
+		recruitSec = 12,
 		strength = 300,
 	},
 	Fighter = {
@@ -645,8 +650,8 @@ Config.Buildings = {
 	MissileSilo = { cost = 10000, oil = 200, strikeRadius = 6, cooldownSec = 240, warningSec = 10 },
 }
 
--- Что можно строить сейчас (этап 4б; радар — 7а); порт, аэродром, ПВО и шахта — этап 7б и 7г.
-Config.Buildable = { "City", "OilRig", "Factory", "Fort", "Market", "Radar" }
+-- Что можно строить сейчас (этап 4б; радар — 7а, порт — 7б-1); аэродром, ПВО и шахта — этапы 7б-2 и 7г.
+Config.Buildable = { "City", "OilRig", "Factory", "Fort", "Market", "Radar", "Port" }
 
 -- §6.8 Экономика (этап 4б)
 Config.Economy = {
@@ -887,6 +892,38 @@ Config.Fog = {
 	-- Сервер: фронты чужих войн шлёт, только если линия фронта в обзоре — грубо, блоками этой стороны.
 	BlockSize = 8,
 	LineSamples = 12, -- сколько клеток линии фронта сервер помнит для этой проверки
+}
+
+-- §6.12 Флот (этап 7б-1).
+Config.Naval = {
+	MinSeaCells = 300, -- связная вода меньше — озеро: кораблей и портов там нет
+	PathWeight = 1.6, -- вес эвристики A* (больше — быстрее поиск, путь чуть длиннее)
+	PathMaxNodes = 60000, -- точный поиск раскрывает не больше стольких клеток (иначе «пути нет»)
+	NavBlock = 8, -- сторона блока грубой навигации, клеток
+	PathsPerTick = 1, -- сервер ищет не больше стольких путей за тик (поиск — до ~40 мс на «Европе»)
+	-- Расстояния ниже (кроме BeachheadRadius и ShipVision) — в клетках на ширине карты 512, на больших картах больше.
+	SpeedMul = 1.0, -- множитель скорости кораблей (скорость — Units.*.speed)
+	MaxShips = 10, -- кораблей у державы (с очередью)
+	ShipQueue = 3, -- кораблей в очереди найма
+	TransportHp = 100,
+	DestroyerHp = 300,
+	TransportCapacity = 1000, -- силы войск на борту
+	TransportPeople = 1500, -- людей на борту
+	BeachheadRadius = 4, -- круг плацдарма, клеток
+	DestroyerRange = 8, -- эсминец бьёт корабли и берег в этом радиусе
+	ShipDamage = 20, -- урон в секунду: атака × ShipDamage / защита цели (транспорт 100 прочности — ~2 с)
+	ShoreDamage = 15, -- обстрел берега: атака × ShoreDamage силы в секунду вражескому фронту в радиусе
+	BlockadeRange = 8, -- эсминец врага не дальше этого от причала — порт заблокирован
+	SeaSupplyRange = 60, -- порт снабжает берег, до которого по воде не дальше этого
+	SeaSupplyNear = 6, -- фронт снабжён по морю, если такой берег не дальше этого от его линии (клеток)
+	ShipVision = 6, -- обзор своих кораблей (§6.11), клеток
+	LandReach = 3, -- точка высадки: суша не дальше этого от моря
+	-- Боты
+	BotPortReserve = 1500, -- строит порт, если денег больше цены на столько
+	BotTransports = 1, -- держит транспортов (Флотоводец — × navy личности)
+	BotDestroyers = 1,
+	BotLandChance = 0.3, -- вероятность за раздумье заняться высадкой (× navy)
+	BotLandShare = 0.5, -- доля гарнизона на высадку
 }
 
 -- §6.10 Стабильность провинций и восстания (этап 7а). Стабильность 0..100, идёт к целевой.

@@ -5,6 +5,7 @@
 	Действия: дать себе войска / людей / деньги, время ×5, выбранный бот присылает союз / пакт / торговлю /
 	требование или объявляет войну, мгновенная война и мир с выбранным ботом, Совет сейчас, к концу матча.
 	Этап 7а: туман вкл/выкл (для себя), стабильность своих провинций 10 / 100, восстание сейчас.
+	Этап 7б-1: «Порт и флот» (порт, транспорт и эсминец себе), «Бот: десант на вас».
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -258,6 +259,11 @@ function DevPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang): DevP
 	button(Strings.get("dev.revolt", lang), function()
 		fire("revolt", nil)
 	end)
+	-- Этап 7б-1: флот (§6.12).
+	button(Strings.get("dev.navy", lang), function()
+		fire("navy", nil)
+	end)
+	button(Strings.get("dev.botLanding", lang), withBot("botLanding", same))
 
 	UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
 		if gameProcessed or UserInputService:GetFocusedTextBox() ~= nil then

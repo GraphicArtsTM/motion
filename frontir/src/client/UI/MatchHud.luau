@@ -39,6 +39,7 @@ export type Hud = {
 	toast: (text: string) -> (),
 	alert: (text: string) -> (), -- строка ленты красным (на вас напали)
 	onEvents: (events: { any }) -> (),
+	percent: () -> number, -- ползунок «Атака» (доля 0..1): им же — сколько войск на высадку (§6.12)
 }
 
 local MatchHud = {}
@@ -506,6 +507,20 @@ function MatchHud.new(
 					table.insert(lines, text)
 				end
 				table.insert(lines, string.format(Strings.get("hud.troops", lang), Strings.formatInt(myStats.troops)))
+				-- Флот (§6.12): свои корабли.
+				local transports, destroyers = 0, 0
+				for _, ship in cs.ships.ships do
+					if ship.owner == me.id then
+						if ship.kind == "Transport" then
+							transports += 1
+						else
+							destroyers += 1
+						end
+					end
+				end
+				if transports + destroyers > 0 then
+					table.insert(lines, string.format(Strings.get("hud.fleet", lang), transports, destroyers))
+				end
 				if myStats.weariness > 0 then
 					table.insert(
 						lines,
@@ -824,6 +839,44 @@ function MatchHud.new(
 				and table.find(Config.Pings.Phrases, e.phrase) ~= nil
 			then
 				toast(string.format(Strings.get("event.ping", lang), a, Strings.get("ping." .. e.phrase, lang)))
+			-- Флот (§6.12).
+			elseif e.kind == "shipBuilt" and e.nation == cs.myNation then
+				toast(
+					string.format(Strings.get("event.shipBuilt", lang), Strings.get("ship." .. tostring(e.ship), lang))
+				)
+			elseif e.kind == "shipSunk" then
+				local shipName = Strings.get("ship." .. tostring(e.ship), lang)
+				local by = nationName(tonumber(e.by) or 0)
+				local lost = tonumber(e.lost) or 0
+				local text = if lost >= 1
+					then string.format(
+						Strings.get("event.shipSunkCargo", lang),
+						a,
+						shipName,
+						Strings.formatInt(lost),
+						by
+					)
+					else string.format(Strings.get("event.shipSunk", lang), a, shipName, by)
+				if e.nation == cs.myNation then
+					alertLine(text)
+				elseif e.by == cs.myNation then
+					toast(text)
+				end
+			elseif e.kind == "landed" then
+				if e.target == cs.myNation then
+					alertLine(string.format(Strings.get("event.landedOnYou", lang), a))
+				elseif e.nation == cs.myNation or e.target ~= 0 then
+					local where = if e.target == 0
+						then Strings.get("event.landedNeutral", lang)
+						else nationName(tonumber(e.target) or 0)
+					toast(string.format(Strings.get("event.landed", lang), a, where))
+				end
+			elseif e.kind == "blockade" then
+				if e.on and e.nation == cs.myNation then
+					alertLine(Strings.get("event.blockadeYou", lang))
+				else
+					toast(string.format(Strings.get(if e.on then "event.blockade" else "event.blockadeOff", lang), a))
+				end
 			elseif e.kind == "revolt" then
 				-- Восстание (§6.10): у нас — красной строкой.
 				local province = provinces.list[tonumber(e.province) or 0]
@@ -853,6 +906,9 @@ function MatchHud.new(
 		toast = toast,
 		alert = alertLine,
 		onEvents = onEvents,
+		percent = function(): number
+			return percent
+		end,
 	}
 end
 

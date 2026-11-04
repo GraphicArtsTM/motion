@@ -12,11 +12,17 @@
 	- setStability: все провинции державы — сразу Dev.StabilityLow или Dev.StabilityHigh (§6.10, этап 7а).
 	- revoltNow: восстание в самой нестабильной своей провинции, кроме столицы.
 	Туман вкл/выкл для себя — в MatchService (кому слать все фронты) и на клиенте.
+	- navy: порт в своей прибрежной провинции (если нет) и у причала транспорт с эсминцем (§6.12, этап 7б-1).
+	- botLanding: выбранный бот (война сразу) получает порт, транспорт и войска и высаживается на ваш берег.
 	Ускорение времени — в MatchService (шагов симуляции за кадр больше).
 ]]
 
 local Config = require("./Config")
+local Buildings = require("./Buildings")
 local Diplomacy = require("./Diplomacy")
+local Fleet = require("./Fleet")
+local Grid = require("./Grid")
+local MapData = require("./MapData")
 local Forces = require("./Forces")
 local MatchSim = require("./MatchSim")
 local Stability = require("./Stability")
@@ -152,6 +158,61 @@ function DevTools.revoltNow(m: Match, id: number): (boolean, string?)
 	end
 	MatchSim.revolt(m, best, id)
 	return true, nil
+end
+
+-- Порт державы (первый) или новый даром в её прибрежной провинции (центр — её). Возвращает клетку порта.
+local function ensurePort(m: Match, id: number): number?
+	local ports = MatchSim.portsOf(m, id)
+	if #ports > 0 then
+		return ports[1].cell
+	end
+	for _, p in m.provinces.list do
+		if
+			m.sea.docks[p.id] ~= nil
+			and Grid.getOwner(m.grid, p.center) == id
+			and m.buildings.byProvince[p.id] == nil
+		then
+			Buildings.place(m.buildings, "Port", p.center, p.id)
+			MatchSim.refreshOwned(m)
+			return p.center
+		end
+	end
+	return nil
+end
+
+function DevTools.navy(m: Match, id: number): (boolean, string?)
+	local n = m.nations[id]
+	if n == nil or not n.alive then
+		return false, "dead"
+	end
+	local port = ensurePort(m, id)
+	if port == nil then
+		return false, "needCoast"
+	end
+	local dock = m.sea.docks[MapData.getProvince(m.map, port)] :: number
+	Fleet.spawn(m.fleet, m.grid.width, id, "Transport", port, dock)
+	Fleet.spawn(m.fleet, m.grid.width, id, "Destroyer", port, dock)
+	return true, nil
+end
+
+function DevTools.botLanding(m: Match, bot: number, player: number): (boolean, string?)
+	local ok, reason = DevTools.warNow(m, bot, player)
+	if not ok then
+		return false, reason
+	end
+	local port = ensurePort(m, bot)
+	if port == nil then
+		return false, "needCoast"
+	end
+	local dock = m.sea.docks[MapData.getProvince(m.map, port)] :: number
+	local coast = MatchSim.coastOf(m, player, dock)
+	if coast == nil then
+		return false, "notCoast"
+	end
+	Fleet.spawn(m.fleet, m.grid.width, bot, "Transport", port, dock)
+	local n = m.nations[bot]
+	Forces.add(n.home, 1, Config.Naval.TransportCapacity)
+	return MatchSim.applyIntent(m, bot, { kind = "land", port = port, target = coast, percent = 1 })
 end
 
 return table.freeze(DevTools)

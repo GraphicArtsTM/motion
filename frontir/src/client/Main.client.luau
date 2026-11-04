@@ -8,7 +8,8 @@
 	этап 4в: цикл матча (лобби → выбор → игра → итоги → новый матч), экран результатов, мини-карта;
 	этап 6а: окно дипломатии (T), предложения и требования, метка «Предатель»;
 	этап 6б: Совет держав, торговля в окне дипломатии, пинги на карте (G);
-	этап 7а: туман войны (обзор раз в Fog.RefreshSec), стабильность в HUD, режим карты «Стабильность» (N).
+	этап 7а: туман войны (обзор раз в Fog.RefreshSec), стабильность в HUD, режим карты «Стабильность» (N);
+	этап 7б-1: корабли на карте (ShipLayer), меню порта, высадка и патруль (NavalPanel).
 ]]
 
 local LocalizationService = game:GetService("LocalizationService")
@@ -44,9 +45,11 @@ local MapRenderer = require(Render:WaitForChild("MapRenderer"))
 local MatchClient = require(Client:WaitForChild("Net"):WaitForChild("MatchClient"))
 local MatchHud = require(UI:WaitForChild("MatchHud"))
 local Minimap = require(UI:WaitForChild("Minimap"))
+local NavalPanel = require(UI:WaitForChild("NavalPanel"))
 local NationLabels = require(UI:WaitForChild("NationLabels"))
 local Pings = require(UI:WaitForChild("Pings"))
 local ResultsPanel = require(UI:WaitForChild("ResultsPanel"))
+local ShipLayer = require(Render:WaitForChild("ShipLayer"))
 local StabilityPanel = require(UI:WaitForChild("StabilityPanel"))
 local TerritoryLayer = require(Render:WaitForChild("TerritoryLayer"))
 local Theme = require(UI:WaitForChild("Theme"))
@@ -151,6 +154,7 @@ local territory = TerritoryLayer.new(view, map, colors, cs, provinces)
 local labels = NationLabels.new(view.canvas, cs, lang, map.width)
 local frontLayer = FrontLayer.new(view.canvas, cs, map)
 local buildingLayer = BuildingLayer.new(view.canvas, cs, provinces)
+local shipLayer = ShipLayer.new(view.canvas, cs)
 camera.onChanged(function(state)
 	labels.onCamera(state)
 	buildingLayer.onCamera(state)
@@ -210,6 +214,7 @@ council.refresh()
 local pings = Pings.new(hudGui, view.canvas, cs, lang, send, hud.toast)
 local stabilityPanel = StabilityPanel.new(hudGui, view.canvas, cs, lang, provinces, territory.setStabilityMode)
 stabilityPanel.refresh()
+local naval = NavalPanel.new(hudGui, cs, lang, map, provinces, send, hud.percent, shipLayer.pick, shipLayer.select)
 -- Панель разработчика (F4) — только в Studio; создаётся в фоне (ждёт канал Remotes.Dev от сервера).
 local devPanel: DevPanel.DevPanel? = nil
 task.spawn(function()
@@ -264,6 +269,7 @@ client = MatchClient.connect(cs, {
 		council.refresh()
 		pings.refresh()
 		stabilityPanel.refresh()
+		naval.refresh()
 	end,
 	onSnapshot = function()
 		ClientState.refreshFog(cs)
@@ -296,6 +302,10 @@ client = MatchClient.connect(cs, {
 	end,
 	onBuildings = function()
 		buildingLayer.refresh()
+	end,
+	onShips = function()
+		shipLayer.refresh()
+		naval.refresh()
 	end,
 	onStability = function(rebelsChanged: { number })
 		territory.provincesChanged(rebelsChanged)
@@ -332,7 +342,11 @@ local input = CameraInput.bind(camera, viewport, {
 		if cx ~= nil and cy ~= nil then
 			local cell = cy * map.width + cx
 			-- Режим стройки забирает нажатие; иначе — старт, атака, война.
-			if not build.tap(cell) and not diplomacy.tap(cell) and not pings.tap(cell) then
+			local handled = build.tap(cell)
+				or diplomacy.tap(cell)
+				or pings.tap(cell)
+				or naval.tap(cell, camera.state.zoom)
+			if not handled then
 				hud.tapCell(cell)
 			end
 		end
@@ -357,6 +371,7 @@ local frameConn = RunService.RenderStepped:Connect(function()
 	end
 	territory.update(now)
 	frontLayer.update(now, camera.state)
+	shipLayer.update(now, camera.state)
 	hud.update(now)
 	wars.update(now)
 	results.update(now)

@@ -29,6 +29,7 @@ export type Owned = {
 	markets: number,
 	rigs: number,
 	forts: number,
+	ports: number, -- §6.12
 	cityLevels: number, -- сумма уровней своих городов
 }
 
@@ -66,7 +67,8 @@ function Buildings.check(
 	isCity: (cell: number) -> boolean,
 	nation: number,
 	kind: Types.BuildingKind,
-	cell: number
+	cell: number,
+	hasDock: ((province: number) -> boolean)? -- есть ли у провинции выход к морю (порт, §6.12)
 ): (number?, string?)
 	if cell < 0 or cell >= g.size then
 		return nil, "focus"
@@ -97,6 +99,9 @@ function Buildings.check(
 	end
 	if kind == "OilRig" and not province.oil then
 		return nil, "needOil"
+	end
+	if kind == "Port" and (hasDock == nil or not hasDock(id)) then
+		return nil, "needCoast"
 	end
 	return spot, nil
 end
@@ -139,7 +144,7 @@ function Buildings.owned(set: BuildingSet, g: Grid, cities: { number }): { [numb
 	local function of(owner: number): Owned
 		local o = out[owner]
 		if o == nil then
-			o = { factories = 0, markets = 0, rigs = 0, forts = 0, cityLevels = 0 }
+			o = { factories = 0, markets = 0, rigs = 0, forts = 0, ports = 0, cityLevels = 0 }
 			out[owner] = o
 		end
 		return o
@@ -163,6 +168,8 @@ function Buildings.owned(set: BuildingSet, g: Grid, cities: { number }): { [numb
 				o.rigs += 1
 			elseif b.kind == "Fort" then
 				o.forts += 1
+			elseif b.kind == "Port" then
+				o.ports += 1
 			end
 		end
 	end

@@ -14,6 +14,7 @@ local Grid = require("../src/shared/Grid")
 local MapFormat = require("../src/shared/MapFormat")
 local MatchSim = require("../src/shared/MatchSim")
 local MatchStats = require("../src/shared/Net/MatchStats")
+local Naval = require("../src/shared/Naval")
 local Protocol = require("../src/shared/Net/Protocol")
 
 local OVERHEAD = 16 -- байт на сообщение RemoteEvent (оценка, как в тесте трафика)
@@ -53,6 +54,7 @@ for t = 1, seconds * Config.Sim.TickRate do
 		-- STATS — каждому свой (туман, §6.11): меряем глазами первой державы.
 		second += buffer.len(Protocol.encodeStats(MatchStats.forViewer(m, MatchStats.build(m, 0, #changes), 1))) + OVERHEAD
 		second += buffer.len(Protocol.encodeWars(MatchStats.wars(m))) + OVERHEAD
+		second += buffer.len(Protocol.encodeShips(MatchStats.ships(m, 1))) + OVERHEAD -- корабли (§6.12)
 	end
 	if t % Config.Sim.TickRate == 0 then
 		peak = math.max(peak, second)
@@ -119,3 +121,34 @@ print(
 		statsMs
 	)
 )
+
+-- Флот (§6.12): поиск морского пути между причалами (сервер ищет не больше Naval.PathsPerTick путей за тик).
+do
+	local docks: { number } = {}
+	for _, d in m.sea.docks do
+		table.insert(docks, d)
+	end
+	table.sort(docks)
+	local worstPath, sumPath, paths = 0, 0, 0
+	for k = 1, 40 do
+		local a = docks[(k * 37) % #docks + 1]
+		local b = docks[(k * 91 + 13) % #docks + 1]
+		if a ~= nil and b ~= nil and Naval.seaAt(m.sea, a) == Naval.seaAt(m.sea, b) then
+			local t = os.clock()
+			Naval.path(m.sea, a, b)
+			local ms = (os.clock() - t) * 1000
+			worstPath = math.max(worstPath, ms)
+			sumPath += ms
+			paths += 1
+		end
+	end
+	print(
+		string.format(
+			"флот: морской путь между причалами (%d пар) — среднее %.1f мс, худшее %.1f мс; кораблей в матче %d",
+			paths,
+			sumPath / math.max(1, paths),
+			worstPath,
+			#m.fleet.ships
+		)
+	)
+end

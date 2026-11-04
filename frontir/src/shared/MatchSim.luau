@@ -33,12 +33,14 @@ local Council = require("./Council")
 local Diplomacy = require("./Diplomacy")
 local Economy = require("./Economy")
 local Expansion = require("./Expansion")
+local Fleet = require("./Fleet")
 local Forces = require("./Forces")
 local Fronts = require("./Fronts")
 local Grid = require("./Grid")
 local MapData = require("./MapData")
 local NameGen = require("./NameGen")
 local NationColors = require("./NationColors")
+local Naval = require("./Naval")
 local Pockets = require("./Pockets")
 local Provinces = require("./Provinces")
 local Rng = require("./Rng")
@@ -84,6 +86,11 @@ export type MatchEvent =
 	| { kind: "ping", nation: number, cell: number, phrase: Types.Phrase }
 	-- Стабильность (§6.10, этап 7а)
 	| { kind: "revolt", nation: number, province: number }
+	-- Флот (§6.12, этап 7б-1)
+	| { kind: "shipBuilt", nation: number, ship: Types.ShipKind }
+	| { kind: "shipSunk", nation: number, by: number, ship: Types.ShipKind, lost: number }
+	| { kind: "landed", nation: number, target: number, cell: number, cells: number }
+	| { kind: "blockade", nation: number, cell: number, on: boolean }
 
 export type Match = {
 	map: MapData,
@@ -120,6 +127,9 @@ export type Match = {
 	pocketCursor: number, -- чья связность проверяется следующей
 	pocketCheck: { [number]: { version: number, at: number } }, -- когда и при какой территории считали котлы
 	stability: Stability.State, -- стабильность провинций и повстанцы (§6.10)
+	sea: Naval.SeaMap, -- море, причалы, пути (§6.12)
+	fleet: Fleet.FleetState, -- корабли
+	nextBlockadeAt: number,
 	result: Types.MatchResult?, -- итог (фаза Over)
 	victory: boolean, -- проверять ли победу (тесты на крошечных картах выключают)
 	history: { times: { number }, shares: { [number]: { number } } }, -- доля суши по времени
@@ -131,9 +141,20 @@ export type NationEconomy = { income: number, oilIncome: number, upkeep: number 
 
 local MatchSim = {}
 
+-- Море считается из карты один раз на карту (сервер создаёт новый матч на той же карте).
+local seaCache: { [MapData]: { sea: Naval.SeaMap, provinces: Provinces.ProvinceSet } } = setmetatable(
+	{},
+	{ __mode = "k" }
+) :: any
+
 function MatchSim.new(map: MapData, seed: number): Match
 	local grid = Grid.new(map)
 	local provinces = Provinces.build(map)
+	local cachedSea = seaCache[map]
+	local sea = if cachedSea ~= nil then cachedSea.sea else Naval.buildSea(map, provinces)
+	if cachedSea == nil then
+		seaCache[map] = { sea = sea, provinces = provinces }
+	end
 	local cityOf: { [number]: number } = {}
 	for _, p in provinces.list do
 		local city = p.city
@@ -177,6 +198,9 @@ function MatchSim.new(map: MapData, seed: number): Match
 		pocketCursor = 1,
 		pocketCheck = {},
 		stability = Stability.new(),
+		sea = sea,
+		fleet = Fleet.new(),
+		nextBlockadeAt = 0,
 		result = nil,
 		victory = true,
 		history = { times = {}, shares = {} },
@@ -515,9 +539,21 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 	end
 
 	if intent.kind == "build" then
-		local spot, reason = Buildings.check(m.buildings, m.grid, m.map, m.provinces, function(cell: number): boolean
-			return Grid.isCity(m.grid, cell)
-		end, nationId, intent.building, intent.cell)
+		local spot, reason = Buildings.check(
+			m.buildings,
+			m.grid,
+			m.map,
+			m.provinces,
+			function(cell: number): boolean
+				return Grid.isCity(m.grid, cell)
+			end,
+			nationId,
+			intent.building,
+			intent.cell,
+			function(province: number): boolean
+				return m.sea.docks[province] ~= nil
+			end
+		)
 		if spot == nil then
 			return false, reason
 		end
@@ -536,6 +572,10 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 		Buildings.place(m.buildings, intent.building, spot, MapData.getProvince(m.map, spot))
 		MatchSim.refreshOwned(m)
 		return true, nil
+	end
+
+	if intent.kind == "ship" or intent.kind == "land" or intent.kind == "patrol" then
+		return MatchSim.navalIntent(m, n, intent)
 	end
 
 	if intent.kind == "declare" then
@@ -760,7 +800,8 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 end
 
 -- Что бот «видит» о своей державе.
-local NO_BUILDINGS: Buildings.Owned = table.freeze({ factories = 0, markets = 0, rigs = 0, forts = 0, cityLevels = 0 })
+local NO_BUILDINGS: Buildings.Owned =
+	table.freeze({ factories = 0, markets = 0, rigs = 0, forts = 0, ports = 0, cityLevels = 0 })
 
 -- Здания и уровни городов державы (пересчитываются каждый тик и после постройки).
 function MatchSim.ownedOf(m: Match, nationId: number): Buildings.Owned
@@ -819,6 +860,19 @@ local function buildSpots(m: Match, n: Nation): BotBrain.BuildSpots
 		if Grid.getOwner(g, cell) == n.id and Buildings.cityLevel(m.buildings, cell) < Config.Economy.MaxCityLevel then
 			if spots.city == nil or cell == n.capital then
 				spots.city = cell
+			end
+		end
+	end
+	-- Прибрежная провинция под порт (§6.12): ближайшая к столице.
+	local cap = n.capital
+	local bestPort = math.huge
+	for _, p in m.provinces.list do
+		if m.sea.docks[p.id] ~= nil and Grid.getOwner(g, p.center) == n.id and m.buildings.byProvince[p.id] == nil then
+			local d = if cap ~= nil
+				then (p.center % g.width - cap % g.width) ^ 2 + (p.center // g.width - cap // g.width) ^ 2
+				else 0
+			if d < bestPort then
+				spots.port, bestPort = p.center, d
 			end
 		end
 	end
@@ -994,6 +1048,9 @@ local function botView(m: Match, n: Nation): BotBrain.BotView
 	table.sort(neighbours, function(a: BotBrain.Neighbour, b: BotBrain.Neighbour): boolean
 		return a.id < b.id
 	end)
+	-- Ничья земля «рядом», если её можно взять: обычные клетки — людьми, ничейный город — войсками.
+	local hasNeutral = Expansion.hasFrontier(m.grid, n.id, 0, false)
+		or (Forces.total(n.home) >= Config.Combat.NeutralCityGarrison and Expansion.hasFrontier(m.grid, n.id, 0, true))
 	return {
 		people = n.people,
 		maxPeople = MatchSim.maxPeopleOf(m, n.id),
@@ -1003,11 +1060,7 @@ local function botView(m: Match, n: Nation): BotBrain.BotView
 		totalPower = totalPower(m, n.id),
 		hasCapital = n.capital ~= nil,
 		-- Ничья земля «рядом», если её можно взять: обычные клетки — людьми, ничейный город — войсками.
-		hasNeutral = Expansion.hasFrontier(m.grid, n.id, 0, false)
-			or (
-				Forces.total(n.home) >= Config.Combat.NeutralCityGarrison
-				and Expansion.hasFrontier(m.grid, n.id, 0, true)
-			),
+		hasNeutral = hasNeutral,
 		neighbours = neighbours,
 		wars = wars,
 		fronts = fronts,
@@ -1027,6 +1080,7 @@ local function botView(m: Match, n: Nation): BotBrain.BotView
 		owned = MatchSim.ownedOf(m, n.id),
 		spots = buildSpots(m, n),
 		stability = Stability.summaryOf(m.stability, n.id).average,
+		navy = MatchSim.navyView(m, n, hasNeutral, neighbours),
 	}
 end
 
@@ -1458,8 +1512,28 @@ local function stepAttacks(m: Match, simDt: number): number
 					end
 				end
 				-- Снабжают свои города и города союзников, вассалов и сюзерена (§8.1).
-				a.supplied = Fronts.supplied(g, cities, a.attacker, front.list, Diplomacy.friends(m.diplo, a.attacker))
-					and fromAtkPocket * 2 <= #front.list
+				local landSupplied = Fronts.supplied(
+					g,
+					cities,
+					a.attacker,
+					front.list,
+					Diplomacy.friends(m.diplo, a.attacker)
+				) and fromAtkPocket * 2 <= #front.list
+				-- Снабжение по морю (§6.12): рядом с линией фронта берег, до которого недалеко от своего порта.
+				if not landSupplied and (a.seaCheckedAt == nil or m.simTime - (a.seaCheckedAt :: number) >= 1) then
+					a.seaCheckedAt = m.simTime
+					local sets = MatchSim.seaSupplySets(m, a.attacker)
+					local sea = false
+					local line: { number } = a.line or {}
+					for _, cell in line do
+						if Naval.nearCoast(m.sea, cell, Config.Naval.SeaSupplyNear, sets) then
+							sea = true
+							break
+						end
+					end
+					a.seaSupplied = sea
+				end
+				a.supplied = landSupplied or a.seaSupplied == true
 				local homeShare = #front.list / totalLen * (1 - inDefPocket / #front.list)
 				-- Укреплённая линия: фронт долго стоит — защитнику бонус (§6.9).
 				local still = m.simTime - a.lastAdvance >= Config.Fortify.AfterSec
@@ -1754,7 +1828,11 @@ local function stepPockets(m: Match)
 		local result = m.pockets[n.id]
 		if n.alive and result ~= nil then
 			for _, pocket in result.pockets do
-				if not pocket.hasCity and m.simTime - pocket.since >= Config.Pocket.SurrenderSec then
+				if
+					not pocket.hasCity
+					and m.simTime - pocket.since >= Config.Pocket.SurrenderSec
+					and not MatchSim.pocketSeaSupplied(m, n.id, pocket.cells)
+				then
 					local captor = Pockets.captor(m.grid, n.id, pocket, function(other: number): boolean
 						return Wars.isActive(m.wars, n.id, other)
 					end)
@@ -1776,6 +1854,581 @@ local function stepPockets(m: Match)
 			end
 		end
 	end
+end
+
+-- Флот (§6.12, этап 7б-1) ------------------------------------------------------------------
+
+-- Котёл (плацдарм) со снабжением по морю не сдаётся: в нём есть берег, до которого недалеко от своего порта.
+function MatchSim.pocketSeaSupplied(m: Match, nationId: number, cells: { number }): boolean
+	local sets = MatchSim.seaSupplySets(m, nationId)
+	if #sets == 0 then
+		return false
+	end
+	for _, cell in cells do
+		for _, set in sets do
+			if set[cell] then
+				return true
+			end
+		end
+	end
+	return false
+end
+
+export type Port = { cell: number, dock: number, owner: number }
+
+-- Все порты на карте (клетка здания, причал, хозяин по сетке; ничьи пропускаются).
+function MatchSim.ports(m: Match): { Port }
+	local out: { Port } = {}
+	for cell, b in m.buildings.byCell do
+		if b.kind == "Port" then
+			local dock = m.sea.docks[MapData.getProvince(m.map, cell)]
+			local owner = Grid.getOwner(m.grid, cell)
+			if dock ~= nil and owner ~= 0 then
+				table.insert(out, { cell = cell, dock = dock, owner = owner })
+			end
+		end
+	end
+	table.sort(out, function(a: Port, b: Port): boolean
+		return a.cell < b.cell
+	end)
+	return out
+end
+
+-- Порты державы (с причалом; заблокированные тоже).
+function MatchSim.portsOf(m: Match, nationId: number): { Port }
+	local out: { Port } = {}
+	for _, p in MatchSim.ports(m) do
+		if p.owner == nationId then
+			table.insert(out, p)
+		end
+	end
+	return out
+end
+
+local function atWar(m: Match): (a: number, b: number) -> boolean
+	return function(a: number, b: number): boolean
+		return Wars.isActive(m.wars, a, b)
+	end
+end
+
+-- Берег, который снабжают по морю незаблокированные порты державы и её друзей (§6.12).
+local function seaSupplySets(m: Match, nationId: number): { { [number]: boolean } }
+	local friends = Diplomacy.friends(m.diplo, nationId)
+	local sets: { { [number]: boolean } } = {}
+	for _, p in MatchSim.ports(m) do
+		if friends[p.owner] and not m.fleet.blocked[p.cell] then
+			table.insert(sets, Naval.coastReach(m.sea, p.dock))
+		end
+	end
+	return sets
+end
+MatchSim.seaSupplySets = seaSupplySets
+
+-- Ближайший к точке (x, y) незаблокированный порт державы в море seaId.
+local function nearestPort(m: Match, nationId: number, x: number, y: number, seaId: number): Port?
+	local best: Port? = nil
+	local bestD = math.huge
+	for _, p in MatchSim.portsOf(m, nationId) do
+		if not m.fleet.blocked[p.cell] and Naval.seaAt(m.sea, p.dock) == seaId then
+			local dx, dy = p.dock % m.grid.width + 0.5 - x, p.dock // m.grid.width + 0.5 - y
+			local d = dx * dx + dy * dy
+			if d < bestD then
+				best, bestD = p, d
+			end
+		end
+	end
+	return best
+end
+
+-- Берег державы target в море причала dock, ближайший к нему (клетка суши у моря, не город).
+function MatchSim.coastOf(m: Match, target: number, dock: number): number?
+	local seaId = Naval.seaAt(m.sea, dock)
+	local w = m.grid.width
+	local best: number? = nil
+	local bestD = math.huge
+	for cell in Grid.borderCells(m.grid, target) do
+		if not Grid.isCity(m.grid, cell) and Naval.waterNear(m.sea, cell, 1, seaId) ~= nil then
+			local dx, dy = cell % w - dock % w, cell // w - dock // w
+			local d = dx * dx + dy * dy
+			if d < bestD or (d == bestD and best ~= nil and cell < best) then
+				best, bestD = cell, d
+			end
+		end
+	end
+	return best
+end
+
+-- Флот глазами бота (§6.12): порт, корабли; куда высадиться и где патрулировать — лениво (функции), чтобы не искать
+-- берег врага на каждое раздумье (это стоило до 25 мс за тик на «Европе»).
+function MatchSim.navyView(
+	m: Match,
+	n: Nation,
+	hasNeutral: boolean,
+	neighbours: { BotBrain.Neighbour }
+): BotBrain.NavyView
+	local w = m.grid.width
+	local fs = m.fleet
+	local view: BotBrain.NavyView = { transports = 0, destroyers = 0, need = false }
+	for _, p in MatchSim.portsOf(m, n.id) do
+		if not fs.blocked[p.cell] and view.port == nil then
+			view.port = p.cell
+		end
+	end
+	local queue: { Fleet.Build } = fs.queues[n.id] or {}
+	for _, b in queue do
+		if b.kind == "Transport" then
+			view.transports += 1
+		else
+			view.destroyers += 1
+		end
+	end
+	local idleTransport: Fleet.Ship? = nil
+	local idleDestroyer: Fleet.Ship? = nil
+	for _, ship in Fleet.ofNation(fs, n.id) do
+		if ship.kind == "Transport" then
+			view.transports += 1
+			if ship.state == "docked" and ship.home ~= nil and not fs.blocked[ship.home :: number] then
+				idleTransport = ship
+			end
+		else
+			view.destroyers += 1
+			-- Свободен — стоит у причала (в патруле он уже при деле).
+			if ship.state == "docked" then
+				idleDestroyer = ship
+			end
+		end
+	end
+	-- Враги за морем: идёт война, а общей границы по суше нет.
+	local landNeighbours: { [number]: boolean } = {}
+	for _, nb in neighbours do
+		landNeighbours[nb.id] = true
+	end
+	local enemies: { number } = {}
+	for _, war in Wars.of(m.wars, n.id) do
+		if war.state == "active" then
+			local enemy = Wars.enemyOf(war, n.id)
+			table.insert(enemies, enemy)
+			if not landNeighbours[enemy] then
+				view.need = true
+			end
+		end
+	end
+	-- Ничья прибрежная провинция (центр ничей) в море seaId (0 — в любом): клетка суши у её причала.
+	local function neutralCoast(from: number?, seaId: number): number?
+		local best: number? = nil
+		local bestD = math.huge
+		for _, p in m.provinces.list do
+			local pd = m.sea.docks[p.id]
+			if
+				pd ~= nil
+				and Grid.getOwner(m.grid, p.center) == 0
+				and (seaId == 0 or Naval.seaAt(m.sea, pd) == seaId)
+			then
+				for _, j in { pd - 1, pd + 1, pd - w, pd + w } do
+					if
+						j >= 0
+						and j < m.grid.size
+						and MapData.getProvince(m.map, j) == p.id
+						and Grid.isCapturable(m.grid, j)
+						and Grid.getOwner(m.grid, j) == 0
+					then
+						if from == nil then
+							return j
+						end
+						local d = (j % w - from % w) ^ 2 + (j // w - from // w) ^ 2
+						if d < bestD then
+							best, bestD = j, d
+						end
+						break
+					end
+				end
+			end
+		end
+		return best
+	end
+	if not hasNeutral and #fs.ships + #MatchSim.portsOf(m, n.id) == 0 then
+		-- Порта ещё нет: нужен ли флот вообще (есть ли ничья земля у моря).
+		view.need = view.need or neutralCoast(nil, 0) ~= nil
+	elseif not hasNeutral then
+		view.need = true
+	end
+	if idleTransport ~= nil then
+		local port = idleTransport.home :: number
+		local dock = m.sea.docks[MapData.getProvince(m.map, port)]
+		if dock ~= nil then
+			view.idlePort = port
+			view.landTarget = function(): number?
+				local best: number? = nil
+				local bestD = math.huge
+				for _, enemy in enemies do
+					local coast = MatchSim.coastOf(m, enemy, dock)
+					if coast ~= nil then
+						local d = (coast % w - dock % w) ^ 2 + (coast // w - dock // w) ^ 2
+						if d < bestD then
+							best, bestD = coast, d
+						end
+					end
+				end
+				if best ~= nil or hasNeutral then
+					return best
+				end
+				return neutralCoast(dock, Naval.seaAt(m.sea, dock))
+			end
+		end
+	end
+	if idleDestroyer ~= nil and #enemies > 0 then
+		local ship = idleDestroyer :: Fleet.Ship
+		view.idleDestroyer = ship.id
+		view.patrolTarget = function(): number?
+			local here = Fleet.cellOf(w, ship)
+			local water = Naval.waterNear(m.sea, here, 2) or here
+			local seaId = Naval.seaAt(m.sea, water)
+			local best: number? = nil
+			local bestD = math.huge
+			-- Порт врага в этом море — блокада; нет порта — море у его берега (обстрел и перехват).
+			for _, p in MatchSim.ports(m) do
+				if table.find(enemies, p.owner) ~= nil and Naval.seaAt(m.sea, p.dock) == seaId then
+					local dx, dy = p.dock % w + 0.5 - ship.x, p.dock // w + 0.5 - ship.y
+					local d = dx * dx + dy * dy
+					if d < bestD then
+						best, bestD = p.dock, d
+					end
+				end
+			end
+			if best ~= nil then
+				return best
+			end
+			for _, enemy in enemies do
+				local coast = MatchSim.coastOf(m, enemy, water)
+				local near = if coast ~= nil then Naval.waterNear(m.sea, coast, 2, seaId) else nil
+				if near ~= nil then
+					local dx, dy = near % w + 0.5 - ship.x, near // w + 0.5 - ship.y
+					local d = dx * dx + dy * dy
+					if d < bestD then
+						best, bestD = near, d
+					end
+				end
+			end
+			return best
+		end
+	end
+	return view
+end
+
+-- Найм корабля, высадка, патруль.
+function MatchSim.navalIntent(m: Match, n: Nation, intent: Types.Intent): (boolean, string?)
+	local w = m.grid.width
+	if intent.kind == "ship" then
+		local b = m.buildings.byCell[intent.port]
+		if b == nil or b.kind ~= "Port" or Grid.getOwner(m.grid, intent.port) ~= n.id then
+			return false, "needPort"
+		end
+		if m.fleet.blocked[intent.port] then
+			return false, "blockaded"
+		end
+		local queue = m.fleet.queues[n.id] or {}
+		if #queue >= Config.Naval.ShipQueue then
+			return false, "queueFull"
+		end
+		if Fleet.count(m.fleet, n.id) >= Config.Naval.MaxShips then
+			return false, "maxShips"
+		end
+		local stats = Fleet.stats(intent.ship)
+		if n.money < stats.cost then
+			return false, "noMoney"
+		end
+		if n.oil < stats.oil then
+			return false, "noOil"
+		end
+		n.money -= stats.cost
+		n.oil -= stats.oil
+		table.insert(queue, { kind = intent.ship, port = intent.port, left = stats.recruitSec })
+		m.fleet.queues[n.id] = queue
+		return true, nil
+	elseif intent.kind == "land" then
+		local b = m.buildings.byCell[intent.port]
+		if b == nil or b.kind ~= "Port" or Grid.getOwner(m.grid, intent.port) ~= n.id then
+			return false, "needPort"
+		end
+		if m.fleet.blocked[intent.port] then
+			return false, "blockaded"
+		end
+		local ship = Fleet.idleTransport(m.fleet, n.id, intent.port)
+		if ship == nil then
+			return false, "noTransport"
+		end
+		local target = intent.target
+		if target < 0 or target >= m.grid.size or not Grid.isCapturable(m.grid, target) then
+			return false, "notCoast"
+		end
+		local dock = m.sea.docks[MapData.getProvince(m.map, intent.port)] :: number
+		local water = Naval.waterNear(m.sea, target, Config.Naval.LandReach, Naval.seaAt(m.sea, dock))
+		if water == nil then
+			return false, "notCoast"
+		end
+		local owner = Grid.getOwner(m.grid, target)
+		if owner ~= 0 and owner ~= n.id and not Wars.isActive(m.wars, n.id, owner) then
+			return false, "notAtWar"
+		end
+		-- Груз: доля гарнизона (не больше вместимости) и столько же процентов людей.
+		local share = intent.percent
+		local total = Forces.total(n.home)
+		if total > 0 then
+			share = math.min(share, Config.Naval.TransportCapacity / total)
+		end
+		local cargo = if total > 0 then Forces.take(n.home, share) else Forces.new()
+		local people = math.min(n.people * intent.percent, Config.Naval.TransportPeople)
+		if Forces.total(cargo) < 1 and people < Config.Expansion.MinTroops then
+			Forces.merge(n.home, cargo)
+			return false, "noTroops"
+		end
+		n.people -= people
+		ship.cargo = cargo
+		ship.people = people
+		ship.target = target
+		Fleet.order(ship, "land", water)
+		return true, nil
+	elseif intent.kind == "patrol" then
+		local ship = Fleet.byId(m.fleet, intent.ship)
+		if ship == nil or ship.owner ~= n.id then
+			return false, "noShip"
+		end
+		if ship.kind ~= "Destroyer" then
+			return false, "notDestroyer"
+		end
+		local here = Fleet.cellOf(w, ship)
+		local seaId = Naval.seaAt(m.sea, here)
+		if seaId == 0 then
+			seaId = Naval.seaAt(m.sea, Naval.waterNear(m.sea, here, 2) or here)
+		end
+		local cell = intent.cell
+		if Naval.seaAt(m.sea, cell) ~= seaId then
+			cell = Naval.waterNear(m.sea, cell, Config.Naval.LandReach, seaId) or -1
+		end
+		if cell < 0 then
+			return false, "notSea"
+		end
+		Fleet.order(ship, "patrol", cell)
+		return true, nil
+	end
+	return false, "?"
+end
+
+-- Высадка (§6.12): плацдарм, войска — фронт против врага рядом (или атака ничьей земли), люди — с ними или домой.
+function MatchSim.land(m: Match, ship: Fleet.Ship)
+	local n = m.nations[ship.owner]
+	local target = ship.target
+	local cargo = ship.cargo or Forces.new()
+	local people = ship.people
+	ship.cargo, ship.people, ship.target = nil, 0, nil
+	if n == nil or not n.alive or target == nil then
+		return
+	end
+	local g = m.grid
+	local w = g.width
+	local r = Config.Naval.BeachheadRadius
+	local tx, ty = target % w, target // w
+	local taken = 0
+	local enemies: { [number]: number } = {}
+	local neutral = false
+	for dy = -r - 2, r + 2 do
+		for dx = -r - 2, r + 2 do
+			local x, y = tx + dx, ty + dy
+			if x >= 0 and y >= 0 and x < w and y < g.height then
+				local i = y * w + x
+				if Grid.isCapturable(g, i) then
+					local o = Grid.getOwner(g, i)
+					local inside = dx * dx + dy * dy <= r * r
+					local hostile = o ~= 0 and o ~= n.id and Wars.isActive(m.wars, n.id, o)
+					if inside and not Grid.isCity(g, i) and (o == 0 or hostile) then
+						Grid.setOwner(g, i, n.id)
+						if o ~= 0 then
+							Wars.record(m.wars, i, o, n.id)
+						end
+						taken += 1
+					elseif not inside then
+						if hostile then
+							enemies[o] = (enemies[o] or 0) + 1
+						elseif o == 0 then
+							neutral = true
+						end
+					end
+				end
+			end
+		end
+	end
+	local enemy, most = 0, 0
+	for id, count in enemies do
+		if count > most or (count == most and id < enemy) then
+			enemy, most = id, count
+		end
+	end
+	local function open(targetId: number, forces: Types.Forces, troops: number)
+		local _, existing = findAttack(m, n.id, targetId)
+		if existing ~= nil then
+			Forces.merge(existing.forces, forces)
+			existing.troops += troops
+			existing.focus = target
+		else
+			table.insert(m.attacks, {
+				attacker = n.id,
+				target = targetId,
+				troops = troops,
+				focus = target,
+				forces = forces,
+				supplied = true,
+				ratio = math.huge,
+				fighting = false,
+				lastAdvance = m.simTime,
+			})
+		end
+	end
+	if enemy ~= 0 then
+		open(enemy, cargo, 0)
+		if neutral and people >= Config.Expansion.MinTroops then
+			open(0, Forces.new(), people)
+		else
+			n.people += people
+		end
+	elseif neutral and people + Forces.total(cargo) > 0 then
+		open(0, cargo, people)
+	else
+		Forces.merge(n.home, cargo)
+		n.people += people
+	end
+	table.insert(m.events, { kind = "landed", nation = n.id, target = enemy, cell = target, cells = taken })
+end
+
+-- Флот за simDt: найм, пути, движение и высадки, бой кораблей, обстрел берега, блокада.
+local function stepFleet(m: Match, simDt: number)
+	local fs = m.fleet
+	local w = m.grid.width
+	-- Найм: у каждой державы готовится первый корабль очереди; заблокированный порт — ждёт.
+	for owner, queue in fs.queues do
+		local first = queue[1]
+		local nation = m.nations[owner]
+		if first ~= nil and nation ~= nil and nation.alive and not fs.blocked[first.port] then
+			first.left -= simDt
+			if first.left <= 0 then
+				table.remove(queue, 1)
+				local b = m.buildings.byCell[first.port]
+				local dock = m.sea.docks[MapData.getProvince(m.map, first.port)]
+				if b ~= nil and b.kind == "Port" and dock ~= nil and Grid.getOwner(m.grid, first.port) == owner then
+					Fleet.spawn(fs, w, owner, first.kind, first.port, dock)
+					table.insert(m.events, { kind = "shipBuilt", nation = owner, ship = first.kind })
+				else
+					-- Порт потерян: деньги и нефть возвращаются.
+					local stats = Fleet.stats(first.kind)
+					nation.money += stats.cost
+					nation.oil += stats.oil
+				end
+			end
+		end
+	end
+	if #fs.ships == 0 then
+		return
+	end
+	local happenings: { Fleet.Happening } = {}
+	Fleet.planPaths(fs, m.sea, happenings)
+	Fleet.move(fs, w, simDt, happenings)
+	local war = atWar(m)
+	Fleet.fight(fs, w, simDt, war, happenings)
+	for _, h in happenings do
+		local ship = h.ship
+		if h.kind == "arrived" then
+			if ship.order == "land" then
+				MatchSim.land(m, ship)
+				ship.order = "return"
+			end
+			if ship.order == "return" then
+				local here = Fleet.cellOf(w, ship)
+				local port = nearestPort(m, ship.owner, ship.x, ship.y, Naval.seaAt(m.sea, here))
+				if port == nil then
+					ship.order = nil
+				elseif here == port.dock then
+					ship.state, ship.order, ship.home = "docked", nil, port.cell
+				else
+					Fleet.order(ship, "return", port.dock)
+				end
+			elseif ship.order == "patrol" then
+				ship.order = nil
+			end
+		elseif h.kind == "noPath" then
+			-- Пути нет: груз — домой, приказ отменён.
+			local nation = m.nations[ship.owner]
+			if nation ~= nil and ship.cargo ~= nil then
+				Forces.merge(nation.home, ship.cargo)
+				nation.people += ship.people
+				ship.cargo, ship.people, ship.target = nil, 0, nil
+			end
+		elseif h.kind == "sunk" then
+			table.insert(m.events, {
+				kind = "shipSunk",
+				nation = ship.owner,
+				by = h.by,
+				ship = ship.kind,
+				lost = Fleet.cargoPower(ship),
+			})
+		end
+	end
+	-- Транспорт без приказа в море (нет пути, порт потерян) — раз в секунду пробует вернуться в свой порт.
+	if m.simTime >= m.nextBlockadeAt then
+		for _, ship in fs.ships do
+			if ship.alive and ship.kind == "Transport" and ship.state == "patrol" and ship.order == nil then
+				local here = Fleet.cellOf(w, ship)
+				local seaId = Naval.seaAt(m.sea, Naval.waterNear(m.sea, here, 2) or here)
+				local port = nearestPort(m, ship.owner, ship.x, ship.y, seaId)
+				if port ~= nil then
+					Fleet.order(ship, "return", port.dock)
+				end
+			end
+		end
+	end
+	-- Обстрел берега: вражеские фронты, линия которых в радиусе эсминца, теряют силу.
+	local range = Config.Naval.DestroyerRange * w / Config.UnitsReferenceMapWidth
+	local range2 = range * range
+	local shore = Fleet.stats("Destroyer").attack * Config.Naval.ShoreDamage * simDt
+	for _, d in fs.ships do
+		if d.alive and d.kind == "Destroyer" then
+			for _, a in m.attacks do
+				if a.target ~= 0 and a.attacker ~= d.owner and Wars.isActive(m.wars, d.owner, a.attacker) then
+					local line = a.line
+					if line ~= nil then
+						for _, c in line do
+							local dx, dy = c % w + 0.5 - d.x, c // w + 0.5 - d.y
+							if dx * dx + dy * dy <= range2 then
+								Forces.applyDamage(a.forces, shore)
+								break
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+	-- Блокада — раз в секунду.
+	if m.simTime >= m.nextBlockadeAt then
+		m.nextBlockadeAt = m.simTime + 1
+		local before = table.clone(fs.blocked)
+		if Fleet.updateBlockade(fs, w, MatchSim.ports(m), war) then
+			for cell in fs.blocked do
+				if not before[cell] then
+					local owner = Grid.getOwner(m.grid, cell)
+					table.insert(m.events, { kind = "blockade", nation = owner, cell = cell, on = true })
+				end
+			end
+			for cell in before do
+				if not fs.blocked[cell] then
+					local owner = Grid.getOwner(m.grid, cell)
+					table.insert(m.events, { kind = "blockade", nation = owner, cell = cell, on = false })
+				end
+			end
+		end
+	end
+	Fleet.cleanup(fs, function(owner: number): boolean
+		local nation = m.nations[owner]
+		return nation ~= nil and nation.alive
+	end)
 end
 
 -- Что Stability знает о матче (§6.10).
@@ -2046,6 +2699,7 @@ function MatchSim.step(m: Match, dt: number)
 	stepDiplomacy(m)
 	stepCouncil(m)
 
+	stepFleet(m, simDt)
 	m.lastCaptured = stepAttacks(m, simDt)
 	stepPockets(m)
 	stepStability(m)

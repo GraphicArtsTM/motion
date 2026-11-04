@@ -228,6 +228,10 @@ function MatchService.start(map: MapData)
 				ok, reason = DevTools.setStability(m, id, arg == "high")
 			elseif action == "revolt" then
 				ok, reason = DevTools.revoltNow(m, id)
+			elseif action == "navy" then
+				ok, reason = DevTools.navy(m, id)
+			elseif action == "botLanding" and target ~= nil then
+				ok, reason = DevTools.botLanding(m, target, id)
 			else
 				ok, reason = false, "target"
 			end
@@ -259,7 +263,13 @@ function MatchService.start(map: MapData)
 		local full = MatchStats.build(m, lastTickMs, lastChanged)
 		local head = Protocol.encodeStatsHead(full)
 		for _, player in Players:GetPlayers() do
-			matchEvent:FireClient(player, Protocol.encodeStats(MatchStats.forViewer(m, full, viewerOf(player)), head))
+			local viewer = viewerOf(player)
+			-- Обзор считаем один раз: по нему и фронты, и корабли (§6.11, §6.12).
+			local vision = if viewer ~= nil and Config.Fog.Enabled then MatchStats.vision(m, viewer) else nil
+			matchEvent:FireClient(player, Protocol.encodeStats(MatchStats.forViewer(m, full, viewer, vision), head))
+			-- Зритель и «Туман выкл» видят все корабли; груз и очередь — только свои.
+			local ships = MatchStats.ships(m, nationOf[player], vision, viewer == nil)
+			matchEvent:FireClient(player, Protocol.encodeShips(ships))
 		end
 		matchEvent:FireAllClients(Protocol.encodeWars(MatchStats.wars(m)))
 		for player, id in nationOf do

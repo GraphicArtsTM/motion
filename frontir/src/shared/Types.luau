@@ -192,6 +192,8 @@ export type Attack = {
 	fighting: boolean, -- идёт бой (у защитника есть войска на этом фронте)
 	lastAdvance: number, -- simTime, когда фронт последний раз взял клетку (укреплённая линия, §6.9)
 	line: { number }?, -- выборка клеток линии фронта (до Fog.LineSamples): сервер проверяет по ней обзор (§6.11)
+	seaSupplied: boolean?, -- снабжение по морю (§6.12), пересчёт раз в секунду
+	seaCheckedAt: number?,
 }
 
 -- Здание (§6.9): стоит в клетке (центр провинции или город), принадлежит владельцу этой клетки.
@@ -228,6 +230,9 @@ export type Intent =
 	| EmbargoIntent
 	| VoteIntent
 	| PingIntent
+	| ShipIntent
+	| LandIntent
+	| PatrolIntent
 
 -- Боты v2 (§9.1): уровни и личности. Списки — для перебора и проверки имён.
 export type BotLevel = "Novice" | "Normal" | "General"
@@ -277,6 +282,7 @@ export type BotPersonalityParams = {
 	demand: number, -- готовность требовать провинции
 	loyalty: number, -- вступает в войны союзника
 	trade: number, -- охота к торговым соглашениям (§8.2)
+	navy: number, -- охота к флоту и высадкам (§6.12, этап 7б-1; Флотоводец — 1)
 }
 
 -- Договоры (§8.1).
@@ -292,6 +298,11 @@ export type OfferIntent = { kind: "offer", target: NationId, offer: OfferKind, p
 export type OfferReplyIntent = { kind: "offerReply", target: NationId, accept: boolean }
 export type BreakIntent = { kind: "breakTreaty", target: NationId }
 export type RebelIntent = { kind: "rebel" }
+-- Флот (§6.12, этап 7б-1).
+export type ShipKind = "Transport" | "Destroyer"
+export type ShipIntent = { kind: "ship", ship: ShipKind, port: number } -- нанять корабль в порту (клетка здания)
+export type LandIntent = { kind: "land", port: number, target: number, percent: number } -- высадка
+export type PatrolIntent = { kind: "patrol", ship: number, cell: number } -- эсминец в патруль
 
 export type Phase = "Waiting" | "Lobby" | "Pick" | "Play" | "Over"
 
