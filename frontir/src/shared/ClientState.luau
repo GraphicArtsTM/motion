@@ -37,6 +37,18 @@ export type Info = {
 	result: Types.MatchResult?, -- итог (фаза Over)
 }
 
+-- Договоры (§8.1) глазами клиента: сообщение diplo. Сроки — в секундах игрового времени от момента отправки.
+export type DiploTreaty = { kind: Types.TreatyKind, a: number, b: number, left: number?, breakLeft: number? }
+export type DiploOffer = { kind: Types.OfferKind, from: number, to: number, province: number?, left: number }
+export type DiploMessage = {
+	kind: "diplo",
+	treaties: { DiploTreaty },
+	offers: { DiploOffer },
+	traitors: { { id: number, left: number } },
+	vassals: { { vassal: number, overlord: number, rebelLeft: number } },
+	history: { { kind: string, a: number, b: number, minutes: number? } },
+}
+
 export type ApplyResult = "snapshot" | "delta" | "stats" | "forces" | "wars" | "partial" | "ignored"
 
 export type ClientState = {
@@ -64,9 +76,15 @@ export type ClientState = {
 	targetNations: number,
 	timeLimit: number,
 	result: Types.MatchResult?,
+	diplo: DiploMessage, -- договоры (§8.1)
+	diploAt: number, -- когда пришло diplo (часы клиента; для обратных отсчётов)
 }
 
 local ClientState = {}
+
+function ClientState.emptyDiplo(): DiploMessage
+	return { kind = "diplo", treaties = {}, offers = {}, traitors = {}, vassals = {}, history = {} }
+end
 
 function ClientState.new(width: number, height: number): ClientState
 	return {
@@ -92,6 +110,8 @@ function ClientState.new(width: number, height: number): ClientState
 		targetNations = 0,
 		timeLimit = 0,
 		result = nil,
+		diplo = ClientState.emptyDiplo(),
+		diploAt = 0,
 		warsAt = 0,
 		bytes = 0,
 	}
@@ -120,6 +140,7 @@ function ClientState.applyInfo(cs: ClientState, info: Info, now: number): boolea
 			cs.stats = nil
 			cs.myForces = nil
 			cs.wars = { wars = {}, cooldowns = {} }
+			cs.diplo = ClientState.emptyDiplo()
 			table.clear(cs.buildings)
 			colorsChanged = true
 		end
@@ -252,6 +273,68 @@ end
 function ClientState.cityLevel(cs: ClientState, cell: number): number
 	local b = cs.buildings[cell]
 	return if b ~= nil and b.kind == "City" then b.level else 1
+end
+
+-- Договоры (сообщение diplo). Неполное сообщение не ломает клиента.
+function ClientState.applyDiplo(cs: ClientState, msg: any, now: number)
+	if type(msg) ~= "table" then
+		return
+	end
+	cs.diplo = {
+		kind = "diplo",
+		treaties = if type(msg.treaties) == "table" then msg.treaties else {},
+		offers = if type(msg.offers) == "table" then msg.offers else {},
+		traitors = if type(msg.traitors) == "table" then msg.traitors else {},
+		vassals = if type(msg.vassals) == "table" then msg.vassals else {},
+		history = if type(msg.history) == "table" then msg.history else {},
+	}
+	cs.diploAt = now
+end
+
+-- Сколько секунд осталось из «left» сообщения diplo (игровое время идёт в Match.Speed раз быстрее).
+function ClientState.diploLeft(cs: ClientState, left: number, now: number, speed: number): number
+	return math.max(0, left - (now - cs.diploAt) * speed)
+end
+
+function ClientState.treatyBetween(cs: ClientState, a: number, b: number): DiploTreaty?
+	for _, t in cs.diplo.treaties do
+		if (t.a == a and t.b == b) or (t.a == b and t.b == a) then
+			return t
+		end
+	end
+	return nil
+end
+
+function ClientState.overlordOf(cs: ClientState, vassal: number): number?
+	for _, v in cs.diplo.vassals do
+		if v.vassal == vassal then
+			return v.overlord
+		end
+	end
+	return nil
+end
+
+function ClientState.isTraitor(cs: ClientState, id: number, now: number, speed: number): boolean
+	for _, t in cs.diplo.traitors do
+		if t.id == id then
+			return ClientState.diploLeft(cs, t.left, now, speed) > 0
+		end
+	end
+	return false
+end
+
+function ClientState.alliesOf(cs: ClientState, id: number): { number }
+	local out: { number } = {}
+	for _, t in cs.diplo.treaties do
+		if t.kind == "alliance" then
+			if t.a == id then
+				table.insert(out, t.b)
+			elseif t.b == id then
+				table.insert(out, t.a)
+			end
+		end
+	end
+	return out
 end
 
 return table.freeze(ClientState)

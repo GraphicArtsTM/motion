@@ -127,6 +127,16 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
 - Проверка силы уровней — `lune run tools/bot_arena Europe 4`; тесты — `Bots.spec`.
 - Для Studio: `Config.Dev.BotLevel` и `Config.Dev.Nations`.
 
+## Договоры (этап 6а)
+- `Diplomacy` — чистое состояние: пакты, союзы, разрыв (`startBreak` → `update`), «Предатель», вассалы, предложения
+  и требования, история; `version` растёт при изменениях. `MatchSim` решает правила: `declareWar` (предательство,
+  союзникам — событие), `offer`/`resolveOffer` (ответы игроков, ботов и по таймеру), уступка провинции, капитуляция
+  в `makePeace(..., from)`, дань вассала в `stepEconomy`, снабжение `Fronts.supplied(..., friends)`, победа союза.
+- Боты: `BotBrain.answerOffer` и дипломатия в `decide` (веса `alliance/betray/demand/loyalty` в личностях).
+- Сеть: таблица `diplo` (`MatchStats.diplo`, `ClientState.applyDiplo`), сроки — «осталось секунд игрового времени».
+  info и diplo — не чаще `Net.InfoMinSec` / `Net.DiploMinSec`. Клиент: `UI/DiplomacyPanel` (T, требование
+  забирает нажатие на карту).
+
 ## Require
 Внутри `src/shared` модули подключают друг друга строкой: `require("./Types")` — так работает и в Roblox (`./` = `script.Parent`), и в Lune.
 Сервер и клиент берут общие модули через `ReplicatedStorage.Shared`.

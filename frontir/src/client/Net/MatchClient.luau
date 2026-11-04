@@ -22,6 +22,7 @@ export type Handlers = {
 	onForces: () -> (),
 	onWars: () -> (),
 	onBuildings: () -> (),
+	onDiplo: () -> (),
 	onEvents: (events: { any }) -> (),
 	onRejected: (reason: string) -> (),
 }
@@ -66,6 +67,9 @@ function MatchClient.connect(cs: ClientState, handlers: Handlers): MatchClient
 				handlers.onInfo(ClientState.applyInfo(cs, msg :: ClientState.Info, os.clock()))
 			elseif msg.kind == "events" and type(msg.events) == "table" then
 				handlers.onEvents(msg.events)
+			elseif msg.kind == "diplo" then
+				ClientState.applyDiplo(cs, msg, os.clock())
+				handlers.onDiplo()
 			elseif msg.kind == "buildings" and type(msg.list) == "table" then
 				ClientState.applyBuildings(cs, msg.list)
 				handlers.onBuildings()

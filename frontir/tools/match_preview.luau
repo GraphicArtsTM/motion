@@ -489,6 +489,47 @@ local function frame(x0: number, y0: number, fw: number, fh: number, c: Palette.
 		put(x0 + fw, y, c)
 	end
 end
+-- Договоры (§8.1): союз — голубая линия между столицами, вассалитет — золотая, «Предатель» — красная рамка
+-- вокруг столицы.
+do
+	local skyRgb = Palette.rgb("Sky")
+	local function capitalPx(id: number): (number?, number?)
+		local n = m.nations[id]
+		local cap = if n ~= nil then n.capital else nil
+		if cap == nil or not n.alive then
+			return nil, nil
+		end
+		return (cap % w) * SCALE + 1, (cap // w) * SCALE + 1
+	end
+	local function line(a: number, b: number, c: Palette.Rgb)
+		local x0, y0 = capitalPx(a)
+		local x1, y1 = capitalPx(b)
+		if x0 == nil or y0 == nil or x1 == nil or y1 == nil then
+			return
+		end
+		local steps = math.max(math.abs(x1 - x0), math.abs(y1 - y0), 1)
+		for k = 0, steps do
+			local x = math.round(x0 + (x1 - x0) * k / steps)
+			local y = math.round(y0 + (y1 - y0) * k / steps)
+			put(x, y, c)
+			put(x + 1, y, c)
+		end
+	end
+	for _, t in m.diplo.treaties do
+		if t.kind == "alliance" then
+			line(t.a, t.b, skyRgb)
+		end
+	end
+	for vassal, v in m.diplo.vassals do
+		line(vassal, v.overlord, gold)
+	end
+	for id, untilTime in m.diplo.traitors do
+		local x, y = capitalPx(id)
+		if x ~= nil and y ~= nil and untilTime > m.simTime then
+			frame(x - 5, y - 5, 11, 11, red)
+		end
+	end
+end
 do
 	local mw, mh = MinimapPaint.size(w, h, Config.Render.MinimapSide)
 	local mini = MinimapPaint.paint(terrain, g.owner, w, h, mw, mh, function(owner: number)
@@ -597,6 +638,29 @@ for _, n in m.nations do
 			if n.alive then "" else "  (пала)"
 		)
 	)
+end
+do
+	local parts: { string } = {}
+	for _, t in m.diplo.treaties do
+		table.insert(
+			parts,
+			string.format("%s %d–%d", if t.kind == "alliance" then "союз" else "пакт", t.a, t.b)
+		)
+	end
+	for vassal, v in m.diplo.vassals do
+		table.insert(parts, string.format("вассал %d→%d", vassal, v.overlord))
+	end
+	for id, untilTime in m.diplo.traitors do
+		if untilTime > m.simTime then
+			table.insert(parts, string.format("предатель %d", id))
+		end
+	end
+	local hist: { string } = {}
+	for _, e in m.diplo.history do
+		table.insert(hist, string.format("%s %d/%d", e.kind, e.a, e.b))
+	end
+	print("  ДОГОВОРЫ: " .. (if #parts > 0 then table.concat(parts, ", ") else "нет"))
+	print("  ИСТОРИЯ: " .. table.concat(hist, ", "))
 end
 if result ~= nil then
 	local winner = m.nations[result.winner]

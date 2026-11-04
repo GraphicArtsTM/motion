@@ -524,6 +524,24 @@ function MatchHud.new(
 							Strings.get("bot.level." .. n.botLevel, lang)
 						)
 						else ""
+					-- Договоры (§8.1): «Предатель» красным, наш союзник — голубым.
+					if ClientState.isTraitor(cs, s.id, os.clock(), Config.Match.Speed) then
+						tag ..= string.format(
+							' <font size="11" color="%s">⚠%s</font>',
+							alert,
+							Strings.get("diplo.traitor", lang)
+						)
+					end
+					if cs.myNation ~= nil and s.id ~= cs.myNation then
+						local t = ClientState.treatyBetween(cs, cs.myNation, s.id)
+						if t ~= nil and t.kind == "alliance" then
+							tag ..= string.format(
+								' <font size="11" color="%s">%s</font>',
+								sky,
+								Strings.get("diplo.ally", lang)
+							)
+						end
+					end
 					table.insert(
 						lines,
 						string.format(
@@ -716,6 +734,37 @@ function MatchHud.new(
 				toast(string.format(Strings.get("event.victory", lang), a))
 			elseif e.kind == "pocketSurrendered" then
 				toast(string.format(Strings.get("event.pocketSurrendered", lang), a, nationName(tonumber(e.by) or 0)))
+			-- Договоры (§8.1): лента для всех, важное для нас — красной строкой.
+			elseif e.kind == "offerAccepted" then
+				local key = if e.offer == "alliance"
+					then "event.offerAccepted.alliance"
+					elseif e.offer == "demand" then "event.offerAccepted.demand"
+					else "event.offerAccepted.pact"
+				toast(string.format(Strings.get(key, lang), a, b))
+			elseif e.kind == "offerRefused" and e.target == cs.myNation then
+				toast(
+					string.format(
+						Strings.get("event.offerRefused", lang),
+						a,
+						Strings.get("diplo.act." .. tostring(e.offer), lang)
+					)
+				)
+			elseif e.kind == "betrayal" then
+				if e.target == cs.myNation then
+					alertLine(string.format(Strings.get("event.betrayal", lang), a, b))
+				else
+					toast(string.format(Strings.get("event.betrayal", lang), a, b))
+				end
+			elseif e.kind == "treatyBroken" then
+				toast(string.format(Strings.get("event.treatyBroken", lang), a, b))
+			elseif e.kind == "breakAnnounced" and e.target == cs.myNation then
+				alertLine(string.format(Strings.get("event.breakAnnounced", lang), a))
+			elseif e.kind == "treatyExpired" and (e.nation == cs.myNation or e.target == cs.myNation) then
+				toast(string.format(Strings.get("event.treatyExpired", lang), a, b))
+			elseif e.kind == "vassal" or e.kind == "independence" then
+				toast(string.format(Strings.get("event." .. e.kind, lang), a, b))
+			elseif e.kind == "allyAttacked" and e.ally == cs.myNation then
+				alertLine(string.format(Strings.get("event.allyAttacked", lang), a, b))
 			elseif e.kind == "peaceRejected" and e.target == cs.myNation then
 				-- Наше предложение мира отклонили или оставили без ответа.
 				toast(

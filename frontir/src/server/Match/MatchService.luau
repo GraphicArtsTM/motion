@@ -90,10 +90,24 @@ function MatchService.start(map: MapData)
 		}
 	end
 
+	-- Договоры (§8.1) — всем, когда что-то поменялось (и новому игроку при входе).
+	local diploVersion, diploAt = -1, -math.huge
+	local infoPhase, infoAt = "", -math.huge
+	local function sendDiplo(player: Player?)
+		local msg = MatchStats.diplo(m)
+		if player ~= nil then
+			matchEvent:FireClient(player, msg)
+		else
+			diploVersion, diploAt = m.diplo.version, os.clock()
+			matchEvent:FireAllClients(msg)
+		end
+	end
+
 	local function sendInfoAll()
 		for _, player in Players:GetPlayers() do
 			matchEvent:FireClient(player, infoFor(player))
 		end
+		sendDiplo(nil)
 	end
 
 	local function sendSnapshot(player: Player?)
@@ -119,6 +133,7 @@ function MatchService.start(map: MapData)
 		end
 		limiters[player] = RateLimiter.new(Config.Sim.MaxIntentsPerSecond, Config.Sim.MaxIntentsPerSecond, os.clock())
 		matchEvent:FireClient(player, infoFor(player))
+		sendDiplo(player)
 		if m.phase == "Play" then
 			sendSnapshot(player) -- опоздавший — зритель: видит всю карту
 		end
@@ -190,8 +205,11 @@ function MatchService.start(map: MapData)
 			MatchSim.step(m, step)
 			lastTickMs = (os.clock() - t0) * 1000
 
-			if m.infoDirty then
+			-- info — не чаще Net.InfoMinSec (смена фазы — сразу): выбывания подряд уходят одним сообщением.
+			local phaseChanged = m.phase ~= infoPhase
+			if m.infoDirty and (phaseChanged or os.clock() >= infoAt + Config.Net.InfoMinSec) then
 				m.infoDirty = false
+				infoPhase, infoAt = m.phase, os.clock()
 				sendInfoAll()
 			end
 			local changes = Grid.takeChanges(m.grid)
@@ -205,6 +223,10 @@ function MatchService.start(map: MapData)
 			local built = Buildings.takeChanges(m.buildings)
 			if #built > 0 then
 				matchEvent:FireAllClients({ kind = "buildings", list = built })
+			end
+			-- Изменения договоров за Net.DiploMinSec уходят одним сообщением.
+			if m.diplo.version ~= diploVersion and os.clock() >= diploAt + Config.Net.DiploMinSec then
+				sendDiplo(nil)
 			end
 			local events = MatchSim.takeEvents(m)
 			if #events > 0 then

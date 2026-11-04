@@ -4,6 +4,8 @@
 	Чистый модуль: им пользуются MatchService (рассылка) и тест трафика (Net.spec — 60 держав).
 ]]
 
+local ClientState = require("../ClientState")
+local Config = require("../Config")
 local Forces = require("../Forces")
 local Grid = require("../Grid")
 local MatchSim = require("../MatchSim")
@@ -124,6 +126,52 @@ function MatchStats.wars(m: MatchSim.Match): Protocol.WarsMessage
 		return x.b < y.b
 	end)
 	return { wars = wars, cooldowns = cooldowns }
+end
+
+-- Договоры (§8.1) для всех: таблица diplo, сроки — сколько секунд игрового времени осталось.
+function MatchStats.diplo(m: MatchSim.Match): ClientState.DiploMessage
+	local ds, now = m.diplo, m.simTime
+	local treaties: { ClientState.DiploTreaty } = {}
+	for _, t in ds.treaties do
+		table.insert(treaties, {
+			kind = t.kind,
+			a = t.a,
+			b = t.b,
+			left = if t.untilTime ~= nil then math.max(0, t.untilTime - now) else nil,
+			breakLeft = if t.breakAt ~= nil then math.max(0, t.breakAt - now) else nil,
+		})
+	end
+	local offers: { ClientState.DiploOffer } = {}
+	for _, o in ds.offers do
+		table.insert(
+			offers,
+			{ kind = o.kind, from = o.from, to = o.to, province = o.province, left = math.max(0, o.expiresAt - now) }
+		)
+	end
+	local traitors: { { id: number, left: number } } = {}
+	for id, untilTime in ds.traitors do
+		if untilTime > now then
+			table.insert(traitors, { id = id, left = untilTime - now })
+		end
+	end
+	local vassals: { { vassal: number, overlord: number, rebelLeft: number } } = {}
+	for id, v in ds.vassals do
+		local rebelLeft = math.max(0, v.since + Config.Diplomacy.VassalRebelSec - now)
+		table.insert(vassals, { vassal = id, overlord = v.overlord, rebelLeft = rebelLeft })
+	end
+	local history: { { kind: string, a: number, b: number, minutes: number? } } = {}
+	for _, e in ds.history do
+		local kind: string = e.kind
+		table.insert(history, { kind = kind, a = e.a, b = e.b, minutes = e.minutes })
+	end
+	return {
+		kind = "diplo",
+		treaties = treaties,
+		offers = offers,
+		traitors = traitors,
+		vassals = vassals,
+		history = history,
+	}
 end
 
 return table.freeze(MatchStats)

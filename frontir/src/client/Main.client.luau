@@ -5,7 +5,8 @@
 	этап 2: приём матча (MatchClient), слой территорий, подписи держав, HUD, нажатия на карту;
 	этап 3а: города; этап 3б: войска державы (найм Z/X/C/V, панель войск), юниты и бой на линиях фронтов;
 	этап 3в: война и мир (объявление, баннер войны, окно мира), бой на фронте с артиллерией, воронками и дымом;
-	этап 4в: цикл матча (лобби → выбор → игра → итоги → новый матч), экран результатов, мини-карта.
+	этап 4в: цикл матча (лобби → выбор → игра → итоги → новый матч), экран результатов, мини-карта;
+	этап 6а: окно дипломатии (T), предложения и требования, метка «Предатель».
 ]]
 
 local LocalizationService = game:GetService("LocalizationService")
@@ -32,6 +33,7 @@ local CameraInput = require(Client:WaitForChild("Input"):WaitForChild("CameraInp
 local BuildPanel = require(UI:WaitForChild("BuildPanel"))
 local BuildingLayer = require(Render:WaitForChild("BuildingLayer"))
 local DebugOverlay = require(UI:WaitForChild("DebugOverlay"))
+local DiplomacyPanel = require(UI:WaitForChild("DiplomacyPanel"))
 local ForcesPanel = require(UI:WaitForChild("ForcesPanel"))
 local FrontLayer = require(Render:WaitForChild("FrontLayer"))
 local MapRenderer = require(Render:WaitForChild("MapRenderer"))
@@ -195,6 +197,8 @@ local minimap = Minimap.new(hudGui, cs, colors, map.width, map.height, function(
 end)
 local results = ResultsPanel.new(hudGui, cs, lang)
 results.refresh()
+local diplomacy = DiplomacyPanel.new(hudGui, cs, lang, map, provinces, send, hud.toast, wars.offerDeclare)
+diplomacy.refresh()
 local function gridChanged()
 	if minimap ~= nil then
 		minimap.changed()
@@ -215,6 +219,7 @@ client = MatchClient.connect(cs, {
 		build.refresh()
 		buildingLayer.refresh()
 		results.refresh()
+		diplomacy.refresh()
 	end,
 	onSnapshot = function()
 		territory.repaintAll()
@@ -231,6 +236,12 @@ client = MatchClient.connect(cs, {
 	onStats = function()
 		hud.refresh()
 		forcesPanel.refresh()
+		diplomacy.refresh()
+	end,
+	onDiplo = function()
+		diplomacy.refresh()
+		labels.refresh() -- метка «Предатель» на подписях
+		hud.refresh()
 	end,
 	onForces = function()
 		forcesPanel.refresh()
@@ -242,6 +253,7 @@ client = MatchClient.connect(cs, {
 	end,
 	onWars = function()
 		wars.refresh()
+		diplomacy.refresh()
 	end,
 	onEvents = function(events: { any })
 		hud.onEvents(events)
@@ -258,7 +270,7 @@ local input = CameraInput.bind(camera, viewport, {
 		if cx ~= nil and cy ~= nil then
 			local cell = cy * map.width + cx
 			-- Режим стройки забирает нажатие; иначе — старт, атака, война.
-			if not build.tap(cell) then
+			if not build.tap(cell) and not diplomacy.tap(cell) then
 				hud.tapCell(cell)
 			end
 		end
@@ -283,6 +295,7 @@ local frameConn = RunService.RenderStepped:Connect(function()
 	hud.update(now)
 	wars.update(now)
 	results.update(now)
+	diplomacy.update(now)
 	if minimap ~= nil then
 		minimap.update(now, camera.state)
 	end

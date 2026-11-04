@@ -6,7 +6,9 @@ local Config = require("../src/shared/Config")
 local Diplomacy = require("../src/shared/Diplomacy")
 local Forces = require("../src/shared/Forces")
 local Fronts = require("../src/shared/Fronts")
+local ClientState = require("../src/shared/ClientState")
 local Grid = require("../src/shared/Grid")
+local MatchStats = require("../src/shared/Net/MatchStats")
 local Intents = require("../src/shared/Intents")
 local MapData = require("../src/shared/MapData")
 local MatchSim = require("../src/shared/MatchSim")
@@ -233,6 +235,36 @@ T.describe("Договоры", function()
 			T.expect(result.reason).toBe("land")
 			T.expect(result.coWinners ~= nil and #result.coWinners == 1).toBe(true)
 			T.expect(result.places[3]).toBe(2)
+		end
+	)
+
+	T.it(
+		"клиент видит договоры, предложения, предателя и вассала из сообщения diplo",
+		function()
+			local m = trio()
+			offer(m, 1, 2, "alliance")
+			reply(m, 2, 1, true)
+			offer(m, 3, 1, "pact5")
+			MatchSim.applyIntent(m, 3, { kind = "declare", target = 2 }) -- 2 и 3 — без договора: не предательство
+			local cs = ClientState.new(W, H)
+			cs.myNation = 1
+			ClientState.applyDiplo(cs, MatchStats.diplo(m), 10)
+			local t = ClientState.treatyBetween(cs, 2, 1) :: ClientState.DiploTreaty
+			T.expect(t.kind).toBe("alliance")
+			T.expect(#ClientState.alliesOf(cs, 1)).toBe(1)
+			T.expect(#cs.diplo.offers).toBe(1)
+			T.expect(cs.diplo.offers[1].left).toBe(Config.Diplomacy.OfferSec)
+			T.expect(ClientState.diploLeft(cs, 20, 15, 1)).toBe(15)
+			T.expect(ClientState.isTraitor(cs, 3, 10, 1)).toBe(false)
+			-- 1 предаёт союзника 2.
+			MatchSim.applyIntent(m, 1, { kind = "declare", target = 2 })
+			ClientState.applyDiplo(cs, MatchStats.diplo(m), 10)
+			T.expect(ClientState.isTraitor(cs, 1, 10, 1)).toBe(true)
+			T.expect(ClientState.isTraitor(cs, 1, 10 + Config.Diplomacy.TraitorSec, 1)).toBe(false)
+			T.expect(cs.diplo.history[#cs.diplo.history].kind).toBe("betrayal")
+			-- Плохое сообщение не ломает клиента.
+			ClientState.applyDiplo(cs, { kind = "diplo", treaties = 5 }, 11)
+			T.expect(#cs.diplo.treaties).toBe(0)
 		end
 	)
 

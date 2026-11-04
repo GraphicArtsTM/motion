@@ -252,8 +252,6 @@ function WarPanel.new(
 	local whiteButton = termButton("white", 2)
 	local keepButton = termButton("keep", 3)
 	local capitulateButton = termButton("capitulate", 4)
-	capitulateButton.AutoButtonColor = false
-	capitulateButton.TextTransparency = 0.5 -- вассалитет — этап 6
 	local peaceCancel = button(peacePanel, Strings.get("war.cancel", lang), 140)
 	peaceCancel.LayoutOrder = 5
 
@@ -485,7 +483,7 @@ function WarPanel.new(
 		proposePeace("keep")
 	end)
 	capitulateButton.Activated:Connect(function()
-		toast(Strings.get("reject.notYet", lang))
+		proposePeace("capitulate") -- сервер проверит, что войск меньше трети врага (§8.1)
 	end)
 	peaceCancel.Activated:Connect(function()
 		peaceTarget = nil

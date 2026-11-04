@@ -273,6 +273,8 @@ T.describe("Трафик", function()
 		end
 		local statsEvery = Config.Sim.TickRate // Config.Net.StatsHz
 		local perTick: { number } = {}
+		local diploVersion, diploAt = -1, -math.huge
+		local infoAt = -math.huge
 		for tick = 1, 180 * Config.Sim.TickRate do
 			MatchSim.step(m, DT)
 			local bytes = 0
@@ -285,8 +287,8 @@ T.describe("Трафик", function()
 				bytes += buffer.len(Protocol.encodeForces(MatchStats.forcesOf(m, 1))) + OVERHEAD
 				bytes += buffer.len(Protocol.encodeWars(MatchStats.wars(m))) + OVERHEAD
 			end
-			if m.infoDirty then
-				m.infoDirty = false
+			if m.infoDirty and m.time >= infoAt + Config.Net.InfoMinSec then
+				m.infoDirty, infoAt = false, m.time
 				bytes += infoBytes()
 			end
 			local built = Buildings.takeChanges(m.buildings)
@@ -296,6 +298,11 @@ T.describe("Трафик", function()
 			local events = MatchSim.takeEvents(m)
 			if #events > 0 then
 				bytes += #serde.encode("json", { kind = "events", events = events }) + OVERHEAD
+			end
+			-- Договоры (§8.1): как на сервере — при изменении, не чаще Net.DiploMinSec.
+			if m.diplo.version ~= diploVersion and m.time >= diploAt + Config.Net.DiploMinSec then
+				diploVersion, diploAt = m.diplo.version, m.time
+				bytes += #serde.encode("json", MatchStats.diplo(m)) + OVERHEAD
 			end
 			table.insert(perTick, bytes)
 		end
