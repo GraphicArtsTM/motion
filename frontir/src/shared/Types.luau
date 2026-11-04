@@ -219,6 +219,10 @@ export type Intent =
 	| PeaceIntent
 	| PeaceReplyIntent
 	| BuildIntent
+	| OfferIntent
+	| OfferReplyIntent
+	| BreakIntent
+	| RebelIntent
 
 -- Боты v2 (§9.1): уровни и личности. Списки — для перебора и проверки имён.
 export type BotLevel = "Novice" | "Normal" | "General"
@@ -263,7 +267,19 @@ export type BotPersonalityParams = {
 	distracted: number, -- вес цели, которая уже воюет с другим
 	leader: number, -- вес цели-лидера
 	forts: boolean, -- строит укрепления у фронта
+	alliance: number, -- охота к союзам и пактам (§8.1)
+	betray: number, -- готовность предать союзника
+	demand: number, -- готовность требовать провинции
+	loyalty: number, -- вступает в войны союзника
 }
+
+-- Договоры (§8.1).
+export type TreatyKind = "pact" | "alliance"
+export type OfferKind = "pact3" | "pact5" | "alliance" | "demand"
+export type OfferIntent = { kind: "offer", target: NationId, offer: OfferKind, province: number? }
+export type OfferReplyIntent = { kind: "offerReply", target: NationId, accept: boolean }
+export type BreakIntent = { kind: "breakTreaty", target: NationId }
+export type RebelIntent = { kind: "rebel" }
 
 export type Phase = "Waiting" | "Lobby" | "Pick" | "Play" | "Over"
 
@@ -272,7 +288,8 @@ export type VictoryReason = "land" | "last" | "time"
 export type MatchResult = {
 	winner: NationId,
 	reason: VictoryReason,
-	places: { NationId }, -- от первого места
+	places: { NationId }, -- от первого места (сначала победитель и его союзники)
+	coWinners: { NationId }?, -- союзники победителя (совместная победа, §8.1)
 	times: { number }, -- секунды матча точек графика
 	shares: { [NationId]: { number } }, -- доля суши в процентах (целые) в эти моменты
 }

@@ -29,6 +29,7 @@
 local BotBrain = require("./BotBrain")
 local Buildings = require("./Buildings")
 local Config = require("./Config")
+local Diplomacy = require("./Diplomacy")
 local Economy = require("./Economy")
 local Expansion = require("./Expansion")
 local Forces = require("./Forces")
@@ -60,6 +61,17 @@ export type MatchEvent =
 	| { kind: "peace", nation: number, target: number, terms: Types.PeaceTerms, returned: number }
 	| { kind: "pocketSurrendered", nation: number, by: number, cells: number }
 	| { kind: "victory", nation: number, reason: Types.VictoryReason }
+	-- Договоры (§8.1)
+	| { kind: "offerMade", nation: number, target: number, offer: Types.OfferKind, province: number? }
+	| { kind: "offerAccepted", nation: number, target: number, offer: Types.OfferKind, province: number? }
+	| { kind: "offerRefused", nation: number, target: number, offer: Types.OfferKind, expired: boolean }
+	| { kind: "breakAnnounced", nation: number, target: number, treaty: Types.TreatyKind }
+	| { kind: "treatyBroken", nation: number, target: number, treaty: Types.TreatyKind, betrayal: boolean }
+	| { kind: "treatyExpired", nation: number, target: number }
+	| { kind: "betrayal", nation: number, target: number }
+	| { kind: "vassal", nation: number, target: number }
+	| { kind: "independence", nation: number, target: number }
+	| { kind: "allyAttacked", nation: number, target: number, ally: number }
 
 export type Match = {
 	map: MapData,
@@ -85,6 +97,7 @@ export type Match = {
 	provinces: Provinces.ProvinceSet,
 	cityOf: { [number]: number }, -- провинция → клетка города (нейтрального, державы или столицы)
 	wars: Wars.WarSet,
+	diplo: Diplomacy.DiploSet, -- договоры (§8.1)
 	buildings: Buildings.BuildingSet, -- §6.9
 	owned: { [number]: Buildings.Owned }, -- здания и уровни городов по державам (пересчёт каждый тик)
 	economy: { [number]: NationEconomy }, -- доход и содержание по державам (последний тик)
@@ -137,6 +150,7 @@ function MatchSim.new(map: MapData, seed: number): Match
 		provinces = provinces,
 		cityOf = cityOf,
 		wars = Wars.new(),
+		diplo = Diplomacy.new(),
 		buildings = Buildings.new(),
 		owned = {},
 		economy = {},
@@ -509,12 +523,18 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 		if t == nil or not t.alive then
 			return false, "target"
 		end
+		-- Вассал и сюзерен друг с другом не воюют: вассалу — только «Независимость» (§8.1).
+		if Diplomacy.overlordOf(m.diplo, nationId) == intent.target then
+			return false, "vassalRebel"
+		end
+		if Diplomacy.overlordOf(m.diplo, intent.target) == nationId then
+			return false, "ownVassal"
+		end
 		local ok, reason = Wars.canDeclare(m.wars, nationId, intent.target, m.simTime)
 		if not ok then
 			return false, reason
 		end
-		Wars.declare(m.wars, nationId, intent.target, m.simTime)
-		table.insert(m.events, { kind = "warDeclared", nation = nationId, target = intent.target })
+		MatchSim.declareWar(m, nationId, intent.target)
 		return true, nil
 	end
 
@@ -523,8 +543,15 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 		if war == nil then
 			return false, "notAtWar"
 		end
+		-- Капитуляция (§8.1): только безнадёжно слабый и только если он ещё не вассал.
 		if intent.terms == "capitulate" then
-			return false, "notYet" -- вассалитет — этап 6
+			if Diplomacy.overlordOf(m.diplo, nationId) ~= nil then
+				return false, "vassal"
+			end
+			local mine, theirs = MatchSim.totalPower(m, nationId), MatchSim.totalPower(m, intent.target)
+			if mine >= theirs * Config.Diplomacy.CapitulateBelow then
+				return false, "notWeakEnough"
+			end
 		end
 		if war.proposal ~= nil then
 			return false, "peacePending"
@@ -553,7 +580,7 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 		end
 		war.proposal = nil
 		if intent.accept then
-			MatchSim.makePeace(m, war, proposal.terms)
+			MatchSim.makePeace(m, war, proposal.terms, proposal.from)
 		else
 			table.insert(m.events, {
 				kind = "peaceRejected",
@@ -561,6 +588,43 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 				target = intent.target,
 				expired = false,
 			})
+		end
+		return true, nil
+	end
+
+	if intent.kind == "offer" then
+		return MatchSim.offer(m, nationId, intent.target, intent.offer, intent.province)
+	end
+
+	if intent.kind == "offerReply" then
+		local offer = Diplomacy.offerBetween(m.diplo, intent.target, nationId)
+		if offer == nil then
+			return false, "noOffer"
+		end
+		MatchSim.resolveOffer(m, offer, intent.accept, false)
+		return true, nil
+	end
+
+	if intent.kind == "breakTreaty" then
+		local t = Diplomacy.treaty(m.diplo, nationId, intent.target)
+		local ok, reason = Diplomacy.startBreak(m.diplo, nationId, intent.target, m.simTime)
+		if not ok or t == nil then
+			return false, reason
+		end
+		table.insert(m.events, { kind = "breakAnnounced", nation = nationId, target = intent.target, treaty = t.kind })
+		return true, nil
+	end
+
+	if intent.kind == "rebel" then
+		local ok, reason = Diplomacy.canRebel(m.diplo, nationId, m.simTime)
+		local overlord = Diplomacy.overlordOf(m.diplo, nationId)
+		if not ok or overlord == nil then
+			return false, reason
+		end
+		Diplomacy.free(m.diplo, nationId, m.simTime, true)
+		table.insert(m.events, { kind = "independence", nation = nationId, target = overlord })
+		if Wars.find(m.wars, nationId, overlord) == nil then
+			MatchSim.declareWar(m, nationId, overlord)
 		end
 		return true, nil
 	end
@@ -661,6 +725,7 @@ local function totalPower(m: Match, id: number): number
 	end
 	return Forces.total(n.home) + Forces.total(MatchSim.frontForces(m, id))
 end
+MatchSim.totalPower = totalPower
 
 -- Где боту можно строить: первая подходящая провинция для каждого здания (§6.9).
 local function buildSpots(m: Match, n: Nation): BotBrain.BuildSpots
@@ -719,6 +784,25 @@ local function botView(m: Match, n: Nation): BotBrain.BotView
 			end
 		end
 	end
+	-- Провинция соседа у нашей границы (не со столицей) — что можно потребовать (§8.1).
+	local demandOf: { [number]: number } = {}
+	for _, p in m.provinces.list do
+		local o = Grid.getOwner(g, p.center)
+		if o ~= 0 and o ~= n.id and adjacent[o] ~= nil and demandOf[o] == nil then
+			local other = m.nations[o]
+			local capital = if other ~= nil then other.capital else nil
+			if capital == nil or MapData.getProvince(m.map, capital) ~= p.id then
+				for _, q in p.neighbours do
+					if Grid.getOwner(g, m.provinces.list[q].center) == n.id then
+						demandOf[o] = p.id
+						break
+					end
+				end
+			end
+		end
+	end
+	local ds = m.diplo
+	local myLord = Diplomacy.overlordOf(ds, n.id)
 	local neighbours: { BotBrain.Neighbour } = {}
 	for owner, border in adjacent do
 		if owner ~= 0 then
@@ -731,13 +815,23 @@ local function botView(m: Match, n: Nation): BotBrain.BotView
 						distracted = true
 					end
 				end
+				local t = Diplomacy.treaty(ds, n.id, owner)
+				local treaty: ("pact" | "alliance" | "vassal" | "overlord")? = if t ~= nil
+					then t.kind
+					elseif myLord == owner then "overlord"
+					elseif Diplomacy.overlordOf(ds, owner) == n.id then "vassal"
+					else nil
 				table.insert(neighbours, {
 					id = owner,
 					people = other.people,
 					power = Forces.total(other.home),
 					frontPower = Forces.total(MatchSim.frontForces(m, owner)),
 					atWar = Wars.isActive(m.wars, n.id, owner),
-					canDeclare = (Wars.canDeclare(m.wars, n.id, owner, m.simTime)),
+					-- С партнёром по договору и в вассалитете обычной войны нет (предательство — отдельное решение).
+					canDeclare = treaty == nil and (Wars.canDeclare(m.wars, n.id, owner, m.simTime)),
+					treaty = treaty,
+					traitor = Diplomacy.isTraitor(ds, owner, m.simTime),
+					demandProvince = demandOf[owner],
 					border = border,
 					share = Grid.cellsOf(g, owner) / math.max(1, g.capturableCount),
 					distracted = distracted,
@@ -746,6 +840,23 @@ local function botView(m: Match, n: Nation): BotBrain.BotView
 					cities = cityCount[owner] or 0,
 				})
 			end
+		end
+	end
+	-- Враги союзников (вступить в их войну) и лидер к победе (союз против него).
+	local allyEnemies: { number } = {}
+	for _, ally in Diplomacy.alliesOf(ds, n.id) do
+		for _, war in Wars.of(m.wars, ally) do
+			local enemy = Wars.enemyOf(war, ally)
+			if enemy ~= n.id and table.find(allyEnemies, enemy) == nil then
+				table.insert(allyEnemies, enemy)
+			end
+		end
+	end
+	local leader: number? = nil
+	local leaderCells = g.capturableCount * Config.Bots.StopLeaderShare
+	for _, other in m.nations do
+		if other.alive and other.id ~= n.id and Grid.cellsOf(g, other.id) >= leaderCells then
+			leader, leaderCells = other.id, Grid.cellsOf(g, other.id)
 		end
 	end
 	local fronts: { BotBrain.FrontView } = {}
@@ -799,6 +910,12 @@ local function botView(m: Match, n: Nation): BotBrain.BotView
 		fronts = fronts,
 		mix = Forces.composition(n.home),
 		time = m.simTime,
+		allies = #Diplomacy.alliesOf(ds, n.id),
+		allyEnemies = allyEnemies,
+		overlord = myLord,
+		overlordPower = if myLord ~= nil then totalPower(m, myLord) else nil,
+		canRebel = (Diplomacy.canRebel(ds, n.id, m.simTime)),
+		leader = leader,
 		money = n.money,
 		oil = n.oil,
 		economy = m.economy[n.id] or { income = 0, oilIncome = 0, upkeep = 0 },
@@ -809,6 +926,7 @@ end
 
 -- Держава выбыла: войска гибнут, её клетки становятся ничьими, атаки на неё заканчиваются.
 local function eliminate(m: Match, n: Nation, by: number)
+	Diplomacy.removeNation(m.diplo, n.id)
 	n.alive = false
 	n.eliminatedAt = m.time
 	n.people = 0
@@ -860,7 +978,7 @@ end
 
 -- Мир между сторонами войны: белый — взятое в войне возвращается; фронты между ними закрываются,
 -- войска идут домой; паре на PeaceCooldownSec запрещено снова объявлять войну.
-function MatchSim.makePeace(m: Match, war: Wars.War, terms: Types.PeaceTerms)
+function MatchSim.makePeace(m: Match, war: Wars.War, terms: Types.PeaceTerms, from: number?)
 	local returned = 0
 	if terms == "white" then
 		returned = Wars.returnTaken(war, m.grid, function(id: number): boolean
@@ -880,6 +998,158 @@ function MatchSim.makePeace(m: Match, war: Wars.War, terms: Types.PeaceTerms)
 	end
 	Wars.finish(m.wars, war, m.simTime, true)
 	table.insert(m.events, { kind = "peace", nation = war.a, target = war.b, terms = terms, returned = returned })
+	-- Капитуляция: предложивший становится вассалом (каждый оставляет захваченное, §8.1).
+	if terms == "capitulate" and from ~= nil then
+		local overlord = Wars.enemyOf(war, from)
+		Diplomacy.setVassal(m.diplo, from, overlord, m.simTime)
+		table.insert(m.events, { kind = "vassal", nation = from, target = overlord })
+	end
+end
+
+-- Объявление войны (§6.7а) с правилами договоров (§8.1): война партнёру по пакту или союзнику до конца
+-- договора — предательство; союзникам жертвы — запись в ленту (боты-союзники вступают сами).
+function MatchSim.declareWar(m: Match, a: number, b: number)
+	-- Разрыв, который уже прошёл предупреждение, Diplomacy.update закроет в этом же тике.
+	if Diplomacy.warIsBetrayal(m.diplo, a, b, m.simTime) then
+		Diplomacy.betray(m.diplo, a, b, m.simTime)
+		table.insert(m.events, { kind = "betrayal", nation = a, target = b })
+	end
+	Wars.declare(m.wars, a, b, m.simTime)
+	table.insert(m.events, { kind = "warDeclared", nation = a, target = b })
+	for _, ally in Diplomacy.alliesOf(m.diplo, b) do
+		if ally ~= a then
+			table.insert(m.events, { kind = "allyAttacked", nation = a, target = b, ally = ally })
+		end
+	end
+end
+
+-- Провинция, которую можно потребовать у target (§8.1): его центр, граничит с землёй from, без столицы target.
+function MatchSim.demandable(m: Match, from: number, target: number, provinceId: number): (boolean, string?)
+	local p = m.provinces.list[provinceId]
+	if p == nil then
+		return false, "province"
+	end
+	local g = m.grid
+	if Grid.getOwner(g, p.center) ~= target then
+		return false, "notTheirs"
+	end
+	local t = m.nations[target]
+	if t ~= nil and t.capital ~= nil and MapData.getProvince(m.map, t.capital) == provinceId then
+		return false, "capital"
+	end
+	for _, other in p.neighbours do
+		if Grid.getOwner(g, m.provinces.list[other].center) == from then
+			return true, nil
+		end
+	end
+	return false, "notBorder"
+end
+
+-- Предложение договора или требование (§8.1).
+function MatchSim.offer(
+	m: Match,
+	from: number,
+	to: number,
+	kind: Types.OfferKind,
+	province: number?
+): (boolean, string?)
+	local t = m.nations[to]
+	if t == nil or not t.alive then
+		return false, "target"
+	end
+	if Wars.find(m.wars, from, to) ~= nil then
+		return false, "atWar"
+	end
+	local ok, reason = Diplomacy.canOffer(m.diplo, from, to, kind, m.simTime)
+	if not ok then
+		return false, reason
+	end
+	if kind == "demand" then
+		if province == nil then
+			return false, "province"
+		end
+		local can, why = MatchSim.demandable(m, from, to, province)
+		if not can then
+			return false, why
+		end
+		-- Отказ — война: требовать можно, только если войну можно объявить.
+		local canWar, warWhy = Wars.canDeclare(m.wars, from, to, m.simTime)
+		if not canWar then
+			return false, warWhy
+		end
+	end
+	Diplomacy.offer(m.diplo, from, to, kind, m.simTime, province)
+	table.insert(m.events, { kind = "offerMade", nation = from, target = to, offer = kind, province = province })
+	return true, nil
+end
+
+-- Провинция переходит от from к to целиком (с городом) — уступка по требованию.
+local function cedeProvince(m: Match, provinceId: number, from: number, to: number): number
+	local p = m.provinces.list[provinceId]
+	if p == nil then
+		return 0
+	end
+	local moved = 0
+	for _, cell in p.cells do
+		if Grid.getOwner(m.grid, cell) == from then
+			Grid.setOwner(m.grid, cell, to)
+			moved += 1
+		end
+	end
+	return moved
+end
+
+-- Ответ на предложение (игрок, бот или истёк срок).
+function MatchSim.resolveOffer(m: Match, offer: Diplomacy.Offer, accept: boolean, expired: boolean)
+	Diplomacy.removeOffer(m.diplo, offer)
+	local from, to = offer.from, offer.to
+	local fromNation, toNation = m.nations[from], m.nations[to]
+	if fromNation == nil or toNation == nil or not fromNation.alive or not toNation.alive then
+		return
+	end
+	if accept then
+		local kind: Types.OfferKind = offer.kind
+		if kind == "demand" then
+			local province = offer.province
+			if province ~= nil and MatchSim.demandable(m, from, to, province) then
+				cedeProvince(m, province, to, from)
+				Diplomacy.note(m.diplo, "ceded", to, from, m.simTime)
+			end
+		elseif kind == "alliance" then
+			local max = Config.Match.MaxAlliesFfa
+			if
+				#Diplomacy.alliesOf(m.diplo, from) >= max
+				or #Diplomacy.alliesOf(m.diplo, to) >= max
+				or Wars.find(m.wars, from, to) ~= nil
+			then
+				accept = false
+			else
+				Diplomacy.sign(m.diplo, "alliance", from, to, m.simTime)
+			end
+		else
+			if Wars.find(m.wars, from, to) ~= nil then
+				accept = false
+			else
+				local minutes = if kind == "pact5"
+					then Config.Diplomacy.PactMinutes[2]
+					else Config.Diplomacy.PactMinutes[1]
+				Diplomacy.sign(m.diplo, "pact", from, to, m.simTime, minutes)
+			end
+		end
+		if accept then
+			table.insert(
+				m.events,
+				{ kind = "offerAccepted", nation = to, target = from, offer = kind, province = offer.province }
+			)
+			return
+		end
+	end
+	table.insert(m.events, { kind = "offerRefused", nation = to, target = from, offer = offer.kind, expired = expired })
+	-- Требование отклонено — требующий объявляет войну.
+	if offer.kind == "demand" and Wars.canDeclare(m.wars, from, to, m.simTime) then
+		Diplomacy.note(m.diplo, "refused", to, from, m.simTime)
+		MatchSim.declareWar(m, from, to)
+	end
 end
 
 -- Чьи окружённые куски может забрать attacker: ничьи и тех, с кем идёт война.
@@ -977,7 +1247,9 @@ local function stepAttacks(m: Match, simDt: number): number
 						end
 					end
 				end
-				a.supplied = Fronts.supplied(g, cities, a.attacker, front.list) and fromAtkPocket * 2 <= #front.list
+				-- Снабжают свои города и города союзников, вассалов и сюзерена (§8.1).
+				a.supplied = Fronts.supplied(g, cities, a.attacker, front.list, Diplomacy.friends(m.diplo, a.attacker))
+					and fromAtkPocket * 2 <= #front.list
 				local homeShare = #front.list / totalLen * (1 - inDefPocket / #front.list)
 				-- Укреплённая линия: фронт долго стоит — защитнику бонус (§6.9).
 				local still = m.simTime - a.lastAdvance >= Config.Fortify.AfterSec
@@ -1047,11 +1319,65 @@ local function answerBotProposals(m: Match)
 					theirPower = totalPower(m, p.from),
 				}, profileOf(m, me))
 				if accept then
-					MatchSim.makePeace(m, war, p.terms)
+					MatchSim.makePeace(m, war, p.terms, p.from)
 				else
 					table.insert(m.events, { kind = "peaceRejected", nation = me, target = p.from, expired = false })
 				end
 			end
+		end
+	end
+end
+
+-- Бот решает, принять ли предложение или требование (§8.1).
+local function botAnswersOffer(m: Match, offer: Diplomacy.Offer): boolean
+	local g = m.grid
+	local leaderCells = g.capturableCount * Config.Bots.StopLeaderShare
+	local threat = false
+	for _, other in m.nations do
+		if
+			other.alive
+			and other.id ~= offer.to
+			and other.id ~= offer.from
+			and Grid.cellsOf(g, other.id) >= leaderCells
+		then
+			threat = true
+		end
+	end
+	return BotBrain.answerOffer({
+		kind = offer.kind,
+		myPower = totalPower(m, offer.to),
+		fromPower = totalPower(m, offer.from),
+		fromTraitor = Diplomacy.isTraitor(m.diplo, offer.from, m.simTime),
+		fromIsLeader = Grid.cellsOf(g, offer.from) >= leaderCells,
+		threat = threat,
+		atWarElsewhere = #Wars.of(m.wars, offer.to) > 0,
+		allies = #Diplomacy.alliesOf(m.diplo, offer.to),
+	}, profileOf(m, offer.to))
+end
+
+-- Договоры (§8.1): сроки, разрывы, просроченные предложения; боты отвечают на предложения.
+local function stepDiplomacy(m: Match)
+	for _, c in Diplomacy.update(m.diplo, m.simTime) do
+		if c.kind == "broken" then
+			local t = c.treaty
+			local breaker = t.breaker or t.a
+			table.insert(m.events, {
+				kind = "treatyBroken",
+				nation = breaker,
+				target = if t.a == breaker then t.b else t.a,
+				treaty = t.kind,
+				betrayal = c.betrayal,
+			})
+		elseif c.kind == "expired" then
+			table.insert(m.events, { kind = "treatyExpired", nation = c.treaty.a, target = c.treaty.b })
+		elseif c.kind == "offerExpired" then
+			MatchSim.resolveOffer(m, c.offer, false, true)
+		end
+	end
+	for _, offer in table.clone(m.diplo.offers) do
+		local bot = m.nations[offer.to]
+		if bot ~= nil and bot.isBot and m.simTime >= offer.madeAt + Config.War.BotReplyDelaySec then
+			MatchSim.resolveOffer(m, offer, botAnswersOffer(m, offer), false)
 		end
 	end
 end
@@ -1067,6 +1393,14 @@ local function stepEconomy(m: Match, n: Nation, simDt: number)
 		oilIncome = Economy.oilIncome(owned.rigs),
 		upkeep = Economy.upkeep(strength),
 	}
+	-- Вассал отдаёт долю дохода сюзерену (§8.1); в доходе вассала — уже без дани.
+	local overlord = Diplomacy.overlordOf(m.diplo, n.id)
+	local lord = if overlord ~= nil then m.nations[overlord] else nil
+	if lord ~= nil and lord.alive then
+		local tribute = e.income * Config.Diplomacy.VassalTribute
+		e.income -= tribute
+		lord.money += tribute * simDt
+	end
 	m.economy[n.id] = e
 	n.oil += e.oilIncome * simDt
 	n.money += (e.income - e.upkeep) * simDt
@@ -1148,12 +1482,23 @@ local function recordHistory(m: Match, force: boolean?)
 	end
 end
 
--- Места: победитель; дальше живые по доле суши; дальше выбывшие — кто продержался дольше.
-function MatchSim.places(m: Match, winner: number): { number }
+-- Места: победитель, его союзники (совместная победа, §8.1); дальше живые по доле суши; дальше выбывшие —
+-- кто продержался дольше.
+function MatchSim.places(m: Match, winner: number, coWinners: { number }?): { number }
+	local co: { [number]: boolean } = {}
+	if coWinners ~= nil then
+		for _, id in coWinners do
+			co[id] = true
+		end
+	end
+	local function rank(n: Nation): number
+		return if n.id == winner then 0 elseif co[n.id] then 1 else 2
+	end
 	local order: { Nation } = table.clone(m.nations)
 	table.sort(order, function(a: Nation, b: Nation): boolean
-		if (a.id == winner) ~= (b.id == winner) then
-			return a.id == winner
+		local ra, rb = rank(a), rank(b)
+		if ra ~= rb then
+			return ra < rb
 		end
 		if a.alive ~= b.alive then
 			return a.alive
@@ -1178,41 +1523,83 @@ function MatchSim.places(m: Match, winner: number): { number }
 	return out
 end
 
--- Победа (§2): 60% суши, последний выживший или больше всех суши к лимиту времени. Возвращает true, если матч кончился.
+-- Суша державы для победы: своя и её вассалов (§8.1).
+local function landOf(m: Match, id: number): number
+	local sum = Grid.cellsOf(m.grid, id)
+	for _, v in Diplomacy.vassalsOf(m.diplo, id) do
+		sum += Grid.cellsOf(m.grid, v)
+	end
+	return sum
+end
+
+-- Победа (§2, §8.1): 60% суши у державы с союзниками и вассалами, последний выживший (или все живые — союз
+-- с вассалами), больше всех суши к лимиту времени. Союзники победителя побеждают вместе с ним.
+-- Возвращает true, если матч кончился.
 local function checkVictory(m: Match): boolean
 	if not m.victory then
 		return false
 	end
-	local alive, last = 0, 0
-	local leader, leaderCells = 0, -1
+	local ds = m.diplo
+	local aliveList: { Nation } = {}
+	local leader, leaderLand = 0, -1
 	for _, n in m.nations do
 		if n.alive then
-			alive += 1
-			last = n.id
-			local cells = Grid.cellsOf(m.grid, n.id)
-			if cells > leaderCells then
-				leader, leaderCells = n.id, cells
+			table.insert(aliveList, n)
+			-- Вассал сам не побеждает: его суша — у сюзерена.
+			if Diplomacy.overlordOf(ds, n.id) == nil then
+				local land = landOf(m, n.id)
+				if land > leaderLand then
+					leader, leaderLand = n.id, land
+				end
 			end
 		end
 	end
+	local need = m.grid.capturableCount * Config.Match.VictoryLandShareFfa
 	local reason: Types.VictoryReason? = nil
 	local winner = leader
-	if leaderCells >= m.grid.capturableCount * Config.Match.VictoryLandShareFfa then
-		reason = "land"
-	elseif alive <= 1 and #m.nations > 1 then
-		reason, winner = "last", last
+	-- Суша союза: держава, её союзники и все их вассалы.
+	local bestBloc, blocWinner = -1, 0
+	for _, n in aliveList do
+		if Diplomacy.overlordOf(ds, n.id) == nil then
+			local land = landOf(m, n.id)
+			for _, ally in Diplomacy.alliesOf(ds, n.id) do
+				land += landOf(m, ally)
+			end
+			if land > bestBloc or (land == bestBloc and landOf(m, n.id) > landOf(m, blocWinner)) then
+				bestBloc, blocWinner = land, n.id
+			end
+		end
+	end
+	-- Все живые — победитель, его союзники и их вассалы?
+	local function inBloc(owner: number, id: number): boolean
+		local lord = Diplomacy.overlordOf(ds, id) or id
+		return lord == owner or Diplomacy.allied(ds, owner, lord)
+	end
+	local allFriends = leader ~= 0
+	for _, n in aliveList do
+		if not inBloc(leader, n.id) then
+			allFriends = false
+		end
+	end
+	if bestBloc >= need and blocWinner ~= 0 then
+		reason, winner = "land", blocWinner
+	elseif #m.nations > 1 and (#aliveList <= 1 or allFriends) then
+		reason = "last"
+		winner = if #aliveList == 1 then aliveList[1].id else leader
 	elseif m.time >= Config.Match.TimeLimitSec then
 		reason = "time"
 	end
 	if reason == nil or winner == 0 then
 		return false
 	end
+	local coWinners = Diplomacy.alliesOf(ds, winner)
 	m.nextHistoryAt = 0
 	recordHistory(m, true) -- последняя точка графика — момент победы
 	m.result = {
 		winner = winner,
 		reason = reason,
-		places = MatchSim.places(m, winner),
+		places = MatchSim.places(m, winner, coWinners),
+		coWinners = coWinners,
 		times = m.history.times,
 		shares = m.history.shares,
 	}
@@ -1278,6 +1665,7 @@ function MatchSim.step(m: Match, dt: number)
 		table.insert(m.events, { kind = "peaceRejected", nation = to, target = e.proposal.from, expired = true })
 	end
 	answerBotProposals(m)
+	stepDiplomacy(m)
 
 	m.lastCaptured = stepAttacks(m, simDt)
 	stepPockets(m)

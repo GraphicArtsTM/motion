@@ -523,8 +523,8 @@ T.describe("BotBrain", function()
 			T.expect(BotBrain.answerPeace(strong)).toBe(false)
 			strong.terms = "keep"
 			T.expect(BotBrain.answerPeace(strong)).toBe(true)
-			strong.terms = "capitulate"
-			T.expect(BotBrain.answerPeace(strong)).toBe(false)
+			strong.terms = "capitulate" -- вассал платит дань (§8.1) — бот принимает
+			T.expect(BotBrain.answerPeace(strong)).toBe(true)
 		end
 	)
 end)

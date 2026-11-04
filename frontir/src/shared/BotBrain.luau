@@ -39,6 +39,9 @@ export type Neighbour = {
 	mix: { number }?, -- доли типов войск гарнизона (Types.LandUnits)
 	city: number?, -- его город, ближайший к нашей столице (направление удара)
 	cities: number?, -- сколько у него городов
+	treaty: ("pact" | "alliance" | "vassal" | "overlord")?, -- договор с нами (§8.1)
+	traitor: boolean?, -- метка «Предатель»
+	demandProvince: number?, -- его провинция у нашей границы, которую можно потребовать
 }
 
 -- Свой фронт или атака глазами бота.
@@ -77,6 +80,13 @@ export type BotView = {
 	fronts: { FrontView }?,
 	mix: { number }?, -- доли типов своих войск (гарнизон)
 	time: number?, -- simTime (для памяти бота)
+	-- Дипломатия (§8.1)
+	allies: number?, -- сколько союзников
+	allyEnemies: { number }?, -- с кем воюют наши союзники
+	overlord: number?, -- наш сюзерен (мы — вассал)
+	overlordPower: number?,
+	canRebel: boolean?,
+	leader: number?, -- держава ближе всех к победе (не мы), если её доля суши от Bots.StopLeaderShare
 	money: number,
 	oil: number,
 	economy: { income: number, oilIncome: number, upkeep: number }, -- в секунду
@@ -92,6 +102,18 @@ export type BuildSpots = {
 	city: number?, -- свой город, который можно улучшить
 }
 
+-- Что бот знает, отвечая на предложение договора или требование (§8.1).
+export type OfferView = {
+	kind: Types.OfferKind,
+	myPower: number, -- вся сила бота
+	fromPower: number, -- вся сила предлагающего
+	fromTraitor: boolean,
+	fromIsLeader: boolean, -- предлагающий сам близок к победе
+	threat: boolean, -- есть лидер (не мы и не предлагающий) — общая угроза
+	atWarElsewhere: boolean, -- бот воюет с кем-то
+	allies: number,
+}
+
 -- Что бот знает, отвечая на предложение мира.
 export type PeaceOffer = {
 	terms: Types.PeaceTerms,
@@ -104,6 +126,7 @@ export type PeaceOffer = {
 -- Память бота между раздумьями: после отступления не лезть на того же врага сразу.
 export type Memory = {
 	retreatUntil: { [number]: number }, -- цель → simTime, до которого фронт против неё не открывать
+	lastOfferAt: number?, -- когда бот последний раз что-то предлагал (§8.1)
 }
 
 -- Уровень и личность конкретного бота.
@@ -320,6 +343,105 @@ local function frontAgainst(view: BotView, target: number): FrontView?
 	return nil
 end
 
+-- Дипломатия бота за раздумье (§8.1): независимость, вступление в войну союзника, предательство, предложения.
+local function diplomacy(view: BotView, p: Profile, rng: Rng, memory: Memory?, now: number, send: number): Types.Intent?
+	local personality = p.personality
+	local cfg = Config.Diplomacy
+	-- Вассал окреп — независимость.
+	if view.overlord ~= nil and view.canRebel and view.totalPower >= (view.overlordPower or 0) * cfg.RebelAbove then
+		return { kind = "rebel" }
+	end
+	-- Союзник воюет — верный бот вступает в войну против его врага-соседа.
+	local allyEnemies: { number } = view.allyEnemies or {}
+	for _, enemy in allyEnemies do
+		for _, n in view.neighbours do
+			if
+				n.id == enemy
+				and n.canDeclare
+				and send >= Config.Forces.MinFrontStrength
+				and Rng.nextFloat(rng) < 0.5 * personality.loyalty
+			then
+				return { kind = "declare", target = n.id }
+			end
+		end
+	end
+	-- Хитрец предаёт слабого союзника-соседа, если сам ни с кем не воюет.
+	if personality.betray > 0 and #view.wars == 0 then
+		for _, n in view.neighbours do
+			if
+				n.treaty == "alliance"
+				and send >= n.power * Config.Combat.DefenderHomeBonus * cfg.BetrayAdvantage
+				and send >= Config.Forces.MinFrontStrength
+				and Rng.nextFloat(rng) < 0.2 * personality.betray
+			then
+				return { kind = "declare", target = n.id }
+			end
+		end
+	end
+	-- Предложения — не чаще OfferRetrySec и с вероятностью по личности.
+	local last = if memory ~= nil then memory.lastOfferAt else nil
+	if last ~= nil and now - last < cfg.OfferRetrySec then
+		return nil
+	end
+	if Rng.nextFloat(rng) >= cfg.OfferChance * personality.alliance then
+		return nil
+	end
+	local function made(intent: Types.Intent): Types.Intent
+		if memory ~= nil then
+			memory.lastOfferAt = now
+		end
+		return intent
+	end
+	-- Союз против лидера: с самым сильным соседом, который не лидер и не предатель.
+	if view.leader ~= nil and view.overlord == nil and (view.allies or 0) < Config.Match.MaxAlliesFfa then
+		local best: Neighbour? = nil
+		for _, n in view.neighbours do
+			if
+				n.id ~= view.leader
+				and not n.traitor
+				and n.treaty ~= "alliance"
+				and n.treaty ~= "vassal"
+				and n.treaty ~= "overlord"
+				and not n.atWar
+				and (best == nil or n.power > best.power)
+			then
+				best = n
+			end
+		end
+		if best ~= nil then
+			return made({ kind = "offer", target = best.id, offer = "alliance" })
+		end
+	end
+	-- Воюем — пакт с сильным соседом, чтобы не получить второй фронт.
+	if #view.wars > 0 then
+		for _, n in view.neighbours do
+			if
+				n.treaty == nil
+				and not n.atWar
+				and not n.traitor
+				and n.power >= view.power * cfg.PactAgainstStronger
+			then
+				return made({ kind = "offer", target = n.id, offer = "pact5" })
+			end
+		end
+	end
+	-- Требование к слабому соседу.
+	if personality.demand > 0 and Rng.nextFloat(rng) < personality.demand then
+		for _, n in view.neighbours do
+			if
+				n.treaty == nil
+				and n.canDeclare
+				and n.demandProvince ~= nil
+				and send >= math.max(Config.Forces.MinFrontStrength, n.power * cfg.DemandAdvantage)
+			then
+				return made({ kind = "offer", target = n.id, offer = "demand", province = n.demandProvince })
+			end
+		end
+	end
+	return nil
+end
+BotBrain.diplomacy = diplomacy
+
 function BotBrain.decide(view: BotView, rng: Rng, profile: Profile?, memory: Memory?): Types.Intent?
 	local p = profile or BotBrain.profile(nil, nil)
 	local now = view.time or 0
@@ -403,8 +525,21 @@ function BotBrain.decide(view: BotView, rng: Rng, profile: Profile?, memory: Mem
 				or war.proposedBefore
 				or view.totalPower < war.theirPower * cfg.ConcedeWhenWeaker
 			local terms: Types.PeaceTerms = if keep then "keep" else "white"
+			-- Уже просил, а войск меньше трети врага — капитуляция, вассалитет (§8.1).
+			if
+				war.proposedBefore
+				and view.overlord == nil
+				and view.totalPower < war.theirPower * Config.Diplomacy.CapitulateBelow
+			then
+				terms = "capitulate"
+			end
 			return { kind = "peace", target = war.enemy, terms = terms }
 		end
+	end
+
+	local diplo = diplomacy(view, p, rng, memory, now, send)
+	if diplo ~= nil then
+		return diplo
 	end
 
 	-- Война идёт — фронт против лучшей цели или подкрепление.
@@ -473,7 +608,7 @@ function BotBrain.answerPeace(offer: PeaceOffer, profile: Profile?): boolean
 	local cfg = Config.Bots
 	local peace = if profile ~= nil then profile.personality.peace else 1
 	if offer.terms == "capitulate" then
-		return false
+		return true -- вассал платит дань и не воюет с нами — выгодно
 	end
 	if offer.terms == "white" then
 		-- Белый мир вернёт всё взятое: выгоден тому, кто проигрывает.
@@ -481,6 +616,30 @@ function BotBrain.answerPeace(offer: PeaceOffer, profile: Profile?): boolean
 	end
 	-- «Забрать захваченное»: соглашаемся, если сами взяли не меньше или сильно слабее.
 	return offer.myGain >= offer.theirGain or offer.myPower < offer.theirPower * cfg.AcceptKeepWhenWeaker * peace
+end
+
+-- Ответ бота на предложение договора или требование (§8.1). С «Предателем» договоров нет.
+function BotBrain.answerOffer(offer: OfferView, profile: Profile?): boolean
+	local p = profile or BotBrain.profile(nil, nil)
+	local personality = p.personality
+	local cfg = Config.Diplomacy
+	if offer.kind == "demand" then
+		-- Отдаёт провинцию, только если сильно слабее: иначе — война.
+		return offer.myPower < offer.fromPower * cfg.DemandYieldBelow
+	end
+	if offer.fromTraitor then
+		return false
+	end
+	if offer.kind == "alliance" then
+		if offer.allies >= Config.Match.MaxAlliesFfa or offer.fromIsLeader then
+			return false
+		end
+		local stronger = offer.fromPower >= offer.myPower * cfg.AllyStrongerShare
+		local score = personality.alliance * (if offer.threat then 1 else 0.6) * (if stronger then 1.2 else 0.9)
+		return score >= 0.9
+	end
+	-- Пакт: соглашается, если сам не собирался нападать (сосед не слабак), если занят войной или миролюбив.
+	return offer.fromPower >= offer.myPower * 0.7 or offer.atWarElsewhere or personality.alliance >= 1.3
 end
 
 return table.freeze(BotBrain)

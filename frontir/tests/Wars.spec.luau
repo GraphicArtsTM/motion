@@ -151,7 +151,7 @@ T.describe("Война и мир", function()
 	)
 
 	T.it(
-		"«забрать захваченное» оставляет землю; отказ и истёкшее предложение; капитуляция — позже",
+		"«забрать захваченное» оставляет землю; отказ и истёкшее предложение; сильному капитулировать нельзя",
 		function()
 			local m = pair()
 			Forces.add(m.nations[1].home, TANKS, 3000)
@@ -160,7 +160,7 @@ T.describe("Война и мир", function()
 			MatchSim.applyIntent(m, 1, { kind = "attack", target = 2, percent = 1 })
 			runFor(m, 3)
 			T.expect(select(2, MatchSim.applyIntent(m, 1, { kind = "peace", target = 2, terms = "capitulate" })))
-				.toBe("notYet")
+				.toBe("notWeakEnough")
 			MatchSim.applyIntent(m, 1, { kind = "peace", target = 2, terms = "keep" })
 			MatchSim.takeEvents(m)
 			T.expect((MatchSim.applyIntent(m, 2, { kind = "peaceReply", target = 1, accept = false }))).toBe(true)

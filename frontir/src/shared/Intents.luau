@@ -87,6 +87,41 @@ function Intents.parse(kind: any, payload: any): (Types.Intent?, string?)
 			return nil, "bad cell"
 		end
 		return { kind = "build", building = building :: Types.BuildingKind, cell = cell }, nil
+	elseif kind == "offer" then
+		local target, offer, province = payload.target, payload.offer, payload.province
+		if not isInt(target) or target <= 0 then
+			return nil, "bad target"
+		end
+		if offer ~= "pact3" and offer ~= "pact5" and offer ~= "alliance" and offer ~= "demand" then
+			return nil, "bad offer"
+		end
+		if offer == "demand" and (not isInt(province) or province <= 0) then
+			return nil, "bad province"
+		end
+		return {
+			kind = "offer",
+			target = target,
+			offer = offer :: Types.OfferKind,
+			province = if offer == "demand" then province else nil,
+		},
+			nil
+	elseif kind == "offerReply" then
+		local target, accept = payload.target, payload.accept
+		if not isInt(target) or target <= 0 then
+			return nil, "bad target"
+		end
+		if type(accept) ~= "boolean" then
+			return nil, "bad accept"
+		end
+		return { kind = "offerReply", target = target, accept = accept }, nil
+	elseif kind == "breakTreaty" then
+		local target = payload.target
+		if not isInt(target) or target <= 0 then
+			return nil, "bad target"
+		end
+		return { kind = "breakTreaty", target = target }, nil
+	elseif kind == "rebel" then
+		return { kind = "rebel" }, nil
 	end
 	return nil, "unknown kind"
 end

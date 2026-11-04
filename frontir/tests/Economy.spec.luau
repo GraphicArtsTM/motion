@@ -308,16 +308,19 @@ T.describe("Укрепления и котлы", function()
 		while m.phase ~= "Play" do
 			MatchSim.step(m, DT)
 		end
-		for _ = 1, 150 * Config.Sim.TickRate do
+		for _ = 1, 300 * Config.Sim.TickRate do -- 5 минут: на технику нужны завод и деньги
 			MatchSim.step(m, DT)
 		end
-		local factories, tanks = 0, 0
+		-- Техника — всё, кроме пехоты (танки, артиллерия, ПВО: нужен завод).
+		local factories, vehicles = 0, 0
 		for _, n in m.nations do
 			factories += MatchSim.ownedOf(m, n.id).factories
-			local kind = Forces.kindIndex("Tanks") :: number
-			tanks += n.home[kind].strength + MatchSim.frontForces(m, n.id)[kind].strength
+			local front = MatchSim.frontForces(m, n.id)
+			for kind = 2, #n.home do
+				vehicles += n.home[kind].strength + front[kind].strength
+			end
 		end
 		T.expect(factories > 0).toBe(true)
-		T.expect(tanks > 0).toBe(true)
+		T.expect(vehicles > 0).toBe(true)
 	end)
 end)

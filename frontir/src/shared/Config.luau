@@ -209,6 +209,10 @@ local botPersonalities: { [string]: Types.BotPersonalityParams } = {
 		distracted = 1.2,
 		leader = 1.5,
 		forts = true,
+		alliance = 1.5, -- охота к союзам и пактам
+		betray = 0, -- готовность предать союзника (0 — никогда)
+		demand = 0, -- готовность требовать провинции (0 — никогда)
+		loyalty = 1.2, -- вступает в войны союзника
 	},
 	Aggressor = {
 		declare = 0.8,
@@ -221,6 +225,10 @@ local botPersonalities: { [string]: Types.BotPersonalityParams } = {
 		distracted = 1.2,
 		leader = 1.3,
 		forts = false,
+		alliance = 0.6, -- охота к союзам и пактам
+		betray = 0.3, -- готовность предать союзника (0 — никогда)
+		demand = 1.0, -- готовность требовать провинции (0 — никогда)
+		loyalty = 1.0, -- вступает в войны союзника
 	},
 	Trader = {
 		declare = 1.3,
@@ -233,6 +241,10 @@ local botPersonalities: { [string]: Types.BotPersonalityParams } = {
 		distracted = 1.2,
 		leader = 1.5,
 		forts = true,
+		alliance = 1.3, -- охота к союзам и пактам
+		betray = 0, -- готовность предать союзника (0 — никогда)
+		demand = 0.3, -- готовность требовать провинции (0 — никогда)
+		loyalty = 1.0, -- вступает в войны союзника
 	},
 	Cunning = {
 		declare = 1.0,
@@ -245,6 +257,10 @@ local botPersonalities: { [string]: Types.BotPersonalityParams } = {
 		distracted = 2.0,
 		leader = 2.0,
 		forts = true,
+		alliance = 1.4, -- охота к союзам и пактам
+		betray = 1.0, -- готовность предать союзника (0 — никогда)
+		demand = 1.0, -- готовность требовать провинции (0 — никогда)
+		loyalty = 0.6, -- вступает в войны союзника
 	},
 	-- Флотоводец: до флота (этап 7) — как Обычный.
 	Admiral = {
@@ -258,6 +274,10 @@ local botPersonalities: { [string]: Types.BotPersonalityParams } = {
 		distracted = 1.2,
 		leader = 1.5,
 		forts = true,
+		alliance = 1.0, -- охота к союзам и пактам
+		betray = 0.1, -- готовность предать союзника (0 — никогда)
+		demand = 0.3, -- готовность требовать провинции (0 — никогда)
+		loyalty = 1.0, -- вступает в войны союзника
 	},
 }
 Config.BotPersonalities = botPersonalities
@@ -513,6 +533,27 @@ Config.War = {
 	WearinessPenalty = 0.25, -- −25% к приросту людей…
 	WearinessPenaltyPerMin = 0.05, -- …и ещё −5% за каждую следующую минуту
 	WearinessMaxPenalty = 0.5, -- но не больше −50%
+}
+
+-- §8.1 Договоры (этап 6а)
+Config.Diplomacy = {
+	OfferSec = 20, -- сколько ждать ответа на предложение пакта, союза или требование
+	PactMinutes = { 3, 5 }, -- сроки пакта о ненападении
+	BreakWarningSec = 15, -- «Разорвать»: договор кончается через столько секунд
+	TraitorSec = 300, -- метка «Предатель»
+	CapitulateBelow = 1 / 3, -- капитулировать можно, если войск меньше этой доли от врага
+	VassalTribute = 0.20, -- доля дохода вассала сюзерену
+	VassalRebelSec = 300, -- через столько вассал может объявить независимость
+	HistorySize = 12, -- записей в истории договоров
+	OfferRetrySec = 30, -- повторно предложить то же той же державе можно не раньше
+	-- Боты (§8.1): чего и когда
+	DemandYieldBelow = 0.4, -- бот отдаёт провинцию, если его войск меньше этой доли от требующего
+	DemandAdvantage = 2.5, -- бот требует провинцию, если сильнее соседа во столько раз
+	AllyStrongerShare = 0.8, -- бот берёт в союз того, кто не слабее этой доли его самого
+	PactAgainstStronger = 1.2, -- бот предлагает пакт соседу, который сильнее во столько раз, пока воюет с другим
+	BetrayAdvantage = 2.0, -- Хитрец предаёт союзника-соседа, если сильнее его во столько раз
+	RebelAbove = 0.8, -- вассал объявляет независимость, если у него войск не меньше этой доли от сюзерена
+	OfferChance = 0.15, -- вероятность за раздумье заняться дипломатией (× личность)
 }
 
 -- Контр-типы: кто против кого силён (GDD §6.7). Индексы — Types.LandUnits.

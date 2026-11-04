@@ -52,15 +52,23 @@ local function sample(front: { number }, n: number): { number }
 end
 
 -- Есть ли снабжение: средняя по выборке клеток фронта дистанция до ближайшего своего города
--- не больше SupplyRange (масштаб по ширине карты, эталон 512).
-function Fronts.supplied(g: Grid, cities: { number }, attacker: number, front: { number }): boolean
+-- не больше SupplyRange (масштаб по ширине карты, эталон 512). friends — чьи ещё города снабжают
+-- (союзники, вассалы, сюзерен, §8.1).
+function Fronts.supplied(
+	g: Grid,
+	cities: { number },
+	attacker: number,
+	front: { number },
+	friends: { [number]: boolean }?
+): boolean
 	if #front == 0 then
 		return true
 	end
 	local w = g.width
 	local mine: { number } = {}
 	for _, c in cities do
-		if Grid.getOwner(g, c) == attacker then
+		local owner = Grid.getOwner(g, c)
+		if owner == attacker or (friends ~= nil and owner ~= 0 and friends[owner]) then
 			table.insert(mine, c)
 		end
 	end
