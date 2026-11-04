@@ -4,6 +4,7 @@
 	команды в Remotes.Dev, который сервер создаёт тоже только в Studio. В опубликованной игре её нет.
 	Действия: дать себе войска / людей / деньги, время ×5, выбранный бот присылает союз / пакт / торговлю /
 	требование или объявляет войну, мгновенная война и мир с выбранным ботом, Совет сейчас, к концу матча.
+	Этап 7а: туман вкл/выкл (для себя), стабильность своих провинций 10 / 100, восстание сейчас.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -227,6 +228,37 @@ function DevPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang): DevP
 		fire("end", nil)
 	end)
 
+	-- Этап 7а: туман и стабильность (§6.10, §6.11).
+	local fogButton = button(Strings.get("dev.fogOn", lang), function()
+		fire("fog", nil)
+	end)
+	order += 1
+	local pair = Instance.new("Frame")
+	pair.BackgroundTransparency = 1
+	pair.Size = UDim2.new(1, 0, 0, ROW)
+	pair.LayoutOrder = order
+	pair.Parent = panel
+	local pairLayout = Instance.new("UIListLayout")
+	pairLayout.FillDirection = Enum.FillDirection.Horizontal
+	pairLayout.Padding = UDim.new(0, 4)
+	pairLayout.Parent = pair
+	for _, high in { false, true } do
+		local b = button(
+			string.format(
+				Strings.get(if high then "dev.stabilityHigh" else "dev.stabilityLow", lang),
+				if high then dev.StabilityHigh else dev.StabilityLow
+			),
+			function()
+				fire("stability", if high then "high" else "low")
+			end
+		)
+		b.Size = UDim2.new(0.5, -2, 1, 0)
+		b.Parent = pair
+	end
+	button(Strings.get("dev.revolt", lang), function()
+		fire("revolt", nil)
+	end)
+
 	UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
 		if gameProcessed or UserInputService:GetFocusedTextBox() ~= nil then
 			return
@@ -241,6 +273,9 @@ function DevPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang): DevP
 
 	return {
 		onDev = function(msg: any)
+			if type(msg.fog) == "boolean" then
+				fogButton.Text = Strings.get(if msg.fog then "dev.fogOn" else "dev.fogOff", lang)
+			end
 			if type(msg.speed) == "number" then
 				speedButton.Text = string.format(
 					Strings.get(if msg.speed > 1 then "dev.speedOn" else "dev.speed", lang),

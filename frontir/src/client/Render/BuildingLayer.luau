@@ -12,6 +12,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local BuildingSprites = require(Shared:WaitForChild("BuildingSprites"))
 local CameraMath = require(Shared:WaitForChild("CameraMath"))
 local ClientState = require(Shared:WaitForChild("ClientState"))
+local Fog = require(Shared:WaitForChild("Fog"))
 local NationColors = require(Shared:WaitForChild("NationColors"))
 local Provinces = require(Shared:WaitForChild("Provinces"))
 
@@ -108,7 +109,7 @@ function BuildingLayer.new(canvas: Frame, cs: ClientState, provinces: Provinces.
 			parts = parts,
 			kind = kind,
 			cell = cell,
-			owner = ClientState.ownerAt(cs, cell),
+			owner = ClientState.knownOwnerAt(cs, cell),
 			pips = pips,
 		}
 		if kind ~= "City" then
@@ -124,6 +125,10 @@ function BuildingLayer.new(canvas: Frame, cs: ClientState, provinces: Provinces.
 		end
 		table.clear(icons)
 		for cell, b in cs.buildings do
+			-- Туман (§6.11): здание видно, если клетку хоть раз видели.
+			if not Fog.wasSeen(cs.fog, cell) then
+				continue
+			end
 			if b.kind == "City" then
 				if b.level > 1 then
 					add("City", cell, b.level - 1)
@@ -144,7 +149,7 @@ function BuildingLayer.new(canvas: Frame, cs: ClientState, provinces: Provinces.
 	local function recolor()
 		for _, icon in icons do
 			if icon.kind ~= "City" and icon.kind ~= "OilField" then
-				local owner = ClientState.ownerAt(cs, icon.cell)
+				local owner = ClientState.knownOwnerAt(cs, icon.cell)
 				if owner ~= icon.owner then
 					icon.owner = owner
 					paint(icon)

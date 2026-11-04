@@ -70,7 +70,7 @@ function NationLabels.new(canvas: Frame, cs: ClientState, lang: Strings.Lang, ma
 	end
 
 	local function addMarker(cell: number, capitalOf: ClientState.NationInfo?)
-		local owner = if capitalOf ~= nil then capitalOf.id else ClientState.ownerAt(cs, cell)
+		local owner = if capitalOf ~= nil then capitalOf.id else ClientState.knownOwnerAt(cs, cell)
 		local frame = Instance.new("Frame")
 		frame.Name = if capitalOf ~= nil then "Capital_" .. capitalOf.id else "City_" .. cell
 		frame.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -143,7 +143,7 @@ function NationLabels.new(canvas: Frame, cs: ClientState, lang: Strings.Lang, ma
 	local function recolor()
 		for _, m in markers do
 			if m.text == nil then
-				local owner = ClientState.ownerAt(cs, m.cell)
+				local owner = ClientState.knownOwnerAt(cs, m.cell)
 				if owner ~= m.owner then
 					m.owner = owner
 					m.frame.BackgroundColor3 = ownerColor(owner)

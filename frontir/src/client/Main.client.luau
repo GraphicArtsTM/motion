@@ -7,7 +7,8 @@
 	этап 3в: война и мир (объявление, баннер войны, окно мира), бой на фронте с артиллерией, воронками и дымом;
 	этап 4в: цикл матча (лобби → выбор → игра → итоги → новый матч), экран результатов, мини-карта;
 	этап 6а: окно дипломатии (T), предложения и требования, метка «Предатель»;
-	этап 6б: Совет держав, торговля в окне дипломатии, пинги на карте (G).
+	этап 6б: Совет держав, торговля в окне дипломатии, пинги на карте (G);
+	этап 7а: туман войны (обзор раз в Fog.RefreshSec), стабильность в HUD, режим карты «Стабильность» (N).
 ]]
 
 local LocalizationService = game:GetService("LocalizationService")
@@ -46,6 +47,7 @@ local Minimap = require(UI:WaitForChild("Minimap"))
 local NationLabels = require(UI:WaitForChild("NationLabels"))
 local Pings = require(UI:WaitForChild("Pings"))
 local ResultsPanel = require(UI:WaitForChild("ResultsPanel"))
+local StabilityPanel = require(UI:WaitForChild("StabilityPanel"))
 local TerritoryLayer = require(Render:WaitForChild("TerritoryLayer"))
 local Theme = require(UI:WaitForChild("Theme"))
 local WarPanel = require(UI:WaitForChild("WarPanel"))
@@ -143,11 +145,11 @@ end)
 
 -- Матч: состояние с сервера, слой территорий, города и подписи, юниты на фронтах, HUD.
 local cs = ClientState.new(map.width, map.height)
-local territory = TerritoryLayer.new(view, map, colors, cs)
-local labels = NationLabels.new(view.canvas, cs, lang, map.width)
-local frontLayer = FrontLayer.new(view.canvas, cs, map)
 -- Провинции считаются из карты так же, как на сервере (нефтяные поля, центры) — по сети не идут.
 local provinces = Provinces.build(map)
+local territory = TerritoryLayer.new(view, map, colors, cs, provinces)
+local labels = NationLabels.new(view.canvas, cs, lang, map.width)
+local frontLayer = FrontLayer.new(view.canvas, cs, map)
 local buildingLayer = BuildingLayer.new(view.canvas, cs, provinces)
 camera.onChanged(function(state)
 	labels.onCamera(state)
@@ -176,7 +178,7 @@ local hud = MatchHud.new(hudGui, cs, lang, map, send, function(owner: number)
 	if warPanel ~= nil then
 		warPanel.offerDeclare(owner)
 	end
-end)
+end, provinces)
 hud.refresh()
 -- «К фронту»: камера на линию фронта, приблизить хотя бы до ×4, чтобы был виден бой.
 local function toFront(x: number, y: number)
@@ -206,6 +208,8 @@ diplomacy.refresh()
 local council = CouncilPanel.new(hudGui, cs, lang, send)
 council.refresh()
 local pings = Pings.new(hudGui, view.canvas, cs, lang, send, hud.toast)
+local stabilityPanel = StabilityPanel.new(hudGui, view.canvas, cs, lang, provinces, territory.setStabilityMode)
+stabilityPanel.refresh()
 -- Панель разработчика (F4) — только в Studio; создаётся в фоне (ждёт канал Remotes.Dev от сервера).
 local devPanel: DevPanel.DevPanel? = nil
 task.spawn(function()
@@ -214,11 +218,31 @@ end)
 pings.refresh()
 camera.onChanged(function(state)
 	pings.onCamera(state)
+	stabilityPanel.onCamera(state)
 end)
 local function gridChanged()
 	if minimap ~= nil then
 		minimap.changed()
 	end
+end
+
+-- Туман (§6.11): пересчёт обзора раз в Fog.RefreshSec и сразу — при смене фазы, державы, «Туман выкл».
+local fogAt, fogMs = -math.huge, 0
+local function refreshFog(now: number)
+	fogAt = now
+	local t0 = os.clock()
+	local full, cells = ClientState.refreshFog(cs)
+	fogMs = (os.clock() - t0) * 1000
+	if full then
+		territory.repaintAll()
+	elseif #cells > 0 then
+		territory.cellsChanged(cells, now, false)
+	else
+		return
+	end
+	gridChanged()
+	labels.recolor()
+	buildingLayer.refresh()
 end
 
 client = MatchClient.connect(cs, {
@@ -228,6 +252,7 @@ client = MatchClient.connect(cs, {
 			territory.repaintAll()
 			gridChanged()
 		end
+		refreshFog(os.clock()) -- фаза или своя держава могли смениться (зритель видит всё)
 		labels.refresh()
 		hud.refresh()
 		forcesPanel.refresh()
@@ -238,8 +263,10 @@ client = MatchClient.connect(cs, {
 		diplomacy.refresh()
 		council.refresh()
 		pings.refresh()
+		stabilityPanel.refresh()
 	end,
 	onSnapshot = function()
+		ClientState.refreshFog(cs)
 		territory.repaintAll()
 		gridChanged()
 		labels.recolor()
@@ -270,6 +297,12 @@ client = MatchClient.connect(cs, {
 	onBuildings = function()
 		buildingLayer.refresh()
 	end,
+	onStability = function(rebelsChanged: { number })
+		territory.provincesChanged(rebelsChanged)
+		territory.stabilityChanged()
+		stabilityPanel.refresh()
+		hud.refresh()
+	end,
 	onWars = function()
 		wars.refresh()
 		diplomacy.refresh()
@@ -280,6 +313,10 @@ client = MatchClient.connect(cs, {
 		pings.onEvents(events)
 	end,
 	onDev = function(msg: any)
+		if type(msg.fog) == "boolean" then
+			cs.fogOff = not msg.fog
+			refreshFog(os.clock())
+		end
 		if devPanel ~= nil then
 			devPanel.onDev(msg)
 		end
@@ -315,6 +352,9 @@ local input = CameraInput.bind(camera, viewport, {
 
 local frameConn = RunService.RenderStepped:Connect(function()
 	local now = os.clock()
+	if now - fogAt >= Config.Fog.RefreshSec then
+		refreshFog(now)
+	end
 	territory.update(now)
 	frontLayer.update(now, camera.state)
 	hud.update(now)
@@ -350,6 +390,7 @@ DebugOverlay.create(hudGui, {
 			netBytes, netAt = cs.bytes, now
 		end
 		table.insert(lines, string.format(Strings.get("debug.net", lang), netRate / 1024))
+		table.insert(lines, string.format(Strings.get("debug.fog", lang), fogMs))
 		if stats ~= nil then
 			local fronts, fighting = 0, 0
 			for _, a in stats.attacks do
