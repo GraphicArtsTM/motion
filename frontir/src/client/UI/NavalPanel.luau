@@ -12,6 +12,7 @@ local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local ClientState = require(Shared:WaitForChild("ClientState"))
+local Commanders = require(Shared:WaitForChild("Commanders"))
 local Config = require(Shared:WaitForChild("Config"))
 local MapDataModule = require(Shared:WaitForChild("MapData"))
 local Naval = require(Shared:WaitForChild("Naval"))
@@ -202,7 +203,9 @@ function NavalPanel.new(
 		local function hireText(kind: string): string
 			local stats = (Config.Units :: any)[kind]
 			-- «Верфи» (§6.14): корабли дешевле; цену считает сервер, здесь — та же формула.
-			local cost = stats.cost * (if cs.tech.levels.Fleet >= 1 then 1 - Config.Tech.ShipyardDiscount else 1)
+			local cost = stats.cost
+				* (if cs.tech.levels.Fleet >= 1 then 1 - Config.Tech.ShipyardDiscount else 1)
+				* Commanders.shipCostMul(ClientState.myCommander(cs)) -- Адмирал (§6.15)
 			return string.format(
 				Strings.get("naval.hire", lang),
 				Strings.get("ship." .. kind, lang),

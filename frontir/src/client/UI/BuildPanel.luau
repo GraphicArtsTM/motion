@@ -11,6 +11,7 @@ local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local ClientState = require(Shared:WaitForChild("ClientState"))
+local Commanders = require(Shared:WaitForChild("Commanders"))
 local Config = require(Shared:WaitForChild("Config"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
@@ -157,7 +158,8 @@ function BuildPanel.new(
 		end
 		local money = if cs.myForces ~= nil then cs.myForces.economy.money else 0
 		for kind, b in items do
-			local price = cost(kind)
+			-- Инженер (§6.15): здания дешевле.
+			local price = cost(kind) * Commanders.buildCostMul(ClientState.myCommander(cs))
 			-- Радар и аэродром открывает технология (§6.14): без неё — какая нужна.
 			local need = (Config.Tech.Unlocks :: any)[kind]
 			local open = need == nil or (cs.tech.levels :: any)[need.branch] >= need.level

@@ -18,11 +18,15 @@
 	- botRaid: выбранный бот (война сразу) получает аэродром и бомбардировщик и бомбит ваш фронт или город.
 	- researchAll: все доступные уровни трёх веток сразу (закрытые до этапа 7г — нет) (§6.14, этап 7в-1).
 	- finishResearch: текущее исследование заканчивается на следующем шаге (событие в ленте как обычно).
+	- resetCooldowns: обе способности генерала готовы (§6.15, этап 7в-2).
+	- nextCommander: следующий генерал по кругу (и в игре — для проверки всех способностей).
+	- botAbility: выбранный бот (война сразу, перезарядки сброшены) применяет обе способности по вам.
 	Ускорение времени — в MatchService (шагов симуляции за кадр больше).
 ]]
 
 local Config = require("./Config")
 local Buildings = require("./Buildings")
+local Commanders = require("./Commanders")
 local Diplomacy = require("./Diplomacy")
 local Air = require("./Air")
 local Fleet = require("./Fleet")
@@ -299,6 +303,76 @@ function DevTools.botRaid(m: Match, bot: number, player: number): (boolean, stri
 	end
 	Air.spawn(m.air, m.grid.width, bot, "Bomber", airfield)
 	return MatchSim.applyIntent(m, bot, { kind = "raid", cell = target })
+end
+
+function DevTools.resetCooldowns(m: Match, id: number): (boolean, string?)
+	local n = m.nations[id]
+	if n == nil or not n.alive then
+		return false, "dead"
+	end
+	Commanders.resetCooldowns(m.commanders, id)
+	return true, nil
+end
+
+function DevTools.nextCommander(m: Match, id: number): (boolean, string?)
+	local n = m.nations[id]
+	if n == nil then
+		return false, "dead"
+	end
+	local list = Types.CommanderIds
+	local k = table.find(list, Commanders.of(m.commanders, id)) or 0
+	Commanders.choose(m.commanders, id, list[k % #list + 1])
+	Commanders.resetCooldowns(m.commanders, id)
+	m.infoDirty = true
+	return true, nil
+end
+
+-- Бот bot применяет обе способности по игроку player: цель — линия фронта между ними или клетка у города игрока.
+function DevTools.botAbility(m: Match, bot: number, player: number): (boolean, string?)
+	local ok, reason = DevTools.warNow(m, bot, player)
+	if not ok then
+		return false, reason
+	end
+	local b = m.nations[bot]
+	Commanders.resetCooldowns(m.commanders, bot)
+	local g = m.grid
+	local target: number? = nil
+	for _, a in m.attacks do
+		if (a.attacker == player and a.target == bot) or (a.attacker == bot and a.target == player) then
+			if a.line ~= nil and #(a.line :: { number }) > 0 then
+				target = (a.line :: { number })[1]
+			end
+		end
+	end
+	if target == nil then
+		local best = math.huge
+		local cap = b.capital or 0
+		local w = g.width
+		for _, c in m.cityOf do
+			if Grid.getOwner(g, c) == player then
+				local d = (c % w - cap % w) ^ 2 + (c // w - cap // w) ^ 2
+				if d < best then
+					Grid.forNeighbours(g, c, function(j)
+						if Grid.getOwner(g, j) == player and not Grid.isCity(g, j) then
+							target, best = j, d
+						end
+					end)
+				end
+			end
+		end
+	end
+	if target == nil then
+		return false, "target"
+	end
+	local used = 0
+	for slot = 1, 2 do
+		local ability = Commanders.ability(Commanders.of(m.commanders, bot), slot)
+		local cell = if ability == "Fortify" then b.capital else target
+		if MatchSim.useAbility(m, b, slot, cell, 0.3) then
+			used += 1
+		end
+	end
+	return used > 0, if used > 0 then nil else "target"
 end
 
 function DevTools.researchAll(m: Match, id: number): (boolean, string?)

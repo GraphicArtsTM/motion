@@ -891,6 +891,14 @@ function MatchHud.new(
 				else
 					toast(string.format(Strings.get(if e.on then "event.blockade" else "event.blockadeOff", lang), a))
 				end
+			-- Генералы (§6.15): свои способности и чужие — по вам.
+			elseif e.kind == "ability" and (e.nation == cs.myNation or e.target == cs.myNation) then
+				local name = Strings.get("ability." .. tostring(e.ability), lang)
+				if e.nation == cs.myNation then
+					toast(string.format(Strings.get("event.ability", lang), a, name))
+				else
+					alertLine(string.format(Strings.get("event.abilityOnYou", lang), a, name))
+				end
 			-- Технологии (§6.14): только свои.
 			elseif e.kind == "researched" and e.nation == cs.myNation then
 				toast(

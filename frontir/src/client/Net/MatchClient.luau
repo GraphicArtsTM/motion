@@ -25,6 +25,7 @@ export type Handlers = {
 	onDiplo: () -> (),
 	onStability: (rebelsChanged: { number }) -> (), -- своя стабильность и повстанцы (§6.10)
 	onTech: (() -> ())?, -- свои технологии пришли (§6.14)
+	onCommander: (() -> ())?, -- свой генерал и способности (§6.15)
 	onShips: () -> (), -- корабли (§6.12)
 	onAir: () -> (), -- самолёты (§6.13)
 	onDev: ((msg: any) -> ())?, -- ответ панели разработчика (только Studio)
@@ -90,6 +91,11 @@ function MatchClient.connect(cs: ClientState, handlers: Handlers): MatchClient
 				ClientState.applyTech(cs, msg)
 				if handlers.onTech ~= nil then
 					handlers.onTech()
+				end
+			elseif msg.kind == "commander" then
+				ClientState.applyCommander(cs, msg, os.clock())
+				if handlers.onCommander ~= nil then
+					handlers.onCommander()
 				end
 			elseif msg.kind == "rejected" then
 				handlers.onRejected(tostring(msg.reason))

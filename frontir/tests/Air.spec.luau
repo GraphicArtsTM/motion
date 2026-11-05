@@ -117,10 +117,10 @@ T.describe("Авиация", function()
 		"аэродром и найм: самолёт стоит на аэродроме, цена списана",
 		function()
 			local m = duo()
-			-- Без технологии «Авиация» (Флот 3) аэродром не построить (§6.14).
+			-- Без технологии «Авиация» (Флот 2) аэродром не построить (§6.14).
 			T.expect((MatchSim.applyIntent(m, 1, { kind = "build", building = "Airfield", cell = 12 * W + 45 })))
 				.toBe(false)
-			Tech.grant(m.tech, 1, "Fleet", 3)
+			Tech.grant(m.tech, 1, "Fleet", 2)
 			T.expect((MatchSim.applyIntent(m, 1, { kind = "build", building = "Airfield", cell = 12 * W + 45 })))
 				.toBe(true)
 			local airfield = m.provinces.list[45 // 10 + 1].center
@@ -297,7 +297,7 @@ T.describe("Авиация", function()
 		function()
 			local m = duo()
 			MatchSim.setBot(m, 1, "Normal", "Aggressor")
-			Tech.grant(m.tech, 1, "Fleet", 3)
+			Tech.grant(m.tech, 1, "Fleet", 2)
 			local n = m.nations[1]
 			place(m, "Factory", 5)
 			DevTools.warNow(m, 1, 2)

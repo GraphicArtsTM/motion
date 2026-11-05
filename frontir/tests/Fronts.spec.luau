@@ -228,7 +228,7 @@ T.describe("Фронты в матче", function()
 			local before, money, oil = me.people, me.money, me.oil
 			T.expect((MatchSim.applyIntent(m, 1, { kind = "hire", unit = "Tanks" }))).toBe(true)
 			T.expect(me.people).toBe(before - Config.Units.Tanks.people)
-			T.expect(me.money).toBe(money - Config.Units.Tanks.cost)
+			T.expect(me.money).toBe(money - Config.Units.Tanks.cost * (1 - Config.Commanders.TankDiscount)) -- Маршал (§6.15)
 			T.expect(me.oil).toBe(oil - Config.Units.Tanks.oil)
 			T.expect(#me.queue).toBe(1)
 			T.expect(me.queue[1].left)

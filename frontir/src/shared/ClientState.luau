@@ -20,6 +20,7 @@ export type NationInfo = {
 	isBot: boolean,
 	botLevel: Types.BotLevel?, -- уровень бота (§9.1), метка в таблице лидеров
 	personality: Types.BotPersonality?,
+	commander: Types.CommanderId?, -- генерал (§6.15)
 	alive: boolean,
 }
 
@@ -79,6 +80,15 @@ export type TechMessage = {
 	research: { branch: Types.TechBranch, level: number, left: number, total: number }?,
 }
 
+-- Генерал (§6.15, этап 7в-2): свой генерал, до готовности способностей Q / E, действующие эффекты (игровые секунды).
+export type CommanderMessage = {
+	kind: "commander",
+	commander: Types.CommanderId,
+	left: { number },
+	surge: number,
+	reveal: number,
+}
+
 export type ApplyResult = "snapshot" | "delta" | "stats" | "forces" | "wars" | "ships" | "air" | "partial" | "ignored"
 
 export type ClientState = {
@@ -118,6 +128,8 @@ export type ClientState = {
 	airAt: number,
 	rebelSet: { [number]: boolean }, -- провинции повстанцев (из stability)
 	tech: TechMessage, -- свои технологии (§6.14)
+	commander: CommanderMessage, -- свой генерал и способности (§6.15)
+	commanderAt: number, -- когда пришло commander (часы клиента; для обратных отсчётов)
 }
 
 local ClientState = {}
@@ -173,7 +185,45 @@ function ClientState.new(width: number, height: number): ClientState
 		air = { planes = {}, disabled = {}, queue = {} },
 		airAt = 0,
 		tech = ClientState.emptyTech(),
+		commander = ClientState.emptyCommander(),
+		commanderAt = 0,
 	}
+end
+
+function ClientState.emptyCommander(): CommanderMessage
+	return { kind = "commander", commander = "Marshal", left = { 0, 0 }, surge = 0, reveal = 0 }
+end
+
+-- Генерал (сообщение commander). Неверное сообщение не меняет состояние.
+function ClientState.applyCommander(cs: ClientState, msg: any, now: number)
+	if type(msg) ~= "table" or table.find(Types.CommanderIds, msg.commander) == nil or type(msg.left) ~= "table" then
+		return
+	end
+	local function num(v: any): number
+		return if type(v) == "number" and v == v then math.max(0, v) else 0
+	end
+	cs.commander = {
+		kind = "commander",
+		commander = msg.commander,
+		left = { num(msg.left[1]), num(msg.left[2]) },
+		surge = num(msg.surge),
+		reveal = num(msg.reveal),
+	}
+	cs.commanderAt = now
+end
+
+-- Мой генерал: из сообщения commander в игре, до неё — из info (выбор в лобби).
+function ClientState.myCommander(cs: ClientState): Types.CommanderId
+	local me = if cs.myNation ~= nil then cs.nations[cs.myNation] else nil
+	if cs.phase ~= "Play" and me ~= nil and me.commander ~= nil then
+		return me.commander
+	end
+	return cs.commander.commander
+end
+
+-- Сколько секунд осталось «Радарной вспышке» (часы клиента, темп матча).
+function ClientState.revealLeft(cs: ClientState, now: number): number
+	return math.max(0, cs.commander.reveal - (now - cs.commanderAt) * Config.Match.Speed)
 end
 
 function ClientState.emptyTech(): TechMessage
@@ -225,6 +275,7 @@ function ClientState.applyInfo(cs: ClientState, info: Info, now: number): boolea
 			cs.ships = { ships = {}, blocked = {}, queue = {} }
 			cs.air = { planes = {}, disabled = {}, queue = {} }
 			cs.tech = ClientState.emptyTech()
+			cs.commander = ClientState.emptyCommander()
 			colorsChanged = true
 		end
 		cs.matchId = info.matchId
@@ -465,6 +516,10 @@ function ClientState.fogSources(cs: ClientState): Fog.Sources?
 	if me == nil or n == nil or not n.alive or cs.phase ~= "Play" or not Config.Fog.Enabled or cs.fogOff then
 		return nil
 	end
+	-- Радарная вспышка Разведчика (§6.15): пока идёт — видно всё.
+	if ClientState.revealLeft(cs, os.clock()) > 0 then
+		return nil
+	end
 	local friends = ClientState.friendsOf(cs, me)
 	local fronts: { { mine: number, other: number } } = {}
 	local stats = cs.stats
@@ -481,9 +536,13 @@ function ClientState.fogSources(cs: ClientState): Fog.Sources?
 		end
 	end
 	local radars: { number } = {}
+	local ports: { number } = {}
+	local commander = cs.commander.commander
 	for cell, b in cs.buildings do
 		if b.kind == "Radar" and friends[ClientState.ownerAt(cs, cell)] then
 			table.insert(radars, cell)
+		elseif b.kind == "Port" and commander == "Admiral" and ClientState.ownerAt(cs, cell) == me then
+			table.insert(ports, cell) -- Адмирал (§6.15): обзор вокруг своих портов больше
 		end
 	end
 	local ships: { number } = {}
@@ -498,7 +557,15 @@ function ClientState.fogSources(cs: ClientState): Fog.Sources?
 			table.insert(planes, math.floor(p.y) * cs.width + math.floor(p.x))
 		end
 	end
-	return { friends = friends, fronts = fronts, radars = radars, ships = ships, planes = planes }
+	return {
+		friends = friends,
+		fronts = fronts,
+		radars = radars,
+		ships = ships,
+		planes = planes,
+		ports = ports,
+		visionMul = if commander == "Scout" then Config.Commanders.VisionMul else nil, -- Разведчик (§6.15)
+	}
 end
 
 -- Пересчитать обзор. Возвращает: перерисовать всё (сменился режим «туман / видно всё») и клетки,

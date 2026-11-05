@@ -14,6 +14,7 @@ local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local ClientState = require(Shared:WaitForChild("ClientState"))
+local Commanders = require(Shared:WaitForChild("Commanders"))
 local Config = require(Shared:WaitForChild("Config"))
 local Forces = require(Shared:WaitForChild("Forces"))
 local Strings = require(Shared:WaitForChild("Strings"))
@@ -194,7 +195,10 @@ function ForcesPanel.new(
 			local stats = Forces.stats(k)
 			local inQueue = queued[k] or 0
 			local needsFactory = stats.requires == "Factory" and not hasFactory
-			local price = string.format(Strings.get("hire.money", lang), Strings.formatInt(stats.cost))
+			-- Маршал (§6.15): танки дешевле — та же формула, что на сервере (MatchSim.unitCost).
+			local cost = stats.cost
+				* (if Types.LandUnits[k] == "Tanks" then Commanders.tankCostMul(ClientState.myCommander(cs)) else 1)
+			local price = string.format(Strings.get("hire.money", lang), Strings.formatInt(cost))
 			if stats.oil > 0 then
 				price ..= " · " .. string.format(Strings.get("hire.oil", lang), Strings.formatInt(stats.oil))
 			end
@@ -218,7 +222,7 @@ function ForcesPanel.new(
 			local affordable = myStats ~= nil
 				and myStats.people >= stats.people
 				and economy ~= nil
-				and economy.money >= stats.cost
+				and economy.money >= cost
 				and economy.oil >= stats.oil
 				and not needsFactory
 			b.TextTransparency = if affordable then 0 else 0.5

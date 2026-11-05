@@ -18,6 +18,7 @@ local RunService = game:GetService("RunService")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Buildings = require(Shared:WaitForChild("Buildings"))
 local ClientState = require(Shared:WaitForChild("ClientState"))
+local Commanders = require(Shared:WaitForChild("Commanders"))
 local Config = require(Shared:WaitForChild("Config"))
 local DevTools = require(Shared:WaitForChild("DevTools"))
 local Grid = require(Shared:WaitForChild("Grid"))
@@ -72,6 +73,7 @@ function MatchService.start(map: MapData)
 				isBot = n.isBot,
 				botLevel = n.botLevel,
 				personality = n.personality,
+				commander = Commanders.of(m.commanders, n.id),
 				alive = n.alive,
 			})
 		end
@@ -236,6 +238,12 @@ function MatchService.start(map: MapData)
 				ok, reason = DevTools.airForce(m, id)
 			elseif action == "botRaid" and target ~= nil then
 				ok, reason = DevTools.botRaid(m, target, id)
+			elseif action == "resetCooldowns" then
+				ok, reason = DevTools.resetCooldowns(m, id)
+			elseif action == "nextCommander" then
+				ok, reason = DevTools.nextCommander(m, id)
+			elseif action == "botAbility" and target ~= nil then
+				ok, reason = DevTools.botAbility(m, target, id)
 			elseif action == "researchAll" then
 				ok, reason = DevTools.researchAll(m, id)
 			elseif action == "finishResearch" then
@@ -259,7 +267,8 @@ function MatchService.start(map: MapData)
 	local function viewerOf(player: Player): number?
 		local id = nationOf[player]
 		local n = if id ~= nil then m.nations[id] else nil
-		if n == nil or not n.alive or devNoFog[player] then
+		-- Радарная вспышка Разведчика (§6.15) — пока она идёт, видно всё.
+		if n == nil or not n.alive or devNoFog[player] or MatchSim.revealing(m, n.id) then
 			return nil
 		end
 		return id
@@ -294,6 +303,7 @@ function MatchService.start(map: MapData)
 			matchEvent:FireClient(player, MatchStats.stability(m, id))
 			if id ~= nil then
 				matchEvent:FireClient(player, MatchStats.tech(m, id)) -- технологии (§6.14) — тем же темпом
+				matchEvent:FireClient(player, MatchStats.commander(m, id)) -- генерал (§6.15)
 			end
 		end
 	end

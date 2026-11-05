@@ -467,13 +467,25 @@ function DiplomacyPanel.new(
 				b.Visible = false
 			end
 		end
+		-- Генерал державы (§6.15) — виден всем.
+		local function commanderOf(id: number): string
+			local c = cs.nations[id].commander
+			if c == nil then
+				return ""
+			end
+			return string.format(
+				'  ·  <font color="%s">%s</font>',
+				muted,
+				string.format(Strings.get("commander.label", lang), Strings.get("commander." .. c, lang))
+			)
+		end
 		-- Выбранная держава и действия.
 		local target = selected
 		local valid = target ~= nil and target ~= me and cs.nations[target] ~= nil and cs.nations[target].alive
 		local t = if valid and me ~= nil and target ~= nil then ClientState.treatyBetween(cs, me, target) else nil
 		local lord = if me ~= nil then ClientState.overlordOf(cs, me) else nil
 		selectedText.Text = if valid and target ~= nil
-			then nameOf(target) .. "  ·  " .. relation(target)
+			then nameOf(target) .. "  ·  " .. relation(target) .. commanderOf(target)
 			else string.format('<font color="%s">%s</font>', muted, Strings.get("diplo.pick", lang))
 		for _, b in { pact3Button, pact5Button, allianceButton, demandButton, warButton, tradeButton } do
 			b.Visible = valid
