@@ -2016,6 +2016,11 @@ local function stepPockets(m: Match)
 	end
 end
 
+-- Сколько юнитов очереди найма готовится одновременно: 1 + свои заводы, не больше Forces.MaxRecruitLines.
+function MatchSim.recruitLines(m: Match, nationId: number): number
+	return math.min(Config.Forces.MaxRecruitLines, 1 + MatchSim.ownedOf(m, nationId).factories)
+end
+
 -- Технологии (§6.14, этап 7в-1) ---------------------------------------------------------------
 
 -- Открыто ли державе здание kind технологией (Config.Tech.Unlocks; остальные здания — всегда).
@@ -3215,14 +3220,20 @@ function MatchSim.step(m: Match, dt: number)
 			stepEconomy(m, n, simDt)
 			local growthMul = 1 - Wars.weariness(m.wars, n.id, m.simTime)
 			n.people = Economy.grow(n.people, MatchSim.maxPeopleOf(m, n.id), simDt, growthMul)
-			local first = n.queue[1]
-			if first ~= nil then
-				first.left -= simDt
-				if first.left <= 0 then
+			-- Линии найма: первые recruitLines юнитов очереди готовятся параллельно.
+			local lines = MatchSim.recruitLines(m, n.id)
+			local k = 1
+			while k <= math.min(lines, #n.queue) do
+				local item = n.queue[k]
+				item.left -= simDt
+				if item.left <= 0 then
 					-- «Учебка» (§6.14): новобранцы сразу с 1★.
 					local xp = if Tech.has(m.tech, n.id, "Army", 1) then Config.Combat.StarXp[1] else 0
-					Forces.add(n.home, first.kind, Forces.stats(first.kind).strength, xp)
-					table.remove(n.queue, 1)
+					Forces.add(n.home, item.kind, Forces.stats(item.kind).strength, xp)
+					table.remove(n.queue, k)
+					lines -= 1 -- линия освободилась на этом шаге: следующий юнит начнёт со следующего
+				else
+					k += 1
 				end
 			end
 		end

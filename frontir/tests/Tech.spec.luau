@@ -239,12 +239,15 @@ T.describe("Технологии", function()
 			local ok, reason = MatchSim.applyIntent(m, 1, { kind = "build", building = "Radar", cell = cell })
 			T.expect(ok).toBe(false)
 			T.expect(reason).toBe("needTech")
+			-- Флот-2 «Авиация» — аэродром, Флот-3 «Радар» — радар.
 			Tech.grant(m.tech, 1, "Fleet", 2)
-			T.expect(MatchSim.techAllows(m, 1, "Radar")).toBe(true)
-			T.expect(MatchSim.techAllows(m, 1, "Airfield")).toBe(false)
-			T.expect((MatchSim.applyIntent(m, 1, { kind = "build", building = "Radar", cell = cell }))).toBe(true)
-			Tech.grant(m.tech, 1, "Fleet", 3)
 			T.expect(MatchSim.techAllows(m, 1, "Airfield")).toBe(true)
+			T.expect(MatchSim.techAllows(m, 1, "Radar")).toBe(false)
+			ok, reason = MatchSim.applyIntent(m, 1, { kind = "build", building = "Radar", cell = cell })
+			T.expect(reason).toBe("needTech")
+			Tech.grant(m.tech, 1, "Fleet", 3)
+			T.expect(MatchSim.techAllows(m, 1, "Radar")).toBe(true)
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "build", building = "Radar", cell = cell }))).toBe(true)
 		end
 	)
 
@@ -259,7 +262,7 @@ T.describe("Технологии", function()
 			-- Войска-4 закрыта: Агрессор после трёх уровней войск — экономика.
 			local army3 = { Army = 3, Economy = 0, Fleet = 0 }
 			T.expect(BotBrain.techChoice(techView(army3), BotBrain.profile("Normal", "Aggressor"), rng)).toBe("Economy")
-			-- Генерал: Учебка → Налоги → Снабжение → Авиация (Флот 1..3) …
+			-- Генерал: Учебка → Налоги → Снабжение → Верфи → Авиация → Радар …
 			local general = BotBrain.profile("General", "Aggressor")
 			T.expect(BotBrain.techChoice(techView(zero), general, rng)).toBe("Army")
 			T.expect(BotBrain.techChoice(techView({ Army = 1, Economy = 0, Fleet = 0 }), general, rng)).toBe("Economy")
