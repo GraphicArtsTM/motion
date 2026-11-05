@@ -34,7 +34,7 @@ local DevPanel = {}
 
 local ROW = 30
 
-function DevPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang): DevPanel?
+function DevPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, selfCheck: (() -> ())?): DevPanel?
 	if not RunService:IsStudio() then
 		return nil
 	end
@@ -112,6 +112,10 @@ function DevPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang): DevP
 	end
 
 	text(Strings.get("dev.title", lang))
+	-- Самопроверка (сводная правка, часть 1): шаги и итог — в Output.
+	if selfCheck ~= nil then
+		button(Strings.get("dev.selfCheck", lang), selfCheck)
+	end
 	local dev = Config.Dev
 	button(string.format(Strings.get("dev.grantForces", lang), Strings.formatInt(dev.GrantForces)), function()
 		fire("grant", "forces")

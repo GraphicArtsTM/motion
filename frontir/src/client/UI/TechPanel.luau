@@ -23,6 +23,9 @@ type ClientState = ClientState.ClientState
 
 export type TechPanel = {
 	refresh: () -> (), -- пришли технологии или сменилась фаза
+	-- Самопроверка (сводная правка, часть 1): открыть/закрыть окно и узнать, открыто ли.
+	toggle: () -> (),
+	isOpen: () -> boolean,
 }
 
 local TechPanel = {}
@@ -357,7 +360,15 @@ function TechPanel.new(
 	end)
 
 	refresh()
-	return { refresh = refresh }
+	return {
+		refresh = refresh,
+		toggle = function()
+			setOpen(not window.Visible)
+		end,
+		isOpen = function(): boolean
+			return window.Visible
+		end,
+	}
 end
 
 return table.freeze(TechPanel)

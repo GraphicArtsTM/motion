@@ -28,6 +28,9 @@ export type ShopPanel = {
 	refresh: () -> (), -- пришёл профиль или сменилась фаза
 	tap: (cell: number) -> boolean, -- true — нажатие ушло в цель «Авиаудара»
 	onShopEvent: (msg: any) -> (), -- ежедневная награда, открытый ящик (§11.3)
+	-- Самопроверка (сводная правка, часть 1): открыть/закрыть окно и узнать, открыто ли.
+	toggle: () -> (),
+	isOpen: () -> boolean,
 }
 
 local ShopPanel = {}
@@ -468,6 +471,13 @@ function ShopPanel.new(
 
 	return {
 		refresh = refresh,
+		toggle = function()
+			window.Visible = not window.Visible
+			draw()
+		end,
+		isOpen = function(): boolean
+			return window.Visible
+		end,
 		tap = function(cell: number): boolean
 			local pay = strikePay
 			if pay == nil then

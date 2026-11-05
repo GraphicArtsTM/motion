@@ -25,6 +25,7 @@
 	  сразу (§6.16, этап 7г).
 	- silo: «Ракетная шахта» и «Сеть ПВО» изучены, шахта в своей провинции (если нет), пуск готов.
 	- botMissile: выбранный бот (война сразу) получает шахту и пускает ракету по вашему городу.
+	- selfAbility / worldEventKind: для самопроверки в Studio — своя способность с подбором цели, событие по имени.
 	Ускорение времени — в MatchService (шагов симуляции за кадр больше).
 ]]
 
@@ -36,6 +37,7 @@ local Air = require("./Air")
 local Fleet = require("./Fleet")
 local Grid = require("./Grid")
 local MapData = require("./MapData")
+local Naval = require("./Naval")
 local Forces = require("./Forces")
 local MatchSim = require("./MatchSim")
 local Stability = require("./Stability")
@@ -378,6 +380,129 @@ function DevTools.botAbility(m: Match, bot: number, player: number): (boolean, s
 		end
 	end
 	return used > 0, if used > 0 then nil else "target"
+end
+
+-- Самопроверка (сводная правка, часть 1): игрок id применяет способность slot генерала commander. Цель подбирается
+-- сама: война с ближайшей державой, клетка врага у общей границы, берег, порт врага (если нет — ставится), своя
+-- столица для укрепрайона. Возвращает результат MatchSim.useAbility.
+function DevTools.selfAbility(m: Match, id: number, commander: string, slot: number): (boolean, string?)
+	local n = m.nations[id]
+	if n == nil or not n.alive or not Commanders.isValid(commander) or (slot ~= 1 and slot ~= 2) then
+		return false, "target"
+	end
+	local g = m.grid
+	local w = g.width
+	local cap = n.capital or 0
+	-- Враги по близости столиц; для блокады — ближайший, у кого есть (или можно поставить) порт.
+	local others: { { id: number, d: number } } = {}
+	for _, other in m.nations do
+		if other.alive and other.id ~= id and other.capital ~= nil then
+			local c = other.capital :: number
+			table.insert(others, { id = other.id, d = (c % w - cap % w) ^ 2 + (c // w - cap // w) ^ 2 })
+		end
+	end
+	table.sort(others, function(a, b): boolean
+		return a.d < b.d
+	end)
+	if #others == 0 then
+		return false, "target"
+	end
+	local ability = Commanders.ability(commander :: Types.CommanderId, slot)
+	local enemy = others[1].id
+	local port: number? = nil
+	if ability == "Blockade" then
+		for _, o in others do
+			port = ensurePort(m, o.id)
+			if port ~= nil then
+				enemy = o.id
+				break
+			end
+		end
+	end
+	DevTools.warNow(m, id, enemy)
+	Commanders.choose(m.commanders, id, commander :: Types.CommanderId)
+	Commanders.resetCooldowns(m.commanders, id)
+	Forces.add(n.home, Forces.kindIndex("Infantry") :: number, 2000)
+	-- Клетка врага у нашей границы (или любая его не-город); coastal — у моря.
+	local function enemyCell(coastal: boolean): number?
+		local found: number? = nil
+		local bestD = math.huge
+		for i = 0, g.size - 1 do
+			if Grid.getOwner(g, i) == enemy and not Grid.isCity(g, i) then
+				local ok = not coastal or Naval.waterNear(m.sea, i, 2) ~= nil
+				if ok then
+					local border = false
+					Grid.forNeighbours(g, i, function(j)
+						if Grid.getOwner(g, j) == id then
+							border = true
+						end
+					end)
+					local d = (i % w - cap % w) ^ 2 + (i // w - cap // w) ^ 2 - (if border then 1e9 else 0)
+					if d < bestD then
+						found, bestD = i, d
+					end
+				end
+			end
+		end
+		return found
+	end
+	local target: number? = nil
+	if ability == "Fortify" then
+		target = n.capital
+	elseif ability == "SeaLanding" then
+		target = enemyCell(true)
+	elseif ability == "Blockade" then
+		target = port
+	elseif ability ~= "Surge" and ability ~= "Reveal" then
+		target = enemyCell(false)
+	end
+	if target == nil and ability ~= "Surge" and ability ~= "Reveal" then
+		return false, "target"
+	end
+	return MatchSim.useAbility(m, n, slot, target, 0.3)
+end
+
+-- Самопроверка: случайное событие kind сейчас.
+function DevTools.worldEventKind(m: Match, kind: string): (boolean, string?)
+	if table.find(WorldEvents.Kinds, kind) == nil then
+		return false, "target"
+	end
+	if kind == "Mercenaries" and m.world.auction ~= nil then
+		return true, nil -- аукцион уже идёт
+	end
+	if MatchSim.worldEvent(m, kind) then
+		return true, nil
+	end
+	-- У лидера ещё одна провинция — для проверки восстание в самой нестабильной провинции любой державы.
+	if kind == "Revolt" then
+		local best: { p: number, owner: number, v: number }? = nil
+		for p, st in m.stability.provinces do
+			local owner = st.owner
+			local n = m.nations[owner]
+			local capital = if n ~= nil and n.capital ~= nil then MapData.getProvince(m.map, n.capital :: number) else 0
+			if owner ~= 0 and p ~= capital and (best == nil or st.value < (best :: any).v) then
+				best = { p = p, owner = owner, v = st.value }
+			end
+		end
+		if best ~= nil then
+			MatchSim.revolt(m, best.p, best.owner)
+			return true, nil
+		end
+		-- Начало матча: провинций целиком ещё нет — любая некапитальная провинция, где у державы есть клетки.
+		for _, province in m.provinces.list do
+			for owner in Grid.provinceOwners(m.grid, province.id) do
+				local n = m.nations[owner]
+				if owner ~= 0 and n ~= nil and n.alive then
+					local capital = if n.capital ~= nil then MapData.getProvince(m.map, n.capital :: number) else 0
+					if province.id ~= capital then
+						MatchSim.revolt(m, province.id, owner)
+						return true, nil
+					end
+				end
+			end
+		end
+	end
+	return false, "target"
 end
 
 local eventTurn = 0

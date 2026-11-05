@@ -306,6 +306,13 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
 - Телефон: `RenderBudget` (`isPhone`, `limit` из `Config.Render.Phone`) в `FrontLayer` и `WaterSparkles`; кнопка «⌂»
   в `Main.client`. Отчёт баланса — `tools/balance_report`.
 
+## Самопроверка (сводная правка, часть 1)
+- `src/client/SelfCheck.luau` — живёт над сессиями (`attach` из каждой `runSession`), запуск — F4 «Самопроверка».
+  Действия — через `Remotes.Dev` с подтверждением `{ kind = "dev", ack, ok, reason }`; новые окна и меню добавлять
+  в список `windows` в `Main.client` (нужны `toggle` / `isOpen`). Что видно только глазами — `docs/STUDIO_CHECK.md`.
+- Проверки перед коммитом: смотреть **весь** вывод Selene и luau-lsp (`grep -i error` по всему выводу), а не
+  последнюю строку — так в PR #15 ушли две ошибки CI.
+
 ## Панель разработчика (F4)
 - Только в Studio: `MatchService` создаёт `Remotes.Dev` при `RunService:IsStudio()`; действия — чистый `DevTools`
   (grant, forceOffer, warNow, peaceNow, councilNow, endMatch, setStability, revoltNow, navy, botLanding, airForce,

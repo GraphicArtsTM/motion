@@ -57,6 +57,7 @@ local FrontLayer = require(Render:WaitForChild("FrontLayer"))
 local MapRenderer = require(Render:WaitForChild("MapRenderer"))
 local MatchClient = require(Client:WaitForChild("Net"):WaitForChild("MatchClient"))
 local Session = require(Client:WaitForChild("Session"))
+local SelfCheck = require(Client:WaitForChild("SelfCheck"))
 local Audio = require(Client:WaitForChild("Audio"))
 local SoundPanel = require(UI:WaitForChild("SoundPanel"))
 local MatchHud = require(UI:WaitForChild("MatchHud"))
@@ -302,8 +303,41 @@ local function runSession(mapId: string, resync: boolean)
 	-- Панель разработчика (F4) — только в Studio; создаётся в фоне (ждёт канал Remotes.Dev от сервера).
 	local devPanel: DevPanel.DevPanel? = nil
 	task.spawn(function()
-		devPanel = DevPanel.new(hudGui, cs, lang)
+		devPanel = DevPanel.new(hudGui, cs, lang, SelfCheck.start)
 	end)
+	-- Самопроверка (Studio, F4): окна этой сессии; модуль живёт над сессиями (смена карты).
+	SelfCheck.attach({
+		cs = cs,
+		mapId = mapId,
+		windows = {
+			{ name = "дипломатия", toggle = diplomacy.toggle, isOpen = diplomacy.isOpen },
+			{ name = "технологии", toggle = techPanel.toggle, isOpen = techPanel.isOpen },
+			{ name = "магазин", toggle = shopPanel.toggle, isOpen = shopPanel.isOpen },
+			{ name = "гардероб", toggle = wardrobe.toggle, isOpen = wardrobe.isOpen },
+			{ name = "задания", toggle = questsPanel.toggle, isOpen = questsPanel.isOpen },
+			{
+				name = "настройки сервера",
+				toggle = serverPanel.toggle,
+				isOpen = serverPanel.isOpen,
+				skip = function(): string?
+					local info = cs.server
+					if info == nil or not info.isOwner then
+						return "не частный сервер (Config.Dev.PrivateServer = true)"
+					end
+					if cs.phase ~= "Lobby" and cs.phase ~= "Waiting" then
+						return "открывается только в лобби"
+					end
+					return nil
+				end,
+			},
+		},
+		commanderOpen = commanderPanel.isOpen,
+		air = airPanel,
+		naval = naval,
+		zoom = function(): number
+			return camera.state.zoom
+		end,
+	})
 	pings.refresh()
 	camera.onChanged(function(state)
 		pings.onCamera(state)
@@ -557,6 +591,7 @@ local function runSession(mapId: string, resync: boolean)
 			if devPanel ~= nil then
 				devPanel.onDev(msg)
 			end
+			SelfCheck.onDev(msg)
 		end,
 		onRejected = function(reason: string)
 			sound("Error")

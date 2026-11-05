@@ -23,6 +23,9 @@ type ClientState = ClientState.ClientState
 export type QuestsPanel = {
 	refresh: () -> (),
 	onQuests: (msg: any) -> (),
+	-- Самопроверка (сводная правка, часть 1): открыть/закрыть окно и узнать, открыто ли.
+	toggle: () -> (),
+	isOpen: () -> boolean,
 }
 
 local QuestsPanel = {}
@@ -179,6 +182,10 @@ function QuestsPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, to
 
 	return {
 		refresh = draw,
+		toggle = toggle,
+		isOpen = function(): boolean
+			return window.Visible
+		end,
 		onQuests = function(msg: any)
 			for _, d in msg.done or {} do
 				local row = Config.Quests.Pool[d.pool]

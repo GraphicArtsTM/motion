@@ -797,6 +797,7 @@ local TABLE: { [string]: Entry } = {
 	["dev.soundName"] = { ru = "Звук: %s", en = "Sound: %s" },
 	["dev.nextMusic"] = { ru = "Музыка: следующая", en = "Music: next" },
 	["dev.musicName"] = { ru = "Музыка: %s", en = "Music: %s" },
+	["dev.selfCheck"] = { ru = "Самопроверка (итог в Output)", en = "Self-check (results in Output)" },
 	["dev.resetCooldowns"] = { ru = "Способности готовы", en = "Abilities ready" },
 	["dev.nextCommander"] = { ru = "Следующий генерал", en = "Next commander" },
 	["dev.botAbility"] = { ru = "Бот: способности по вам", en = "Bot: abilities on you" },

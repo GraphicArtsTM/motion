@@ -29,6 +29,9 @@ type MapData = MapDataModule.MapData
 export type NavalPanel = {
 	refresh: () -> (),
 	tap: (cell: number, zoom: number) -> boolean, -- true — нажатие ушло флоту
+	-- Самопроверка (сводная правка, часть 1): закрыть меню и узнать, открыто ли.
+	close: () -> (),
+	isOpen: () -> boolean,
 }
 
 export type ShipPicker = (x: number, y: number, owner: number, reach: number) -> Protocol.ShipInfo?
@@ -303,6 +306,10 @@ function NavalPanel.new(
 	end
 
 	return {
+		close = close,
+		isOpen = function(): boolean
+			return panel.Visible
+		end,
 		refresh = function()
 			if not playing() then
 				setMode(nil)
