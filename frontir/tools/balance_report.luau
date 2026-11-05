@@ -84,7 +84,7 @@ for k = 1, games do
 		count(byPersonality, n.personality or "?", won, share)
 		techNations += 1
 		for _, b in Tech.Branches do
-			techLevels += Tech.level(m.tech, n.id, b)
+			techLevels += Tech.level(m.tech, n.id, b :: any)
 		end
 	end
 	print(
