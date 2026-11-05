@@ -260,6 +260,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			questsBonus = d.questsBonus,
 			dayLeft = 86400 - now % 86400,
 			elo = d.elo,
+			volume = { sfx = d.sfx, music = d.music }, -- громкости (§13)
 			-- Гардероб (§11.4): что открыто, что надето, флаг.
 			wardrobe = (function(): { [string]: any }
 				local owned: { [string]: boolean } = {}
@@ -569,6 +570,20 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				return
 			end
 			applyProfile(player)
+			sendProfile(player)
+			return
+		end
+		-- Громкости звука и музыки (§13): хранятся в профиле.
+		if kind == "volume" then
+			local session = profiles.get(player.UserId)
+			if session == nil or type(payload) ~= "table" then
+				return
+			end
+			local ok, why = Profile.setVolumes(session.data, payload.sfx, payload.music)
+			if not ok then
+				matchEvent:FireClient(player, { kind = "rejected", reason = why or "?", intent = kind })
+				return
+			end
 			sendProfile(player)
 			return
 		end

@@ -4,7 +4,7 @@
 	- баннер сверху под фазой: «ВОЙНА: A — B» в цветах стран (или «МОБИЛИЗАЦИЯ … · N с»), полоска перевеса
 	  (вся сила сторон), земля, взятая в этой войне, и потери обеих сторон; кнопки «К фронту» и «Мир»;
 	  несколько войн — стрелки ◀ ▶;
-	- на вас напали — баннер мигает красным, сирена (Audio, пока заглушка), строка в ленте (MatchHud);
+	- на вас напали — баннер мигает красным, сирена (AudioCues → Audio), строка в ленте (MatchHud);
 	- нажатие на страну без войны (MatchHud → offerDeclare) — окно «Объявить войну» (после мира — «Мир: ещё N с»);
 	- «Мир» — окно условий: белый мир, забрать захваченное, капитуляция (неактивна до этапа 6);
 	- предложение мира от врага — окно «X предлагает мир: … · N с» с «Принять» / «Отклонить».
@@ -22,7 +22,6 @@ local Protocol = require(Shared:WaitForChild("Net"):WaitForChild("Protocol"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
 local Theme = require(script.Parent:WaitForChild("Theme"))
-local Audio = require(script.Parent.Parent:WaitForChild("Audio"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
@@ -545,10 +544,9 @@ function WarPanel.new(
 		for _, e in events do
 			if type(e) == "table" and e.kind == "warDeclared" and me ~= nil then
 				if e.target == me then
-					-- На нас напали: сирена, баннер мигает и показывает эту войну.
+					-- На нас напали: баннер мигает и показывает эту войну (сирена — AudioCues в Main, §13).
 					flashUntil = os.clock() + Config.Render.AttackedFlashSec
 					selectedKey = (tonumber(e.nation) or 0) * 65536 + me
-					Audio.play("Siren")
 				elseif e.nation == me then
 					selectedKey = me * 65536 + (tonumber(e.target) or 0)
 				end

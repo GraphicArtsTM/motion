@@ -14,6 +14,7 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local AudioCues = require(Shared:WaitForChild("AudioCues"))
 local ClientState = require(Shared:WaitForChild("ClientState"))
 local Config = require(Shared:WaitForChild("Config"))
 local NationColors = require(Shared:WaitForChild("NationColors"))
@@ -21,6 +22,7 @@ local Strings = require(Shared:WaitForChild("Strings"))
 
 local Theme = require(script.Parent:WaitForChild("Theme"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
+local Audio = require(script.Parent.Parent:WaitForChild("Audio"))
 
 type ClientState = ClientState.ClientState
 
@@ -271,6 +273,22 @@ function DevPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang): DevP
 		fire("airForce", nil)
 	end)
 	button(Strings.get("dev.botRaid", lang), withBot("botRaid", same))
+	-- Этап 10б: звуки и музыка (§13) — только у этого клиента, без сервера.
+	local soundTurn, musicTurn = 0, 0
+	local soundButton: TextButton
+	soundButton = button(Strings.get("dev.nextSound", lang), function()
+		soundTurn = soundTurn % #AudioCues.SoundNames + 1
+		local name = AudioCues.SoundNames[soundTurn]
+		Audio.play(name)
+		soundButton.Text = string.format(Strings.get("dev.soundName", lang), name)
+	end)
+	local musicButton: TextButton
+	musicButton = button(Strings.get("dev.nextMusic", lang), function()
+		musicTurn = musicTurn % #AudioCues.MusicNames + 1
+		local name = AudioCues.MusicNames[musicTurn]
+		Audio.music(name)
+		musicButton.Text = string.format(Strings.get("dev.musicName", lang), name)
+	end)
 	-- Этап 7г: события и ракеты (§6.16, §6.9).
 	button(Strings.get("dev.eventNow", lang), function()
 		fire("eventNow", nil)
