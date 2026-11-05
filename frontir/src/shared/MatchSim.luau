@@ -97,6 +97,9 @@ export type MatchEvent =
 	| { kind: "planeShot", nation: number, by: number, plane: Types.PlaneKind }
 	| { kind: "raid", nation: number, target: number, cell: number, lost: number, buildings: number }
 
+-- Потоки случайных чисел бота: когда думать, главные решения, флот, авиация, дипломатия.
+export type BotRngs = { think: Rng, main: Rng, navy: Rng, air: Rng, diplo: Rng }
+
 export type Match = {
 	map: MapData,
 	grid: Grid,
@@ -122,6 +125,13 @@ export type Match = {
 	cityOf: { [number]: number }, -- провинция → клетка города (нейтрального, державы или столицы)
 	wars: Wars.WarSet,
 	diplo: Diplomacy.DiploSet, -- договоры (§8.1)
+	frontCache: Expansion.FrontCache, -- линии фронтов между тиками (обновляются по журналу смен владельца)
+	-- Отдельные потоки случайных чисел по системам (§12): новая механика одной системы не меняет ход других.
+	-- m.rng — только расстановка (уровни ботов, имена, автостарт).
+	councilRng: Rng,
+	stabilityRng: Rng,
+	botRngs: { [number]: BotRngs }, -- у каждого бота свои
+	battleRngs: { [number]: Rng }, -- бой: у каждой пары атакующий → цель свой
 	council: Council.CouncilState, -- Совет держав (§8.2)
 	sent: { [number]: { { at: number, money: number, oil: number, people: number } } }, -- переводы за минуту
 	pingAt: { [number]: number }, -- когда держава последний раз ставила пинг
@@ -136,6 +146,7 @@ export type Match = {
 	fleet: Fleet.FleetState, -- корабли
 	air: Air.AirState, -- самолёты и выведенные из строя здания (§6.13)
 	bombedAt: { [number]: number }, -- держава → когда её последний раз бомбили (боты ставят батарею ПВО)
+	bombedCell: { [number]: number }, -- держава → клетка последнего налёта на неё (Генерал прикрывает её истребителем)
 	nextBlockadeAt: number,
 	result: Types.MatchResult?, -- итог (фаза Over)
 	victory: boolean, -- проверять ли победу (тесты на крошечных картах выключают)
@@ -195,6 +206,11 @@ function MatchSim.new(map: MapData, seed: number): Match
 		cityOf = cityOf,
 		wars = Wars.new(),
 		diplo = Diplomacy.new(),
+		frontCache = Expansion.newCache(),
+		councilRng = Rng.stream(seed, 101),
+		stabilityRng = Rng.stream(seed, 102),
+		botRngs = {},
+		battleRngs = {},
 		council = Council.new(),
 		sent = {},
 		pingAt = {},
@@ -209,6 +225,7 @@ function MatchSim.new(map: MapData, seed: number): Match
 		fleet = Fleet.new(),
 		air = Air.new(),
 		bombedAt = {},
+		bombedCell = {},
 		nextBlockadeAt = 0,
 		result = nil,
 		victory = true,
@@ -286,6 +303,22 @@ local function newNation(m: Match, name: string, nameEn: string, isBot: boolean,
 	return nation
 end
 
+-- Потоки случайных чисел бота (создаются при первом обращении).
+local function botRngsOf(m: Match, id: number): BotRngs
+	local r = m.botRngs[id]
+	if r == nil then
+		r = {
+			think = Rng.stream(m.seed, 200, id),
+			main = Rng.stream(m.seed, 201, id),
+			navy = Rng.stream(m.seed, 202, id),
+			air = Rng.stream(m.seed, 203, id),
+			diplo = Rng.stream(m.seed, 204, id),
+		}
+		m.botRngs[id] = r
+	end
+	return r
+end
+
 -- Бот получает уровень и личность (§9.1); level — свой (игрок ушёл) или по Bots.LevelMix.
 local function makeBot(m: Match, n: Nation, level: Types.BotLevel?)
 	n.isBot = true
@@ -318,7 +351,7 @@ function MatchSim.setBot(m: Match, id: number, level: Types.BotLevel, personalit
 		m.botProfiles[id] = BotBrain.profile(level, personality)
 	end
 	if m.botNextThink[id] == nil then
-		m.botNextThink[id] = m.simTime + BotBrain.nextThinkDelay(m.rng, profileOf(m, id))
+		m.botNextThink[id] = m.simTime + BotBrain.nextThinkDelay(botRngsOf(m, id).think, profileOf(m, id))
 	end
 end
 
@@ -338,7 +371,7 @@ function MatchSim.removePlayer(m: Match, nationId: number)
 	end
 	n.userId = nil
 	makeBot(m, n, "Normal") -- держава ушедшего игрока — под Обычным ботом
-	m.botNextThink[nationId] = m.simTime + BotBrain.nextThinkDelay(m.rng, profileOf(m, nationId))
+	m.botNextThink[nationId] = m.simTime + BotBrain.nextThinkDelay(botRngsOf(m, nationId).think, profileOf(m, nationId))
 end
 
 -- Лобби (этап 4в): игроки собираются, через LobbySec начинается выбор старта.
@@ -427,7 +460,7 @@ function MatchSim.finishPick(m: Match)
 		n.people = Config.People.Start
 		n.money = Config.Economy.StartMoney
 		if n.isBot then
-			m.botNextThink[n.id] = BotBrain.nextThinkDelay(m.rng, profileOf(m, n.id))
+			m.botNextThink[n.id] = BotBrain.nextThinkDelay(botRngsOf(m, n.id).think, profileOf(m, n.id))
 		end
 	end
 	m.phase = "Play"
@@ -1483,18 +1516,34 @@ local function neutralCityTaker(m: Match, a: Attack): ((cell: number) -> boolean
 end
 
 -- Шаг атак и фронтов на simDt игровых секунд. Возвращает число захваченных клеток.
+-- Поток случайных чисел боя пары атакующий → цель (§12): разброс урона одного фронта не сдвигает другие.
+local function battleRng(m: Match, a: Attack): Rng
+	local key = a.attacker * 65536 + a.target
+	local r = m.battleRngs[key]
+	if r == nil then
+		r = Rng.stream(m.seed, 300 + a.attacker, a.target)
+		m.battleRngs[key] = r
+	end
+	return r
+end
+
 local function stepAttacks(m: Match, simDt: number): number
 	local g = m.grid
 	local cities = MatchSim.cities(m)
 	local captured = 0
 
 	-- Фронты против держав: длины фронтов нужны, чтобы делить гарнизон защитника.
+	-- Линии берём из кеша (Expansion.FrontCache): он обновляется по сменившим владельца клеткам, а не обходом
+	-- всей границы атакующего каждый тик.
+	local cache = m.frontCache
+	Expansion.syncCache(cache, g)
 	local fronts: { [Attack]: Expansion.FrontLine } = {}
 	local frontLength: { [number]: number } = {}
 	for _, a in m.attacks do
 		if a.target ~= 0 then
-			local list, touching, river = Expansion.frontier(g, a.attacker, a.target, true, m.map)
-			fronts[a] = { list = list, touching = touching, river = river }
+			local front = Expansion.line(cache, g, a.attacker, a.target, true, m.map, m.tick)
+			local list = front.list
+			fronts[a] = front
 			-- Выборка линии фронта для тумана (§6.11): сервер шлёт чужой фронт, только если он в обзоре.
 			local line: { number } = {}
 			local stride = math.max(1, math.ceil(#list / Config.Fog.LineSamples))
@@ -1528,12 +1577,15 @@ local function stepAttacks(m: Match, simDt: number): number
 			continue
 		end
 		if a.target == 0 then
+			local cityAllowed = neutralCityTaker(m, a)
+			Expansion.syncCache(cache, g) -- захваты этого тика (прежние атаки) уже в линии
+			local line = Expansion.line(cache, g, a.attacker, 0, cityAllowed ~= nil, nil, m.tick)
 			local d, cells = Expansion.advance(m.map, g, m.nations, a, m.tick, m.seed, simDt, {
-				cityAllowed = neutralCityTaker(m, a),
+				cityAllowed = cityAllowed,
 				canTake = enclaveRule(m, a.attacker),
 				record = record,
 				costMul = rebelCost,
-			})
+			}, line)
 			done = d
 			captured += cells
 		else
@@ -1605,12 +1657,19 @@ local function stepAttacks(m: Match, simDt: number): number
 				end
 				-- Встречные фронты пары — один бой: потери считаются один раз за тик.
 				local applyLosses = not (counter ~= nil and battled[counter])
-				local result = Fronts.battle(a, {
-					home = defender.home,
-					share = homeShare,
-					counter = if counter ~= nil then counter.forces else nil,
-					bonus = if still then Config.Fortify.LineBonus else 1,
-				}, Fronts.terrainDefense(m.map, front.list, front.river, fortified), m.rng, simDt, applyLosses)
+				local result = Fronts.battle(
+					a,
+					{
+						home = defender.home,
+						share = homeShare,
+						counter = if counter ~= nil then counter.forces else nil,
+						bonus = if still then Config.Fortify.LineBonus else 1,
+					},
+					Fronts.terrainDefense(m.map, front.list, front.river, fortified),
+					battleRng(m, a),
+					simDt,
+					applyLosses
+				)
 				battled[a] = true
 				a.ratio = result.ratio
 				a.fighting = result.fighting
@@ -1645,6 +1704,7 @@ local function stepAttacks(m: Match, simDt: number): number
 			k += 1
 		end
 	end
+	Expansion.pruneCache(cache, m.tick)
 	return captured
 end
 
@@ -1748,7 +1808,7 @@ end
 
 -- Совет держав (§8.2): открыть голосование (боты голосуют сразу), закрыть и применить резолюцию.
 local function stepCouncil(m: Match)
-	for _, c in Council.update(m.council, m.simTime, m.rng) do
+	for _, c in Council.update(m.council, m.simTime, m.councilRng) do
 		if c.kind == "opened" then
 			table.insert(m.events, { kind = "councilOpened", options = c.vote.options })
 			for _, n in m.nations do
@@ -2604,6 +2664,23 @@ function MatchSim.airView(m: Match, n: Nation): BotBrain.AirView
 			end
 		end
 	end
+	-- Нас бомбили недавно — где (Генерал прикрывает это место истребителем, §6.13).
+	local bombedCell = m.bombedCell[n.id]
+	local w = m.grid.width
+	if view.bombed and bombedCell ~= nil and MatchSim.inAirRange(m, n.id, bombedCell) then
+		view.bombedCell = bombedCell
+		local bx, by = bombedCell % w + 0.5, bombedCell // w + 0.5
+		local near = Config.Air.InterceptRadius * Air.scale(w) * Config.Air.BotCoverNear
+		for _, p in Air.ofNation(m.air, n.id) do
+			if p.kind == "Fighter" then
+				local cx, cy = p.cover % w + 0.5, p.cover // w + 0.5
+				if (cx - bx) ^ 2 + (cy - by) ^ 2 > near * near then
+					view.coverFighter = p.id
+					break
+				end
+			end
+		end
+	end
 	if view.idleBomber then
 		view.raidTarget = function(): number?
 			-- Линия фронта с врагом: сначала фронт врага против нас (его войска), потом наш фронт против него
@@ -2753,6 +2830,7 @@ function MatchSim.bomb(m: Match, plane: Air.Plane, target: number)
 	local victim = Grid.getOwner(g, target)
 	if victim ~= 0 and victim ~= owner then
 		m.bombedAt[victim] = m.simTime
+		m.bombedCell[victim] = target
 	end
 	table.insert(m.events, {
 		kind = "raid",
@@ -2807,7 +2885,15 @@ local function stepAir(m: Match, simDt: number)
 		if h.kind == "raid" then
 			MatchSim.bomb(m, h.plane, h.cell)
 		elseif h.kind == "shot" then
-			table.insert(m.events, { kind = "planeShot", nation = h.plane.owner, by = h.by, plane = h.plane.kind })
+			-- Где сбит (клетки): клиент показывает падение и взрыв.
+			table.insert(m.events, {
+				kind = "planeShot",
+				nation = h.plane.owner,
+				by = h.by,
+				plane = h.plane.kind,
+				x = h.plane.x,
+				y = h.plane.y,
+			})
 		end
 	end
 	Air.cleanup(as, function(owner: number): boolean
@@ -2822,7 +2908,7 @@ function MatchSim.stabilityContext(m: Match): Stability.Context
 		grid = m.grid,
 		provinces = m.provinces,
 		cityOf = m.cityOf,
-		rng = m.rng,
+		rng = m.stabilityRng,
 		now = m.simTime,
 		capitalOf = function(id: number): number?
 			local n = m.nations[id]
@@ -3116,13 +3202,20 @@ function MatchSim.step(m: Match, dt: number)
 		if n.alive and n.isBot and due ~= nil and m.simTime >= due and thinks < Config.Bots.MaxThinksPerTick then
 			thinks += 1
 			local profile = profileOf(m, n.id)
-			m.botNextThink[n.id] = m.simTime + BotBrain.nextThinkDelay(m.rng, profile)
+			local rngs = botRngsOf(m, n.id)
+			m.botNextThink[n.id] = m.simTime + BotBrain.nextThinkDelay(rngs.think, profile)
 			local memory = m.botMemory[n.id]
 			if memory == nil then
 				memory = BotBrain.newMemory()
 				m.botMemory[n.id] = memory
 			end
-			local intent = BotBrain.decide(botView(m, n), m.rng, profile, memory)
+			local intent = BotBrain.decide(
+				botView(m, n),
+				rngs.main,
+				profile,
+				memory,
+				{ navy = rngs.navy, air = rngs.air, diplo = rngs.diplo }
+			)
 			if intent ~= nil then
 				MatchSim.applyIntent(m, n.id, intent)
 			end

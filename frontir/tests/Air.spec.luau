@@ -315,4 +315,49 @@ T.describe("Авиация", function()
 			T.expect(raided).toBe(true)
 		end
 	)
+
+	T.it(
+		"Генерал под бомбами: нанимает истребители и прикрывает место налёта; сбитый самолёт — с координатами",
+		function()
+			local m = duo()
+			MatchSim.setBot(m, 2, "General", "Peaceful")
+			local general = m.nations[2]
+			place(m, "Airfield", 135) -- аэродром Генерала: место налёта в радиусе его авиации
+			local airfield = place(m, "Airfield", 75)
+			local bomber = hire(m, 1, "Bomber", airfield)
+			DevTools.warNow(m, 1, 2)
+			frontOf(m, 2, 1, 2000)
+			freezeFronts(m)
+			runFor(m, 0.2)
+			local target = 12 * W + BORDER + 3
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "raid", cell = target }))).toBe(true)
+			local covered, shot = false, nil :: any
+			for _ = 1, 120 do
+				runFor(m, 1)
+				general.money = math.max(general.money, 30000)
+				general.oil = math.max(general.oil, 500)
+				for _, e in MatchSim.takeEvents(m) do
+					if e.kind == "planeShot" and shot == nil then
+						shot = e
+					end
+				end
+				for _, p in Air.ofNation(m.air, 2) do
+					if p.kind == "Fighter" and p.cover == m.bombedCell[2] then
+						covered = true
+					end
+				end
+				if covered and shot ~= nil then
+					break
+				end
+				-- Бомбардировщик вернулся — снова в налёт, пока Генерал не прикроет.
+				if bomber.state == "based" then
+					MatchSim.applyIntent(m, 1, { kind = "raid", cell = target })
+				end
+			end
+			T.expect(m.bombedCell[2] ~= nil).toBe(true)
+			T.expect(covered).toBe(true)
+			T.expect(shot ~= nil).toBe(true)
+			T.expect(type(shot.x) == "number" and type(shot.y) == "number").toBe(true)
+		end
+	)
 end)

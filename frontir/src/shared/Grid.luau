@@ -1,4 +1,5 @@
 --!strict
+--!native
 --[[
 	Grid — владельцы клеток во время матча (GDD §6.1, §12).
 
@@ -40,6 +41,10 @@ export type Grid = {
 	-- (без ничьих) — для хозяина провинции и стабильности (§6.10).
 	province: buffer,
 	provinceCells: { [number]: { [number]: number } },
+	-- Журнал смен владельца для кеша линий фронта (Expansion.FrontCache): пары (клетка, прежний владелец)
+	-- подряд в одном массиве; кеш забирает его каждый тик. cityEpoch растёт при смене флага города.
+	ownerLog: { number },
+	cityEpoch: number,
 }
 
 local Grid = {}
@@ -74,6 +79,8 @@ function Grid.new(map: MapData): Grid
 		stampValue = 0,
 		province = map.province,
 		provinceCells = {},
+		ownerLog = {},
+		cityEpoch = 0,
 	}
 end
 
@@ -90,7 +97,11 @@ function Grid.isCity(g: Grid, i: number): boolean
 end
 
 function Grid.setCity(g: Grid, i: number, isCity: boolean)
-	buffer.writeu8(g.city, i, if isCity then 1 else 0)
+	local v = if isCity then 1 else 0
+	if buffer.readu8(g.city, i) ~= v then
+		buffer.writeu8(g.city, i, v)
+		g.cityEpoch += 1
+	end
 end
 
 function Grid.cellsOf(g: Grid, nation: number): number
@@ -163,6 +174,9 @@ function Grid.setOwner(g: Grid, i: number, owner: number)
 		return
 	end
 	buffer.writeu16(g.owner, i * 2, owner)
+	local log = g.ownerLog
+	log[#log + 1] = i
+	log[#log + 1] = old
 	local p = buffer.readu16(g.province, i * 2)
 	local inProvince: { [number]: number }? = nil
 	if p ~= 0 then

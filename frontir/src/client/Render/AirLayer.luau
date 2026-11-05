@@ -4,6 +4,8 @@
 	между ними самолёт плавно летит от прошлой точки к новой. Спрайт — Shared.PlaneSprites (общие с превью), под
 	ним тень со сдвигом Render.PlaneShadow. Чужой самолёт вне обзора не рисуется (туман, §6.11). Выбранный
 	истребитель — золотая обводка и круг перехвата. Выведенные из строя здания — тёмная рамка.
+	Видимость (Render.Air): самолёт не мельче MinPlanePx на экране при любом зуме; налёт — вспышки бомб в круге
+	Air.BombRadius; сбитый самолёт падает, крутясь, и взрывается (события raid и planeShot, только в обзоре).
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -27,6 +29,7 @@ export type AirLayer = {
 	refresh: () -> (), -- пришло AIR
 	update: (now: number, state: CameraState) -> (),
 	select: (id: number?) -> (),
+	onEvents: (events: { any }) -> (), -- налёты и сбитые самолёты — эффекты
 	-- Ближайший к точке (в клетках) самолёт державы owner не дальше reach клеток.
 	pick: (x: number, y: number, owner: number, reach: number) -> Protocol.PlaneInfo?,
 }
@@ -181,9 +184,167 @@ function AirLayer.new(canvas: Frame, cs: ClientState): AirLayer
 		end
 	end
 
+	-- Эффекты: вспышки бомб, падение сбитого самолёта и взрыв. Координаты — в клетках.
+	type Effect = {
+		kind: "flash" | "fall" | "boom",
+		frame: Frame,
+		x: number,
+		y: number,
+		start: number,
+		life: number,
+		size: number, -- при зуме ×1, пикселей
+	}
+	local fx = Config.Render.Air
+	local effects: { Effect } = {}
+	local orange, gold, white = Theme.color("Orange"), Theme.Colors.Gold, Theme.Colors.Text
+
+	local function addEffect(e: Effect)
+		if #effects >= fx.MaxEffects then
+			e.frame:Destroy()
+			return
+		end
+		e.frame.Parent = canvas
+		table.insert(effects, e)
+	end
+	local function round(color: Color3, z: number): Frame
+		local f = Instance.new("Frame")
+		f.AnchorPoint = Vector2.new(0.5, 0.5)
+		f.BackgroundColor3 = color
+		f.BorderSizePixel = 0
+		f.ZIndex = z
+		local c = Instance.new("UICorner")
+		c.CornerRadius = UDim.new(1, 0)
+		c.Parent = f
+		return f
+	end
+	local function visibleAt(x: number, y: number, owner: number?): boolean
+		local w = cs.width
+		local cx, cy = math.floor(x), math.floor(y)
+		if cx < 0 or cy < 0 or cx >= w or cy >= cs.height then
+			return false
+		end
+		if owner ~= nil and cs.myNation ~= nil then
+			local friends = ClientState.friendsOf(cs, cs.myNation :: number)
+			if friends[owner] then
+				return true
+			end
+		end
+		return Fog.isVisible(cs.fog, cy * w + cx)
+	end
+
+	local function onEvents(events: { any })
+		local now = os.clock()
+		local w = cs.width
+		for _, e in events do
+			if type(e) ~= "table" then
+				continue
+			end
+			if e.kind == "raid" and type(e.cell) == "number" then
+				local cx, cy = e.cell % w + 0.5, e.cell // w + 0.5
+				if visibleAt(cx, cy, tonumber(e.nation)) then
+					-- Вспышки бомб — по кругу налёта, одна за другой.
+					local r = Config.Air.BombRadius
+					for k = 1, fx.BombFlashes do
+						local a = math.random() * math.pi * 2
+						local d = math.sqrt(math.random()) * r
+						local color = if k % 3 == 0 then white elseif k % 2 == 0 then gold else orange
+						addEffect({
+							kind = "flash",
+							frame = round(color, 14),
+							x = cx + math.cos(a) * d,
+							y = cy + math.sin(a) * d,
+							start = now + (k - 1) / fx.BombFlashes * fx.BombFlashSec,
+							life = fx.FlashLifeSec,
+							size = fx.FlashPx,
+						})
+					end
+				end
+			elseif e.kind == "planeShot" and type(e.x) == "number" and type(e.y) == "number" then
+				if visibleAt(e.x, e.y, nil) then
+					-- Сбитый самолёт: копия спрайта цветом державы падает, крутясь; потом взрыв.
+					local kind = if e.plane == "Fighter" then "Fighter" else "Bomber"
+					local f = Instance.new("Frame")
+					f.AnchorPoint = Vector2.new(0.5, 0.5)
+					f.BackgroundTransparency = 1
+					f.ZIndex = 14
+					for _, p in PlaneSprites.Shapes[kind] do
+						local part = Instance.new("Frame")
+						part.BorderSizePixel = 0
+						part.ZIndex = 15
+						part.BackgroundColor3 = if p.ink
+							then Theme.Colors.Backdrop
+							else colorOf(tonumber(e.nation) or 0)
+						part.Name = string.format("%d_%d_%d_%d", p.x, p.y, p.w, p.h)
+						part.Parent = f
+					end
+					addEffect({ kind = "fall", frame = f, x = e.x, y = e.y, start = now, life = fx.FallSec, size = 0 })
+				end
+			end
+		end
+	end
+
+	local function drawEffects(now: number, zoom: number, scale: number)
+		local j = 1
+		while j <= #effects do
+			local e = effects[j]
+			local t = (now - e.start) / e.life
+			if t >= 1 then
+				if e.kind == "fall" then
+					-- Конец падения — взрыв.
+					local y = e.y + fx.FallCells
+					local boom = round(orange, 14)
+					boom.Parent = canvas
+					effects[j] = {
+						kind = "boom",
+						frame = boom,
+						x = e.x,
+						y = y,
+						start = now,
+						life = fx.ExplosionSec,
+						size = fx.FlashPx * 2,
+					}
+					e.frame:Destroy()
+					j += 1
+				else
+					e.frame:Destroy()
+					table.remove(effects, j)
+				end
+				continue
+			end
+			local f = e.frame
+			if t < 0 then
+				f.Visible = false
+			elseif e.kind == "fall" then
+				f.Visible = true
+				local sw, sh = PlaneSprites.Width * scale, PlaneSprites.Height * scale
+				f.Size = UDim2.fromOffset(sw, sh)
+				f.Position = UDim2.fromOffset(math.round(e.x * zoom), math.round((e.y + fx.FallCells * t * t) * zoom))
+				f.Rotation = 200 * t
+				for _, part in f:GetChildren() do
+					if part:IsA("Frame") then
+						local n = string.split(part.Name, "_")
+						part.Position = UDim2.fromOffset((tonumber(n[1]) or 0) * scale, (tonumber(n[2]) or 0) * scale)
+						part.Size = UDim2.fromOffset((tonumber(n[3]) or 0) * scale, (tonumber(n[4]) or 0) * scale)
+						part.BackgroundTransparency = t * 0.5
+					end
+				end
+			else
+				f.Visible = true
+				local grow = math.sin(t * math.pi) -- растёт и гаснет
+				local px = e.size * math.max(1, zoom / 2) * (0.4 + grow)
+				f.Size = UDim2.fromOffset(px, px)
+				f.Position = UDim2.fromOffset(math.round(e.x * zoom), math.round(e.y * zoom))
+				f.BackgroundTransparency = 0.1 + 0.9 * t
+			end
+			j += 1
+		end
+	end
+
 	local function update(now: number, state: CameraState)
 		local zoom = state.zoom
-		local scale = UnitSprites.scaleFor(zoom)
+		-- Самолёт не мельче MinPlanePx на экране при любом зуме.
+		local scale = math.max(UnitSprites.scaleFor(zoom), math.ceil(fx.MinPlanePx / PlaneSprites.Width))
+		drawEffects(now, zoom, scale)
 		local t = math.clamp((now - cs.airAt) / stepSec, 0, 1)
 		local friends = if cs.myNation ~= nil then ClientState.friendsOf(cs, cs.myNation :: number) else {}
 		local w = cs.width
@@ -233,6 +394,7 @@ function AirLayer.new(canvas: Frame, cs: ClientState): AirLayer
 		select = function(id: number?)
 			selected = id
 		end,
+		onEvents = onEvents,
 		pick = function(x: number, y: number, owner: number, reach: number): Protocol.PlaneInfo?
 			local best: Protocol.PlaneInfo? = nil
 			local bestD = reach * reach

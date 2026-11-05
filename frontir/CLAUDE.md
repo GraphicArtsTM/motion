@@ -3,12 +3,16 @@
 Источник истины по игре: [`docs/GDD.md`](docs/GDD.md). Читай его перед любой задачей.
 
 ## Где мы сейчас
-Сделаны этапы **0–6**, **7а** и **7б-1** (PR #2–#4 в `main`), **7б-2** (авиация) — PR ждёт проверки. Дальше 7в, 7г
+Сделаны этапы **0–6**, **7а**, **7б-1** (флот) и **7б-2** (авиация) — всё в `main` (PR #2–#5). Перед 7в — доработки:
+честный замер, ускорение `stepAttacks`, арена на 20 партий с отдельными ГСЧ, видимость авиации. Дальше 7в, 7г
 (см. «Статус» в начале GDD §15). Обновляй «Статус» в GDD и этот раздел в конце каждого этапа.
 
 ## Порядок работы (договорённости с геймдизайнером)
-- Каждый этап (или его часть) — **ветка от свежего `main` и отдельный PR в `main`**. PR мержит **геймдизайнер сам**
-  после проверки в Studio; Claude не мержит.
+- Каждый этап (или его часть) — **ветка от свежего `main` и отдельный PR в `main`**.
+- **Кто мержит:** PR, где меняются **только документы или тесты**, Claude мержит сам после зелёного CI. PR с фичами
+  (любой код игры, инструменты, Config) мержит **геймдизайнер** после проверки в Studio.
+- **Замеры производительности:** только честные — `lune run tools/bench_ab ...`: `main` и ветка в одном запуске
+  на одной машине, по 5 прогонов вперемешку, берём минимум. В отчётах только такие цифры.
 - Большой этап делим на части (а/б/в…), после каждой — отчёт и «дальше».
 - Сначала правила этапа в GDD (отдельный коммит), потом код. Решения геймдизайнера — сразу в GDD.
 - Новые механики сразу добавлять в панель разработчика (F4) и в чек-лист README «Проверка этапа в Studio».
@@ -49,7 +53,8 @@ lune run tools/bench World 60 180  # нагрузка: время тика и т
 lune run tools/genmap Pangea   # пересоздать тестовую maps/Pangea.luau (+ превью build/Pangea.bmp)
 lune run tools/palette_preview # пересоздать docs/palette.png после правки цветов
 lune run tools/match_preview 120 12345 build/match.png Europe 12  # партия ботов → картинка (секунды, сид, файл, карта, держав)
-lune run tools/bot_arena Europe 4  # «игрок» (Обычный бот) против трёх Новичков / Обычных / Генералов, 4 сида
+lune run tools/bot_arena Europe 20  # «игрок» (Обычный бот) против трёх Новичков / Обычных / Генералов, 20 сидов, пороги
+lune run tools/bench_ab World 60 180 5  # честный замер: main и ветка в одном запуске, 5 прогонов, минимум
 rojo sourcemap default.project.json -o sourcemap.json   # для luau-lsp
 lune setup              # типы Lune (алиас @lune в .luaurc)
 luau-lsp analyze --platform=roblox --definitions:@roblox=types/globalTypes.d.luau --sourcemap=sourcemap.json --base-luaurc=.luaurc src tests tools
@@ -136,7 +141,7 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
 - Бюджет: `Bots.MaxThinksPerTick` раздумий за тик. Генералу +10% дохода — в `stepEconomy` (единственное послабление).
 - `MatchSim.setBot(m, id, level, personality?)` — сделать державу ботом (арена, тесты). Автостарт —
   на крупном массиве суши (`StartPositions.landmasses`, `Start.MinLandmassShare`).
-- Проверка силы уровней — `lune run tools/bot_arena Europe 4`; тесты — `Bots.spec`.
+- Проверка силы уровней — `lune run tools/bot_arena Europe 20` (пороги `Config.Bots.Arena*`); тесты — `Bots.spec`.
 - Для Studio: `Config.Dev.BotLevel` и `Config.Dev.Nations`.
 
 ## Договоры (этап 6а)
@@ -204,7 +209,17 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   botRaid), ускорение ×5 — шагов
   симуляции за кадр в `MatchService`, «Туман выкл» — `devNoFog` в `MatchService` и `cs.fogOff` на клиенте.
   Клиент: `UI/DevPanel`. Новые механики — сразу добавлять в панель и в чек-лист README.
-- С этапа 7 каждый этап — отдельный PR в `main` (мержит геймдизайнер).
+- С этапа 7 каждый этап — отдельный PR в `main` (кто мержит — см. «Порядок работы»).
+
+## Производительность и случайность (правки перед 7в)
+- Линии фронтов — `Expansion.FrontCache` (`m.frontCache`): живут между тиками, `Expansion.syncCache` применяет журнал
+  смен владельца `Grid.ownerLog` (пары клетка, прежний владелец; `Grid.setCity` двигает `cityEpoch` — кеш строится
+  заново), `Expansion.line` отдаёт линию, `pruneCache` убирает ненужные. Тест `FrontCache.spec` сверяет кеш со свежим
+  `Expansion.frontier`. Шум границы — один раз на клетку (`borderNoise`). Горячие модули — `--!native`.
+- Случайные числа по системам: `m.rng` — только расстановка; `m.councilRng`, `m.stabilityRng`; бой — `battleRng`
+  (поток на пару атакующий → цель); боты — `botRngsOf` (think, main, navy, air, diplo; в `BotBrain.decide` —
+  параметр `streams`). Новой механике — свой поток, не общий.
+- Замер: `tools/bench_ab` (git worktree `main` в `build/`), в отчётах — только его минимум.
 
 ## Require
 Внутри `src/shared` модули подключают друг друга строкой: `require("./Types")` — так работает и в Roblox (`./` = `script.Parent`), и в Lune.
