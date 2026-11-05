@@ -122,6 +122,7 @@ export type Match = {
 	cityOf: { [number]: number }, -- провинция → клетка города (нейтрального, державы или столицы)
 	wars: Wars.WarSet,
 	diplo: Diplomacy.DiploSet, -- договоры (§8.1)
+	frontCache: Expansion.FrontCache, -- линии фронтов между тиками (обновляются по журналу смен владельца)
 	council: Council.CouncilState, -- Совет держав (§8.2)
 	sent: { [number]: { { at: number, money: number, oil: number, people: number } } }, -- переводы за минуту
 	pingAt: { [number]: number }, -- когда держава последний раз ставила пинг
@@ -195,6 +196,7 @@ function MatchSim.new(map: MapData, seed: number): Match
 		cityOf = cityOf,
 		wars = Wars.new(),
 		diplo = Diplomacy.new(),
+		frontCache = Expansion.newCache(),
 		council = Council.new(),
 		sent = {},
 		pingAt = {},
@@ -1489,12 +1491,17 @@ local function stepAttacks(m: Match, simDt: number): number
 	local captured = 0
 
 	-- Фронты против держав: длины фронтов нужны, чтобы делить гарнизон защитника.
+	-- Линии берём из кеша (Expansion.FrontCache): он обновляется по сменившим владельца клеткам, а не обходом
+	-- всей границы атакующего каждый тик.
+	local cache = m.frontCache
+	Expansion.syncCache(cache, g)
 	local fronts: { [Attack]: Expansion.FrontLine } = {}
 	local frontLength: { [number]: number } = {}
 	for _, a in m.attacks do
 		if a.target ~= 0 then
-			local list, touching, river = Expansion.frontier(g, a.attacker, a.target, true, m.map)
-			fronts[a] = { list = list, touching = touching, river = river }
+			local front = Expansion.line(cache, g, a.attacker, a.target, true, m.map, m.tick)
+			local list = front.list
+			fronts[a] = front
 			-- Выборка линии фронта для тумана (§6.11): сервер шлёт чужой фронт, только если он в обзоре.
 			local line: { number } = {}
 			local stride = math.max(1, math.ceil(#list / Config.Fog.LineSamples))
@@ -1528,12 +1535,15 @@ local function stepAttacks(m: Match, simDt: number): number
 			continue
 		end
 		if a.target == 0 then
+			local cityAllowed = neutralCityTaker(m, a)
+			Expansion.syncCache(cache, g) -- захваты этого тика (прежние атаки) уже в линии
+			local line = Expansion.line(cache, g, a.attacker, 0, cityAllowed ~= nil, nil, m.tick)
 			local d, cells = Expansion.advance(m.map, g, m.nations, a, m.tick, m.seed, simDt, {
-				cityAllowed = neutralCityTaker(m, a),
+				cityAllowed = cityAllowed,
 				canTake = enclaveRule(m, a.attacker),
 				record = record,
 				costMul = rebelCost,
-			})
+			}, line)
 			done = d
 			captured += cells
 		else
@@ -1645,6 +1655,7 @@ local function stepAttacks(m: Match, simDt: number): number
 			k += 1
 		end
 	end
+	Expansion.pruneCache(cache, m.tick)
 	return captured
 end
 

@@ -1,4 +1,5 @@
 --!strict
+--!native
 --[[
 	Expansion — захват клеток вдоль границы (GDD §6.4, §6.6–6.7а).
 
@@ -35,7 +36,32 @@ type Nation = Types.Nation
 type Attack = Types.Attack
 
 -- Линия фронта: клетки цели у нашей границы, сколько у каждой наших соседей, какие из них за рекой.
-export type FrontLine = { list: { number }, touching: { [number]: number }, river: { [number]: boolean } }
+-- index (только у линий из кеша) — позиция клетки в list, чтобы убирать её за O(1).
+export type FrontLine = {
+	list: { number },
+	touching: { [number]: number },
+	river: { [number]: boolean },
+	index: { [number]: number }?,
+}
+
+-- Кеш линий фронта между тиками (§12: тик). Линия (атакующий, цель) обновляется только по клеткам, сменившим
+-- владельца (Grid.ownerLog), а не обходом всей границы атакующего каждый тик.
+type CachedLine = {
+	line: FrontLine,
+	attacker: number,
+	target: number,
+	cities: boolean, -- брать ли города в линию
+	map: MapData?, -- с картой — фронт видит клетки за рекой
+	usedTick: number,
+	seen: number, -- служебное: номер обработанной смены владельца
+}
+
+export type FrontCache = {
+	lines: { [number]: CachedLine },
+	byNation: { [number]: { CachedLine } }, -- держава (атакующий или цель) → её линии
+	cityEpoch: number,
+	change: number,
+}
 
 -- Необязательные правила захвата (MatchSim подставляет войны и журнал захвата).
 export type Hooks = {
@@ -118,6 +144,196 @@ function Expansion.frontier(
 		end)
 	end
 	return list, touching, river
+end
+
+-- Сколько клеток атакующего касается клетки x (по суше; с map — и через реку) и есть ли среди них касание по суше.
+local function touchOf(g: Grid, map: MapData?, x: number, attacker: number): (number, boolean)
+	local w, size = g.width, g.size
+	local owner = g.owner
+	local riverId = Types.Terrain.River
+	local count, land = 0, false
+	local xx = x % w
+	for d = 1, 4 do
+		local dir = if d == 1 then -1 elseif d == 2 then 1 elseif d == 3 then -w else w
+		local j = x + dir
+		if (d == 1 and xx == 0) or (d == 2 and xx == w - 1) or j < 0 or j >= size then
+			continue
+		end
+		if map ~= nil and MapData.getTerrain(map, j) == riverId then
+			local far = acrossRiver(g, map, x, dir)
+			if far ~= nil and buffer.readu16(owner, far * 2) == attacker then
+				count += 1
+			end
+		elseif buffer.readu16(owner, j * 2) == attacker then
+			count += 1
+			land = true
+		end
+	end
+	return count, land
+end
+
+-- Пересчитать клетку x в линии: входит ли, сколько касаний, за рекой ли.
+local function refresh(c: CachedLine, g: Grid, x: number)
+	local line = c.line
+	local index = line.index :: { [number]: number }
+	local member = buffer.readu16(g.owner, x * 2) == c.target
+		and buffer.readu8(g.capturable, x) == 1
+		and (c.cities or buffer.readu8(g.city, x) == 0)
+	local count, land = 0, false
+	if member then
+		count, land = touchOf(g, c.map, x, c.attacker)
+	end
+	local pos = index[x]
+	if count > 0 then
+		if pos == nil then
+			table.insert(line.list, x)
+			index[x] = #line.list
+		end
+		line.touching[x] = count
+		if land then
+			line.river[x] = nil
+		else
+			line.river[x] = true
+		end
+	elseif pos ~= nil then
+		local list = line.list
+		local last = list[#list]
+		list[pos] = last
+		index[last] = pos
+		list[#list] = nil
+		index[x] = nil
+		line.touching[x] = nil
+		line.river[x] = nil
+	end
+end
+
+function Expansion.newCache(): FrontCache
+	return { lines = {}, byNation = {}, cityEpoch = -1, change = 0 }
+end
+
+local function dropLine(cache: FrontCache, key: number, c: CachedLine)
+	cache.lines[key] = nil
+	for _, n in { c.attacker, c.target } do
+		local list = cache.byNation[n]
+		if list ~= nil then
+			local k = table.find(list, c)
+			if k ~= nil then
+				table.remove(list, k)
+			end
+		end
+	end
+end
+
+-- Применить к кешу все смены владельца с прошлого раза (Grid.ownerLog) и забрать журнал.
+function Expansion.syncCache(cache: FrontCache, g: Grid)
+	local log = g.ownerLog
+	if #log == 0 and cache.cityEpoch == g.cityEpoch then
+		return
+	end
+	g.ownerLog = {}
+	-- Сменились города или журнал слишком велик (долго не забирали) — линии строим заново.
+	if cache.cityEpoch ~= g.cityEpoch or #log > g.size then
+		cache.lines = {}
+		cache.byNation = {}
+		cache.cityEpoch = g.cityEpoch
+		return
+	end
+	local w, size = g.width, g.size
+	local riverId = Types.Terrain.River
+	for k = 1, #log, 2 do
+		local cell, old = log[k], log[k + 1]
+		local new = buffer.readu16(g.owner, cell * 2)
+		cache.change += 1
+		local stamp = cache.change
+		for pass = 1, 2 do
+			local nation = if pass == 1 then old else new
+			local lines = cache.byNation[nation]
+			if lines == nil then
+				continue
+			end
+			for _, c in lines do
+				if c.seen == stamp then
+					continue
+				end
+				c.seen = stamp
+				if c.attacker == old or c.attacker == new then
+					-- Сменилась клетка атакующего: касания соседей (и клеток за рекой) другие.
+					refresh(c, g, cell)
+					local x = cell % w
+					for d = 1, 4 do
+						local dir = if d == 1 then -1 elseif d == 2 then 1 elseif d == 3 then -w else w
+						local j = cell + dir
+						if (d == 1 and x == 0) or (d == 2 and x == w - 1) or j < 0 or j >= size then
+							continue
+						end
+						if c.map ~= nil and MapData.getTerrain(c.map :: MapData, j) == riverId then
+							local far = acrossRiver(g, c.map :: MapData, cell, dir)
+							if far ~= nil then
+								refresh(c, g, far)
+							end
+						else
+							refresh(c, g, j)
+						end
+					end
+				else
+					-- Сменилась клетка цели: входит ли она сама.
+					refresh(c, g, cell)
+				end
+			end
+		end
+	end
+end
+
+-- Линия фронта attacker → target из кеша (или новая). cities — брать ли города; map — фронт через реку.
+function Expansion.line(
+	cache: FrontCache,
+	g: Grid,
+	attacker: number,
+	target: number,
+	cities: boolean,
+	map: MapData?,
+	tick: number
+): FrontLine
+	local key = ((attacker * 65536 + target) * 2 + (if cities then 1 else 0)) * 2 + (if map ~= nil then 1 else 0)
+	local c = cache.lines[key]
+	if c == nil then
+		local list, touching, river = Expansion.frontier(g, attacker, target, cities, map)
+		local index: { [number]: number } = {}
+		for k, cell in list do
+			index[cell] = k
+		end
+		c = {
+			line = { list = list, touching = touching, river = river, index = index },
+			attacker = attacker,
+			target = target,
+			cities = cities,
+			map = map,
+			usedTick = tick,
+			seen = 0,
+		}
+		cache.lines[key] = c
+		for _, n in { attacker, target } do
+			local list2 = cache.byNation[n]
+			if list2 == nil then
+				list2 = {}
+				cache.byNation[n] = list2
+			end
+			if table.find(list2, c) == nil then
+				table.insert(list2, c)
+			end
+		end
+	end
+	c.usedTick = tick
+	return c.line
+end
+
+-- Убрать линии, которые не спрашивали с тика before (атака кончилась).
+function Expansion.pruneCache(cache: FrontCache, before: number)
+	for key, c in cache.lines do
+		if c.usedTick < before then
+			dropLine(cache, key, c)
+		end
+	end
 end
 
 -- Есть ли у атакующего общая граница с целью (с городами — если includeCities; с map — и через реку).
@@ -248,19 +464,40 @@ end
 
 -- Клетка — «дыра»: все 4 соседа наши или стена (вода, река, край карты). Такие берутся сразу.
 local function isHole(g: Grid, i: number, attacker: number): boolean
-	local w = g.width
+	local w, size = g.width, g.size
+	local owner, capturable = g.owner, g.capturable
 	local x = i % w
-	local walls = (if x == 0 then 1 else 0)
-		+ (if x == w - 1 then 1 else 0)
-		+ (if i < w then 1 else 0)
-		+ (if i + w >= g.size then 1 else 0)
-	local closed = walls
-	Grid.forNeighbours(g, i, function(j)
-		if Grid.getOwner(g, j) == attacker or not Grid.isCapturable(g, j) then
+	local closed = 0
+	for d = 1, 4 do
+		local j = if d == 1 then i - 1 elseif d == 2 then i + 1 elseif d == 3 then i - w else i + w
+		local edge = (d == 1 and x == 0) or (d == 2 and x == w - 1) or j < 0 or j >= size
+		-- Край карты, своя клетка или стена (вода, река).
+		if edge or buffer.readu16(owner, j * 2) == attacker or buffer.readu8(capturable, j) == 0 then
 			closed += 1
 		end
-	end)
+	end
 	return closed >= 4
+end
+
+-- Шум границы для клетки не меняется за матч — считаем его один раз (f32 на клетку; NaN — ещё не считали).
+local noiseCache: { seed: number, size: number, buf: buffer }? = nil
+local function borderNoise(g: Grid, i: number, seed: number): number
+	local nc = noiseCache
+	if nc == nil or nc.seed ~= seed or nc.size ~= g.size then
+		local buf = buffer.create(g.size * 4)
+		buffer.fill(buf, 0, 255) -- все биты 1 — это NaN
+		nc = { seed = seed, size = g.size, buf = buf }
+		noiseCache = nc
+	end
+	local buf = (nc :: { seed: number, size: number, buf: buffer }).buf
+	local v = buffer.readf32(buf, i * 4)
+	if v ~= v then
+		local cfg = Config.Expansion
+		local w = g.width
+		v = Noise.value2((i % w) / cfg.BorderNoiseScale, (i // w) / cfg.BorderNoiseScale, seed) * 2 - 1
+		buffer.writef32(buf, i * 4, v)
+	end
+	return v
 end
 
 local function selectCells(
@@ -283,19 +520,26 @@ local function selectCells(
 	local base: { number } = table.create(#front)
 	local fx, fy = if focus ~= nil then focus % w else 0, if focus ~= nil then focus // w else 0
 	local sum = 0
+	local owner, size = g.owner, g.size
 	for k, i in front do
 		local x, y = i % w, i // w
-		local n = Noise.value2(x / cfg.BorderNoiseScale, y / cfg.BorderNoiseScale, seed) * 2 - 1
+		local n = borderNoise(g, i, seed)
 		local b = (1 + cfg.TouchWeight * (touching[i] - 1)) * math.max(0.2, 1 + cfg.BorderNoise * n)
 		if focus ~= nil then
 			-- Куда клетка «смотрит»: от наших соседей к ней.
 			local nx, ny = 0, 0
-			Grid.forNeighbours(g, i, function(j)
-				if Grid.getOwner(g, j) == attacker then
-					nx += x - j % w
-					ny += y - j // w
-				end
-			end)
+			if x > 0 and buffer.readu16(owner, (i - 1) * 2) == attacker then
+				nx += 1
+			end
+			if x < w - 1 and buffer.readu16(owner, (i + 1) * 2) == attacker then
+				nx -= 1
+			end
+			if i >= w and buffer.readu16(owner, (i - w) * 2) == attacker then
+				ny += 1
+			end
+			if i + w < size and buffer.readu16(owner, (i + w) * 2) == attacker then
+				ny -= 1
+			end
 			b *= Expansion.focusWeight(nx, ny, fx - x, fy - y)
 		end
 		base[k] = b
@@ -336,13 +580,19 @@ function Expansion.advance(
 	tick: number,
 	seed: number,
 	dt: number,
-	hooks: Hooks?
+	hooks: Hooks?,
+	line: FrontLine? -- готовая линия (из кеша); без неё — считается заново
 ): (boolean, number)
 	local cfg = Config.Expansion
 	local cityAllowed = if hooks ~= nil then hooks.cityAllowed else nil
 	local record = if hooks ~= nil then hooks.record else nil
 	local costMul = if hooks ~= nil then hooks.costMul else nil
-	local front, touching = Expansion.frontier(g, attack.attacker, attack.target, cityAllowed ~= nil)
+	local front: { number }, touching: { [number]: number }
+	if line ~= nil then
+		front, touching = line.list, line.touching
+	else
+		front, touching = Expansion.frontier(g, attack.attacker, attack.target, cityAllowed ~= nil)
+	end
 	if #front == 0 then
 		return true, 0
 	end

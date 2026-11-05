@@ -94,12 +94,13 @@ end
 
 -- Новый корабль у причала dock порта port.
 function Fleet.spawn(fs: FleetState, width: number, owner: number, kind: ShipKind, port: number, dock: number): Ship
+	local row = dock // width -- StyLua 2.6 падает на «//» внутри конструктора таблицы
 	local ship: Ship = {
 		id = fs.nextId,
 		owner = owner,
 		kind = kind,
 		x = dock % width + 0.5,
-		y = dock // width + 0.5,
+		y = row + 0.5,
 		hp = Fleet.maxHp(kind),
 		state = "docked",
 		order = nil,
