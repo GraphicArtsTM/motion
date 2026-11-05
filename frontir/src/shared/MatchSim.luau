@@ -3372,7 +3372,11 @@ local function botMissile(m: Match, n: Nation, rng: Rng)
 	end
 	if MatchSim.ownedOf(m, n.id).silos == 0 then
 		local cfg = Config.Buildings.MissileSilo
-		if MatchSim.techAllows(m, n.id, "MissileSilo") and n.money >= cfg.cost * Config.Missile.BotSiloMoneyMul and n.oil >= cfg.oil then
+		if
+			MatchSim.techAllows(m, n.id, "MissileSilo")
+			and n.money >= cfg.cost * Config.Missile.BotSiloMoneyMul
+			and n.oil >= cfg.oil
+		then
 			-- Свободная своя провинция подальше от фронта: ближайшая к столице.
 			local cap = n.capital or 0
 			local w = m.grid.width

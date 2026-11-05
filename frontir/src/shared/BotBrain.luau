@@ -334,6 +334,18 @@ local function chooseBuild(view: BotView, profile: Profile, rng: Rng, atWar: boo
 	local air = view.air
 	if atWar and air ~= nil then
 		local keen = personality.air >= 0.5 or level.smartTarget
+		-- Сводная правка: самолётам нужна нефть — аэродром без нефтедобычи стоит без дела.
+		if
+			keen
+			and air.airfield ~= nil
+			and view.oil < (Config.Units :: any).Bomber.oil
+			and view.economy.oilIncome <= 0
+		then
+			local rig = want("OilRig", spots.oilRig)
+			if rig ~= nil then
+				return rig
+			end
+		end
 		if keen and air.airfield == nil and spots.airfield ~= nil then
 			local airfield = want("Airfield", spots.airfield)
 			if airfield ~= nil then
