@@ -105,7 +105,10 @@ T.describe("Профиль (§11.2)", function()
 			T.expect(Profile.grantProduct(d, "pack", "Recruit", "p2")).toBe(true)
 			T.expect(d.tokens).toBe(2 + Config.Shop.Packs.Recruit.tokens)
 			T.expect(Profile.packAvailable(d, "Recruit")).toBe(false)
-			T.expect(Profile.grantProduct(d, "pack", "Recruit", "p3")).toBe(false)
+			-- Повторная покупка разового набора (окно его прячет) всё равно начисляется: Robux уже списаны.
+			local tokens = d.tokens
+			T.expect(Profile.grantProduct(d, "pack", "Recruit", "p3")).toBe(true)
+			T.expect(d.tokens).toBe(tokens + Config.Shop.Packs.Recruit.tokens)
 			local veteran = Profile.new()
 			veteran.xp = 1e7
 			T.expect(Profile.packAvailable(veteran, "Recruit")).toBe(false)

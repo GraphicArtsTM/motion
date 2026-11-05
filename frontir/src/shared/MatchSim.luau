@@ -409,10 +409,37 @@ function MatchSim.canBoost(m: Match, id: number, key: string): (boolean, string?
 	if key == "Research" and m.tech.research[id] == nil then
 		return false, "noResearch"
 	end
+	if key == "Squadron" and MatchSim.squadronPort(m, id) == nil then
+		return false, "noPort"
+	end
+	if key == "AirWing" and MatchSim.airWingField(m, id) == nil then
+		return false, "noAirfield"
+	end
 	return true, nil
 end
 
-function MatchSim.useBoost(m: Match, id: number, key: string): (boolean, string?)
+-- Свой порт для «Эскадры» (§11.3): первый порт державы с причалом.
+function MatchSim.squadronPort(m: Match, id: number): Port?
+	for _, p in MatchSim.portsOf(m, id) do
+		if not MatchSim.isDisabled(m, p.cell) then
+			return p
+		end
+	end
+	return nil
+end
+
+-- Свой аэродром для «Авиакрыла» (§11.3).
+function MatchSim.airWingField(m: Match, id: number): number?
+	for _, b in MatchSim.buildingsOf(m, "Airfield") do
+		if b.owner == id and not MatchSim.isDisabled(m, b.cell) then
+			return b.cell
+		end
+	end
+	return nil
+end
+
+-- cell — цель «Авиаудара».
+function MatchSim.useBoost(m: Match, id: number, key: string, cell: number?): (boolean, string?)
 	local ok, why = MatchSim.canBoost(m, id, key)
 	if not ok then
 		return false, why
@@ -433,6 +460,25 @@ function MatchSim.useBoost(m: Match, id: number, key: string): (boolean, string?
 		end
 	elseif key == "Reserve" then
 		Commanders.resetCooldowns(m.commanders, id)
+	elseif key == "Guards" then
+		-- Танки 2★: доля силы державы (гарнизон и фронты), не меньше minStrength (§11.3).
+		local g = cfg.Guards
+		local power = Forces.total(n.home) + Forces.total(MatchSim.frontForces(m, id))
+		local tanks = Forces.kindIndex("Tanks") :: number
+		Forces.add(n.home, tanks, math.max(g.minStrength, power * g.powerShare), g.xp)
+	elseif key == "Airstrike" then
+		local ok2, why2 = MatchSim.strikeAt(m, n, cell or -1, cfg.Airstrike.frontLoss)
+		if not ok2 then
+			return false, why2
+		end
+	elseif key == "Squadron" then
+		local p = MatchSim.squadronPort(m, id) :: Port
+		Fleet.spawn(m.fleet, m.grid.width, id, "Destroyer", p.cell, p.dock)
+		Fleet.spawn(m.fleet, m.grid.width, id, "Transport", p.cell, p.dock)
+	elseif key == "AirWing" then
+		local field = MatchSim.airWingField(m, id) :: number
+		Air.spawn(m.air, m.grid.width, id, "Fighter", field)
+		Air.spawn(m.air, m.grid.width, id, "Bomber", field)
 	end
 	local used = m.boostsUsed[id]
 	if used == nil then
@@ -2685,6 +2731,46 @@ local function landable(m: Match, id: number, cell: number): boolean
 	return o ~= id and (o == 0 or Wars.isActive(m.wars, id, o))
 end
 
+-- Авиаудар по клетке at (способность Маршала, платная часть «Авиаудар», §6.15, §11.3): в круге StrikeRadius должна быть
+-- земля врага в войне; его фронты, касающиеся круга, теряют долю loss силы (ПВО в составе снижает).
+function MatchSim.strikeAt(m: Match, n: Nation, at: number, loss: number): (boolean, string?)
+	local cfg = Config.Commanders
+	local g = m.grid
+	local w = g.width
+	if at < 0 or at >= g.size then
+		return false, "focus"
+	end
+	local r = cfg.StrikeRadius
+	local enemy = false
+	for dy = -r, r do
+		for dx = -r, r do
+			local x, y = at % w + dx, at // w + dy
+			if x >= 0 and y >= 0 and x < w and y < g.height and dx * dx + dy * dy <= r * r then
+				local o = Grid.getOwner(g, y * w + x)
+				if o ~= 0 and o ~= n.id and Wars.isActive(m.wars, n.id, o) then
+					enemy = true
+				end
+			end
+		end
+	end
+	if not enemy then
+		return false, "noEnemy"
+	end
+	for _, a in m.attacks do
+		if
+			a.target ~= 0
+			and a.attacker ~= n.id
+			and Wars.isActive(m.wars, n.id, a.attacker)
+			and lineTouches(m, a, at, r)
+		then
+			local mul = 1 - Air.aaReduction(Forces.composition(a.forces))
+			Forces.applyDamage(a.forces, Forces.total(a.forces) * loss * mul)
+		end
+	end
+	table.insert(m.commanders.strikes, { owner = n.id, cell = at, untilTime = m.simTime + cfg.StrikeSec })
+	return true, nil
+end
+
 -- Применить способность слота slot (1 — Q, 2 — E). percent — доля войск для десантов.
 function MatchSim.useAbility(m: Match, n: Nation, slot: number, cell: number?, percent: number?): (boolean, string?)
 	local st = m.commanders
@@ -2710,34 +2796,10 @@ function MatchSim.useAbility(m: Match, n: Nation, slot: number, cell: number?, p
 	end
 
 	if ability == "Airstrike" then
-		local r = cfg.StrikeRadius
-		local enemy = false
-		for dy = -r, r do
-			for dx = -r, r do
-				local x, y = at % w + dx, at // w + dy
-				if x >= 0 and y >= 0 and x < w and y < g.height and dx * dx + dy * dy <= r * r then
-					local o = Grid.getOwner(g, y * w + x)
-					if o ~= 0 and o ~= n.id and Wars.isActive(m.wars, n.id, o) then
-						enemy = true
-					end
-				end
-			end
+		local ok, why = MatchSim.strikeAt(m, n, at, cfg.StrikeLoss)
+		if not ok then
+			return false, why
 		end
-		if not enemy then
-			return false, "noEnemy"
-		end
-		for _, a in m.attacks do
-			if
-				a.target ~= 0
-				and a.attacker ~= n.id
-				and Wars.isActive(m.wars, n.id, a.attacker)
-				and lineTouches(m, a, at, r)
-			then
-				local mul = 1 - Air.aaReduction(Forces.composition(a.forces))
-				Forces.applyDamage(a.forces, Forces.total(a.forces) * cfg.StrikeLoss * mul)
-			end
-		end
-		table.insert(st.strikes, { owner = n.id, cell = at, untilTime = m.simTime + cfg.StrikeSec })
 	elseif ability == "Surge" then
 		st.surgeUntil[n.id] = m.simTime + cfg.SurgeSec
 	elseif ability == "SeaLanding" or ability == "Airdrop" then

@@ -8,8 +8,8 @@
 local Config = require("./Config")
 
 export type PassKey = "HQ" | "Intel" | "Vip" | "AllCommanders"
-export type BoostKey = "Mobilize" | "Loan" | "Research" | "Reserve"
-export type PackKey = "Recruit" | "Medals" | "Tokens"
+export type BoostKey = "Mobilize" | "Loan" | "Research" | "Reserve" | "Guards" | "Airstrike" | "Squadron" | "AirWing"
+export type PackKey = "Recruit" | "Medals" | "Tokens" | "Crate1" | "Crate5" | "SeasonPass" | "Weekly"
 
 -- Перки геймпассов в матче (§11.1).
 export type Perks = {
@@ -23,8 +23,29 @@ export type Perks = {
 local Shop = {}
 
 Shop.PassKeys = table.freeze({ "HQ", "Intel", "Vip", "AllCommanders" } :: { PassKey })
-Shop.BoostKeys = table.freeze({ "Mobilize", "Loan", "Research", "Reserve" } :: { BoostKey })
-Shop.PackKeys = table.freeze({ "Recruit", "Medals", "Tokens" } :: { PackKey })
+Shop.BoostKeys = table.freeze(
+	{ "Mobilize", "Loan", "Research", "Reserve", "Guards", "Airstrike", "Squadron", "AirWing" } :: { BoostKey }
+)
+-- Платные части (§11.3) — их дают ящики и пропуск.
+Shop.UnitKeys = table.freeze({ "Guards", "Airstrike", "Squadron", "AirWing" } :: { BoostKey })
+Shop.PackKeys =
+	table.freeze({ "Recruit", "Medals", "Tokens", "Crate1", "Crate5", "SeasonPass", "Weekly" } :: { PackKey })
+
+-- Номер недели UTC (с понедельника) — для предложения недели.
+function Shop.week(unixTime: number): number
+	return math.floor((unixTime - Config.Modes.WeekStartUnix) / (7 * 86400))
+end
+
+-- Предложение недели (по кругу Config.Shop.WeeklyOffers).
+function Shop.weeklyOffer(unixTime: number): { stock: { [string]: number }, crates: number, tokens: number }
+	local list = Config.Shop.WeeklyOffers
+	return list[Shop.week(unixTime) % #list + 1] :: any
+end
+
+-- Секунд до смены недели (честный отсчёт, §11.3).
+function Shop.weekLeft(unixTime: number): number
+	return Config.Modes.WeekStartUnix + (Shop.week(unixTime) + 1) * 7 * 86400 - unixTime
+end
 
 function Shop.isBoost(key: any): boolean
 	return table.find(Shop.BoostKeys, key) ~= nil

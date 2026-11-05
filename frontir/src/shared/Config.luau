@@ -128,12 +128,63 @@ Config.Shop = {
 		Loan = { id = 0, price = 39, money = 2000 },
 		Research = { id = 0, price = 29 },
 		Reserve = { id = 0, price = 25 },
+		-- Платные части (этап 9б, §11.3).
+		Guards = { id = 0, price = 59, powerShare = 0.12, minStrength = 400, xp = 3 }, -- танки 2★ (Forces.StarXp)
+		Airstrike = { id = 0, price = 45, frontLoss = 0.15 }, -- по клетке; радиус — Commanders.StrikeRadius
+		Squadron = { id = 0, price = 49 }, -- эсминец и транспорт у своего порта
+		AirWing = { id = 0, price = 49 }, -- истребитель и бомбардировщик у своего аэродрома
 	},
 	Packs = {
 		Recruit = { id = 0, price = 99, tokens = 3, medals = 1500, maxLevel = 10, once = true },
 		Medals = { id = 0, price = 79, medals = 2000, tokens = 0 },
 		Tokens = { id = 0, price = 99, tokens = 3, medals = 0 },
+		-- Этап 9б (§11.3): ящики, пропуск сезона, предложение недели.
+		Crate1 = { id = 0, price = 49, crates = 1, tokens = 0, medals = 0 },
+		Crate5 = { id = 0, price = 199, crates = 5, tokens = 0, medals = 0 },
+		SeasonPass = { id = 0, price = 499, season = true, tokens = 0, medals = 0 },
+		Weekly = { id = 0, price = 149, weekly = true, tokens = 0, medals = 0 },
 	},
+	-- Предложение недели (§11.3): по номеру недели UTC по кругу; дешевле, чем по отдельности.
+	WeeklyOffers = {
+		{ stock = { Guards = 1, Airstrike = 1 }, crates = 1, tokens = 0 },
+		{ stock = { Squadron = 1, AirWing = 1 }, crates = 1, tokens = 0 },
+		{ stock = { Guards = 1, AirWing = 1 }, crates = 0, tokens = 2 },
+		{ stock = { Airstrike = 1, Mobilize = 1 }, crates = 2, tokens = 0 },
+	} :: { { stock: { [string]: number }, crates: number, tokens: number } },
+}
+
+-- §11.3 Боевой пропуск сезона (этап 9б): опыт за матчи → ступени; бесплатная и премиум-дорожки (Season.reward).
+Config.Season = {
+	Id = 1,
+	EndsUnix = 1799020800, -- 2027-01-04 00:00 UTC (понедельник) — конец сезона 1
+	Tiers = 30,
+	XpPerTier = 400,
+}
+
+-- §11.3 Ящики снабжения: веса наград (шансы видны в окне до покупки) и гарантия джекпота.
+Config.Crates = {
+	Pity = 10, -- не позже этого ящика подряд без джекпота — джекпот
+	Table = {
+		{ key = "medalsS", weight = 40, medals = 300, tokens = 0 },
+		{ key = "medalsM", weight = 15, medals = 800, tokens = 0 },
+		{ key = "token", weight = 20, medals = 0, tokens = 1 },
+		{ key = "unit", weight = 20, medals = 0, tokens = 0 }, -- платная часть в запас (любая)
+		{ key = "jackpot", weight = 5, medals = 2000, tokens = 5 },
+	},
+}
+
+-- §11.3 Ежедневная награда за вход (7 дней подряд) и первая победа дня.
+Config.Daily = {
+	Rewards = {
+		{ medals = 150, tokens = 0, crates = 0 },
+		{ medals = 200, tokens = 0, crates = 0 },
+		{ medals = 0, tokens = 1, crates = 0 },
+		{ medals = 300, tokens = 0, crates = 0 },
+		{ medals = 0, tokens = 1, crates = 0 },
+		{ medals = 400, tokens = 0, crates = 0 },
+		{ medals = 0, tokens = 0, crates = 1 },
+	},
+	FirstWinMul = 2, -- опыт за первую победу дня
 }
 
 -- §5.2 Голосование за карту (этап 8б): на экране итогов — текущая и Options − 1 случайных из пула.
