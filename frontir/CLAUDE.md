@@ -173,8 +173,11 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   раз в `Stability.UpdateSec` (`stepStability`), восстание — `MatchSim.revolt` (клетки ничьи, город повстанцев
   с гарнизоном `RebelGarrison` в `neutralCityTaker`), ничья земля повстанцев дороже (`Expansion.Hooks.costMul`),
   доход — в `stepEconomy`. Боты: `spots.unstable` / `unstableCity` и мир раньше (`BotBrain`).
-- Туман с правки после 7г прячет войска, корабли, самолёты и здания, но не границы (`Fog.hideTerritory`,
-  `Config.Fog.HideTerritory`; `true` — правило 7а, его включает «Мгла»).
+- **С правки после 8а карта открыта:** туман на карте только в «Мгле» (`m.rules.fog`, `MatchStats.fogOn`,
+  `cs.rules.fog`; тесты тумана — `Modes.withFog`). Скрыта чужая военная мощь (§6.11а): `MatchSim.knownSet` (друзья,
+  разведка `m.intel`, радары `m.radarIntel`, вспышка), `MatchStats.forViewer(..., known)` / `wars(m, known)` — «?»
+  (−1) и грубая сила (`MatchStats.hidden`, клиент рисует юнитов по модулю). Разведка — `MatchSim.spy` (намерение
+  `intel`), боты — `botIntel`.
 - `Fog` — чистый модуль: обзор клиента (фаска 5/7 в прямоугольнике вокруг источников, два прохода), последний
   увиденный владелец (`known`), «видно всё» (`all`, так начинается матч и так у зрителя); грубый обзор сервера
   блоками (`visionBlocks`, `lineVisible` по выборке линии фронта `Attack.line`).
