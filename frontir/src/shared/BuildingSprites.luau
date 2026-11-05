@@ -52,6 +52,16 @@ BuildingSprites.Shapes = table.freeze({
 		{ x = 1, y = 6, w = 5, h = 1, ink = false },
 		{ x = 3, y = 6, w = 1, h = 1, ink = true },
 	},
+	Airfield = { -- полоса и вышка
+		{ x = 0, y = 4, w = 7, h = 2, ink = false },
+		{ x = 5, y = 0, w = 2, h = 4, ink = false },
+		{ x = 1, y = 4, w = 5, h = 1, ink = true },
+	},
+	AirDefense = { -- установка и два ствола вверх
+		{ x = 1, y = 4, w = 5, h = 3, ink = false },
+		{ x = 2, y = 0, w = 1, h = 4, ink = true },
+		{ x = 4, y = 0, w = 1, h = 4, ink = true },
+	},
 	OilField = { -- капля нефти (поле без вышки)
 		{ x = 3, y = 0, w = 1, h = 1, ink = true },
 		{ x = 2, y = 1, w = 3, h = 2, ink = true },

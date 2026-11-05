@@ -521,6 +521,20 @@ function MatchHud.new(
 				if transports + destroyers > 0 then
 					table.insert(lines, string.format(Strings.get("hud.fleet", lang), transports, destroyers))
 				end
+				-- Авиация (§6.13): свои самолёты.
+				local fighters, bombers = 0, 0
+				for _, plane in cs.air.planes do
+					if plane.owner == me.id then
+						if plane.kind == "Fighter" then
+							fighters += 1
+						else
+							bombers += 1
+						end
+					end
+				end
+				if fighters + bombers > 0 then
+					table.insert(lines, string.format(Strings.get("hud.air", lang), fighters, bombers))
+				end
 				if myStats.weariness > 0 then
 					table.insert(
 						lines,
@@ -876,6 +890,34 @@ function MatchHud.new(
 					alertLine(Strings.get("event.blockadeYou", lang))
 				else
 					toast(string.format(Strings.get(if e.on then "event.blockade" else "event.blockadeOff", lang), a))
+				end
+			-- Авиация (§6.13).
+			elseif e.kind == "planeBuilt" and e.nation == cs.myNation then
+				toast(
+					string.format(
+						Strings.get("event.planeBuilt", lang),
+						Strings.get("plane." .. tostring(e.plane), lang)
+					)
+				)
+			elseif e.kind == "planeShot" and (e.nation == cs.myNation or e.by == cs.myNation) then
+				local text = string.format(
+					Strings.get("event.planeShot", lang),
+					a,
+					Strings.get("plane." .. tostring(e.plane), lang),
+					nationName(tonumber(e.by) or 0)
+				)
+				if e.nation == cs.myNation then
+					alertLine(text)
+				else
+					toast(text)
+				end
+			elseif e.kind == "raid" and (e.target == cs.myNation or e.nation == cs.myNation) then
+				local lost = Strings.formatInt(tonumber(e.lost) or 0)
+				local count = tonumber(e.buildings) or 0
+				if e.target == cs.myNation then
+					alertLine(string.format(Strings.get("event.raidOnYou", lang), a, lost, count))
+				else
+					toast(string.format(Strings.get("event.raid", lang), b, lost, count))
 				end
 			elseif e.kind == "revolt" then
 				-- Восстание (§6.10): у нас — красной строкой.

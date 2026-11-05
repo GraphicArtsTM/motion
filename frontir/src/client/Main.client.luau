@@ -9,7 +9,8 @@
 	этап 6а: окно дипломатии (T), предложения и требования, метка «Предатель»;
 	этап 6б: Совет держав, торговля в окне дипломатии, пинги на карте (G);
 	этап 7а: туман войны (обзор раз в Fog.RefreshSec), стабильность в HUD, режим карты «Стабильность» (N);
-	этап 7б-1: корабли на карте (ShipLayer), меню порта, высадка и патруль (NavalPanel).
+	этап 7б-1: корабли на карте (ShipLayer), меню порта, высадка и патруль (NavalPanel);
+	этап 7б-2: самолёты на карте (AirLayer), меню аэродрома, налёт и прикрытие (AirPanel).
 ]]
 
 local LocalizationService = game:GetService("LocalizationService")
@@ -33,6 +34,8 @@ local Render = Client:WaitForChild("Render")
 local UI = Client:WaitForChild("UI")
 local Camera2D = require(Render:WaitForChild("Camera2D"))
 local CameraInput = require(Client:WaitForChild("Input"):WaitForChild("CameraInput"))
+local AirLayer = require(Render:WaitForChild("AirLayer"))
+local AirPanel = require(UI:WaitForChild("AirPanel"))
 local BuildPanel = require(UI:WaitForChild("BuildPanel"))
 local BuildingLayer = require(Render:WaitForChild("BuildingLayer"))
 local CouncilPanel = require(UI:WaitForChild("CouncilPanel"))
@@ -155,6 +158,7 @@ local labels = NationLabels.new(view.canvas, cs, lang, map.width)
 local frontLayer = FrontLayer.new(view.canvas, cs, map)
 local buildingLayer = BuildingLayer.new(view.canvas, cs, provinces)
 local shipLayer = ShipLayer.new(view.canvas, cs)
+local airLayer = AirLayer.new(view.canvas, cs)
 camera.onChanged(function(state)
 	labels.onCamera(state)
 	buildingLayer.onCamera(state)
@@ -215,6 +219,7 @@ local pings = Pings.new(hudGui, view.canvas, cs, lang, send, hud.toast)
 local stabilityPanel = StabilityPanel.new(hudGui, view.canvas, cs, lang, provinces, territory.setStabilityMode)
 stabilityPanel.refresh()
 local naval = NavalPanel.new(hudGui, cs, lang, map, provinces, send, hud.percent, shipLayer.pick, shipLayer.select)
+local airPanel = AirPanel.new(hudGui, cs, lang, map, provinces, send, airLayer.pick, airLayer.select)
 -- Панель разработчика (F4) — только в Studio; создаётся в фоне (ждёт канал Remotes.Dev от сервера).
 local devPanel: DevPanel.DevPanel? = nil
 task.spawn(function()
@@ -270,6 +275,7 @@ client = MatchClient.connect(cs, {
 		pings.refresh()
 		stabilityPanel.refresh()
 		naval.refresh()
+		airPanel.refresh()
 	end,
 	onSnapshot = function()
 		ClientState.refreshFog(cs)
@@ -306,6 +312,11 @@ client = MatchClient.connect(cs, {
 	onShips = function()
 		shipLayer.refresh()
 		naval.refresh()
+	end,
+	onAir = function()
+		airLayer.refresh()
+		airPanel.refresh()
+		hud.refresh()
 	end,
 	onStability = function(rebelsChanged: { number })
 		territory.provincesChanged(rebelsChanged)
@@ -346,6 +357,7 @@ local input = CameraInput.bind(camera, viewport, {
 				or diplomacy.tap(cell)
 				or pings.tap(cell)
 				or naval.tap(cell, camera.state.zoom)
+				or airPanel.tap(cell, camera.state.zoom)
 			if not handled then
 				hud.tapCell(cell)
 			end
@@ -372,6 +384,7 @@ local frameConn = RunService.RenderStepped:Connect(function()
 	territory.update(now)
 	frontLayer.update(now, camera.state)
 	shipLayer.update(now, camera.state)
+	airLayer.update(now, camera.state)
 	hud.update(now)
 	wars.update(now)
 	results.update(now)

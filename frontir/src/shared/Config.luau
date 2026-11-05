@@ -215,6 +215,7 @@ local botPersonalities: { [string]: Types.BotPersonalityParams } = {
 		loyalty = 1.2, -- вступает в войны союзника
 		trade = 1.0, -- охота к торговым соглашениям (§8.2)
 		navy = 0.2, -- охота к флоту и высадкам (§6.12)
+		air = 0.2, -- охота к авиации (§6.13)
 	},
 	Aggressor = {
 		declare = 0.8,
@@ -233,6 +234,7 @@ local botPersonalities: { [string]: Types.BotPersonalityParams } = {
 		loyalty = 1.0, -- вступает в войны союзника
 		trade = 0.2, -- охота к торговым соглашениям (§8.2)
 		navy = 0.4, -- охота к флоту и высадкам (§6.12)
+		air = 1.0, -- охота к авиации (§6.13)
 	},
 	Trader = {
 		declare = 1.3,
@@ -251,6 +253,7 @@ local botPersonalities: { [string]: Types.BotPersonalityParams } = {
 		loyalty = 1.0, -- вступает в войны союзника
 		trade = 2.0, -- охота к торговым соглашениям (§8.2)
 		navy = 0.3, -- охота к флоту и высадкам (§6.12)
+		air = 0.2, -- охота к авиации (§6.13)
 	},
 	Cunning = {
 		declare = 1.0,
@@ -269,6 +272,7 @@ local botPersonalities: { [string]: Types.BotPersonalityParams } = {
 		loyalty = 0.6, -- вступает в войны союзника
 		trade = 0.6, -- охота к торговым соглашениям (§8.2)
 		navy = 0.4, -- охота к флоту и высадкам (§6.12)
+		air = 0.6, -- охота к авиации (§6.13)
 	},
 	-- Флотоводец: до флота (этап 7) — как Обычный.
 	Admiral = {
@@ -288,6 +292,7 @@ local botPersonalities: { [string]: Types.BotPersonalityParams } = {
 		loyalty = 1.0, -- вступает в войны союзника
 		trade = 0.6, -- охота к торговым соглашениям (§8.2)
 		navy = 1.0, -- охота к флоту и высадкам (§6.12)
+		air = 0.3, -- охота к авиации (§6.13)
 	},
 }
 Config.BotPersonalities = botPersonalities
@@ -413,6 +418,7 @@ Config.Render = {
 	StabilityColors = { "Red", "Gold", "Lime" },
 	StabilityTint = 0.75, -- доля этого цвета поверх местности (вместо цвета державы)
 	StabilityLabelZoom = 4, -- числа стабильности на провинциях — с этого зума
+	PlaneShadow = 3, -- тень летящего самолёта ниже и правее на столько пикселей спрайта (§6.13)
 }
 
 -- §6.1 Местность. Порядок id фиксирован форматом карты, не переставлять.
@@ -508,7 +514,7 @@ local units: Types.UnitTable = {
 		defense = 1.0,
 		requires = "Airfield",
 		people = 150,
-		recruitSec = 6,
+		recruitSec = 12,
 		strength = 150,
 	},
 	Bomber = {
@@ -519,7 +525,7 @@ local units: Types.UnitTable = {
 		defense = 0.6,
 		requires = "Airfield",
 		people = 200,
-		recruitSec = 8,
+		recruitSec = 15,
 		strength = 200,
 	},
 }
@@ -650,8 +656,8 @@ Config.Buildings = {
 	MissileSilo = { cost = 10000, oil = 200, strikeRadius = 6, cooldownSec = 240, warningSec = 10 },
 }
 
--- Что можно строить сейчас (этап 4б; радар — 7а, порт — 7б-1); аэродром, ПВО и шахта — этапы 7б-2 и 7г.
-Config.Buildable = { "City", "OilRig", "Factory", "Fort", "Market", "Radar", "Port" }
+-- Что можно строить сейчас (этап 4б; радар — 7а, порт — 7б-1, аэродром и батарея ПВО — 7б-2); шахта — этап 7г.
+Config.Buildable = { "City", "OilRig", "Factory", "Fort", "Market", "Radar", "Port", "Airfield", "AirDefense" }
 
 -- §6.8 Экономика (этап 4б)
 Config.Economy = {
@@ -924,6 +930,33 @@ Config.Naval = {
 	BotDestroyers = 1,
 	BotLandChance = 0.3, -- вероятность за раздумье заняться высадкой (× navy)
 	BotLandShare = 0.5, -- доля гарнизона на высадку
+}
+
+-- §6.13 Авиация (этап 7б-2). Расстояния (кроме BombRadius и AirVision) — в клетках на ширине карты 512.
+Config.Air = {
+	Range = 60, -- самолёты летают не дальше этого от своего работающего аэродрома
+	SpeedMul = 1.0, -- множитель скорости (скорость — Units.Fighter/Bomber.speed)
+	MaxAircraft = 8, -- самолётов у державы (с очередью)
+	Queue = 3,
+	FighterHp = 100,
+	BomberHp = 120,
+	AirDamage = 25, -- бой в воздухе: атака × AirDamage / защита цели в секунду (бомбардировщик — ~2.4 с)
+	GunRange = 3, -- истребитель стреляет с такого расстояния
+	InterceptRadius = 40, -- истребитель перехватывает самолёты врага в этом круге вокруг точки прикрытия
+	BombRadius = 5, -- круг налёта, клеток
+	BombEverySec = 4, -- налёт раз в столько секунд…
+	RaidsPerSortie = 3, -- …столько налётов за вылет
+	BombDamage = 60, -- × атака бомбардировщика (2.0) = 120 силы за налёт фронту врага в круге
+	GarrisonShare = 0.5, -- линия фронта против врага в круге: его гарнизон теряет столько от урона налёта
+	BuildingDisableSec = 60, -- здание врага в круге выведено из строя на столько секунд
+	AAFullShare = 0.3, -- доля ПВО в войсках, при которой урон с воздуха меньше на AAMaxReduction
+	AAMaxReduction = 0.6,
+	BatteryDamage = 40, -- батарея ПВО: прочности самолёта врага в секунду в радиусе Buildings.AirDefense.radius
+	AirVision = 5, -- обзор своих самолётов (§6.11), клеток
+	-- Боты
+	BotFighters = 1,
+	BotBombers = 1,
+	BotRaidChance = 0.35, -- вероятность за раздумье (× air личности) послать бомбардировщик
 }
 
 -- §6.10 Стабильность провинций и восстания (этап 7а). Стабильность 0..100, идёт к целевой.

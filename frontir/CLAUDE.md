@@ -3,7 +3,7 @@
 Источник истины по игре: [`docs/GDD.md`](docs/GDD.md). Читай его перед любой задачей.
 
 ## Где мы сейчас
-Сделаны этапы **0–6** и **7а** (PR #2, #3 в `main`), **7б-1** (флот) — PR ждёт проверки. Дальше 7б-2 (авиация), 7в, 7г
+Сделаны этапы **0–6**, **7а** и **7б-1** (PR #2–#4 в `main`), **7б-2** (авиация) — PR ждёт проверки. Дальше 7в, 7г
 (см. «Статус» в начале GDD §15). Обновляй «Статус» в GDD и этот раздел в конце каждого этапа.
 
 ## Порядок работы (договорённости с геймдизайнером)
@@ -187,9 +187,21 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   Клиент: `Render/ShipLayer` (плавное движение, туман), `UI/NavalPanel` (меню порта, высадка, патруль),
   `ShipSprites` общие с превью.
 
+## Авиация (этап 7б-2)
+- `Air` — самолёты (точка в клетках, состояния based/flying/raiding/returning; летают по прямой), налёты по таймеру
+  (событие `raid` с клеткой цели), перехват истребителями (круг вокруг точки прикрытия), батареи ПВО, ремонт
+  выведенных из строя зданий (`disabled`: клетка → до когда), `aaReduction` (доля ПВО в войсках). Правила — в `MatchSim`
+  (секция «Авиация»): `airIntent` (plane/raid/cover), `bomb` (фронты врага, его гарнизон у нашей линии, его здания,
+  кроме города и батареи ПВО), `stepAir`; выведенные из строя здания не считаются в `Buildings.owned`, `ports`,
+  укреплениях и радарах. Боты: `airView` (цель налёта — лениво, по линии фронта) и `airDecision` (личность `air`).
+- Сеть: AIR (`Protocol.encodeAir`, `MatchStats.air` — тот же обзор, что фронты и корабли). Клиент: `Render/AirLayer`
+  (самолёты с тенью, метки выведенных из строя зданий), `UI/AirPanel` (меню аэродрома, налёт, прикрытие),
+  `PlaneSprites` общие с превью.
+
 ## Панель разработчика (F4)
 - Только в Studio: `MatchService` создаёт `Remotes.Dev` при `RunService:IsStudio()`; действия — чистый `DevTools`
-  (grant, forceOffer, warNow, peaceNow, councilNow, endMatch, setStability, revoltNow, navy, botLanding), ускорение ×5 — шагов
+  (grant, forceOffer, warNow, peaceNow, councilNow, endMatch, setStability, revoltNow, navy, botLanding, airForce,
+  botRaid), ускорение ×5 — шагов
   симуляции за кадр в `MatchService`, «Туман выкл» — `devNoFog` в `MatchService` и `cs.fogOff` на клиенте.
   Клиент: `UI/DevPanel`. Новые механики — сразу добавлять в панель и в чек-лист README.
 - С этапа 7 каждый этап — отдельный PR в `main` (мержит геймдизайнер).

@@ -191,6 +191,28 @@ function Intents.parse(kind: any, payload: any): (Types.Intent?, string?)
 			return nil, "bad patrol"
 		end
 		return { kind = "patrol", ship = ship, cell = cell }, nil
+	-- Авиация (§6.13, этап 7б-2).
+	elseif kind == "plane" then
+		local plane, airfield = payload.plane, payload.airfield
+		if plane ~= "Fighter" and plane ~= "Bomber" then
+			return nil, "bad plane"
+		end
+		if not isInt(airfield) or airfield < 0 then
+			return nil, "bad airfield"
+		end
+		return { kind = "plane", plane = plane :: Types.PlaneKind, airfield = airfield }, nil
+	elseif kind == "raid" then
+		local cell = payload.cell
+		if not isInt(cell) or cell < 0 then
+			return nil, "bad cell"
+		end
+		return { kind = "raid", cell = cell }, nil
+	elseif kind == "cover" then
+		local plane, cell = payload.plane, payload.cell
+		if not isInt(plane) or plane <= 0 or not isInt(cell) or cell < 0 then
+			return nil, "bad cover"
+		end
+		return { kind = "cover", plane = plane, cell = cell }, nil
 	end
 	return nil, "unknown kind"
 end

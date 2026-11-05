@@ -233,6 +233,9 @@ export type Intent =
 	| ShipIntent
 	| LandIntent
 	| PatrolIntent
+	| PlaneIntent
+	| RaidIntent
+	| CoverIntent
 
 -- Боты v2 (§9.1): уровни и личности. Списки — для перебора и проверки имён.
 export type BotLevel = "Novice" | "Normal" | "General"
@@ -283,6 +286,7 @@ export type BotPersonalityParams = {
 	loyalty: number, -- вступает в войны союзника
 	trade: number, -- охота к торговым соглашениям (§8.2)
 	navy: number, -- охота к флоту и высадкам (§6.12, этап 7б-1; Флотоводец — 1)
+	air: number, -- охота к авиации (§6.13, этап 7б-2; Агрессор — 1)
 }
 
 -- Договоры (§8.1).
@@ -303,6 +307,11 @@ export type ShipKind = "Transport" | "Destroyer"
 export type ShipIntent = { kind: "ship", ship: ShipKind, port: number } -- нанять корабль в порту (клетка здания)
 export type LandIntent = { kind: "land", port: number, target: number, percent: number } -- высадка
 export type PatrolIntent = { kind: "patrol", ship: number, cell: number } -- эсминец в патруль
+-- Авиация (§6.13, этап 7б-2).
+export type PlaneKind = "Fighter" | "Bomber"
+export type PlaneIntent = { kind: "plane", plane: PlaneKind, airfield: number } -- нанять самолёт на аэродроме
+export type RaidIntent = { kind: "raid", cell: number } -- налёт бомбардировщика на клетку
+export type CoverIntent = { kind: "cover", plane: number, cell: number } -- точка прикрытия истребителя
 
 export type Phase = "Waiting" | "Lobby" | "Pick" | "Play" | "Over"
 

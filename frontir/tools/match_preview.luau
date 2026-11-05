@@ -35,6 +35,7 @@ local TerritoryPaint = require("../src/shared/TerritoryPaint")
 local NationColors = require("../src/shared/NationColors")
 local Palette = require("../src/shared/Palette")
 local Rng = require("../src/shared/Rng")
+local PlaneSprites = require("../src/shared/PlaneSprites")
 local ShipSprites = require("../src/shared/ShipSprites")
 local Types = require("../src/shared/Types")
 local UnitSprites = require("../src/shared/UnitSprites")
@@ -76,6 +77,7 @@ local function fogSources(id: number): Fog.Sources
 	return { friends = friends, fronts = list, radars = MatchStats.radarsOf(m, friends) }
 end
 local naval = { built = 0, sunk = 0, landed = 0, landedEnemy = 0, blockades = 0 }
+local air = { built = 0, shot = 0, raids = 0, lost = 0, buildings = 0 }
 local revolts: { [number]: number } = {}
 local revoltLog: { string } = {}
 for _ = 1, math.floor(seconds * Config.Sim.TickRate) do
@@ -101,6 +103,14 @@ for _ = 1, math.floor(seconds * Config.Sim.TickRate) do
 			peaces += 1
 		elseif e.kind == "resolution" then
 			table.insert(resolutions, string.format("%d:%02d %s", m.time // 60, math.floor(m.time % 60), e.resolution))
+		elseif e.kind == "planeBuilt" then
+			air.built += 1
+		elseif e.kind == "planeShot" then
+			air.shot += 1
+		elseif e.kind == "raid" then
+			air.raids += 1
+			air.lost += e.lost
+			air.buildings += e.buildings
 		elseif e.kind == "shipBuilt" then
 			naval.built += 1
 		elseif e.kind == "shipSunk" then
@@ -380,6 +390,29 @@ local function renderRegion(
 					p.h * shipScale,
 					if p.ink then ink else ownerRgb(ship.owner)
 				)
+			end
+		end
+	end
+	-- Авиация (§6.13): выведенные из строя здания — тёмная рамка, самолёты с тенью (как у клиента).
+	for at, untilTime in m.air.disabled do
+		local x, y = at % w, at // w
+		if untilTime > m.simTime and inRegion(x, y) then
+			local sx, sy = px(x + 0.5, y)
+			local size = BuildingSprites.Size * iconScale + 2
+			blend(sx - size // 2, sy - size, size, size, ink, 0.6)
+		end
+	end
+	for _, plane in m.air.planes do
+		if plane.alive and inRegion(math.floor(plane.x), math.floor(plane.y)) then
+			local sx, sy = px(plane.x, plane.y)
+			local s = math.max(1, sprite)
+			local pw, ph = PlaneSprites.Width * s, PlaneSprites.Height * s
+			local left, top = sx - pw // 2, sy - ph // 2
+			if plane.state ~= "based" then
+				blend(left + 3 * s, top + 3 * s + ph // 2, pw - 2 * s, ph // 2, ink, 0.45)
+			end
+			for _, p in PlaneSprites.Shapes[plane.kind] do
+				rect(left + p.x * s, top + p.y * s, p.w * s, p.h * s, if p.ink then ink else ownerRgb(plane.owner))
 			end
 		end
 	end
@@ -864,6 +897,20 @@ do
 		end
 	end
 	print("  СТАБИЛЬНОСТЬ (средняя, клеток с ½ дохода): " .. table.concat(avg, " "))
+	print(
+		string.format(
+			"  АВИАЦИЯ: аэродромов %d, батарей ПВО %d, самолётов сейчас %d, построено %d, сбито %d, налётов %d"
+				.. " (потери войск %.0f, зданий выведено %d)",
+			#MatchSim.buildingsOf(m, "Airfield"),
+			#MatchSim.buildingsOf(m, "AirDefense"),
+			#m.air.planes,
+			air.built,
+			air.shot,
+			air.raids,
+			air.lost,
+			air.buildings
+		)
+	)
 	print(
 		string.format(
 			"  ФЛОТ: портов %d, кораблей сейчас %d, построено %d, потоплено %d, высадок %d (на врага %d), блокад %d",

@@ -14,12 +14,15 @@
 	Туман вкл/выкл для себя — в MatchService (кому слать все фронты) и на клиенте.
 	- navy: порт в своей прибрежной провинции (если нет) и у причала транспорт с эсминцем (§6.12, этап 7б-1).
 	- botLanding: выбранный бот (война сразу) получает порт, транспорт и войска и высаживается на ваш берег.
+	- airForce: аэродром в своей провинции (если нет), истребитель и бомбардировщик (§6.13, этап 7б-2).
+	- botRaid: выбранный бот (война сразу) получает аэродром и бомбардировщик и бомбит ваш фронт или город.
 	Ускорение времени — в MatchService (шагов симуляции за кадр больше).
 ]]
 
 local Config = require("./Config")
 local Buildings = require("./Buildings")
 local Diplomacy = require("./Diplomacy")
+local Air = require("./Air")
 local Fleet = require("./Fleet")
 local Grid = require("./Grid")
 local MapData = require("./MapData")
@@ -213,6 +216,86 @@ function DevTools.botLanding(m: Match, bot: number, player: number): (boolean, s
 	local n = m.nations[bot]
 	Forces.add(n.home, 1, Config.Naval.TransportCapacity)
 	return MatchSim.applyIntent(m, bot, { kind = "land", port = port, target = coast, percent = 1 })
+end
+
+-- Аэродром державы (работающий, первый) или новый даром в её провинции; nearTo — предпочесть ближайший к клетке.
+local function ensureAirfield(m: Match, id: number, nearTo: number?): number?
+	local w = m.grid.width
+	for _, a in MatchSim.buildingsOf(m, "Airfield") do
+		if a.owner == id then
+			return a.cell
+		end
+	end
+	local best: number? = nil
+	local bestD = math.huge
+	for _, p in m.provinces.list do
+		if Grid.getOwner(m.grid, p.center) == id and m.buildings.byProvince[p.id] == nil then
+			local d = if nearTo ~= nil then (p.center % w - nearTo % w) ^ 2 + (p.center // w - nearTo // w) ^ 2 else 0
+			if d < bestD then
+				best, bestD = p.center, d
+			end
+			if nearTo == nil then
+				break
+			end
+		end
+	end
+	if best ~= nil then
+		Buildings.place(m.buildings, "Airfield", best, MapData.getProvince(m.map, best))
+		MatchSim.refreshOwned(m)
+	end
+	return best
+end
+
+function DevTools.airForce(m: Match, id: number): (boolean, string?)
+	local n = m.nations[id]
+	if n == nil or not n.alive then
+		return false, "dead"
+	end
+	local airfield = ensureAirfield(m, id, n.capital)
+	if airfield == nil then
+		return false, "occupied"
+	end
+	Air.spawn(m.air, m.grid.width, id, "Fighter", airfield)
+	Air.spawn(m.air, m.grid.width, id, "Bomber", airfield)
+	return true, nil
+end
+
+function DevTools.botRaid(m: Match, bot: number, player: number): (boolean, string?)
+	local ok, reason = DevTools.warNow(m, bot, player)
+	if not ok then
+		return false, reason
+	end
+	-- Цель: линия фронта против бота или ближайший к боту город игрока.
+	local target: number? = nil
+	for _, a in m.attacks do
+		if (a.attacker == player and a.target == bot) or (a.attacker == bot and a.target == player) then
+			if a.line ~= nil and #(a.line :: { number }) > 0 then
+				target = (a.line :: { number })[1]
+			end
+		end
+	end
+	local botCapital = m.nations[bot].capital
+	if target == nil then
+		local w = m.grid.width
+		local bestD = math.huge
+		for _, cell in m.cityOf do
+			if Grid.getOwner(m.grid, cell) == player and botCapital ~= nil then
+				local d = (cell % w - botCapital % w) ^ 2 + (cell // w - botCapital // w) ^ 2
+				if d < bestD then
+					target, bestD = cell, d
+				end
+			end
+		end
+	end
+	if target == nil then
+		return false, "target"
+	end
+	local airfield = ensureAirfield(m, bot, target)
+	if airfield == nil then
+		return false, "occupied"
+	end
+	Air.spawn(m.air, m.grid.width, bot, "Bomber", airfield)
+	return MatchSim.applyIntent(m, bot, { kind = "raid", cell = target })
 end
 
 return table.freeze(DevTools)

@@ -72,7 +72,7 @@ export type StabilityMessage = {
 	rebelLeft: { number }, -- …и сколько им осталось
 }
 
-export type ApplyResult = "snapshot" | "delta" | "stats" | "forces" | "wars" | "ships" | "partial" | "ignored"
+export type ApplyResult = "snapshot" | "delta" | "stats" | "forces" | "wars" | "ships" | "air" | "partial" | "ignored"
 
 export type ClientState = {
 	width: number,
@@ -107,6 +107,8 @@ export type ClientState = {
 	stability: StabilityMessage, -- своя стабильность и повстанцы (§6.10)
 	ships: Protocol.ShipsMessage, -- корабли в обзоре, заблокированные порты, своя очередь (§6.12)
 	shipsAt: number, -- когда пришли ships (часы клиента; для плавного движения)
+	air: Protocol.AirMessage, -- самолёты в обзоре, выведенные из строя здания, своя очередь (§6.13)
+	airAt: number,
 	rebelSet: { [number]: boolean }, -- провинции повстанцев (из stability)
 }
 
@@ -160,6 +162,8 @@ function ClientState.new(width: number, height: number): ClientState
 		rebelSet = {},
 		ships = { ships = {}, blocked = {}, queue = {} },
 		shipsAt = 0,
+		air = { planes = {}, disabled = {}, queue = {} },
+		airAt = 0,
 	}
 end
 
@@ -206,6 +210,7 @@ function ClientState.applyInfo(cs: ClientState, info: Info, now: number): boolea
 			cs.stability = ClientState.emptyStability()
 			cs.rebelSet = {}
 			cs.ships = { ships = {}, blocked = {}, queue = {} }
+			cs.air = { planes = {}, disabled = {}, queue = {} }
 			colorsChanged = true
 		end
 		cs.matchId = info.matchId
@@ -252,6 +257,10 @@ function ClientState.applyBuffer(cs: ClientState, b: buffer): (ApplyResult, { nu
 	if kind == Protocol.SHIPS then
 		cs.ships = Protocol.decodeShips(b)
 		return "ships", nil
+	end
+	if kind == Protocol.AIR then
+		cs.air = Protocol.decodeAir(b)
+		return "air", nil
 	end
 	if kind == Protocol.SNAPSHOT then
 		local owners = Protocol.assemble(cs.assembler, Protocol.decodeSnapshotPart(b), cs.size)
@@ -469,7 +478,13 @@ function ClientState.fogSources(cs: ClientState): Fog.Sources?
 			table.insert(ships, math.floor(s.y) * cs.width + math.floor(s.x))
 		end
 	end
-	return { friends = friends, fronts = fronts, radars = radars, ships = ships }
+	local planes: { number } = {}
+	for _, p in cs.air.planes do
+		if friends[p.owner] then
+			table.insert(planes, math.floor(p.y) * cs.width + math.floor(p.x))
+		end
+	end
+	return { friends = friends, fronts = fronts, radars = radars, ships = ships, planes = planes }
 end
 
 -- Пересчитать обзор. Возвращает: перерисовать всё (сменился режим «туман / видно всё») и клетки,
@@ -517,6 +532,16 @@ function ClientState.applyStability(cs: ClientState, msg: any): { number }
 	end
 	cs.rebelSet = fresh
 	return changed
+end
+
+-- Выведено ли здание в клетке из строя налётом (§6.13).
+function ClientState.isDisabled(cs: ClientState, cell: number): boolean
+	for _, d in cs.air.disabled do
+		if d.cell == cell then
+			return true
+		end
+	end
+	return false
 end
 
 -- Заблокирован ли порт в клетке (§6.12).

@@ -99,6 +99,17 @@ export type BotView = {
 	spots: BuildSpots,
 	stability: number?, -- средняя стабильность своих провинций (§6.10, этап 7а)
 	navy: NavyView?, -- флот (§6.12, этап 7б-1)
+	air: AirView?, -- авиация (§6.13, этап 7б-2)
+}
+
+-- Авиация бота (§6.13): что есть и куда бомбить — подбирает MatchSim (цель — лениво).
+export type AirView = {
+	airfield: number?, -- свой работающий аэродром (там нанимать)
+	fighters: number, -- с очередью
+	bombers: number,
+	idleBomber: boolean, -- есть бомбардировщик на аэродроме
+	raidTarget: (() -> number?)?, -- точка на линии фронта с врагом в радиусе авиации
+	bombed: boolean, -- нас недавно бомбили (нужна батарея ПВО)
 }
 
 -- Флот бота (§6.12): что есть и что можно сделать — подбирает MatchSim.
@@ -123,6 +134,7 @@ export type BuildSpots = {
 	unstable: number?, -- своя провинция со стабильностью ниже Stability.LowBelow и без здания (§6.10)
 	unstableCity: number?, -- свой город в такой провинции, который можно улучшить
 	port: number?, -- своя прибрежная провинция без здания (§6.12)
+	airfield: number?, -- своя провинция без здания, ближайшая к врагу (§6.13)
 }
 
 -- Что бот знает, отвечая на предложение договора или требование (§8.1).
@@ -307,6 +319,23 @@ local function chooseBuild(view: BotView, profile: Profile, rng: Rng, atWar: boo
 			end
 		end
 	end
+	-- Авиация (§6.13): в войне — аэродром после завода (Агрессор, Хитрец, любой Генерал); бомбят — батарея ПВО.
+	local air = view.air
+	if atWar and air ~= nil then
+		local keen = personality.air >= 0.5 or level.smartTarget
+		if keen and air.airfield == nil and spots.airfield ~= nil then
+			local airfield = want("Airfield", spots.airfield)
+			if airfield ~= nil then
+				return airfield
+			end
+		end
+		if air.bombed then
+			local battery = want("AirDefense", spots.fort or spots.free)
+			if battery ~= nil then
+				return battery
+			end
+		end
+	end
 	-- Нестабильная провинция (§6.10): укрепление или улучшение города поднимают стабильность.
 	-- Не больше Stability.BotCalmForts укреплений: деньги нужны и на войска.
 	if owned.forts < Config.Stability.BotCalmForts then
@@ -368,6 +397,39 @@ local function navyDecision(view: BotView, p: Profile, rng: Rng): Types.Intent?
 			local stats = (Config.Units :: any)[kind]
 			if view.money >= stats.cost + level.buildReserve and view.oil >= stats.oil then
 				return { kind = "ship", ship = kind, port = navy.port }
+			end
+		end
+	end
+	return nil
+end
+
+-- Авиация (§6.13): налёт на линию фронта, найм самолётов. Новичок авиацией не пользуется.
+local function airDecision(view: BotView, p: Profile, rng: Rng): Types.Intent?
+	local air = view.air
+	local level, personality = p.level, p.personality
+	if air == nil or level.randomTarget then
+		return nil
+	end
+	local interest = math.max(personality.air, if level.smartTarget then 0.6 else 0)
+	if interest <= 0 or Rng.nextFloat(rng) >= Config.Air.BotRaidChance * interest then
+		return nil
+	end
+	local raidTarget = air.raidTarget
+	if air.idleBomber and raidTarget ~= nil then
+		local cell = raidTarget()
+		if cell ~= nil then
+			return { kind = "raid", cell = cell }
+		end
+	end
+	if air.airfield ~= nil then
+		local kind: Types.PlaneKind? = if air.bombers < Config.Air.BotBombers
+			then "Bomber"
+			elseif air.fighters < Config.Air.BotFighters then "Fighter"
+			else nil
+		if kind ~= nil then
+			local stats = (Config.Units :: any)[kind]
+			if view.money >= stats.cost + level.buildReserve and view.oil >= stats.oil then
+				return { kind = "plane", plane = kind, airfield = air.airfield }
 			end
 		end
 	end
@@ -619,6 +681,10 @@ function BotBrain.decide(view: BotView, rng: Rng, profile: Profile?, memory: Mem
 	local navalIntent = navyDecision(view, p, rng)
 	if navalIntent ~= nil then
 		return navalIntent
+	end
+	local airIntent = airDecision(view, p, rng)
+	if airIntent ~= nil then
+		return airIntent
 	end
 
 	local frontPercent = math.clamp(level.frontPercent * personality.front, 0.1, 0.9)

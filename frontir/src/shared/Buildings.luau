@@ -30,6 +30,7 @@ export type Owned = {
 	rigs: number,
 	forts: number,
 	ports: number, -- §6.12
+	airfields: number, -- §6.13
 	cityLevels: number, -- сумма уровней своих городов
 }
 
@@ -139,12 +140,18 @@ function Buildings.list(set: BuildingSet): { Building }
 end
 
 -- Что у каждой державы: здания по владельцу клетки и уровни городов (cities — клетки всех городов).
-function Buildings.owned(set: BuildingSet, g: Grid, cities: { number }): { [number]: Owned }
+-- off(cell) — здание выведено из строя (налёт, §6.13): не считается.
+function Buildings.owned(
+	set: BuildingSet,
+	g: Grid,
+	cities: { number },
+	off: ((cell: number) -> boolean)?
+): { [number]: Owned }
 	local out: { [number]: Owned } = {}
 	local function of(owner: number): Owned
 		local o = out[owner]
 		if o == nil then
-			o = { factories = 0, markets = 0, rigs = 0, forts = 0, ports = 0, cityLevels = 0 }
+			o = { factories = 0, markets = 0, rigs = 0, forts = 0, ports = 0, airfields = 0, cityLevels = 0 }
 			out[owner] = o
 		end
 		return o
@@ -158,6 +165,9 @@ function Buildings.owned(set: BuildingSet, g: Grid, cities: { number }): { [numb
 	end
 	for cell, b in set.byCell do
 		local owner = Grid.getOwner(g, cell)
+		if owner ~= 0 and b.kind ~= "City" and off ~= nil and off(cell) then
+			continue
+		end
 		if owner ~= 0 then
 			local o = of(owner)
 			if b.kind == "Factory" then
@@ -170,6 +180,8 @@ function Buildings.owned(set: BuildingSet, g: Grid, cities: { number }): { [numb
 				o.forts += 1
 			elseif b.kind == "Port" then
 				o.ports += 1
+			elseif b.kind == "Airfield" then
+				o.airfields += 1
 			end
 		end
 	end

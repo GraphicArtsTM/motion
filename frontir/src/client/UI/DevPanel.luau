@@ -6,6 +6,7 @@
 	требование или объявляет войну, мгновенная война и мир с выбранным ботом, Совет сейчас, к концу матча.
 	Этап 7а: туман вкл/выкл (для себя), стабильность своих провинций 10 / 100, восстание сейчас.
 	Этап 7б-1: «Порт и флот» (порт, транспорт и эсминец себе), «Бот: десант на вас».
+	Этап 7б-2: «Аэродром и авиация» (аэродром, истребитель и бомбардировщик себе), «Бот: налёт на вас».
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -264,6 +265,11 @@ function DevPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang): DevP
 		fire("navy", nil)
 	end)
 	button(Strings.get("dev.botLanding", lang), withBot("botLanding", same))
+	-- Этап 7б-2: авиация (§6.13).
+	button(Strings.get("dev.airForce", lang), function()
+		fire("airForce", nil)
+	end)
+	button(Strings.get("dev.botRaid", lang), withBot("botRaid", same))
 
 	UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
 		if gameProcessed or UserInputService:GetFocusedTextBox() ~= nil then
