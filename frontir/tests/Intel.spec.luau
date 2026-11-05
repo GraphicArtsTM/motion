@@ -87,6 +87,10 @@ T.describe("Разведка и скрытая мощь (§6.11а)", function()
 			T.expect(wars.wars[1].powerB).toBe(-1)
 			T.expect(wars.wars[1].powerA > 0).toBe(true)
 			T.expect(MatchStats.wars(m, nil).wars[1].powerB > 0).toBe(true)
+			local hidden = MatchStats.hideWars(MatchStats.wars(m), known)
+			T.expect(hidden.wars[1].powerB).toBe(-1)
+			T.expect(hidden.wars[1].powerA > 0).toBe(true)
+			T.expect(MatchStats.hideWars(MatchStats.wars(m), nil).wars[1].powerB > 0).toBe(true)
 		end
 	)
 

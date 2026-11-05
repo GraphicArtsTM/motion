@@ -108,14 +108,17 @@ for _ = 1, runs do
 end
 local t0 = os.clock()
 local full = MatchStats.build(m, 0, 0)
-local head = Protocol.encodeStatsHead(full)
+-- Со скрытой мощью (§6.11а) у каждого свой набор «чью мощь видно» — начало STATS кодируется каждому заново.
+local allWars = MatchStats.wars(m)
 for _, n in m.nations do
-	Protocol.encodeStats(MatchStats.forViewer(m, full, n.id), head)
+	local known = MatchSim.knownSet(m, n.id)
+	Protocol.encodeStats(MatchStats.forViewer(m, full, n.id, nil, known), nil)
+	Protocol.encodeWars(MatchStats.hideWars(allWars, known))
 end
 local statsMs = (os.clock() - t0) * 1000
 print(
 	string.format(
-		"туман: обзор клиента у крупнейшей державы (%.0f%% суши) — %.1f мс; STATS для %d держав — %.1f мс",
+		"туман: обзор клиента у крупнейшей державы (%.0f%% суши) — %.1f мс; STATS и WARS для %d держав (скрытая мощь) — %.1f мс",
 		Grid.cellsOf(m.grid, biggest.id) / m.grid.capturableCount * 100,
 		fogMs / runs,
 		#m.nations,

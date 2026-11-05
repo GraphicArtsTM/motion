@@ -4,8 +4,8 @@
 
 ## Где мы сейчас
 Сделаны этапы **0–6**, **7а**, **7б-1** (флот), **7б-2** (авиация), доработки перед 7в, **7в-1** и **7в-2** — всё в `main` (PR #2–#8).
-**7в-1** (технологии) и **7в-2** (генералы) смержены (PR #7, #8). **7г** и **8а** смержены (PR #9). Правка разведки, **8б** (карты, дуэль) и **8в** («Потоп», регионы) готовы и ждут
-проверки в Studio (PR #10), дальше 8г
+**7в-1** (технологии) и **7в-2** (генералы) смержены (PR #7, #8). **7г** и **8а** смержены (PR #9), разведка, **8б** и **8в** — PR #10. **8г** (частные серверы, бюджет «Мира»)
+готов и ждёт проверки в Studio; дальше этап 9
 (см. «Статус» в начале GDD §15). Обновляй «Статус» в GDD и этот раздел в конце каждого этапа.
 
 ## Порядок работы (договорённости с геймдизайнером)
@@ -253,6 +253,12 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
 - `Flood` — высоты до воды (кеш на карту), `threshold`, `sinking`, `paint`; сервер — `MatchSim.floodStep`
   (`m.flood`, `Grid.sink`, `Buildings.remove`), клиент — `syncFlood` в `Main.client` (цвета карты, мини-карта).
   Новые карты — `Config.RealMaps.Scandinavia / Caribbean / Oceania`, в `MapVote.Pool`.
+
+## Частные серверы (этап 8г)
+- `ServerSettings` — настройки владельца (`parse`, `defaults`, `applyRules`, `maxNations`); `m.settings` в MatchSim
+  (`setMode`, `finishPick`, `offer`, `finishMatch`). Сервер: `isPrivate`, `ownerId`, намерение `settings`,
+  `startNewMatch(mapId)` (итоги и смена настроек в лобби). Клиент: `UI/ServerPanel` (O), `cs.server`.
+- Studio: `Config.Dev.PrivateServer = true`.
 
 ## Панель разработчика (F4)
 - Только в Studio: `MatchService` создаёт `Remotes.Dev` при `RunService:IsStudio()`; действия — чистый `DevTools`

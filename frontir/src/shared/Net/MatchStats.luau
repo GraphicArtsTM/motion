@@ -409,7 +409,32 @@ end
 
 -- Войны и запреты на новую войну после мира (§6.7а). Обратные отсчёты — в секундах реального времени
 -- (игровое время ÷ Match.Speed), чтобы таймер у клиента шёл как часы.
+-- Войны глазами получателя (§6.11а): сила сторон, чью мощь он не видит, — −1 («?»). full — MatchStats.wars(m)
+-- один раз на рассылку (захваченная земля считается по сетке — дорого делать это каждому игроку).
+function MatchStats.hideWars(full: Protocol.WarsMessage, known: { [number]: boolean }?): Protocol.WarsMessage
+	if known == nil then
+		return full
+	end
+	local wars: { Protocol.WarStats } = {}
+	for _, w in full.wars do
+		if known[w.a] and known[w.b] then
+			table.insert(wars, w)
+		else
+			local c = table.clone(w)
+			if not known[w.a] then
+				c.powerA = -1
+			end
+			if not known[w.b] then
+				c.powerB = -1
+			end
+			table.insert(wars, c)
+		end
+	end
+	return { wars = wars, cooldowns = full.cooldowns }
+end
+
 -- known — чью мощь видит получатель (§6.11а): у остальных сила стороны -1 («?»); nil — все.
+-- Для рассылки всем — wars(m) один раз и hideWars каждому.
 function MatchStats.wars(m: MatchSim.Match, known: { [number]: boolean }?): Protocol.WarsMessage
 	local function power(id: number): number
 		if known ~= nil and not known[id] then

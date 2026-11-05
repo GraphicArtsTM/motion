@@ -9,6 +9,7 @@
 local Config = require("./Config")
 local Fog = require("./Fog")
 local Modes = require("./Modes")
+local ServerSettings = require("./ServerSettings")
 local Protocol = require("./Net/Protocol")
 local Types = require("./Types")
 
@@ -59,7 +60,10 @@ export type Info = {
 	mapId: string?, -- карта матча (§5.2): другая — клиент загружает её заново
 	mapVote: MapVoteInfo?, -- голосование за карту на экране итогов
 	flood: { step: number, nextIn: number }?, -- «Потоп» (§5.3): ступень воды и секунд (часы матча) до следующей
+	server: ServerInfo?, -- частный сервер (§5.4)
 }
+
+export type ServerInfo = { settings: ServerSettings.Settings, isOwner: boolean }
 
 export type MapVoteInfo = { options: { string }, counts: { number }, myVote: string? }
 
@@ -171,6 +175,7 @@ export type ClientState = {
 	mapVote: MapVoteInfo?, -- голосование за карту (§5.2)
 	flood: { step: number, nextIn: number }?, -- «Потоп» (§5.3)
 	floodAt: number, -- когда пришла ступень (часы клиента)
+	server: ServerInfo?, -- частный сервер (§5.4): настройки и владелец ли я
 	rules: Modes.Rules,
 	speed: number, -- темп игрового времени: Match.Speed × режим («Блиц» — ×2)
 }
@@ -257,6 +262,7 @@ function ClientState.new(width: number, height: number): ClientState
 		mapVote = nil,
 		flood = nil,
 		floodAt = 0,
+		server = nil,
 		rules = Modes.rules("Ffa"),
 		speed = Config.Match.Speed,
 		stability = ClientState.emptyStability(),
@@ -422,6 +428,7 @@ function ClientState.applyInfo(cs: ClientState, info: Info, now: number): boolea
 	cs.timeLimit = info.timeLimit or cs.timeLimit
 	cs.mapVote = info.mapVote
 	cs.flood = info.flood
+	cs.server = info.server
 	cs.floodAt = now
 	local mode = info.mode
 	if mode ~= nil then

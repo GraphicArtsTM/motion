@@ -48,6 +48,7 @@ local Naval = require("./Naval")
 local Pockets = require("./Pockets")
 local Provinces = require("./Provinces")
 local Rng = require("./Rng")
+local ServerSettings = require("./ServerSettings")
 local Stability = require("./Stability")
 local StartPositions = require("./StartPositions")
 local Tech = require("./Tech")
@@ -210,6 +211,7 @@ export type Match = {
 	fast: boolean,
 	-- Разведка (§6.11а): кто чью мощь видит.
 	flood: { step: number, nextAt: number }, -- «Потоп» (§5.3): ступень воды, когда следующая (часы матча)
+	settings: ServerSettings.Settings?, -- настройки частного сервера (§5.4); nil — обычный сервер
 	intel: { [number]: { [number]: number } }, -- разведчик → цель → до какого simTime
 	radarIntel: { [number]: { [number]: boolean } }, -- держава → державы в радиусе её радаров
 	nextRadarIntelAt: number,
@@ -317,6 +319,7 @@ function MatchSim.new(map: MapData, seed: number): Match
 		paused = false,
 		fast = false,
 		flood = { step = 0, nextAt = Config.Flood.EverySec },
+		settings = nil,
 		intel = {},
 		radarIntel = {},
 		nextRadarIntelAt = 0,
@@ -346,6 +349,10 @@ end
 function MatchSim.setMode(m: Match, mode: Types.ModeId)
 	m.mode = mode
 	m.rules = Modes.rules(mode)
+	local settings = m.settings
+	if settings ~= nil then
+		m.rules = ServerSettings.applyRules(m.rules, settings) -- частный сервер (§5.4)
+	end
 	m.speed = Config.Match.Speed * m.rules.speed
 	m.infoDirty = true
 end
@@ -510,7 +517,8 @@ end
 -- Варианты голосования по времени сервера (режим недели — по номеру недели UTC).
 function MatchSim.openVote(m: Match, unixTime: number)
 	m.voteTime = unixTime
-	m.modeOptions = Modes.options(unixTime, MatchSim.humans(m))
+	-- Режим задан (F4, Dev.Mode, частный сервер) — голосования нет.
+	m.modeOptions = if m.forcedMode ~= nil then {} else Modes.options(unixTime, MatchSim.humans(m))
 	table.clear(m.modeVotes)
 	m.infoDirty = true
 end
@@ -520,7 +528,7 @@ local function refreshModeOptions(m: Match)
 	if m.phase ~= "Waiting" and m.phase ~= "Lobby" then
 		return
 	end
-	m.modeOptions = Modes.options(m.voteTime, MatchSim.humans(m))
+	m.modeOptions = if m.forcedMode ~= nil then {} else Modes.options(m.voteTime, MatchSim.humans(m))
 	for id, mode in m.modeVotes do
 		if table.find(m.modeOptions, mode) == nil then
 			m.modeVotes[id] = nil
@@ -741,7 +749,8 @@ function MatchSim.finishPick(m: Match)
 	while #m.nations < m.targetNations and #m.nations < Config.Match.MaxPlayers do
 		local name = NameGen.generate(m.rng, taken)
 		taken[name.ru] = true
-		makeBot(m, newNation(m, name.ru, name.en, true, nil), m.difficulty)
+		local settingsLevel: Types.BotLevel? = if m.settings ~= nil then m.settings.botLevel else nil
+		makeBot(m, newNation(m, name.ru, name.en, true, nil), m.difficulty or settingsLevel)
 	end
 	local landmass: buffer? = nil
 	for _, n in m.nations do
@@ -783,7 +792,7 @@ function MatchSim.finishPick(m: Match)
 			end
 		end
 		n.people = Config.People.Start
-		n.money = Config.Economy.StartMoney
+		n.money = if m.settings ~= nil then m.settings.startMoney else Config.Economy.StartMoney
 		if n.isBot then
 			m.botNextThink[n.id] = BotBrain.nextThinkDelay(botRngsOf(m, n.id).think, profileOf(m, n.id))
 		end
@@ -1840,6 +1849,10 @@ function MatchSim.offer(
 	end
 	if Wars.find(m.wars, from, to) ~= nil then
 		return false, "atWar"
+	end
+	-- Частный сервер без дипломатии (§5.4): только война и мир.
+	if not m.rules.diplomacy then
+		return false, "diplomacyOff"
 	end
 	-- Команды (§5.1): союз и пакты — только своя команда (вечный союз уже есть), требовать у своих нельзя.
 	if m.rules.teams and (kind ~= "trade" and (kind ~= "demand" or MatchSim.teammates(m, from, to))) then
@@ -4245,6 +4258,9 @@ local function finishMatch(m: Match, winner: number, reason: Types.VictoryReason
 	m.mapOptions = Modes.mapOptions(m.map.name, function(n: number): number
 		return Rng.range(mapRng, 1, n)
 	end)
+	if m.settings ~= nil and m.settings.map ~= nil then
+		m.mapOptions = {} -- карту выбрал владелец частного сервера (§5.4)
+	end
 	table.clear(m.mapVotes)
 	m.infoDirty = true
 	table.insert(m.events, { kind = "victory", nation = winner, reason = reason })
