@@ -65,6 +65,7 @@ local TechPanel = require(UI:WaitForChild("TechPanel"))
 local CommanderPanel = require(UI:WaitForChild("CommanderPanel"))
 local ModePanel = require(UI:WaitForChild("ModePanel"))
 local ServerPanel = require(UI:WaitForChild("ServerPanel"))
+local ShopPanel = require(UI:WaitForChild("ShopPanel"))
 local WorldPanel = require(UI:WaitForChild("WorldPanel"))
 local TerritoryLayer = require(Render:WaitForChild("TerritoryLayer"))
 local Theme = require(UI:WaitForChild("Theme"))
@@ -244,6 +245,7 @@ local function runSession(mapId: string, resync: boolean)
 	local commanderPanel = CommanderPanel.new(hudGui, cs, lang, send, hud.percent)
 	local modePanel = ModePanel.new(hudGui, cs, lang, send)
 	local serverPanel = ServerPanel.new(hudGui, cs, lang, send) -- частный сервер (§5.4)
+	local shopPanel = ShopPanel.new(hudGui, cs, lang, send, hud.toast) -- профиль и магазин (§11.1)
 	local worldPanel = WorldPanel.new(hudGui, cs, lang, send, function(id: number): string
 		local n = cs.nations[id]
 		return if n == nil then "?" elseif lang == "en" then n.nameEn else n.name
@@ -318,6 +320,10 @@ local function runSession(mapId: string, resync: boolean)
 				runSession(newMapId, true)
 			end)
 		end,
+		onProfile = function()
+			shopPanel.refresh()
+			commanderPanel.refresh()
+		end,
 		onInfo = function(colorsChanged: boolean)
 			-- Новый матч тоже приходит как смена цветов: ClientState уже сбросил сетку, перерисовываем всё.
 			if colorsChanged then
@@ -341,6 +347,7 @@ local function runSession(mapId: string, resync: boolean)
 			commanderPanel.refresh()
 			modePanel.refresh()
 			serverPanel.refresh()
+			shopPanel.refresh()
 			naval.refresh()
 			airPanel.refresh()
 		end,

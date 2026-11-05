@@ -4,8 +4,8 @@
 
 ## Где мы сейчас
 Сделаны этапы **0–6**, **7а**, **7б-1** (флот), **7б-2** (авиация), доработки перед 7в, **7в-1** и **7в-2** — всё в `main` (PR #2–#8).
-**7в-1** (технологии) и **7в-2** (генералы) смержены (PR #7, #8). **7г** и **8а** смержены (PR #9), разведка, **8б** и **8в** — PR #10. **8г** (частные серверы, бюджет «Мира»)
-готов и ждёт проверки в Studio; дальше этап 9
+**7в-1** (технологии) и **7в-2** (генералы) смержены (PR #7, #8). **7г** и **8а** смержены (PR #9), разведка, **8б** и **8в** — PR #10. **8г** — PR #11. **9а** (профиль, уровни,
+магазин) готов и ждёт проверки в Studio; дальше 9б и 9в
 (см. «Статус» в начале GDD §15). Обновляй «Статус» в GDD и этот раздел в конце каждого этапа.
 
 ## Порядок работы (договорённости с геймдизайнером)
@@ -262,6 +262,13 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   (`setMode`, `finishPick`, `offer`, `finishMatch`). Сервер: `isPrivate`, `ownerId`, намерение `settings`,
   `startNewMatch(mapId)` (итоги и смена настроек в лобби). Клиент: `UI/ServerPanel` (O), `cs.server`.
 - Studio: `Config.Dev.PrivateServer = true`.
+
+## Профиль и магазин (этап 9а)
+- `Profile` (данные, миграция, уровни, награда, генералы по уровням, `grantProduct` без повторов) и `Shop`
+  (каталог, `productById`, `perks`) — чистые. MatchSim: `perksOf` / `setPerks`, `canBoost` / `useBoost`,
+  `setUnlocked`, `rules.boosts`. Сервер: `Services/ProfileStore` (блокировка сессии), `Services/ShopService`
+  (ProcessReceipt, пассы), в `MatchService` — `applyProfile`, `useBoost` (жетон / запас), `giveRewards`, `profile`.
+  Клиент: `UI/ShopPanel` (M), `cs.profile`. Товары — id в `Config.Shop` (0 — не создан).
 
 ## Панель разработчика (F4)
 - Только в Studio: `MatchService` создаёт `Remotes.Dev` при `RunService:IsStudio()`; действия — чистый `DevTools`

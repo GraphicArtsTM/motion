@@ -39,12 +39,12 @@ function Shop.productById(id: number): (string?, string?)
 	if id == 0 then
 		return nil, nil
 	end
-	for key, b in Config.Shop.Boosts :: { [string]: { id: number } } do
+	for key, b in (Config.Shop.Boosts :: any) :: { [string]: { id: number } } do
 		if b.id == id then
 			return "boost", key
 		end
 	end
-	for key, p in Config.Shop.Packs :: { [string]: { id: number } } do
+	for key, p in (Config.Shop.Packs :: any) :: { [string]: { id: number } } do
 		if p.id == id then
 			return "pack", key
 		end

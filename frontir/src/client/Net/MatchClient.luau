@@ -32,6 +32,7 @@ export type Handlers = {
 	onShips: () -> (), -- корабли (§6.12)
 	onAir: () -> (), -- самолёты (§6.13)
 	onDev: ((msg: any) -> ())?, -- ответ панели разработчика (только Studio)
+	onProfile: (() -> ())?, -- профиль игрока (§11.2)
 	onEvents: (events: { any }) -> (),
 	onRejected: (reason: string) -> (),
 }
@@ -118,6 +119,11 @@ function MatchClient.connect(cs: ClientState, handlers: Handlers, mapId: string?
 				ClientState.applyCommander(cs, msg, os.clock())
 				if handlers.onCommander ~= nil then
 					handlers.onCommander()
+				end
+			elseif msg.kind == "profile" then
+				cs.profile = msg :: ClientState.ProfileInfo
+				if handlers.onProfile ~= nil then
+					handlers.onProfile()
 				end
 			elseif msg.kind == "rejected" then
 				handlers.onRejected(tostring(msg.reason))

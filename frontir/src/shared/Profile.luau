@@ -143,7 +143,8 @@ end
 
 function Profile.unlockedCommanders(d: Data, allPass: boolean): { [string]: boolean }
 	local out: { [string]: boolean } = {}
-	for _, c in Types.CommanderIds do
+	for _, raw in Types.CommanderIds do
+		local c: Types.CommanderId = raw :: any
 		if Profile.commanderUnlocked(d, c, allPass) then
 			out[c] = true
 		end

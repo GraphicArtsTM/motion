@@ -943,6 +943,11 @@ function MatchHud.new(
 				else
 					toast(string.format(Strings.get(if e.on then "event.blockade" else "event.blockadeOff", lang), a))
 				end
+			-- Буст магазина (§11.1): видят все — честно.
+			elseif e.kind == "boost" then
+				toast(
+					string.format(Strings.get("event.boost", lang), a, Strings.get("shop." .. tostring(e.boost), lang))
+				)
 			-- «Потоп» (§5.3): всем.
 			elseif e.kind == "flood" then
 				toast(string.format(Strings.get("event.flood", lang), tonumber(e.cells) or 0))

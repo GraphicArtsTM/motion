@@ -383,7 +383,7 @@ end
 
 -- Открытые генералы игрока (по уровню профиля, §11.2); nil — все.
 function MatchSim.setUnlocked(m: Match, id: number, set: { [string]: boolean }?)
-	m.unlocked[id] = set
+	(m.unlocked :: any)[id] = set
 end
 
 -- Буст в матче (§11.1): один каждого вида за матч, только в игре и где бусты разрешены. Оплату (Robux или жетон)
