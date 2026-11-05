@@ -17,12 +17,14 @@
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local BattleLayout = require(Shared:WaitForChild("BattleLayout"))
 local CameraMath = require(Shared:WaitForChild("CameraMath"))
 local ClientState = require(Shared:WaitForChild("ClientState"))
 local Config = require(Shared:WaitForChild("Config"))
+local RenderBudget = require(Shared:WaitForChild("RenderBudget"))
 local Fog = require(Shared:WaitForChild("Fog"))
 local MapDataModule = require(Shared:WaitForChild("MapData"))
 local NationColors = require(Shared:WaitForChild("NationColors"))
@@ -103,6 +105,11 @@ local FrontLayer = {}
 
 function FrontLayer.new(canvas: Frame, cs: ClientState, map: MapData): FrontLayer
 	local cfg = Config.Render.Battle
+	-- Телефон (этап 10в): меньше юнитов, частиц и воронок.
+	local phone = RenderBudget.isPhone(UserInputService.TouchEnabled, UserInputService.KeyboardEnabled)
+	local maxUnits = RenderBudget.limit("MaxUnitsOnScreen", phone)
+	local maxParticles = RenderBudget.limit("MaxParticles", phone)
+	local maxCraters = RenderBudget.limit("MaxCraters", phone)
 	local rng = Random.new()
 	local riverId = Types.Terrain.River
 	local sides: { [number]: Side } = {}
@@ -281,7 +288,7 @@ function FrontLayer.new(canvas: Frame, cs: ClientState, map: MapData): FrontLaye
 		alpha0: number,
 	}
 	local function spawnParticle(p: Spark, now: number)
-		if #particles >= cfg.MaxParticles then
+		if #particles >= maxParticles then
 			return
 		end
 		local f = takeFrame(9)
@@ -336,7 +343,7 @@ function FrontLayer.new(canvas: Frame, cs: ClientState, map: MapData): FrontLaye
 
 	-- Воронка: тёмное пятно, дымит CraterSec секунд.
 	local function addCrater(x: number, y: number, now: number)
-		if #craters >= cfg.MaxCraters then
+		if #craters >= maxCraters then
 			local oldest = table.remove(craters, 1) :: Crater
 			dropFrame(oldest.frame)
 		end
@@ -446,7 +453,7 @@ function FrontLayer.new(canvas: Frame, cs: ClientState, map: MapData): FrontLaye
 				u.x, u.y = x, y
 				side.units[k] = u
 			elseif u == nil then
-				if unitCount >= cfg.MaxUnitsOnScreen then
+				if unitCount >= maxUnits then
 					break
 				end
 				-- Подкрепление выходит из тыла.
@@ -494,7 +501,7 @@ function FrontLayer.new(canvas: Frame, cs: ClientState, map: MapData): FrontLaye
 						visibleFronts += 1
 					end
 				end
-				local cap = math.max(4, math.floor(cfg.MaxUnitsOnScreen / (math.max(1, visibleFronts) * 2)))
+				local cap = math.max(4, math.floor(maxUnits / (math.max(1, visibleFronts) * 2)))
 				for k, a in fronts do
 					local key = a.attacker * 65536 + a.target
 					local counterKey = a.target * 65536 + a.attacker

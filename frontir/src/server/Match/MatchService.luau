@@ -16,6 +16,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Analytics = require(Shared:WaitForChild("Analytics"))
 local Buildings = require(Shared:WaitForChild("Buildings"))
 local ClientState = require(Shared:WaitForChild("ClientState"))
 local Commanders = require(Shared:WaitForChild("Commanders"))
@@ -39,6 +40,7 @@ local Services = script.Parent.Parent:WaitForChild("Services")
 local ProfileStore = require(Services:WaitForChild("ProfileStore"))
 local ShopService = require(Services:WaitForChild("ShopService"))
 local Leaders = require(Services:WaitForChild("Leaders"))
+local Telemetry = require(Services:WaitForChild("Telemetry"))
 local Types = require(Shared:WaitForChild("Types"))
 
 type MapData = MapDataModule.MapData
@@ -494,6 +496,10 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 	Players.PlayerRemoving:Connect(function(player: Player)
 		local id = nationOf[player]
 		if id ~= nil then
+			-- Аналитика (§15, этап 10в): где и когда игрок вышел.
+			for _, record in Analytics.leave(m, id) do
+				Telemetry.custom(player, record)
+			end
 			MatchSim.removePlayer(m, id)
 		end
 		nationOf[player] = nil
@@ -852,6 +858,27 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			lastTickMs = (os.clock() - t0) * 1000
 			if wasPlaying and m.phase == "Over" then
 				giveRewards() -- опыт и медали за матч (§11.2)
+				local record = Analytics.matchEnd(m) -- длина матча (аналитика, этап 10в)
+				for player in nationOf do
+					Telemetry.custom(player, record)
+				end
+			end
+			if not wasPlaying and m.phase == "Play" then
+				-- Выбор генералов игроками (аналитика, этап 10в).
+				local players: { [number]: Player } = {}
+				for player, id in nationOf do
+					players[id] = player
+				end
+				for _, entry in
+					Analytics.commanders(m, function(id: number): string
+						return Commanders.of(m.commanders, id)
+					end)
+				do
+					local player: Player? = players[entry.nation]
+					if player then
+						Telemetry.custom(player, entry.record)
+					end
+				end
 			end
 
 			-- info — не чаще Net.InfoMinSec (смена фазы — сразу): выбывания подряд уходят одним сообщением.
@@ -883,6 +910,15 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				matchEvent:FireAllClients({ kind = "events", events = events })
 				-- Обучение пройдено (§5.5): награда в профиль один раз.
 				for _, e in events do
+					-- Воронка обучения (аналитика, этап 10в).
+					local step = Analytics.funnel(e)
+					if step ~= nil then
+						for player, id in nationOf do
+							if id == (e :: any).nation then
+								Telemetry.funnel(player, step)
+							end
+						end
+					end
 					if e.kind == "tutorialDone" then
 						for player, id in nationOf do
 							local session = profiles.get(player.UserId)

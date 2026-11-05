@@ -23,6 +23,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local StarterGui = game:GetService("StarterGui")
 local TextChatService = game:GetService("TextChatService")
+local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local CameraMath = require(Shared:WaitForChild("CameraMath"))
@@ -31,6 +32,7 @@ local AudioCues = require(Shared:WaitForChild("AudioCues"))
 local Config = require(Shared:WaitForChild("Config"))
 local Flood = require(Shared:WaitForChild("Flood"))
 local MapDataModule = require(Shared:WaitForChild("MapData"))
+local RenderBudget = require(Shared:WaitForChild("RenderBudget"))
 local MapFormat = require(Shared:WaitForChild("MapFormat"))
 local MapPaint = require(Shared:WaitForChild("MapPaint"))
 local Provinces = require(Shared:WaitForChild("Provinces"))
@@ -562,6 +564,38 @@ local function runSession(mapId: string, resync: boolean)
 		end,
 	}, mapId)
 
+	local function goHome()
+		local me = if cs.myNation ~= nil then cs.nations[cs.myNation] else nil
+		local capital = if me ~= nil then me.capital else nil
+		if capital ~= nil then
+			CameraMath.centerOn(camera.state, capital % map.width + 0.5, capital // map.width + 0.5)
+			camera.refresh()
+		else
+			camera.fit()
+		end
+	end
+	-- Телефон (этап 10в): кнопка «⌂» — к столице (на ПК — пробел), над кнопкой звука.
+	if RenderBudget.isPhone(UserInputService.TouchEnabled, UserInputService.KeyboardEnabled) then
+		local home = Instance.new("TextButton")
+		home.Name = "HomeButton"
+		home.AnchorPoint = Vector2.new(1, 1)
+		home.Size = UDim2.fromOffset(Config.Render.MinTouchTargetPx, Config.Render.MinTouchTargetPx)
+		home.Position = UDim2.new(1, -12, 1, -12 - Config.Render.MinimapSide - 8 - Config.Render.MinTouchTargetPx - 6)
+		home.BackgroundColor3 = Theme.Colors.PanelBg
+		home.BackgroundTransparency = 0.05
+		home.BorderSizePixel = 0
+		home.FontFace = Theme.FontBold
+		home.TextSize = 20
+		home.TextColor3 = Theme.Colors.Text
+		home.Text = "⌂"
+		local stroke = Instance.new("UIStroke")
+		stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		stroke.Color = Theme.Colors.PanelBorder
+		stroke.Parent = home
+		home.Parent = hudGui
+		Session.connect(home.Activated, goHome)
+	end
+
 	local input = CameraInput.bind(camera, viewport, {
 		onTap = function(sx: number, sy: number)
 			local cx, cy = CameraMath.cellAt(camera.state, sx, sy)
@@ -580,17 +614,8 @@ local function runSession(mapId: string, resync: boolean)
 				end
 			end
 		end,
-		-- Space — к своей столице (GDD §10); нет столицы — вся карта.
-		onHome = function()
-			local me = if cs.myNation ~= nil then cs.nations[cs.myNation] else nil
-			local capital = if me ~= nil then me.capital else nil
-			if capital ~= nil then
-				CameraMath.centerOn(camera.state, capital % map.width + 0.5, capital // map.width + 0.5)
-				camera.refresh()
-			else
-				camera.fit()
-			end
-		end,
+		-- Space — к своей столице (GDD §10); нет столицы — вся карта. На телефоне — кнопка «⌂».
+		onHome = goHome,
 	})
 
 	local musicAt = 0
