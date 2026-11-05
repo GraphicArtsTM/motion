@@ -30,6 +30,40 @@ AudioCues.SoundNames = table.freeze({
 
 AudioCues.MusicNames = table.freeze({ "Lobby", "Calm", "Finale" } :: { string })
 
+-- Звук одного события глазами державы me (nil — без звука).
+function AudioCues.cueOf(e: { [string]: any }, me: number?): string?
+	local kind = e.kind
+	local mine = me ~= nil and e.nation == me
+	local onMe = me ~= nil and e.target == me
+	local landing = (kind == "ability" and (e.ability == "Airdrop" or e.ability == "SeaLanding")) or kind == "landed"
+	if (kind == "warDeclared" or kind == "missileLaunched") and onMe then
+		return "Siren"
+	elseif
+		kind == "missileHit"
+		or (kind == "raid" and onMe)
+		or (kind == "ability" and e.ability == "Airstrike" and (mine or onMe))
+	then
+		return "Explosion"
+	elseif (kind == "raid" or kind == "planeBuilt") and mine then
+		return "Plane"
+	elseif kind == "betrayal" and onMe then
+		return "Betrayal"
+	elseif (kind == "offerMade" or kind == "peaceProposed") and onMe then
+		return "Offer"
+	elseif landing and (mine or onMe) then
+		return "Parachute"
+	elseif
+		((kind == "researched" or kind == "shipBuilt") and mine)
+		or kind == "worldEvent"
+		or kind == "councilOpened"
+	then
+		return "Notify"
+	elseif kind == "mercs" and mine then
+		return "Coin"
+	end
+	return nil
+end
+
 -- Звуки для пачки событий глазами державы me (каждый звук — не больше раза за пачку, в порядке событий).
 -- Победа и поражение — по итогу матча (AudioCues.result), захват клеток и городов — по дельтам сетки.
 function AudioCues.fromEvents(events: { any }, me: number?): { string }
@@ -45,35 +79,9 @@ function AudioCues.fromEvents(events: { any }, me: number?): { string }
 		if type(e) ~= "table" then
 			continue
 		end
-		local kind = e.kind
-		local mine = me ~= nil and e.nation == me
-		local onMe = me ~= nil and e.target == me
-		if kind == "warDeclared" and onMe then
-			add("Siren")
-		elseif kind == "missileLaunched" and onMe then
-			add("Siren")
-		elseif kind == "missileHit" or (kind == "raid" and onMe) then
-			add("Explosion")
-		elseif kind == "raid" and mine then
-			add("Plane")
-		elseif kind == "betrayal" and onMe then
-			add("Betrayal")
-		elseif (kind == "offerMade" or kind == "peaceProposed") and onMe then
-			add("Offer")
-		elseif kind == "ability" and (e.ability == "Airdrop" or e.ability == "SeaLanding") and (mine or onMe) then
-			add("Parachute")
-		elseif kind == "ability" and e.ability == "Airstrike" and (mine or onMe) then
-			add("Explosion")
-		elseif kind == "landed" and (mine or onMe) then
-			add("Parachute")
-		elseif kind == "planeBuilt" and mine then
-			add("Plane")
-		elseif (kind == "researched" or kind == "shipBuilt") and mine then
-			add("Notify")
-		elseif kind == "worldEvent" or kind == "councilOpened" then
-			add("Notify")
-		elseif kind == "mercs" and mine then
-			add("Coin")
+		local name = AudioCues.cueOf(e, me)
+		if name ~= nil then
+			add(name)
 		end
 	end
 	return out
