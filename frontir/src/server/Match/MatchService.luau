@@ -29,6 +29,7 @@ local MatchStats = require(Shared:WaitForChild("Net"):WaitForChild("MatchStats")
 local Modes = require(Shared:WaitForChild("Modes"))
 local Protocol = require(Shared:WaitForChild("Net"):WaitForChild("Protocol"))
 local RateLimiter = require(Shared:WaitForChild("RateLimiter"))
+local ServerSettings = require(Shared:WaitForChild("ServerSettings"))
 local Types = require(Shared:WaitForChild("Types"))
 
 type MapData = MapDataModule.MapData
@@ -50,23 +51,34 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 	local seedRng = Random.new()
 	local devMode: Types.ModeId? = nil -- F4 «Режим»: режим следующего матча без голосования
 	local devMap: string? = nil -- F4 «Карта»: карта следующего матча без голосования (§5.2)
+	-- Частный сервер (§5.4): DataModel.PrivateServerId / PrivateServerOwnerId; в Studio — Config.Dev.PrivateServer.
+	local isPrivate = (game.PrivateServerId ~= "" and game.PrivateServerOwnerId ~= 0)
+		or (RunService:IsStudio() and Config.Dev.PrivateServer)
+	local ownerId: number? = if game.PrivateServerOwnerId ~= 0 then game.PrivateServerOwnerId else nil
+	local settings: ServerSettings.Settings? = if isPrivate then ServerSettings.defaults(map.name) else nil
 	local function newMatch(): MatchSim.Match
 		local realMap = (Config.RealMaps :: any)[map.name] :: Types.RealMapParams?
 		local match = MatchSim.new(map, seedRng:NextInteger(1, 2 ^ 31 - 1))
-		-- Режимы (§5.1): варианты голосования по времени сервера (режим недели), F4 — без голосования.
-		MatchSim.openVote(match, os.time())
+		match.settings = settings
+		if settings ~= nil and settings.mode ~= nil then
+			match.forcedMode = settings.mode
+		end
 		if devMode ~= nil then
 			match.forcedMode = devMode
 		end
+		-- Режимы (§5.1): варианты голосования по времени сервера (режим недели), F4 — без голосования.
+		MatchSim.openVote(match, os.time())
 		-- Держав в матче: Dev.Nations (проверка в Studio, например игрок + 3 Генерала) или как у карты.
 		match.targetNations = if Config.Dev.Nations > 0
 			then Config.Dev.Nations
+			elseif settings ~= nil then math.min(settings.nations, ServerSettings.maxNations(map.name))
 			elseif realMap ~= nil then realMap.Nations
 			else Config.Match.TargetNations
 		return match
 	end
 	local m = newMatch()
 	local seed = m.seed
+	local startNewMatch: (mapId: string) -> ()
 	local nationOf: { [Player]: number } = {}
 	local limiters: { [Player]: RateLimiter.RateLimiter } = {}
 
@@ -104,6 +116,9 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			timeLimit = m.rules.timeLimitSec,
 			result = m.result,
 			mapId = map.name,
+			server = if settings ~= nil
+				then { settings = settings, isOwner = ownerId ~= nil and player.UserId == ownerId }
+				else nil,
 			flood = if m.rules.flood
 				then { step = m.flood.step, nextIn = math.max(0, m.flood.nextAt - m.time) }
 				else nil,
@@ -164,6 +179,9 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		if nationOf[player] ~= nil then
 			return
 		end
+		if isPrivate and ownerId == nil then
+			ownerId = player.UserId -- Studio (Dev.PrivateServer): владелец — первый вошедший
+		end
 		if m.phase == "Waiting" then
 			MatchSim.startLobby(m)
 		end
@@ -205,6 +223,25 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		end
 		local id = nationOf[player]
 		-- Клиент загрузил карту заново (смена карты, §5.2) — шлём ему состояние заново.
+		-- Настройки частного сервера (§5.4): только владелец, только значения из списков; в лобби — сразу.
+		if kind == "settings" then
+			if settings == nil or ownerId == nil or player.UserId ~= ownerId then
+				matchEvent:FireClient(player, { kind = "rejected", reason = "notOwner", intent = "settings" })
+				return
+			end
+			local parsed, why = ServerSettings.parse(payload, map.name)
+			if parsed == nil then
+				matchEvent:FireClient(player, { kind = "rejected", reason = why or "?", intent = "settings" })
+				return
+			end
+			settings = parsed
+			if m.phase == "Waiting" or m.phase == "Lobby" then
+				startNewMatch(parsed.map or map.name)
+			else
+				sendInfoAll()
+			end
+			return
+		end
 		if kind == "sync" then
 			matchEvent:FireClient(player, infoFor(player))
 			sendDiplo(player)
@@ -330,6 +367,24 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		end)
 	end
 
+	-- Новый матч на карте mapId (после итогов или по настройкам частного сервера в лобби): все игроки — в лобби.
+	function startNewMatch(mapId: string)
+		if mapId ~= map.name then
+			map = loadMap(mapId)
+		end
+		m = newMatch()
+		table.clear(nationOf)
+		for _, player in Players:GetPlayers() do
+			local id = MatchSim.addPlayer(m, player.UserId, player.DisplayName)
+			if id ~= nil then
+				nationOf[player] = id
+			end
+		end
+		MatchSim.startLobby(m)
+		sendInfoAll()
+		print(string.format("[Frontir] новый матч, сид %d, карта %s", m.seed, map.name))
+	end
+
 	local step = 1 / Config.Sim.TickRate
 	local acc = 0
 	local statsAcc = 0
@@ -352,6 +407,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 	local function sendStats()
 		local full = MatchStats.build(m, lastTickMs, lastChanged)
 		local head = Protocol.encodeStatsHead(full)
+		local allWars = MatchStats.wars(m) -- один раз: захваченная земля считается по сетке (§6.11а)
 		for _, player in Players:GetPlayers() do
 			local viewer = viewerOf(player)
 			-- Обзор считаем один раз: по нему и фронты, и корабли (§6.11, §6.12).
@@ -362,7 +418,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			local known = if alive and not devNoFog[player] then MatchSim.knownSet(m, id :: number) else nil
 			local stats = MatchStats.forViewer(m, full, viewer, vision, known)
 			matchEvent:FireClient(player, Protocol.encodeStats(stats, if known == nil then head else nil))
-			matchEvent:FireClient(player, Protocol.encodeWars(MatchStats.wars(m, known)))
+			matchEvent:FireClient(player, Protocol.encodeWars(MatchStats.hideWars(allWars, known)))
 			-- Зритель и «Туман выкл» видят все корабли; груз и очередь — только свои.
 			local ships = MatchStats.ships(m, nationOf[player], vision, viewer == nil)
 			matchEvent:FireClient(player, Protocol.encodeShips(ships))
@@ -445,23 +501,10 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		end
 		-- Результаты показаны — новый матч (на карте из голосования, §5.2): все игроки снова в лобби.
 		if m.phase == "Over" and m.phaseLeft <= 0 then
-			-- Карта следующего матча — по голосованию на экране итогов (§5.2) или из F4.
-			local nextMap = devMap or MatchSim.mapWinner(m)
+			-- Карта следующего матча — по голосованию на экране итогов (§5.2), из F4 или настроек сервера (§5.4).
+			local nextMap = devMap or (if settings ~= nil then settings.map else nil) or MatchSim.mapWinner(m)
 			devMap = nil
-			if nextMap ~= map.name then
-				map = loadMap(nextMap)
-			end
-			m = newMatch()
-			table.clear(nationOf)
-			for _, player in Players:GetPlayers() do
-				local id = MatchSim.addPlayer(m, player.UserId, player.DisplayName)
-				if id ~= nil then
-					nationOf[player] = id
-				end
-			end
-			MatchSim.startLobby(m)
-			sendInfoAll()
-			print(string.format("[Frontir] новый матч, сид %d", m.seed))
+			startNewMatch(nextMap)
 		end
 		if m.phase == "Play" and statsAcc >= 1 / Config.Net.StatsHz then
 			statsAcc = 0

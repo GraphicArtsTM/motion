@@ -23,6 +23,7 @@ export type Rules = {
 	capitalHunt: boolean,
 	duel: boolean, -- «Дуэль» (§5.2): без ботов, 2×2 — две команды
 	flood: boolean, -- «Потоп» (§5.3): вода поднимается по ступеням
+	diplomacy: boolean, -- false — только война и мир (частный сервер, §5.4)
 }
 
 local Modes = {}
@@ -46,6 +47,7 @@ function Modes.rules(id: ModeId): Rules
 		capitalHunt = false,
 		duel = false,
 		flood = false,
+		diplomacy = true,
 	}
 	if id == "Teams" then
 		r.teams = true
