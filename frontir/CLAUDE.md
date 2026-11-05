@@ -4,8 +4,8 @@
 
 ## Где мы сейчас
 Сделаны этапы **0–6**, **7а**, **7б-1** (флот), **7б-2** (авиация), доработки перед 7в, **7в-1** и **7в-2** — всё в `main` (PR #2–#8).
-**7в-1** (технологии) и **7в-2** (генералы) смержены (PR #7, #8). **7г** и **8а** смержены (PR #9), разведка, **8б** и **8в** — PR #10. **8г** — PR #11. **9а** и **9б** — PR #12. Сезон без срока
-и **9в** (косметика, флаг) готовы и ждут проверки в Studio; дальше 9г
+**7в-1** (технологии) и **7в-2** (генералы) смержены (PR #7, #8). **7г** и **8а** смержены (PR #9), разведка, **8б** и **8в** — PR #10. **8г** — PR #11. **9а** и **9б** — PR #12. Сезон без срока,
+**9в** (косметика, флаг) и **9г** (задания, лидеры, Эло) готовы и ждут проверки в Studio (PR #13); дальше этап 10
 (см. «Статус» в начале GDD §15). Обновляй «Статус» в GDD и этот раздел в конце каждого этапа.
 
 ## Порядок работы (договорённости с геймдизайнером)
@@ -280,6 +280,12 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
 - `Cosmetics` — каталог, `owns` / `buy` / `equip` / `setFlag`, `public`, `patternHit`; данные — в `Profile`
   (`cosmetics`, `equipped`, `flag`). Отрисовка — `TerritoryPaint.Extra.pattern / flashColor`, `NationLabels`,
   `UI/FlagView`; окно — `UI/WardrobePanel` (K). Сервер: `cosmeticOf` в info, намерения `buyCosmetic`, `equip`, `flag`.
+
+## Задания, лидеры, рейтинг (этап 9г)
+- `Quests` — задания дня (`forDay`, `sync`, `onMatch`) и Эло (`eloExpected`, `eloDelta`); данные — в `Profile`
+  (`quests`, `questsBonus`, `elo`). Сервер: `giveRewards` (задания, победы недели, Эло дуэли), `Services/Leaders`
+  (OrderedDataStore), сообщения `quests`, `leaders`. Клиент: `UI/QuestsPanel` (J).
+- Тест `Strings.spec` ищет в `src` ключи `Strings.get("…")` и проверяет, что они есть.
 
 ## Панель разработчика (F4)
 - Только в Studio: `MatchService` создаёт `Remotes.Dev` при `RunService:IsStudio()`; действия — чистый `DevTools`

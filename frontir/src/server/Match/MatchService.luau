@@ -32,11 +32,13 @@ local RateLimiter = require(Shared:WaitForChild("RateLimiter"))
 local ServerSettings = require(Shared:WaitForChild("ServerSettings"))
 local Cosmetics = require(Shared:WaitForChild("Cosmetics"))
 local Profile = require(Shared:WaitForChild("Profile"))
+local Quests = require(Shared:WaitForChild("Quests"))
 local Shop = require(Shared:WaitForChild("Shop"))
 
 local Services = script.Parent.Parent:WaitForChild("Services")
 local ProfileStore = require(Services:WaitForChild("ProfileStore"))
 local ShopService = require(Services:WaitForChild("ShopService"))
+local Leaders = require(Services:WaitForChild("Leaders"))
 local Types = require(Shared:WaitForChild("Types"))
 
 type MapData = MapDataModule.MapData
@@ -237,6 +239,26 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			},
 			weekly = { offer = Shop.weeklyOffer(now), left = Shop.weekLeft(now) },
 			dailyStreak = d.dailyStreak,
+			-- Задания дня и рейтинг (§11.5).
+			quests = (function(): { { [string]: any } }
+				Quests.sync(d, Profile.dayOf(now), player.UserId)
+				local out: { { [string]: any } } = {}
+				for _, q in d.quests do
+					local row = Config.Quests.Pool[q.pool]
+					table.insert(out, {
+						kind = row.kind,
+						target = row.target,
+						progress = q.progress,
+						done = q.done,
+						medals = row.medals,
+						xp = row.xp,
+					})
+				end
+				return out
+			end)(),
+			questsBonus = d.questsBonus,
+			dayLeft = 86400 - now % 86400,
+			elo = d.elo,
 			-- Гардероб (§11.4): что открыто, что надето, флаг.
 			wardrobe = (function(): { [string]: any }
 				local owned: { [string]: boolean } = {}
@@ -325,6 +347,11 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			sendProfile(player)
 		end,
 	})
+	-- Таблицы лидеров (§11.5): всем — когда обновились.
+	local leaders = Leaders.start(function(boards: Leaders.Boards)
+		matchEvent:FireAllClients({ kind = "leaders", weekly = boards.weekly, duel = boards.duel })
+	end)
+
 	-- Итог матча в профили (§11.2): опыт, медали, жетоны за уровни. Один раз на матч.
 	local rewardedSeed = 0
 	local function giveRewards()
@@ -338,6 +365,29 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		for _, id in coWinners do
 			co[id] = true
 		end
+		local now = os.time()
+		local day = Profile.dayOf(now)
+		-- Рейтинг дуэлей (§11.5): только дуэль игроков без ботов; у стороны — средний рейтинг.
+		local duelSides: { [number]: { number } }? = nil
+		if m.rules.duel and MatchSim.humans(m) == #m.nations then
+			local sides: { [number]: { number } } = {}
+			for player, id in nationOf do
+				local session = profiles.get(player.UserId)
+				if session ~= nil then
+					local side = m.teams[id] or id
+					sides[side] = sides[side] or {}
+					table.insert(sides[side], session.data.elo)
+				end
+			end
+			duelSides = sides
+		end
+		local function avg(list: { number }): number
+			local sum = 0
+			for _, v in list do
+				sum += v
+			end
+			return sum / math.max(1, #list)
+		end
 		for player, id in nationOf do
 			local session = profiles.get(player.UserId)
 			if session ~= nil then
@@ -349,6 +399,31 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				local xp, medals =
 					Profile.applyMatch(session.data, place, MatchSim.citiesOf(m, id), won, mul, os.time())
 				rewards[player] = { xp = xp, medals = medals, levels = Profile.levelOf(session.data.xp) - levelBefore }
+				-- Задания дня (§11.5).
+				local landPercent = Grid.cellsOf(m.grid, id) / math.max(1, m.grid.capturableCount) * 100
+				local outcome =
+					{ place = place, won = won, cities = MatchSim.citiesOf(m, id), landPercent = landPercent }
+				local done, tokens = Quests.onMatch(session.data, outcome, day, player.UserId, now)
+				if #done > 0 or tokens > 0 then
+					matchEvent:FireClient(player, { kind = "quests", done = done, tokens = tokens })
+				end
+				if won then
+					leaders.addWin(player.UserId)
+				end
+				local sides = duelSides
+				if sides ~= nil then
+					local mySide = m.teams[id] or id
+					local mine, other = 0, 0
+					for side, list in sides do
+						if side == mySide then
+							mine = avg(list)
+						else
+							other = avg(list)
+						end
+					end
+					session.data.elo += Quests.eloDelta(mine, other, if won then 1 else 0)
+					leaders.setElo(player.UserId, session.data.elo)
+				end
 				task.spawn(profiles.save, player.UserId)
 				sendProfile(player)
 			end
@@ -392,6 +467,8 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 					matchEvent:FireClient(player, { kind = "daily", streak = streak, reward = reward })
 				end
 				sendProfile(player)
+				local boards = leaders.current()
+				matchEvent:FireClient(player, { kind = "leaders", weekly = boards.weekly, duel = boards.duel })
 			end
 		end)
 	end

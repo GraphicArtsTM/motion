@@ -92,7 +92,16 @@ export type ProfileInfo = {
 	weekly: { offer: { stock: { [string]: number }, crates: number, tokens: number }, left: number },
 	dailyStreak: number,
 	wardrobe: { owned: { [string]: boolean }, equipped: { [string]: string }, flag: Cosmetics.Flag }, -- §11.4
+	-- §11.5: задания дня, жетон за все, секунд до новых заданий, рейтинг дуэлей.
+	quests: { { kind: string, target: number, progress: number, done: boolean, medals: number, xp: number } },
+	questsBonus: boolean,
+	dayLeft: number,
+	elo: number,
 }
+
+-- Таблицы лидеров (§11.5).
+export type LeaderEntry = { userId: number, name: string, value: number }
+export type LeadersInfo = { weekly: { LeaderEntry }, duel: { LeaderEntry } }
 
 export type MapVoteInfo = { options: { string }, counts: { number }, myVote: string? }
 
@@ -206,6 +215,7 @@ export type ClientState = {
 	floodAt: number, -- когда пришла ступень (часы клиента)
 	server: ServerInfo?, -- частный сервер (§5.4): настройки и владелец ли я
 	profile: ProfileInfo?, -- профиль (§11.2)
+	leaders: LeadersInfo?, -- таблицы лидеров (§11.5)
 	rules: Modes.Rules,
 	speed: number, -- темп игрового времени: Match.Speed × режим («Блиц» — ×2)
 }
@@ -294,6 +304,7 @@ function ClientState.new(width: number, height: number): ClientState
 		floodAt = 0,
 		server = nil,
 		profile = nil,
+		leaders = nil,
 		rules = Modes.rules("Ffa"),
 		speed = Config.Match.Speed,
 		stability = ClientState.emptyStability(),

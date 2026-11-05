@@ -67,6 +67,7 @@ local ModePanel = require(UI:WaitForChild("ModePanel"))
 local ServerPanel = require(UI:WaitForChild("ServerPanel"))
 local ShopPanel = require(UI:WaitForChild("ShopPanel"))
 local WardrobePanel = require(UI:WaitForChild("WardrobePanel"))
+local QuestsPanel = require(UI:WaitForChild("QuestsPanel"))
 local WorldPanel = require(UI:WaitForChild("WorldPanel"))
 local TerritoryLayer = require(Render:WaitForChild("TerritoryLayer"))
 local Theme = require(UI:WaitForChild("Theme"))
@@ -248,6 +249,7 @@ local function runSession(mapId: string, resync: boolean)
 	local serverPanel = ServerPanel.new(hudGui, cs, lang, send) -- частный сервер (§5.4)
 	local shopPanel = ShopPanel.new(hudGui, cs, lang, send, hud.toast) -- профиль и магазин (§11.1)
 	local wardrobe = WardrobePanel.new(hudGui, cs, lang, send) -- косметика и флаг (§11.4)
+	local questsPanel = QuestsPanel.new(hudGui, cs, lang, hud.toast) -- задания и лидеры (§11.5)
 	local worldPanel = WorldPanel.new(hudGui, cs, lang, send, function(id: number): string
 		local n = cs.nations[id]
 		return if n == nil then "?" elseif lang == "en" then n.nameEn else n.name
@@ -322,12 +324,20 @@ local function runSession(mapId: string, resync: boolean)
 				runSession(newMapId, true)
 			end)
 		end,
+		onLeaders = function()
+			questsPanel.refresh()
+		end,
 		onShopEvent = function(msg: any)
+			if msg.kind == "quests" then
+				questsPanel.onQuests(msg)
+				return
+			end
 			shopPanel.onShopEvent(msg)
 		end,
 		onProfile = function()
 			shopPanel.refresh()
 			wardrobe.refresh()
+			questsPanel.refresh()
 			commanderPanel.refresh()
 		end,
 		onInfo = function(colorsChanged: boolean)

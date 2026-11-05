@@ -88,6 +88,20 @@ T.describe("Strings", function()
 				"researching",
 				"techMaxed",
 				"techLocked",
+				-- Этапы 8–9 (режимы, магазин, косметика)
+				"team",
+				"mode",
+				"solo",
+				"diplomacyOff",
+				"locked",
+				"noStock",
+				"noTokens",
+				"boostUsed",
+				"noBoosts",
+				"noCrates",
+				"noPort",
+				"noAirfield",
+				"noMedals",
 				"needTech",
 				"noResearch",
 				"cooldown",
@@ -107,4 +121,31 @@ T.describe("Strings", function()
 		T.expect(Strings.langFromLocale("en-us")).toBe("en")
 		T.expect(Strings.langFromLocale("de-de")).toBe("en")
 	end)
+
+	T.it(
+		'каждый ключ, который код берёт строкой Strings.get("..."), есть в таблице (§11.5)',
+		function()
+			local fs = require("@lune/fs")
+			local missing: { string } = {}
+			local function scan(dir: string)
+				for _, name in fs.readDir(dir) do
+					local path = dir .. "/" .. name
+					if fs.isDir(path) then
+						scan(path)
+					elseif string.sub(name, -5) == ".luau" then
+						local text = fs.readFile(path)
+						for key in string.gmatch(text, 'Strings%.get%(%s*"([^"]+)"%s*[,)]') do
+							if Strings.Table[key] == nil then
+								table.insert(missing, path .. ": " .. key)
+							end
+						end
+					end
+				end
+			end
+			scan("src")
+			if #missing > 0 then
+				error("нет строк: " .. table.concat(missing, "; "))
+			end
+		end
+	)
 end)

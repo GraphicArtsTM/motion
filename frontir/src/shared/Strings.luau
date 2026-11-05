@@ -1075,6 +1075,38 @@ local TABLE: { [string]: Entry } = {
 	["color.Sea"] = { ru = "синий", en = "blue" },
 	["color.Lime"] = { ru = "салатовый", en = "lime" },
 	["reject.noMedals"] = { ru = "Не хватает медалей", en = "Not enough medals" },
+	-- Задания и лидеры (§11.5)
+	["quests.open"] = { ru = "Задания и лидеры (J)", en = "Quests & leaders (J)" },
+	["quests.title"] = { ru = "Задания дня", en = "Daily quests" },
+	["quests.passXp"] = { ru = "опыта пропуска", en = "pass XP" },
+	["quests.bonus"] = {
+		ru = "Все три — +%d жетон штаба · новые задания через %d ч",
+		en = "All three — +%d HQ token · new quests in %d h",
+	},
+	["quests.bonusDone"] = {
+		ru = "Жетон за все три получен (+%d) · новые задания через %d ч",
+		en = "All-three token claimed (+%d) · new quests in %d h",
+	},
+	["quests.done"] = { ru = "Задание выполнено: %s (+%d 🏅)", en = "Quest done: %s (+%d 🏅)" },
+	["quests.allDone"] = {
+		ru = "Все задания дня выполнены: +%d жетон штаба",
+		en = "All daily quests done: +%d HQ token",
+	},
+	["quest.play"] = { ru = "Сыграть матчей: %d", en = "Play matches: %d" },
+	["quest.win"] = { ru = "Победить: %d", en = "Win: %d" },
+	["quest.top3"] = { ru = "Попасть в тройку: %d", en = "Finish top 3: %d" },
+	["quest.cities"] = {
+		ru = "Держать городов к концу матча: %d",
+		en = "Hold cities at the end: %d",
+	},
+	["quest.land"] = {
+		ru = "Держать суши к концу матча: %d%%",
+		en = "Hold land at the end: %d%%",
+	},
+	["leaders.weekly"] = { ru = "Победы за неделю", en = "Wins this week" },
+	["leaders.duel"] = { ru = "Рейтинг дуэлей", en = "Duel rating" },
+	["leaders.empty"] = { ru = "пока пусто", en = "empty so far" },
+	["leaders.myElo"] = { ru = "Ваш рейтинг дуэлей: %d", en = "Your duel rating: %d" },
 	["commander.locked"] = { ru = "🔒 ур. %d", en = "🔒 lv %d" },
 	["reject.noStock"] = { ru = "Такого буста нет в запасе", en = "No such boost in stock" },
 	["reject.noTokens"] = { ru = "Нет жетонов штаба", en = "No HQ tokens" },

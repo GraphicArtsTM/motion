@@ -35,6 +35,11 @@ export type Data = {
 	cosmetics: { [string]: boolean }, -- купленное ("pattern:Stripes")
 	equipped: { [string]: string }, -- pattern / capture / title → id
 	flag: { bg: string, layout: string, layoutColor: string, emblem: string, emblemColor: string }?,
+	-- Этап 9г (§11.5): задания дня и рейтинг дуэлей.
+	questDay: number,
+	quests: { { pool: number, progress: number, done: boolean } },
+	questsBonus: boolean, -- жетон за все три уже выдан
+	elo: number,
 }
 
 -- Награда (пропуск, ящик, ежедневная, набор).
@@ -67,6 +72,10 @@ function Profile.new(): Data
 		cosmetics = {},
 		equipped = {},
 		flag = nil,
+		questDay = -1,
+		quests = {},
+		questsBonus = false,
+		elo = Config.Elo.Start,
 	}
 end
 
@@ -132,6 +141,16 @@ function Profile.migrate(raw: any): Data
 			end
 		end
 	end
+	d.questDay = if type(raw.questDay) == "number" then raw.questDay else -1
+	d.questsBonus = raw.questsBonus == true
+	if type(raw.quests) == "table" then
+		for _, q in raw.quests do
+			if type(q) == "table" and type(q.pool) == "number" and Config.Quests.Pool[q.pool] ~= nil then
+				table.insert(d.quests, { pool = q.pool, progress = num(q.progress), done = q.done == true })
+			end
+		end
+	end
+	d.elo = if type(raw.elo) == "number" and raw.elo == raw.elo then math.floor(raw.elo) else Config.Elo.Start
 	local f = raw.flag
 	if
 		type(f) == "table"

@@ -188,6 +188,29 @@ Config.Cosmetics = {
 	VipNameColor = "Gold",
 }
 
+-- §11.5 Ежедневные задания (этап 9г): PerDay из пула, награда за каждое и жетон за все за день.
+Config.Quests = {
+	PerDay = 3,
+	AllDoneTokens = 1,
+	Pool = {
+		{ kind = "play", target = 2, medals = 120, xp = 150 },
+		{ kind = "play", target = 4, medals = 220, xp = 300 },
+		{ kind = "win", target = 1, medals = 300, xp = 350 },
+		{ kind = "top3", target = 2, medals = 200, xp = 250 },
+		{ kind = "cities", target = 8, medals = 180, xp = 200 }, -- городов к концу матча
+		{ kind = "land", target = 15, medals = 220, xp = 250 }, -- % суши к концу матча
+	},
+}
+
+-- §11.5 Таблицы лидеров (OrderedDataStore) и рейтинг дуэлей.
+Config.Leaders = {
+	RefreshSec = 60,
+	Top = 10,
+	WeeklyStore = "FrontirWeeklyWins_", -- + номер недели UTC
+	DuelStore = "FrontirDuelElo",
+}
+Config.Elo = { Start = 1000, K = 32 }
+
 -- §11.3 Боевой пропуск сезона (этап 9б): опыт за матчи → ступени; бесплатная и премиум-дорожки (Season.reward).
 Config.Season = {
 	Id = 1,
