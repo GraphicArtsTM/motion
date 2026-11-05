@@ -16,6 +16,7 @@ local Strings = require(Shared:WaitForChild("Strings"))
 local Types = require(Shared:WaitForChild("Types"))
 
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
 
@@ -135,7 +136,7 @@ function ResultsPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang): 
 		local s = gui.AbsoluteSize
 		scale.Scale = math.clamp(math.min(s.X / (CHART_W + 60), s.Y / (CHART_H + 330)), 0.5, 1)
 	end
-	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(fit)
+	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fit)
 	fit()
 
 	local title = label(panel, 26, 1)
@@ -184,12 +185,12 @@ function ResultsPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang): 
 
 	local hidden = false
 	local builtFor = -1 -- matchId, для которого собрано окно
-	hideButton.Activated:Connect(function()
+	Session.connect(hideButton.Activated, function()
 		hidden = true
 		panel.Visible = false
 		showButton.Visible = true
 	end)
-	showButton.Activated:Connect(function()
+	Session.connect(showButton.Activated, function()
 		hidden = false
 		panel.Visible = true
 		showButton.Visible = false

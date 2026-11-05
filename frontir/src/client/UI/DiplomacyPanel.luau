@@ -21,6 +21,7 @@ local Provinces = require(Shared:WaitForChild("Provinces"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
 
@@ -183,7 +184,7 @@ function DiplomacyPanel.new(
 			mainButton.Position = UDim2.new(0.5, -108, 1, -12 - 56 - 6)
 		end
 	end
-	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(placeMain)
+	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), placeMain)
 	placeMain()
 
 	-- Окно.
@@ -199,7 +200,7 @@ function DiplomacyPanel.new(
 		local s = gui.AbsoluteSize
 		scale.Scale = math.clamp(math.min(s.X / (WIDTH + 40), s.Y / 560), 0.55, 1)
 	end
-	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(fit)
+	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fit)
 	fit()
 
 	local header = row(window, 1)
@@ -239,7 +240,7 @@ function DiplomacyPanel.new(
 
 	local function act(key: string, handler: () -> ()): TextButton
 		local b = button(actions, Strings.get("diplo.act." .. key, lang), 128)
-		b.Activated:Connect(handler)
+		Session.connect(b.Activated, handler)
 		return b
 	end
 	local function offer(kind: string)
@@ -343,7 +344,7 @@ function DiplomacyPanel.new(
 			local pad = Instance.new("UIPadding")
 			pad.PaddingLeft = UDim.new(0, 6)
 			pad.Parent = nb
-			nb.Activated:Connect(function()
+			Session.connect(nb.Activated, function()
 				selected = id
 			end)
 			nb.Parent = list
@@ -577,10 +578,10 @@ function DiplomacyPanel.new(
 		end
 		popup.Visible = false
 	end
-	acceptButton.Activated:Connect(function()
+	Session.connect(acceptButton.Activated, function()
 		reply(true)
 	end)
-	refuseButton.Activated:Connect(function()
+	Session.connect(refuseButton.Activated, function()
 		reply(false)
 	end)
 
@@ -616,13 +617,13 @@ function DiplomacyPanel.new(
 			drawWindow()
 		end
 	end
-	mainButton.Activated:Connect(function()
+	Session.connect(mainButton.Activated, function()
 		setOpen(not window.Visible)
 	end)
-	closeButton.Activated:Connect(function()
+	Session.connect(closeButton.Activated, function()
 		setOpen(false)
 	end)
-	UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
+	Session.connect(UserInputService.InputBegan, function(input: InputObject, gameProcessed: boolean)
 		if gameProcessed or UserInputService:GetFocusedTextBox() ~= nil then
 			return
 		end

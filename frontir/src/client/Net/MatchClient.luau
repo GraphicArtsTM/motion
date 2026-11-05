@@ -11,10 +11,12 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local ClientState = require(Shared:WaitForChild("ClientState"))
+local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
 
 export type Handlers = {
+	onMapChange: ((mapId: string) -> ())?, -- матч на другой карте (§5.2): клиент перезагружает сессию
 	onInfo: (colorsChanged: boolean) -> (),
 	onSnapshot: () -> (),
 	onDelta: (cells: { number }) -> (),
@@ -40,12 +42,26 @@ export type MatchClient = {
 
 local MatchClient = {}
 
-function MatchClient.connect(cs: ClientState, handlers: Handlers): MatchClient
+function MatchClient.connect(cs: ClientState, handlers: Handlers, mapId: string?): MatchClient
 	local remotes = ReplicatedStorage:WaitForChild("Remotes")
 	local matchEvent = remotes:WaitForChild("Match") :: RemoteEvent
 	local intentEvent = remotes:WaitForChild("Intent") :: RemoteEvent
 
-	matchEvent.OnClientEvent:Connect(function(msg: any)
+	local stopped = false -- пришла другая карта: всё дальнейшее — уже для новой сессии
+	Session.connect(matchEvent.OnClientEvent, function(msg: any)
+		if stopped then
+			return
+		end
+		-- Смена карты (§5.2): info с другой картой приходит раньше всех сообщений нового матча.
+		if type(msg) == "table" and msg.kind == "info" and type(msg.mapId) == "string" and mapId ~= nil then
+			if msg.mapId ~= mapId then
+				stopped = true
+				if handlers.onMapChange ~= nil then
+					handlers.onMapChange(msg.mapId)
+				end
+				return
+			end
+		end
 		if typeof(msg) == "buffer" then
 			local ok, result, cells = pcall(ClientState.applyBuffer, cs, msg)
 			if not ok then

@@ -35,7 +35,8 @@ type MapData = MapDataModule.MapData
 
 local MatchService = {}
 
-function MatchService.start(map: MapData)
+function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapData)
+	local map = firstMap
 	local remotes = Instance.new("Folder")
 	remotes.Name = "Remotes"
 	local matchEvent = Instance.new("RemoteEvent")
@@ -47,9 +48,10 @@ function MatchService.start(map: MapData)
 	remotes.Parent = ReplicatedStorage
 
 	local seedRng = Random.new()
-	local realMap = (Config.RealMaps :: any)[map.name] :: Types.RealMapParams?
 	local devMode: Types.ModeId? = nil -- F4 «Режим»: режим следующего матча без голосования
+	local devMap: string? = nil -- F4 «Карта»: карта следующего матча без голосования (§5.2)
 	local function newMatch(): MatchSim.Match
+		local realMap = (Config.RealMaps :: any)[map.name] :: Types.RealMapParams?
 		local match = MatchSim.new(map, seedRng:NextInteger(1, 2 ^ 31 - 1))
 		-- Режимы (§5.1): варианты голосования по времени сервера (режим недели), F4 — без голосования.
 		MatchSim.openVote(match, os.time())
@@ -101,6 +103,14 @@ function MatchService.start(map: MapData)
 			targetNations = m.targetNations,
 			timeLimit = m.rules.timeLimitSec,
 			result = m.result,
+			mapId = map.name,
+			mapVote = if m.phase == "Over"
+				then {
+					options = m.mapOptions,
+					counts = Modes.mapCounts(m.mapOptions, m.mapVotes),
+					myVote = if id ~= nil then m.mapVotes[id] else nil,
+				}
+				else nil,
 			mode = {
 				mode = m.mode,
 				options = m.modeOptions,
@@ -191,6 +201,15 @@ function MatchService.start(map: MapData)
 			return -- спам намерениями молча отбрасываем (кик за спам — этап 10)
 		end
 		local id = nationOf[player]
+		-- Клиент загрузил карту заново (смена карты, §5.2) — шлём ему состояние заново.
+		if kind == "sync" then
+			matchEvent:FireClient(player, infoFor(player))
+			sendDiplo(player)
+			if m.phase == "Play" then
+				sendSnapshot(player)
+			end
+			return
+		end
 		if id == nil then
 			return
 		end
@@ -291,6 +310,12 @@ function MatchService.start(map: MapData)
 					m.forcedMode = devMode
 				end
 				matchEvent:FireClient(player, { kind = "dev", mode = devMode })
+			elseif action == "map" then
+				-- Карта следующего матча без голосования (§5.2): по кругу пула.
+				local pool = Config.MapVote.Pool
+				local k = table.find(pool, devMap or map.name) or 0
+				devMap = pool[k % #pool + 1]
+				matchEvent:FireClient(player, { kind = "dev", map = devMap })
 			else
 				ok, reason = false, "target"
 			end
@@ -413,8 +438,14 @@ function MatchService.start(map: MapData)
 		if acc > step * Config.Net.MaxStepsPerFrame * devSpeed * soloSpeed then
 			acc = 0 -- сервер не успевает: лучше пропустить время, чем копить отставание
 		end
-		-- Результаты показаны — новый матч на той же карте: все игроки снова в лобби (смена карты — этап 8).
+		-- Результаты показаны — новый матч (на карте из голосования, §5.2): все игроки снова в лобби.
 		if m.phase == "Over" and m.phaseLeft <= 0 then
+			-- Карта следующего матча — по голосованию на экране итогов (§5.2) или из F4.
+			local nextMap = devMap or MatchSim.mapWinner(m)
+			devMap = nil
+			if nextMap ~= map.name then
+				map = loadMap(nextMap)
+			end
 			m = newMatch()
 			table.clear(nationOf)
 			for _, player in Players:GetPlayers() do

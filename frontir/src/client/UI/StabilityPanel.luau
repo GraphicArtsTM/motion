@@ -17,6 +17,7 @@ local Strings = require(Shared:WaitForChild("Strings"))
 local TerritoryPaint = require(Shared:WaitForChild("TerritoryPaint"))
 
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
 type CameraState = CameraMath.CameraState
@@ -68,7 +69,7 @@ function StabilityPanel.new(
 			main.Position = UDim2.new(0.5, 108, 1, -12 - 56 - 6)
 		end
 	end
-	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(place)
+	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), place)
 	place()
 
 	local function playing(): boolean
@@ -147,10 +148,10 @@ function StabilityPanel.new(
 	end
 	setOn(false)
 
-	main.Activated:Connect(function()
+	Session.connect(main.Activated, function()
 		setOn(not on)
 	end)
-	UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
+	Session.connect(UserInputService.InputBegan, function(input: InputObject, gameProcessed: boolean)
 		if gameProcessed or UserInputService:GetFocusedTextBox() ~= nil then
 			return
 		end

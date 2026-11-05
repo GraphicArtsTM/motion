@@ -28,6 +28,7 @@ local Provinces = require(Shared:WaitForChild("Provinces"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
 type MapData = MapDataModule.MapData
@@ -245,7 +246,7 @@ function MatchHud.new(
 		cancel.AnchorPoint = Vector2.new(1, 0.5)
 		cancel.Position = UDim2.fromScale(1, 0.5)
 		local row: Row = { frame = rowFrame, text = text, cancel = cancel, target = -1 }
-		cancel.Activated:Connect(function()
+		Session.connect(cancel.Activated, function()
 			if row.target >= 0 then
 				send("cancel", { target = row.target })
 			end
@@ -293,10 +294,10 @@ function MatchHud.new(
 	end
 	setPercent(percent)
 
-	minus.Activated:Connect(function()
+	Session.connect(minus.Activated, function()
 		setPercent(percent - cfg.PercentStep)
 	end)
-	plus.Activated:Connect(function()
+	Session.connect(plus.Activated, function()
 		setPercent(percent + cfg.PercentStep)
 	end)
 	local dragging = false
@@ -304,20 +305,20 @@ function MatchHud.new(
 		local t = (x - bar.AbsolutePosition.X) / math.max(1, bar.AbsoluteSize.X)
 		setPercent(t)
 	end
-	bar.InputBegan:Connect(function(input: InputObject)
+	Session.connect(bar.InputBegan, function(input: InputObject)
 		local t = input.UserInputType
 		if t == Enum.UserInputType.MouseButton1 or t == Enum.UserInputType.Touch then
 			dragging = true
 			setFromX(input.Position.X)
 		end
 	end)
-	UserInputService.InputChanged:Connect(function(input: InputObject)
+	Session.connect(UserInputService.InputChanged, function(input: InputObject)
 		local t = input.UserInputType
 		if dragging and (t == Enum.UserInputType.MouseMovement or t == Enum.UserInputType.Touch) then
 			setFromX(input.Position.X)
 		end
 	end)
-	UserInputService.InputEnded:Connect(function(input: InputObject)
+	Session.connect(UserInputService.InputEnded, function(input: InputObject)
 		local t = input.UserInputType
 		if t == Enum.UserInputType.MouseButton1 or t == Enum.UserInputType.Touch then
 			dragging = false

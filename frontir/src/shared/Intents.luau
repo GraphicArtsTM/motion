@@ -238,6 +238,12 @@ function Intents.parse(kind: any, payload: any): (Types.Intent?, string?)
 			return nil, "bad target"
 		end
 		return { kind = "intel", target = target }, nil
+	elseif kind == "mapVote" then
+		local map = payload.map
+		if type(map) ~= "string" or table.find(Config.MapVote.Pool, map) == nil then
+			return nil, "bad map"
+		end
+		return { kind = "mapVote", map = map }, nil
 	elseif kind == "modeVote" then
 		local mode = payload.mode
 		if table.find(Types.ModeIds, mode) == nil then

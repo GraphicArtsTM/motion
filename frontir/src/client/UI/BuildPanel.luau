@@ -16,6 +16,7 @@ local Config = require(Shared:WaitForChild("Config"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
 
@@ -79,7 +80,7 @@ function BuildPanel.new(
 			main.Position = UDim2.new(0.5, 0, 1, -12 - 56 - 6)
 		end
 	end
-	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(placeMain)
+	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), placeMain)
 	placeMain()
 
 	local menu = Instance.new("Frame")
@@ -113,7 +114,7 @@ function BuildPanel.new(
 		pad.PaddingLeft = UDim.new(0, 8)
 		pad.Parent = b
 		items[kind] = b
-		b.Activated:Connect(function()
+		Session.connect(b.Activated, function()
 			selected = kind
 			menu.Visible = false
 			local key = if kind == "City" then "build.pickCity" else "build.pick"
@@ -128,14 +129,14 @@ function BuildPanel.new(
 		main.Text = Strings.get("build.button", lang)
 	end
 	main.Text = Strings.get("build.button", lang)
-	main.Activated:Connect(function()
+	Session.connect(main.Activated, function()
 		if selected ~= nil then
 			cancel()
 		else
 			menu.Visible = not menu.Visible
 		end
 	end)
-	UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
+	Session.connect(UserInputService.InputBegan, function(input: InputObject, gameProcessed: boolean)
 		if gameProcessed or UserInputService:GetFocusedTextBox() ~= nil then
 			return
 		end

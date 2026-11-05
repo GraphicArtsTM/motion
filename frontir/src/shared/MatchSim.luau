@@ -193,6 +193,9 @@ export type Match = {
 	rules: Modes.Rules,
 	modeOptions: { Types.ModeId }, -- варианты голосования
 	modeVotes: { [number]: Types.ModeId }, -- держава игрока → голос
+	voteTime: number, -- время сервера (unix) для режима недели
+	mapOptions: { string }, -- голосование за карту на экране итогов (§5.2)
+	mapVotes: { [number]: string },
 	forcedMode: Types.ModeId?, -- режим без голосования (Dev.Mode, F4)
 	teams: { [number]: number }, -- держава → команда («Команды»)
 	teamCount: number,
@@ -297,6 +300,9 @@ function MatchSim.new(map: MapData, seed: number): Match
 		rules = Modes.rules("Ffa"),
 		modeOptions = Modes.options(0),
 		modeVotes = {},
+		voteTime = 0,
+		mapOptions = {},
+		mapVotes = {},
 		forcedMode = if Modes.isMode(Config.Dev.Mode) then Config.Dev.Mode :: Types.ModeId else nil,
 		teams = {},
 		teamCount = 0,
@@ -461,9 +467,32 @@ end
 
 -- Варианты голосования по времени сервера (режим недели — по номеру недели UTC).
 function MatchSim.openVote(m: Match, unixTime: number)
-	m.modeOptions = Modes.options(unixTime)
+	m.voteTime = unixTime
+	m.modeOptions = Modes.options(unixTime, MatchSim.humans(m))
 	table.clear(m.modeVotes)
 	m.infoDirty = true
+end
+
+-- Игроков в лобби стало больше или меньше — варианты («Дуэль» при 2 и 4, §5.2); голоса за пропавший вариант снимаются.
+local function refreshModeOptions(m: Match)
+	if m.phase ~= "Waiting" and m.phase ~= "Lobby" then
+		return
+	end
+	m.modeOptions = Modes.options(m.voteTime, MatchSim.humans(m))
+	for id, mode in m.modeVotes do
+		if table.find(m.modeOptions, mode) == nil then
+			m.modeVotes[id] = nil
+		end
+	end
+	m.infoDirty = true
+end
+
+-- Итог голосования за карту (§5.2): карта следующего матча.
+function MatchSim.mapWinner(m: Match): string
+	if #m.mapOptions == 0 then
+		return m.map.name
+	end
+	return Modes.mapWinner(m.mapOptions, m.mapVotes)
 end
 
 -- Все города на карте (клетки) — для клиентов.
@@ -601,7 +630,9 @@ function MatchSim.addPlayer(m: Match, userId: number, name: string): number?
 	if m.phase == "Play" or m.phase == "Over" or #m.nations >= Config.Match.MaxPlayers then
 		return nil
 	end
-	return newNation(m, name, name, false, userId).id
+	local id = newNation(m, name, name, false, userId).id
+	refreshModeOptions(m)
+	return id
 end
 
 -- Игрок ушёл: его держава остаётся на карте и переходит под управление бота.
@@ -613,6 +644,9 @@ function MatchSim.removePlayer(m: Match, nationId: number)
 	n.userId = nil
 	makeBot(m, n, "Normal") -- держава ушедшего игрока — под Обычным ботом
 	m.botNextThink[nationId] = m.simTime + BotBrain.nextThinkDelay(botRngsOf(m, nationId).think, profileOf(m, nationId))
+	m.modeVotes[nationId] = nil
+	m.mapVotes[nationId] = nil
+	refreshModeOptions(m)
 end
 
 -- Лобби (этап 4в): игроки собираются, через LobbySec начинается выбор старта.
@@ -634,6 +668,9 @@ function MatchSim.startPick(m: Match)
 	m.phaseLeft = Config.Match.StartPickSec
 	MatchSim.setMode(m, m.forcedMode or Modes.tally(m.modeOptions, m.modeVotes))
 	m.solo = MatchSim.humans(m) == 1
+	if m.rules.duel then
+		m.targetNations = math.max(2, MatchSim.humans(m)) -- дуэль без ботов (§5.2); один игрок — против одного бота
+	end
 	if not m.solo then
 		m.difficulty = nil
 	end
@@ -713,12 +750,13 @@ function MatchSim.finishPick(m: Match)
 		m.startCapitals[n.id] = n.capital :: number
 	end
 	-- Команды (§5.1): по долготе столицы, внутри команды — вечный союз.
-	if m.rules.teams then
+	local duelTeams = m.rules.duel and #order == 4 -- дуэль 2×2 (§5.2)
+	if m.rules.teams or duelTeams then
 		local byX: { { id: number, x: number } } = {}
 		for _, n in order do
 			table.insert(byX, { id = n.id, x = (n.capital :: number) % m.grid.width })
 		end
-		m.teamCount = Modes.teamCount(#byX)
+		m.teamCount = if duelTeams then 2 else Modes.teamCount(#byX)
 		m.teams = Modes.assignTeams(byX, m.teamCount)
 		for i, a in order do
 			for j = i + 1, #order do
@@ -806,6 +844,18 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 			return false, "mode"
 		end
 		m.modeVotes[nationId] = intent.mode
+		m.infoDirty = true
+		return true, nil
+	end
+	if intent.kind == "mapVote" then
+		-- Голос за карту (§5.2): только на экране итогов, только игрок, только из вариантов.
+		if m.phase ~= "Over" then
+			return false, "phase"
+		end
+		if n.isBot or table.find(m.mapOptions, intent.map) == nil then
+			return false, "mode"
+		end
+		m.mapVotes[nationId] = intent.map
 		m.infoDirty = true
 		return true, nil
 	end
@@ -4148,6 +4198,12 @@ local function finishMatch(m: Match, winner: number, reason: Types.VictoryReason
 	m.phase = "Over"
 	m.phaseLeft = Config.Match.ResultsSec
 	m.paused, m.fast = false, false
+	-- Голосование за карту следующего матча (§5.2): текущая и случайные другие (свой поток ГСЧ).
+	local mapRng = Rng.stream(m.seed, 400)
+	m.mapOptions = Modes.mapOptions(m.map.name, function(n: number): number
+		return Rng.range(mapRng, 1, n)
+	end)
+	table.clear(m.mapVotes)
 	m.infoDirty = true
 	table.insert(m.events, { kind = "victory", nation = winner, reason = reason })
 end
@@ -4248,7 +4304,7 @@ local function checkVictory(m: Match): boolean
 	if not m.victory then
 		return false
 	end
-	if m.rules.teams then
+	if m.teamCount > 0 then
 		return checkTeamVictory(m)
 	end
 	local hunter = huntWinner(m)

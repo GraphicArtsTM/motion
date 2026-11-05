@@ -21,6 +21,7 @@ export type Rules = {
 	siloFree: boolean, -- ракетная шахта без технологии
 	teams: boolean,
 	capitalHunt: boolean,
+	duel: boolean, -- «Дуэль» (§5.2): без ботов, 2×2 — две команды
 }
 
 local Modes = {}
@@ -42,6 +43,7 @@ function Modes.rules(id: ModeId): Rules
 		siloFree = false,
 		teams = false,
 		capitalHunt = false,
+		duel = false,
 	}
 	if id == "Teams" then
 		r.teams = true
@@ -57,6 +59,12 @@ function Modes.rules(id: ModeId): Rules
 		r.siloFree = true
 	elseif id == "CapitalHunt" then
 		r.capitalHunt = true
+	elseif id == "Duel" then
+		local duel = cfg.Duel
+		r.duel = true
+		r.victoryShare = duel.VictoryShare
+		r.timeLimitSec = duel.TimeLimitSec
+		r.speed = duel.Speed
 	end
 	return table.freeze(r)
 end
@@ -75,9 +83,51 @@ function Modes.weekly(unixTime: number): ModeId
 	return list[week % #list + 1] :: ModeId
 end
 
--- Варианты голосования в лобби.
-function Modes.options(unixTime: number): { ModeId }
-	return { "Ffa", "Teams", Modes.weekly(unixTime) }
+-- Варианты голосования в лобби; «Дуэль» — четвёртым, если игроков ровно 2 или 4 (§5.2).
+function Modes.options(unixTime: number, humans: number?): { ModeId }
+	local out: { ModeId } = { "Ffa", "Teams", Modes.weekly(unixTime) }
+	if humans ~= nil and table.find(Config.Modes.Duel.Players, humans) ~= nil then
+		table.insert(out, "Duel")
+	end
+	return out
+end
+
+-- Голосование за карту (§5.2): текущая первой, дальше Options − 1 случайных других из пула (pick(n) → 1..n).
+function Modes.mapOptions(current: string, pick: (n: number) -> number): { string }
+	local rest: { string } = {}
+	for _, id in Config.MapVote.Pool do
+		if id ~= current then
+			table.insert(rest, id)
+		end
+	end
+	local out = { current }
+	while #out < Config.MapVote.Options and #rest > 0 do
+		table.insert(out, table.remove(rest, pick(#rest)) :: string)
+	end
+	return out
+end
+
+-- Итог голосования за карту: больше голосов; ничья — раньше в списке; голосов нет — первая (текущая).
+function Modes.mapWinner(options: { string }, votes: { [number]: string }): string
+	local counts = Modes.mapCounts(options, votes)
+	local best = 1
+	for k = 2, #options do
+		if counts[k] > counts[best] then
+			best = k
+		end
+	end
+	return options[best]
+end
+
+function Modes.mapCounts(options: { string }, votes: { [number]: string }): { number }
+	local out: { number } = table.create(#options, 0)
+	for _, id in votes do
+		local k = table.find(options, id)
+		if k ~= nil then
+			out[k] += 1
+		end
+	end
+	return out
 end
 
 -- Голоса по вариантам (в порядке options).

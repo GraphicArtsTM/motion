@@ -16,6 +16,7 @@ local MinimapPaint = require(Shared:WaitForChild("MinimapPaint"))
 local NationColors = require(Shared:WaitForChild("NationColors"))
 
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
 type CameraState = CameraMath.CameraState
@@ -44,6 +45,7 @@ function Minimap.new(
 		warn("[Frontir] мини-карта: нет памяти под EditableImage")
 		return nil
 	end
+	Session.track(image) -- смена карты (§5.2): освободить память EditableImage
 	local editable = image :: EditableImage
 
 	local frame = Instance.new("Frame")
@@ -94,20 +96,20 @@ function Minimap.new(
 		local fy = math.clamp(rel.Y / frame.AbsoluteSize.Y, 0, 1)
 		moveCamera(fx * mapW, fy * mapH)
 	end
-	frame.InputBegan:Connect(function(input: InputObject)
+	Session.connect(frame.InputBegan, function(input: InputObject)
 		local t = input.UserInputType
 		if t == Enum.UserInputType.MouseButton1 or t == Enum.UserInputType.Touch then
 			dragging = true
 			jump(input.Position)
 		end
 	end)
-	frame.InputChanged:Connect(function(input: InputObject)
+	Session.connect(frame.InputChanged, function(input: InputObject)
 		local t = input.UserInputType
 		if dragging and (t == Enum.UserInputType.MouseMovement or t == Enum.UserInputType.Touch) then
 			jump(input.Position)
 		end
 	end)
-	frame.InputEnded:Connect(function(input: InputObject)
+	Session.connect(frame.InputEnded, function(input: InputObject)
 		local t = input.UserInputType
 		if t == Enum.UserInputType.MouseButton1 or t == Enum.UserInputType.Touch then
 			dragging = false

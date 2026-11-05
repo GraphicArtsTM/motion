@@ -10,6 +10,7 @@ local RunService = game:GetService("RunService")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local CameraMath = require(Shared:WaitForChild("CameraMath"))
 local Config = require(Shared:WaitForChild("Config"))
+local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type CameraState = CameraMath.CameraState
 
@@ -52,7 +53,7 @@ function Camera2D.new(mapW: number, mapH: number, viewport: GuiObject): Camera2D
 		refresh()
 	end
 
-	local sizeConn = viewport:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+	local sizeConn = Session.connect(viewport:GetPropertyChangedSignal("AbsoluteSize"), function()
 		local s = viewport.AbsoluteSize
 		if s.X > 0 and s.Y > 0 then
 			CameraMath.setViewSize(state, s.X, s.Y)
@@ -60,7 +61,7 @@ function Camera2D.new(mapW: number, mapH: number, viewport: GuiObject): Camera2D
 		end
 	end)
 
-	local stepConn = RunService.RenderStepped:Connect(function(dt: number)
+	local stepConn = Session.connect(RunService.RenderStepped, function(dt: number)
 		local t = target
 		if t == nil then
 			return

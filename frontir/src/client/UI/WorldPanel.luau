@@ -14,6 +14,7 @@ local Config = require(Shared:WaitForChild("Config"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
 
@@ -114,10 +115,10 @@ function WorldPanel.new(
 		local a = cs.world.auction
 		return if a ~= nil then a.minBid else 0
 	end
-	bidMin.Activated:Connect(function()
+	Session.connect(bidMin.Activated, function()
 		send("bid", { amount = minBid() })
 	end)
-	bidMore.Activated:Connect(function()
+	Session.connect(bidMore.Activated, function()
 		send("bid", { amount = minBid() + more })
 	end)
 

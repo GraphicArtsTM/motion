@@ -20,6 +20,7 @@ local CameraMath = require(Shared:WaitForChild("CameraMath"))
 local Config = require(Shared:WaitForChild("Config"))
 
 local Camera2DModule = require(script.Parent.Parent:WaitForChild("Render"):WaitForChild("Camera2D"))
+local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type Camera2D = Camera2DModule.Camera2D
 
@@ -79,7 +80,7 @@ function CameraInput.bind(camera: Camera2D, viewport: GuiObject, handlers: Handl
 
 	table.insert(
 		connections,
-		UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
+		Session.connect(UserInputService.InputBegan, function(input: InputObject, gameProcessed: boolean)
 			if gameProcessed then
 				return
 			end
@@ -103,7 +104,7 @@ function CameraInput.bind(camera: Camera2D, viewport: GuiObject, handlers: Handl
 
 	table.insert(
 		connections,
-		UserInputService.InputEnded:Connect(function(input: InputObject)
+		Session.connect(UserInputService.InputEnded, function(input: InputObject)
 			local t = input.UserInputType
 			if t == Enum.UserInputType.MouseButton2 or t == Enum.UserInputType.MouseButton3 then
 				dragging = false
@@ -127,7 +128,7 @@ function CameraInput.bind(camera: Camera2D, viewport: GuiObject, handlers: Handl
 
 	table.insert(
 		connections,
-		UserInputService.InputChanged:Connect(function(input: InputObject, gameProcessed: boolean)
+		Session.connect(UserInputService.InputChanged, function(input: InputObject, gameProcessed: boolean)
 			local t = input.UserInputType
 			if t == Enum.UserInputType.MouseMovement then
 				local x, y = toLocal(input.Position)
@@ -186,7 +187,7 @@ function CameraInput.bind(camera: Camera2D, viewport: GuiObject, handlers: Handl
 
 	table.insert(
 		connections,
-		UserInputService.TouchStarted:Connect(function(input: InputObject, gameProcessed: boolean)
+		Session.connect(UserInputService.TouchStarted, function(input: InputObject, gameProcessed: boolean)
 			if gameProcessed then
 				return
 			end
@@ -206,7 +207,7 @@ function CameraInput.bind(camera: Camera2D, viewport: GuiObject, handlers: Handl
 
 	table.insert(
 		connections,
-		UserInputService.TouchMoved:Connect(function(input: InputObject)
+		Session.connect(UserInputService.TouchMoved, function(input: InputObject)
 			local touch = touches[input]
 			if touch == nil then
 				return
@@ -236,7 +237,7 @@ function CameraInput.bind(camera: Camera2D, viewport: GuiObject, handlers: Handl
 
 	table.insert(
 		connections,
-		UserInputService.TouchEnded:Connect(function(input: InputObject)
+		Session.connect(UserInputService.TouchEnded, function(input: InputObject)
 			local touch = touches[input]
 			if touch ~= nil then
 				touches[input] = nil
@@ -262,7 +263,7 @@ function CameraInput.bind(camera: Camera2D, viewport: GuiObject, handlers: Handl
 	-- Клавиатура: плавный сдвиг каждый кадр.
 	table.insert(
 		connections,
-		RunService.RenderStepped:Connect(function(dt: number)
+		Session.connect(RunService.RenderStepped, function(dt: number)
 			if UserInputService:GetFocusedTextBox() ~= nil then
 				return
 			end

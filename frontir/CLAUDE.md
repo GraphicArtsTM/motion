@@ -5,7 +5,7 @@
 ## Где мы сейчас
 Сделаны этапы **0–6**, **7а**, **7б-1** (флот), **7б-2** (авиация), доработки перед 7в, **7в-1** и **7в-2** — всё в `main` (PR #2–#8).
 **7в-1** (технологии) и **7в-2** (генералы) смержены (PR #7, #8). **7г** принят геймдизайнером (PR #9 ещё не смержен, в нём же 8а), после него туман больше
-не прячет границы. **8а** (режимы и голосование) готов и ждёт проверки в Studio, дальше 8б и 8в
+не прячет границы. **8а** (режимы), правка разведки и **8б** (карты, дуэль) готовы и ждут проверки в Studio (всё в PR #9), дальше 8в и 8г
 (см. «Статус» в начале GDD §15). Обновляй «Статус» в GDD и этот раздел в конце каждого этапа.
 
 ## Порядок работы (договорённости с геймдизайнером)
@@ -240,6 +240,14 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   охота — `huntWinner`. Пауза и ×2 — в `MatchService` (Heartbeat не шагает / шагает ×2).
 - Сеть: `mode` в info (`ClientState.ModeInfo`), у держав `team`, `hunt`, `huntLeft`. Клиент: `UI/ModePanel`,
   время и таймеры — `ClientState.matchTime` / `simRate` (не `Config.Match.Speed`).
+
+## Карты и дуэль (этап 8б)
+- Голосование за карту — `m.mapOptions` / `m.mapVotes` (открывается в `finishMatch`), `MatchSim.mapWinner`; сервер
+  после итогов зовёт `loadMap` (из `Main.server`) и начинает матч на новой карте. Дуэль — `rules.duel`
+  (`targetNations` = игроки, 2×2 — `teamCount = 2`).
+- **Клиент живёт сессиями:** `Main.client` → `runSession(mapId, resync)`. Любая подписка в клиенте — только
+  `Session.connect(signal, fn)` (не `:Connect`), EditableImage и ScreenGui — `Session.track`; `teardown` снимает всё
+  при смене карты (`MatchClient.onMapChange`), новая сессия шлёт `sync`.
 
 ## Панель разработчика (F4)
 - Только в Studio: `MatchService` создаёт `Remotes.Dev` при `RunService:IsStudio()`; действия — чистый `DevTools`

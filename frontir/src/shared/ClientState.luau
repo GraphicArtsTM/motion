@@ -56,7 +56,11 @@ export type Info = {
 	timeLimit: number?, -- лимит времени матча, с
 	result: Types.MatchResult?, -- итог (фаза Over)
 	mode: ModeInfo?,
+	mapId: string?, -- карта матча (§5.2): другая — клиент загружает её заново
+	mapVote: MapVoteInfo?, -- голосование за карту на экране итогов
 }
+
+export type MapVoteInfo = { options: { string }, counts: { number }, myVote: string? }
 
 -- Договоры (§8.1) глазами клиента: сообщение diplo. Сроки — в секундах игрового времени от момента отправки.
 export type DiploTreaty = { kind: Types.TreatyKind, a: number, b: number, left: number?, breakLeft: number? }
@@ -163,6 +167,7 @@ export type ClientState = {
 	world: WorldMessage, -- события и ракеты (§6.16, §6.9)
 	worldAt: number,
 	mode: ModeInfo, -- режим (§5.1)
+	mapVote: MapVoteInfo?, -- голосование за карту (§5.2)
 	rules: Modes.Rules,
 	speed: number, -- темп игрового времени: Match.Speed × режим («Блиц» — ×2)
 }
@@ -246,6 +251,7 @@ function ClientState.new(width: number, height: number): ClientState
 		fog = Fog.new(width, height),
 		fogOff = false,
 		mode = ClientState.emptyMode(),
+		mapVote = nil,
 		rules = Modes.rules("Ffa"),
 		speed = Config.Match.Speed,
 		stability = ClientState.emptyStability(),
@@ -409,6 +415,7 @@ function ClientState.applyInfo(cs: ClientState, info: Info, now: number): boolea
 	end
 	cs.targetNations = info.targetNations or cs.targetNations
 	cs.timeLimit = info.timeLimit or cs.timeLimit
+	cs.mapVote = info.mapVote
 	local mode = info.mode
 	if mode ~= nil then
 		cs.mode = mode

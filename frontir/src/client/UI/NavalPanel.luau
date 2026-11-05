@@ -21,6 +21,7 @@ local Provinces = require(Shared:WaitForChild("Provinces"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
 type MapData = MapDataModule.MapData
@@ -157,7 +158,7 @@ function NavalPanel.new(
 			selectShip(nil)
 		end
 	end
-	modeLine.Activated:Connect(function()
+	Session.connect(modeLine.Activated, function()
 		setMode(nil)
 	end)
 
@@ -224,25 +225,25 @@ function NavalPanel.new(
 		port = nil
 		panel.Visible = false
 	end
-	closeButton.Activated:Connect(close)
-	hireTransport.Activated:Connect(function()
+	Session.connect(closeButton.Activated, close)
+	Session.connect(hireTransport.Activated, function()
 		if port ~= nil then
 			send("ship", { ship = "Transport", port = port })
 		end
 	end)
-	hireDestroyer.Activated:Connect(function()
+	Session.connect(hireDestroyer.Activated, function()
 		if port ~= nil then
 			send("ship", { ship = "Destroyer", port = port })
 		end
 	end)
-	landButton.Activated:Connect(function()
+	Session.connect(landButton.Activated, function()
 		if port ~= nil then
 			panel.Visible = false
 			setMode("land", Strings.get("naval.pickCoast", lang))
 		end
 	end)
 
-	UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
+	Session.connect(UserInputService.InputBegan, function(input: InputObject, gameProcessed: boolean)
 		if gameProcessed or UserInputService:GetFocusedTextBox() ~= nil then
 			return
 		end

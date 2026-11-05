@@ -21,6 +21,7 @@ local Strings = require(Shared:WaitForChild("Strings"))
 local Types = require(Shared:WaitForChild("Types"))
 
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
 
@@ -107,14 +108,14 @@ function ForcesPanel.new(
 			cardsLayout.Wraps = false
 		end
 	end
-	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(placeCards)
+	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), placeCards)
 	placeCards()
 
 	local cardButtons: { TextButton } = {}
 	for k in Types.LandUnits do
 		local b = makeCard(cards)
 		b.Name = "Hire" .. Types.LandUnits[k]
-		b.Activated:Connect(function()
+		Session.connect(b.Activated, function()
 			hire(k)
 		end)
 		table.insert(cardButtons, b)
@@ -154,7 +155,7 @@ function ForcesPanel.new(
 	info.TextYAlignment = Enum.TextYAlignment.Top
 	info.Parent = panel
 
-	UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
+	Session.connect(UserInputService.InputBegan, function(input: InputObject, gameProcessed: boolean)
 		if gameProcessed or UserInputService:GetFocusedTextBox() ~= nil then
 			return
 		end

@@ -17,6 +17,7 @@ local NationColors = require(Shared:WaitForChild("NationColors"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
 type CameraState = CameraMath.CameraState
@@ -83,7 +84,7 @@ function Pings.new(
 			main.Position = UDim2.new(0.5, -296, 1, -12 - 56 - 6)
 		end
 	end
-	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(placeMain)
+	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), placeMain)
 	placeMain()
 
 	-- Меню фраз над кнопкой.
@@ -103,18 +104,18 @@ function Pings.new(
 	for k, key in Config.Pings.Phrases do
 		local b = makeButton(menu, Strings.get("ping." .. key, lang), 170)
 		b.LayoutOrder = k
-		b.Activated:Connect(function()
+		Session.connect(b.Activated, function()
 			phrase = key
 			menu.Visible = false
 			toast(Strings.get("ping.hint", lang))
 		end)
 	end
-	main.Activated:Connect(function()
+	Session.connect(main.Activated, function()
 		if playing() then
 			menu.Visible = not menu.Visible
 		end
 	end)
-	UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
+	Session.connect(UserInputService.InputBegan, function(input: InputObject, gameProcessed: boolean)
 		if gameProcessed or UserInputService:GetFocusedTextBox() ~= nil then
 			return
 		end

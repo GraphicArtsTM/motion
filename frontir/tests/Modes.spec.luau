@@ -2,6 +2,7 @@
 local T = require("./lib/TestKit")
 local Fixtures = require("./lib/Fixtures")
 local Config = require("../src/shared/Config")
+local DevTools = require("../src/shared/DevTools")
 local Diplomacy = require("../src/shared/Diplomacy")
 local Grid = require("../src/shared/Grid")
 local Intents = require("../src/shared/Intents")
@@ -263,6 +264,76 @@ T.describe("Режимы (§5.1)", function()
 			local blitz = played("Blitz", 1, 3)
 			T.expect(blitz.rules.timeLimitSec).toBe(Config.Match.BlitzDurationSec)
 			T.expect(blitz.speed).toBeNear(Config.Match.Speed * Config.Modes.BlitzSpeed)
+		end
+	)
+
+	T.it(
+		"голосование за карту: текущая и две другие; больше голосов; пусто — текущая (§5.2)",
+		function()
+			local k = 0
+			local options = Modes.mapOptions("Europe", function(n: number): number
+				k += 1
+				return math.min(n, k)
+			end)
+			T.expect(#options).toBe(Config.MapVote.Options)
+			T.expect(options[1]).toBe("Europe")
+			T.expect(table.find(options, "Europe", 2)).toBe(nil)
+			T.expect(Modes.mapWinner(options, {})).toBe("Europe")
+			T.expect(Modes.mapWinner(options, { [1] = options[3], [2] = options[3], [3] = options[2] }))
+				.toBe(options[3])
+			T.expect(Modes.mapWinner(options, { [1] = options[3], [2] = options[2] })).toBe(options[2]) -- ничья — раньше
+			T.expect(Modes.mapCounts(options, { [1] = options[2], [7] = "Nowhere" })).toEqual({ 0, 1, 0 })
+			-- В матче: голос только на экране итогов, только из вариантов.
+			local m = played("Ffa", 2, 3)
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "mapVote", map = "World" }))).toBe(false) -- рано
+			DevTools.endMatch(m)
+			while m.phase == "Play" do
+				MatchSim.step(m, DT)
+			end
+			T.expect(m.phase).toBe("Over")
+			T.expect(m.mapOptions[1]).toBe(m.map.name)
+			local other = m.mapOptions[2]
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "mapVote", map = other }))).toBe(true)
+			T.expect((MatchSim.applyIntent(m, 3, { kind = "mapVote", map = other }))).toBe(false) -- бот
+			T.expect(MatchSim.mapWinner(m)).toBe(other)
+			T.expect((Intents.parse("mapVote", { map = "Europe" }))).toEqual({ kind = "mapVote", map = "Europe" })
+			T.expect((Intents.parse("mapVote", { map = "Atlantis" }))).toBe(nil)
+		end
+	)
+
+	T.it(
+		"дуэль: вариант при 2 и 4 игроках; без ботов; 2×2 — две команды по двое (§5.2)",
+		function()
+			T.expect(Modes.options(0, 1)).toEqual(Modes.options(0))
+			T.expect(Modes.options(0, 2)[4]).toBe("Duel")
+			T.expect(Modes.options(0, 3)[4]).toBe(nil)
+			T.expect(Modes.options(0, 4)[4]).toBe("Duel")
+			local duel = Modes.rules("Duel")
+			T.expect(duel.victoryShare).toBeNear(Config.Modes.Duel.VictoryShare)
+			T.expect(duel.timeLimitSec).toBe(Config.Modes.Duel.TimeLimitSec)
+			-- Лобби: третий игрок пришёл — «Дуэли» нет, голос за неё снят.
+			local m = MatchSim.new(Fixtures.pangea, 31)
+			local a = MatchSim.addPlayer(m, 1, "A") :: number
+			MatchSim.addPlayer(m, 2, "B")
+			MatchSim.startLobby(m)
+			T.expect(m.modeOptions[4]).toBe("Duel")
+			T.expect((MatchSim.applyIntent(m, a, { kind = "modeVote", mode = "Duel" }))).toBe(true)
+			MatchSim.addPlayer(m, 3, "C")
+			T.expect(m.modeOptions[4]).toBe(nil)
+			T.expect(m.modeVotes[a]).toBe(nil)
+			-- 1×1: две державы, ботов нет.
+			local one = played("Duel", 2, 12)
+			T.expect(#one.nations).toBe(2)
+			T.expect(one.teamCount).toBe(0)
+			-- 2×2: четыре державы, две команды по двое.
+			local two = played("Duel", 4, 12)
+			T.expect(#two.nations).toBe(4)
+			T.expect(two.teamCount).toBe(2)
+			local sizes = { 0, 0 }
+			for _, n in two.nations do
+				sizes[two.teams[n.id]] += 1
+			end
+			T.expect(sizes).toEqual({ 2, 2 })
 		end
 	)
 end)
