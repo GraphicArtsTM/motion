@@ -59,14 +59,19 @@ end
 
 T.describe("Найм (правка перед 7в-2)", function()
 	T.it(
-		"линии найма: 1 + заводы, не больше MaxRecruitLines; юниты в линиях готовятся одновременно",
+		"линии найма: 1 + заводы + уровни городов / CityLevelsPerLine, не больше MaxRecruitLines; готовятся одновременно",
 		function()
 			local m = duo()
 			T.expect(MatchSim.recruitLines(m, 1)).toBe(1)
 			factories(m, 1, 2)
 			T.expect(MatchSim.recruitLines(m, 1)).toBe(3)
 			factories(m, 2, 5)
+			T.expect(MatchSim.recruitLines(m, 2)).toBe(6)
+			-- Уровни своих городов тоже дают линии; больше MaxRecruitLines — нет.
+			local owned = MatchSim.ownedOf(m, 2)
+			owned.cityLevels = 3 * Config.Forces.CityLevelsPerLine
 			T.expect(MatchSim.recruitLines(m, 2)).toBe(Config.Forces.MaxRecruitLines)
+			MatchSim.refreshOwned(m)
 
 			local n = m.nations[1]
 			n.money = 100000

@@ -2055,9 +2055,12 @@ function MatchSim.unitCost(m: Match, nationId: number, kind: number): number
 	return cost
 end
 
--- Сколько юнитов очереди найма готовится одновременно: 1 + свои заводы, не больше Forces.MaxRecruitLines.
+-- Сколько юнитов очереди найма готовится одновременно: 1 + свои заводы + уровни городов / CityLevelsPerLine,
+-- не больше Forces.MaxRecruitLines.
 function MatchSim.recruitLines(m: Match, nationId: number): number
-	return math.min(Config.Forces.MaxRecruitLines, 1 + MatchSim.ownedOf(m, nationId).factories)
+	local cfg = Config.Forces
+	local owned = MatchSim.ownedOf(m, nationId)
+	return math.min(cfg.MaxRecruitLines, 1 + owned.factories + owned.cityLevels // cfg.CityLevelsPerLine)
 end
 
 -- Технологии (§6.14, этап 7в-1) ---------------------------------------------------------------
@@ -3675,7 +3678,17 @@ function MatchSim.step(m: Match, dt: number)
 				{ navy = rngs.navy, air = rngs.air, diplo = rngs.diplo, tech = rngs.tech }
 			)
 			if intent ~= nil then
-				MatchSim.applyIntent(m, n.id, intent)
+				local ok = MatchSim.applyIntent(m, n.id, intent)
+				-- Богатый бот (правка перед 7в-2) за одно раздумье ставит в очередь столько же юнитов, сколько у него
+				-- линий найма: иначе один юнит за раздумье не успевает за доходом большой державы.
+				if ok and intent.kind == "hire" and n.money >= Config.Bots.RichHireMoney then
+					local cap = math.max(profile.level.maxQueue, MatchSim.recruitLines(m, n.id))
+					while #n.queue < cap and n.money >= Config.Bots.RichHireMoney do
+						if not MatchSim.applyIntent(m, n.id, intent) then
+							break
+						end
+					end
+				end
 			end
 			botAbility(m, n, profile, rngs.ability) -- способности генерала (§6.15)
 		end

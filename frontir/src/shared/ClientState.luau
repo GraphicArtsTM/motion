@@ -516,6 +516,10 @@ function ClientState.fogSources(cs: ClientState): Fog.Sources?
 	if me == nil or n == nil or not n.alive or cs.phase ~= "Play" or not Config.Fog.Enabled or cs.fogOff then
 		return nil
 	end
+	-- Радарная вспышка Разведчика (§6.15): пока идёт — видно всё.
+	if ClientState.revealLeft(cs, os.clock()) > 0 then
+		return nil
+	end
 	local friends = ClientState.friendsOf(cs, me)
 	local fronts: { { mine: number, other: number } } = {}
 	local stats = cs.stats
@@ -532,9 +536,13 @@ function ClientState.fogSources(cs: ClientState): Fog.Sources?
 		end
 	end
 	local radars: { number } = {}
+	local ports: { number } = {}
+	local commander = cs.commander.commander
 	for cell, b in cs.buildings do
 		if b.kind == "Radar" and friends[ClientState.ownerAt(cs, cell)] then
 			table.insert(radars, cell)
+		elseif b.kind == "Port" and commander == "Admiral" and ClientState.ownerAt(cs, cell) == me then
+			table.insert(ports, cell) -- Адмирал (§6.15): обзор вокруг своих портов больше
 		end
 	end
 	local ships: { number } = {}
@@ -549,7 +557,15 @@ function ClientState.fogSources(cs: ClientState): Fog.Sources?
 			table.insert(planes, math.floor(p.y) * cs.width + math.floor(p.x))
 		end
 	end
-	return { friends = friends, fronts = fronts, radars = radars, ships = ships, planes = planes }
+	return {
+		friends = friends,
+		fronts = fronts,
+		radars = radars,
+		ships = ships,
+		planes = planes,
+		ports = ports,
+		visionMul = if commander == "Scout" then Config.Commanders.VisionMul else nil, -- Разведчик (§6.15)
+	}
 end
 
 -- Пересчитать обзор. Возвращает: перерисовать всё (сменился режим «туман / видно всё») и клетки,

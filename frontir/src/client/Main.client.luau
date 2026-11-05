@@ -11,7 +11,8 @@
 	этап 7а: туман войны (обзор раз в Fog.RefreshSec), стабильность в HUD, режим карты «Стабильность» (N);
 	этап 7б-1: корабли на карте (ShipLayer), меню порта, высадка и патруль (NavalPanel);
 	этап 7б-2: самолёты на карте (AirLayer), меню аэродрома, налёт и прикрытие (AirPanel);
-	этап 7в-1: окно «Технологии» (Y, TechPanel), закрытые технологией здания в меню «Построить».
+	этап 7в-1: окно «Технологии» (Y, TechPanel), закрытые технологией здания в меню «Построить»;
+	этап 7в-2: выбор генерала в лобби, способности Q / E (CommanderPanel), вспышка снимает туман.
 ]]
 
 local LocalizationService = game:GetService("LocalizationService")
@@ -56,6 +57,7 @@ local ResultsPanel = require(UI:WaitForChild("ResultsPanel"))
 local ShipLayer = require(Render:WaitForChild("ShipLayer"))
 local StabilityPanel = require(UI:WaitForChild("StabilityPanel"))
 local TechPanel = require(UI:WaitForChild("TechPanel"))
+local CommanderPanel = require(UI:WaitForChild("CommanderPanel"))
 local TerritoryLayer = require(Render:WaitForChild("TerritoryLayer"))
 local Theme = require(UI:WaitForChild("Theme"))
 local WarPanel = require(UI:WaitForChild("WarPanel"))
@@ -221,6 +223,7 @@ local pings = Pings.new(hudGui, view.canvas, cs, lang, send, hud.toast)
 local stabilityPanel = StabilityPanel.new(hudGui, view.canvas, cs, lang, provinces, territory.setStabilityMode)
 stabilityPanel.refresh()
 local techPanel = TechPanel.new(hudGui, cs, lang, send)
+local commanderPanel = CommanderPanel.new(hudGui, cs, lang, send, hud.percent)
 local naval = NavalPanel.new(hudGui, cs, lang, map, provinces, send, hud.percent, shipLayer.pick, shipLayer.select)
 local airPanel = AirPanel.new(hudGui, cs, lang, map, provinces, send, airLayer.pick, airLayer.select)
 -- Панель разработчика (F4) — только в Studio; создаётся в фоне (ждёт канал Remotes.Dev от сервера).
@@ -241,6 +244,7 @@ end
 
 -- Туман (§6.11): пересчёт обзора раз в Fog.RefreshSec и сразу — при смене фазы, державы, «Туман выкл».
 local fogAt, fogMs = -math.huge, 0
+local revealOn = false -- идёт ли «Радарная вспышка» (§6.15)
 local function refreshFog(now: number)
 	fogAt = now
 	local t0 = os.clock()
@@ -278,6 +282,7 @@ client = MatchClient.connect(cs, {
 		pings.refresh()
 		stabilityPanel.refresh()
 		techPanel.refresh()
+		commanderPanel.refresh()
 		naval.refresh()
 		airPanel.refresh()
 	end,
@@ -322,6 +327,15 @@ client = MatchClient.connect(cs, {
 		airPanel.refresh()
 		hud.refresh()
 	end,
+	onCommander = function()
+		commanderPanel.refresh()
+		-- Радарная вспышка (§6.15) началась — обзор сразу (конец — обычным пересчётом раз в Fog.RefreshSec).
+		local now = ClientState.revealLeft(cs, os.clock()) > 0
+		if now ~= revealOn then
+			revealOn = now
+			refreshFog(os.clock())
+		end
+	end,
 	onTech = function()
 		techPanel.refresh()
 		build.refresh()
@@ -362,7 +376,8 @@ local input = CameraInput.bind(camera, viewport, {
 		if cx ~= nil and cy ~= nil then
 			local cell = cy * map.width + cx
 			-- Режим стройки забирает нажатие; иначе — старт, атака, война.
-			local handled = build.tap(cell)
+			local handled = commanderPanel.tap(cell)
+				or build.tap(cell)
 				or diplomacy.tap(cell)
 				or pings.tap(cell)
 				or naval.tap(cell, camera.state.zoom)
@@ -395,6 +410,7 @@ local frameConn = RunService.RenderStepped:Connect(function()
 	shipLayer.update(now, camera.state)
 	airLayer.update(now, camera.state)
 	hud.update(now)
+	commanderPanel.update(now)
 	wars.update(now)
 	results.update(now)
 	diplomacy.update(now)

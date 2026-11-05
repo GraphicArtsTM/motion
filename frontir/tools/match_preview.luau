@@ -19,6 +19,7 @@ local process = require("@lune/process")
 
 local BattleLayout = require("../src/shared/BattleLayout")
 local BuildingSprites = require("../src/shared/BuildingSprites")
+local Commanders = require("../src/shared/Commanders")
 local Config = require("../src/shared/Config")
 local Diplomacy = require("../src/shared/Diplomacy")
 local Fog = require("../src/shared/Fog")
@@ -83,6 +84,7 @@ local revolts: { [number]: number } = {}
 local revoltLog: { string } = {}
 local researchLog: { string } = {} -- первые изученные технологии (§6.14)
 local researched = 0
+local abilities: { [string]: number } = {} -- способности генералов (§6.15)
 for _ = 1, math.floor(seconds * Config.Sim.TickRate) do
 	MatchSim.step(m, dt)
 	if m.simTime >= nextFog then
@@ -125,6 +127,8 @@ for _ = 1, math.floor(seconds * Config.Sim.TickRate) do
 			end
 		elseif e.kind == "blockade" and e.on then
 			naval.blockades += 1
+		elseif e.kind == "ability" then
+			abilities[e.ability] = (abilities[e.ability] or 0) + 1
 		elseif e.kind == "researched" then
 			researched += 1
 			if #researchLog < 12 then
@@ -931,6 +935,17 @@ do
 		)
 	)
 	print("  ПЕРВЫЕ ИССЛЕДОВАНИЯ: " .. table.concat(researchLog, ", "))
+	local commanders: { string } = {}
+	for _, n in m.nations do
+		table.insert(commanders, string.format("%d:%s", n.id, Commanders.of(m.commanders, n.id)))
+	end
+	local used: { string } = {}
+	for name, count in abilities do
+		table.insert(used, string.format("%s %d", name, count))
+	end
+	table.sort(used)
+	print("  ГЕНЕРАЛЫ: " .. table.concat(commanders, " "))
+	print("  СПОСОБНОСТИ: " .. (if #used > 0 then table.concat(used, ", ") else "нет"))
 	print(
 		string.format(
 			"  АВИАЦИЯ: аэродромов %d, батарей ПВО %d, самолётов сейчас %d, построено %d, сбито %d, налётов %d"
