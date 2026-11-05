@@ -106,6 +106,8 @@ export type MatchEvent =
 	-- Разведка (§6.11а): nation разведал target
 	| { kind: "flood", step: number, cells: number } -- «Потоп» (§5.3): вода поднялась
 	| { kind: "boost", nation: number, boost: string } -- буст магазина (§11.1)
+	| { kind: "tutorial", nation: number, step: number } -- «Обучение» (§5.5): шаг пройден
+	| { kind: "tutorialDone", nation: number }
 	| { kind: "intel", nation: number, target: number }
 	-- Генералы (§6.15, этап 7в-2): применена способность (target — держава в клетке цели, 0 — нет)
 	| { kind: "ability", nation: number, ability: string, cell: number?, target: number }
@@ -213,6 +215,8 @@ export type Match = {
 	fast: boolean,
 	-- Разведка (§6.11а): кто чью мощь видит.
 	flood: { step: number, nextAt: number }, -- «Потоп» (§5.3): ступень воды, когда следующая (часы матча)
+	tutorialStep: number, -- «Обучение» (§5.5): текущий шаг (1..6), 7 — пройдено
+	tutorialStart: number, -- клеток игрока на старте (для шага «Расширение»)
 	settings: ServerSettings.Settings?, -- настройки частного сервера (§5.4); nil — обычный сервер
 	-- Магазин и профиль (§11.1, §11.2, этап 9а): перки геймпассов, бусты за матч, открытые генералы.
 	perks: { [number]: Shop.Perks },
@@ -325,6 +329,8 @@ function MatchSim.new(map: MapData, seed: number): Match
 		paused = false,
 		fast = false,
 		flood = { step = 0, nextAt = Config.Flood.EverySec },
+		tutorialStep = 1,
+		tutorialStart = 0,
 		settings = nil,
 		perks = {},
 		boostsUsed = {},
@@ -578,6 +584,48 @@ function MatchSim.floodStep(m: Match): number
 	m.infoDirty = true
 	table.insert(m.events, { kind = "flood", step = m.flood.step, cells = sunk })
 	return sunk
+end
+
+-- «Обучение» (§5.5) -------------------------------------------------------------------------------
+
+-- Выполнен ли шаг step обучения державой n.
+function MatchSim.tutorialDone(m: Match, n: Nation, step: number): boolean
+	local kind = Config.Tutorial.Steps[step]
+	if kind == "start" then
+		return m.phase == "Play" and n.capital ~= nil
+	elseif kind == "expand" then
+		return Grid.cellsOf(m.grid, n.id) >= m.tutorialStart * Config.Tutorial.ExpandMul
+	elseif kind == "hire" then
+		return #n.queue > 0 or Forces.total(n.home) + Forces.total(MatchSim.frontForces(m, n.id)) > 0
+	elseif kind == "city" then
+		return MatchSim.citiesOf(m, n.id) >= 2
+	elseif kind == "build" then
+		local o = MatchSim.ownedOf(m, n.id)
+		return o.factories + o.markets + o.rigs + o.forts + o.ports + o.airfields + o.silos > 0
+	elseif kind == "alliance" then
+		return #Diplomacy.alliesOf(m.diplo, n.id) > 0
+	end
+	return false
+end
+
+-- Шаги проходятся по порядку; пройденный — событие tutorial, все — tutorialDone (награду даёт сервер).
+local function stepTutorial(m: Match)
+	if not m.rules.tutorial or m.tutorialStep > #Config.Tutorial.Steps then
+		return
+	end
+	for _, n in m.nations do
+		if not n.isBot and n.alive then
+			while m.tutorialStep <= #Config.Tutorial.Steps and MatchSim.tutorialDone(m, n, m.tutorialStep) do
+				table.insert(m.events, { kind = "tutorial", nation = n.id, step = m.tutorialStep })
+				m.tutorialStep += 1
+				m.infoDirty = true
+				if m.tutorialStep > #Config.Tutorial.Steps then
+					table.insert(m.events, { kind = "tutorialDone", nation = n.id })
+				end
+			end
+			return -- обучение — для одного игрока
+		end
+	end
 end
 
 local function stepFlood(m: Match)
@@ -855,6 +903,10 @@ function MatchSim.startPick(m: Match)
 	if m.rules.duel then
 		m.targetNations = math.max(2, MatchSim.humans(m)) -- дуэль без ботов (§5.2); один игрок — против одного бота
 	end
+	if m.rules.tutorial then
+		m.targetNations = Config.Tutorial.Nations -- обучение (§5.5): игрок и два мирных Новичка
+		m.victory = false
+	end
 	if not m.solo then
 		m.difficulty = nil
 	end
@@ -949,6 +1001,15 @@ function MatchSim.finishPick(m: Match)
 				if m.teams[a.id] == m.teams[b.id] then
 					Diplomacy.sign(m.diplo, "alliance", a.id, b.id, 0)
 				end
+			end
+		end
+	end
+	if m.rules.tutorial then
+		for _, n in m.nations do
+			if n.isBot then
+				MatchSim.setBot(m, n.id, "Novice", "Peaceful")
+			else
+				m.tutorialStart = math.max(1, Grid.cellsOf(m.grid, n.id))
 			end
 		end
 	end
@@ -2445,6 +2506,9 @@ end
 
 -- Бот решает, принять ли предложение или требование (§8.1).
 local function botAnswersOffer(m: Match, offer: Diplomacy.Offer): boolean
+	if m.rules.tutorial and offer.kind == "alliance" then
+		return true -- обучение (§5.5): бот соглашается на союз
+	end
 	local g = m.grid
 	local leaderCells = g.capturableCount * Config.Bots.StopLeaderShare
 	local threat = false
@@ -3235,7 +3299,7 @@ local function stepWorld(m: Match)
 			table.insert(m.events, { kind = "mercs", nation = 0, amount = 0 })
 		end
 	end
-	if WorldEvents.due(st, m.simTime, m.worldRng) then
+	if m.rules.events and WorldEvents.due(st, m.simTime, m.worldRng) then
 		-- Не к чему примениться — берём другое событие (не больше трёх попыток).
 		for _ = 1, 3 do
 			local kind = WorldEvents.pick(m.worldRng, function(k: string): boolean
@@ -4658,6 +4722,7 @@ function MatchSim.step(m: Match, dt: number)
 	stepWorld(m) -- случайные события и ракеты (§6.16, §6.9)
 	stepRadarIntel(m) -- радар — постоянная разведка (§6.11а)
 	stepFlood(m) -- «Потоп» (§5.3)
+	stepTutorial(m) -- «Обучение» (§5.5)
 	stepFleet(m, simDt)
 	stepAir(m, simDt)
 	m.lastCaptured = stepAttacks(m, simDt)

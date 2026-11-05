@@ -63,6 +63,7 @@ export type Info = {
 	mapVote: MapVoteInfo?, -- голосование за карту на экране итогов
 	flood: { step: number, nextIn: number }?, -- «Потоп» (§5.3): ступень воды и секунд (часы матча) до следующей
 	server: ServerInfo?, -- частный сервер (§5.4)
+	tutorialStep: number?, -- «Обучение» (§5.5): текущий шаг
 }
 
 export type ServerInfo = { settings: ServerSettings.Settings, isOwner: boolean }
@@ -215,6 +216,7 @@ export type ClientState = {
 	floodAt: number, -- когда пришла ступень (часы клиента)
 	server: ServerInfo?, -- частный сервер (§5.4): настройки и владелец ли я
 	profile: ProfileInfo?, -- профиль (§11.2)
+	tutorialStep: number?, -- «Обучение» (§5.5)
 	leaders: LeadersInfo?, -- таблицы лидеров (§11.5)
 	rules: Modes.Rules,
 	speed: number, -- темп игрового времени: Match.Speed × режим («Блиц» — ×2)
@@ -471,6 +473,7 @@ function ClientState.applyInfo(cs: ClientState, info: Info, now: number): boolea
 	cs.mapVote = info.mapVote
 	cs.flood = info.flood
 	cs.server = info.server
+	cs.tutorialStep = info.tutorialStep
 	cs.floodAt = now
 	local mode = info.mode
 	if mode ~= nil then

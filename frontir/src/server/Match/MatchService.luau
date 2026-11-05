@@ -129,6 +129,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			timeLimit = m.rules.timeLimitSec,
 			result = m.result,
 			mapId = map.name,
+			tutorialStep = if m.rules.tutorial then m.tutorialStep else nil, -- «Обучение» (§5.5)
 			server = if settings ~= nil
 				then { settings = settings, isOwner = ownerId ~= nil and player.UserId == ownerId }
 				else nil,
@@ -461,6 +462,17 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			shop.loadPasses(player)
 			if player.Parent ~= nil then
 				applyProfile(player)
+				-- Новичок один в лобби — голос за «Обучение» стоит сам (§5.5), можно сменить.
+				local id = nationOf[player]
+				if
+					id ~= nil
+					and not session.data.tutorialDone
+					and (m.phase == "Lobby" or m.phase == "Waiting")
+					and table.find(m.modeOptions, "Tutorial") ~= nil
+				then
+					m.modeVotes[id] = "Tutorial"
+					m.infoDirty = true
+				end
 				-- Ежедневная награда за вход (§11.3).
 				local streak, reward = Profile.claimDaily(session.data, Profile.dayOf(os.time()))
 				if streak ~= nil then
@@ -854,6 +866,18 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			local events = MatchSim.takeEvents(m)
 			if #events > 0 then
 				matchEvent:FireAllClients({ kind = "events", events = events })
+				-- Обучение пройдено (§5.5): награда в профиль один раз.
+				for _, e in events do
+					if e.kind == "tutorialDone" then
+						for player, id in nationOf do
+							local session = profiles.get(player.UserId)
+							if id == e.nation and session ~= nil and Profile.finishTutorial(session.data) then
+								task.spawn(profiles.save, player.UserId)
+								sendProfile(player)
+							end
+						end
+					end
+				end
 			end
 		end
 		if acc > step * Config.Net.MaxStepsPerFrame * devSpeed * soloSpeed then

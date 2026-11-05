@@ -341,9 +341,10 @@ export type Phase = "Waiting" | "Lobby" | "Pick" | "Play" | "Over"
 export type VictoryReason = "land" | "last" | "time" | "capitals"
 
 -- Режимы матча (§5.1, этап 8а).
-export type ModeId = "Ffa" | "Teams" | "Blitz" | "Mist" | "Superweapon" | "CapitalHunt" | "Duel" | "Flood"
-Types.ModeIds =
-	table.freeze({ "Ffa", "Teams", "Blitz", "Mist", "Superweapon", "CapitalHunt", "Duel", "Flood" } :: { ModeId })
+export type ModeId = "Ffa" | "Teams" | "Blitz" | "Mist" | "Superweapon" | "CapitalHunt" | "Duel" | "Flood" | "Tutorial"
+Types.ModeIds = table.freeze(
+	{ "Ffa", "Teams", "Blitz", "Mist", "Superweapon", "CapitalHunt", "Duel", "Flood", "Tutorial" } :: { ModeId }
+)
 -- Разведка (§6.11а): мощь цели видна DurationSec.
 export type IntelIntent = { kind: "intel", target: NationId }
 -- Голос за карту на экране итогов (§5.2).

@@ -25,6 +25,8 @@ export type Rules = {
 	flood: boolean, -- «Потоп» (§5.3): вода поднимается по ступеням
 	diplomacy: boolean, -- false — только война и мир (частный сервер, §5.4)
 	boosts: boolean, -- бусты магазина и бонусы пропусков (§11.1); в «Дуэли» — нет
+	tutorial: boolean, -- «Обучение» (§5.5): шаги, без победы
+	events: boolean, -- случайные события (§6.16); в обучении — нет
 }
 
 local Modes = {}
@@ -50,6 +52,8 @@ function Modes.rules(id: ModeId): Rules
 		flood = false,
 		diplomacy = true,
 		boosts = true,
+		tutorial = false,
+		events = true,
 	}
 	if id == "Teams" then
 		r.teams = true
@@ -65,6 +69,10 @@ function Modes.rules(id: ModeId): Rules
 		r.siloFree = true
 	elseif id == "CapitalHunt" then
 		r.capitalHunt = true
+	elseif id == "Tutorial" then
+		r.tutorial = true
+		r.events = false
+		r.boosts = false
 	elseif id == "Flood" then
 		r.flood = true
 	elseif id == "Duel" then
@@ -97,6 +105,9 @@ function Modes.options(unixTime: number, humans: number?): { ModeId }
 	local out: { ModeId } = { "Ffa", "Teams", Modes.weekly(unixTime) }
 	if humans ~= nil and table.find(Config.Modes.Duel.Players, humans) ~= nil then
 		table.insert(out, "Duel")
+	end
+	if humans == 1 then
+		table.insert(out, "Tutorial") -- обучение — в одиночку (§5.5)
 	end
 	return out
 end

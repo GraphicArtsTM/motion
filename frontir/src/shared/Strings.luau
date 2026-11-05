@@ -1107,6 +1107,52 @@ local TABLE: { [string]: Entry } = {
 	["leaders.duel"] = { ru = "Рейтинг дуэлей", en = "Duel rating" },
 	["leaders.empty"] = { ru = "пока пусто", en = "empty so far" },
 	["leaders.myElo"] = { ru = "Ваш рейтинг дуэлей: %d", en = "Your duel rating: %d" },
+	-- Обучение (§5.5)
+	["mode.Tutorial"] = { ru = "Обучение", en = "Tutorial" },
+	["mode.desc.Tutorial"] = {
+		ru = "6 шагов с подсказками, награда",
+		en = "6 guided steps, reward",
+	},
+	["tutorial.title"] = { ru = "Обучение", en = "Tutorial" },
+	["tutorial.start"] = { ru = "Старт", en = "Start" },
+	["tutorial.expand"] = { ru = "Расширение", en = "Expand" },
+	["tutorial.hire"] = { ru = "Войска", en = "Troops" },
+	["tutorial.city"] = { ru = "Взять город", en = "Take a city" },
+	["tutorial.build"] = { ru = "Здание", en = "Building" },
+	["tutorial.alliance"] = { ru = "Союз", en = "Alliance" },
+	["tutorial.hint.start"] = {
+		ru = "Нажмите на свободную сушу — там будет столица.",
+		en = "Tap free land — your capital goes there.",
+	},
+	["tutorial.hint.expand"] = {
+		ru = "Ползунок атаки слева снизу, затем нажмите на ничью землю рядом с собой.",
+		en = "Use the attack slider bottom-left, then tap neutral land next to you.",
+	},
+	["tutorial.hint.hire"] = {
+		ru = "Нажмите Z (пехота) или кнопку найма в панели войск.",
+		en = "Press Z (infantry) or the hire button in the forces panel.",
+	},
+	["tutorial.hint.city"] = {
+		ru = "T → выберите соседа → «Объявить войну», затем нажмите на его землю, чтобы начать фронт.",
+		en = "T → pick a neighbour → Declare war, then tap their land to open a front.",
+	},
+	["tutorial.hint.build"] = {
+		ru = "B → выберите здание и нажмите на свою провинцию.",
+		en = "B → pick a building and tap your province.",
+	},
+	["tutorial.hint.alliance"] = {
+		ru = "T → выберите второго соседа → «Союз». В обучении он согласится.",
+		en = "T → pick the other neighbour → Alliance. In the tutorial they agree.",
+	},
+	["tutorial.stepDone"] = { ru = "Шаг пройден: %s", en = "Step done: %s" },
+	["tutorial.finished"] = {
+		ru = "Обучение пройдено! Играйте дальше или вернитесь в лобби.",
+		en = "Tutorial complete! Keep playing or return to the lobby.",
+	},
+	["tutorial.reward"] = {
+		ru = "Обучение пройдено: +%d жетона штаба, +%d медалей",
+		en = "Tutorial complete: +%d HQ tokens, +%d medals",
+	},
 	["commander.locked"] = { ru = "🔒 ур. %d", en = "🔒 lv %d" },
 	["reject.noStock"] = { ru = "Такого буста нет в запасе", en = "No such boost in stock" },
 	["reject.noTokens"] = { ru = "Нет жетонов штаба", en = "No HQ tokens" },

@@ -211,6 +211,15 @@ Config.Leaders = {
 }
 Config.Elo = { Start = 1000, K = 32 }
 
+-- §5.5 Обучение (этап 10а): игрок и боты «Новичок, Мирный», 6 шагов, награда один раз.
+Config.Tutorial = {
+	Nations = 3,
+	ExpandMul = 3, -- шаг «Расширение»: земли во столько раз больше стартовой
+	RewardTokens = 2,
+	RewardMedals = 500,
+	Steps = { "start", "expand", "hire", "city", "build", "alliance" },
+}
+
 -- §11.3 Боевой пропуск сезона (этап 9б): опыт за матчи → ступени; бесплатная и премиум-дорожки (Season.reward).
 Config.Season = {
 	Id = 1,

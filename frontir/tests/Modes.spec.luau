@@ -304,7 +304,8 @@ T.describe("Режимы (§5.1)", function()
 	T.it(
 		"дуэль: вариант при 2 и 4 игроках; без ботов; 2×2 — две команды по двое (§5.2)",
 		function()
-			T.expect(Modes.options(0, 1)).toEqual(Modes.options(0))
+			T.expect(Modes.options(0, 1)[4]).toBe("Tutorial") -- один игрок — «Обучение» (§5.5)
+			T.expect(Modes.options(0, 1)[3]).toBe(Modes.options(0)[3])
 			T.expect(Modes.options(0, 2)[4]).toBe("Duel")
 			T.expect(Modes.options(0, 3)[4]).toBe(nil)
 			T.expect(Modes.options(0, 4)[4]).toBe("Duel")
