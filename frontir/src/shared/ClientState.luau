@@ -89,6 +89,18 @@ export type CommanderMessage = {
 	reveal: number,
 }
 
+-- Мир (§6.16, §6.9, этап 7г): шторм, аукцион наёмников, ракеты в полёте, новые нефтяные поля, своя шахта.
+-- Сроки — игровые секунды «осталось» на момент сообщения.
+export type WorldMessage = {
+	kind: "world",
+	storm: { cell: number, radius: number, left: number }?,
+	auction: { left: number, top: number, topId: number, minBid: number }?,
+	missiles: { { cell: number, owner: number, left: number } },
+	oilExtra: { number },
+	silo: boolean, -- у меня есть работающая шахта
+	missileLeft: number, -- до готовности пуска
+}
+
 export type ApplyResult = "snapshot" | "delta" | "stats" | "forces" | "wars" | "ships" | "air" | "partial" | "ignored"
 
 export type ClientState = {
@@ -130,6 +142,8 @@ export type ClientState = {
 	tech: TechMessage, -- свои технологии (§6.14)
 	commander: CommanderMessage, -- свой генерал и способности (§6.15)
 	commanderAt: number, -- когда пришло commander (часы клиента; для обратных отсчётов)
+	world: WorldMessage, -- события и ракеты (§6.16, §6.9)
+	worldAt: number,
 }
 
 local ClientState = {}
@@ -187,7 +201,63 @@ function ClientState.new(width: number, height: number): ClientState
 		tech = ClientState.emptyTech(),
 		commander = ClientState.emptyCommander(),
 		commanderAt = 0,
+		world = ClientState.emptyWorld(),
+		worldAt = 0,
 	}
+end
+
+function ClientState.emptyWorld(): WorldMessage
+	return { kind = "world", storm = nil, auction = nil, missiles = {}, oilExtra = {}, silo = false, missileLeft = 0 }
+end
+
+-- Мир (сообщение world). Возвращает новые нефтяные поля (провинции), которых клиент ещё не знал.
+function ClientState.applyWorld(cs: ClientState, msg: any, now: number): { number }
+	local fresh: { number } = {}
+	if type(msg) ~= "table" or type(msg.missiles) ~= "table" or type(msg.oilExtra) ~= "table" then
+		return fresh
+	end
+	local function num(v: any): number
+		return if type(v) == "number" and v == v then v else 0
+	end
+	local storm = nil
+	if type(msg.storm) == "table" then
+		storm = { cell = num(msg.storm.cell), radius = num(msg.storm.radius), left = num(msg.storm.left) }
+	end
+	local auction = nil
+	if type(msg.auction) == "table" then
+		local a = msg.auction
+		auction = { left = num(a.left), top = num(a.top), topId = num(a.topId), minBid = num(a.minBid) }
+	end
+	local missiles: { { cell: number, owner: number, left: number } } = {}
+	for _, mi in msg.missiles do
+		if type(mi) == "table" then
+			table.insert(missiles, { cell = num(mi.cell), owner = num(mi.owner), left = num(mi.left) })
+		end
+	end
+	local known: { [number]: boolean } = {}
+	for _, p in cs.world.oilExtra do
+		known[p] = true
+	end
+	local oil: { number } = {}
+	for _, p in msg.oilExtra do
+		if type(p) == "number" then
+			table.insert(oil, p)
+			if not known[p] then
+				table.insert(fresh, p)
+			end
+		end
+	end
+	cs.world = {
+		kind = "world",
+		storm = storm,
+		auction = auction,
+		missiles = missiles,
+		oilExtra = oil,
+		silo = msg.silo == true,
+		missileLeft = num(msg.missileLeft),
+	}
+	cs.worldAt = now
+	return fresh
 end
 
 function ClientState.emptyCommander(): CommanderMessage
@@ -276,6 +346,7 @@ function ClientState.applyInfo(cs: ClientState, info: Info, now: number): boolea
 			cs.air = { planes = {}, disabled = {}, queue = {} }
 			cs.tech = ClientState.emptyTech()
 			cs.commander = ClientState.emptyCommander()
+			cs.world = ClientState.emptyWorld()
 			colorsChanged = true
 		end
 		cs.matchId = info.matchId

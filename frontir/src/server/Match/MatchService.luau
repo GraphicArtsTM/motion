@@ -238,6 +238,12 @@ function MatchService.start(map: MapData)
 				ok, reason = DevTools.airForce(m, id)
 			elseif action == "botRaid" and target ~= nil then
 				ok, reason = DevTools.botRaid(m, target, id)
+			elseif action == "eventNow" then
+				ok, reason = DevTools.eventNow(m)
+			elseif action == "silo" then
+				ok, reason = DevTools.silo(m, id)
+			elseif action == "botMissile" and target ~= nil then
+				ok, reason = DevTools.botMissile(m, target, id)
 			elseif action == "resetCooldowns" then
 				ok, reason = DevTools.resetCooldowns(m, id)
 			elseif action == "nextCommander" then
@@ -305,6 +311,7 @@ function MatchService.start(map: MapData)
 				matchEvent:FireClient(player, MatchStats.tech(m, id)) -- технологии (§6.14) — тем же темпом
 				matchEvent:FireClient(player, MatchStats.commander(m, id)) -- генерал (§6.15)
 			end
+			matchEvent:FireClient(player, MatchStats.world(m, id)) -- события и ракеты (§6.16, §6.9)
 		end
 	end
 

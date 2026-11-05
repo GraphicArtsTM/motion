@@ -239,6 +239,8 @@ export type Intent =
 	| ResearchIntent
 	| CommanderIntent
 	| AbilityIntent
+	| BidIntent
+	| MissileIntent
 
 -- Боты v2 (§9.1): уровни и личности. Списки — для перебора и проверки имён.
 export type BotLevel = "Novice" | "Normal" | "General"
@@ -324,6 +326,9 @@ Types.CommanderIds = table.freeze({ "Marshal", "Admiral", "Scout", "Engineer" } 
 export type CommanderIntent = { kind: "commander", commander: CommanderId } -- выбрать генерала (лобби, выбор старта)
 -- Способность: slot 1 — Q, 2 — E; cell — цель на карте; percent — доля войск для десантов (0..1).
 export type AbilityIntent = { kind: "ability", slot: number, cell: number?, percent: number? }
+-- Случайные события и ракеты (§6.16, §6.9, этап 7г).
+export type BidIntent = { kind: "bid", amount: number } -- ставка на аукционе наёмников
+export type MissileIntent = { kind: "missile", cell: number } -- пуск ракеты из своей шахты
 
 export type Phase = "Waiting" | "Lobby" | "Pick" | "Play" | "Over"
 

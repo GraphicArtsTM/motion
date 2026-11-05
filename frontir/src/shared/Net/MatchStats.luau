@@ -19,6 +19,7 @@ local Stability = require("../Stability")
 local Tech = require("../Tech")
 local Types = require("../Types")
 local Wars = require("../Wars")
+local WorldEvents = require("../WorldEvents")
 local Protocol = require("./Protocol")
 
 local MatchStats = {}
@@ -275,6 +276,47 @@ function MatchStats.commander(m: MatchSim.Match, viewer: number): CommanderMessa
 		},
 		surge = math.max(0, math.ceil((st.surgeUntil[viewer] or 0) - now)),
 		reveal = math.max(0, math.ceil((st.revealUntil[viewer] or 0) - now)),
+	}
+end
+
+-- Мир (§6.16, §6.9) игроку viewer: шторм, аукцион, ракеты в полёте (их видят все), новые нефтяные поля,
+-- своя шахта и её перезарядка. Таблица world.
+export type WorldMessage = ClientState.WorldMessage
+
+function MatchStats.world(m: MatchSim.Match, viewer: number?): WorldMessage
+	local st = m.world
+	local now = m.simTime
+	local storm = st.storm
+	local a = st.auction
+	local missiles: { { cell: number, owner: number, left: number } } = {}
+	for _, mi in m.missiles do
+		table.insert(missiles, { cell = mi.cell, owner = mi.owner, left = math.max(0, mi.impactAt - now) })
+	end
+	local silo = false
+	if viewer ~= nil then
+		for _, s in MatchSim.buildingsOf(m, "MissileSilo") do
+			if s.owner == viewer then
+				silo = true
+			end
+		end
+	end
+	return {
+		kind = "world",
+		storm = if storm ~= nil and storm.untilTime > now
+			then { cell = storm.cell, radius = storm.radius, left = storm.untilTime - now }
+			else nil,
+		auction = if a ~= nil and a.endsAt > now
+			then {
+				left = a.endsAt - now,
+				top = a.top,
+				topId = a.topId,
+				minBid = WorldEvents.minBid(st, now) or 0,
+			}
+			else nil,
+		missiles = missiles,
+		oilExtra = table.clone(st.oilExtra),
+		silo = silo,
+		missileLeft = if viewer ~= nil then math.max(0, (m.missileReady[viewer] or 0) - now) else 0,
 	}
 end
 

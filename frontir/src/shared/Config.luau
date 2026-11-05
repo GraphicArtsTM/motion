@@ -642,7 +642,7 @@ Config.Council = {
 	VoteSec = 30,
 	Options = 3, -- резолюций на голосовании
 	-- Пул резолюций; «Запрет супероружия» добавится с ракетной шахтой (этап 7).
-	Pool = { "sanctions", "truce", "aid", "freeTrade" },
+	Pool = { "sanctions", "truce", "aid", "freeTrade", "superweaponBan" }, -- запрет — с ракетной шахтой (этап 7г)
 	SanctionsIncomeMul = 0.75, -- санкции против лидера: −25% дохода…
 	SanctionsSec = 120, -- …на 2 минуты
 	TruceSec = 60, -- всеобщее перемирие
@@ -682,7 +682,35 @@ Config.Buildings = {
 }
 
 -- Что можно строить сейчас (этап 4б; радар — 7а, порт — 7б-1, аэродром и батарея ПВО — 7б-2); шахта — этап 7г.
-Config.Buildable = { "City", "OilRig", "Factory", "Fort", "Market", "Radar", "Port", "Airfield", "AirDefense" }
+Config.Buildable =
+	{ "City", "OilRig", "Factory", "Fort", "Market", "Radar", "Port", "Airfield", "AirDefense", "MissileSilo" }
+
+-- §6.9 Ракетный удар (этап 7г). Радиус, перезарядка и предупреждение — Buildings.MissileSilo.
+Config.Missile = {
+	FrontLoss = 0.5, -- фронты, линия которых касается круга, теряют эту долю войск
+	InterceptChance = 0.75, -- сеть ПВО (Флот-4): шанс сбить ракету над своей батареей ПВО
+	BotChance = 0.3, -- бот с готовой шахтой во время войны — шанс пуска за раздумье
+}
+
+-- §6.16 Случайные события (этап 7г).
+Config.Events = {
+	FirstSec = 180, -- первое событие — через столько секунд игры
+	MinGapSec = 180, -- дальше — через случайный промежуток MinGapSec..MaxGapSec
+	MaxGapSec = 240,
+	BannerSec = 6, -- баннер сверху у клиента
+	Weights = { OilRush = 2, Storm = 2, Harvest = 2, Mercenaries = 2, Revolt = 1, Defectors = 2 },
+	StormRadius = 40, -- клеток на ширине 512
+	StormSec = 40,
+	HarvestMul = 1.2,
+	HarvestSec = 60,
+	AuctionSec = 20,
+	MercMinBid = 2000,
+	MercStep = 500,
+	MercStrength = 1500, -- войска наёмников (2/3 пехота, 1/3 танки)
+	MercStars = 2, -- опыт наёмников — звёзды
+	BotBidShare = 0.3, -- бот ставит до такой доли своих денег (Новичок — вдвое меньше)
+	DefectorStrength = 1200, -- пехота перебежчиков
+}
 
 -- §6.8 Экономика (этап 4б)
 Config.Economy = {
@@ -1033,8 +1061,8 @@ Config.Commanders = {
 Config.Tech = {
 	Cost = { 3000, 5000, 8000, 12000 }, -- цена уровня 1..4 (деньги, сразу)
 	Sec = { 40, 60, 80, 100 }, -- время исследования, игровые секунды
-	-- Закрыто до этапа 7г (ракетная шахта и сеть ПВО): уровни с этого и выше не изучаются.
-	Locked = { Army = 4, Fleet = 4 },
+	-- Закрытые уровни (ветка → с этого и выше не изучаются). До 7г были Войска-4 и Флот-4; с 7г всё открыто.
+	Locked = {} :: { [string]: number },
 	SupplyRangeMul = 1.5, -- Войска-2 «Снабжение»: дальность снабжения от городов
 	TankArmor = 1.2, -- Войска-3 «Тяжёлая броня»: защита танков в обороне
 	TaxBonus = 0.10, -- Экономика-1 «Налоги»: доход
@@ -1044,7 +1072,11 @@ Config.Tech = {
 	ShipyardDiscount = 0.20, -- Флот-1 «Верфи»: корабли дешевле в деньгах
 	-- Что открывают уровни (здание → ветка и уровень).
 	-- Флот-2 «Авиация», Флот-3 «Радар» (решение геймдизайнера перед 7в-2: аэродром раньше радара).
-	Unlocks = { Airfield = { branch = "Fleet", level = 2 }, Radar = { branch = "Fleet", level = 3 } },
+	Unlocks = {
+		Airfield = { branch = "Fleet", level = 2 },
+		Radar = { branch = "Fleet", level = 3 },
+		MissileSilo = { branch = "Army", level = 4 }, -- Войска-4 «Ракетная шахта» (этап 7г)
+	},
 	-- Боты: вероятность за раздумье заняться исследованием и порядок веток по личности (запись — следующий
 	-- уровень этой ветки). Генерал — по своей очереди GeneralOrder.
 	BotChance = 0.25,
@@ -1067,6 +1099,8 @@ Config.Tech = {
 		"Army", -- Тяжёлая броня
 		"Economy", -- Торговые пути
 		"Economy", -- Порядок
+		"Army", -- Ракетная шахта (этап 7г)
+		"Fleet", -- Сеть ПВО
 	},
 }
 
