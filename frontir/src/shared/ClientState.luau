@@ -98,6 +98,7 @@ export type ProfileInfo = {
 	questsBonus: boolean,
 	dayLeft: number,
 	elo: number,
+	volume: { sfx: number, music: number }?, -- громкости (§13, этап 10б)
 }
 
 -- Таблицы лидеров (§11.5).

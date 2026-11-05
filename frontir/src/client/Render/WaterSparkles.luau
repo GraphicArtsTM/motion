@@ -7,11 +7,13 @@
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local CameraMath = require(Shared:WaitForChild("CameraMath"))
 local Config = require(Shared:WaitForChild("Config"))
+local RenderBudget = require(Shared:WaitForChild("RenderBudget"))
 local MapDataModule = require(Shared:WaitForChild("MapData"))
 
 local Theme = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("Theme"))
@@ -39,10 +41,15 @@ function WaterSparkles.start(
 	state: CameraState
 ): (() -> (), (CameraState) -> ())
 	local cfg = Config.Render
+	-- Телефон (этап 10в): меньше бликов.
+	local sparkleMax = RenderBudget.limit(
+		"SparkleMax",
+		RenderBudget.isPhone(UserInputService.TouchEnabled, UserInputService.KeyboardEnabled)
+	)
 	local rng = Random.new()
 	local color = Theme.color("Sky")
 	local pool: { Sparkle } = {}
-	for k = 1, cfg.SparkleMax do
+	for k = 1, sparkleMax do
 		local frame = Instance.new("Frame")
 		frame.Name = "Sparkle" .. k
 		frame.BorderSizePixel = 0
@@ -110,7 +117,7 @@ function WaterSparkles.start(
 				end
 			end
 		end
-		spawnDebt = math.min(spawnDebt, cfg.SparkleMax)
+		spawnDebt = math.min(spawnDebt, sparkleMax)
 	end)
 
 	local function stop()

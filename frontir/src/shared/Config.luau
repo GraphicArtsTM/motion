@@ -520,8 +520,45 @@ local botPersonalities: { [string]: Types.BotPersonalityParams } = {
 Config.BotPersonalities = botPersonalities
 
 -- Звуки (GDD §14): id ассетов. Пусто — заглушка, звук пока не играет (ассеты — этап 10).
+-- §13 Звук (этап 10б). id — «rbxassetid://…» загруженного звука (пусто — молчит, если нет Sound с этим именем в
+-- SoundService/FrontirAudio). volume — громкость звука до общей громкости игрока. Файлы для загрузки —
+-- assets/audio/sfx/<Имя>.wav (их делает lune run tools/sfx_gen). Как заменить — README «Звуки и музыка».
 Config.Sounds = {
-	Siren = "", -- объявление войны против вас
+	Click = { id = "", volume = 0.35 }, -- нажатие кнопки
+	Error = { id = "", volume = 0.4 }, -- отказ сервера
+	Capture = { id = "", volume = 0.25 }, -- ваша граница растёт (не чаще Audio.Gaps.Capture)
+	Province = { id = "", volume = 0.45 }, -- взят город
+	Battle = { id = "", volume = 0.35 }, -- ваш фронт в бою (не чаще Audio.Gaps.Battle)
+	Explosion = { id = "", volume = 0.6 }, -- удар ракеты, налёт по вам
+	Plane = { id = "", volume = 0.35 }, -- ваш налёт, готовый самолёт
+	Parachute = { id = "", volume = 0.5 }, -- десанты генералов
+	Siren = { id = "", volume = 0.35 }, -- война или ракета против вас
+	Offer = { id = "", volume = 0.5 }, -- вам предложили союз, пакт, торговлю, мир
+	Betrayal = { id = "", volume = 0.45 }, -- вас предали
+	Victory = { id = "", volume = 0.6 },
+	Defeat = { id = "", volume = 0.55 },
+	Notify = { id = "", volume = 0.45 }, -- событие, «Изучено», готовый корабль
+	Coin = { id = "", volume = 0.35 }, -- покупка, награда
+	Hire = { id = "", volume = 0.35 }, -- найм
+	Build = { id = "", volume = 0.45 }, -- стройка
+}
+
+-- §13 Музыка (этап 10б): петли (Looped). Файлы — assets/audio/music/<Имя>.wav.
+Config.Music = {
+	Lobby = { id = "", volume = 0.35 }, -- лобби, выбор старта, итоги
+	Calm = { id = "", volume = 0.3 }, -- игра
+	Finale = { id = "", volume = 0.35 }, -- лидер близко к победе
+}
+
+Config.Audio = {
+	Folder = "FrontirAudio", -- папка в SoundService: Sound с именем звука важнее id из Config
+	DefaultSfx = 0.8, -- громкости игрока по умолчанию (0..1, шаг VolumeStep)
+	DefaultMusic = 0.5,
+	VolumeStep = 0.1,
+	FadeSec = 1.5, -- смена мелодии
+	FinaleMargin = 0.10, -- «Финал»: лидеру до доли для победы осталось меньше
+	FinaleTimeSec = 60, -- …или до конца лимита времени меньше (секунды матча)
+	Gaps = { Capture = 0.4, Battle = 3, Click = 0.05, Offer = 1, Explosion = 0.3 }, -- не чаще (секунды)
 }
 
 -- Для разработки
@@ -632,6 +669,8 @@ Config.Render = {
 		ChurnMul = 1.0, -- сколько юнитов гибнет на экране за долю потерь (визуально)
 	},
 	NarrowScreenPx = 1160, -- уже — раскладка HUD для телефона (карточки найма в две строки слева от мини-карты)
+	-- Телефон (касание без клавиатуры, этап 10в): меньше эффектов, чтобы держать 60 FPS (RenderBudget).
+	Phone = { MaxUnitsOnScreen = 90, MaxParticles = 100, MaxCraters = 30, SparkleMax = 16 },
 	-- Блики воды — отдельные пиксели поверх карты, текстуру не перерисовываем.
 	SparkleMax = 48,
 	SparklesPerSec = 24,

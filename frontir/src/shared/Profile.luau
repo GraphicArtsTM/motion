@@ -41,6 +41,9 @@ export type Data = {
 	questsBonus: boolean, -- жетон за все три уже выдан
 	elo: number,
 	tutorialDone: boolean, -- обучение пройдено (§5.5)
+	-- Этап 10б (§13): громкости игрока 0..1.
+	sfx: number,
+	music: number,
 }
 
 -- Награда (пропуск, ящик, ежедневная, набор).
@@ -78,7 +81,23 @@ function Profile.new(): Data
 		questsBonus = false,
 		elo = Config.Elo.Start,
 		tutorialDone = false,
+		sfx = Config.Audio.DefaultSfx,
+		music = Config.Audio.DefaultMusic,
 	}
+end
+
+-- Громкости (§13): 0..1, с шагом Audio.VolumeStep; мусор — по умолчанию.
+function Profile.setVolumes(d: Data, sfx: any, music: any): (boolean, string?)
+	local function ok(v: any): boolean
+		return type(v) == "number" and v == v and v >= 0 and v <= 1
+	end
+	if not ok(sfx) or not ok(music) then
+		return false, "target"
+	end
+	local step = Config.Audio.VolumeStep
+	d.sfx = math.round(sfx / step) * step
+	d.music = math.round(music / step) * step
+	return true, nil
 end
 
 local function num(v: any): number
@@ -154,6 +173,9 @@ function Profile.migrate(raw: any): Data
 	end
 	d.elo = if type(raw.elo) == "number" and raw.elo == raw.elo then math.floor(raw.elo) else Config.Elo.Start
 	d.tutorialDone = raw.tutorialDone == true
+	if not Profile.setVolumes(d, raw.sfx, raw.music) then
+		d.sfx, d.music = Config.Audio.DefaultSfx, Config.Audio.DefaultMusic
+	end
 	local f = raw.flag
 	if
 		type(f) == "table"

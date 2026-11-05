@@ -5,7 +5,7 @@
 ## Где мы сейчас
 Сделаны этапы **0–6**, **7а**, **7б-1** (флот), **7б-2** (авиация), доработки перед 7в, **7в-1** и **7в-2** — всё в `main` (PR #2–#8).
 **7в-1** (технологии) и **7в-2** (генералы) смержены (PR #7, #8). **7г** и **8а** смержены (PR #9), разведка, **8б** и **8в** — PR #10. **8г** — PR #11. **9а** и **9б** — PR #12, **9в** и **9г** — PR #13.
-**10а** (обучение) готов и ждёт проверки в Studio; дальше 10б (звук) и 10в (телефон, аналитика, баланс)
+**10а** (обучение) готов и ждёт проверки в Studio; **10б** (звук и музыка) и **10в** (телефон, аналитика, отчёт баланса) — тоже
 (см. «Статус» в начале GDD §15). Обновляй «Статус» в GDD и этот раздел в конце каждого этапа.
 
 ## Порядок работы (договорённости с геймдизайнером)
@@ -291,6 +291,20 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
 - Режим `Tutorial` (`rules.tutorial`, `rules.events = false`), шаги — `MatchSim.tutorialDone` / `stepTutorial`
   (`m.tutorialStep`, `m.tutorialStart`), награда — `Profile.finishTutorial` на сервере по событию `tutorialDone`.
   Клиент: `UI/TutorialPanel`, `cs.tutorialStep`.
+
+## Звук и музыка (этап 10б)
+- Файлы звуков генерирует `tools/sfx_gen` (`tools/lib/Synth`, `tools/lib/SoundBank`) в `assets/audio`; в игру —
+  загрузкой в Roblox (id в `Config.Sounds` / `Config.Music`) или `Sound` в `SoundService/FrontirAudio`.
+- `AudioCues` (чистый): события → звуки, выбор музыки, `allow` (частота). Клиент: `Audio` (play / music /
+  setVolumes), звуки подключены в `Main.client` (onEvents, onDelta, onStats, клики кнопок HUD), `UI/SoundPanel`
+  («♪», громкости в профиле: `Profile.setVolumes`, намерение `volume`).
+
+## Телефон и аналитика (этап 10в)
+- Аналитика: чистый `Analytics` (записи `MatchEnd`, `Commander`, `Leave`, `TutorialSkip`, воронка обучения) →
+  сервер `Services/Telemetry` (AnalyticsService в pcall); хуки — в `MatchService` (конец матча, начало игры,
+  PlayerRemoving, события обучения).
+- Телефон: `RenderBudget` (`isPhone`, `limit` из `Config.Render.Phone`) в `FrontLayer` и `WaterSparkles`; кнопка «⌂»
+  в `Main.client`. Отчёт баланса — `tools/balance_report`.
 
 ## Панель разработчика (F4)
 - Только в Studio: `MatchService` создаёт `Remotes.Dev` при `RunService:IsStudio()`; действия — чистый `DevTools`

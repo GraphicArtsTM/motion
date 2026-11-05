@@ -23,12 +23,16 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local StarterGui = game:GetService("StarterGui")
 local TextChatService = game:GetService("TextChatService")
+local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local CameraMath = require(Shared:WaitForChild("CameraMath"))
 local ClientState = require(Shared:WaitForChild("ClientState"))
+local AudioCues = require(Shared:WaitForChild("AudioCues"))
 local Config = require(Shared:WaitForChild("Config"))
 local Flood = require(Shared:WaitForChild("Flood"))
+local MapDataModule = require(Shared:WaitForChild("MapData"))
+local RenderBudget = require(Shared:WaitForChild("RenderBudget"))
 local MapFormat = require(Shared:WaitForChild("MapFormat"))
 local MapPaint = require(Shared:WaitForChild("MapPaint"))
 local Provinces = require(Shared:WaitForChild("Provinces"))
@@ -53,6 +57,8 @@ local FrontLayer = require(Render:WaitForChild("FrontLayer"))
 local MapRenderer = require(Render:WaitForChild("MapRenderer"))
 local MatchClient = require(Client:WaitForChild("Net"):WaitForChild("MatchClient"))
 local Session = require(Client:WaitForChild("Session"))
+local Audio = require(Client:WaitForChild("Audio"))
+local SoundPanel = require(UI:WaitForChild("SoundPanel"))
 local MatchHud = require(UI:WaitForChild("MatchHud"))
 local Minimap = require(UI:WaitForChild("Minimap"))
 local NavalPanel = require(UI:WaitForChild("NavalPanel"))
@@ -191,9 +197,21 @@ local function runSession(mapId: string, resync: boolean)
 
 	-- Интерфейс создаётся до подключения к серверу: сообщения из очереди могут прийти сразу при подключении.
 	local client: MatchClient.MatchClient? = nil
+	local throttle = AudioCues.newThrottle()
+	local function sound(name: string)
+		if AudioCues.allow(throttle, name, os.clock()) then
+			Audio.play(name)
+		end
+	end
 	local function send(kind: string, payload: { [string]: any })
 		if client ~= nil then
 			client.send(kind, payload)
+		end
+		-- Звук своего действия (§13): найм и стройка сразу, отказ сервера — «Error».
+		if kind == "hire" then
+			sound("Hire")
+		elseif kind == "build" then
+			sound("Build")
 		end
 	end
 
@@ -252,6 +270,29 @@ local function runSession(mapId: string, resync: boolean)
 	local wardrobe = WardrobePanel.new(hudGui, cs, lang, send) -- косметика и флаг (§11.4)
 	local questsPanel = QuestsPanel.new(hudGui, cs, lang, hud.toast) -- задания и лидеры (§11.5)
 	local tutorial = TutorialPanel.new(hudGui, cs, lang, hud.toast) -- обучение (§5.5)
+	local soundPanel = SoundPanel.new(hudGui, cs, lang, send) -- громкости (§13)
+	-- Клик (§13): любая кнопка HUD, в том числе созданная позже.
+	local function hookButton(inst: Instance)
+		if inst:IsA("GuiButton") then
+			Session.connect((inst :: GuiButton).Activated, function()
+				sound("Click")
+			end)
+		end
+	end
+	for _, d in hudGui:GetDescendants() do
+		hookButton(d)
+	end
+	Session.connect(hudGui.DescendantAdded, hookButton)
+	-- Суша для доли лидера (музыка «Финал») и города (звук взятого города).
+	local totalLand = 0
+	for i = 0, map.width * map.height - 1 do
+		if Config.Terrain[MapDataModule.getTerrain(map, i)].borderPassable then
+			totalLand += 1
+		end
+	end
+	local citySet: { [number]: boolean } = {}
+	local resultFor: number? = nil -- matchId, за который уже прозвучал итог
+	local lastReward: any = nil
 	local worldPanel = WorldPanel.new(hudGui, cs, lang, send, function(id: number): string
 		local n = cs.nations[id]
 		return if n == nil then "?" elseif lang == "en" then n.nameEn else n.name
@@ -337,12 +378,31 @@ local function runSession(mapId: string, resync: boolean)
 			shopPanel.onShopEvent(msg)
 		end,
 		onProfile = function()
+			soundPanel.refresh()
+			local reward = if cs.profile ~= nil then cs.profile.reward else nil
+			if reward ~= nil and reward ~= lastReward then
+				sound("Coin")
+			end
+			lastReward = reward
 			shopPanel.refresh()
 			wardrobe.refresh()
 			questsPanel.refresh()
 			commanderPanel.refresh()
 		end,
 		onInfo = function(colorsChanged: boolean)
+			-- Звук (§13): города — для «Province»; итог матча — победа или поражение один раз.
+			table.clear(citySet)
+			for _, c in cs.cities do
+				citySet[c] = true
+			end
+			local result = cs.result
+			if cs.phase == "Over" and result ~= nil and resultFor ~= cs.matchId then
+				resultFor = cs.matchId
+				local name = AudioCues.result(result.winner, result.coWinners, cs.myNation)
+				if name ~= nil then
+					Audio.play(name)
+				end
+			end
 			-- Новый матч тоже приходит как смена цветов: ClientState уже сбросил сетку, перерисовываем всё.
 			if colorsChanged then
 				territory.repaintAll()
@@ -378,12 +438,40 @@ local function runSession(mapId: string, resync: boolean)
 			buildingLayer.recolor()
 		end,
 		onDelta = function(cells: { number })
+			-- Звук захвата (§13): свои новые клетки; город — «Province».
+			local me = cs.myNation
+			if me ~= nil and cs.phase == "Play" then
+				local mine, city = false, false
+				for _, c in cells do
+					if ClientState.ownerAt(cs, c) == me then
+						mine = true
+						if citySet[c] then
+							city = true
+						end
+					end
+				end
+				if city then
+					sound("Province")
+				elseif mine then
+					sound("Capture")
+				end
+			end
 			territory.cellsChanged(cells, os.clock())
 			gridChanged()
 			labels.recolor()
 			buildingLayer.recolor()
 		end,
 		onStats = function()
+			-- Бой на своём фронте (§13) — не чаще Audio.Gaps.Battle.
+			local stats, me = cs.stats, cs.myNation
+			if stats ~= nil and me ~= nil then
+				for _, a in stats.attacks do
+					if a.fighting and (a.attacker == me or a.target == me) then
+						sound("Battle")
+						break
+					end
+				end
+			end
 			hud.refresh()
 			forcesPanel.refresh()
 			diplomacy.refresh()
@@ -450,6 +538,9 @@ local function runSession(mapId: string, resync: boolean)
 			diplomacy.refresh()
 		end,
 		onEvents = function(events: { any })
+			for _, name in AudioCues.fromEvents(events, cs.myNation) do
+				sound(name)
+			end
 			hud.onEvents(events)
 			wars.onEvents(events)
 			pings.onEvents(events)
@@ -468,9 +559,42 @@ local function runSession(mapId: string, resync: boolean)
 			end
 		end,
 		onRejected = function(reason: string)
+			sound("Error")
 			hud.toast(Strings.get("reject." .. reason, lang))
 		end,
 	}, mapId)
+
+	local function goHome()
+		local me = if cs.myNation ~= nil then cs.nations[cs.myNation] else nil
+		local capital = if me ~= nil then me.capital else nil
+		if capital ~= nil then
+			CameraMath.centerOn(camera.state, capital % map.width + 0.5, capital // map.width + 0.5)
+			camera.refresh()
+		else
+			camera.fit()
+		end
+	end
+	-- Телефон (этап 10в): кнопка «⌂» — к столице (на ПК — пробел), над кнопкой звука.
+	if RenderBudget.isPhone(UserInputService.TouchEnabled, UserInputService.KeyboardEnabled) then
+		local home = Instance.new("TextButton")
+		home.Name = "HomeButton"
+		home.AnchorPoint = Vector2.new(1, 1)
+		home.Size = UDim2.fromOffset(Config.Render.MinTouchTargetPx, Config.Render.MinTouchTargetPx)
+		home.Position = UDim2.new(1, -12, 1, -12 - Config.Render.MinimapSide - 8 - Config.Render.MinTouchTargetPx - 6)
+		home.BackgroundColor3 = Theme.Colors.PanelBg
+		home.BackgroundTransparency = 0.05
+		home.BorderSizePixel = 0
+		home.FontFace = Theme.FontBold
+		home.TextSize = 20
+		home.TextColor3 = Theme.Colors.Text
+		home.Text = "⌂"
+		local stroke = Instance.new("UIStroke")
+		stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		stroke.Color = Theme.Colors.PanelBorder
+		stroke.Parent = home
+		home.Parent = hudGui
+		Session.connect(home.Activated, goHome)
+	end
 
 	local input = CameraInput.bind(camera, viewport, {
 		onTap = function(sx: number, sy: number)
@@ -490,21 +614,31 @@ local function runSession(mapId: string, resync: boolean)
 				end
 			end
 		end,
-		-- Space — к своей столице (GDD §10); нет столицы — вся карта.
-		onHome = function()
-			local me = if cs.myNation ~= nil then cs.nations[cs.myNation] else nil
-			local capital = if me ~= nil then me.capital else nil
-			if capital ~= nil then
-				CameraMath.centerOn(camera.state, capital % map.width + 0.5, capital // map.width + 0.5)
-				camera.refresh()
-			else
-				camera.fit()
-			end
-		end,
+		-- Space — к своей столице (GDD §10); нет столицы — вся карта. На телефоне — кнопка «⌂».
+		onHome = goHome,
 	})
 
+	local musicAt = 0
 	local frameConn = Session.connect(RunService.RenderStepped, function()
 		local now = os.clock()
+		-- Музыка (§13): лобби, игра или финал — раз в полсекунды.
+		if now - musicAt >= 0.5 then
+			musicAt = now
+			local leader = 0
+			local stats = cs.stats
+			if stats ~= nil then
+				for _, s in stats.nations do
+					leader = math.max(leader, s.cells)
+				end
+			end
+			local limit = cs.rules.timeLimitSec
+			Audio.music(AudioCues.music({
+				phase = cs.phase,
+				leaderShare = leader / math.max(1, totalLand),
+				victoryShare = cs.rules.victoryShare,
+				timeLeft = if limit > 0 then limit - ClientState.matchTime(cs, now) else nil,
+			}))
+		end
 		if now - fogAt >= Config.Fog.RefreshSec then
 			refreshFog(now)
 		end
