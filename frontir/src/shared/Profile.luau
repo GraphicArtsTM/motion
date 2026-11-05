@@ -40,6 +40,7 @@ export type Data = {
 	quests: { { pool: number, progress: number, done: boolean } },
 	questsBonus: boolean, -- жетон за все три уже выдан
 	elo: number,
+	tutorialDone: boolean, -- обучение пройдено (§5.5)
 }
 
 -- Награда (пропуск, ящик, ежедневная, набор).
@@ -76,6 +77,7 @@ function Profile.new(): Data
 		quests = {},
 		questsBonus = false,
 		elo = Config.Elo.Start,
+		tutorialDone = false,
 	}
 end
 
@@ -151,6 +153,7 @@ function Profile.migrate(raw: any): Data
 		end
 	end
 	d.elo = if type(raw.elo) == "number" and raw.elo == raw.elo then math.floor(raw.elo) else Config.Elo.Start
+	d.tutorialDone = raw.tutorialDone == true
 	local f = raw.flag
 	if
 		type(f) == "table"
@@ -310,6 +313,17 @@ function Profile.openCrate(d: Data, roll: (n: number) -> number): (string?, stri
 	end
 	Profile.give(d, reward)
 	return row.key, unit, reward
+end
+
+-- Обучение пройдено (§5.5): награда один раз. true — выдана сейчас.
+function Profile.finishTutorial(d: Data): boolean
+	if d.tutorialDone then
+		return false
+	end
+	d.tutorialDone = true
+	d.tokens += Config.Tutorial.RewardTokens
+	d.medals += Config.Tutorial.RewardMedals
+	return true
 end
 
 -- Ежедневная награда (§11.3) ----------------------------------------------------------------------
