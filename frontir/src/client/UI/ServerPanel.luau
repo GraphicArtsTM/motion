@@ -201,6 +201,9 @@ function ServerPanel.new(
 	addRow("diplomacy", function(s)
 		s.diplomacy = not s.diplomacy
 	end)
+	addRow("boosts", function(s)
+		s.boosts = not s.boosts
+	end)
 	local apply = button(window, Strings.get("server.apply", lang), 160)
 	apply.Position = UDim2.fromOffset(12, y + 6)
 	apply.TextColor3 = Theme.Colors.Gold
@@ -290,6 +293,7 @@ function ServerPanel.draw(
 			elseif k == "speed" then "×" .. tostring(s.speed)
 			elseif k == "money" then "$" .. Strings.formatInt(s.startMoney)
 			elseif k == "fog" then onOff(s.fog)
+			elseif k == "boosts" then onOff(s.boosts)
 			else onOff(s.diplomacy)
 	end
 end

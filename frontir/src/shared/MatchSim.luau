@@ -49,6 +49,7 @@ local Pockets = require("./Pockets")
 local Provinces = require("./Provinces")
 local Rng = require("./Rng")
 local ServerSettings = require("./ServerSettings")
+local Shop = require("./Shop")
 local Stability = require("./Stability")
 local StartPositions = require("./StartPositions")
 local Tech = require("./Tech")
@@ -104,6 +105,7 @@ export type MatchEvent =
 	| { kind: "missileShot", nation: number, by: number, cell: number }
 	-- Разведка (§6.11а): nation разведал target
 	| { kind: "flood", step: number, cells: number } -- «Потоп» (§5.3): вода поднялась
+	| { kind: "boost", nation: number, boost: string } -- буст магазина (§11.1)
 	| { kind: "intel", nation: number, target: number }
 	-- Генералы (§6.15, этап 7в-2): применена способность (target — держава в клетке цели, 0 — нет)
 	| { kind: "ability", nation: number, ability: string, cell: number?, target: number }
@@ -212,6 +214,10 @@ export type Match = {
 	-- Разведка (§6.11а): кто чью мощь видит.
 	flood: { step: number, nextAt: number }, -- «Потоп» (§5.3): ступень воды, когда следующая (часы матча)
 	settings: ServerSettings.Settings?, -- настройки частного сервера (§5.4); nil — обычный сервер
+	-- Магазин и профиль (§11.1, §11.2, этап 9а): перки геймпассов, бусты за матч, открытые генералы.
+	perks: { [number]: Shop.Perks },
+	boostsUsed: { [number]: { [string]: boolean } },
+	unlocked: { [number]: { [string]: boolean } }, -- держава игрока → открытые генералы (нет записи — все)
 	intel: { [number]: { [number]: number } }, -- разведчик → цель → до какого simTime
 	radarIntel: { [number]: { [number]: boolean } }, -- держава → державы в радиусе её радаров
 	nextRadarIntelAt: number,
@@ -320,6 +326,9 @@ function MatchSim.new(map: MapData, seed: number): Match
 		fast = false,
 		flood = { step = 0, nextAt = Config.Flood.EverySec },
 		settings = nil,
+		perks = {},
+		boostsUsed = {},
+		unlocked = {},
 		intel = {},
 		radarIntel = {},
 		nextRadarIntelAt = 0,
@@ -355,6 +364,130 @@ function MatchSim.setMode(m: Match, mode: Types.ModeId)
 	end
 	m.speed = Config.Match.Speed * m.rules.speed
 	m.infoDirty = true
+end
+
+-- Магазин (§11.1, этап 9а) ------------------------------------------------------------------------
+
+-- Перки геймпассов державы в этом матче; без бустов в режиме (дуэль, частный сервер) — никаких.
+function MatchSim.perksOf(m: Match, id: number): Shop.Perks
+	local p = m.perks[id]
+	if p == nil or not m.rules.boosts then
+		return Shop.noPerks()
+	end
+	return p
+end
+
+function MatchSim.setPerks(m: Match, id: number, perks: Shop.Perks)
+	m.perks[id] = perks
+end
+
+-- Открытые генералы игрока (по уровню профиля, §11.2); nil — все.
+function MatchSim.setUnlocked(m: Match, id: number, set: { [string]: boolean }?)
+	(m.unlocked :: any)[id] = set
+end
+
+-- Буст в матче (§11.1): один каждого вида за матч, только в игре и где бусты разрешены. Оплату (Robux или жетон)
+-- проверяет сервер до вызова. Возвращает ok и причину отказа.
+function MatchSim.canBoost(m: Match, id: number, key: string): (boolean, string?)
+	local n = m.nations[id]
+	if n == nil or not n.alive or n.isBot then
+		return false, "dead"
+	end
+	if m.phase ~= "Play" then
+		return false, "phase"
+	end
+	if not m.rules.boosts then
+		return false, "noBoosts"
+	end
+	if not Shop.isBoost(key) then
+		return false, "target"
+	end
+	local used = m.boostsUsed[id]
+	if used ~= nil and used[key] then
+		return false, "boostUsed"
+	end
+	if key == "Research" and m.tech.research[id] == nil then
+		return false, "noResearch"
+	end
+	if key == "Squadron" and MatchSim.squadronPort(m, id) == nil then
+		return false, "noPort"
+	end
+	if key == "AirWing" and MatchSim.airWingField(m, id) == nil then
+		return false, "noAirfield"
+	end
+	return true, nil
+end
+
+-- Свой порт для «Эскадры» (§11.3): первый порт державы с причалом.
+function MatchSim.squadronPort(m: Match, id: number): Port?
+	for _, p in MatchSim.portsOf(m, id) do
+		if not MatchSim.isDisabled(m, p.cell) then
+			return p
+		end
+	end
+	return nil
+end
+
+-- Свой аэродром для «Авиакрыла» (§11.3).
+function MatchSim.airWingField(m: Match, id: number): number?
+	for _, b in MatchSim.buildingsOf(m, "Airfield") do
+		if b.owner == id and not MatchSim.isDisabled(m, b.cell) then
+			return b.cell
+		end
+	end
+	return nil
+end
+
+-- cell — цель «Авиаудара».
+function MatchSim.useBoost(m: Match, id: number, key: string, cell: number?): (boolean, string?)
+	local ok, why = MatchSim.canBoost(m, id, key)
+	if not ok then
+		return false, why
+	end
+	local n = m.nations[id]
+	local cfg = Config.Shop.Boosts
+	if key == "Mobilize" then
+		for kind = 1, Forces.KINDS do
+			local u = n.home[kind]
+			u.strength += u.strength * cfg.Mobilize.garrisonShare
+		end
+	elseif key == "Loan" then
+		n.money += cfg.Loan.money
+	elseif key == "Research" then
+		local r = m.tech.research[id]
+		if r ~= nil then
+			r.left = 0
+		end
+	elseif key == "Reserve" then
+		Commanders.resetCooldowns(m.commanders, id)
+	elseif key == "Guards" then
+		-- Танки 2★: доля силы державы (гарнизон и фронты), не меньше minStrength (§11.3).
+		local g = cfg.Guards
+		local power = Forces.total(n.home) + Forces.total(MatchSim.frontForces(m, id))
+		local tanks = Forces.kindIndex("Tanks") :: number
+		Forces.add(n.home, tanks, math.max(g.minStrength, power * g.powerShare), g.xp)
+	elseif key == "Airstrike" then
+		local ok2, why2 = MatchSim.strikeAt(m, n, cell or -1, cfg.Airstrike.frontLoss)
+		if not ok2 then
+			return false, why2
+		end
+	elseif key == "Squadron" then
+		local p = MatchSim.squadronPort(m, id) :: Port
+		Fleet.spawn(m.fleet, m.grid.width, id, "Destroyer", p.cell, p.dock)
+		Fleet.spawn(m.fleet, m.grid.width, id, "Transport", p.cell, p.dock)
+	elseif key == "AirWing" then
+		local field = MatchSim.airWingField(m, id) :: number
+		Air.spawn(m.air, m.grid.width, id, "Fighter", field)
+		Air.spawn(m.air, m.grid.width, id, "Bomber", field)
+	end
+	local used = m.boostsUsed[id]
+	if used == nil then
+		used = {}
+		m.boostsUsed[id] = used
+	end
+	used[key] = true
+	table.insert(m.events, { kind = "boost", nation = id, boost = key })
+	return true, nil
 end
 
 -- Разведка и скрытая мощь (§6.11а) ------------------------------------------------------------
@@ -401,7 +534,8 @@ function MatchSim.spy(m: Match, n: Nation, target: number): (boolean, string?)
 	if Diplomacy.friends(m.diplo, n.id)[target] then
 		return false, "already" -- мощь друзей и так видна
 	end
-	local cost = Config.Intel.Cost
+	local perks = MatchSim.perksOf(m, n.id) -- «Разведуправление» (§11.1)
+	local cost = math.floor(Config.Intel.Cost * perks.intelCostMul)
 	if n.money < cost then
 		return false, "noMoney"
 	end
@@ -411,7 +545,7 @@ function MatchSim.spy(m: Match, n: Nation, target: number): (boolean, string?)
 		list = {}
 		m.intel[n.id] = list
 	end
-	list[target] = math.max(list[target] or 0, m.simTime) + Config.Intel.DurationSec
+	list[target] = math.max(list[target] or 0, m.simTime) + (perks.intelDurationSec or Config.Intel.DurationSec)
 	table.insert(m.events, { kind = "intel", nation = n.id, target = target })
 	return true, nil
 end
@@ -935,6 +1069,10 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 		-- Генерал (§6.15): выбор до начала игры, потом закреплён.
 		if m.phase ~= "Waiting" and m.phase ~= "Lobby" and m.phase ~= "Pick" then
 			return false, "phase"
+		end
+		local open = m.unlocked[nationId]
+		if open ~= nil and not open[intent.commander] then
+			return false, "locked" -- генерал ещё не открыт уровнем (§11.2)
 		end
 		Commanders.choose(m.commanders, nationId, intent.commander)
 		m.infoDirty = true
@@ -2386,6 +2524,7 @@ local function stepEconomy(m: Match, n: Nation, simDt: number)
 		* (if Tech.has(m.tech, n.id, "Economy", 3) then Config.Tech.TradeMul else 1)
 	-- Торговые соглашения +5% каждое, санкции Совета −25% (§8.2).
 	e.income *= 1 + tradeBonus * Diplomacy.tradeCount(m.diplo, n.id)
+	e.income *= MatchSim.perksOf(m, n.id).incomeMul -- «Штаб» (§11.1)
 	local sanctions = Council.active(m.council, "sanctions", m.simTime)
 	if sanctions ~= nil and sanctions.target == n.id then
 		e.income *= Config.Council.SanctionsIncomeMul
@@ -2481,6 +2620,7 @@ function MatchSim.recruitLines(m: Match, nationId: number): number
 	local cfg = Config.Forces
 	local owned = MatchSim.ownedOf(m, nationId)
 	return math.min(cfg.MaxRecruitLines, 1 + owned.factories + owned.cityLevels // cfg.CityLevelsPerLine)
+		+ MatchSim.perksOf(m, nationId).recruitLines -- «Штаб» (§11.1)
 end
 
 -- Технологии (§6.14, этап 7в-1) ---------------------------------------------------------------
@@ -2591,6 +2731,46 @@ local function landable(m: Match, id: number, cell: number): boolean
 	return o ~= id and (o == 0 or Wars.isActive(m.wars, id, o))
 end
 
+-- Авиаудар по клетке at (способность Маршала, платная часть «Авиаудар», §6.15, §11.3): в круге StrikeRadius должна быть
+-- земля врага в войне; его фронты, касающиеся круга, теряют долю loss силы (ПВО в составе снижает).
+function MatchSim.strikeAt(m: Match, n: Nation, at: number, loss: number): (boolean, string?)
+	local cfg = Config.Commanders
+	local g = m.grid
+	local w = g.width
+	if at < 0 or at >= g.size then
+		return false, "focus"
+	end
+	local r = cfg.StrikeRadius
+	local enemy = false
+	for dy = -r, r do
+		for dx = -r, r do
+			local x, y = at % w + dx, at // w + dy
+			if x >= 0 and y >= 0 and x < w and y < g.height and dx * dx + dy * dy <= r * r then
+				local o = Grid.getOwner(g, y * w + x)
+				if o ~= 0 and o ~= n.id and Wars.isActive(m.wars, n.id, o) then
+					enemy = true
+				end
+			end
+		end
+	end
+	if not enemy then
+		return false, "noEnemy"
+	end
+	for _, a in m.attacks do
+		if
+			a.target ~= 0
+			and a.attacker ~= n.id
+			and Wars.isActive(m.wars, n.id, a.attacker)
+			and lineTouches(m, a, at, r)
+		then
+			local mul = 1 - Air.aaReduction(Forces.composition(a.forces))
+			Forces.applyDamage(a.forces, Forces.total(a.forces) * loss * mul)
+		end
+	end
+	table.insert(m.commanders.strikes, { owner = n.id, cell = at, untilTime = m.simTime + cfg.StrikeSec })
+	return true, nil
+end
+
 -- Применить способность слота slot (1 — Q, 2 — E). percent — доля войск для десантов.
 function MatchSim.useAbility(m: Match, n: Nation, slot: number, cell: number?, percent: number?): (boolean, string?)
 	local st = m.commanders
@@ -2616,34 +2796,10 @@ function MatchSim.useAbility(m: Match, n: Nation, slot: number, cell: number?, p
 	end
 
 	if ability == "Airstrike" then
-		local r = cfg.StrikeRadius
-		local enemy = false
-		for dy = -r, r do
-			for dx = -r, r do
-				local x, y = at % w + dx, at // w + dy
-				if x >= 0 and y >= 0 and x < w and y < g.height and dx * dx + dy * dy <= r * r then
-					local o = Grid.getOwner(g, y * w + x)
-					if o ~= 0 and o ~= n.id and Wars.isActive(m.wars, n.id, o) then
-						enemy = true
-					end
-				end
-			end
+		local ok, why = MatchSim.strikeAt(m, n, at, cfg.StrikeLoss)
+		if not ok then
+			return false, why
 		end
-		if not enemy then
-			return false, "noEnemy"
-		end
-		for _, a in m.attacks do
-			if
-				a.target ~= 0
-				and a.attacker ~= n.id
-				and Wars.isActive(m.wars, n.id, a.attacker)
-				and lineTouches(m, a, at, r)
-			then
-				local mul = 1 - Air.aaReduction(Forces.composition(a.forces))
-				Forces.applyDamage(a.forces, Forces.total(a.forces) * cfg.StrikeLoss * mul)
-			end
-		end
-		table.insert(st.strikes, { owner = n.id, cell = at, untilTime = m.simTime + cfg.StrikeSec })
 	elseif ability == "Surge" then
 		st.surgeUntil[n.id] = m.simTime + cfg.SurgeSec
 	elseif ability == "SeaLanding" or ability == "Airdrop" then

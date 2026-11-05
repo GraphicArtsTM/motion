@@ -18,6 +18,7 @@ export type Settings = {
 	startMoney: number,
 	fog: boolean, -- туман на карте (обзор как в 7а, границы видны)
 	diplomacy: boolean, -- false — только война и мир
+	boosts: boolean, -- бусты магазина и бонусы пропусков (§11.1)
 }
 
 local ServerSettings = {}
@@ -40,6 +41,7 @@ function ServerSettings.defaults(mapId: string): Settings
 		startMoney = cfg.StartMoney[1],
 		fog = false,
 		diplomacy = true,
+		boosts = true,
 	}
 end
 
@@ -78,6 +80,9 @@ function ServerSettings.parse(payload: any, currentMap: string): (Settings?, str
 	if table.find(cfg.StartMoney, payload.startMoney) == nil then
 		return nil, "bad money"
 	end
+	if payload.boosts ~= nil and type(payload.boosts) ~= "boolean" then
+		return nil, "bad flags"
+	end
 	if type(payload.fog) ~= "boolean" or type(payload.diplomacy) ~= "boolean" then
 		return nil, "bad flags"
 	end
@@ -90,6 +95,7 @@ function ServerSettings.parse(payload: any, currentMap: string): (Settings?, str
 		startMoney = payload.startMoney,
 		fog = payload.fog,
 		diplomacy = payload.diplomacy,
+		boosts = payload.boosts ~= false,
 	},
 		nil
 end
@@ -102,6 +108,7 @@ function ServerSettings.applyRules(rules: Modes.Rules, s: Settings): Modes.Rules
 		r.fog = true
 	end
 	r.diplomacy = s.diplomacy
+	r.boosts = r.boosts and s.boosts
 	return table.freeze(r)
 end
 

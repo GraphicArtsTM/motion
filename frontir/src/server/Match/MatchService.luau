@@ -30,6 +30,12 @@ local Modes = require(Shared:WaitForChild("Modes"))
 local Protocol = require(Shared:WaitForChild("Net"):WaitForChild("Protocol"))
 local RateLimiter = require(Shared:WaitForChild("RateLimiter"))
 local ServerSettings = require(Shared:WaitForChild("ServerSettings"))
+local Profile = require(Shared:WaitForChild("Profile"))
+local Shop = require(Shared:WaitForChild("Shop"))
+
+local Services = script.Parent.Parent:WaitForChild("Services")
+local ProfileStore = require(Services:WaitForChild("ProfileStore"))
+local ShopService = require(Services:WaitForChild("ShopService"))
 local Types = require(Shared:WaitForChild("Types"))
 
 type MapData = MapDataModule.MapData
@@ -175,6 +181,156 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		end
 	end
 
+	-- Профиль и магазин (§11.1, §11.2, этап 9а) ---------------------------------------------------------
+	local profiles = ProfileStore.new()
+	local shop: ShopService.ShopService
+	local rewards: { [Player]: { xp: number, medals: number, levels: number } } = {} -- итог последнего матча
+	local crateRng = Random.new() -- ящики (§11.3): только сервер
+
+	local function profileMessage(player: Player): { [string]: any }?
+		local session = profiles.get(player.UserId)
+		if session == nil then
+			return nil
+		end
+		local d = session.data
+		local level, into, need = Profile.levelOf(d.xp)
+		local passes = shop.passes(player)
+		local id = nationOf[player]
+		local now = os.time()
+		local packs: { [string]: boolean } = {}
+		for _, key in Shop.PackKeys do
+			packs[key] = Profile.packAvailable(d, key, now)
+		end
+		local per = Config.Season.XpPerTier
+		return {
+			kind = "profile",
+			level = level,
+			xp = into,
+			need = need,
+			medals = d.medals,
+			tokens = d.tokens,
+			matches = d.matches,
+			wins = d.wins,
+			stock = d.stock,
+			passes = passes,
+			premium = shop.premium(player),
+			unlocked = Profile.unlockedCommanders(d, passes.AllCommanders == true),
+			used = if id ~= nil then m.boostsUsed[id] or {} else {},
+			boosts = m.rules.boosts,
+			packs = packs,
+			reward = rewards[player],
+			-- Этап 9б (§11.3): ящики, пропуск, предложение недели — сроки настоящие (секунды до конца).
+			crates = d.crates,
+			pityLeft = Config.Crates.Pity - d.pity,
+			season = {
+				tier = Profile.seasonTier(d),
+				xp = d.seasonXp % per,
+				per = per,
+				premium = d.seasonPremium,
+				left = math.max(0, Config.Season.EndsUnix - now),
+			},
+			weekly = { offer = Shop.weeklyOffer(now), left = Shop.weekLeft(now) },
+			dailyStreak = d.dailyStreak,
+		}
+	end
+	local function sendProfile(player: Player)
+		local msg = profileMessage(player)
+		if msg ~= nil then
+			matchEvent:FireClient(player, msg)
+		end
+	end
+	-- Перки пассов и открытые генералы игрока — в текущий матч.
+	local function applyProfile(player: Player)
+		local id = nationOf[player]
+		local session = profiles.get(player.UserId)
+		if id == nil or session == nil then
+			return
+		end
+		local passes = shop.passes(player)
+		MatchSim.setPerks(m, id, Shop.perks(passes))
+		local open = Profile.unlockedCommanders(session.data, passes.AllCommanders == true)
+		MatchSim.setUnlocked(m, id, open)
+		local chosen = Commanders.of(m.commanders, id)
+		if chosen ~= nil and not open[chosen] and m.phase ~= "Play" then
+			Commanders.choose(m.commanders, id, "Marshal")
+			m.infoDirty = true
+		end
+	end
+	-- Буст из запаса (куплен за Robux) или за жетон (§11.1).
+	local function useBoost(player: Player, key: string, pay: string, cell: number?): (boolean, string?)
+		local id = nationOf[player]
+		local session = profiles.get(player.UserId)
+		if id == nil or session == nil then
+			return false, "dead"
+		end
+		local d = session.data
+		if pay == "stock" and (d.stock[key] or 0) <= 0 then
+			return false, "noStock"
+		end
+		if pay == "token" and d.tokens <= 0 then
+			return false, "noTokens"
+		end
+		if pay ~= "stock" and pay ~= "token" then
+			return false, "target"
+		end
+		local ok, why = MatchSim.useBoost(m, id, key, cell)
+		if not ok then
+			return false, why
+		end
+		if pay == "stock" then
+			d.stock[key] -= 1
+			if d.stock[key] <= 0 then
+				d.stock[key] = nil
+			end
+		else
+			d.tokens -= 1
+		end
+		sendProfile(player)
+		return true, nil
+	end
+	shop = ShopService.start(profiles, {
+		onStock = function(player: Player, key: string)
+			local id = nationOf[player]
+			-- Купил в бою — сразу в дело (кроме «Авиаудара»: ему нужна цель — останется в запасе).
+			if id ~= nil and key ~= "Airstrike" and MatchSim.canBoost(m, id, key) then
+				useBoost(player, key, "stock")
+			end
+		end,
+		onChanged = function(player: Player)
+			applyProfile(player)
+			sendProfile(player)
+		end,
+	})
+	-- Итог матча в профили (§11.2): опыт, медали, жетоны за уровни. Один раз на матч.
+	local rewardedSeed = 0
+	local function giveRewards()
+		local result = m.result
+		if result == nil or rewardedSeed == m.seed then
+			return
+		end
+		rewardedSeed = m.seed
+		local co: { [number]: boolean } = {}
+		local coWinners: { number } = result.coWinners or {}
+		for _, id in coWinners do
+			co[id] = true
+		end
+		for player, id in nationOf do
+			local session = profiles.get(player.UserId)
+			if session ~= nil then
+				local place = table.find(result.places, id) or #result.places
+				local won = id == result.winner or co[id] == true
+				local mul = MatchSim.perksOf(m, id).xpMul
+					* (if shop.premium(player) then Config.Profile.PremiumXpMul else 1)
+				local levelBefore = Profile.levelOf(session.data.xp)
+				local xp, medals =
+					Profile.applyMatch(session.data, place, MatchSim.citiesOf(m, id), won, mul, os.time())
+				rewards[player] = { xp = xp, medals = medals, levels = Profile.levelOf(session.data.xp) - levelBefore }
+				task.spawn(profiles.save, player.UserId)
+				sendProfile(player)
+			end
+		end
+	end
+
 	local function onPlayerAdded(player: Player)
 		if nationOf[player] ~= nil then
 			return
@@ -200,6 +356,20 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		if m.phase == "Play" then
 			sendSnapshot(player) -- опоздавший — зритель: видит всю карту
 		end
+		-- Профиль грузится в фоне (DataStore может ждать блокировку сессии).
+		task.spawn(function()
+			local session = profiles.load(player.UserId)
+			shop.loadPasses(player)
+			if player.Parent ~= nil then
+				applyProfile(player)
+				-- Ежедневная награда за вход (§11.3).
+				local streak, reward = Profile.claimDaily(session.data, Profile.dayOf(os.time()))
+				if streak ~= nil then
+					matchEvent:FireClient(player, { kind = "daily", streak = streak, reward = reward })
+				end
+				sendProfile(player)
+			end
+		end)
 	end
 
 	Players.PlayerAdded:Connect(onPlayerAdded)
@@ -214,6 +384,9 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		end
 		nationOf[player] = nil
 		limiters[player] = nil
+		rewards[player] = nil
+		shop.forget(player)
+		task.spawn(profiles.release, player.UserId)
 	end)
 
 	intentEvent.OnServerEvent:Connect(function(player: Player, kind: any, payload: any)
@@ -240,6 +413,40 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			else
 				sendInfoAll()
 			end
+			return
+		end
+		-- Буст магазина (§11.1): из запаса (куплен за Robux) или за жетон штаба.
+		if kind == "boost" then
+			local key = if type(payload) == "table" then payload.key else nil
+			local pay = if type(payload) == "table" then payload.pay else nil
+			local cell = if type(payload) == "table" then payload.cell else nil
+			if not Shop.isBoost(key) or type(pay) ~= "string" then
+				return
+			end
+			if cell ~= nil and (type(cell) ~= "number" or cell ~= math.floor(cell) or cell < 0) then
+				return
+			end
+			local ok, why = useBoost(player, key, pay, cell)
+			if not ok then
+				matchEvent:FireClient(player, { kind = "rejected", reason = why or "?", intent = "boost" })
+			end
+			return
+		end
+		-- Ящик снабжения (§11.3): открывает сервер своим генератором случайных чисел.
+		if kind == "openCrate" then
+			local session = profiles.get(player.UserId)
+			if session == nil then
+				return
+			end
+			local key, unit, reward = Profile.openCrate(session.data, function(n: number): number
+				return crateRng:NextInteger(1, n)
+			end)
+			if key == nil then
+				matchEvent:FireClient(player, { kind = "rejected", reason = "noCrates", intent = "openCrate" })
+				return
+			end
+			matchEvent:FireClient(player, { kind = "crate", key = key, unit = unit, reward = reward })
+			sendProfile(player)
 			return
 		end
 		if kind == "sync" then
@@ -350,6 +557,20 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 					m.forcedMode = devMode
 				end
 				matchEvent:FireClient(player, { kind = "dev", mode = devMode })
+			elseif action == "tokens" or action == "xp" then
+				-- Профиль (§11.2): жетоны штаба и опыт для проверки магазина и генералов по уровням.
+				local session = profiles.get(player.UserId)
+				if session == nil then
+					ok, reason = false, "target"
+				else
+					if action == "tokens" then
+						session.data.tokens += Config.Dev.GrantTokens
+					else
+						Profile.addXp(session.data, Config.Dev.GrantXp)
+					end
+					applyProfile(player)
+					sendProfile(player)
+				end
 			elseif action == "flood" then
 				ok, reason = DevTools.floodNow(m)
 			elseif action == "map" then
@@ -381,7 +602,13 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			end
 		end
 		MatchSim.startLobby(m)
+		for player in nationOf do
+			applyProfile(player)
+		end
 		sendInfoAll()
+		for player in nationOf do
+			sendProfile(player)
+		end
 		print(string.format("[Frontir] новый матч, сид %d, карта %s", m.seed, map.name))
 	end
 
@@ -466,6 +693,9 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			local t0 = os.clock()
 			MatchSim.step(m, step)
 			lastTickMs = (os.clock() - t0) * 1000
+			if wasPlaying and m.phase == "Over" then
+				giveRewards() -- опыт и медали за матч (§11.2)
+			end
 
 			-- info — не чаще Net.InfoMinSec (смена фазы — сразу): выбывания подряд уходят одним сообщением.
 			local phaseChanged = m.phase ~= infoPhase

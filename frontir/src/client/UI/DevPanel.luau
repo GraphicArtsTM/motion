@@ -298,6 +298,13 @@ function DevPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang): DevP
 	local modeButton = button(string.format(Strings.get("dev.mode", lang), "—"), function()
 		fire("mode", nil)
 	end)
+	-- Этап 9а: профиль — жетоны штаба и опыт (§11.2).
+	button(string.format(Strings.get("dev.tokens", lang), Config.Dev.GrantTokens), function()
+		fire("tokens", nil)
+	end)
+	button(string.format(Strings.get("dev.xp", lang), Config.Dev.GrantXp), function()
+		fire("xp", nil)
+	end)
 	-- Этап 8в: «Потоп» — ступень воды сейчас (§5.3).
 	button(Strings.get("dev.flood", lang), function()
 		fire("flood", nil)

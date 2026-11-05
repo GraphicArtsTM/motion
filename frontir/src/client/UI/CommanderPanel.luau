@@ -114,7 +114,7 @@ function CommanderPanel.new(
 	pickTitle.TextXAlignment = Enum.TextXAlignment.Center
 	pickTitle.TextColor3 = Theme.Colors.Gold
 	pickTitle.Text = Strings.get("commander.pick", lang)
-	local cards: { [string]: { button: TextButton, edge: UIStroke } } = {}
+	local cards: { [string]: { button: TextButton, edge: UIStroke, lock: TextLabel } } = {}
 	for k, raw in Types.CommanderIds do
 		local id: Types.CommanderId = raw :: any
 		local b = Instance.new("TextButton")
@@ -142,7 +142,17 @@ function CommanderPanel.new(
 			Strings.get("ability." .. Commanders.ability(id, 2), lang)
 		)
 		b.Parent = picker
-		cards[id] = { button = b, edge = edge }
+		-- Замок (§11.2): генерал откроется на уровне N или пассом «Все генералы».
+		local lock = text(b, 12, true)
+		lock.AnchorPoint = Vector2.new(1, 0)
+		lock.Position = UDim2.new(1, -6, 0, 6)
+		lock.Size = UDim2.fromOffset(90, 16)
+		lock.TextXAlignment = Enum.TextXAlignment.Right
+		lock.TextColor3 = Theme.Colors.Alert
+		lock.Text =
+			string.format(Strings.get("commander.locked", lang), (Config.Profile.CommanderLevels :: any)[id] or 1)
+		lock.Visible = false
+		cards[id] = { button = b, edge = edge, lock = lock }
 		Session.connect(b.Activated, function()
 			if choosing() then
 				send("commander", { commander = id })
@@ -327,9 +337,13 @@ function CommanderPanel.new(
 		picker.Visible = choosing()
 		if picker.Visible then
 			local mine = ClientState.myCommander(cs)
+			local profile = cs.profile
 			for id, c in cards do
 				c.edge.Color = if id == mine then Theme.Colors.Gold else Theme.Colors.PanelBorder
 				c.edge.Thickness = if id == mine then 2 else Theme.BorderPx
+				local locked = profile ~= nil and not profile.unlocked[id]
+				c.lock.Visible = locked
+				c.button.BackgroundTransparency = if locked then 0.5 else 0.05
 			end
 		end
 		bar.Visible = playing()

@@ -65,6 +65,32 @@ export type Info = {
 
 export type ServerInfo = { settings: ServerSettings.Settings, isOwner: boolean }
 
+-- Профиль игрока (§11.2, этап 9а): сообщение profile от сервера.
+export type ProfileInfo = {
+	kind: "profile",
+	level: number,
+	xp: number, -- опыта внутри уровня
+	need: number, -- до следующего уровня
+	medals: number,
+	tokens: number,
+	matches: number,
+	wins: number,
+	stock: { [string]: number }, -- бусты в запасе
+	passes: { [string]: boolean },
+	premium: boolean,
+	unlocked: { [string]: boolean }, -- открытые генералы
+	used: { [string]: boolean }, -- бусты, взятые в этом матче
+	boosts: boolean, -- бусты в этом матче разрешены
+	packs: { [string]: boolean }, -- какие наборы можно купить
+	reward: { xp: number, medals: number, levels: number }?, -- итог последнего матча
+	-- Этап 9б (§11.3)
+	crates: number,
+	pityLeft: number, -- через сколько ящиков гарантированный джекпот
+	season: { tier: number, xp: number, per: number, premium: boolean, left: number },
+	weekly: { offer: { stock: { [string]: number }, crates: number, tokens: number }, left: number },
+	dailyStreak: number,
+}
+
 export type MapVoteInfo = { options: { string }, counts: { number }, myVote: string? }
 
 -- Договоры (§8.1) глазами клиента: сообщение diplo. Сроки — в секундах игрового времени от момента отправки.
@@ -176,6 +202,7 @@ export type ClientState = {
 	flood: { step: number, nextIn: number }?, -- «Потоп» (§5.3)
 	floodAt: number, -- когда пришла ступень (часы клиента)
 	server: ServerInfo?, -- частный сервер (§5.4): настройки и владелец ли я
+	profile: ProfileInfo?, -- профиль (§11.2)
 	rules: Modes.Rules,
 	speed: number, -- темп игрового времени: Match.Speed × режим («Блиц» — ×2)
 }
@@ -263,6 +290,7 @@ function ClientState.new(width: number, height: number): ClientState
 		flood = nil,
 		floodAt = 0,
 		server = nil,
+		profile = nil,
 		rules = Modes.rules("Ffa"),
 		speed = Config.Match.Speed,
 		stability = ClientState.emptyStability(),

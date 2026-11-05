@@ -91,6 +91,102 @@ Config.PrivateServer = {
 	BotLevels = { "Mix", "Novice", "Normal", "General" }, -- Mix — по Bots.LevelMix
 }
 
+-- §11.2 Профиль и уровни (этап 9а).
+Config.Profile = {
+	Version = 1,
+	StoreName = "FrontirProfile_v1", -- DataStore профилей
+	AutosaveSec = 60,
+	LockStaleSec = 1800, -- блокировка сессии старше — сервер упал, забираем
+	LockRetrySec = 3, -- чужая живая блокировка — повторить через
+	LockRetries = 5,
+	PurchaseLog = 50, -- сколько последних id покупок помнить (продукт не начислится дважды)
+	XpBase = 300, -- опыта до 2-го уровня
+	XpGrowth = 1.15, -- каждый следующий уровень — во столько раз дороже
+	MaxLevel = 100,
+	XpPlay = 60, -- за участие в матче
+	XpPlace = { 220, 140, 90 }, -- за 1-е, 2-е, 3-е место
+	XpPerCity = 4, -- за каждый город державы к концу матча
+	XpWin = 120, -- бонус за победу (и совместную)
+	MedalShare = 1 / 3, -- медалей — доля опыта
+	PremiumXpMul = 1.1, -- Roblox Premium
+	TokenEveryLevels = 2, -- жетон штаба за каждые столько уровней
+	-- Генералы по уровню (§11.2); «Все генералы» — сразу.
+	CommanderLevels = { Marshal = 1, Engineer = 3, Admiral = 6, Scout = 10 },
+}
+
+-- §11.1 Магазин (этап 9а). id — на сайте Roblox (0 — товар ещё не создан: кнопка «скоро»), price — Robux для подписи.
+Config.Shop = {
+	MaxEdge = 0.15, -- потолок платного преимущества в матче (тест сверяет каждый эффект)
+	Passes = {
+		HQ = { id = 0, price = 399, recruitLines = 1, incomeMul = 1.05 },
+		Intel = { id = 0, price = 249, intelCostMul = 0.5, intelDurationSec = 120 },
+		Vip = { id = 0, price = 299, xpMul = 1.5 },
+		AllCommanders = { id = 0, price = 199 },
+	},
+	Boosts = {
+		Mobilize = { id = 0, price = 49, garrisonShare = 0.15 },
+		Loan = { id = 0, price = 39, money = 2000 },
+		Research = { id = 0, price = 29 },
+		Reserve = { id = 0, price = 25 },
+		-- Платные части (этап 9б, §11.3).
+		Guards = { id = 0, price = 59, powerShare = 0.12, minStrength = 400, xp = 3 }, -- танки 2★ (Forces.StarXp)
+		Airstrike = { id = 0, price = 45, frontLoss = 0.15 }, -- по клетке; радиус — Commanders.StrikeRadius
+		Squadron = { id = 0, price = 49 }, -- эсминец и транспорт у своего порта
+		AirWing = { id = 0, price = 49 }, -- истребитель и бомбардировщик у своего аэродрома
+	},
+	Packs = {
+		Recruit = { id = 0, price = 99, tokens = 3, medals = 1500, maxLevel = 10, once = true },
+		Medals = { id = 0, price = 79, medals = 2000, tokens = 0 },
+		Tokens = { id = 0, price = 99, tokens = 3, medals = 0 },
+		-- Этап 9б (§11.3): ящики, пропуск сезона, предложение недели.
+		Crate1 = { id = 0, price = 49, crates = 1, tokens = 0, medals = 0 },
+		Crate5 = { id = 0, price = 199, crates = 5, tokens = 0, medals = 0 },
+		SeasonPass = { id = 0, price = 499, season = true, tokens = 0, medals = 0 },
+		Weekly = { id = 0, price = 149, weekly = true, tokens = 0, medals = 0 },
+	},
+	-- Предложение недели (§11.3): по номеру недели UTC по кругу; дешевле, чем по отдельности.
+	WeeklyOffers = {
+		{ stock = { Guards = 1, Airstrike = 1 }, crates = 1, tokens = 0 },
+		{ stock = { Squadron = 1, AirWing = 1 }, crates = 1, tokens = 0 },
+		{ stock = { Guards = 1, AirWing = 1 }, crates = 0, tokens = 2 },
+		{ stock = { Airstrike = 1, Mobilize = 1 }, crates = 2, tokens = 0 },
+	} :: { { stock: { [string]: number }, crates: number, tokens: number } },
+}
+
+-- §11.3 Боевой пропуск сезона (этап 9б): опыт за матчи → ступени; бесплатная и премиум-дорожки (Season.reward).
+Config.Season = {
+	Id = 1,
+	EndsUnix = 1799020800, -- 2027-01-04 00:00 UTC (понедельник) — конец сезона 1
+	Tiers = 30,
+	XpPerTier = 400,
+}
+
+-- §11.3 Ящики снабжения: веса наград (шансы видны в окне до покупки) и гарантия джекпота.
+Config.Crates = {
+	Pity = 10, -- не позже этого ящика подряд без джекпота — джекпот
+	Table = {
+		{ key = "medalsS", weight = 40, medals = 300, tokens = 0 },
+		{ key = "medalsM", weight = 15, medals = 800, tokens = 0 },
+		{ key = "token", weight = 20, medals = 0, tokens = 1 },
+		{ key = "unit", weight = 20, medals = 0, tokens = 0 }, -- платная часть в запас (любая)
+		{ key = "jackpot", weight = 5, medals = 2000, tokens = 5 },
+	},
+}
+
+-- §11.3 Ежедневная награда за вход (7 дней подряд) и первая победа дня.
+Config.Daily = {
+	Rewards = {
+		{ medals = 150, tokens = 0, crates = 0 },
+		{ medals = 200, tokens = 0, crates = 0 },
+		{ medals = 0, tokens = 1, crates = 0 },
+		{ medals = 300, tokens = 0, crates = 0 },
+		{ medals = 0, tokens = 1, crates = 0 },
+		{ medals = 400, tokens = 0, crates = 0 },
+		{ medals = 0, tokens = 0, crates = 1 },
+	},
+	FirstWinMul = 2, -- опыт за первую победу дня
+}
+
 -- §5.2 Голосование за карту (этап 8б): на экране итогов — текущая и Options − 1 случайных из пула.
 Config.MapVote = {
 	Options = 3,
@@ -382,6 +478,8 @@ Config.Dev = {
 	GrantPeople = 5000,
 	GrantMoney = 50000,
 	GrantOil = 2000,
+	GrantTokens = 3, -- «+3 жетона» (этап 9а)
+	GrantXp = 2000, -- «+опыт» (этап 9а)
 	FastSpeed = 5, -- «Время ×5»
 	EndLeadSec = 5, -- «К концу матча»: до лимита времени остаётся столько секунд
 	StabilityLow = 10, -- «Стабильность 10»: свои провинции сразу на это значение

@@ -24,6 +24,7 @@ export type Rules = {
 	duel: boolean, -- «Дуэль» (§5.2): без ботов, 2×2 — две команды
 	flood: boolean, -- «Потоп» (§5.3): вода поднимается по ступеням
 	diplomacy: boolean, -- false — только война и мир (частный сервер, §5.4)
+	boosts: boolean, -- бусты магазина и бонусы пропусков (§11.1); в «Дуэли» — нет
 }
 
 local Modes = {}
@@ -48,6 +49,7 @@ function Modes.rules(id: ModeId): Rules
 		duel = false,
 		flood = false,
 		diplomacy = true,
+		boosts = true,
 	}
 	if id == "Teams" then
 		r.teams = true
@@ -68,6 +70,7 @@ function Modes.rules(id: ModeId): Rules
 	elseif id == "Duel" then
 		local duel = cfg.Duel
 		r.duel = true
+		r.boosts = false -- рейтинговая дуэль — без платных преимуществ (§11.1)
 		r.victoryShare = duel.VictoryShare
 		r.timeLimitSec = duel.TimeLimitSec
 		r.speed = duel.Speed
