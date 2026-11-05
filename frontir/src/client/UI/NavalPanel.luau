@@ -201,10 +201,12 @@ function NavalPanel.new(
 		status.TextColor3 = if blocked then Theme.Colors.Alert else Theme.Colors.Muted
 		local function hireText(kind: string): string
 			local stats = (Config.Units :: any)[kind]
+			-- «Верфи» (§6.14): корабли дешевле; цену считает сервер, здесь — та же формула.
+			local cost = stats.cost * (if cs.tech.levels.Fleet >= 1 then 1 - Config.Tech.ShipyardDiscount else 1)
 			return string.format(
 				Strings.get("naval.hire", lang),
 				Strings.get("ship." .. kind, lang),
-				Strings.formatInt(stats.cost),
+				Strings.formatInt(cost),
 				Strings.formatInt(stats.oil)
 			)
 		end

@@ -891,6 +891,14 @@ function MatchHud.new(
 				else
 					toast(string.format(Strings.get(if e.on then "event.blockade" else "event.blockadeOff", lang), a))
 				end
+			-- Технологии (§6.14): только свои.
+			elseif e.kind == "researched" and e.nation == cs.myNation then
+				toast(
+					string.format(
+						Strings.get("event.researched", lang),
+						Strings.get("tech." .. tostring(e.branch) .. "." .. tostring(e.level), lang)
+					)
+				)
 			-- Авиация (§6.13).
 			elseif e.kind == "planeBuilt" and e.nation == cs.myNation then
 				toast(

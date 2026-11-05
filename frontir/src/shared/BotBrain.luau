@@ -100,7 +100,11 @@ export type BotView = {
 	stability: number?, -- средняя стабильность своих провинций (§6.10, этап 7а)
 	navy: NavyView?, -- флот (§6.12, этап 7б-1)
 	air: AirView?, -- авиация (§6.13, этап 7б-2)
+	tech: TechView?, -- технологии (§6.14, этап 7в-1)
 }
+
+-- Технологии бота (§6.14): изученные уровни веток и идёт ли исследование.
+export type TechView = { Army: number, Economy: number, Fleet: number, researching: boolean }
 
 -- Авиация бота (§6.13): что есть и куда бомбить — подбирает MatchSim (цель — лениво).
 export type AirView = {
@@ -178,6 +182,7 @@ export type Memory = {
 export type Profile = {
 	level: Types.BotLevelParams,
 	personality: Types.BotPersonalityParams,
+	personalityName: Types.BotPersonality?, -- для порядка технологий (Config.Tech.BotOrder)
 }
 
 local BotBrain = {}
@@ -187,9 +192,11 @@ function BotBrain.newMemory(): Memory
 end
 
 function BotBrain.profile(level: Types.BotLevel?, personality: Types.BotPersonality?): Profile
+	local name: Types.BotPersonality = personality or "Admiral"
 	return {
 		level = Config.BotLevels[level or "Normal"] or Config.BotLevels.Normal,
-		personality = Config.BotPersonalities[personality or "Admiral"] or Config.BotPersonalities.Admiral,
+		personality = Config.BotPersonalities[name] or Config.BotPersonalities.Admiral,
+		personalityName = name,
 	}
 end
 
@@ -451,6 +458,98 @@ local function airDecision(view: BotView, p: Profile, rng: Rng): Types.Intent?
 	return nil
 end
 
+-- Технологии (§6.14): какую ветку бот хочет следующей — по порядку личности (Генерал — по своей очереди),
+-- Новичок — случайно. Деньги не проверяет. Возвращает ветку и цену её следующего уровня.
+local function techWanted(view: BotView, p: Profile, rng: Rng?): (string?, number)
+	local tech = view.tech
+	if tech == nil or tech.researching then
+		return nil, 0
+	end
+	local cfg = Config.Tech
+	local function nextLevel(branch: string): number?
+		local level = (tech :: any)[branch] + 1
+		local locked = (cfg.Locked :: any)[branch]
+		if level > #cfg.Cost or (locked ~= nil and level >= locked) then
+			return nil
+		end
+		return level
+	end
+	local branch: string? = nil
+	if p.level.randomTarget then
+		if rng == nil then
+			return nil, 0
+		end
+		local open: { string } = {}
+		for _, b in { "Army", "Economy", "Fleet" } do
+			if nextLevel(b) ~= nil then
+				table.insert(open, b)
+			end
+		end
+		if #open > 0 then
+			branch = open[Rng.range(rng, 1, #open)]
+		end
+	elseif p.level.smartTarget then
+		-- Очередь Генерала: первая запись, уровень которой ещё не изучен.
+		local seen: { [string]: number } = {}
+		for _, b: string in cfg.GeneralOrder do
+			seen[b] = (seen[b] or 0) + 1
+			if nextLevel(b) == seen[b] then
+				branch = b
+				break
+			end
+		end
+	else
+		local order: { string } = (cfg.BotOrder :: any)[p.personalityName or ""] or { "Army", "Economy", "Fleet" }
+		for _, b in order do
+			if nextLevel(b) ~= nil then
+				branch = b
+				break
+			end
+		end
+	end
+	if branch == nil then
+		return nil, 0
+	end
+	return branch, cfg.Cost[nextLevel(branch) :: number]
+end
+
+-- Технология, которую бот начнёт сейчас: желаемая ветка, если хватает денег с запасом уровня.
+function BotBrain.techChoice(view: BotView, p: Profile, rng: Rng): Types.TechBranch?
+	local branch, cost = techWanted(view, p, rng)
+	if branch == nil or view.money < cost + p.level.buildReserve then
+		return nil
+	end
+	return branch :: any
+end
+
+-- Копилка на технологию (§6.14): в мире бот (не Новичок) не тратит на найм деньги следующего уровня.
+function BotBrain.techSavings(view: BotView, p: Profile): number
+	if p.level.randomTarget then
+		return 0
+	end
+	if #view.wars > 0 then
+		return 0 -- война или мобилизация: деньги — на войска
+	end
+	local _, cost = techWanted(view, p, nil)
+	return cost * Config.Tech.BotSaveShare
+end
+
+local function techDecision(view: BotView, p: Profile, rng: Rng): Types.Intent?
+	if view.tech == nil then
+		return nil
+	end
+	local chance = Config.Tech.BotChance * (if p.level.randomTarget then 0.3 else 1)
+	if Rng.nextFloat(rng) >= chance then
+		return nil
+	end
+	local branch = BotBrain.techChoice(view, p, rng)
+	if branch == nil then
+		return nil
+	end
+	local intent: Types.ResearchIntent = { kind = "research", branch = branch :: Types.TechBranch }
+	return intent
+end
+
 -- Оценка цели войны (Генерал, §9.1): перевес, длина границы, враг отвлечён, лидер, добыча.
 function BotBrain.targetScore(
 	n: Neighbour,
@@ -657,7 +756,7 @@ BotBrain.diplomacy = diplomacy
 
 -- Отдельные потоки случайных чисел бота для флота, авиации и дипломатии (§12): новые решения в этих системах
 -- не сдвигают числа главных решений. Без них всё берётся из rng (тесты).
-export type Streams = { navy: Rng?, air: Rng?, diplo: Rng? }
+export type Streams = { navy: Rng?, air: Rng?, diplo: Rng?, tech: Rng? }
 
 function BotBrain.decide(view: BotView, rng: Rng, profile: Profile?, memory: Memory?, streams: Streams?): Types.Intent?
 	local p = profile or BotBrain.profile(nil, nil)
@@ -705,6 +804,10 @@ function BotBrain.decide(view: BotView, rng: Rng, profile: Profile?, memory: Mem
 	if airIntent ~= nil then
 		return airIntent
 	end
+	local techIntent = techDecision(view, p, if streams ~= nil and streams.tech ~= nil then streams.tech else rng)
+	if techIntent ~= nil then
+		return techIntent
+	end
 
 	local frontPercent = math.clamp(level.frontPercent * personality.front, 0.1, 0.9)
 	local send = view.power * frontPercent
@@ -722,11 +825,12 @@ function BotBrain.decide(view: BotView, rng: Rng, profile: Profile?, memory: Mem
 	then
 		local enemyMix = if enemy ~= nil then enemy.mix else nil
 		local unit: Types.LandUnit = chooseUnit(view, p, rng, enemyMix)
+		local savings = BotBrain.techSavings(view, p)
 		local function affordable(u: Types.LandUnit): boolean
 			local stats = Forces.stats(Forces.kindIndex(u) :: number)
 			local net = view.economy.income - view.economy.upkeep
 			return view.people >= stats.people
-				and view.money >= stats.cost
+				and view.money >= stats.cost + savings
 				and view.oil >= stats.oil
 				and net >= Economy.upkeep(stats.strength)
 		end

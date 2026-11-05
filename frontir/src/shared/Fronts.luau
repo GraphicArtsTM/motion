@@ -28,6 +28,7 @@ export type Defense = {
 	share: number, -- доля гарнизона на этом фронте (0..1); котёл защитника её уменьшает
 	counter: Forces?, -- войска встречного фронта защитника на этой границе
 	bonus: number?, -- множитель обороны (укреплённая линия, §6.9)
+	armor: number?, -- защита танков защитника × (технология «Тяжёлая броня», §6.14)
 }
 
 export type BattleResult = {
@@ -60,7 +61,8 @@ function Fronts.supplied(
 	cities: { number },
 	attacker: number,
 	front: { number },
-	friends: { [number]: boolean }?
+	friends: { [number]: boolean }?,
+	rangeMul: number? -- технология «Снабжение» (§6.14): дальность ×
 ): boolean
 	if #front == 0 then
 		return true
@@ -76,7 +78,7 @@ function Fronts.supplied(
 	if #mine == 0 then
 		return false
 	end
-	local range = Config.Combat.SupplyRange * w / Config.UnitsReferenceMapWidth
+	local range = Config.Combat.SupplyRange * w / Config.UnitsReferenceMapWidth * (rangeMul or 1)
 	local sum, n = 0, 0
 	for _, i in sample(front, Config.Combat.SupplySamples) do
 		local best = math.huge
@@ -141,8 +143,8 @@ function Fronts.battle(
 	end
 
 	local attackPower = Forces.power(attack.forces, defenders, "attack") * supplyMul
-	local homeDef = Forces.power(defense.home, attack.forces, "defense") * defense.share
-	local counterDef = if counter ~= nil then Forces.power(counter, attack.forces, "defense") else 0
+	local homeDef = Forces.power(defense.home, attack.forces, "defense", defense.armor) * defense.share
+	local counterDef = if counter ~= nil then Forces.power(counter, attack.forces, "defense", defense.armor) else 0
 	local defensePower = (homeDef + counterDef) * cfg.DefenderHomeBonus * terrainDef * (defense.bonus or 1)
 
 	local fighting = defensePower > 0

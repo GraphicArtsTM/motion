@@ -16,6 +16,8 @@
 	- botLanding: выбранный бот (война сразу) получает порт, транспорт и войска и высаживается на ваш берег.
 	- airForce: аэродром в своей провинции (если нет), истребитель и бомбардировщик (§6.13, этап 7б-2).
 	- botRaid: выбранный бот (война сразу) получает аэродром и бомбардировщик и бомбит ваш фронт или город.
+	- researchAll: все доступные уровни трёх веток сразу (закрытые до этапа 7г — нет) (§6.14, этап 7в-1).
+	- finishResearch: текущее исследование заканчивается на следующем шаге (событие в ленте как обычно).
 	Ускорение времени — в MatchService (шагов симуляции за кадр больше).
 ]]
 
@@ -29,6 +31,7 @@ local MapData = require("./MapData")
 local Forces = require("./Forces")
 local MatchSim = require("./MatchSim")
 local Stability = require("./Stability")
+local Tech = require("./Tech")
 local Types = require("./Types")
 local Wars = require("./Wars")
 
@@ -296,6 +299,32 @@ function DevTools.botRaid(m: Match, bot: number, player: number): (boolean, stri
 	end
 	Air.spawn(m.air, m.grid.width, bot, "Bomber", airfield)
 	return MatchSim.applyIntent(m, bot, { kind = "raid", cell = target })
+end
+
+function DevTools.researchAll(m: Match, id: number): (boolean, string?)
+	local n = m.nations[id]
+	if n == nil or not n.alive then
+		return false, "dead"
+	end
+	m.tech.research[id] = nil
+	for _, b in Tech.Branches do
+		local branch: Tech.Branch = b :: any
+		for level = 1, #Config.Tech.Cost do
+			if not Tech.isLocked(branch, level) then
+				Tech.grant(m.tech, id, branch, level)
+			end
+		end
+	end
+	return true, nil
+end
+
+function DevTools.finishResearch(m: Match, id: number): (boolean, string?)
+	local r = m.tech.research[id]
+	if r == nil then
+		return false, "noResearch"
+	end
+	r.left = 0
+	return true, nil
 end
 
 return table.freeze(DevTools)

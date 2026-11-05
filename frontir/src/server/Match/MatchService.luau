@@ -236,6 +236,10 @@ function MatchService.start(map: MapData)
 				ok, reason = DevTools.airForce(m, id)
 			elseif action == "botRaid" and target ~= nil then
 				ok, reason = DevTools.botRaid(m, target, id)
+			elseif action == "researchAll" then
+				ok, reason = DevTools.researchAll(m, id)
+			elseif action == "finishResearch" then
+				ok, reason = DevTools.finishResearch(m, id)
 			else
 				ok, reason = false, "target"
 			end
@@ -288,6 +292,9 @@ function MatchService.start(map: MapData)
 		for _, player in Players:GetPlayers() do
 			local id = nationOf[player]
 			matchEvent:FireClient(player, MatchStats.stability(m, id))
+			if id ~= nil then
+				matchEvent:FireClient(player, MatchStats.tech(m, id)) -- технологии (§6.14) — тем же темпом
+			end
 		end
 	end
 

@@ -60,6 +60,7 @@ export type Context = {
 	atWar: (nation: number) -> boolean,
 	weariness: (nation: number) -> number, -- 0..0.5 (Wars.weariness)
 	traitor: (nation: number) -> boolean,
+	bonus: ((nation: number) -> number)?, -- прибавка к целевой (технология «Порядок», §6.14)
 }
 
 export type Revolt = { province: number, owner: number }
@@ -125,6 +126,9 @@ function Stability.target(ctx: Context, p: number, owner: number, capturedAt: nu
 	end
 	if ctx.traitor(owner) then
 		value += cfg.Traitor
+	end
+	if ctx.bonus ~= nil then
+		value += ctx.bonus(owner)
 	end
 	local city = ctx.cityOf[p]
 	if city ~= nil and Grid.getOwner(ctx.grid, city) == owner then

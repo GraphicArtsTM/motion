@@ -85,6 +85,11 @@ T.describe("Strings", function()
 				"occupied",
 				"needOil",
 				"notOwner",
+				"researching",
+				"techMaxed",
+				"techLocked",
+				"needTech",
+				"noResearch",
 			}
 		do
 			T.expect(Strings.Table["reject." .. reason] ~= nil).toBe(true)

@@ -72,6 +72,13 @@ export type StabilityMessage = {
 	rebelLeft: { number }, -- …и сколько им осталось
 }
 
+-- Технологии (§6.14, этап 7в-1): свои уровни веток и текущее исследование (осталось — игровые секунды).
+export type TechMessage = {
+	kind: "tech",
+	levels: { Army: number, Economy: number, Fleet: number },
+	research: { branch: Types.TechBranch, level: number, left: number, total: number }?,
+}
+
 export type ApplyResult = "snapshot" | "delta" | "stats" | "forces" | "wars" | "ships" | "air" | "partial" | "ignored"
 
 export type ClientState = {
@@ -110,6 +117,7 @@ export type ClientState = {
 	air: Protocol.AirMessage, -- самолёты в обзоре, выведенные из строя здания, своя очередь (§6.13)
 	airAt: number,
 	rebelSet: { [number]: boolean }, -- провинции повстанцев (из stability)
+	tech: TechMessage, -- свои технологии (§6.14)
 }
 
 local ClientState = {}
@@ -164,7 +172,12 @@ function ClientState.new(width: number, height: number): ClientState
 		shipsAt = 0,
 		air = { planes = {}, disabled = {}, queue = {} },
 		airAt = 0,
+		tech = ClientState.emptyTech(),
 	}
+end
+
+function ClientState.emptyTech(): TechMessage
+	return { kind = "tech", levels = { Army = 0, Economy = 0, Fleet = 0 }, research = nil }
 end
 
 function ClientState.emptyStability(): StabilityMessage
@@ -211,6 +224,7 @@ function ClientState.applyInfo(cs: ClientState, info: Info, now: number): boolea
 			cs.rebelSet = {}
 			cs.ships = { ships = {}, blocked = {}, queue = {} }
 			cs.air = { planes = {}, disabled = {}, queue = {} }
+			cs.tech = ClientState.emptyTech()
 			colorsChanged = true
 		end
 		cs.matchId = info.matchId
@@ -532,6 +546,32 @@ function ClientState.applyStability(cs: ClientState, msg: any): { number }
 	end
 	cs.rebelSet = fresh
 	return changed
+end
+
+-- Технологии (сообщение tech). Неверное сообщение не меняет состояние.
+function ClientState.applyTech(cs: ClientState, msg: any)
+	if type(msg) ~= "table" or type(msg.levels) ~= "table" then
+		return
+	end
+	local function lvl(v: any): number
+		return if type(v) == "number" then math.clamp(math.floor(v), 0, #Config.Tech.Cost) else 0
+	end
+	local r = msg.research
+	local research = nil
+	if
+		type(r) == "table"
+		and (r.branch == "Army" or r.branch == "Economy" or r.branch == "Fleet")
+		and type(r.level) == "number"
+		and type(r.left) == "number"
+		and type(r.total) == "number"
+	then
+		research = { branch = r.branch, level = r.level, left = r.left, total = r.total }
+	end
+	cs.tech = {
+		kind = "tech",
+		levels = { Army = lvl(msg.levels.Army), Economy = lvl(msg.levels.Economy), Fleet = lvl(msg.levels.Fleet) },
+		research = research,
+	}
 end
 
 -- Выведено ли здание в клетке из строя налётом (§6.13).

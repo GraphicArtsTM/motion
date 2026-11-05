@@ -236,6 +236,7 @@ export type Intent =
 	| PlaneIntent
 	| RaidIntent
 	| CoverIntent
+	| ResearchIntent
 
 -- Боты v2 (§9.1): уровни и личности. Списки — для перебора и проверки имён.
 export type BotLevel = "Novice" | "Normal" | "General"
@@ -312,6 +313,9 @@ export type PlaneKind = "Fighter" | "Bomber"
 export type PlaneIntent = { kind: "plane", plane: PlaneKind, airfield: number } -- нанять самолёт на аэродроме
 export type RaidIntent = { kind: "raid", cell: number } -- налёт бомбардировщика на клетку
 export type CoverIntent = { kind: "cover", plane: number, cell: number } -- точка прикрытия истребителя
+-- Технологии (§6.14, этап 7в-1).
+export type TechBranch = "Army" | "Economy" | "Fleet"
+export type ResearchIntent = { kind: "research", branch: TechBranch } -- исследовать следующий уровень ветки
 
 export type Phase = "Waiting" | "Lobby" | "Pick" | "Play" | "Over"
 

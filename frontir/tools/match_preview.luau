@@ -30,6 +30,7 @@ local MapPaint = require("../src/shared/MapPaint")
 local MatchSim = require("../src/shared/MatchSim")
 local MatchStats = require("../src/shared/Net/MatchStats")
 local Stability = require("../src/shared/Stability")
+local Tech = require("../src/shared/Tech")
 local MinimapPaint = require("../src/shared/MinimapPaint")
 local TerritoryPaint = require("../src/shared/TerritoryPaint")
 local NationColors = require("../src/shared/NationColors")
@@ -80,6 +81,8 @@ local naval = { built = 0, sunk = 0, landed = 0, landedEnemy = 0, blockades = 0 
 local air = { built = 0, shot = 0, raids = 0, lost = 0, buildings = 0 }
 local revolts: { [number]: number } = {}
 local revoltLog: { string } = {}
+local researchLog: { string } = {} -- первые изученные технологии (§6.14)
+local researched = 0
 for _ = 1, math.floor(seconds * Config.Sim.TickRate) do
 	MatchSim.step(m, dt)
 	if m.simTime >= nextFog then
@@ -122,6 +125,14 @@ for _ = 1, math.floor(seconds * Config.Sim.TickRate) do
 			end
 		elseif e.kind == "blockade" and e.on then
 			naval.blockades += 1
+		elseif e.kind == "researched" then
+			researched += 1
+			if #researchLog < 12 then
+				table.insert(
+					researchLog,
+					string.format("%d:%02d %d/%s%d", m.time // 60, math.floor(m.time % 60), e.nation, e.branch, e.level)
+				)
+			end
 		elseif e.kind == "revolt" then
 			revolts[e.nation] = (revolts[e.nation] or 0) + 1
 			table.insert(
@@ -897,6 +908,29 @@ do
 		end
 	end
 	print("  СТАБИЛЬНОСТЬ (средняя, клеток с ½ дохода): " .. table.concat(avg, " "))
+	local levels: { string } = {}
+	for _, n in m.nations do
+		if n.alive then
+			table.insert(
+				levels,
+				string.format(
+					"%d:В%d/Э%d/Ф%d",
+					n.id,
+					Tech.level(m.tech, n.id, "Army"),
+					Tech.level(m.tech, n.id, "Economy"),
+					Tech.level(m.tech, n.id, "Fleet")
+				)
+			)
+		end
+	end
+	print(
+		string.format(
+			"  ТЕХНОЛОГИИ: изучено уровней %d; живые (войска/экономика/флот): %s",
+			researched,
+			table.concat(levels, " ")
+		)
+	)
+	print("  ПЕРВЫЕ ИССЛЕДОВАНИЯ: " .. table.concat(researchLog, ", "))
 	print(
 		string.format(
 			"  АВИАЦИЯ: аэродромов %d, батарей ПВО %d, самолётов сейчас %d, построено %d, сбито %d, налётов %d"
