@@ -12,7 +12,8 @@
 	этап 7б-1: корабли на карте (ShipLayer), меню порта, высадка и патруль (NavalPanel);
 	этап 7б-2: самолёты на карте (AirLayer), меню аэродрома, налёт и прикрытие (AirPanel);
 	этап 7в-1: окно «Технологии» (Y, TechPanel), закрытые технологией здания в меню «Построить»;
-	этап 7в-2: выбор генерала в лобби, способности Q / E (CommanderPanel), вспышка снимает туман.
+	этап 7в-2: выбор генерала в лобби, способности Q / E (CommanderPanel), вспышка снимает туман;
+	этап 7г: баннер событий и аукцион наёмников (WorldPanel), круги шторма и ракет (MarkerLayer), пуск ракеты (R).
 ]]
 
 local LocalizationService = game:GetService("LocalizationService")
@@ -37,6 +38,7 @@ local UI = Client:WaitForChild("UI")
 local Camera2D = require(Render:WaitForChild("Camera2D"))
 local CameraInput = require(Client:WaitForChild("Input"):WaitForChild("CameraInput"))
 local AirLayer = require(Render:WaitForChild("AirLayer"))
+local MarkerLayer = require(Render:WaitForChild("MarkerLayer"))
 local AirPanel = require(UI:WaitForChild("AirPanel"))
 local BuildPanel = require(UI:WaitForChild("BuildPanel"))
 local BuildingLayer = require(Render:WaitForChild("BuildingLayer"))
@@ -58,6 +60,7 @@ local ShipLayer = require(Render:WaitForChild("ShipLayer"))
 local StabilityPanel = require(UI:WaitForChild("StabilityPanel"))
 local TechPanel = require(UI:WaitForChild("TechPanel"))
 local CommanderPanel = require(UI:WaitForChild("CommanderPanel"))
+local WorldPanel = require(UI:WaitForChild("WorldPanel"))
 local TerritoryLayer = require(Render:WaitForChild("TerritoryLayer"))
 local Theme = require(UI:WaitForChild("Theme"))
 local WarPanel = require(UI:WaitForChild("WarPanel"))
@@ -163,6 +166,7 @@ local frontLayer = FrontLayer.new(view.canvas, cs, map)
 local buildingLayer = BuildingLayer.new(view.canvas, cs, provinces)
 local shipLayer = ShipLayer.new(view.canvas, cs)
 local airLayer = AirLayer.new(view.canvas, cs)
+local markerLayer = MarkerLayer.new(view.canvas, cs) -- шторм и ракеты (§6.16, §6.9)
 camera.onChanged(function(state)
 	labels.onCamera(state)
 	buildingLayer.onCamera(state)
@@ -224,6 +228,10 @@ local stabilityPanel = StabilityPanel.new(hudGui, view.canvas, cs, lang, provinc
 stabilityPanel.refresh()
 local techPanel = TechPanel.new(hudGui, cs, lang, send)
 local commanderPanel = CommanderPanel.new(hudGui, cs, lang, send, hud.percent)
+local worldPanel = WorldPanel.new(hudGui, cs, lang, send, function(id: number): string
+	local n = cs.nations[id]
+	return if n == nil then "?" elseif lang == "en" then n.nameEn else n.name
+end)
 local naval = NavalPanel.new(hudGui, cs, lang, map, provinces, send, hud.percent, shipLayer.pick, shipLayer.select)
 local airPanel = AirPanel.new(hudGui, cs, lang, map, provinces, send, airLayer.pick, airLayer.select)
 -- Панель разработчика (F4) — только в Studio; создаётся в фоне (ждёт канал Remotes.Dev от сервера).
@@ -327,6 +335,21 @@ client = MatchClient.connect(cs, {
 		airPanel.refresh()
 		hud.refresh()
 	end,
+	onWorld = function(newOil: { number })
+		-- Нефтяная лихорадка (§6.16): новые поля — в провинции клиента и значки на карте.
+		for _, p in newOil do
+			local province = provinces.list[p]
+			if province ~= nil then
+				(province :: any).oil = true
+			end
+		end
+		if #newOil > 0 then
+			buildingLayer.refresh()
+		end
+		markerLayer.refresh()
+		worldPanel.refresh()
+		commanderPanel.update(os.clock())
+	end,
 	onCommander = function()
 		commanderPanel.refresh()
 		-- Радарная вспышка (§6.15) началась — обзор сразу (конец — обычным пересчётом раз в Fog.RefreshSec).
@@ -355,6 +378,8 @@ client = MatchClient.connect(cs, {
 		wars.onEvents(events)
 		pings.onEvents(events)
 		airLayer.onEvents(events) -- вспышки бомб и сбитые самолёты
+		markerLayer.onEvents(events) -- круг ракеты сразу при пуске
+		worldPanel.onEvents(events) -- баннер события
 	end,
 	onDev = function(msg: any)
 		if type(msg.fog) == "boolean" then
@@ -409,6 +434,8 @@ local frameConn = RunService.RenderStepped:Connect(function()
 	frontLayer.update(now, camera.state)
 	shipLayer.update(now, camera.state)
 	airLayer.update(now, camera.state)
+	markerLayer.update(now, camera.state)
+	worldPanel.update(now)
 	hud.update(now)
 	commanderPanel.update(now)
 	wars.update(now)

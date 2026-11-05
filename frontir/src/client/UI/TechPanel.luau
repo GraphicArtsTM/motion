@@ -71,7 +71,7 @@ local function describe(branch: string, level: number, lang: Strings.Lang): stri
 	elseif key == "Fleet1" then
 		return string.format(fmt, math.round(cfg.ShipyardDiscount * 100))
 	end
-	return fmt
+	return (string.gsub(fmt, "%%%%", "%%")) -- без подстановок: «%%» → «%»
 end
 
 local function locked(branch: string, level: number): boolean

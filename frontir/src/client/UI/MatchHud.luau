@@ -891,6 +891,17 @@ function MatchHud.new(
 				else
 					toast(string.format(Strings.get(if e.on then "event.blockade" else "event.blockadeOff", lang), a))
 				end
+			-- Ракеты (§6.9): видят все; по вам — красной строкой.
+			elseif e.kind == "missileLaunched" then
+				if e.target == cs.myNation then
+					alertLine(string.format(Strings.get("event.missileOnYou", lang), a))
+				else
+					toast(string.format(Strings.get("event.missileLaunched", lang), a, b, tonumber(e.impactIn) or 0))
+				end
+			elseif e.kind == "missileHit" then
+				toast(string.format(Strings.get("event.missileHit", lang), a, tonumber(e.cells) or 0))
+			elseif e.kind == "missileShot" then
+				toast(string.format(Strings.get("event.missileShot", lang), a, nationName(tonumber(e.by) or 0)))
 			-- Генералы (§6.15): свои способности и чужие — по вам.
 			elseif e.kind == "ability" and (e.nation == cs.myNation or e.target == cs.myNation) then
 				local name = Strings.get("ability." .. tostring(e.ability), lang)

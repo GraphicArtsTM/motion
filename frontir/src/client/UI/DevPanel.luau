@@ -270,6 +270,14 @@ function DevPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang): DevP
 		fire("airForce", nil)
 	end)
 	button(Strings.get("dev.botRaid", lang), withBot("botRaid", same))
+	-- Этап 7г: события и ракеты (§6.16, §6.9).
+	button(Strings.get("dev.eventNow", lang), function()
+		fire("eventNow", nil)
+	end)
+	button(Strings.get("dev.silo", lang), function()
+		fire("silo", nil)
+	end)
+	button(Strings.get("dev.botMissile", lang), withBot("botMissile", same))
 	-- Этап 7в-2: генералы (§6.15).
 	button(Strings.get("dev.resetCooldowns", lang), function()
 		fire("resetCooldowns", nil)

@@ -85,6 +85,8 @@ local revoltLog: { string } = {}
 local researchLog: { string } = {} -- первые изученные технологии (§6.14)
 local researched = 0
 local abilities: { [string]: number } = {} -- способности генералов (§6.15)
+local worldLog: { string } = {} -- случайные события (§6.16)
+local missiles = { launched = 0, hit = 0, shot = 0, cells = 0 } -- ракеты (§6.9)
 for _ = 1, math.floor(seconds * Config.Sim.TickRate) do
 	MatchSim.step(m, dt)
 	if m.simTime >= nextFog then
@@ -127,6 +129,17 @@ for _ = 1, math.floor(seconds * Config.Sim.TickRate) do
 			end
 		elseif e.kind == "blockade" and e.on then
 			naval.blockades += 1
+		elseif e.kind == "worldEvent" then
+			table.insert(worldLog, string.format("%d:%02d %s", m.time // 60, math.floor(m.time % 60), e.event))
+		elseif e.kind == "mercs" then
+			table.insert(worldLog, string.format("наёмники→%d за $%d", e.nation, e.amount))
+		elseif e.kind == "missileLaunched" then
+			missiles.launched += 1
+		elseif e.kind == "missileHit" then
+			missiles.hit += 1
+			missiles.cells += e.cells
+		elseif e.kind == "missileShot" then
+			missiles.shot += 1
 		elseif e.kind == "ability" then
 			abilities[e.ability] = (abilities[e.ability] or 0) + 1
 		elseif e.kind == "researched" then
@@ -946,6 +959,17 @@ do
 	table.sort(used)
 	print("  ГЕНЕРАЛЫ: " .. table.concat(commanders, " "))
 	print("  СПОСОБНОСТИ: " .. (if #used > 0 then table.concat(used, ", ") else "нет"))
+	print("  СОБЫТИЯ: " .. (if #worldLog > 0 then table.concat(worldLog, ", ") else "нет"))
+	print(
+		string.format(
+			"  РАКЕТЫ: шахт %d, пусков %d, ударов %d (ничьих клеток %d), сбито %d",
+			#MatchSim.buildingsOf(m, "MissileSilo"),
+			missiles.launched,
+			missiles.hit,
+			missiles.cells,
+			missiles.shot
+		)
+	)
 	print(
 		string.format(
 			"  АВИАЦИЯ: аэродромов %d, батарей ПВО %d, самолётов сейчас %d, построено %d, сбито %d, налётов %d"

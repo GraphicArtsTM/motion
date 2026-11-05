@@ -4,7 +4,7 @@
 
 ## Где мы сейчас
 Сделаны этапы **0–6**, **7а**, **7б-1** (флот), **7б-2** (авиация), доработки перед 7в, **7в-1** и **7в-2** — всё в `main` (PR #2–#8).
-**7в-1** (технологии) и **7в-2** (генералы) смержены (PR #7, #8). Сейчас — **7г** (случайные события и ракетная шахта)
+**7в-1** (технологии) и **7в-2** (генералы) смержены (PR #7, #8). **7г** (случайные события и ракетная шахта) готов и ждёт проверки в Studio, дальше этап 8
 (см. «Статус» в начале GDD §15). Обновляй «Статус» в GDD и этот раздел в конце каждого этапа.
 
 ## Порядок работы (договорённости с геймдизайнером)
@@ -219,10 +219,17 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   Клиент: `UI/TechPanel` (Y), `UI/CommanderPanel` (лобби, Q / E).
 - Найм: линии `MatchSim.recruitLines` (1 + заводы + уровни городов / `CityLevelsPerLine`, до `MaxRecruitLines`).
 
+## События и ракеты (этап 7г)
+- `WorldEvents` — расписание, выбор по весам, шторм, урожай, аукцион (`m.world`, поток `m.worldRng`). Правила —
+  секция «Случайные события и ракеты» в `MatchSim`: `worldEvent`, `bid` / `botsBid`, `launch`, `missileImpact`
+  (сеть ПВО — `m.missileRng`), `stepWorld`, боты — `botMissile`. Шторм — `Fleet.move(..., blocked)`.
+- Сеть: таблица `world` раз в секунду (`MatchStats.world`, `ClientState.applyWorld`). Клиент: `UI/WorldPanel`,
+  `Render/MarkerLayer`, кнопка R в `UI/CommanderPanel`.
+
 ## Панель разработчика (F4)
 - Только в Studio: `MatchService` создаёт `Remotes.Dev` при `RunService:IsStudio()`; действия — чистый `DevTools`
   (grant, forceOffer, warNow, peaceNow, councilNow, endMatch, setStability, revoltNow, navy, botLanding, airForce,
-  botRaid, researchAll, finishResearch, resetCooldowns, nextCommander, botAbility), ускорение ×5 — шагов
+  botRaid, researchAll, finishResearch, resetCooldowns, nextCommander, botAbility, eventNow, silo, botMissile), ускорение ×5 — шагов
   симуляции за кадр в `MatchService`, «Туман выкл» — `devNoFog` в `MatchService` и `cs.fogOff` на клиенте.
   Клиент: `UI/DevPanel`. Новые механики — сразу добавлять в панель и в чек-лист README.
 - С этапа 7 каждый этап — отдельный PR в `main` (кто мержит — см. «Порядок работы»).
@@ -233,7 +240,7 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   заново), `Expansion.line` отдаёт линию, `pruneCache` убирает ненужные. Тест `FrontCache.spec` сверяет кеш со свежим
   `Expansion.frontier`. Шум границы — один раз на клетку (`borderNoise`). Горячие модули — `--!native`.
 - Случайные числа по системам: `m.rng` — только расстановка; `m.councilRng`, `m.stabilityRng`; бой — `battleRng`
-  (поток на пару атакующий → цель); боты — `botRngsOf` (think, main, navy, air, diplo, tech, ability; в `BotBrain.decide` —
+  (поток на пару атакующий → цель); боты — `botRngsOf` (think, main, navy, air, diplo, tech, ability, missile; в `BotBrain.decide` —
   параметр `streams`). Новой механике — свой поток, не общий.
 - Замер: `tools/bench_ab` (git worktree `main` в `build/`), в отчётах — только его минимум.
 - Арена (`tools/bot_arena`) — инструмент для отчёта, **не проверка CI** (решение геймдизайнера): полоса против

@@ -33,8 +33,9 @@ local CommanderPanel = {}
 
 local BUTTON = Config.Render.MinTouchTargetPx
 local CARD_W, CARD_H = 176, 112
-local KEYS = { Enum.KeyCode.Q, Enum.KeyCode.E }
+local KEYS = { Enum.KeyCode.Q, Enum.KeyCode.E, Enum.KeyCode.R }
 local KEY_NAMES = { "Q", "E" }
+local MISSILE = 3 -- третий «слот» — ракета из своей шахты (§6.9, этап 7г)
 
 local function stroke(parent: Instance, color: Color3): UIStroke
 	local s = Instance.new("UIStroke")
@@ -152,7 +153,7 @@ function CommanderPanel.new(
 	local bar = Instance.new("Frame")
 	bar.Name = "Abilities"
 	bar.Position = UDim2.fromOffset(12, 64)
-	bar.Size = UDim2.fromOffset(240, 2 * BUTTON + 6 + 20)
+	bar.Size = UDim2.fromOffset(240, 3 * BUTTON + 12 + 20)
 	bar.BackgroundTransparency = 1
 	bar.Visible = false
 	bar.Parent = gui
@@ -160,7 +161,7 @@ function CommanderPanel.new(
 	header.Size = UDim2.new(1, 0, 0, 18)
 	header.TextColor3 = Theme.Colors.Gold
 	local buttons: { TextButton } = {}
-	for slot = 1, 2 do
+	for slot = 1, 3 do
 		local b = Instance.new("TextButton")
 		b.Name = "Ability" .. slot
 		b.Position = UDim2.fromOffset(0, 20 + (slot - 1) * (BUTTON + 6))
@@ -203,6 +204,9 @@ function CommanderPanel.new(
 		return Strings.get("ability." .. Commanders.ability(ClientState.myCommander(cs), slot), lang)
 	end
 	local function leftOf(slot: number, now: number): number
+		if slot == MISSILE then
+			return math.max(0, cs.world.missileLeft - (now - cs.worldAt) * Config.Match.Speed)
+		end
 		return math.max(0, cs.commander.left[slot] - (now - cs.commanderAt) * Config.Match.Speed)
 	end
 	local function cancel()
@@ -215,6 +219,15 @@ function CommanderPanel.new(
 		end
 		if pending == slot then
 			cancel()
+			return
+		end
+		if slot == MISSILE then
+			if not cs.world.silo then
+				return
+			end
+			pending = slot
+			modeLine.Text = Strings.get("missile.target", lang)
+			modeLine.Visible = true
 			return
 		end
 		local ability = Commanders.ability(ClientState.myCommander(cs), slot)
@@ -253,6 +266,20 @@ function CommanderPanel.new(
 		end
 		for slot, b in buttons do
 			local left = leftOf(slot, now)
+			if slot == MISSILE then
+				b.Visible = cs.world.silo
+				b.Text = string.format(
+					Strings.get("missile.button", lang),
+					if left > 0
+						then string.format(Strings.get("missile.cooldown", lang), math.ceil(left))
+						else Strings.get("missile.ready", lang)
+				)
+				b.TextColor3 = if left > 0
+					then Theme.Colors.Muted
+					elseif pending == slot then Theme.Colors.Gold
+					else Theme.Colors.Alert
+				continue
+			end
 			local key = KEY_NAMES[slot]
 			if left > 0 then
 				b.Text = string.format(
@@ -322,7 +349,11 @@ function CommanderPanel.new(
 			return false
 		end
 		cancel()
-		send("ability", { slot = slot, cell = cell, percent = percent() })
+		if slot == MISSILE then
+			send("missile", { cell = cell })
+		else
+			send("ability", { slot = slot, cell = cell, percent = percent() })
+		end
 		return true
 	end
 
