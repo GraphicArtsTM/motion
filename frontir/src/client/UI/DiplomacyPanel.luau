@@ -21,6 +21,7 @@ local Provinces = require(Shared:WaitForChild("Provinces"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
 
@@ -183,7 +184,7 @@ function DiplomacyPanel.new(
 			mainButton.Position = UDim2.new(0.5, -108, 1, -12 - 56 - 6)
 		end
 	end
-	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(placeMain)
+	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), placeMain)
 	placeMain()
 
 	-- Окно.
@@ -199,7 +200,7 @@ function DiplomacyPanel.new(
 		local s = gui.AbsoluteSize
 		scale.Scale = math.clamp(math.min(s.X / (WIDTH + 40), s.Y / 560), 0.55, 1)
 	end
-	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(fit)
+	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fit)
 	fit()
 
 	local header = row(window, 1)
@@ -239,7 +240,7 @@ function DiplomacyPanel.new(
 
 	local function act(key: string, handler: () -> ()): TextButton
 		local b = button(actions, Strings.get("diplo.act." .. key, lang), 128)
-		b.Activated:Connect(handler)
+		Session.connect(b.Activated, handler)
 		return b
 	end
 	local function offer(kind: string)
@@ -275,6 +276,17 @@ function DiplomacyPanel.new(
 		end
 	end)
 	warButton.TextColor3 = Theme.Colors.Alert
+	-- Разведка (§6.11а): мощь цели видна Intel.DurationSec; цена и проверки — на сервере.
+	local intelButton = act("intel", function()
+		if selected ~= nil and playing() then
+			send("intel", { target = selected })
+		end
+	end)
+	intelButton.Text = string.format(
+		Strings.get("diplo.act.intel", lang),
+		Strings.formatInt(Config.Intel.Cost),
+		Config.Intel.DurationSec
+	)
 	local tradeButton = act("trade", function()
 		offer("trade")
 	end)
@@ -332,7 +344,7 @@ function DiplomacyPanel.new(
 			local pad = Instance.new("UIPadding")
 			pad.PaddingLeft = UDim.new(0, 6)
 			pad.Parent = nb
-			nb.Activated:Connect(function()
+			Session.connect(nb.Activated, function()
 				selected = id
 			end)
 			nb.Parent = list
@@ -397,6 +409,9 @@ function DiplomacyPanel.new(
 
 	local function powerOf(id: number): number
 		local s = ClientState.statsOf(cs, id)
+		if s ~= nil and (s.power < 0 or s.frontPower < 0) then
+			return -1 -- скрытая мощь (§6.11а)
+		end
 		return if s ~= nil then s.power + s.frontPower else 0
 	end
 	local function approx(v: number): string
@@ -458,7 +473,10 @@ function DiplomacyPanel.new(
 					relation(id),
 					tradeTags(id),
 					muted,
-					string.format(Strings.get("diplo.power", lang), approx(powerOf(id)))
+					string.format(
+						Strings.get("diplo.power", lang),
+						if powerOf(id) < 0 then "?" else approx(powerOf(id))
+					)
 				)
 		end
 		for id, b in rows do
@@ -492,6 +510,8 @@ function DiplomacyPanel.new(
 		for _, b in { embargoButton, moneyButton, oilButton, peopleButton } do
 			b.Visible = valid
 		end
+		-- Разведывать есть смысл, только пока мощь скрыта.
+		intelButton.Visible = valid and target ~= nil and powerOf(target) < 0
 		if valid and me ~= nil and target ~= nil then
 			embargoButton.Text = Strings.get(
 				if ClientState.embargoBy(cs, me, target) then "diplo.act.unembargo" else "diplo.act.embargo",
@@ -558,10 +578,10 @@ function DiplomacyPanel.new(
 		end
 		popup.Visible = false
 	end
-	acceptButton.Activated:Connect(function()
+	Session.connect(acceptButton.Activated, function()
 		reply(true)
 	end)
-	refuseButton.Activated:Connect(function()
+	Session.connect(refuseButton.Activated, function()
 		reply(false)
 	end)
 
@@ -597,13 +617,13 @@ function DiplomacyPanel.new(
 			drawWindow()
 		end
 	end
-	mainButton.Activated:Connect(function()
+	Session.connect(mainButton.Activated, function()
 		setOpen(not window.Visible)
 	end)
-	closeButton.Activated:Connect(function()
+	Session.connect(closeButton.Activated, function()
 		setOpen(false)
 	end)
-	UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
+	Session.connect(UserInputService.InputBegan, function(input: InputObject, gameProcessed: boolean)
 		if gameProcessed or UserInputService:GetFocusedTextBox() ~= nil then
 			return
 		end

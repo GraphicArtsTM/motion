@@ -84,7 +84,7 @@ end
 -- (без груза); заблокированные порты — всем; своя очередь кораблей. viewer nil — зритель: все корабли без груза;
 -- all — все корабли (держава игрока выбыла или «Туман выкл»), груз и очередь — свои.
 function MatchStats.ships(m: MatchSim.Match, viewer: number?, vision: Vision?, all: boolean?): Protocol.ShipsMessage
-	local v = if viewer ~= nil and Config.Fog.Enabled and not all then vision or MatchStats.vision(m, viewer) else nil
+	local v = if viewer ~= nil and MatchStats.fogOn(m) and not all then vision or MatchStats.vision(m, viewer) else nil
 	local friends: { [number]: boolean } = if viewer ~= nil then Diplomacy.friends(m.diplo, viewer) else {}
 	local w = m.grid.width
 	local ships: { Protocol.ShipInfo } = {}
@@ -139,7 +139,7 @@ function MatchStats.build(m: MatchSim.Match, tickMs: number, changed: number, vi
 		})
 	end
 	local attacks: { Protocol.AttackStats } = {}
-	local visible = if viewer ~= nil and Config.Fog.Enabled then MatchStats.attackFilter(m, viewer) else nil
+	local visible = if viewer ~= nil and MatchStats.fogOn(m) then MatchStats.attackFilter(m, viewer) else nil
 	for _, a in m.attacks do
 		if visible ~= nil and not visible(a) then
 			continue
@@ -161,18 +161,65 @@ end
 
 -- Та же статистика (full — build без viewer) глазами державы viewer: чужие фронты вне обзора убраны (§6.11).
 -- Державы те же — их начало сообщения можно закодировать один раз (Protocol.encodeStatsHead).
-function MatchStats.forViewer(m: MatchSim.Match, full: Protocol.Stats, viewer: number?, vision: Vision?): Protocol.Stats
-	if viewer == nil or not Config.Fog.Enabled then
-		return full
-	end
-	local visible = MatchStats.attackFilter(m, viewer, vision)
-	local attacks: { Protocol.AttackStats } = {}
-	for k, a in m.attacks do
-		if visible(a) and full.attacks[k] ~= nil then
-			table.insert(attacks, full.attacks[k])
+function MatchStats.forViewer(
+	m: MatchSim.Match,
+	full: Protocol.Stats,
+	viewer: number?,
+	vision: Vision?,
+	known: { [number]: boolean }?
+): Protocol.Stats
+	local nations, attacks = full.nations, full.attacks
+	if viewer ~= nil and MatchStats.fogOn(m) then
+		local visible = MatchStats.attackFilter(m, viewer, vision)
+		attacks = {}
+		for k, a in m.attacks do
+			if visible(a) and full.attacks[k] ~= nil then
+				table.insert(attacks, full.attacks[k])
+			end
 		end
 	end
-	return { tickMs = full.tickMs, changed = full.changed, nations = full.nations, attacks = attacks }
+	-- Скрытая мощь (§6.11а): чужим — «?» вместо чисел, сила фронтов — грубо (юниты рисовать).
+	if known ~= nil then
+		local hiddenNations: { Protocol.NationStats } = {}
+		for _, n in nations do
+			if known[n.id] then
+				table.insert(hiddenNations, n)
+			else
+				local c = table.clone(n)
+				c.troops = -1
+				c.power = MatchStats.hidden(n.power)
+				c.frontPower = MatchStats.hidden(n.frontPower)
+				table.insert(hiddenNations, c)
+			end
+		end
+		nations = hiddenNations
+		local hiddenAttacks: { Protocol.AttackStats } = {}
+		for _, a in attacks do
+			if known[a.attacker] then
+				table.insert(hiddenAttacks, a)
+			else
+				local c = table.clone(a)
+				c.troops = -1
+				c.power = MatchStats.hidden(a.power)
+				table.insert(hiddenAttacks, c)
+			end
+		end
+		attacks = hiddenAttacks
+	end
+	return { tickMs = full.tickMs, changed = full.changed, nations = nations, attacks = attacks }
+end
+
+-- Туман на карте (§6.11): включён в Config и в правилах режима (только «Мгла», §6.11а).
+function MatchStats.fogOn(m: MatchSim.Match): boolean
+	return Config.Fog.Enabled and m.rules.fog
+end
+
+-- Скрытая сила (§6.11а): отрицательное число — «?» у клиента; модуль — степень двойки (юниты на фронте по ней).
+function MatchStats.hidden(power: number): number
+	if power < 1 then
+		return -0.001
+	end
+	return -(2 ^ math.round(math.log(power, 2)))
 end
 
 -- Свои войска державы: дома, на фронтах, очередь найма.
@@ -323,7 +370,7 @@ end
 -- Самолёты (§6.13) глазами державы viewer: свои и друзей — всегда, чужие — в грубом обзоре; выведенные из строя
 -- здания — всем; своя очередь. viewer nil или all — все самолёты.
 function MatchStats.air(m: MatchSim.Match, viewer: number?, vision: Vision?, all: boolean?): Protocol.AirMessage
-	local v = if viewer ~= nil and Config.Fog.Enabled and not all then vision or MatchStats.vision(m, viewer) else nil
+	local v = if viewer ~= nil and MatchStats.fogOn(m) and not all then vision or MatchStats.vision(m, viewer) else nil
 	local friends: { [number]: boolean } = if viewer ~= nil then Diplomacy.friends(m.diplo, viewer) else {}
 	local w = m.grid.width
 	local planes: { Protocol.PlaneInfo } = {}
@@ -362,8 +409,12 @@ end
 
 -- Войны и запреты на новую войну после мира (§6.7а). Обратные отсчёты — в секундах реального времени
 -- (игровое время ÷ Match.Speed), чтобы таймер у клиента шёл как часы.
-function MatchStats.wars(m: MatchSim.Match): Protocol.WarsMessage
+-- known — чью мощь видит получатель (§6.11а): у остальных сила стороны -1 («?»); nil — все.
+function MatchStats.wars(m: MatchSim.Match, known: { [number]: boolean }?): Protocol.WarsMessage
 	local function power(id: number): number
+		if known ~= nil and not known[id] then
+			return -1
+		end
 		local n = m.nations[id]
 		return if n ~= nil then Forces.total(n.home) + Forces.total(MatchSim.frontForces(m, id)) else 0
 	end

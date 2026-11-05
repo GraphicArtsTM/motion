@@ -19,6 +19,7 @@ local Provinces = require(Shared:WaitForChild("Provinces"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
 type MapData = MapDataModule.MapData
@@ -145,7 +146,7 @@ function AirPanel.new(
 			selectPlane(nil)
 		end
 	end
-	modeLine.Activated:Connect(function()
+	Session.connect(modeLine.Activated, function()
 		setMode(nil)
 	end)
 
@@ -194,25 +195,25 @@ function AirPanel.new(
 		airfield = nil
 		panel.Visible = false
 	end
-	closeButton.Activated:Connect(close)
-	hireFighter.Activated:Connect(function()
+	Session.connect(closeButton.Activated, close)
+	Session.connect(hireFighter.Activated, function()
 		if airfield ~= nil then
 			send("plane", { plane = "Fighter", airfield = airfield })
 		end
 	end)
-	hireBomber.Activated:Connect(function()
+	Session.connect(hireBomber.Activated, function()
 		if airfield ~= nil then
 			send("plane", { plane = "Bomber", airfield = airfield })
 		end
 	end)
-	raidButton.Activated:Connect(function()
+	Session.connect(raidButton.Activated, function()
 		if airfield ~= nil then
 			close()
 			setMode("raid", Strings.get("air.pickTarget", lang))
 		end
 	end)
 
-	UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
+	Session.connect(UserInputService.InputBegan, function(input: InputObject, gameProcessed: boolean)
 		if gameProcessed or UserInputService:GetFocusedTextBox() ~= nil then
 			return
 		end

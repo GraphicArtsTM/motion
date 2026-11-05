@@ -74,6 +74,9 @@ local TABLE: { [string]: Entry } = {
 	["map.Asia"] = { ru = "Азия", en = "Asia" },
 	["map.Americas"] = { ru = "Америки", en = "Americas" },
 	["map.Africa"] = { ru = "Африка", en = "Africa" },
+	["map.Scandinavia"] = { ru = "Скандинавия", en = "Scandinavia" },
+	["map.Caribbean"] = { ru = "Карибы", en = "Caribbean" },
+	["map.Oceania"] = { ru = "Океания", en = "Oceania" },
 	["result.title"] = { ru = "Победа: %s", en = "Victory: %s" },
 	["result.land"] = { ru = "%d%% суши", en = "%d%% of the land" },
 	["result.last"] = { ru = "последняя держава на карте", en = "the last nation standing" },
@@ -788,6 +791,16 @@ local TABLE: { [string]: Entry } = {
 	["dev.nextCommander"] = { ru = "Следующий генерал", en = "Next commander" },
 	["dev.botAbility"] = { ru = "Бот: способности по вам", en = "Bot: abilities on you" },
 	["dev.mode"] = { ru = "Режим: %s", en = "Mode: %s" },
+	-- Разведка (§6.11а)
+	["diplo.act.intel"] = { ru = "Разведка $%s (%d с)", en = "Scout $%s (%d s)" },
+	["event.intelOnYou"] = {
+		ru = "%s провела разведку против вас: ваши силы видны ей",
+		en = "%s scouted you: your forces are visible to them",
+	},
+	["event.intelDone"] = {
+		ru = "Разведка: силы %s видны %d с",
+		en = "Intel: %s forces visible for %d s",
+	},
 
 	-- Режимы (§5.1, этап 8а)
 	["mode.Ffa"] = { ru = "Каждый сам за себя", en = "Free for all" },
@@ -815,6 +828,25 @@ local TABLE: { [string]: Entry } = {
 		en = "Hold 3 enemy capitals for 60 s",
 	},
 	["mode.vote.title"] = { ru = "Голосование за режим", en = "Vote for the mode" },
+	["mode.Duel"] = { ru = "Дуэль", en = "Duel" },
+	["mode.desc.Duel"] = {
+		ru = "1×1 или 2×2 без ботов, 45% суши, 12 минут",
+		en = "1v1 or 2v2 without bots, 45% of the land, 12 minutes",
+	},
+	["mode.Flood"] = { ru = "Потоп", en = "Flood" },
+	["mode.desc.Flood"] = {
+		ru = "Каждые 2 минуты берег уходит под воду",
+		en = "Every 2 minutes the coast sinks",
+	},
+	["hud.flood"] = { ru = "Потоп через %d с · ступень %d/%d", en = "Flood in %d s · step %d/%d" },
+	["event.flood"] = {
+		ru = "Вода поднялась: под водой %d клеток",
+		en = "The water rose: %d cells sank",
+	},
+	["dev.flood"] = { ru = "Потоп: ступень сейчас", en = "Flood: step now" },
+	["mapVote.title"] = { ru = "Карта следующего матча", en = "Map of the next match" },
+	["mapVote.current"] = { ru = "текущая", en = "current" },
+	["dev.map"] = { ru = "Карта: %s", en = "Map: %s" },
 	["mode.vote.weekly"] = { ru = "режим недели", en = "mode of the week" },
 	["mode.vote.count"] = { ru = "голосов: %d", en = "votes: %d" },
 	["mode.difficulty"] = { ru = "Против ботов — сложность:", en = "Versus bots — difficulty:" },

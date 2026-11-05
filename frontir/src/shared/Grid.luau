@@ -104,6 +104,24 @@ function Grid.setCity(g: Grid, i: number, isCity: boolean)
 	end
 end
 
+-- «Потоп» (§5.3): клетка ушла под воду — ничья, незахватываемая, без города. Запись в журнал смен владельца —
+-- и когда владелец уже 0: кеш линий фронтов (Expansion.syncCache) должен убрать её из линий.
+function Grid.sink(g: Grid, i: number)
+	if buffer.readu8(g.capturable, i) == 0 then
+		return
+	end
+	local old = buffer.readu16(g.owner, i * 2)
+	Grid.setOwner(g, i, 0)
+	buffer.writeu8(g.capturable, i, 0)
+	g.capturableCount -= 1
+	Grid.setCity(g, i, false)
+	if old == 0 then
+		local log = g.ownerLog
+		log[#log + 1] = i
+		log[#log + 1] = 0
+	end
+end
+
 function Grid.cellsOf(g: Grid, nation: number): number
 	return g.cellCount[nation] or 0
 end

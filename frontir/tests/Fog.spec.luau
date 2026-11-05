@@ -9,6 +9,7 @@ local Fog = require("../src/shared/Fog")
 local Grid = require("../src/shared/Grid")
 local MapData = require("../src/shared/MapData")
 local MatchSim = require("../src/shared/MatchSim")
+local Modes = require("../src/shared/Modes")
 local MatchStats = require("../src/shared/Net/MatchStats")
 local Protocol = require("../src/shared/Net/Protocol")
 
@@ -170,6 +171,7 @@ T.describe("Туман войны", function()
 			end
 			local m = MatchSim.new(map, 3)
 			m.victory = false
+			m.rules = Modes.withFog("Ffa") -- туман на карте — только в «Мгле» (§6.11а)
 			for k = 1, 3 do
 				MatchSim.addPlayer(m, k, "N" .. k)
 			end
@@ -216,6 +218,7 @@ T.describe("Туман войны", function()
 			local map = TinyMap.plains(w, h)
 			local m = MatchSim.new(map, 3)
 			m.victory = false
+			m.rules = Modes.withFog("Ffa") -- туман на карте — только в «Мгле» (§6.11а)
 			for k = 1, 3 do
 				MatchSim.addPlayer(m, k, "N" .. k)
 			end
@@ -243,6 +246,7 @@ T.describe("Туман войны", function()
 				{ kind = "info", phase = "Play", phaseLeft = 0, time = 0, myNation = 1, nations = nations }
 			ClientState.applyInfo(cs, info, 0)
 			cs.fog.hideTerritory = true -- правило 7а («Мгла»)
+			cs.rules = Modes.withFog("Ffa")
 			for _, part in Protocol.encodeSnapshot(m.tick, m.grid.owner, m.grid.size) do
 				ClientState.applyBuffer(cs, part)
 			end

@@ -28,6 +28,7 @@ local Provinces = require(Shared:WaitForChild("Provinces"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
 type MapData = MapDataModule.MapData
@@ -245,7 +246,7 @@ function MatchHud.new(
 		cancel.AnchorPoint = Vector2.new(1, 0.5)
 		cancel.Position = UDim2.fromScale(1, 0.5)
 		local row: Row = { frame = rowFrame, text = text, cancel = cancel, target = -1 }
-		cancel.Activated:Connect(function()
+		Session.connect(cancel.Activated, function()
 			if row.target >= 0 then
 				send("cancel", { target = row.target })
 			end
@@ -293,10 +294,10 @@ function MatchHud.new(
 	end
 	setPercent(percent)
 
-	minus.Activated:Connect(function()
+	Session.connect(minus.Activated, function()
 		setPercent(percent - cfg.PercentStep)
 	end)
-	plus.Activated:Connect(function()
+	Session.connect(plus.Activated, function()
 		setPercent(percent + cfg.PercentStep)
 	end)
 	local dragging = false
@@ -304,20 +305,20 @@ function MatchHud.new(
 		local t = (x - bar.AbsolutePosition.X) / math.max(1, bar.AbsoluteSize.X)
 		setPercent(t)
 	end
-	bar.InputBegan:Connect(function(input: InputObject)
+	Session.connect(bar.InputBegan, function(input: InputObject)
 		local t = input.UserInputType
 		if t == Enum.UserInputType.MouseButton1 or t == Enum.UserInputType.Touch then
 			dragging = true
 			setFromX(input.Position.X)
 		end
 	end)
-	UserInputService.InputChanged:Connect(function(input: InputObject)
+	Session.connect(UserInputService.InputChanged, function(input: InputObject)
 		local t = input.UserInputType
 		if dragging and (t == Enum.UserInputType.MouseMovement or t == Enum.UserInputType.Touch) then
 			setFromX(input.Position.X)
 		end
 	end)
-	UserInputService.InputEnded:Connect(function(input: InputObject)
+	Session.connect(UserInputService.InputEnded, function(input: InputObject)
 		local t = input.UserInputType
 		if t == Enum.UserInputType.MouseButton1 or t == Enum.UserInputType.Touch then
 			dragging = false
@@ -332,16 +333,25 @@ function MatchHud.new(
 				parts,
 				string.format(
 					Strings.get("hud.front.people", lang),
-					string.format('<font color="%s">%s</font>', gold, Strings.formatInt(a.troops))
+					string.format(
+						'<font color="%s">%s</font>',
+						gold,
+						if a.troops < 0 then "?" else Strings.formatInt(a.troops)
+					)
 				)
 			)
 		end
-		if a.power >= 1 then
+		-- Скрытая мощь (§6.11а): сила < 0 — чужая, без разведки «?».
+		if a.power >= 1 or a.power < 0 then
 			table.insert(
 				parts,
 				string.format(
 					Strings.get("hud.front.power", lang),
-					string.format('<font color="%s">%s</font>', gold, Strings.formatInt(a.power))
+					string.format(
+						'<font color="%s">%s</font>',
+						gold,
+						if a.power < 0 then "?" else Strings.formatInt(a.power)
+					)
 				)
 			)
 		end
@@ -712,6 +722,16 @@ function MatchHud.new(
 				end
 			end
 			text ..= string.format('\n<font color="%s" size="14">%s</font>', sky, line)
+			-- «Потоп» (§5.3): отсчёт до следующей ступени.
+			local flood = cs.flood
+			if flood ~= nil and flood.step < Config.Flood.MaxSteps then
+				local left = math.max(0, math.ceil(flood.nextIn - (now - cs.floodAt) * ClientState.clockRate(cs)))
+				text ..= string.format(
+					'\n<font color="%s" size="14">%s</font>',
+					sky,
+					string.format(Strings.get("hud.flood", lang), left, flood.step, Config.Flood.MaxSteps)
+				)
+			end
 			if cs.mode.paused then
 				text ..= string.format('\n<font color="%s" size="18">%s</font>', gold, Strings.get("hud.paused", lang))
 			end
@@ -923,6 +943,14 @@ function MatchHud.new(
 				else
 					toast(string.format(Strings.get(if e.on then "event.blockade" else "event.blockadeOff", lang), a))
 				end
+			-- «Потоп» (§5.3): всем.
+			elseif e.kind == "flood" then
+				toast(string.format(Strings.get("event.flood", lang), tonumber(e.cells) or 0))
+			-- Разведка (§6.11а): цели — красной строкой, разведчику — подтверждение.
+			elseif e.kind == "intel" and e.target == cs.myNation then
+				alertLine(string.format(Strings.get("event.intelOnYou", lang), a))
+			elseif e.kind == "intel" and e.nation == cs.myNation then
+				toast(string.format(Strings.get("event.intelDone", lang), b, Config.Intel.DurationSec))
 			-- Ракеты (§6.9): видят все; по вам — красной строкой.
 			elseif e.kind == "missileLaunched" then
 				if e.target == cs.myNation then

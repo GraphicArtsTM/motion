@@ -15,6 +15,7 @@ local Config = require(Shared:WaitForChild("Config"))
 local MapDataModule = require(Shared:WaitForChild("MapData"))
 
 local Theme = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("Theme"))
+local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type MapData = MapDataModule.MapData
 type CameraState = CameraMath.CameraState
@@ -74,7 +75,7 @@ function WaterSparkles.start(
 	end
 
 	local spawnDebt = 0
-	local conn = RunService.RenderStepped:Connect(function(dt: number)
+	local conn = Session.connect(RunService.RenderStepped, function(dt: number)
 		spawnDebt += dt * cfg.SparklesPerSec
 		local x0, y0, x1, y1 = CameraMath.viewRect(state)
 		for _, s in pool do

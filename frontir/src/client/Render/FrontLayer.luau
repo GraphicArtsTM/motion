@@ -469,7 +469,8 @@ function FrontLayer.new(canvas: Frame, cs: ClientState, map: MapData): FrontLaye
 			local fronts: { FrontView } = {}
 			local pairIndex: { [number]: number } = {}
 			for _, a in stats.attacks do
-				if a.power > 0 and a.target ~= 0 and a.attacker ~= a.target then
+				-- Скрытая мощь (§6.11а): сила < 0 — грубая оценка, юниты рисуются по модулю.
+				if math.abs(a.power) > 0 and a.target ~= 0 and a.attacker ~= a.target then
 					table.insert(fronts, a)
 					pairIndex[a.attacker * 65536 + a.target] = #fronts
 				end
@@ -499,12 +500,12 @@ function FrontLayer.new(canvas: Frame, cs: ClientState, map: MapData): FrontLaye
 					local counterKey = a.target * 65536 + a.attacker
 					local hasCounter = pairIndex[counterKey] ~= nil
 					if #lineA[k] > 0 then
-						local n = math.min(BattleLayout.unitsFor(a.power), cap)
+						local n = math.min(BattleLayout.unitsFor(math.abs(a.power)), cap)
 						local slots =
 							inSight(BattleLayout.place(lineA[k], n, a.mix, a.focus, ownerAt, a.attacker, w, h))
 						reconcile(key, slots, {
 							owner = a.attacker,
-							power = a.power,
+							power = math.abs(a.power),
 							fighting = a.fighting,
 							unsupplied = not a.supplied,
 							enemyKey = if hasCounter then counterKey else -key,
@@ -512,8 +513,8 @@ function FrontLayer.new(canvas: Frame, cs: ClientState, map: MapData): FrontLaye
 					end
 					-- Защитники: встречный фронт рисуется сам, иначе — доля гарнизона цели.
 					local def = ClientState.statsOf(cs, a.target)
-					if not hasCounter and def ~= nil and def.power > 0 and #lineD[k] > 0 then
-						local share = def.power / math.max(1, against[a.target] or 1)
+					if not hasCounter and def ~= nil and math.abs(def.power) > 0 and #lineD[k] > 0 then
+						local share = math.abs(def.power) / math.max(1, against[a.target] or 1)
 						local n = math.min(BattleLayout.unitsFor(share), cap)
 						local slots = inSight(BattleLayout.place(lineD[k], n, def.mix, nil, ownerAt, a.target, w, h))
 						reconcile(-key, slots, {

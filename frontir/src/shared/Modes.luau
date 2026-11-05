@@ -16,10 +16,13 @@ export type Rules = {
 	timeLimitSec: number, -- лимит времени матча (часы матча)
 	speed: number, -- множитель скорости поверх Config.Match.Speed
 	visionMul: number, -- обзор тумана ×
+	fog: boolean, -- туман на карте (только «Мгла»; в остальных карта открыта, скрыта мощь — §6.11а)
 	hideTerritory: boolean, -- туман прячет и чужие границы (правило 7а)
 	siloFree: boolean, -- ракетная шахта без технологии
 	teams: boolean,
 	capitalHunt: boolean,
+	duel: boolean, -- «Дуэль» (§5.2): без ботов, 2×2 — две команды
+	flood: boolean, -- «Потоп» (§5.3): вода поднимается по ступеням
 }
 
 local Modes = {}
@@ -36,10 +39,13 @@ function Modes.rules(id: ModeId): Rules
 		timeLimitSec = match.TimeLimitSec,
 		speed = 1,
 		visionMul = 1,
+		fog = false,
 		hideTerritory = Config.Fog.HideTerritory,
 		siloFree = false,
 		teams = false,
 		capitalHunt = false,
+		duel = false,
+		flood = false,
 	}
 	if id == "Teams" then
 		r.teams = true
@@ -48,13 +54,29 @@ function Modes.rules(id: ModeId): Rules
 		r.speed = cfg.BlitzSpeed
 		r.timeLimitSec = match.BlitzDurationSec
 	elseif id == "Mist" then
+		r.fog = true
 		r.visionMul = cfg.MistVisionMul
 		r.hideTerritory = true
 	elseif id == "Superweapon" then
 		r.siloFree = true
 	elseif id == "CapitalHunt" then
 		r.capitalHunt = true
+	elseif id == "Flood" then
+		r.flood = true
+	elseif id == "Duel" then
+		local duel = cfg.Duel
+		r.duel = true
+		r.victoryShare = duel.VictoryShare
+		r.timeLimitSec = duel.TimeLimitSec
+		r.speed = duel.Speed
 	end
+	return table.freeze(r)
+end
+
+-- Правила режима с туманом на карте (правило 7а без «Мглы»): тесты тумана, частные серверы (8в).
+function Modes.withFog(id: ModeId): Rules
+	local r = table.clone(Modes.rules(id))
+	r.fog = true
 	return table.freeze(r)
 end
 
@@ -65,9 +87,51 @@ function Modes.weekly(unixTime: number): ModeId
 	return list[week % #list + 1] :: ModeId
 end
 
--- Варианты голосования в лобби.
-function Modes.options(unixTime: number): { ModeId }
-	return { "Ffa", "Teams", Modes.weekly(unixTime) }
+-- Варианты голосования в лобби; «Дуэль» — четвёртым, если игроков ровно 2 или 4 (§5.2).
+function Modes.options(unixTime: number, humans: number?): { ModeId }
+	local out: { ModeId } = { "Ffa", "Teams", Modes.weekly(unixTime) }
+	if humans ~= nil and table.find(Config.Modes.Duel.Players, humans) ~= nil then
+		table.insert(out, "Duel")
+	end
+	return out
+end
+
+-- Голосование за карту (§5.2): текущая первой, дальше Options − 1 случайных других из пула (pick(n) → 1..n).
+function Modes.mapOptions(current: string, pick: (n: number) -> number): { string }
+	local rest: { string } = {}
+	for _, id in Config.MapVote.Pool do
+		if id ~= current then
+			table.insert(rest, id)
+		end
+	end
+	local out = { current }
+	while #out < Config.MapVote.Options and #rest > 0 do
+		table.insert(out, table.remove(rest, pick(#rest)) :: string)
+	end
+	return out
+end
+
+-- Итог голосования за карту: больше голосов; ничья — раньше в списке; голосов нет — первая (текущая).
+function Modes.mapWinner(options: { string }, votes: { [number]: string }): string
+	local counts = Modes.mapCounts(options, votes)
+	local best = 1
+	for k = 2, #options do
+		if counts[k] > counts[best] then
+			best = k
+		end
+	end
+	return options[best]
+end
+
+function Modes.mapCounts(options: { string }, votes: { [number]: string }): { number }
+	local out: { number } = table.create(#options, 0)
+	for _, id in votes do
+		local k = table.find(options, id)
+		if k ~= nil then
+			out[k] += 1
+		end
+	end
+	return out
 end
 
 -- Голоса по вариантам (в порядке options).

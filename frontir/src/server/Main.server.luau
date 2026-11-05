@@ -18,33 +18,50 @@ local Types = require(Shared:WaitForChild("Types"))
 
 local MatchService = require(script.Parent:WaitForChild("Match"):WaitForChild("MatchService"))
 
-local mapId = if Config.Dev.Map ~= "" then Config.Dev.Map else Config.Match.DefaultMap
-local started = os.clock()
-local source = ServerStorage:WaitForChild("Maps"):WaitForChild(mapId) :: ModuleScript
-local mapModule = require(source) :: any
-local map = MapFormat.fromModule(mapModule :: MapFormat.MapModule)
+-- Загружает карту id: распаковка, клиентам — только она (ReplicatedStorage.Maps), атрибут MapId.
+-- Этап 8б: зовётся и при смене карты после голосования (MatchService).
+local function loadMap(mapId: string): MapData.MapData
+	local started = os.clock()
+	local source = ServerStorage:WaitForChild("Maps"):WaitForChild(mapId) :: ModuleScript
+	local mapModule = require(source) :: any
+	local map = MapFormat.fromModule(mapModule :: MapFormat.MapModule)
 
--- Клиентам — только выбранная карта.
-local shared = Instance.new("Folder")
-shared.Name = "Maps"
-source:Clone().Parent = shared
-shared.Parent = ReplicatedStorage
-local counts = MapData.terrainCounts(map)
-local land = map.width * map.height - (counts[Types.Terrain.Water] or 0)
+	local shared = ReplicatedStorage:FindFirstChild("Maps")
+	if shared == nil then
+		local folder = Instance.new("Folder")
+		folder.Name = "Maps"
+		folder.Parent = ReplicatedStorage
+		shared = folder
+	end
+	local folder = shared :: Instance
+	if folder:FindFirstChild(mapId) == nil then
+		source:Clone().Parent = folder
+	end
+	-- Прежние карты убираем: клиентам нужна только текущая.
+	for _, child in folder:GetChildren() do
+		if child.Name ~= mapId then
+			child:Destroy()
+		end
+	end
+	local counts = MapData.terrainCounts(map)
+	local land = map.width * map.height - (counts[Types.Terrain.Water] or 0)
 
--- Клиенты ждут этот атрибут и грузят карту из ReplicatedStorage.Maps.
-ReplicatedStorage:SetAttribute("MapId", mapId)
+	-- Клиенты ждут этот атрибут и грузят карту из ReplicatedStorage.Maps.
+	ReplicatedStorage:SetAttribute("MapId", mapId)
 
-print(
-	string.format(
-		"[Frontir] server: карта %s %d×%d, суша %.1f%%, распаковка %.0f мс, тик %d Гц",
-		map.name,
-		map.width,
-		map.height,
-		land / (map.width * map.height) * 100,
-		(os.clock() - started) * 1000,
-		Config.Sim.TickRate
+	print(
+		string.format(
+			"[Frontir] server: карта %s %d×%d, суша %.1f%%, распаковка %.0f мс, тик %d Гц",
+			map.name,
+			map.width,
+			map.height,
+			land / (map.width * map.height) * 100,
+			(os.clock() - started) * 1000,
+			Config.Sim.TickRate
+		)
 	)
-)
+	return map
+end
 
-MatchService.start(map)
+local firstMap = if Config.Dev.Map ~= "" then Config.Dev.Map else Config.Match.DefaultMap
+MatchService.start(loadMap(firstMap), loadMap)

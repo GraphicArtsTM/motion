@@ -23,6 +23,7 @@ local Strings = require(Shared:WaitForChild("Strings"))
 
 local Theme = require(script.Parent:WaitForChild("Theme"))
 local Audio = require(script.Parent.Parent:WaitForChild("Audio"))
+local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
 
@@ -175,7 +176,7 @@ function WarPanel.new(
 	local function fitWidth()
 		banner.Size = UDim2.fromOffset(math.min(WIDTH, gui.AbsoluteSize.X - 24), 0)
 	end
-	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(fitWidth)
+	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fitWidth)
 	fitWidth()
 	local titleRow = Instance.new("Frame")
 	titleRow.BackgroundTransparency = 1
@@ -308,8 +309,10 @@ function WarPanel.new(
 			title.Text =
 				string.format(Strings.get("war.mobilizing", lang), coloredName(war.a), coloredName(war.b), left)
 		end
+		-- Скрытая мощь (§6.11а): сила стороны −1 — без разведки, полоса пополам.
+		local hidden = war.powerA < 0 or war.powerB < 0
 		local total = war.powerA + war.powerB
-		local share = if total > 0 then war.powerA / total else 0.5
+		local share = if total > 0 and not hidden then war.powerA / total else 0.5
 		barA.BackgroundColor3 = colorOf(war.a)
 		barB.BackgroundColor3 = colorOf(war.b)
 		barA.Size = UDim2.fromScale(share, 1)
@@ -416,15 +419,15 @@ function WarPanel.new(
 		selectedKey = keyOf(wars[idx])
 		refresh()
 	end
-	prevButton.Activated:Connect(function()
+	Session.connect(prevButton.Activated, function()
 		step(-1)
 	end)
-	nextButton.Activated:Connect(function()
+	Session.connect(nextButton.Activated, function()
 		step(1)
 	end)
 
 	-- «К фронту»: центр нашей общей границы с врагом (или его столица).
-	frontButton.Activated:Connect(function()
+	Session.connect(frontButton.Activated, function()
 		local war = selectedWar()
 		local me = cs.myNation
 		if war == nil or me == nil then
@@ -458,7 +461,7 @@ function WarPanel.new(
 		end
 	end)
 
-	peaceButton.Activated:Connect(function()
+	Session.connect(peaceButton.Activated, function()
 		local war = selectedWar()
 		if war ~= nil then
 			peaceTarget = enemyOf(war)
@@ -476,34 +479,34 @@ function WarPanel.new(
 		peaceTarget = nil
 		peacePanel.Visible = false
 	end
-	whiteButton.Activated:Connect(function()
+	Session.connect(whiteButton.Activated, function()
 		proposePeace("white")
 	end)
-	keepButton.Activated:Connect(function()
+	Session.connect(keepButton.Activated, function()
 		proposePeace("keep")
 	end)
-	capitulateButton.Activated:Connect(function()
+	Session.connect(capitulateButton.Activated, function()
 		proposePeace("capitulate") -- сервер проверит, что войск меньше трети врага (§8.1)
 	end)
-	peaceCancel.Activated:Connect(function()
+	Session.connect(peaceCancel.Activated, function()
 		peaceTarget = nil
 		peacePanel.Visible = false
 	end)
 
-	acceptButton.Activated:Connect(function()
+	Session.connect(acceptButton.Activated, function()
 		if offerFrom ~= nil then
 			send("peaceReply", { target = offerFrom, accept = true })
 			offerPanel.Visible = false
 		end
 	end)
-	declineButton.Activated:Connect(function()
+	Session.connect(declineButton.Activated, function()
 		if offerFrom ~= nil then
 			send("peaceReply", { target = offerFrom, accept = false })
 			offerPanel.Visible = false
 		end
 	end)
 
-	declareButton.Activated:Connect(function()
+	Session.connect(declareButton.Activated, function()
 		local target = declareTarget
 		local me = cs.myNation
 		if target == nil or me == nil then
@@ -516,12 +519,12 @@ function WarPanel.new(
 		declareTarget = nil
 		declarePanel.Visible = false
 	end)
-	declareCancel.Activated:Connect(function()
+	Session.connect(declareCancel.Activated, function()
 		declareTarget = nil
 		declarePanel.Visible = false
 	end)
 
-	UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
+	Session.connect(UserInputService.InputBegan, function(input: InputObject, gameProcessed: boolean)
 		if gameProcessed or input.KeyCode ~= Enum.KeyCode.Escape then
 			return
 		end

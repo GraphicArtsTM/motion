@@ -18,6 +18,7 @@ local Strings = require(Shared:WaitForChild("Strings"))
 local Types = require(Shared:WaitForChild("Types"))
 
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
 
@@ -31,6 +32,7 @@ local CARD_W, CARD_H = 200, 70
 local GAP = 6
 local TOP = 96 -- под баннером HUD
 local BUTTON = Config.Render.MinTouchTargetPx
+local MAX_CARDS = 4 -- три режима и «Дуэль» (§5.2)
 
 local function stroke(parent: Instance, color: Color3): UIStroke
 	local s = Instance.new("UIStroke")
@@ -87,9 +89,9 @@ function ModePanel.new(
 	local scale = Instance.new("UIScale")
 	scale.Parent = vote
 	local function fit()
-		scale.Scale = math.clamp((gui.AbsoluteSize.X - 24) / (3 * CARD_W + 2 * GAP), 0.5, 1)
+		scale.Scale = math.clamp((gui.AbsoluteSize.X - 24) / (MAX_CARDS * CARD_W + (MAX_CARDS - 1) * GAP), 0.5, 1)
 	end
-	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(fit)
+	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fit)
 	fit()
 	local title = text(vote, 15, true)
 	title.Size = UDim2.new(1, 0, 0, 20)
@@ -99,7 +101,7 @@ function ModePanel.new(
 
 	type Card = { button: TextButton, edge: UIStroke, name: TextLabel, body: TextLabel, count: TextLabel }
 	local cards: { Card } = {}
-	for k = 1, 3 do
+	for k = 1, MAX_CARDS do
 		local b, edge = button(vote, CARD_W, CARD_H)
 		b.Position = UDim2.fromOffset((k - 1) * (CARD_W + GAP), 24)
 		local name = text(b, 15, true)
@@ -113,7 +115,7 @@ function ModePanel.new(
 		count.Position = UDim2.fromOffset(8, CARD_H - 18)
 		count.Size = UDim2.new(1, -16, 0, 14)
 		count.TextColor3 = Theme.Colors.Sky
-		b.Activated:Connect(function()
+		Session.connect(b.Activated, function()
 			local mode = cs.mode.options[k]
 			if mode ~= nil then
 				send("modeVote", { mode = mode })
@@ -140,10 +142,59 @@ function ModePanel.new(
 		local b, edge = button(levels, LEVEL_W, BUTTON)
 		b.Position = UDim2.fromOffset(CARD_W + GAP + (k - 1) * (LEVEL_W + GAP), 0)
 		b.Text = Strings.get("mode.level." .. level, lang)
-		b.Activated:Connect(function()
+		Session.connect(b.Activated, function()
 			send("difficulty", { level = level })
 		end)
 		levelButtons[level] = { button = b, edge = edge }
+	end
+
+	-- Голосование за карту следующего матча (экран итогов, §5.2): снизу, над кнопкой «Смотреть карту».
+	local MAP_CARDS = Config.MapVote.Options
+	local MAP_H = 52
+	local mapVote = Instance.new("Frame")
+	mapVote.Name = "MapVote"
+	mapVote.AnchorPoint = Vector2.new(0.5, 1)
+	mapVote.Position = UDim2.new(0.5, 0, 1, -(BUTTON + 24))
+	mapVote.Size = UDim2.fromOffset(MAP_CARDS * CARD_W + (MAP_CARDS - 1) * GAP, 24 + MAP_H)
+	mapVote.BackgroundTransparency = 1
+	mapVote.Visible = false
+	mapVote.Parent = gui
+	local mapScale = Instance.new("UIScale")
+	mapScale.Parent = mapVote
+	local function fitMap()
+		mapScale.Scale = math.clamp((gui.AbsoluteSize.X - 24) / (MAP_CARDS * CARD_W + (MAP_CARDS - 1) * GAP), 0.5, 1)
+	end
+	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fitMap)
+	fitMap()
+	local mapTitle = text(mapVote, 15, true)
+	mapTitle.Size = UDim2.new(1, 0, 0, 20)
+	mapTitle.TextXAlignment = Enum.TextXAlignment.Center
+	mapTitle.TextColor3 = Theme.Colors.Gold
+	mapTitle.Text = Strings.get("mapVote.title", lang)
+	local mapCards: { Card } = {}
+	for k = 1, MAP_CARDS do
+		local b, edge = button(mapVote, CARD_W, MAP_H)
+		b.Position = UDim2.fromOffset((k - 1) * (CARD_W + GAP), 24)
+		local name = text(b, 15, true)
+		name.Position = UDim2.fromOffset(8, 4)
+		name.Size = UDim2.new(0.6, -8, 0, 18)
+		local body = text(b, 12)
+		body.Position = UDim2.fromOffset(8, 26)
+		body.Size = UDim2.new(1, -16, 0, 14)
+		body.TextColor3 = Theme.Colors.Muted
+		local count = text(b, 12)
+		count.Position = UDim2.new(0.6, 0, 0, 6)
+		count.Size = UDim2.new(0.4, -8, 0, 14)
+		count.TextXAlignment = Enum.TextXAlignment.Right
+		count.TextColor3 = Theme.Colors.Sky
+		Session.connect(b.Activated, function()
+			local mv = cs.mapVote
+			local id = if mv ~= nil then mv.options[k] else nil
+			if id ~= nil then
+				send("mapVote", { map = id })
+			end
+		end)
+		mapCards[k] = { button = b, edge = edge, name = name, body = body, count = count }
 	end
 
 	-- Пауза и ×2 («Против ботов», игра).
@@ -163,13 +214,13 @@ function ModePanel.new(
 			send("solo", { pause = not cs.mode.paused, fast = cs.mode.fast })
 		end
 	end
-	pause.Activated:Connect(togglePause)
-	fast.Activated:Connect(function()
+	Session.connect(pause.Activated, togglePause)
+	Session.connect(fast.Activated, function()
 		if cs.mode.solo and cs.phase == "Play" then
 			send("solo", { pause = false, fast = not cs.mode.fast })
 		end
 	end)
-	UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
+	Session.connect(UserInputService.InputBegan, function(input: InputObject, gameProcessed: boolean)
 		if gameProcessed or UserInputService:GetFocusedTextBox() ~= nil then
 			return
 		end
@@ -184,6 +235,8 @@ function ModePanel.new(
 		local voting = me ~= nil and (cs.phase == "Lobby" or cs.phase == "Waiting") and #info.options > 0
 		vote.Visible = voting
 		if voting then
+			local n = #info.options
+			vote.Size = UDim2.fromOffset(n * CARD_W + (n - 1) * GAP, 24 + CARD_H + 8 + BUTTON)
 			for k, card in cards do
 				local mode = info.options[k]
 				card.button.Visible = mode ~= nil
@@ -205,6 +258,23 @@ function ModePanel.new(
 				local chosen = info.difficulty == level
 				lb.edge.Color = if chosen then Theme.Colors.Gold else Theme.Colors.PanelBorder
 				lb.edge.Thickness = if chosen then 2 else Theme.BorderPx
+			end
+		end
+		-- Голосование за карту на экране итогов (§5.2).
+		local mv = cs.mapVote
+		mapVote.Visible = mv ~= nil and cs.phase == "Over" and me ~= nil
+		if mv ~= nil and mapVote.Visible then
+			for k, card in mapCards do
+				local id = mv.options[k]
+				card.button.Visible = id ~= nil
+				if id ~= nil then
+					card.name.Text = Strings.get("map." .. id, lang)
+					card.body.Text = if k == 1 then Strings.get("mapVote.current", lang) else ""
+					card.count.Text = string.format(Strings.get("mode.vote.count", lang), mv.counts[k] or 0)
+					local mine = mv.myVote == id
+					card.edge.Color = if mine then Theme.Colors.Gold else Theme.Colors.PanelBorder
+					card.edge.Thickness = if mine then 2 else Theme.BorderPx
+				end
 			end
 		end
 		solo.Visible = info.solo and cs.phase == "Play" and me ~= nil

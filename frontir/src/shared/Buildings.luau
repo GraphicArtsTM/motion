@@ -125,6 +125,18 @@ function Buildings.place(set: BuildingSet, kind: Types.BuildingKind, spot: numbe
 	table.insert(set.changed, b)
 end
 
+-- Здание исчезло (клетка ушла под воду — «Потоп», §5.3). Клиенты узнают из полного списка в info.
+function Buildings.remove(set: BuildingSet, cell: number, province: number)
+	local b = set.byCell[cell]
+	if b == nil then
+		return
+	end
+	set.byCell[cell] = nil
+	if set.byProvince[province] == cell then
+		set.byProvince[province] = nil
+	end
+end
+
 -- Забирает изменения для рассылки.
 function Buildings.takeChanges(set: BuildingSet): { Building }
 	local out = set.changed

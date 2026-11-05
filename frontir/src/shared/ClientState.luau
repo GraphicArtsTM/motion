@@ -56,7 +56,12 @@ export type Info = {
 	timeLimit: number?, -- лимит времени матча, с
 	result: Types.MatchResult?, -- итог (фаза Over)
 	mode: ModeInfo?,
+	mapId: string?, -- карта матча (§5.2): другая — клиент загружает её заново
+	mapVote: MapVoteInfo?, -- голосование за карту на экране итогов
+	flood: { step: number, nextIn: number }?, -- «Потоп» (§5.3): ступень воды и секунд (часы матча) до следующей
 }
+
+export type MapVoteInfo = { options: { string }, counts: { number }, myVote: string? }
 
 -- Договоры (§8.1) глазами клиента: сообщение diplo. Сроки — в секундах игрового времени от момента отправки.
 export type DiploTreaty = { kind: Types.TreatyKind, a: number, b: number, left: number?, breakLeft: number? }
@@ -163,6 +168,9 @@ export type ClientState = {
 	world: WorldMessage, -- события и ракеты (§6.16, §6.9)
 	worldAt: number,
 	mode: ModeInfo, -- режим (§5.1)
+	mapVote: MapVoteInfo?, -- голосование за карту (§5.2)
+	flood: { step: number, nextIn: number }?, -- «Потоп» (§5.3)
+	floodAt: number, -- когда пришла ступень (часы клиента)
 	rules: Modes.Rules,
 	speed: number, -- темп игрового времени: Match.Speed × режим («Блиц» — ×2)
 }
@@ -246,6 +254,9 @@ function ClientState.new(width: number, height: number): ClientState
 		fog = Fog.new(width, height),
 		fogOff = false,
 		mode = ClientState.emptyMode(),
+		mapVote = nil,
+		flood = nil,
+		floodAt = 0,
 		rules = Modes.rules("Ffa"),
 		speed = Config.Match.Speed,
 		stability = ClientState.emptyStability(),
@@ -409,6 +420,9 @@ function ClientState.applyInfo(cs: ClientState, info: Info, now: number): boolea
 	end
 	cs.targetNations = info.targetNations or cs.targetNations
 	cs.timeLimit = info.timeLimit or cs.timeLimit
+	cs.mapVote = info.mapVote
+	cs.flood = info.flood
+	cs.floodAt = now
 	local mode = info.mode
 	if mode ~= nil then
 		cs.mode = mode
@@ -648,7 +662,15 @@ end
 function ClientState.fogSources(cs: ClientState): Fog.Sources?
 	local me = cs.myNation
 	local n = if me ~= nil then cs.nations[me] else nil
-	if me == nil or n == nil or not n.alive or cs.phase ~= "Play" or not Config.Fog.Enabled or cs.fogOff then
+	if
+		me == nil
+		or n == nil
+		or not n.alive
+		or cs.phase ~= "Play"
+		or not Config.Fog.Enabled
+		or not cs.rules.fog
+		or cs.fogOff
+	then
 		return nil
 	end
 	-- Радарная вспышка Разведчика (§6.15): пока идёт — видно всё.

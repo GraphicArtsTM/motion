@@ -16,6 +16,7 @@ local NationColors = require(Shared:WaitForChild("NationColors"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
 
@@ -71,7 +72,7 @@ function CouncilPanel.new(
 	local function fit()
 		scale.Scale = math.clamp(gui.AbsoluteSize.X / 460, 0.6, 1)
 	end
-	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(fit)
+	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fit)
 	fit()
 
 	local title = Instance.new("TextLabel")
@@ -108,7 +109,7 @@ function CouncilPanel.new(
 		bstroke.Color = Theme.Colors.PanelBorder
 		bstroke.Thickness = Theme.BorderPx
 		bstroke.Parent = b
-		b.Activated:Connect(function()
+		Session.connect(b.Activated, function()
 			local me = if cs.myNation ~= nil then cs.nations[cs.myNation] else nil
 			if cs.diplo.council.vote ~= nil and cs.phase == "Play" and me ~= nil and me.alive then
 				myVote = k

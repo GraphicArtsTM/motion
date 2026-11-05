@@ -17,6 +17,7 @@ local Strings = require(Shared:WaitForChild("Strings"))
 local Types = require(Shared:WaitForChild("Types"))
 
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
 
@@ -114,7 +115,7 @@ function TechPanel.new(
 			main.Position = UDim2.new(0.5, 108, 1, -12 - 2 * 56 - 12)
 		end
 	end
-	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(place)
+	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), place)
 	place()
 
 	-- Окно.
@@ -147,7 +148,7 @@ function TechPanel.new(
 		local s = gui.AbsoluteSize
 		scale.Scale = math.clamp(math.min(s.X / (WIDTH + 40), s.Y / (5 * CELL_H + 160)), 0.5, 1)
 	end
-	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(fit)
+	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fit)
 	fit()
 
 	local header = Instance.new("Frame")
@@ -250,7 +251,7 @@ function TechPanel.new(
 			info.TextXAlignment = Enum.TextXAlignment.Left
 			b.Parent = col
 			cells[branch .. level] = { button = b, name = name, desc = desc, info = info, bar = bar, edge = edge }
-			b.Activated:Connect(function()
+			Session.connect(b.Activated, function()
 				if not playing() then
 					return
 				end
@@ -338,13 +339,13 @@ function TechPanel.new(
 			draw()
 		end
 	end
-	main.Activated:Connect(function()
+	Session.connect(main.Activated, function()
 		setOpen(not window.Visible)
 	end)
-	closeButton.Activated:Connect(function()
+	Session.connect(closeButton.Activated, function()
 		setOpen(false)
 	end)
-	UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
+	Session.connect(UserInputService.InputBegan, function(input: InputObject, gameProcessed: boolean)
 		if gameProcessed or UserInputService:GetFocusedTextBox() ~= nil then
 			return
 		end

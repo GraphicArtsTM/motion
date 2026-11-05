@@ -80,4 +80,33 @@ T.describe("Кеш линий фронта", function()
 			T.expect(lines > 0).toBe(true)
 		end
 	)
+
+	T.it(
+		"«Потоп»: клетки уходят под воду — кеш линий совпадает со свежим пересчётом (§5.3)",
+		function()
+			local map = MapFormat.fromModule((require :: any)("../maps/Mediterranean") :: MapFormat.MapModule)
+			local m = MatchSim.new(map, 91)
+			m.targetNations = 10
+			MatchSim.startPick(m)
+			while m.phase ~= "Play" do
+				MatchSim.step(m, DT)
+			end
+			m.victory = false
+			local land = m.grid.capturableCount
+			for tick = 1, 90 * Config.Sim.TickRate do
+				MatchSim.step(m, DT)
+				Grid.takeChanges(m.grid)
+				MatchSim.takeEvents(m)
+				if tick % (20 * Config.Sim.TickRate) == 0 then
+					MatchSim.floodStep(m)
+					local ok, why = sameAsFresh(m)
+					if not ok then
+						error(why)
+					end
+				end
+			end
+			T.expect(m.flood.step).toBe(4)
+			T.expect(m.grid.capturableCount < land).toBe(true)
+		end
+	)
 end)

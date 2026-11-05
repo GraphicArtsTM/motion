@@ -394,6 +394,18 @@ function DevTools.eventNow(m: Match): (boolean, string?)
 	return false, "target"
 end
 
+-- «Потоп» (§5.3): вода поднимается на ступень сейчас (только в режиме «Потоп»).
+function DevTools.floodNow(m: Match): (boolean, string?)
+	if not m.rules.flood or m.phase ~= "Play" then
+		return false, "mode"
+	end
+	if MatchSim.floodStep(m) == 0 and m.flood.step >= Config.Flood.MaxSteps then
+		return false, "target"
+	end
+	m.flood.nextAt = m.time + Config.Flood.EverySec
+	return true, nil
+end
+
 -- Шахта державы: своя свободная провинция (ближайшая к столице); nil — негде.
 local function ensureSilo(m: Match, id: number): number?
 	for _, s in MatchSim.buildingsOf(m, "MissileSilo") do

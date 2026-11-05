@@ -20,6 +20,7 @@ local Strings = require(Shared:WaitForChild("Strings"))
 local Types = require(Shared:WaitForChild("Types"))
 
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
 
@@ -106,7 +107,7 @@ function CommanderPanel.new(
 	local function fit()
 		pickScale.Scale = math.clamp((gui.AbsoluteSize.X - 24) / (4 * CARD_W + 18), 0.5, 1)
 	end
-	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(fit)
+	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fit)
 	fit()
 	local pickTitle = text(picker, 15, true)
 	pickTitle.Size = UDim2.new(1, 0, 0, 20)
@@ -142,7 +143,7 @@ function CommanderPanel.new(
 		)
 		b.Parent = picker
 		cards[id] = { button = b, edge = edge }
-		b.Activated:Connect(function()
+		Session.connect(b.Activated, function()
 			if choosing() then
 				send("commander", { commander = id })
 			end
@@ -241,12 +242,12 @@ function CommanderPanel.new(
 		modeLine.Visible = true
 	end
 	for slot, b in buttons do
-		b.Activated:Connect(function()
+		Session.connect(b.Activated, function()
 			activate(slot)
 		end)
 	end
-	modeLine.Activated:Connect(cancel)
-	UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
+	Session.connect(modeLine.Activated, cancel)
+	Session.connect(UserInputService.InputBegan, function(input: InputObject, gameProcessed: boolean)
 		if gameProcessed or UserInputService:GetFocusedTextBox() ~= nil then
 			return
 		end

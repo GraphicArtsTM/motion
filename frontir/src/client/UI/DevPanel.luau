@@ -20,6 +20,7 @@ local NationColors = require(Shared:WaitForChild("NationColors"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
 
@@ -100,7 +101,7 @@ function DevPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang): DevP
 		b.Text = t
 		b.LayoutOrder = order
 		b.ZIndex = 21
-		b.Activated:Connect(onClick)
+		Session.connect(b.Activated, onClick)
 		b.Parent = panel
 		return b
 	end
@@ -194,10 +195,10 @@ function DevPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang): DevP
 		bot = list[(k - 1) % #list + 1]
 		drawBot()
 	end
-	prev.Activated:Connect(function()
+	Session.connect(prev.Activated, function()
 		step(-1)
 	end)
-	next.Activated:Connect(function()
+	Session.connect(next.Activated, function()
 		step(1)
 	end)
 
@@ -297,8 +298,16 @@ function DevPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang): DevP
 	local modeButton = button(string.format(Strings.get("dev.mode", lang), "—"), function()
 		fire("mode", nil)
 	end)
+	-- Этап 8в: «Потоп» — ступень воды сейчас (§5.3).
+	button(Strings.get("dev.flood", lang), function()
+		fire("flood", nil)
+	end)
+	-- Этап 8б: карта следующего матча без голосования (§5.2) — по кругу пула.
+	local mapButton = button(string.format(Strings.get("dev.map", lang), "—"), function()
+		fire("map", nil)
+	end)
 
-	UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
+	Session.connect(UserInputService.InputBegan, function(input: InputObject, gameProcessed: boolean)
 		if gameProcessed or UserInputService:GetFocusedTextBox() ~= nil then
 			return
 		end
@@ -314,6 +323,9 @@ function DevPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang): DevP
 		onDev = function(msg: any)
 			if type(msg.fog) == "boolean" then
 				fogButton.Text = Strings.get(if msg.fog then "dev.fogOn" else "dev.fogOff", lang)
+			end
+			if type(msg.map) == "string" then
+				mapButton.Text = string.format(Strings.get("dev.map", lang), Strings.get("map." .. msg.map, lang))
 			end
 			if type(msg.mode) == "string" then
 				modeButton.Text = string.format(Strings.get("dev.mode", lang), Strings.get("mode." .. msg.mode, lang))

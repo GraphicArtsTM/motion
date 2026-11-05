@@ -35,6 +35,7 @@ local Council = require("./Council")
 local Diplomacy = require("./Diplomacy")
 local Economy = require("./Economy")
 local Expansion = require("./Expansion")
+local Flood = require("./Flood")
 local Fleet = require("./Fleet")
 local Forces = require("./Forces")
 local Fronts = require("./Fronts")
@@ -100,6 +101,9 @@ export type MatchEvent =
 	| { kind: "missileLaunched", nation: number, target: number, cell: number, impactIn: number }
 	| { kind: "missileHit", nation: number, cell: number, cells: number }
 	| { kind: "missileShot", nation: number, by: number, cell: number }
+	-- Разведка (§6.11а): nation разведал target
+	| { kind: "flood", step: number, cells: number } -- «Потоп» (§5.3): вода поднялась
+	| { kind: "intel", nation: number, target: number }
 	-- Генералы (§6.15, этап 7в-2): применена способность (target — держава в клетке цели, 0 — нет)
 	| { kind: "ability", nation: number, ability: string, cell: number?, target: number }
 	-- Флот (§6.12, этап 7б-1)
@@ -124,6 +128,7 @@ export type BotRngs = {
 	tech: Rng,
 	ability: Rng,
 	missile: Rng,
+	intel: Rng,
 }
 
 export type Match = {
@@ -190,6 +195,9 @@ export type Match = {
 	rules: Modes.Rules,
 	modeOptions: { Types.ModeId }, -- варианты голосования
 	modeVotes: { [number]: Types.ModeId }, -- держава игрока → голос
+	voteTime: number, -- время сервера (unix) для режима недели
+	mapOptions: { string }, -- голосование за карту на экране итогов (§5.2)
+	mapVotes: { [number]: string },
 	forcedMode: Types.ModeId?, -- режим без голосования (Dev.Mode, F4)
 	teams: { [number]: number }, -- держава → команда («Команды»)
 	teamCount: number,
@@ -200,6 +208,11 @@ export type Match = {
 	difficulty: Types.BotLevel?, -- уровень всех ботов, выбранный одиночным игроком
 	paused: boolean,
 	fast: boolean,
+	-- Разведка (§6.11а): кто чью мощь видит.
+	flood: { step: number, nextAt: number }, -- «Потоп» (§5.3): ступень воды, когда следующая (часы матча)
+	intel: { [number]: { [number]: number } }, -- разведчик → цель → до какого simTime
+	radarIntel: { [number]: { [number]: boolean } }, -- держава → державы в радиусе её радаров
+	nextRadarIntelAt: number,
 }
 
 -- Экономика державы за последний тик, в секунду (§6.8).
@@ -290,6 +303,9 @@ function MatchSim.new(map: MapData, seed: number): Match
 		rules = Modes.rules("Ffa"),
 		modeOptions = Modes.options(0),
 		modeVotes = {},
+		voteTime = 0,
+		mapOptions = {},
+		mapVotes = {},
 		forcedMode = if Modes.isMode(Config.Dev.Mode) then Config.Dev.Mode :: Types.ModeId else nil,
 		teams = {},
 		teamCount = 0,
@@ -300,6 +316,10 @@ function MatchSim.new(map: MapData, seed: number): Match
 		difficulty = nil,
 		paused = false,
 		fast = false,
+		flood = { step = 0, nextAt = Config.Flood.EverySec },
+		intel = {},
+		radarIntel = {},
+		nextRadarIntelAt = 0,
 	}
 end
 
@@ -330,11 +350,191 @@ function MatchSim.setMode(m: Match, mode: Types.ModeId)
 	m.infoDirty = true
 end
 
+-- Разведка и скрытая мощь (§6.11а) ------------------------------------------------------------
+
+-- Чью военную мощь видит viewer: сам, друзья, разведанные, в радиусе радаров (своих и друзей).
+-- nil — видно всё (мощь не скрывается или идёт «Радарная вспышка»).
+function MatchSim.knownSet(m: Match, viewer: number): { [number]: boolean }?
+	if not Config.Intel.HidePower or MatchSim.revealing(m, viewer) then
+		return nil
+	end
+	local friends = Diplomacy.friends(m.diplo, viewer)
+	local out: { [number]: boolean } = table.clone(friends)
+	local spied = m.intel[viewer]
+	if spied ~= nil then
+		for target, untilTime in spied do
+			if untilTime > m.simTime then
+				out[target] = true
+			end
+		end
+	end
+	for id in friends do
+		local seen = m.radarIntel[id]
+		if seen ~= nil then
+			for target in seen do
+				out[target] = true
+			end
+		end
+	end
+	return out
+end
+
+-- Видит ли viewer военную мощь target.
+function MatchSim.knows(m: Match, viewer: number, target: number): boolean
+	local set = MatchSim.knownSet(m, viewer)
+	return set == nil or set[target] == true
+end
+
+-- Разведка: за Intel.Cost мощь цели видна DurationSec; цели — событие (уведомление).
+function MatchSim.spy(m: Match, n: Nation, target: number): (boolean, string?)
+	local t = m.nations[target]
+	if t == nil or not t.alive or target == n.id then
+		return false, "target"
+	end
+	if Diplomacy.friends(m.diplo, n.id)[target] then
+		return false, "already" -- мощь друзей и так видна
+	end
+	local cost = Config.Intel.Cost
+	if n.money < cost then
+		return false, "noMoney"
+	end
+	n.money -= cost
+	local list = m.intel[n.id]
+	if list == nil then
+		list = {}
+		m.intel[n.id] = list
+	end
+	list[target] = math.max(list[target] or 0, m.simTime) + Config.Intel.DurationSec
+	table.insert(m.events, { kind = "intel", nation = n.id, target = target })
+	return true, nil
+end
+
+-- «Потоп» (§5.3) ----------------------------------------------------------------------------------
+
+-- Вода поднимается на ступень: клетки ниже порога — под воду (ничьи, незахватываемые), города и здания на них
+-- исчезают; столица переедет и держава без городов выбудет обычной проверкой в конце тика.
+function MatchSim.floodStep(m: Match): number
+	local cfg = Config.Flood
+	if m.flood.step >= cfg.MaxSteps then
+		return 0
+	end
+	local levels = Flood.levels(m.map)
+	local cells = Flood.sinking(levels, m.grid.width, m.flood.step, m.flood.step + 1)
+	m.flood.step += 1
+	local sunk = 0
+	for _, cell in cells do
+		if Grid.isCapturable(m.grid, cell) then
+			sunk += 1
+		end
+		local province = MapData.getProvince(m.map, cell)
+		if m.cityOf[province] == cell then
+			m.cityOf[province] = nil
+		end
+		Buildings.remove(m.buildings, cell, province)
+		Grid.sink(m.grid, cell)
+	end
+	MatchSim.clearBuildingsCache(m)
+	m.infoDirty = true
+	table.insert(m.events, { kind = "flood", step = m.flood.step, cells = sunk })
+	return sunk
+end
+
+local function stepFlood(m: Match)
+	if not m.rules.flood or m.time < m.flood.nextAt then
+		return
+	end
+	m.flood.nextAt += Config.Flood.EverySec
+	MatchSim.floodStep(m)
+end
+
+-- Радар — постоянная разведка: державы, чья земля в радиусе радара (выборка клеток круга).
+local function stepRadarIntel(m: Match)
+	if m.simTime < m.nextRadarIntelAt then
+		return
+	end
+	m.nextRadarIntelAt = m.simTime + Config.Intel.RadarEverySec
+	table.clear(m.radarIntel)
+	local g = m.grid
+	local w, h = g.width, g.height
+	local r = Config.Fog.RadarVision
+	local step = Config.Intel.RadarStep
+	for _, b in MatchSim.buildingsOf(m, "Radar") do
+		if not MatchSim.isDisabled(m, b.cell) then
+			local seen = m.radarIntel[b.owner]
+			if seen == nil then
+				seen = {}
+				m.radarIntel[b.owner] = seen
+			end
+			local cx, cy = b.cell % w, b.cell // w
+			for dy = -r, r, step do
+				local y = cy + dy
+				if y >= 0 and y < h then
+					for dx = -r, r, step do
+						local x = cx + dx
+						if x >= 0 and x < w and dx * dx + dy * dy <= r * r then
+							local o = Grid.getOwner(g, y * w + x)
+							if o ~= 0 and o ~= b.owner then
+								seen[o] = true
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+end
+
+-- Бот иногда разведывает сильнейшего соседа (§6.11а): игрок получает уведомление, сам бот видит всё и так.
+local function botIntel(m: Match, n: Nation, rng: Rng)
+	local cfg = Config.Intel
+	if n.botLevel == "Novice" or n.money < cfg.Cost * cfg.BotMoneyMul or Rng.nextFloat(rng) >= cfg.BotChance then
+		return
+	end
+	local near = Grid.adjacentOwners(m.grid, n.id)
+	local best, bestPower = 0, 0
+	local friends = Diplomacy.friends(m.diplo, n.id)
+	for id in near do
+		local other = m.nations[id]
+		if other ~= nil and other.alive and not friends[id] and not MatchSim.knows(m, n.id, id) then
+			local power = Forces.total(other.home)
+			if power > bestPower then
+				best, bestPower = id, power
+			end
+		end
+	end
+	if best ~= 0 then
+		MatchSim.spy(m, n, best)
+	end
+end
+
 -- Варианты голосования по времени сервера (режим недели — по номеру недели UTC).
 function MatchSim.openVote(m: Match, unixTime: number)
-	m.modeOptions = Modes.options(unixTime)
+	m.voteTime = unixTime
+	m.modeOptions = Modes.options(unixTime, MatchSim.humans(m))
 	table.clear(m.modeVotes)
 	m.infoDirty = true
+end
+
+-- Игроков в лобби стало больше или меньше — варианты («Дуэль» при 2 и 4, §5.2); голоса за пропавший вариант снимаются.
+local function refreshModeOptions(m: Match)
+	if m.phase ~= "Waiting" and m.phase ~= "Lobby" then
+		return
+	end
+	m.modeOptions = Modes.options(m.voteTime, MatchSim.humans(m))
+	for id, mode in m.modeVotes do
+		if table.find(m.modeOptions, mode) == nil then
+			m.modeVotes[id] = nil
+		end
+	end
+	m.infoDirty = true
+end
+
+-- Итог голосования за карту (§5.2): карта следующего матча.
+function MatchSim.mapWinner(m: Match): string
+	if #m.mapOptions == 0 then
+		return m.map.name
+	end
+	return Modes.mapWinner(m.mapOptions, m.mapVotes)
 end
 
 -- Все города на карте (клетки) — для клиентов.
@@ -419,6 +619,7 @@ local function botRngsOf(m: Match, id: number): BotRngs
 			tech = Rng.stream(m.seed, 205, id),
 			ability = Rng.stream(m.seed, 206, id),
 			missile = Rng.stream(m.seed, 207, id),
+			intel = Rng.stream(m.seed, 208, id),
 		}
 		m.botRngs[id] = r
 	end
@@ -471,7 +672,9 @@ function MatchSim.addPlayer(m: Match, userId: number, name: string): number?
 	if m.phase == "Play" or m.phase == "Over" or #m.nations >= Config.Match.MaxPlayers then
 		return nil
 	end
-	return newNation(m, name, name, false, userId).id
+	local id = newNation(m, name, name, false, userId).id
+	refreshModeOptions(m)
+	return id
 end
 
 -- Игрок ушёл: его держава остаётся на карте и переходит под управление бота.
@@ -483,6 +686,9 @@ function MatchSim.removePlayer(m: Match, nationId: number)
 	n.userId = nil
 	makeBot(m, n, "Normal") -- держава ушедшего игрока — под Обычным ботом
 	m.botNextThink[nationId] = m.simTime + BotBrain.nextThinkDelay(botRngsOf(m, nationId).think, profileOf(m, nationId))
+	m.modeVotes[nationId] = nil
+	m.mapVotes[nationId] = nil
+	refreshModeOptions(m)
 end
 
 -- Лобби (этап 4в): игроки собираются, через LobbySec начинается выбор старта.
@@ -504,6 +710,9 @@ function MatchSim.startPick(m: Match)
 	m.phaseLeft = Config.Match.StartPickSec
 	MatchSim.setMode(m, m.forcedMode or Modes.tally(m.modeOptions, m.modeVotes))
 	m.solo = MatchSim.humans(m) == 1
+	if m.rules.duel then
+		m.targetNations = math.max(2, MatchSim.humans(m)) -- дуэль без ботов (§5.2); один игрок — против одного бота
+	end
 	if not m.solo then
 		m.difficulty = nil
 	end
@@ -583,12 +792,13 @@ function MatchSim.finishPick(m: Match)
 		m.startCapitals[n.id] = n.capital :: number
 	end
 	-- Команды (§5.1): по долготе столицы, внутри команды — вечный союз.
-	if m.rules.teams then
+	local duelTeams = m.rules.duel and #order == 4 -- дуэль 2×2 (§5.2)
+	if m.rules.teams or duelTeams then
 		local byX: { { id: number, x: number } } = {}
 		for _, n in order do
 			table.insert(byX, { id = n.id, x = (n.capital :: number) % m.grid.width })
 		end
-		m.teamCount = Modes.teamCount(#byX)
+		m.teamCount = if duelTeams then 2 else Modes.teamCount(#byX)
 		m.teams = Modes.assignTeams(byX, m.teamCount)
 		for i, a in order do
 			for j = i + 1, #order do
@@ -676,6 +886,18 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 			return false, "mode"
 		end
 		m.modeVotes[nationId] = intent.mode
+		m.infoDirty = true
+		return true, nil
+	end
+	if intent.kind == "mapVote" then
+		-- Голос за карту (§5.2): только на экране итогов, только игрок, только из вариантов.
+		if m.phase ~= "Over" then
+			return false, "phase"
+		end
+		if n.isBot or table.find(m.mapOptions, intent.map) == nil then
+			return false, "mode"
+		end
+		m.mapVotes[nationId] = intent.map
 		m.infoDirty = true
 		return true, nil
 	end
@@ -936,6 +1158,10 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 		end
 		table.insert(m.events, { kind = "breakAnnounced", nation = nationId, target = intent.target, treaty = t.kind })
 		return true, nil
+	end
+
+	if intent.kind == "intel" then
+		return MatchSim.spy(m, n, intent.target)
 	end
 
 	if intent.kind == "transfer" then
@@ -4014,6 +4240,12 @@ local function finishMatch(m: Match, winner: number, reason: Types.VictoryReason
 	m.phase = "Over"
 	m.phaseLeft = Config.Match.ResultsSec
 	m.paused, m.fast = false, false
+	-- Голосование за карту следующего матча (§5.2): текущая и случайные другие (свой поток ГСЧ).
+	local mapRng = Rng.stream(m.seed, 400)
+	m.mapOptions = Modes.mapOptions(m.map.name, function(n: number): number
+		return Rng.range(mapRng, 1, n)
+	end)
+	table.clear(m.mapVotes)
 	m.infoDirty = true
 	table.insert(m.events, { kind = "victory", nation = winner, reason = reason })
 end
@@ -4114,7 +4346,7 @@ local function checkVictory(m: Match): boolean
 	if not m.victory then
 		return false
 	end
-	if m.rules.teams then
+	if m.teamCount > 0 then
 		return checkTeamVictory(m)
 	end
 	local hunter = huntWinner(m)
@@ -4252,6 +4484,8 @@ function MatchSim.step(m: Match, dt: number)
 	stepCouncil(m)
 
 	stepWorld(m) -- случайные события и ракеты (§6.16, §6.9)
+	stepRadarIntel(m) -- радар — постоянная разведка (§6.11а)
+	stepFlood(m) -- «Потоп» (§5.3)
 	stepFleet(m, simDt)
 	stepAir(m, simDt)
 	m.lastCaptured = stepAttacks(m, simDt)
@@ -4313,6 +4547,7 @@ function MatchSim.step(m: Match, dt: number)
 			end
 			botAbility(m, n, profile, rngs.ability) -- способности генерала (§6.15)
 			botMissile(m, n, rngs.missile) -- ракетная шахта (§6.9)
+			botIntel(m, n, rngs.intel) -- разведка (§6.11а)
 		end
 	end
 	m.botThinks = thinks

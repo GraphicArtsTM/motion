@@ -16,6 +16,7 @@ local Strings = require(Shared:WaitForChild("Strings"))
 local Types = require(Shared:WaitForChild("Types"))
 
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type MapData = MapDataModule.MapData
 type CameraState = CameraMath.CameraState
@@ -123,7 +124,7 @@ function DebugOverlay.create(parent: Instance, source: DebugSource, lang: String
 		text.Text = table.concat(lines, "\n")
 	end
 
-	local stepConn = RunService.RenderStepped:Connect(function(dt: number)
+	local stepConn = Session.connect(RunService.RenderStepped, function(dt: number)
 		frames += 1
 		elapsed += dt
 		if elapsed >= Config.Render.DebugRefreshSec then
@@ -136,7 +137,7 @@ function DebugOverlay.create(parent: Instance, source: DebugSource, lang: String
 		end
 	end)
 
-	local keyConn = UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
+	local keyConn = Session.connect(UserInputService.InputBegan, function(input: InputObject, gameProcessed: boolean)
 		if not gameProcessed and input.KeyCode == Enum.KeyCode.F3 then
 			panel.Visible = not panel.Visible
 			render()
