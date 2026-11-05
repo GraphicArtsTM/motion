@@ -227,7 +227,8 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				xp = d.seasonXp % per,
 				per = per,
 				premium = d.seasonPremium,
-				left = math.max(0, Config.Season.EndsUnix - now),
+				-- nil — сезон без срока (§11.3).
+				left = if Config.Season.EndsUnix > 0 then math.max(0, Config.Season.EndsUnix - now) else nil,
 			},
 			weekly = { offer = Shop.weeklyOffer(now), left = Shop.weekLeft(now) },
 			dailyStreak = d.dailyStreak,

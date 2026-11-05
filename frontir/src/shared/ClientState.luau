@@ -86,7 +86,7 @@ export type ProfileInfo = {
 	-- Этап 9б (§11.3)
 	crates: number,
 	pityLeft: number, -- через сколько ящиков гарантированный джекпот
-	season: { tier: number, xp: number, per: number, premium: boolean, left: number },
+	season: { tier: number, xp: number, per: number, premium: boolean, left: number? }, -- left nil — без срока
 	weekly: { offer: { stock: { [string]: number }, crates: number, tokens: number }, left: number },
 	dailyStreak: number,
 }

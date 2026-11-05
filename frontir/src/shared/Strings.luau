@@ -976,6 +976,10 @@ local TABLE: { [string]: Entry } = {
 		ru = "Ступень %d/%d · %d/%d опыта · сезон кончится через %s",
 		en = "Tier %d/%d · %d/%d XP · season ends in %s",
 	},
+	["shop.seasonLineOpen"] = {
+		ru = "Ступень %d/%d · %d/%d опыта · сезон без срока",
+		en = "Tier %d/%d · %d/%d XP · no end date",
+	},
 	["shop.seasonNext"] = {
 		ru = "Ступень %d: бесплатно — %s; премиум — %s",
 		en = "Tier %d: free — %s; premium — %s",

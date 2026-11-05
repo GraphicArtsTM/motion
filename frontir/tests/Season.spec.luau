@@ -9,7 +9,7 @@ local Profile = require("../src/shared/Profile")
 local Shop = require("../src/shared/Shop")
 
 local DT = 1 / Config.Sim.TickRate
-local NOW = Config.Season.EndsUnix - 30 * 86400 -- сезон идёт
+local NOW = 1800000000 -- любое время: сезон без срока
 
 local function played(): MatchSim.Match
 	local m = MatchSim.new(Fixtures.pangea, 51)
@@ -78,9 +78,11 @@ T.describe("Боевой пропуск (§11.3)", function()
 			-- Больше 30 ступеней не бывает; после конца сезона опыт не идёт.
 			Profile.addSeasonXp(d, per * 100, NOW)
 			T.expect(Profile.seasonTier(d)).toBe(Config.Season.Tiers)
+			-- Сезон без срока (EndsUnix = 0): опыт идёт в любое время.
+			T.expect(Config.Season.EndsUnix).toBe(0)
 			local xp = d.seasonXp
-			T.expect(#Profile.addSeasonXp(d, 1000, Config.Season.EndsUnix)).toBe(0)
-			T.expect(d.seasonXp).toBe(xp)
+			Profile.addSeasonXp(d, 1000, NOW + 10 * 365 * 86400)
+			T.expect(d.seasonXp).toBe(xp + 1000)
 			-- Новый сезон — с нуля.
 			d.seasonId = Config.Season.Id - 1
 			Profile.syncSeason(d)

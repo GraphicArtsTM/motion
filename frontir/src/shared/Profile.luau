@@ -193,7 +193,8 @@ end
 -- Опыт в пропуск (после конца сезона — нет).
 function Profile.addSeasonXp(d: Data, xp: number, now: number): { Reward }
 	Profile.syncSeason(d)
-	if now >= Config.Season.EndsUnix then
+	local ends = Config.Season.EndsUnix
+	if ends > 0 and now >= ends then
 		return {}
 	end
 	d.seasonXp += math.max(0, math.floor(xp))
