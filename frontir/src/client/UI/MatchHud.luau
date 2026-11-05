@@ -722,6 +722,16 @@ function MatchHud.new(
 				end
 			end
 			text ..= string.format('\n<font color="%s" size="14">%s</font>', sky, line)
+			-- «Потоп» (§5.3): отсчёт до следующей ступени.
+			local flood = cs.flood
+			if flood ~= nil and flood.step < Config.Flood.MaxSteps then
+				local left = math.max(0, math.ceil(flood.nextIn - (now - cs.floodAt) * ClientState.clockRate(cs)))
+				text ..= string.format(
+					'\n<font color="%s" size="14">%s</font>',
+					sky,
+					string.format(Strings.get("hud.flood", lang), left, flood.step, Config.Flood.MaxSteps)
+				)
+			end
 			if cs.mode.paused then
 				text ..= string.format('\n<font color="%s" size="18">%s</font>', gold, Strings.get("hud.paused", lang))
 			end
@@ -933,6 +943,9 @@ function MatchHud.new(
 				else
 					toast(string.format(Strings.get(if e.on then "event.blockade" else "event.blockadeOff", lang), a))
 				end
+			-- «Потоп» (§5.3): всем.
+			elseif e.kind == "flood" then
+				toast(string.format(Strings.get("event.flood", lang), tonumber(e.cells) or 0))
 			-- Разведка (§6.11а): цели — красной строкой, разведчику — подтверждение.
 			elseif e.kind == "intel" and e.target == cs.myNation then
 				alertLine(string.format(Strings.get("event.intelOnYou", lang), a))

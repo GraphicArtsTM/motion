@@ -35,6 +35,7 @@ local Council = require("./Council")
 local Diplomacy = require("./Diplomacy")
 local Economy = require("./Economy")
 local Expansion = require("./Expansion")
+local Flood = require("./Flood")
 local Fleet = require("./Fleet")
 local Forces = require("./Forces")
 local Fronts = require("./Fronts")
@@ -101,6 +102,7 @@ export type MatchEvent =
 	| { kind: "missileHit", nation: number, cell: number, cells: number }
 	| { kind: "missileShot", nation: number, by: number, cell: number }
 	-- Разведка (§6.11а): nation разведал target
+	| { kind: "flood", step: number, cells: number } -- «Потоп» (§5.3): вода поднялась
 	| { kind: "intel", nation: number, target: number }
 	-- Генералы (§6.15, этап 7в-2): применена способность (target — держава в клетке цели, 0 — нет)
 	| { kind: "ability", nation: number, ability: string, cell: number?, target: number }
@@ -207,6 +209,7 @@ export type Match = {
 	paused: boolean,
 	fast: boolean,
 	-- Разведка (§6.11а): кто чью мощь видит.
+	flood: { step: number, nextAt: number }, -- «Потоп» (§5.3): ступень воды, когда следующая (часы матча)
 	intel: { [number]: { [number]: number } }, -- разведчик → цель → до какого simTime
 	radarIntel: { [number]: { [number]: boolean } }, -- держава → державы в радиусе её радаров
 	nextRadarIntelAt: number,
@@ -313,6 +316,7 @@ function MatchSim.new(map: MapData, seed: number): Match
 		difficulty = nil,
 		paused = false,
 		fast = false,
+		flood = { step = 0, nextAt = Config.Flood.EverySec },
 		intel = {},
 		radarIntel = {},
 		nextRadarIntelAt = 0,
@@ -403,6 +407,44 @@ function MatchSim.spy(m: Match, n: Nation, target: number): (boolean, string?)
 	list[target] = math.max(list[target] or 0, m.simTime) + Config.Intel.DurationSec
 	table.insert(m.events, { kind = "intel", nation = n.id, target = target })
 	return true, nil
+end
+
+-- «Потоп» (§5.3) ----------------------------------------------------------------------------------
+
+-- Вода поднимается на ступень: клетки ниже порога — под воду (ничьи, незахватываемые), города и здания на них
+-- исчезают; столица переедет и держава без городов выбудет обычной проверкой в конце тика.
+function MatchSim.floodStep(m: Match): number
+	local cfg = Config.Flood
+	if m.flood.step >= cfg.MaxSteps then
+		return 0
+	end
+	local levels = Flood.levels(m.map)
+	local cells = Flood.sinking(levels, m.grid.width, m.flood.step, m.flood.step + 1)
+	m.flood.step += 1
+	local sunk = 0
+	for _, cell in cells do
+		if Grid.isCapturable(m.grid, cell) then
+			sunk += 1
+		end
+		local province = MapData.getProvince(m.map, cell)
+		if m.cityOf[province] == cell then
+			m.cityOf[province] = nil
+		end
+		Buildings.remove(m.buildings, cell, province)
+		Grid.sink(m.grid, cell)
+	end
+	MatchSim.clearBuildingsCache(m)
+	m.infoDirty = true
+	table.insert(m.events, { kind = "flood", step = m.flood.step, cells = sunk })
+	return sunk
+end
+
+local function stepFlood(m: Match)
+	if not m.rules.flood or m.time < m.flood.nextAt then
+		return
+	end
+	m.flood.nextAt += Config.Flood.EverySec
+	MatchSim.floodStep(m)
 end
 
 -- Радар — постоянная разведка: державы, чья земля в радиусе радара (выборка клеток круга).
@@ -4443,6 +4485,7 @@ function MatchSim.step(m: Match, dt: number)
 
 	stepWorld(m) -- случайные события и ракеты (§6.16, §6.9)
 	stepRadarIntel(m) -- радар — постоянная разведка (§6.11а)
+	stepFlood(m) -- «Потоп» (§5.3)
 	stepFleet(m, simDt)
 	stepAir(m, simDt)
 	m.lastCaptured = stepAttacks(m, simDt)

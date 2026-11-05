@@ -104,6 +104,9 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			timeLimit = m.rules.timeLimitSec,
 			result = m.result,
 			mapId = map.name,
+			flood = if m.rules.flood
+				then { step = m.flood.step, nextIn = math.max(0, m.flood.nextAt - m.time) }
+				else nil,
 			mapVote = if m.phase == "Over"
 				then {
 					options = m.mapOptions,
@@ -310,6 +313,8 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 					m.forcedMode = devMode
 				end
 				matchEvent:FireClient(player, { kind = "dev", mode = devMode })
+			elseif action == "flood" then
+				ok, reason = DevTools.floodNow(m)
 			elseif action == "map" then
 				-- Карта следующего матча без голосования (§5.2): по кругу пула.
 				local pool = Config.MapVote.Pool

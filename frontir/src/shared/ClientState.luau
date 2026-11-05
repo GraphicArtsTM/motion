@@ -58,6 +58,7 @@ export type Info = {
 	mode: ModeInfo?,
 	mapId: string?, -- карта матча (§5.2): другая — клиент загружает её заново
 	mapVote: MapVoteInfo?, -- голосование за карту на экране итогов
+	flood: { step: number, nextIn: number }?, -- «Потоп» (§5.3): ступень воды и секунд (часы матча) до следующей
 }
 
 export type MapVoteInfo = { options: { string }, counts: { number }, myVote: string? }
@@ -168,6 +169,8 @@ export type ClientState = {
 	worldAt: number,
 	mode: ModeInfo, -- режим (§5.1)
 	mapVote: MapVoteInfo?, -- голосование за карту (§5.2)
+	flood: { step: number, nextIn: number }?, -- «Потоп» (§5.3)
+	floodAt: number, -- когда пришла ступень (часы клиента)
 	rules: Modes.Rules,
 	speed: number, -- темп игрового времени: Match.Speed × режим («Блиц» — ×2)
 }
@@ -252,6 +255,8 @@ function ClientState.new(width: number, height: number): ClientState
 		fogOff = false,
 		mode = ClientState.emptyMode(),
 		mapVote = nil,
+		flood = nil,
+		floodAt = 0,
 		rules = Modes.rules("Ffa"),
 		speed = Config.Match.Speed,
 		stability = ClientState.emptyStability(),
@@ -416,6 +421,8 @@ function ClientState.applyInfo(cs: ClientState, info: Info, now: number): boolea
 	cs.targetNations = info.targetNations or cs.targetNations
 	cs.timeLimit = info.timeLimit or cs.timeLimit
 	cs.mapVote = info.mapVote
+	cs.flood = info.flood
+	cs.floodAt = now
 	local mode = info.mode
 	if mode ~= nil then
 		cs.mode = mode

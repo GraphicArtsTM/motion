@@ -298,6 +298,10 @@ function DevPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang): DevP
 	local modeButton = button(string.format(Strings.get("dev.mode", lang), "—"), function()
 		fire("mode", nil)
 	end)
+	-- Этап 8в: «Потоп» — ступень воды сейчас (§5.3).
+	button(Strings.get("dev.flood", lang), function()
+		fire("flood", nil)
+	end)
 	-- Этап 8б: карта следующего матча без голосования (§5.2) — по кругу пула.
 	local mapButton = button(string.format(Strings.get("dev.map", lang), "—"), function()
 		fire("map", nil)

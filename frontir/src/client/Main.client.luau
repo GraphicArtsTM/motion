@@ -28,6 +28,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local CameraMath = require(Shared:WaitForChild("CameraMath"))
 local ClientState = require(Shared:WaitForChild("ClientState"))
 local Config = require(Shared:WaitForChild("Config"))
+local Flood = require(Shared:WaitForChild("Flood"))
 local MapFormat = require(Shared:WaitForChild("MapFormat"))
 local MapPaint = require(Shared:WaitForChild("MapPaint"))
 local Provinces = require(Shared:WaitForChild("Provinces"))
@@ -263,6 +264,30 @@ local function runSession(mapId: string, resync: boolean)
 		end
 	end
 
+	-- «Потоп» (§5.3): утонувшие клетки — водой в цветах карты (их же рисует мини-карта); новый матч — суша целая.
+	local baseColors = buffer.create(buffer.len(colors))
+	buffer.copy(baseColors, 0, colors)
+	local floodShown = 0
+	local function syncFlood()
+		local target = if cs.flood ~= nil then cs.flood.step else 0
+		if target == floodShown then
+			return
+		end
+		if target < floodShown then
+			buffer.copy(colors, 0, baseColors)
+			floodShown = 0
+			territory.repaintAll()
+			gridChanged()
+			if target == 0 then
+				return
+			end
+		end
+		local cells = Flood.paint(colors, Flood.levels(map), map.width, floodShown, target)
+		floodShown = target
+		territory.cellsChanged(cells, os.clock(), false)
+		gridChanged()
+	end
+
 	-- Туман (§6.11): пересчёт обзора раз в Fog.RefreshSec и сразу — при смене фазы, державы, «Туман выкл».
 	local fogAt, fogMs = -math.huge, 0
 	local revealOn = false -- идёт ли «Радарная вспышка» (§6.15)
@@ -297,6 +322,7 @@ local function runSession(mapId: string, resync: boolean)
 				territory.repaintAll()
 				gridChanged()
 			end
+			syncFlood()
 			refreshFog(os.clock()) -- фаза или своя держава могли смениться (зритель видит всё)
 			labels.refresh()
 			hud.refresh()

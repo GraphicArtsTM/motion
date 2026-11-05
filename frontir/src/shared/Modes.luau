@@ -22,6 +22,7 @@ export type Rules = {
 	teams: boolean,
 	capitalHunt: boolean,
 	duel: boolean, -- «Дуэль» (§5.2): без ботов, 2×2 — две команды
+	flood: boolean, -- «Потоп» (§5.3): вода поднимается по ступеням
 }
 
 local Modes = {}
@@ -44,6 +45,7 @@ function Modes.rules(id: ModeId): Rules
 		teams = false,
 		capitalHunt = false,
 		duel = false,
+		flood = false,
 	}
 	if id == "Teams" then
 		r.teams = true
@@ -59,6 +61,8 @@ function Modes.rules(id: ModeId): Rules
 		r.siloFree = true
 	elseif id == "CapitalHunt" then
 		r.capitalHunt = true
+	elseif id == "Flood" then
+		r.flood = true
 	elseif id == "Duel" then
 		local duel = cfg.Duel
 		r.duel = true

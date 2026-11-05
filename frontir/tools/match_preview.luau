@@ -22,6 +22,7 @@ local BuildingSprites = require("../src/shared/BuildingSprites")
 local Commanders = require("../src/shared/Commanders")
 local Config = require("../src/shared/Config")
 local Diplomacy = require("../src/shared/Diplomacy")
+local Flood = require("../src/shared/Flood")
 local Fog = require("../src/shared/Fog")
 local Forces = require("../src/shared/Forces")
 local Grid = require("../src/shared/Grid")
@@ -188,6 +189,10 @@ end
 local result = m.result
 local out = process.args[3] or "build/match.png"
 local terrain = MapPaint.paint(map)
+-- «Потоп» (§5.3): утонувшие клетки — водой, как у клиента.
+if m.flood.step > 0 then
+	Flood.paint(terrain, Flood.levels(map), map.width, 0, m.flood.step)
+end
 local w, h = map.width, map.height
 local g = m.grid
 local ink = Palette.rgb("Ink")

@@ -61,7 +61,7 @@ Config.Match = {
 -- §5.1 Режимы (этап 8а). Правила режима — Modes.rules; база — Config.Match (каждый сам за себя).
 Config.Modes = {
 	-- Режим недели по номеру недели UTC (с понедельника) по кругу; «Потоп» — этап 8б.
-	Weekly = { "Blitz", "Mist", "Superweapon", "CapitalHunt" },
+	Weekly = { "Blitz", "Mist", "Superweapon", "CapitalHunt", "Flood" },
 	WeekStartUnix = 345600, -- понедельник 1970-01-05 00:00 UTC — неделя 0
 	-- Команды: держав в матче ≤ upTo — столько команд.
 	TeamsBy = { { upTo = 12, teams = 2 }, { upTo = 24, teams = 3 }, { upTo = 1e9, teams = 4 } },
@@ -74,10 +74,19 @@ Config.Modes = {
 	Duel = { Players = { 2, 4 }, VictoryShare = 0.45, TimeLimitSec = 12 * 60, Speed = 1.5 },
 }
 
+-- §5.3 «Потоп» (этап 8в): каждые EverySec вода поднимается на ступень (StepCells «высоты» на ширине 512).
+Config.Flood = {
+	EverySec = 120, -- часы матча
+	MaxSteps = 6,
+	StepCells = 4, -- клеток равнины от воды за ступень (холмы тонут втрое медленнее)
+	-- Цена клетки по местности (×10, индексы — Types.Terrain); гор нет — горы не тонут.
+	Cost = { [1] = 10, [2] = 15, [3] = 30, [5] = 10, [6] = 12, [7] = 10 },
+}
+
 -- §5.2 Голосование за карту (этап 8б): на экране итогов — текущая и Options − 1 случайных из пула.
 Config.MapVote = {
 	Options = 3,
-	Pool = { "World", "Europe", "Mediterranean", "Asia", "Americas", "Africa" },
+	Pool = { "World", "Europe", "Mediterranean", "Asia", "Americas", "Africa", "Scandinavia", "Caribbean", "Oceania" },
 }
 
 -- §6.11а Разведка и скрытая мощь (правка после 8а): чужая военная мощь скрыта, разведка открывает её на время.
@@ -917,9 +926,53 @@ Config.RealMaps = {
 		RiverMaxRank = 4,
 		MaxPlayers = 30,
 	},
+	-- Этап 8в (§5.3): новые регионы.
+	Scandinavia = {
+		Name = "Scandinavia",
+		Nations = 8, -- держав в матче (игроки + боты); малая карта — удобна для дуэли
+		Seed = 4007,
+		Lon0 = 3,
+		Lon1 = 33,
+		Lat0 = 54,
+		Lat1 = 71.5,
+		Width = 512,
+		Height = 640,
+		Provinces = 90,
+		RiverMaxRank = 6,
+		MaxPlayers = 20,
+	},
+	Caribbean = {
+		Name = "Caribbean",
+		Nations = 10, -- держав в матче (игроки + боты); острова и перешеек — много флота
+		Seed = 4008,
+		Lon0 = -103,
+		Lon1 = -60,
+		Lat0 = 7,
+		Lat1 = 31.5,
+		Width = 832,
+		Height = 512,
+		Provinces = 100,
+		RiverMaxRank = 6,
+		MaxPlayers = 25,
+	},
+	Oceania = {
+		Name = "Oceania",
+		Nations = 10, -- держав в матче (игроки + боты)
+		Seed = 4009,
+		Lon0 = 110,
+		Lon1 = 180,
+		Lat0 = -48,
+		Lat1 = -9,
+		Width = 960,
+		Height = 608,
+		Provinces = 130,
+		RiverMaxRank = 5,
+		MaxPlayers = 25,
+	},
 }
 -- Порядок карт (ротация, лобби — этап 4в).
-Config.RealMapOrder = { "Europe", "Mediterranean", "Africa", "Asia", "Americas", "World" }
+Config.RealMapOrder =
+	{ "Europe", "Mediterranean", "Africa", "Asia", "Americas", "World", "Scandinavia", "Caribbean", "Oceania" }
 
 -- Местность реальных карт по рельефу (метры, перепад — в окне 3×3 клетки) и широте.
 Config.RealMapTerrain = {
