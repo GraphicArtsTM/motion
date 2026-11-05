@@ -648,6 +648,7 @@ local TABLE: { [string]: Entry } = {
 	["tech.cost"] = { ru = "$%s · %d с", en = "$%s · %d s" },
 	["tech.progress"] = { ru = "%s: %d с", en = "%s: %d s" },
 	["tech.idle"] = { ru = "Ничего не изучается", en = "Nothing is being researched" },
+	["build.needTech"] = { ru = "Нужна технология «%s» (Y)", en = "Needs tech “%s” (Y)" },
 	["event.researched"] = { ru = "Изучено: %s", en = "Researched: %s" },
 	["reject.researching"] = { ru = "Уже идёт исследование", en = "Research already in progress" },
 	["reject.techMaxed"] = { ru = "Ветка изучена", en = "Branch complete" },

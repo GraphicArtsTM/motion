@@ -158,15 +158,24 @@ function BuildPanel.new(
 		local money = if cs.myForces ~= nil then cs.myForces.economy.money else 0
 		for kind, b in items do
 			local price = cost(kind)
+			-- Радар и аэродром открывает технология (§6.14): без неё — какая нужна.
+			local need = (Config.Tech.Unlocks :: any)[kind]
+			local open = need == nil or (cs.tech.levels :: any)[need.branch] >= need.level
+			local hint = if open
+				then Strings.get("building." .. kind .. ".hint", lang)
+				else string.format(
+					Strings.get("build.needTech", lang),
+					Strings.get("tech." .. need.branch .. "." .. need.level, lang)
+				)
 			b.Text = string.format(
 				'%s  <font color="%s">$%s</font>\n<font size="12" color="%s">%s</font>',
 				Strings.get("building." .. kind, lang),
 				gold,
 				Strings.formatInt(price),
 				muted,
-				Strings.get("building." .. kind .. ".hint", lang)
+				hint
 			)
-			b.TextTransparency = if money >= price then 0 else 0.5
+			b.TextTransparency = if money >= price and open then 0 else 0.5
 		end
 	end
 

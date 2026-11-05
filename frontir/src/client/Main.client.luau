@@ -10,7 +10,8 @@
 	этап 6б: Совет держав, торговля в окне дипломатии, пинги на карте (G);
 	этап 7а: туман войны (обзор раз в Fog.RefreshSec), стабильность в HUD, режим карты «Стабильность» (N);
 	этап 7б-1: корабли на карте (ShipLayer), меню порта, высадка и патруль (NavalPanel);
-	этап 7б-2: самолёты на карте (AirLayer), меню аэродрома, налёт и прикрытие (AirPanel).
+	этап 7б-2: самолёты на карте (AirLayer), меню аэродрома, налёт и прикрытие (AirPanel);
+	этап 7в-1: окно «Технологии» (Y, TechPanel), закрытые технологией здания в меню «Построить».
 ]]
 
 local LocalizationService = game:GetService("LocalizationService")
@@ -54,6 +55,7 @@ local Pings = require(UI:WaitForChild("Pings"))
 local ResultsPanel = require(UI:WaitForChild("ResultsPanel"))
 local ShipLayer = require(Render:WaitForChild("ShipLayer"))
 local StabilityPanel = require(UI:WaitForChild("StabilityPanel"))
+local TechPanel = require(UI:WaitForChild("TechPanel"))
 local TerritoryLayer = require(Render:WaitForChild("TerritoryLayer"))
 local Theme = require(UI:WaitForChild("Theme"))
 local WarPanel = require(UI:WaitForChild("WarPanel"))
@@ -218,6 +220,7 @@ council.refresh()
 local pings = Pings.new(hudGui, view.canvas, cs, lang, send, hud.toast)
 local stabilityPanel = StabilityPanel.new(hudGui, view.canvas, cs, lang, provinces, territory.setStabilityMode)
 stabilityPanel.refresh()
+local techPanel = TechPanel.new(hudGui, cs, lang, send)
 local naval = NavalPanel.new(hudGui, cs, lang, map, provinces, send, hud.percent, shipLayer.pick, shipLayer.select)
 local airPanel = AirPanel.new(hudGui, cs, lang, map, provinces, send, airLayer.pick, airLayer.select)
 -- Панель разработчика (F4) — только в Studio; создаётся в фоне (ждёт канал Remotes.Dev от сервера).
@@ -274,6 +277,7 @@ client = MatchClient.connect(cs, {
 		council.refresh()
 		pings.refresh()
 		stabilityPanel.refresh()
+		techPanel.refresh()
 		naval.refresh()
 		airPanel.refresh()
 	end,
@@ -317,6 +321,10 @@ client = MatchClient.connect(cs, {
 		airLayer.refresh()
 		airPanel.refresh()
 		hud.refresh()
+	end,
+	onTech = function()
+		techPanel.refresh()
+		build.refresh()
 	end,
 	onStability = function(rebelsChanged: { number })
 		territory.provincesChanged(rebelsChanged)

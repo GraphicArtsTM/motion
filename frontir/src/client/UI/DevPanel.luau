@@ -270,6 +270,13 @@ function DevPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang): DevP
 		fire("airForce", nil)
 	end)
 	button(Strings.get("dev.botRaid", lang), withBot("botRaid", same))
+	-- Этап 7в-1: технологии (§6.14).
+	button(Strings.get("dev.researchAll", lang), function()
+		fire("researchAll", nil)
+	end)
+	button(Strings.get("dev.finishResearch", lang), function()
+		fire("finishResearch", nil)
+	end)
 
 	UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
 		if gameProcessed or UserInputService:GetFocusedTextBox() ~= nil then

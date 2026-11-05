@@ -282,6 +282,23 @@ T.describe("Технологии", function()
 		end
 	)
 
+	T.it(
+		"копилка: в мире бот (не Новичок) держит деньги на следующий уровень, в войне — нет",
+		function()
+			local zero = { Army = 0, Economy = 0, Fleet = 0 }
+			local view = techView(zero)
+			view.wars = {}
+			local normal = BotBrain.profile("Normal", "Trader")
+			T.expect(BotBrain.techSavings(view, normal)).toBe(cfg.Cost[1] * cfg.BotSaveShare)
+			view.tech.researching = true
+			T.expect(BotBrain.techSavings(view, normal)).toBe(0)
+			view.tech.researching = false
+			T.expect(BotBrain.techSavings(view, BotBrain.profile("Novice", "Trader"))).toBe(0)
+			view.wars = { { active = false } }
+			T.expect(BotBrain.techSavings(view, normal)).toBe(0)
+		end
+	)
+
 	T.it("бот в партии сам исследует и тратит деньги", function()
 		local m = duo()
 		MatchSim.setBot(m, 2, "Normal", "Trader")

@@ -458,12 +458,12 @@ local function airDecision(view: BotView, p: Profile, rng: Rng): Types.Intent?
 	return nil
 end
 
--- Технологии (§6.14): следующий уровень по порядку личности (Генерал — по своей очереди), если хватает денег
--- с запасом уровня. Новичок — редко и случайно.
-function BotBrain.techChoice(view: BotView, p: Profile, rng: Rng): Types.TechBranch?
+-- Технологии (§6.14): какую ветку бот хочет следующей — по порядку личности (Генерал — по своей очереди),
+-- Новичок — случайно. Деньги не проверяет. Возвращает ветку и цену её следующего уровня.
+local function techWanted(view: BotView, p: Profile, rng: Rng?): (string?, number)
 	local tech = view.tech
 	if tech == nil or tech.researching then
-		return nil
+		return nil, 0
 	end
 	local cfg = Config.Tech
 	local function nextLevel(branch: string): number?
@@ -476,6 +476,9 @@ function BotBrain.techChoice(view: BotView, p: Profile, rng: Rng): Types.TechBra
 	end
 	local branch: string? = nil
 	if p.level.randomTarget then
+		if rng == nil then
+			return nil, 0
+		end
 		local open: { string } = {}
 		for _, b in { "Army", "Economy", "Fleet" } do
 			if nextLevel(b) ~= nil then
@@ -505,13 +508,30 @@ function BotBrain.techChoice(view: BotView, p: Profile, rng: Rng): Types.TechBra
 		end
 	end
 	if branch == nil then
-		return nil
+		return nil, 0
 	end
-	local level = nextLevel(branch) :: number
-	if view.money < cfg.Cost[level] + p.level.buildReserve then
+	return branch, cfg.Cost[nextLevel(branch) :: number]
+end
+
+-- Технология, которую бот начнёт сейчас: желаемая ветка, если хватает денег с запасом уровня.
+function BotBrain.techChoice(view: BotView, p: Profile, rng: Rng): Types.TechBranch?
+	local branch, cost = techWanted(view, p, rng)
+	if branch == nil or view.money < cost + p.level.buildReserve then
 		return nil
 	end
 	return branch :: any
+end
+
+-- Копилка на технологию (§6.14): в мире бот (не Новичок) не тратит на найм деньги следующего уровня.
+function BotBrain.techSavings(view: BotView, p: Profile): number
+	if p.level.randomTarget then
+		return 0
+	end
+	if #view.wars > 0 then
+		return 0 -- война или мобилизация: деньги — на войска
+	end
+	local _, cost = techWanted(view, p, nil)
+	return cost * Config.Tech.BotSaveShare
 end
 
 local function techDecision(view: BotView, p: Profile, rng: Rng): Types.Intent?
@@ -805,11 +825,12 @@ function BotBrain.decide(view: BotView, rng: Rng, profile: Profile?, memory: Mem
 	then
 		local enemyMix = if enemy ~= nil then enemy.mix else nil
 		local unit: Types.LandUnit = chooseUnit(view, p, rng, enemyMix)
+		local savings = BotBrain.techSavings(view, p)
 		local function affordable(u: Types.LandUnit): boolean
 			local stats = Forces.stats(Forces.kindIndex(u) :: number)
 			local net = view.economy.income - view.economy.upkeep
 			return view.people >= stats.people
-				and view.money >= stats.cost
+				and view.money >= stats.cost + savings
 				and view.oil >= stats.oil
 				and net >= Economy.upkeep(stats.strength)
 		end
