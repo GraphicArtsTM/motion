@@ -30,6 +30,7 @@ local Air = require("./Air")
 local BotBrain = require("./BotBrain")
 local Buildings = require("./Buildings")
 local Config = require("./Config")
+local Commanders = require("./Commanders")
 local Council = require("./Council")
 local Diplomacy = require("./Diplomacy")
 local Economy = require("./Economy")
@@ -90,6 +91,8 @@ export type MatchEvent =
 	| { kind: "revolt", nation: number, province: number }
 	-- Технологии (§6.14, этап 7в-1)
 	| { kind: "researched", nation: number, branch: Types.TechBranch, level: number }
+	-- Генералы (§6.15, этап 7в-2): применена способность (target — держава в клетке цели, 0 — нет)
+	| { kind: "ability", nation: number, ability: string, cell: number?, target: number }
 	-- Флот (§6.12, этап 7б-1)
 	| { kind: "shipBuilt", nation: number, ship: Types.ShipKind }
 	| { kind: "shipSunk", nation: number, by: number, ship: Types.ShipKind, lost: number }
@@ -101,7 +104,7 @@ export type MatchEvent =
 	| { kind: "raid", nation: number, target: number, cell: number, lost: number, buildings: number }
 
 -- Потоки случайных чисел бота: когда думать, главные решения, флот, авиация, дипломатия.
-export type BotRngs = { think: Rng, main: Rng, navy: Rng, air: Rng, diplo: Rng, tech: Rng }
+export type BotRngs = { think: Rng, main: Rng, navy: Rng, air: Rng, diplo: Rng, tech: Rng, ability: Rng }
 
 export type Match = {
 	map: MapData,
@@ -147,6 +150,7 @@ export type Match = {
 	stability: Stability.State, -- стабильность провинций и повстанцы (§6.10)
 	sea: Naval.SeaMap, -- море, причалы, пути (§6.12)
 	tech: Tech.TechState, -- технологии держав (§6.14)
+	commanders: Commanders.CommanderState, -- генералы игроков и способности (§6.15)
 	fleet: Fleet.FleetState, -- корабли
 	air: Air.AirState, -- самолёты и выведенные из строя здания (§6.13)
 	bombedAt: { [number]: number }, -- держава → когда её последний раз бомбили (боты ставят батарею ПВО)
@@ -228,6 +232,7 @@ function MatchSim.new(map: MapData, seed: number): Match
 		sea = sea,
 		fleet = Fleet.new(),
 		tech = Tech.new(),
+		commanders = Commanders.new(),
 		air = Air.new(),
 		bombedAt = {},
 		bombedCell = {},
@@ -319,6 +324,7 @@ local function botRngsOf(m: Match, id: number): BotRngs
 			air = Rng.stream(m.seed, 203, id),
 			diplo = Rng.stream(m.seed, 204, id),
 			tech = Rng.stream(m.seed, 205, id),
+			ability = Rng.stream(m.seed, 206, id),
 		}
 		m.botRngs[id] = r
 	end
@@ -331,6 +337,10 @@ local function makeBot(m: Match, n: Nation, level: Types.BotLevel?)
 	n.botLevel = level or BotBrain.rollLevel(m.rng)
 	n.personality = BotBrain.rollPersonality(m.rng)
 	m.botProfiles[n.id] = BotBrain.profile(n.botLevel, n.personality)
+	-- Генерал (§6.15): по личности; у державы ушедшего игрока остаётся его выбор.
+	if m.commanders.chosen[n.id] == nil then
+		Commanders.choose(m.commanders, n.id, Commanders.forPersonality(n.personality))
+	end
 	m.infoDirty = true
 end
 
@@ -355,6 +365,7 @@ function MatchSim.setBot(m: Match, id: number, level: Types.BotLevel, personalit
 	if personality ~= nil then
 		n.personality = personality
 		m.botProfiles[id] = BotBrain.profile(level, personality)
+		Commanders.choose(m.commanders, id, Commanders.forPersonality(personality))
 	end
 	if m.botNextThink[id] == nil then
 		m.botNextThink[id] = m.simTime + BotBrain.nextThinkDelay(botRngsOf(m, id).think, profileOf(m, id))
@@ -537,6 +548,15 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 		m.infoDirty = true
 		return true, nil
 	end
+	if intent.kind == "commander" then
+		-- Генерал (§6.15): выбор до начала игры, потом закреплён.
+		if m.phase ~= "Waiting" and m.phase ~= "Lobby" and m.phase ~= "Pick" then
+			return false, "phase"
+		end
+		Commanders.choose(m.commanders, nationId, intent.commander)
+		m.infoDirty = true
+		return true, nil
+	end
 
 	if m.phase ~= "Play" then
 		return false, "phase"
@@ -571,14 +591,15 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 		if n.people < stats.people then
 			return false, "noTroops"
 		end
-		if n.money < stats.cost then
+		local cost = MatchSim.unitCost(m, nationId, kind)
+		if n.money < cost then
 			return false, "noMoney"
 		end
 		if n.oil < stats.oil then
 			return false, "noOil"
 		end
 		n.people -= stats.people
-		n.money -= stats.cost
+		n.money -= cost
 		n.oil -= stats.oil
 		-- Свой завод ускоряет найм (§6.9).
 		local speed = if owned.factories > 0 then 1 - Config.Buildings.Factory.recruitSpeedBonus else 1
@@ -608,10 +629,12 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 		if spot == nil then
 			return false, reason
 		end
-		local money, oil = Buildings.cost(m.buildings, intent.building, spot)
-		if money == nil then
+		local base, oil = Buildings.cost(m.buildings, intent.building, spot)
+		if base == nil then
 			return false, "maxLevel"
 		end
+		-- Инженер (§6.15): здания дешевле.
+		local money = base * Commanders.buildCostMul(Commanders.of(m.commanders, nationId))
 		if n.money < money then
 			return false, "noMoney"
 		end
@@ -623,6 +646,10 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 		Buildings.place(m.buildings, intent.building, spot, MapData.getProvince(m.map, spot))
 		MatchSim.refreshOwned(m)
 		return true, nil
+	end
+
+	if intent.kind == "ability" then
+		return MatchSim.useAbility(m, n, intent.slot, intent.cell, intent.percent)
 	end
 
 	if intent.kind == "research" then
@@ -1208,6 +1235,7 @@ local function eliminate(m: Match, n: Nation, by: number)
 	Diplomacy.removeNation(m.diplo, n.id)
 	Stability.removeNation(m.stability, n.id)
 	Tech.removeNation(m.tech, n.id)
+	Commanders.removeNation(m.commanders, n.id)
 	n.alive = false
 	n.eliminatedAt = m.time
 	n.people = 0
@@ -1606,12 +1634,14 @@ local function stepAttacks(m: Match, simDt: number): number
 			local cityAllowed = neutralCityTaker(m, a)
 			Expansion.syncCache(cache, g) -- захваты этого тика (прежние атаки) уже в линии
 			local line = Expansion.line(cache, g, a.attacker, 0, cityAllowed ~= nil, nil, m.tick)
-			local d, cells = Expansion.advance(m.map, g, m.nations, a, m.tick, m.seed, simDt, {
-				cityAllowed = cityAllowed,
-				canTake = enclaveRule(m, a.attacker),
-				record = record,
-				costMul = rebelCost,
-			}, line)
+			-- Прорыв (§6.15): наступление на ничью землю тоже быстрее.
+			local d, cells =
+				Expansion.advance(m.map, g, m.nations, a, m.tick, m.seed, simDt * MatchSim.surgeMul(m, a.attacker), {
+					cityAllowed = cityAllowed,
+					canTake = enclaveRule(m, a.attacker),
+					record = record,
+					costMul = rebelCost,
+				}, line)
 			done = d
 			captured += cells
 		else
@@ -1690,7 +1720,7 @@ local function stepAttacks(m: Match, simDt: number): number
 						home = defender.home,
 						share = homeShare,
 						counter = if counter ~= nil then counter.forces else nil,
-						bonus = if still then Config.Fortify.LineBonus else 1,
+						bonus = (if still then Config.Fortify.LineBonus else 1) * MatchSim.abilityDefenseMul(m, a),
 						armor = if Tech.has(m.tech, a.target, "Army", 3) then Config.Tech.TankArmor else nil,
 					},
 					Fronts.terrainDefense(m.map, front.list, front.river, fortified),
@@ -1703,7 +1733,7 @@ local function stepAttacks(m: Match, simDt: number): number
 				a.fighting = result.fighting
 				Wars.addLosses(war, a.attacker, result.lostAttacker)
 				Wars.addLosses(war, a.target, result.lostDefender)
-				local mul = Fronts.advanceMul(a, result.ratio)
+				local mul = Fronts.advanceMul(a, result.ratio) * MatchSim.surgeMul(m, a.attacker)
 				local allowCities = result.ratio >= Config.Combat.CityCaptureRatio
 				local took = Expansion.advanceFront(
 					m.map,
@@ -2016,6 +2046,15 @@ local function stepPockets(m: Match)
 	end
 end
 
+-- Цена наземного юнита (индекс kind) в деньгах: Маршал (§6.15) — танки дешевле.
+function MatchSim.unitCost(m: Match, nationId: number, kind: number): number
+	local cost = Forces.stats(kind).cost
+	if Types.LandUnits[kind] == "Tanks" then
+		cost *= Commanders.tankCostMul(Commanders.of(m.commanders, nationId))
+	end
+	return cost
+end
+
 -- Сколько юнитов очереди найма готовится одновременно: 1 + свои заводы, не больше Forces.MaxRecruitLines.
 function MatchSim.recruitLines(m: Match, nationId: number): number
 	return math.min(Config.Forces.MaxRecruitLines, 1 + MatchSim.ownedOf(m, nationId).factories)
@@ -2035,7 +2074,7 @@ function MatchSim.shipCost(m: Match, nationId: number, kind: Types.ShipKind): nu
 	if Tech.has(m.tech, nationId, "Fleet", 1) then
 		cost *= 1 - Config.Tech.ShipyardDiscount
 	end
-	return cost
+	return cost * Commanders.shipCostMul(Commanders.of(m.commanders, nationId)) -- Адмирал (§6.15)
 end
 
 -- Технологии глазами бота: уровни веток и идёт ли исследование.
@@ -2047,6 +2086,327 @@ function MatchSim.techView(m: Match, n: Nation): BotBrain.TechView
 		Fleet = Tech.level(m.tech, n.id, "Fleet"),
 		researching = r ~= nil,
 	}
+end
+
+-- Генералы (§6.15, этап 7в-2) ----------------------------------------------------------------
+
+-- Касается ли линия фронта (выборка a.line) круга r вокруг клетки cell.
+local function lineTouches(m: Match, a: Attack, cell: number, r: number): boolean
+	local line = a.line
+	if line == nil then
+		return false
+	end
+	local w = m.grid.width
+	local cx, cy = cell % w, cell // w
+	local r2 = r * r
+	for _, c in line :: { number } do
+		local dx, dy = c % w - cx, c // w - cy
+		if dx * dx + dy * dy <= r2 then
+			return true
+		end
+	end
+	return false
+end
+
+-- Расстояние «ref» (клеток на ширине 512) на этой карте.
+local function refCells(m: Match, cells: number): number
+	return cells * m.grid.width / Config.UnitsReferenceMapWidth
+end
+
+-- Множитель обороны защитника фронта a от способностей генералов: авиаудар врага (×StrikeDefenseMul),
+-- укрепрайон защитника (×FortMul).
+function MatchSim.abilityDefenseMul(m: Match, a: Attack): number
+	local st = m.commanders
+	if (#st.strikes == 0 and #st.forts == 0) or a.line == nil then
+		return 1
+	end
+	local cfg = Config.Commanders
+	local mul = 1
+	for _, s in st.strikes do
+		if
+			(s.owner == a.attacker or Diplomacy.friends(m.diplo, a.attacker)[s.owner])
+			and Wars.isActive(m.wars, s.owner, a.target)
+			and lineTouches(m, a, s.cell, cfg.StrikeRadius)
+		then
+			mul *= cfg.StrikeDefenseMul
+			break
+		end
+	end
+	for _, f in st.forts do
+		if f.owner == a.target then
+			for _, c in a.line :: { number } do
+				if MapData.getProvince(m.map, c) == f.province then
+					mul *= cfg.FortMul
+					break
+				end
+			end
+		end
+	end
+	return mul
+end
+
+-- Свои фронты идут быстрее (Прорыв).
+function MatchSim.surgeMul(m: Match, id: number): number
+	return if Commanders.surging(m.commanders, id, m.simTime) then Config.Commanders.SurgeMul else 1
+end
+
+-- Видно ли державе всю карту (Радарная вспышка).
+function MatchSim.revealing(m: Match, id: number): boolean
+	return Commanders.revealing(m.commanders, id, m.simTime)
+end
+
+-- Чужая клетка суши, куда можно высадиться: ничья или врага (война идёт).
+local function landable(m: Match, id: number, cell: number): boolean
+	local g = m.grid
+	if cell < 0 or cell >= g.size or not Grid.isCapturable(g, cell) then
+		return false
+	end
+	local o = Grid.getOwner(g, cell)
+	return o ~= id and (o == 0 or Wars.isActive(m.wars, id, o))
+end
+
+-- Применить способность слота slot (1 — Q, 2 — E). percent — доля войск для десантов.
+function MatchSim.useAbility(m: Match, n: Nation, slot: number, cell: number?, percent: number?): (boolean, string?)
+	local st = m.commanders
+	local cfg = Config.Commanders
+	if slot ~= 1 and slot ~= 2 then
+		return false, "?"
+	end
+	if Commanders.left(st, n.id, slot, m.simTime) > 0 then
+		return false, "cooldown"
+	end
+	local ability = Commanders.ability(Commanders.of(st, n.id), slot)
+	local g = m.grid
+	local w = g.width
+	if Commanders.needsTarget(ability) and (cell == nil or cell < 0 or cell >= g.size) then
+		return false, "focus"
+	end
+	local at = cell or 0
+	local victim = if cell ~= nil then Grid.getOwner(g, at) else 0
+	local share = math.clamp(percent or 0.5, 0, 1)
+	local function inCircle(c: number, r: number): boolean
+		local dx, dy = c % w - at % w, c // w - at // w
+		return dx * dx + dy * dy <= r * r
+	end
+
+	if ability == "Airstrike" then
+		local r = cfg.StrikeRadius
+		local enemy = false
+		for dy = -r, r do
+			for dx = -r, r do
+				local x, y = at % w + dx, at // w + dy
+				if x >= 0 and y >= 0 and x < w and y < g.height and dx * dx + dy * dy <= r * r then
+					local o = Grid.getOwner(g, y * w + x)
+					if o ~= 0 and o ~= n.id and Wars.isActive(m.wars, n.id, o) then
+						enemy = true
+					end
+				end
+			end
+		end
+		if not enemy then
+			return false, "noEnemy"
+		end
+		for _, a in m.attacks do
+			if
+				a.target ~= 0
+				and a.attacker ~= n.id
+				and Wars.isActive(m.wars, n.id, a.attacker)
+				and lineTouches(m, a, at, r)
+			then
+				local mul = 1 - Air.aaReduction(Forces.composition(a.forces))
+				Forces.applyDamage(a.forces, Forces.total(a.forces) * cfg.StrikeLoss * mul)
+			end
+		end
+		table.insert(st.strikes, { owner = n.id, cell = at, untilTime = m.simTime + cfg.StrikeSec })
+	elseif ability == "Surge" then
+		st.surgeUntil[n.id] = m.simTime + cfg.SurgeSec
+	elseif ability == "SeaLanding" or ability == "Airdrop" then
+		if not landable(m, n.id, at) then
+			return false, "target"
+		end
+		if ability == "SeaLanding" and Naval.waterNear(m.sea, at, 2) == nil then
+			return false, "notCoast"
+		end
+		local cargo: Types.Forces
+		if ability == "SeaLanding" then
+			cargo = Forces.take(n.home, share)
+		else
+			-- Воздушный десант: пехота гарнизона, не больше AirdropShare.
+			local inf = Forces.kindIndex("Infantry") :: number
+			local squad = n.home[inf]
+			local amount = squad.strength * math.min(share, cfg.AirdropShare)
+			cargo = Forces.new()
+			Forces.add(cargo, inf, amount, squad.xp)
+			squad.strength -= amount
+		end
+		if Forces.total(cargo) < Config.Forces.MinFrontStrength then
+			Forces.merge(n.home, cargo)
+			return false, "noTroops"
+		end
+		local r = if ability == "SeaLanding" then Config.Naval.BeachheadRadius else cfg.AirdropRadius
+		MatchSim.landAt(m, n.id, at, cargo, 0, r)
+	elseif ability == "Blockade" then
+		local r = refCells(m, cfg.BlockadeRadius)
+		local hit = 0
+		for _, p in MatchSim.buildingsOf(m, "Port") do
+			if p.owner ~= n.id and Wars.isActive(m.wars, n.id, p.owner) and inCircle(p.cell, r) then
+				m.air.disabled[p.cell] = m.simTime + cfg.BlockadeSec
+				hit += 1
+			end
+		end
+		if hit == 0 then
+			return false, "noEnemy"
+		end
+		m.air.version += 1
+		MatchSim.refreshOwned(m)
+	elseif ability == "Reveal" then
+		st.revealUntil[n.id] = m.simTime + cfg.RevealSec
+	elseif ability == "Propaganda" then
+		local r = refCells(m, cfg.PropagandaRadius)
+		local hit = 0
+		for p, s in m.stability.provinces do
+			local province = m.provinces.list[p]
+			if
+				province ~= nil
+				and s.owner ~= 0
+				and s.owner ~= n.id
+				and Wars.isActive(m.wars, n.id, s.owner)
+				and inCircle(province.center, r)
+			then
+				s.value = math.max(0, s.value - cfg.PropagandaLoss)
+				hit += 1
+			end
+		end
+		if hit == 0 then
+			return false, "noEnemy"
+		end
+	elseif ability == "Fortify" then
+		if victim ~= n.id then
+			return false, "notOwner"
+		end
+		table.insert(
+			st.forts,
+			{ owner = n.id, province = MapData.getProvince(m.map, at), untilTime = m.simTime + cfg.FortSec }
+		)
+	end
+	Commanders.use(st, n.id, slot, m.simTime)
+	table.insert(m.events, {
+		kind = "ability",
+		nation = n.id,
+		ability = ability,
+		cell = cell,
+		target = if victim ~= n.id then victim else 0,
+	})
+	return true, nil
+end
+
+-- Бот применяет способность (во время войны, со своим шансом). Цели — по ситуации на фронтах.
+local function botAbility(m: Match, n: Nation, profile: BotBrain.Profile, rng: Rng)
+	local cfg = Config.Commanders
+	local enemies = Wars.of(m.wars, n.id)
+	local active: { number } = {}
+	for _, war in enemies do
+		if war.state == "active" then
+			table.insert(active, Wars.enemyOf(war, n.id))
+		end
+	end
+	if #active == 0 then
+		return
+	end
+	local chance = cfg.BotChance * (if profile.level.randomTarget then 0.3 else 1)
+	if Rng.nextFloat(rng) >= chance then
+		return
+	end
+	local isEnemy: { [number]: boolean } = {}
+	for _, e in active do
+		isEnemy[e] = true
+	end
+	-- Линии фронтов: свои против врага и врага против нас.
+	local mine: { Attack } = {}
+	local theirs: { Attack } = {}
+	for _, a in m.attacks do
+		if a.line ~= nil and #(a.line :: { number }) > 0 then
+			if a.attacker == n.id and isEnemy[a.target] then
+				table.insert(mine, a)
+			elseif a.target == n.id and isEnemy[a.attacker] then
+				table.insert(theirs, a)
+			end
+		end
+	end
+	local function lineCell(list: { Attack }): number?
+		if #list == 0 then
+			return nil
+		end
+		local a = list[Rng.range(rng, 1, #list)]
+		local line = a.line :: { number }
+		return line[Rng.range(rng, 1, #line)]
+	end
+	local function enemyCity(coastal: boolean): number?
+		local best: number? = nil
+		local bestD = math.huge
+		local cap = n.capital or 0
+		local w = m.grid.width
+		for _, c in m.cityOf do
+			local o = Grid.getOwner(m.grid, c)
+			if isEnemy[o] and (not coastal or Naval.waterNear(m.sea, c, 2) ~= nil) then
+				local d = (c % w - cap % w) ^ 2 + (c // w - cap // w) ^ 2
+				if d < bestD then
+					best, bestD = c, d
+				end
+			end
+		end
+		return best
+	end
+	for _, slot in { 1, 2 } do
+		if Commanders.left(m.commanders, n.id, slot, m.simTime) <= 0 then
+			local ability = Commanders.ability(Commanders.of(m.commanders, n.id), slot)
+			local cell: number? = nil
+			local percent: number? = nil
+			if ability == "Airstrike" or ability == "Propaganda" then
+				cell = lineCell(mine) or lineCell(theirs)
+			elseif ability == "Surge" then
+				cell = if #mine > 0 then -1 else nil
+			elseif ability == "Reveal" then
+				cell = -1
+			elseif ability == "Fortify" then
+				local c = lineCell(theirs)
+				cell = if c ~= nil and Grid.getOwner(m.grid, c) == n.id then c else nil
+			elseif ability == "Blockade" then
+				for _, p in MatchSim.buildingsOf(m, "Port") do
+					if isEnemy[p.owner] then
+						cell = p.cell
+						break
+					end
+				end
+			elseif ability == "SeaLanding" then
+				cell = enemyCity(true)
+				percent = cfg.BotLandPercent
+			elseif ability == "Airdrop" then
+				cell = enemyCity(false)
+				percent = 1
+			end
+			if cell ~= nil then
+				local target = if cell >= 0 then cell else nil
+				-- Десант — рядом с городом врага (сам город плацдарм не берёт).
+				if target ~= nil and (ability == "SeaLanding" or ability == "Airdrop") then
+					local g = m.grid
+					local found: number? = nil
+					Grid.forNeighbours(g, target, function(j)
+						if found == nil and landable(m, n.id, j) and not Grid.isCity(g, j) then
+							found = j
+						end
+					end)
+					target = found
+				end
+				if target ~= nil or not Commanders.needsTarget(ability) then
+					local ok = MatchSim.useAbility(m, n, slot, target, percent)
+					if ok then
+						return
+					end
+				end
+			end
+		end
+	end
 end
 
 -- Флот (§6.12, этап 7б-1) ------------------------------------------------------------------
@@ -2410,17 +2770,26 @@ end
 
 -- Высадка (§6.12): плацдарм, войска — фронт против врага рядом (или атака ничьей земли), люди — с ними или домой.
 function MatchSim.land(m: Match, ship: Fleet.Ship)
-	local n = m.nations[ship.owner]
 	local target = ship.target
 	local cargo = ship.cargo or Forces.new()
 	local people = ship.people
 	ship.cargo, ship.people, ship.target = nil, 0, nil
-	if n == nil or not n.alive or target == nil then
+	if target == nil then
+		return
+	end
+	MatchSim.landAt(m, ship.owner, target, cargo, people, Config.Naval.BeachheadRadius)
+end
+
+-- Плацдарм радиуса r у клетки target: свои клетки в круге (ничьи и врага, кроме городов), войска cargo — фронт
+-- против врага рядом (или на ничью землю), люди — с ними или домой. Общее для высадки с транспорта и десантов
+-- генералов (§6.15).
+function MatchSim.landAt(m: Match, owner: number, target: number, cargo: Types.Forces, people: number, r: number)
+	local n = m.nations[owner]
+	if n == nil or not n.alive then
 		return
 	end
 	local g = m.grid
 	local w = g.width
-	local r = Config.Naval.BeachheadRadius
 	local tx, ty = target % w, target // w
 	local taken = 0
 	local enemies: { [number]: number } = {}
@@ -3239,6 +3608,8 @@ function MatchSim.step(m: Match, dt: number)
 		end
 	end
 
+	Commanders.cleanup(m.commanders, m.simTime) -- истёкшие зоны авиаудара и укрепрайона (§6.15)
+
 	-- Технологии (§6.14): законченные исследования.
 	for _, done in Tech.step(m.tech, simDt) do
 		table.insert(m.events, { kind = "researched", nation = done.id, branch = done.branch, level = done.level })
@@ -3306,6 +3677,7 @@ function MatchSim.step(m: Match, dt: number)
 			if intent ~= nil then
 				MatchSim.applyIntent(m, n.id, intent)
 			end
+			botAbility(m, n, profile, rngs.ability) -- способности генерала (§6.15)
 		end
 	end
 	m.botThinks = thinks

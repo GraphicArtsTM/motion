@@ -6,6 +6,7 @@
 
 local ClientState = require("../ClientState")
 local Config = require("../Config")
+local Commanders = require("../Commanders")
 local Council = require("../Council")
 local Diplomacy = require("../Diplomacy")
 local Air = require("../Air")
@@ -55,7 +56,14 @@ function MatchStats.vision(m: MatchSim.Match, viewer: number): Vision
 			table.insert(ships, Air.cellOf(m.grid.width, plane))
 		end
 	end
-	local blocks = Fog.visionBlocks(m.grid.width, m.grid.height, borders, MatchStats.radarsOf(m, friends), ships)
+	local blocks = Fog.visionBlocks(
+		m.grid.width,
+		m.grid.height,
+		borders,
+		MatchStats.radarsOf(m, friends),
+		ships,
+		Commanders.visionMul(Commanders.of(m.commanders, viewer))
+	)
 	return { friends = friends, blocks = blocks }
 end
 
@@ -249,6 +257,24 @@ function MatchStats.tech(m: MatchSim.Match, viewer: number?): TechMessage
 		research = if r ~= nil
 			then { branch = r.branch, level = r.level, left = math.max(0, math.ceil(r.left)), total = r.total }
 			else nil,
+	}
+end
+
+-- Генерал (§6.15) игроку: кто, сколько до готовности способностей, сколько осталось эффектам. Таблица commander.
+export type CommanderMessage = ClientState.CommanderMessage
+
+function MatchStats.commander(m: MatchSim.Match, viewer: number): CommanderMessage
+	local st = m.commanders
+	local now = m.simTime
+	return {
+		kind = "commander",
+		commander = Commanders.of(st, viewer),
+		left = {
+			math.ceil(Commanders.left(st, viewer, 1, now)),
+			math.ceil(Commanders.left(st, viewer, 2, now)),
+		},
+		surge = math.max(0, math.ceil((st.surgeUntil[viewer] or 0) - now)),
+		reveal = math.max(0, math.ceil((st.revealUntil[viewer] or 0) - now)),
 	}
 end
 

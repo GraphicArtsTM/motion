@@ -237,6 +237,8 @@ export type Intent =
 	| RaidIntent
 	| CoverIntent
 	| ResearchIntent
+	| CommanderIntent
+	| AbilityIntent
 
 -- Боты v2 (§9.1): уровни и личности. Списки — для перебора и проверки имён.
 export type BotLevel = "Novice" | "Normal" | "General"
@@ -316,6 +318,12 @@ export type CoverIntent = { kind: "cover", plane: number, cell: number } -- то
 -- Технологии (§6.14, этап 7в-1).
 export type TechBranch = "Army" | "Economy" | "Fleet"
 export type ResearchIntent = { kind: "research", branch: TechBranch } -- исследовать следующий уровень ветки
+-- Генералы игроков (§6.15, этап 7в-2). В коде — Commander, чтобы не путать с уровнем бота «General».
+export type CommanderId = "Marshal" | "Admiral" | "Scout" | "Engineer"
+Types.CommanderIds = table.freeze({ "Marshal", "Admiral", "Scout", "Engineer" } :: { CommanderId })
+export type CommanderIntent = { kind: "commander", commander: CommanderId } -- выбрать генерала (лобби, выбор старта)
+-- Способность: slot 1 — Q, 2 — E; cell — цель на карте; percent — доля войск для десантов (0..1).
+export type AbilityIntent = { kind: "ability", slot: number, cell: number?, percent: number? }
 
 export type Phase = "Waiting" | "Lobby" | "Pick" | "Play" | "Over"
 

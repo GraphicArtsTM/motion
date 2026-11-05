@@ -220,6 +220,24 @@ function Intents.parse(kind: any, payload: any): (Types.Intent?, string?)
 			return nil, "bad branch"
 		end
 		return { kind = "research", branch = branch :: Types.TechBranch }, nil
+	elseif kind == "commander" then
+		local c = payload.commander
+		if table.find(Types.CommanderIds, c) == nil then
+			return nil, "bad commander"
+		end
+		return { kind = "commander", commander = c :: Types.CommanderId }, nil
+	elseif kind == "ability" then
+		local slot, cell, percent = payload.slot, payload.cell, payload.percent
+		if slot ~= 1 and slot ~= 2 then
+			return nil, "bad slot"
+		end
+		if cell ~= nil and (not isInt(cell) or cell < 0) then
+			return nil, "bad cell"
+		end
+		if percent ~= nil and (not isFinite(percent) or percent < 0 or percent > 1) then
+			return nil, "bad percent"
+		end
+		return { kind = "ability", slot = slot, cell = cell, percent = percent }, nil
 	end
 	return nil, "unknown kind"
 end

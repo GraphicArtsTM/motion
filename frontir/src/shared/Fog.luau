@@ -39,6 +39,8 @@ export type Sources = {
 	radars: { number },
 	ships: { number }?, -- клетки кораблей друзей (обзор Naval.ShipVision, этап 7б-1)
 	planes: { number }?, -- клетки самолётов друзей (обзор Air.AirVision, этап 7б-2)
+	visionMul: number?, -- Разведчик (§6.15): обзор вокруг земли, фронтов и радаров ×
+	ports: { number }?, -- свои порты Адмирала (§6.15): обзор TerritoryVision + Commanders.PortVision
 }
 
 local Fog = {}
@@ -106,10 +108,14 @@ function Fog.compute(fs: FogState, owners: buffer, sources: Sources): (boolean, 
 	local cfg = Config.Fog
 	local vision = fs.vision
 	local friends = sources.friends
-	local territory = cfg.TerritoryVision * ORTHO + 1
-	local army = cfg.ArmyVision * ORTHO + 1
-	local radar = cfg.RadarVision * ORTHO + 1
-	local reach = math.max(cfg.TerritoryVision, cfg.ArmyVision, cfg.RadarVision)
+	local mul = sources.visionMul or 1
+	local tv, av, rv =
+		math.round(cfg.TerritoryVision * mul), math.round(cfg.ArmyVision * mul), math.round(cfg.RadarVision * mul)
+	local pv = tv + Config.Commanders.PortVision
+	local territory = tv * ORTHO + 1
+	local army = av * ORTHO + 1
+	local radar = rv * ORTHO + 1
+	local reach = math.max(tv, av, rv, pv)
 
 	-- Флаги владельцев: 1 — друг, 2 — друг с фронтом; пары фронта — по ключу mine * 65536 + other.
 	local flag: { [number]: number } = {}
@@ -176,6 +182,10 @@ function Fog.compute(fs: FogState, owners: buffer, sources: Sources): (boolean, 
 	end
 	for _, cell in sources.radars do
 		point(cell, radar)
+	end
+	local ports: { number } = sources.ports or {}
+	for _, cell in ports do
+		point(cell, pv * ORTHO + 1)
 	end
 	local shipValue = Config.Naval.ShipVision * ORTHO + 1
 	local ships: { number } = sources.ships or {}
@@ -325,14 +335,16 @@ function Fog.visionBlocks(
 	height: number,
 	borderCells: { { [number]: boolean } },
 	radars: { number },
-	ships: { number }?
+	ships: { number }?,
+	visionMul: number? -- Разведчик (§6.15)
 ): { [number]: boolean }
 	local cfg = Config.Fog
 	local bs = cfg.BlockSize
 	local bw, bh = math.ceil(width / bs), math.ceil(height / bs)
 	local base: { [number]: number } = {} -- блок → радиус расширения в блоках
-	local near = math.ceil(math.max(cfg.TerritoryVision, cfg.ArmyVision) / bs)
-	local far = math.ceil(cfg.RadarVision / bs)
+	local mul = visionMul or 1
+	local near = math.ceil(math.max(cfg.TerritoryVision, cfg.ArmyVision) * mul / bs)
+	local far = math.ceil(cfg.RadarVision * mul / bs)
 	for _, set in borderCells do
 		for i in set do
 			local b = (i // width) // bs * bw + (i % width) // bs
