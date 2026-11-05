@@ -58,6 +58,20 @@ Config.Match = {
 	TargetNations = 6,
 }
 
+-- §5.1 Режимы (этап 8а). Правила режима — Modes.rules; база — Config.Match (каждый сам за себя).
+Config.Modes = {
+	-- Режим недели по номеру недели UTC (с понедельника) по кругу; «Потоп» — этап 8б.
+	Weekly = { "Blitz", "Mist", "Superweapon", "CapitalHunt" },
+	WeekStartUnix = 345600, -- понедельник 1970-01-05 00:00 UTC — неделя 0
+	-- Команды: держав в матче ≤ upTo — столько команд.
+	TeamsBy = { { upTo = 12, teams = 2 }, { upTo = 24, teams = 3 }, { upTo = 1e9, teams = 4 } },
+	TeamTaxShare = 0, -- налог на переводы своей команде (обычный — Trade.TaxShare)
+	BlitzSpeed = 2, -- «Блиц»: множитель скорости поверх Match.Speed
+	MistVisionMul = 0.6, -- «Мгла»: обзор ×
+	CapitalHunt = { Need = 3, HoldSec = 60 }, -- «Охота на столицы»: столиц врагов, секунд удержания (часы матча)
+	SoloFastSpeed = 2, -- «Против ботов»: ×2 — шагов симуляции за кадр
+}
+
 -- §6.2 Старт
 Config.Start = {
 	MinDistance = 48, -- минимальная дистанция между точками старта, клеток
@@ -319,6 +333,9 @@ Config.Dev = {
 	Map = "",
 	-- Все боты одного уровня (§9.1): "" — по Bots.LevelMix; "Novice", "Normal" или "General".
 	BotLevel = "",
+	-- Режим без голосования (§5.1): "" — голосование в лобби; "Ffa", "Teams", "Blitz", "Mist", "Superweapon",
+	-- "CapitalHunt" — этот.
+	Mode = "",
 	-- Сколько держав в матче (игроки + боты): 0 — как у карты (RealMaps.<карта>.Nations).
 	Nations = 0,
 	-- Панель разработчика (F4, только в Studio): сколько давать и во сколько ускорять.

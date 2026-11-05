@@ -293,6 +293,10 @@ function DevPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang): DevP
 	button(Strings.get("dev.finishResearch", lang), function()
 		fire("finishResearch", nil)
 	end)
+	-- Этап 8а: режим без голосования (§5.1) — по кругу; в лобби — сразу, иначе — со следующего матча.
+	local modeButton = button(string.format(Strings.get("dev.mode", lang), "—"), function()
+		fire("mode", nil)
+	end)
 
 	UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
 		if gameProcessed or UserInputService:GetFocusedTextBox() ~= nil then
@@ -310,6 +314,9 @@ function DevPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang): DevP
 		onDev = function(msg: any)
 			if type(msg.fog) == "boolean" then
 				fogButton.Text = Strings.get(if msg.fog then "dev.fogOn" else "dev.fogOff", lang)
+			end
+			if type(msg.mode) == "string" then
+				modeButton.Text = string.format(Strings.get("dev.mode", lang), Strings.get("mode." .. msg.mode, lang))
 			end
 			if type(msg.speed) == "number" then
 				speedButton.Text = string.format(

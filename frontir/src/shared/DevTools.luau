@@ -138,7 +138,7 @@ function DevTools.endMatch(m: Match): (boolean, string?)
 	if m.phase ~= "Play" then
 		return false, "phase"
 	end
-	m.time = math.max(m.time, Config.Match.TimeLimitSec - Config.Dev.EndLeadSec)
+	m.time = math.max(m.time, m.rules.timeLimitSec - Config.Dev.EndLeadSec)
 	return true, nil
 end
 

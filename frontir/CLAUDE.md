@@ -4,7 +4,8 @@
 
 ## Где мы сейчас
 Сделаны этапы **0–6**, **7а**, **7б-1** (флот), **7б-2** (авиация), доработки перед 7в, **7в-1** и **7в-2** — всё в `main` (PR #2–#8).
-**7в-1** (технологии) и **7в-2** (генералы) смержены (PR #7, #8). **7г** (случайные события и ракетная шахта) готов и ждёт проверки в Studio, дальше этап 8
+**7в-1** (технологии) и **7в-2** (генералы) смержены (PR #7, #8). **7г** принят геймдизайнером (PR #9 ещё не смержен, в нём же 8а), после него туман больше
+не прячет границы. **8а** (режимы и голосование) готов и ждёт проверки в Studio, дальше 8б и 8в
 (см. «Статус» в начале GDD §15). Обновляй «Статус» в GDD и этот раздел в конце каждого этапа.
 
 ## Порядок работы (договорённости с геймдизайнером)
@@ -56,7 +57,7 @@ lune run tools/maps_preview    # лист всех карт → build/maps.png
 lune run tools/bench World 60 180  # нагрузка: время тика и трафик на 60 ботах
 lune run tools/genmap Pangea   # пересоздать тестовую maps/Pangea.luau (+ превью build/Pangea.bmp)
 lune run tools/palette_preview # пересоздать docs/palette.png после правки цветов
-lune run tools/match_preview 120 12345 build/match.png Europe 12  # партия ботов → картинка (секунды, сид, файл, карта, держав)
+lune run tools/match_preview 120 12345 build/match.png Europe 12 Teams  # партия ботов → картинка (секунды, сид, файл, карта, держав, режим)
 lune run tools/bot_arena Europe 20  # «игрок» (Обычный бот) против трёх Новичков / Обычных / Генералов, 20 сидов, пороги
 lune run tools/bench_ab World 60 180 5  # честный замер: main и ветка в одном запуске, 5 прогонов, минимум
 rojo sourcemap default.project.json -o sourcemap.json   # для luau-lsp
@@ -172,6 +173,8 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   раз в `Stability.UpdateSec` (`stepStability`), восстание — `MatchSim.revolt` (клетки ничьи, город повстанцев
   с гарнизоном `RebelGarrison` в `neutralCityTaker`), ничья земля повстанцев дороже (`Expansion.Hooks.costMul`),
   доход — в `stepEconomy`. Боты: `spots.unstable` / `unstableCity` и мир раньше (`BotBrain`).
+- Туман с правки после 7г прячет войска, корабли, самолёты и здания, но не границы (`Fog.hideTerritory`,
+  `Config.Fog.HideTerritory`; `true` — правило 7а, его включает «Мгла»).
 - `Fog` — чистый модуль: обзор клиента (фаска 5/7 в прямоугольнике вокруг источников, два прохода), последний
   увиденный владелец (`known`), «видно всё» (`all`, так начинается матч и так у зрителя); грубый обзор сервера
   блоками (`visionBlocks`, `lineVisible` по выборке линии фронта `Attack.line`).
@@ -226,10 +229,19 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
 - Сеть: таблица `world` раз в секунду (`MatchStats.world`, `ClientState.applyWorld`). Клиент: `UI/WorldPanel`,
   `Render/MarkerLayer`, кнопка R в `UI/CommanderPanel`.
 
+## Режимы (этап 8а)
+- `Modes` — правила режима (`Rules`: доля суши, лимит, скорость, туман, шахта, команды, охота), варианты голосования
+  (`options`, режим недели `weekly`), подсчёт (`tally`), команды по долготе (`assignTeams`). `MatchSim`: `m.rules`
+  вместо `Config.Match.*` (победа, лимит, скорость), `openVote` / `setMode` (в конце лобби), намерения `modeVote`,
+  `difficulty`, `solo`; команды — `MatchSim.teammates` (война, разрыв, договоры, налог), `checkTeamVictory`,
+  охота — `huntWinner`. Пауза и ×2 — в `MatchService` (Heartbeat не шагает / шагает ×2).
+- Сеть: `mode` в info (`ClientState.ModeInfo`), у держав `team`, `hunt`, `huntLeft`. Клиент: `UI/ModePanel`,
+  время и таймеры — `ClientState.matchTime` / `simRate` (не `Config.Match.Speed`).
+
 ## Панель разработчика (F4)
 - Только в Studio: `MatchService` создаёт `Remotes.Dev` при `RunService:IsStudio()`; действия — чистый `DevTools`
   (grant, forceOffer, warNow, peaceNow, councilNow, endMatch, setStability, revoltNow, navy, botLanding, airForce,
-  botRaid, researchAll, finishResearch, resetCooldowns, nextCommander, botAbility, eventNow, silo, botMissile), ускорение ×5 — шагов
+  botRaid, researchAll, finishResearch, resetCooldowns, nextCommander, botAbility, eventNow, silo, botMissile; «Режим» — в `MatchService`), ускорение ×5 — шагов
   симуляции за кадр в `MatchService`, «Туман выкл» — `devNoFog` в `MatchService` и `cs.fogOff` на клиенте.
   Клиент: `UI/DevPanel`. Новые механики — сразу добавлять в панель и в чек-лист README.
 - С этапа 7 каждый этап — отдельный PR в `main` (кто мержит — см. «Порядок работы»).

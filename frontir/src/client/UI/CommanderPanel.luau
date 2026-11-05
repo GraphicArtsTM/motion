@@ -205,9 +205,9 @@ function CommanderPanel.new(
 	end
 	local function leftOf(slot: number, now: number): number
 		if slot == MISSILE then
-			return math.max(0, cs.world.missileLeft - (now - cs.worldAt) * Config.Match.Speed)
+			return math.max(0, cs.world.missileLeft - (now - cs.worldAt) * ClientState.simRate(cs))
 		end
-		return math.max(0, cs.commander.left[slot] - (now - cs.commanderAt) * Config.Match.Speed)
+		return math.max(0, cs.commander.left[slot] - (now - cs.commanderAt) * ClientState.simRate(cs))
 	end
 	local function cancel()
 		pending = nil
@@ -299,7 +299,7 @@ function CommanderPanel.new(
 		end
 		-- Действующий эффект (прорыв, вспышка) — в строке режима, если не ждём цели.
 		if pending == nil then
-			local elapsed = (now - cs.commanderAt) * Config.Match.Speed
+			local elapsed = (now - cs.commanderAt) * ClientState.simRate(cs)
 			local surge = cs.commander.surge - elapsed
 			local reveal = cs.commander.reveal - elapsed
 			if surge > 0 then

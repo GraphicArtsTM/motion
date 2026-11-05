@@ -127,7 +127,7 @@ function WorldPanel.new(
 		end
 		local a = cs.world.auction
 		local me = if cs.myNation ~= nil then cs.nations[cs.myNation] else nil
-		local left = if a ~= nil then a.left - (now - cs.worldAt) * Config.Match.Speed else 0
+		local left = if a ~= nil then a.left - (now - cs.worldAt) * ClientState.simRate(cs) else 0
 		panel.Visible = a ~= nil and left > 0 and cs.phase == "Play" and me ~= nil and me.alive
 		if not panel.Visible or a == nil then
 			return

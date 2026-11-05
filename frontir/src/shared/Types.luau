@@ -241,6 +241,9 @@ export type Intent =
 	| AbilityIntent
 	| BidIntent
 	| MissileIntent
+	| ModeVoteIntent
+	| DifficultyIntent
+	| SoloIntent
 
 -- Боты v2 (§9.1): уровни и личности. Списки — для перебора и проверки имён.
 export type BotLevel = "Novice" | "Normal" | "General"
@@ -333,7 +336,15 @@ export type MissileIntent = { kind: "missile", cell: number } -- пуск рак
 export type Phase = "Waiting" | "Lobby" | "Pick" | "Play" | "Over"
 
 -- Итог матча (§2, §5): кто и как победил, места, доля суши по времени для графика результатов.
-export type VictoryReason = "land" | "last" | "time"
+export type VictoryReason = "land" | "last" | "time" | "capitals"
+
+-- Режимы матча (§5.1, этап 8а).
+export type ModeId = "Ffa" | "Teams" | "Blitz" | "Mist" | "Superweapon" | "CapitalHunt"
+Types.ModeIds = table.freeze({ "Ffa", "Teams", "Blitz", "Mist", "Superweapon", "CapitalHunt" } :: { ModeId })
+export type ModeVoteIntent = { kind: "modeVote", mode: ModeId }
+export type DifficultyIntent = { kind: "difficulty", level: BotLevel }
+-- Против ботов (§5.1): пауза и ×2, только когда в матче один игрок.
+export type SoloIntent = { kind: "solo", pause: boolean, fast: boolean }
 export type MatchResult = {
 	winner: NationId,
 	reason: VictoryReason,

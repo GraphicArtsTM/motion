@@ -8,6 +8,7 @@
 
 local Config = require("./Config")
 local Fog = require("./Fog")
+local Modes = require("./Modes")
 local Protocol = require("./Net/Protocol")
 local Types = require("./Types")
 
@@ -22,6 +23,22 @@ export type NationInfo = {
 	personality: Types.BotPersonality?,
 	commander: Types.CommanderId?, -- генерал (§6.15)
 	alive: boolean,
+	team: number?, -- команда («Команды», §5.1)
+	hunt: number?, -- исходных столиц врагов держит («Охота на столицы»)
+	huntLeft: number?, -- секунд до победы охотой (держит нужное число)
+}
+
+-- Режим матча (§5.1, этап 8а): голосование в лобби, против ботов, пауза и ×2.
+export type ModeInfo = {
+	mode: Types.ModeId, -- выбранный (до конца лобби — «Каждый сам за себя»)
+	options: { Types.ModeId }, -- варианты голосования
+	counts: { number }, -- голоса по вариантам
+	myVote: Types.ModeId?,
+	humans: number, -- игроков в матче (один — выбор сложности)
+	solo: boolean,
+	difficulty: Types.BotLevel?,
+	paused: boolean,
+	fast: boolean,
 }
 
 -- Таблица, которую сервер шлёт при смене фазы и состава держав.
@@ -38,6 +55,7 @@ export type Info = {
 	targetNations: number?,
 	timeLimit: number?, -- лимит времени матча, с
 	result: Types.MatchResult?, -- итог (фаза Over)
+	mode: ModeInfo?,
 }
 
 -- Договоры (§8.1) глазами клиента: сообщение diplo. Сроки — в секундах игрового времени от момента отправки.
@@ -144,9 +162,44 @@ export type ClientState = {
 	commanderAt: number, -- когда пришло commander (часы клиента; для обратных отсчётов)
 	world: WorldMessage, -- события и ракеты (§6.16, §6.9)
 	worldAt: number,
+	mode: ModeInfo, -- режим (§5.1)
+	rules: Modes.Rules,
+	speed: number, -- темп игрового времени: Match.Speed × режим («Блиц» — ×2)
 }
 
 local ClientState = {}
+
+function ClientState.emptyMode(): ModeInfo
+	return {
+		mode = "Ffa",
+		options = {},
+		counts = {},
+		myVote = nil,
+		humans = 0,
+		solo = false,
+		difficulty = nil,
+		paused = false,
+		fast = false,
+	}
+end
+
+-- Во сколько раз часы матча идут быстрее реальных: пауза — 0, ×2 «Против ботов» — 2.
+function ClientState.clockRate(cs: ClientState): number
+	if cs.mode.paused and cs.phase == "Play" then
+		return 0
+	end
+	return if cs.mode.fast then Config.Modes.SoloFastSpeed else 1
+end
+
+-- Темп игрового времени относительно часов клиента (обратные отсчёты сроков, перезарядок).
+function ClientState.simRate(cs: ClientState): number
+	return cs.speed * ClientState.clockRate(cs)
+end
+
+-- Время матча сейчас (часы матча, с паузой и ×2).
+function ClientState.matchTime(cs: ClientState, now: number): number
+	return cs.time + (now - cs.timeAt) * ClientState.clockRate(cs)
+end
 
 function ClientState.emptyDiplo(): DiploMessage
 	return {
@@ -192,6 +245,9 @@ function ClientState.new(width: number, height: number): ClientState
 		bytes = 0,
 		fog = Fog.new(width, height),
 		fogOff = false,
+		mode = ClientState.emptyMode(),
+		rules = Modes.rules("Ffa"),
+		speed = Config.Match.Speed,
 		stability = ClientState.emptyStability(),
 		rebelSet = {},
 		ships = { ships = {}, blocked = {}, queue = {} },
@@ -293,7 +349,7 @@ end
 
 -- Сколько секунд осталось «Радарной вспышке» (часы клиента, темп матча).
 function ClientState.revealLeft(cs: ClientState, now: number): number
-	return math.max(0, cs.commander.reveal - (now - cs.commanderAt) * Config.Match.Speed)
+	return math.max(0, cs.commander.reveal - (now - cs.commanderAt) * ClientState.simRate(cs))
 end
 
 function ClientState.emptyTech(): TechMessage
@@ -353,6 +409,14 @@ function ClientState.applyInfo(cs: ClientState, info: Info, now: number): boolea
 	end
 	cs.targetNations = info.targetNations or cs.targetNations
 	cs.timeLimit = info.timeLimit or cs.timeLimit
+	local mode = info.mode
+	if mode ~= nil then
+		cs.mode = mode
+		cs.rules = Modes.rules(mode.mode)
+		cs.speed = Config.Match.Speed * cs.rules.speed
+		-- «Мгла» прячет чужие границы; до игры туман «видно всё», так что смена правила безопасна.
+		cs.fog.hideTerritory = cs.rules.hideTerritory
+	end
 	cs.result = info.result
 	local fresh: { [number]: NationInfo } = {}
 	for _, n in info.nations do
@@ -635,7 +699,8 @@ function ClientState.fogSources(cs: ClientState): Fog.Sources?
 		ships = ships,
 		planes = planes,
 		ports = ports,
-		visionMul = if commander == "Scout" then Config.Commanders.VisionMul else nil, -- Разведчик (§6.15)
+		-- Разведчик (§6.15) и «Мгла» (§5.1).
+		visionMul = (if commander == "Scout" then Config.Commanders.VisionMul else 1) * cs.rules.visionMul,
 	}
 end
 

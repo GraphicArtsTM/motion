@@ -3,7 +3,7 @@
 	Превью партии: прогоняет матч на карте без игроков-людей (только боты) и рисует территории
 	теми же функциями, что и клиент (MapPaint + TerritoryPaint). Для проверки формы границ, цветов и темпа.
 	Запуск из frontir/:  lune run tools/match_preview [секунд=75] [сид=12345] [файл=build/match.png]
-	                     [карта=Config.Match.DefaultMap] [держав=Config.Match.TargetNations]
+	                     [карта=Config.Match.DefaultMap] [держав=Config.Match.TargetNations] [режим=Ffa]
 	Карта — модуль из maps/ (реальные карты пишет tools/realmap; «Pangea» — тестовая).
 	Картинка (PNG): сверху вся карта ×2 с городами и юнитами вдоль фронтов (как на клиенте на зуме ×2),
 	снизу — крупно бой (как на зуме ×8): если есть бой через реку — он, иначе самый большой. Юниты стоят
@@ -50,6 +50,11 @@ local mapName = process.args[4] or Config.Match.DefaultMap
 local map = MapFormat.fromModule((require :: any)("../maps/" .. mapName) :: MapFormat.MapModule)
 local m = MatchSim.new(map, seed)
 m.targetNations = tonumber(process.args[5]) or Config.Match.TargetNations
+-- Режим (§5.1, этап 8а): «Teams», «Blitz» и т. д. — без голосования.
+local modeArg = process.args[6]
+if modeArg ~= nil and table.find(Types.ModeIds, modeArg) ~= nil then
+	m.forcedMode = modeArg :: Types.ModeId
+end
 MatchSim.startPick(m)
 local dt = 1 / Config.Sim.TickRate
 while m.phase ~= "Play" do

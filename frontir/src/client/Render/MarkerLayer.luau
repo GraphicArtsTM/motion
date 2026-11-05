@@ -74,7 +74,7 @@ function MarkerLayer.new(canvas: Frame, cs: ClientState): MarkerLayer
 
 	local function refresh()
 		local now = os.clock()
-		local speed = Config.Match.Speed
+		local speed = math.max(ClientState.simRate(cs), 1e-3) -- на паузе отсчёт стоит
 		local live: { [string]: boolean } = {}
 		local storm = cs.world.storm
 		if storm ~= nil then
@@ -105,7 +105,7 @@ function MarkerLayer.new(canvas: Frame, cs: ClientState): MarkerLayer
 		local now = os.clock()
 		for _, e in events do
 			if type(e) == "table" and e.kind == "missileLaunched" and type(e.cell) == "number" then
-				local left = (tonumber(e.impactIn) or 0) / Config.Match.Speed
+				local left = (tonumber(e.impactIn) or 0) / math.max(ClientState.simRate(cs), 1e-3)
 				set(
 					"missile_" .. e.cell,
 					Theme.Colors.Alert,
@@ -145,7 +145,8 @@ function MarkerLayer.new(canvas: Frame, cs: ClientState): MarkerLayer
 			m.frame.Size = UDim2.fromOffset(x1 - x0, y1 - y0)
 			local label = m.label
 			if label ~= nil then
-				label.Text = tostring(math.max(0, math.ceil((m.endsAt - now) * Config.Match.Speed)))
+				label.Text =
+					tostring(math.max(0, math.ceil((m.endsAt - now) * math.max(ClientState.simRate(cs), 1e-3))))
 			end
 		end
 	end

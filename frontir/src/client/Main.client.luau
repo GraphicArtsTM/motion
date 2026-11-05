@@ -13,7 +13,8 @@
 	этап 7б-2: самолёты на карте (AirLayer), меню аэродрома, налёт и прикрытие (AirPanel);
 	этап 7в-1: окно «Технологии» (Y, TechPanel), закрытые технологией здания в меню «Построить»;
 	этап 7в-2: выбор генерала в лобби, способности Q / E (CommanderPanel), вспышка снимает туман;
-	этап 7г: баннер событий и аукцион наёмников (WorldPanel), круги шторма и ракет (MarkerLayer), пуск ракеты (R).
+	этап 7г: баннер событий и аукцион наёмников (WorldPanel), круги шторма и ракет (MarkerLayer), пуск ракеты (R);
+	этап 8а: голосование за режим, сложность, пауза и ×2 «Против ботов» (ModePanel), режим и команды в HUD.
 ]]
 
 local LocalizationService = game:GetService("LocalizationService")
@@ -60,6 +61,7 @@ local ShipLayer = require(Render:WaitForChild("ShipLayer"))
 local StabilityPanel = require(UI:WaitForChild("StabilityPanel"))
 local TechPanel = require(UI:WaitForChild("TechPanel"))
 local CommanderPanel = require(UI:WaitForChild("CommanderPanel"))
+local ModePanel = require(UI:WaitForChild("ModePanel"))
 local WorldPanel = require(UI:WaitForChild("WorldPanel"))
 local TerritoryLayer = require(Render:WaitForChild("TerritoryLayer"))
 local Theme = require(UI:WaitForChild("Theme"))
@@ -228,6 +230,7 @@ local stabilityPanel = StabilityPanel.new(hudGui, view.canvas, cs, lang, provinc
 stabilityPanel.refresh()
 local techPanel = TechPanel.new(hudGui, cs, lang, send)
 local commanderPanel = CommanderPanel.new(hudGui, cs, lang, send, hud.percent)
+local modePanel = ModePanel.new(hudGui, cs, lang, send)
 local worldPanel = WorldPanel.new(hudGui, cs, lang, send, function(id: number): string
 	local n = cs.nations[id]
 	return if n == nil then "?" elseif lang == "en" then n.nameEn else n.name
@@ -291,6 +294,7 @@ client = MatchClient.connect(cs, {
 		stabilityPanel.refresh()
 		techPanel.refresh()
 		commanderPanel.refresh()
+		modePanel.refresh()
 		naval.refresh()
 		airPanel.refresh()
 	end,
