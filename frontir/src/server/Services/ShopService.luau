@@ -51,7 +51,7 @@ function ShopService.start(profiles: ProfileStore.ProfileStore, hooks: Hooks): S
 		end
 		local purchaseId = tostring(info.PurchaseId)
 		local fresh = not Profile.hasPurchase(session.data, purchaseId)
-		if not Profile.grantProduct(session.data, kind, key, purchaseId) then
+		if not Profile.grantProduct(session.data, kind, key, purchaseId, os.time()) then
 			return Enum.ProductPurchaseDecision.NotProcessedYet
 		end
 		-- Сохранить сразу: деньги списаны, начисление не должно потеряться при падении сервера.

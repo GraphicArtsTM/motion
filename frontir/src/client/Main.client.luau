@@ -320,6 +320,9 @@ local function runSession(mapId: string, resync: boolean)
 				runSession(newMapId, true)
 			end)
 		end,
+		onShopEvent = function(msg: any)
+			shopPanel.onShopEvent(msg)
+		end,
 		onProfile = function()
 			shopPanel.refresh()
 			commanderPanel.refresh()
@@ -458,7 +461,8 @@ local function runSession(mapId: string, resync: boolean)
 			if cx ~= nil and cy ~= nil then
 				local cell = cy * map.width + cx
 				-- Режим стройки забирает нажатие; иначе — старт, атака, война.
-				local handled = commanderPanel.tap(cell)
+				local handled = shopPanel.tap(cell) -- цель «Авиаудара» (§11.3)
+					or commanderPanel.tap(cell)
 					or build.tap(cell)
 					or diplomacy.tap(cell)
 					or pings.tap(cell)

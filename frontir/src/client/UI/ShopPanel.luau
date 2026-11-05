@@ -15,6 +15,7 @@ local UserInputService = game:GetService("UserInputService")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local ClientState = require(Shared:WaitForChild("ClientState"))
 local Config = require(Shared:WaitForChild("Config"))
+local Profile = require(Shared:WaitForChild("Profile"))
 local Shop = require(Shared:WaitForChild("Shop"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
@@ -25,6 +26,8 @@ type ClientState = ClientState.ClientState
 
 export type ShopPanel = {
 	refresh: () -> (), -- пришёл профиль или сменилась фаза
+	tap: (cell: number) -> boolean, -- true — нажатие ушло в цель «Авиаудара»
+	onShopEvent: (msg: any) -> (), -- ежедневная награда, открытый ящик (§11.3)
 }
 
 local ShopPanel = {}
@@ -83,8 +86,38 @@ local function effect(key: string, lang: Strings.Lang): string
 	elseif key == "Recruit" or key == "Medals" or key == "Tokens" then
 		local p = (s.Packs :: any)[key]
 		return string.format(fmt, p.tokens, Strings.formatInt(p.medals))
+	elseif key == "Guards" then
+		return string.format(fmt, math.round(s.Boosts.Guards.powerShare * 100), s.Boosts.Guards.minStrength)
+	elseif key == "Airstrike" then
+		return string.format(fmt, math.round(s.Boosts.Airstrike.frontLoss * 100))
+	elseif key == "Crate1" or key == "Crate5" then
+		return string.format(fmt, (s.Packs :: any)[key].crates)
 	end
 	return fmt
+end
+
+-- Награда текстом: «+300 медалей, +1 жетон, Гвардия».
+local function rewardText(r: any, lang: Strings.Lang): string
+	local parts: { string } = {}
+	if (r.medals or 0) > 0 then
+		table.insert(parts, string.format(Strings.get("shop.r.medals", lang), Strings.formatInt(r.medals)))
+	end
+	if (r.tokens or 0) > 0 then
+		table.insert(parts, string.format(Strings.get("shop.r.tokens", lang), r.tokens))
+	end
+	if (r.crates or 0) > 0 then
+		table.insert(parts, string.format(Strings.get("shop.r.crates", lang), r.crates))
+	end
+	for key, n in r.stock or {} do
+		table.insert(parts, Strings.get("shop." .. key, lang) .. (if n > 1 then " ×" .. n else ""))
+	end
+	return table.concat(parts, ", ")
+end
+
+-- Секунды → «N дн. N ч» (честный отсчёт до настоящей даты).
+local function daysHours(sec: number, lang: Strings.Lang): string
+	local d, h = sec // 86400, (sec % 86400) // 3600
+	return string.format(Strings.get("shop.daysHours", lang), d, h)
 end
 
 function ShopPanel.new(
@@ -162,8 +195,57 @@ function ShopPanel.new(
 	note.Text = Strings.get("shop.note", lang)
 	y += 36
 
+	-- Боевой пропуск сезона (§11.3).
+	heading("shop.season")
+	local seasonLine = label(window, 13)
+	seasonLine.Position = UDim2.fromOffset(12, y)
+	seasonLine.Size = UDim2.fromOffset(W - 24 - 130, BUTTON)
+	local seasonBuy =
+		button(window, string.format(Strings.get("shop.robux", lang), Config.Shop.Packs.SeasonPass.price), 120)
+	seasonBuy.Position = UDim2.fromOffset(W - 12 - 120, y)
+	seasonBuy.TextColor3 = Theme.Colors.Gold
+	Session.connect(seasonBuy.Activated, function()
+		local p = cs.profile
+		if p ~= nil and not p.season.premium then
+			prompt("product", Config.Shop.Packs.SeasonPass.id)
+		end
+	end)
+	y += ROW
+	local seasonNext = label(window, 12)
+	seasonNext.Position = UDim2.fromOffset(12, y)
+	seasonNext.Size = UDim2.fromOffset(W - 24, 32)
+	seasonNext.TextColor3 = Theme.Colors.Muted
+	y += 36
+
+	-- Ящики снабжения (§11.3): шансы и гарантия видны до покупки.
+	heading("shop.crates")
+	local crateLine = label(window, 13)
+	crateLine.Position = UDim2.fromOffset(12, y)
+	crateLine.Size = UDim2.fromOffset(W - 24 - 130, BUTTON)
+	local openCrate = button(window, Strings.get("shop.openCrate", lang), 120)
+	openCrate.Position = UDim2.fromOffset(W - 12 - 120, y)
+	Session.connect(openCrate.Activated, function()
+		send("openCrate", {})
+	end)
+	y += ROW
+	local odds = label(window, 12)
+	odds.Position = UDim2.fromOffset(12, y)
+	odds.Size = UDim2.fromOffset(W - 24, 48)
+	odds.TextColor3 = Theme.Colors.Muted
+	local oddsParts: { string } = {}
+	for _, o in Profile.crateOdds() do
+		table.insert(oddsParts, string.format("%s %.0f%%", Strings.get("shop.odds." .. o.key, lang), o.percent))
+	end
+	odds.Text = Strings.get("shop.odds", lang)
+		.. " "
+		.. table.concat(oddsParts, " · ")
+		.. "\n"
+		.. string.format(Strings.get("shop.pity", lang), Config.Crates.Pity)
+	y += 52
+
 	-- Бусты.
 	heading("shop.boosts")
+	local strikePay: string? = nil -- «Авиаудар» ждёт клетку цели (оплата: token / stock)
 	type BoostRow = { key: string, status: TextLabel, token: TextButton, stock: TextButton, robux: TextButton }
 	local boostRows: { BoostRow } = {}
 	for _, key in Shop.BoostKeys do
@@ -189,11 +271,20 @@ function ShopPanel.new(
 		local robux = button(window, string.format(Strings.get("shop.robux", lang), cfg.price), 92)
 		robux.Position = UDim2.fromOffset(W - 12 - 92, y)
 		robux.TextColor3 = Theme.Colors.Gold
+		local function use(pay: string)
+			if key == "Airstrike" then
+				strikePay = pay -- цель — следующим нажатием на карту
+				window.Visible = false
+				toast(Strings.get("shop.pickTarget", lang))
+			else
+				send("boost", { key = key, pay = pay })
+			end
+		end
 		Session.connect(token.Activated, function()
-			send("boost", { key = key, pay = "token" })
+			use("token")
 		end)
 		Session.connect(stock.Activated, function()
-			send("boost", { key = key, pay = "stock" })
+			use("stock")
 		end)
 		Session.connect(robux.Activated, function()
 			prompt("product", cfg.id)
@@ -232,7 +323,7 @@ function ShopPanel.new(
 
 	-- Наборы.
 	heading("shop.packs")
-	type PackRow = { key: string, buy: TextButton }
+	type PackRow = { key: string, buy: TextButton, desc: TextLabel }
 	local packRows: { PackRow } = {}
 	for _, key in Shop.PackKeys do
 		local cfg = (Config.Shop.Packs :: any)[key]
@@ -254,7 +345,7 @@ function ShopPanel.new(
 				prompt("product", cfg.id)
 			end
 		end)
-		table.insert(packRows, { key = key, buy = buy })
+		table.insert(packRows, { key = key, buy = buy, desc = desc })
 		y += ROW + 6
 	end
 	window.CanvasSize = UDim2.fromOffset(0, y + 8)
@@ -290,7 +381,36 @@ function ShopPanel.new(
 				else string.format(Strings.get("shop.robux", lang), cfg.price)
 			row.buy.AutoButtonColor = not owned
 		end
+		-- Пропуск и ящики.
+		local season = p.season
+		seasonLine.Text = string.format(
+			Strings.get("shop.seasonLine", lang),
+			season.tier,
+			Config.Season.Tiers,
+			season.xp,
+			season.per,
+			daysHours(season.left, lang)
+		)
+		seasonBuy.Text = if season.premium
+			then Strings.get("shop.owned", lang)
+			else string.format(Strings.get("shop.robux", lang), Config.Shop.Packs.SeasonPass.price)
+		local nextTier = math.min(Config.Season.Tiers, season.tier + 1)
+		seasonNext.Text = string.format(
+			Strings.get("shop.seasonNext", lang),
+			nextTier,
+			rewardText(Profile.seasonReward(nextTier, false), lang),
+			rewardText(Profile.seasonReward(nextTier, true), lang)
+		)
+		crateLine.Text = string.format(Strings.get("shop.crateLine", lang), p.crates, p.pityLeft)
+		openCrate.Visible = p.crates > 0
 		for _, row in packRows do
+			if row.key == "Weekly" then
+				row.desc.Text = string.format(
+					Strings.get("shop.weeklyDesc", lang),
+					rewardText(p.weekly.offer, lang),
+					daysHours(p.weekly.left, lang)
+				)
+			end
 			local available = p.packs[row.key] == true
 			local cfg = (Config.Shop.Packs :: any)[row.key]
 			row.buy.Text = if available
@@ -337,7 +457,35 @@ function ShopPanel.new(
 		shownMatches = p.matches
 	end
 
-	return { refresh = refresh }
+	return {
+		refresh = refresh,
+		tap = function(cell: number): boolean
+			local pay = strikePay
+			if pay == nil then
+				return false
+			end
+			strikePay = nil
+			send("boost", { key = "Airstrike", pay = pay, cell = cell })
+			return true
+		end,
+		onShopEvent = function(msg: any)
+			if msg.kind == "daily" then
+				toast(
+					string.format(
+						Strings.get("shop.daily", lang),
+						tonumber(msg.streak) or 1,
+						rewardText(msg.reward or {}, lang)
+					)
+				)
+			elseif msg.kind == "crate" then
+				local text = rewardText(msg.reward or {}, lang)
+				if msg.key == "jackpot" then
+					text = Strings.get("shop.jackpot", lang) .. " " .. text
+				end
+				toast(string.format(Strings.get("shop.crateOpened", lang), text))
+			end
+		end,
+	}
 end
 
 return table.freeze(ShopPanel)

@@ -83,6 +83,12 @@ export type ProfileInfo = {
 	boosts: boolean, -- бусты в этом матче разрешены
 	packs: { [string]: boolean }, -- какие наборы можно купить
 	reward: { xp: number, medals: number, levels: number }?, -- итог последнего матча
+	-- Этап 9б (§11.3)
+	crates: number,
+	pityLeft: number, -- через сколько ящиков гарантированный джекпот
+	season: { tier: number, xp: number, per: number, premium: boolean, left: number },
+	weekly: { offer: { stock: { [string]: number }, crates: number, tokens: number }, left: number },
+	dailyStreak: number,
 }
 
 export type MapVoteInfo = { options: { string }, counts: { number }, myVote: string? }

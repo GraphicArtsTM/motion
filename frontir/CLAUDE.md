@@ -5,7 +5,7 @@
 ## Где мы сейчас
 Сделаны этапы **0–6**, **7а**, **7б-1** (флот), **7б-2** (авиация), доработки перед 7в, **7в-1** и **7в-2** — всё в `main` (PR #2–#8).
 **7в-1** (технологии) и **7в-2** (генералы) смержены (PR #7, #8). **7г** и **8а** смержены (PR #9), разведка, **8б** и **8в** — PR #10. **8г** — PR #11. **9а** (профиль, уровни,
-магазин) готов и ждёт проверки в Studio; дальше 9б и 9в
+магазин) и **9б** (платные части, пропуск, ящики) готовы и ждут проверки в Studio (PR #12); дальше 9в и 9г
 (см. «Статус» в начале GDD §15). Обновляй «Статус» в GDD и этот раздел в конце каждого этапа.
 
 ## Порядок работы (договорённости с геймдизайнером)
@@ -269,6 +269,12 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   `setUnlocked`, `rules.boosts`. Сервер: `Services/ProfileStore` (блокировка сессии), `Services/ShopService`
   (ProcessReceipt, пассы), в `MatchService` — `applyProfile`, `useBoost` (жетон / запас), `giveRewards`, `profile`.
   Клиент: `UI/ShopPanel` (M), `cs.profile`. Товары — id в `Config.Shop` (0 — не создан).
+
+## Платные части, пропуск, ящики (этап 9б)
+- Бусты `Guards`, `Airstrike` (цель — `cell`, `MatchSim.strikeAt`), `Squadron`, `AirWing` — в `MatchSim.useBoost`.
+  Профиль: `seasonReward` / `addSeasonXp` / `grantSeason`, `openCrate` (гарантия `pity`), `claimDaily`,
+  первая победа дня в `applyMatch(..., now)`; `Shop.weeklyOffer` / `weekLeft`. Сервер: `daily`, `crate`, `openCrate`.
+- Таймеры в магазине — только настоящие сроки; шансы ящиков — в окне до покупки (правило Roblox).
 
 ## Панель разработчика (F4)
 - Только в Studio: `MatchService` создаёт `Remotes.Dev` при `RunService:IsStudio()`; действия — чистый `DevTools`

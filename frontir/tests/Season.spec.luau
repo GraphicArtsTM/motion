@@ -147,8 +147,8 @@ T.describe(
 				end
 				T.expect(d.crates).toBe(1)
 				T.expect((Profile.claimDaily(d, day + 6))).toBe(nil)
-				T.expect(Profile.claimDaily(d, day + 7)).toBe(1) -- по кругу
-				T.expect(Profile.claimDaily(d, day + 9)).toBe(1) -- пропуск
+				T.expect((Profile.claimDaily(d, day + 7))).toBe(1) -- по кругу
+				T.expect((Profile.claimDaily(d, day + 9))).toBe(1) -- пропуск
 			end
 		)
 

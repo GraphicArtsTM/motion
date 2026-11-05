@@ -185,6 +185,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 	local profiles = ProfileStore.new()
 	local shop: ShopService.ShopService
 	local rewards: { [Player]: { xp: number, medals: number, levels: number } } = {} -- итог последнего матча
+	local crateRng = Random.new() -- ящики (§11.3): только сервер
 
 	local function profileMessage(player: Player): { [string]: any }?
 		local session = profiles.get(player.UserId)
@@ -195,10 +196,12 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		local level, into, need = Profile.levelOf(d.xp)
 		local passes = shop.passes(player)
 		local id = nationOf[player]
+		local now = os.time()
 		local packs: { [string]: boolean } = {}
 		for _, key in Shop.PackKeys do
-			packs[key] = Profile.packAvailable(d, key)
+			packs[key] = Profile.packAvailable(d, key, now)
 		end
+		local per = Config.Season.XpPerTier
 		return {
 			kind = "profile",
 			level = level,
@@ -216,6 +219,18 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			boosts = m.rules.boosts,
 			packs = packs,
 			reward = rewards[player],
+			-- Этап 9б (§11.3): ящики, пропуск, предложение недели — сроки настоящие (секунды до конца).
+			crates = d.crates,
+			pityLeft = Config.Crates.Pity - d.pity,
+			season = {
+				tier = Profile.seasonTier(d),
+				xp = d.seasonXp % per,
+				per = per,
+				premium = d.seasonPremium,
+				left = math.max(0, Config.Season.EndsUnix - now),
+			},
+			weekly = { offer = Shop.weeklyOffer(now), left = Shop.weekLeft(now) },
+			dailyStreak = d.dailyStreak,
 		}
 	end
 	local function sendProfile(player: Player)
@@ -242,7 +257,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		end
 	end
 	-- Буст из запаса (куплен за Robux) или за жетон (§11.1).
-	local function useBoost(player: Player, key: string, pay: string): (boolean, string?)
+	local function useBoost(player: Player, key: string, pay: string, cell: number?): (boolean, string?)
 		local id = nationOf[player]
 		local session = profiles.get(player.UserId)
 		if id == nil or session == nil then
@@ -258,7 +273,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		if pay ~= "stock" and pay ~= "token" then
 			return false, "target"
 		end
-		local ok, why = MatchSim.useBoost(m, id, key)
+		local ok, why = MatchSim.useBoost(m, id, key, cell)
 		if not ok then
 			return false, why
 		end
@@ -276,8 +291,9 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 	shop = ShopService.start(profiles, {
 		onStock = function(player: Player, key: string)
 			local id = nationOf[player]
-			if id ~= nil and MatchSim.canBoost(m, id, key) then
-				useBoost(player, key, "stock") -- купил в бою — сразу в дело
+			-- Купил в бою — сразу в дело (кроме «Авиаудара»: ему нужна цель — останется в запасе).
+			if id ~= nil and key ~= "Airstrike" and MatchSim.canBoost(m, id, key) then
+				useBoost(player, key, "stock")
 			end
 		end,
 		onChanged = function(player: Player)
@@ -306,7 +322,8 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				local mul = MatchSim.perksOf(m, id).xpMul
 					* (if shop.premium(player) then Config.Profile.PremiumXpMul else 1)
 				local levelBefore = Profile.levelOf(session.data.xp)
-				local xp, medals = Profile.applyMatch(session.data, place, MatchSim.citiesOf(m, id), won, mul)
+				local xp, medals =
+					Profile.applyMatch(session.data, place, MatchSim.citiesOf(m, id), won, mul, os.time())
 				rewards[player] = { xp = xp, medals = medals, levels = Profile.levelOf(session.data.xp) - levelBefore }
 				task.spawn(profiles.save, player.UserId)
 				sendProfile(player)
@@ -341,10 +358,15 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		end
 		-- Профиль грузится в фоне (DataStore может ждать блокировку сессии).
 		task.spawn(function()
-			profiles.load(player.UserId)
+			local session = profiles.load(player.UserId)
 			shop.loadPasses(player)
 			if player.Parent ~= nil then
 				applyProfile(player)
+				-- Ежедневная награда за вход (§11.3).
+				local streak, reward = Profile.claimDaily(session.data, Profile.dayOf(os.time()))
+				if streak ~= nil then
+					matchEvent:FireClient(player, { kind = "daily", streak = streak, reward = reward })
+				end
 				sendProfile(player)
 			end
 		end)
@@ -397,13 +419,34 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		if kind == "boost" then
 			local key = if type(payload) == "table" then payload.key else nil
 			local pay = if type(payload) == "table" then payload.pay else nil
+			local cell = if type(payload) == "table" then payload.cell else nil
 			if not Shop.isBoost(key) or type(pay) ~= "string" then
 				return
 			end
-			local ok, why = useBoost(player, key, pay)
+			if cell ~= nil and (type(cell) ~= "number" or cell ~= math.floor(cell) or cell < 0) then
+				return
+			end
+			local ok, why = useBoost(player, key, pay, cell)
 			if not ok then
 				matchEvent:FireClient(player, { kind = "rejected", reason = why or "?", intent = "boost" })
 			end
+			return
+		end
+		-- Ящик снабжения (§11.3): открывает сервер своим генератором случайных чисел.
+		if kind == "openCrate" then
+			local session = profiles.get(player.UserId)
+			if session == nil then
+				return
+			end
+			local key, unit, reward = Profile.openCrate(session.data, function(n: number): number
+				return crateRng:NextInteger(1, n)
+			end)
+			if key == nil then
+				matchEvent:FireClient(player, { kind = "rejected", reason = "noCrates", intent = "openCrate" })
+				return
+			end
+			matchEvent:FireClient(player, { kind = "crate", key = key, unit = unit, reward = reward })
+			sendProfile(player)
 			return
 		end
 		if kind == "sync" then
