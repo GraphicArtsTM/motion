@@ -91,6 +91,51 @@ Config.PrivateServer = {
 	BotLevels = { "Mix", "Novice", "Normal", "General" }, -- Mix — по Bots.LevelMix
 }
 
+-- §11.2 Профиль и уровни (этап 9а).
+Config.Profile = {
+	Version = 1,
+	StoreName = "FrontirProfile_v1", -- DataStore профилей
+	AutosaveSec = 60,
+	LockStaleSec = 1800, -- блокировка сессии старше — сервер упал, забираем
+	LockRetrySec = 3, -- чужая живая блокировка — повторить через
+	LockRetries = 5,
+	PurchaseLog = 50, -- сколько последних id покупок помнить (продукт не начислится дважды)
+	XpBase = 300, -- опыта до 2-го уровня
+	XpGrowth = 1.15, -- каждый следующий уровень — во столько раз дороже
+	MaxLevel = 100,
+	XpPlay = 60, -- за участие в матче
+	XpPlace = { 220, 140, 90 }, -- за 1-е, 2-е, 3-е место
+	XpPerCity = 4, -- за каждый город державы к концу матча
+	XpWin = 120, -- бонус за победу (и совместную)
+	MedalShare = 1 / 3, -- медалей — доля опыта
+	PremiumXpMul = 1.1, -- Roblox Premium
+	TokenEveryLevels = 2, -- жетон штаба за каждые столько уровней
+	-- Генералы по уровню (§11.2); «Все генералы» — сразу.
+	CommanderLevels = { Marshal = 1, Engineer = 3, Admiral = 6, Scout = 10 },
+}
+
+-- §11.1 Магазин (этап 9а). id — на сайте Roblox (0 — товар ещё не создан: кнопка «скоро»), price — Robux для подписи.
+Config.Shop = {
+	MaxEdge = 0.15, -- потолок платного преимущества в матче (тест сверяет каждый эффект)
+	Passes = {
+		HQ = { id = 0, price = 399, recruitLines = 1, incomeMul = 1.05 },
+		Intel = { id = 0, price = 249, intelCostMul = 0.5, intelDurationSec = 120 },
+		Vip = { id = 0, price = 299, xpMul = 1.5 },
+		AllCommanders = { id = 0, price = 199 },
+	},
+	Boosts = {
+		Mobilize = { id = 0, price = 49, garrisonShare = 0.15 },
+		Loan = { id = 0, price = 39, money = 2000 },
+		Research = { id = 0, price = 29 },
+		Reserve = { id = 0, price = 25 },
+	},
+	Packs = {
+		Recruit = { id = 0, price = 99, tokens = 3, medals = 1500, maxLevel = 10, once = true },
+		Medals = { id = 0, price = 79, medals = 2000, tokens = 0 },
+		Tokens = { id = 0, price = 99, tokens = 3, medals = 0 },
+	},
+}
+
 -- §5.2 Голосование за карту (этап 8б): на экране итогов — текущая и Options − 1 случайных из пула.
 Config.MapVote = {
 	Options = 3,
