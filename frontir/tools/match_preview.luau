@@ -53,6 +53,15 @@ local m = MatchSim.new(map, seed)
 m.targetNations = tonumber(process.args[5]) or Config.Match.TargetNations
 -- Режим (§5.1, этап 8а): «Teams», «Blitz» и т. д. — без голосования.
 local modeArg = process.args[6]
+-- 7-й аргумент «cosmetics» — узоры территории у держав по кругу (косметика §11.4, превью этапа 9в).
+local cosmeticsArg = process.args[7] == "cosmetics"
+local function patternOf(owner: number): string?
+	if not cosmeticsArg or owner == 0 then
+		return nil
+	end
+	local list = Config.Cosmetics.Patterns
+	return list[(owner - 1) % #list + 1].id
+end
 if modeArg ~= nil and table.find(Types.ModeIds, modeArg) ~= nil then
 	m.forcedMode = modeArg :: Types.ModeId
 end
@@ -326,6 +335,7 @@ local function renderRegion(
 		for x = x0, x0 + cw - 1 do
 			local i = y * w + x
 			rebelExtra.rebel = Grid.getOwner(g, i) == 0 and Stability.isRebel(m.stability, MapData.getProvince(map, i))
+			rebelExtra.pattern = patternOf(Grid.getOwner(g, i))
 			local r, gg, b = TerritoryPaint.cellColor(terrain, g.owner, w, h, i, colorOf, 0, rebelExtra)
 			rect(ox + (x - x0) * cell, oy + (y - y0) * cell, cell, cell, { r = r, g = gg, b = b })
 		end

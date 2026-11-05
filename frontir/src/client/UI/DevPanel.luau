@@ -305,6 +305,9 @@ function DevPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang): DevP
 	button(string.format(Strings.get("dev.xp", lang), Config.Dev.GrantXp), function()
 		fire("xp", nil)
 	end)
+	button(string.format(Strings.get("dev.medals", lang), Config.Dev.GrantMedals), function()
+		fire("medals", nil)
+	end)
 	-- Этап 8в: «Потоп» — ступень воды сейчас (§5.3).
 	button(Strings.get("dev.flood", lang), function()
 		fire("flood", nil)

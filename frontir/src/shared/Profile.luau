@@ -31,6 +31,10 @@ export type Data = {
 	dailyStreak: number,
 	firstWinDay: number,
 	weeklyWeek: number, -- неделя, когда куплено предложение недели (−1 — нет)
+	-- Этап 9в (§11.4): косметика.
+	cosmetics: { [string]: boolean }, -- купленное ("pattern:Stripes")
+	equipped: { [string]: string }, -- pattern / capture / title → id
+	flag: { bg: string, layout: string, layoutColor: string, emblem: string, emblemColor: string }?,
 }
 
 -- Награда (пропуск, ящик, ежедневная, набор).
@@ -60,6 +64,9 @@ function Profile.new(): Data
 		dailyStreak = 0,
 		firstWinDay = 0,
 		weeklyWeek = -1,
+		cosmetics = {},
+		equipped = {},
+		flag = nil,
 	}
 end
 
@@ -111,6 +118,37 @@ function Profile.migrate(raw: any): Data
 	d.dailyStreak = num(raw.dailyStreak)
 	d.firstWinDay = num(raw.firstWinDay)
 	d.weeklyWeek = if type(raw.weeklyWeek) == "number" then raw.weeklyWeek else -1
+	if type(raw.cosmetics) == "table" then
+		for key, v in raw.cosmetics do
+			if type(key) == "string" and v == true then
+				d.cosmetics[key] = true
+			end
+		end
+	end
+	if type(raw.equipped) == "table" then
+		for _, kind in { "pattern", "capture", "title" } do
+			if type(raw.equipped[kind]) == "string" then
+				d.equipped[kind] = raw.equipped[kind]
+			end
+		end
+	end
+	local f = raw.flag
+	if
+		type(f) == "table"
+		and type(f.bg) == "string"
+		and type(f.layout) == "string"
+		and type(f.layoutColor) == "string"
+		and type(f.emblem) == "string"
+		and type(f.emblemColor) == "string"
+	then
+		d.flag = {
+			bg = f.bg,
+			layout = f.layout,
+			layoutColor = f.layoutColor,
+			emblem = f.emblem,
+			emblemColor = f.emblemColor,
+		}
+	end
 	Profile.syncSeason(d)
 	return d
 end

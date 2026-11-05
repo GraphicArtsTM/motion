@@ -8,6 +8,7 @@
 
 local Config = require("./Config")
 local Fog = require("./Fog")
+local Cosmetics = require("./Cosmetics")
 local Modes = require("./Modes")
 local ServerSettings = require("./ServerSettings")
 local Protocol = require("./Net/Protocol")
@@ -27,6 +28,7 @@ export type NationInfo = {
 	team: number?, -- команда («Команды», §5.1)
 	hunt: number?, -- исходных столиц врагов держит («Охота на столицы»)
 	huntLeft: number?, -- секунд до победы охотой (держит нужное число)
+	cosmetic: Cosmetics.Public?, -- косметика и флаг игрока (§11.4); у ботов — nil
 }
 
 -- Режим матча (§5.1, этап 8а): голосование в лобби, против ботов, пауза и ×2.
@@ -89,6 +91,7 @@ export type ProfileInfo = {
 	season: { tier: number, xp: number, per: number, premium: boolean, left: number? }, -- left nil — без срока
 	weekly: { offer: { stock: { [string]: number }, crates: number, tokens: number }, left: number },
 	dailyStreak: number,
+	wardrobe: { owned: { [string]: boolean }, equipped: { [string]: string }, flag: Cosmetics.Flag }, -- §11.4
 }
 
 export type MapVoteInfo = { options: { string }, counts: { number }, myVote: string? }
