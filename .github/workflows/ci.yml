@@ -1,8 +1,9 @@
 name: Frontir CI
 
+# PR проверяется один раз (pull_request); push — только в main (после слияния). Без двойных прогонов.
 on:
   push:
-    branches: ["**"]
+    branches: ["main"]
   pull_request:
 
 jobs:

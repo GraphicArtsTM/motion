@@ -8,6 +8,7 @@
 
 local Config = require("./Config")
 local Fog = require("./Fog")
+local Modes = require("./Modes")
 local Protocol = require("./Net/Protocol")
 local Types = require("./Types")
 
@@ -22,6 +23,22 @@ export type NationInfo = {
 	personality: Types.BotPersonality?,
 	commander: Types.CommanderId?, -- генерал (§6.15)
 	alive: boolean,
+	team: number?, -- команда («Команды», §5.1)
+	hunt: number?, -- исходных столиц врагов держит («Охота на столицы»)
+	huntLeft: number?, -- секунд до победы охотой (держит нужное число)
+}
+
+-- Режим матча (§5.1, этап 8а): голосование в лобби, против ботов, пауза и ×2.
+export type ModeInfo = {
+	mode: Types.ModeId, -- выбранный (до конца лобби — «Каждый сам за себя»)
+	options: { Types.ModeId }, -- варианты голосования
+	counts: { number }, -- голоса по вариантам
+	myVote: Types.ModeId?,
+	humans: number, -- игроков в матче (один — выбор сложности)
+	solo: boolean,
+	difficulty: Types.BotLevel?,
+	paused: boolean,
+	fast: boolean,
 }
 
 -- Таблица, которую сервер шлёт при смене фазы и состава держав.
@@ -38,6 +55,7 @@ export type Info = {
 	targetNations: number?,
 	timeLimit: number?, -- лимит времени матча, с
 	result: Types.MatchResult?, -- итог (фаза Over)
+	mode: ModeInfo?,
 }
 
 -- Договоры (§8.1) глазами клиента: сообщение diplo. Сроки — в секундах игрового времени от момента отправки.
@@ -89,6 +107,18 @@ export type CommanderMessage = {
 	reveal: number,
 }
 
+-- Мир (§6.16, §6.9, этап 7г): шторм, аукцион наёмников, ракеты в полёте, новые нефтяные поля, своя шахта.
+-- Сроки — игровые секунды «осталось» на момент сообщения.
+export type WorldMessage = {
+	kind: "world",
+	storm: { cell: number, radius: number, left: number }?,
+	auction: { left: number, top: number, topId: number, minBid: number }?,
+	missiles: { { cell: number, owner: number, left: number } },
+	oilExtra: { number },
+	silo: boolean, -- у меня есть работающая шахта
+	missileLeft: number, -- до готовности пуска
+}
+
 export type ApplyResult = "snapshot" | "delta" | "stats" | "forces" | "wars" | "ships" | "air" | "partial" | "ignored"
 
 export type ClientState = {
@@ -130,9 +160,46 @@ export type ClientState = {
 	tech: TechMessage, -- свои технологии (§6.14)
 	commander: CommanderMessage, -- свой генерал и способности (§6.15)
 	commanderAt: number, -- когда пришло commander (часы клиента; для обратных отсчётов)
+	world: WorldMessage, -- события и ракеты (§6.16, §6.9)
+	worldAt: number,
+	mode: ModeInfo, -- режим (§5.1)
+	rules: Modes.Rules,
+	speed: number, -- темп игрового времени: Match.Speed × режим («Блиц» — ×2)
 }
 
 local ClientState = {}
+
+function ClientState.emptyMode(): ModeInfo
+	return {
+		mode = "Ffa",
+		options = {},
+		counts = {},
+		myVote = nil,
+		humans = 0,
+		solo = false,
+		difficulty = nil,
+		paused = false,
+		fast = false,
+	}
+end
+
+-- Во сколько раз часы матча идут быстрее реальных: пауза — 0, ×2 «Против ботов» — 2.
+function ClientState.clockRate(cs: ClientState): number
+	if cs.mode.paused and cs.phase == "Play" then
+		return 0
+	end
+	return if cs.mode.fast then Config.Modes.SoloFastSpeed else 1
+end
+
+-- Темп игрового времени относительно часов клиента (обратные отсчёты сроков, перезарядок).
+function ClientState.simRate(cs: ClientState): number
+	return cs.speed * ClientState.clockRate(cs)
+end
+
+-- Время матча сейчас (часы матча, с паузой и ×2).
+function ClientState.matchTime(cs: ClientState, now: number): number
+	return cs.time + (now - cs.timeAt) * ClientState.clockRate(cs)
+end
 
 function ClientState.emptyDiplo(): DiploMessage
 	return {
@@ -178,6 +245,9 @@ function ClientState.new(width: number, height: number): ClientState
 		bytes = 0,
 		fog = Fog.new(width, height),
 		fogOff = false,
+		mode = ClientState.emptyMode(),
+		rules = Modes.rules("Ffa"),
+		speed = Config.Match.Speed,
 		stability = ClientState.emptyStability(),
 		rebelSet = {},
 		ships = { ships = {}, blocked = {}, queue = {} },
@@ -187,7 +257,63 @@ function ClientState.new(width: number, height: number): ClientState
 		tech = ClientState.emptyTech(),
 		commander = ClientState.emptyCommander(),
 		commanderAt = 0,
+		world = ClientState.emptyWorld(),
+		worldAt = 0,
 	}
+end
+
+function ClientState.emptyWorld(): WorldMessage
+	return { kind = "world", storm = nil, auction = nil, missiles = {}, oilExtra = {}, silo = false, missileLeft = 0 }
+end
+
+-- Мир (сообщение world). Возвращает новые нефтяные поля (провинции), которых клиент ещё не знал.
+function ClientState.applyWorld(cs: ClientState, msg: any, now: number): { number }
+	local fresh: { number } = {}
+	if type(msg) ~= "table" or type(msg.missiles) ~= "table" or type(msg.oilExtra) ~= "table" then
+		return fresh
+	end
+	local function num(v: any): number
+		return if type(v) == "number" and v == v then v else 0
+	end
+	local storm = nil
+	if type(msg.storm) == "table" then
+		storm = { cell = num(msg.storm.cell), radius = num(msg.storm.radius), left = num(msg.storm.left) }
+	end
+	local auction = nil
+	if type(msg.auction) == "table" then
+		local a = msg.auction
+		auction = { left = num(a.left), top = num(a.top), topId = num(a.topId), minBid = num(a.minBid) }
+	end
+	local missiles: { { cell: number, owner: number, left: number } } = {}
+	for _, mi in msg.missiles do
+		if type(mi) == "table" then
+			table.insert(missiles, { cell = num(mi.cell), owner = num(mi.owner), left = num(mi.left) })
+		end
+	end
+	local known: { [number]: boolean } = {}
+	for _, p in cs.world.oilExtra do
+		known[p] = true
+	end
+	local oil: { number } = {}
+	for _, p in msg.oilExtra do
+		if type(p) == "number" then
+			table.insert(oil, p)
+			if not known[p] then
+				table.insert(fresh, p)
+			end
+		end
+	end
+	cs.world = {
+		kind = "world",
+		storm = storm,
+		auction = auction,
+		missiles = missiles,
+		oilExtra = oil,
+		silo = msg.silo == true,
+		missileLeft = num(msg.missileLeft),
+	}
+	cs.worldAt = now
+	return fresh
 end
 
 function ClientState.emptyCommander(): CommanderMessage
@@ -223,7 +349,7 @@ end
 
 -- Сколько секунд осталось «Радарной вспышке» (часы клиента, темп матча).
 function ClientState.revealLeft(cs: ClientState, now: number): number
-	return math.max(0, cs.commander.reveal - (now - cs.commanderAt) * Config.Match.Speed)
+	return math.max(0, cs.commander.reveal - (now - cs.commanderAt) * ClientState.simRate(cs))
 end
 
 function ClientState.emptyTech(): TechMessage
@@ -276,12 +402,21 @@ function ClientState.applyInfo(cs: ClientState, info: Info, now: number): boolea
 			cs.air = { planes = {}, disabled = {}, queue = {} }
 			cs.tech = ClientState.emptyTech()
 			cs.commander = ClientState.emptyCommander()
+			cs.world = ClientState.emptyWorld()
 			colorsChanged = true
 		end
 		cs.matchId = info.matchId
 	end
 	cs.targetNations = info.targetNations or cs.targetNations
 	cs.timeLimit = info.timeLimit or cs.timeLimit
+	local mode = info.mode
+	if mode ~= nil then
+		cs.mode = mode
+		cs.rules = Modes.rules(mode.mode)
+		cs.speed = Config.Match.Speed * cs.rules.speed
+		-- «Мгла» прячет чужие границы; до игры туман «видно всё», так что смена правила безопасна.
+		cs.fog.hideTerritory = cs.rules.hideTerritory
+	end
 	cs.result = info.result
 	local fresh: { [number]: NationInfo } = {}
 	for _, n in info.nations do
@@ -564,7 +699,8 @@ function ClientState.fogSources(cs: ClientState): Fog.Sources?
 		ships = ships,
 		planes = planes,
 		ports = ports,
-		visionMul = if commander == "Scout" then Config.Commanders.VisionMul else nil, -- Разведчик (§6.15)
+		-- Разведчик (§6.15) и «Мгла» (§5.1).
+		visionMul = (if commander == "Scout" then Config.Commanders.VisionMul else 1) * cs.rules.visionMul,
 	}
 end
 

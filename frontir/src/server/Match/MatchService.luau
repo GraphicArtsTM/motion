@@ -26,6 +26,7 @@ local Intents = require(Shared:WaitForChild("Intents"))
 local MapDataModule = require(Shared:WaitForChild("MapData"))
 local MatchSim = require(Shared:WaitForChild("MatchSim"))
 local MatchStats = require(Shared:WaitForChild("Net"):WaitForChild("MatchStats"))
+local Modes = require(Shared:WaitForChild("Modes"))
 local Protocol = require(Shared:WaitForChild("Net"):WaitForChild("Protocol"))
 local RateLimiter = require(Shared:WaitForChild("RateLimiter"))
 local Types = require(Shared:WaitForChild("Types"))
@@ -47,8 +48,14 @@ function MatchService.start(map: MapData)
 
 	local seedRng = Random.new()
 	local realMap = (Config.RealMaps :: any)[map.name] :: Types.RealMapParams?
+	local devMode: Types.ModeId? = nil -- F4 «Режим»: режим следующего матча без голосования
 	local function newMatch(): MatchSim.Match
 		local match = MatchSim.new(map, seedRng:NextInteger(1, 2 ^ 31 - 1))
+		-- Режимы (§5.1): варианты голосования по времени сервера (режим недели), F4 — без голосования.
+		MatchSim.openVote(match, os.time())
+		if devMode ~= nil then
+			match.forcedMode = devMode
+		end
 		-- Держав в матче: Dev.Nations (проверка в Studio, например игрок + 3 Генерала) или как у карты.
 		match.targetNations = if Config.Dev.Nations > 0
 			then Config.Dev.Nations
@@ -75,8 +82,14 @@ function MatchService.start(map: MapData)
 				personality = n.personality,
 				commander = Commanders.of(m.commanders, n.id),
 				alive = n.alive,
+				team = m.teams[n.id],
+				hunt = if m.rules.capitalHunt then m.huntCount[n.id] or 0 else nil,
+				huntLeft = if m.huntSince[n.id] ~= nil
+					then math.max(0, Config.Modes.CapitalHunt.HoldSec - (m.time - m.huntSince[n.id]))
+					else nil,
 			})
 		end
+		local id = nationOf[player]
 		return {
 			kind = "info",
 			phase = m.phase,
@@ -86,8 +99,19 @@ function MatchService.start(map: MapData)
 			nations = nations,
 			matchId = m.seed,
 			targetNations = m.targetNations,
-			timeLimit = Config.Match.TimeLimitSec,
+			timeLimit = m.rules.timeLimitSec,
 			result = m.result,
+			mode = {
+				mode = m.mode,
+				options = m.modeOptions,
+				counts = Modes.counts(m.modeOptions, m.modeVotes),
+				myVote = if id ~= nil then m.modeVotes[id] else nil,
+				humans = MatchSim.humans(m),
+				solo = m.solo,
+				difficulty = m.difficulty,
+				paused = m.paused,
+				fast = m.fast,
+			},
 			cities = MatchSim.cities(m),
 			buildings = Buildings.list(m.buildings),
 		}
@@ -133,6 +157,11 @@ function MatchService.start(map: MapData)
 		local id = MatchSim.addPlayer(m, player.UserId, player.DisplayName)
 		if id ~= nil then
 			nationOf[player] = id
+		end
+		-- Против ботов (§5.1): пришёл ещё кто-то — паузы и ×2 больше нет.
+		if m.solo then
+			m.solo, m.paused, m.fast = false, false, false
+			m.infoDirty = true
 		end
 		limiters[player] = RateLimiter.new(Config.Sim.MaxIntentsPerSecond, Config.Sim.MaxIntentsPerSecond, os.clock())
 		matchEvent:FireClient(player, infoFor(player))
@@ -238,6 +267,12 @@ function MatchService.start(map: MapData)
 				ok, reason = DevTools.airForce(m, id)
 			elseif action == "botRaid" and target ~= nil then
 				ok, reason = DevTools.botRaid(m, target, id)
+			elseif action == "eventNow" then
+				ok, reason = DevTools.eventNow(m)
+			elseif action == "silo" then
+				ok, reason = DevTools.silo(m, id)
+			elseif action == "botMissile" and target ~= nil then
+				ok, reason = DevTools.botMissile(m, target, id)
 			elseif action == "resetCooldowns" then
 				ok, reason = DevTools.resetCooldowns(m, id)
 			elseif action == "nextCommander" then
@@ -248,6 +283,14 @@ function MatchService.start(map: MapData)
 				ok, reason = DevTools.researchAll(m, id)
 			elseif action == "finishResearch" then
 				ok, reason = DevTools.finishResearch(m, id)
+			elseif action == "mode" then
+				-- Режим без голосования: по кругу; в лобби — сразу этот, иначе — со следующего матча.
+				local k = if devMode ~= nil then table.find(Types.ModeIds, devMode) or 0 else 0
+				devMode = Types.ModeIds[k % #Types.ModeIds + 1]
+				if m.phase == "Waiting" or m.phase == "Lobby" then
+					m.forcedMode = devMode
+				end
+				matchEvent:FireClient(player, { kind = "dev", mode = devMode })
 			else
 				ok, reason = false, "target"
 			end
@@ -305,14 +348,27 @@ function MatchService.start(map: MapData)
 				matchEvent:FireClient(player, MatchStats.tech(m, id)) -- технологии (§6.14) — тем же темпом
 				matchEvent:FireClient(player, MatchStats.commander(m, id)) -- генерал (§6.15)
 			end
+			matchEvent:FireClient(player, MatchStats.world(m, id)) -- события и ракеты (§6.16, §6.9)
 		end
 	end
 
 	RunService.Heartbeat:Connect(function(dt: number)
-		acc += dt * devSpeed -- «Время ×5» панели разработчика: больше шагов симуляции за кадр
+		-- «Против ботов» (§5.1): на паузе симуляция стоит, ×2 — вдвое больше шагов за кадр.
+		local paused = m.paused and m.phase == "Play"
+		local soloSpeed = if m.fast then Config.Modes.SoloFastSpeed else 1
+		if paused then
+			acc = 0
+			if m.infoDirty and os.clock() >= infoAt + Config.Net.InfoMinSec then
+				m.infoDirty = false
+				infoAt = os.clock()
+				sendInfoAll()
+			end
+		else
+			acc += dt * devSpeed * soloSpeed -- «Время ×5» панели разработчика: больше шагов симуляции за кадр
+		end
 		statsAcc += dt
 		local steps = 0
-		while acc >= step and steps < Config.Net.MaxStepsPerFrame * devSpeed do
+		while acc >= step and steps < Config.Net.MaxStepsPerFrame * devSpeed * soloSpeed do
 			acc -= step
 			steps += 1
 			local wasPlaying = m.phase == "Play"
@@ -349,7 +405,7 @@ function MatchService.start(map: MapData)
 				matchEvent:FireAllClients({ kind = "events", events = events })
 			end
 		end
-		if acc > step * Config.Net.MaxStepsPerFrame * devSpeed then
+		if acc > step * Config.Net.MaxStepsPerFrame * devSpeed * soloSpeed then
 			acc = 0 -- сервер не успевает: лучше пропустить время, чем копить отставание
 		end
 		-- Результаты показаны — новый матч на той же карте: все игроки снова в лобби (смена карты — этап 8).

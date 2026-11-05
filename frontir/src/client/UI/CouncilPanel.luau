@@ -39,7 +39,6 @@ function CouncilPanel.new(
 	send: (string, { [string]: any }) -> ()
 ): CouncilPanel
 	local muted, gold = hex(Theme.Colors.Muted), hex(Theme.Colors.Gold)
-	local speed = Config.Match.Speed
 
 	local window = Instance.new("Frame")
 	window.Name = "Council"
@@ -174,7 +173,7 @@ function CouncilPanel.new(
 			myVote = 0
 		else
 			window.Visible = true
-			local left = ClientState.diploLeft(cs, vote.left, now, speed) / speed
+			local left = ClientState.diploLeft(cs, vote.left, now, ClientState.simRate(cs)) / cs.speed
 			title.Text = Strings.get("council.title", lang)
 				.. string.format(
 					'  <font size="13" color="%s">%s</font>',
@@ -203,7 +202,7 @@ function CouncilPanel.new(
 		-- Действующие резолюции.
 		local parts: { string } = {}
 		for _, a in council.active do
-			local left = ClientState.diploLeft(cs, a.left, now, speed) / speed
+			local left = ClientState.diploLeft(cs, a.left, now, ClientState.simRate(cs)) / cs.speed
 			if left > 0 then
 				local name = Strings.get("council.res." .. a.kind, lang)
 				if a.kind == "sanctions" and a.target ~= nil then

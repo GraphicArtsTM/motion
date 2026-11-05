@@ -141,7 +141,6 @@ function DiplomacyPanel.new(
 ): DiplomacyPanel
 	local muted, alert, gold, sky =
 		hex(Theme.Colors.Muted), hex(Theme.Colors.Alert), hex(Theme.Colors.Gold), hex(Theme.Colors.Sky)
-	local speed = Config.Match.Speed
 	local now = os.clock()
 
 	local function nationColor(id: number): string
@@ -368,12 +367,12 @@ function DiplomacyPanel.new(
 				then Strings.get("diplo.rel.alliance", lang)
 				else string.format(
 					Strings.get("diplo.rel.pact", lang),
-					clock(ClientState.diploLeft(cs, t.left or 0, now, speed) / speed)
+					clock(ClientState.diploLeft(cs, t.left or 0, now, ClientState.simRate(cs)) / cs.speed)
 				)
 			if t.breakLeft ~= nil then
 				text ..= " · " .. string.format(
 					Strings.get("diplo.rel.breaking", lang),
-					math.ceil(ClientState.diploLeft(cs, t.breakLeft, now, speed) / speed)
+					math.ceil(ClientState.diploLeft(cs, t.breakLeft, now, ClientState.simRate(cs)) / cs.speed)
 				)
 			end
 			return string.format('<font color="%s">%s</font>', sky, text)
@@ -439,7 +438,7 @@ function DiplomacyPanel.new(
 			b.LayoutOrder = k
 			b.Visible = true
 			b.BackgroundTransparency = if id == selected then 0.4 else 1
-			local traitor = if ClientState.isTraitor(cs, id, now, speed)
+			local traitor = if ClientState.isTraitor(cs, id, now, ClientState.simRate(cs))
 				then string.format(' <font color="%s">⚠ %s</font>', alert, Strings.get("diplo.traitor", lang))
 				else ""
 			b.Text = if id == me
@@ -504,7 +503,7 @@ function DiplomacyPanel.new(
 		if lord ~= nil and me ~= nil then
 			for _, v in cs.diplo.vassals do
 				if v.vassal == me then
-					local left = ClientState.diploLeft(cs, v.rebelLeft, now, speed) / speed
+					local left = ClientState.diploLeft(cs, v.rebelLeft, now, ClientState.simRate(cs)) / cs.speed
 					rebelButton.Text = Strings.get("diplo.act.rebel", lang)
 						.. if left > 0 then string.format(" %s", clock(left)) else ""
 				end
@@ -544,7 +543,7 @@ function DiplomacyPanel.new(
 		local me = cs.myNation
 		for _, o in cs.diplo.offers do
 			if o.to == me and not answered[offerKey(o)] then
-				if ClientState.diploLeft(cs, o.left, now, speed) > 0 then
+				if ClientState.diploLeft(cs, o.left, now, ClientState.simRate(cs)) > 0 then
 					return o
 				end
 			end
@@ -587,7 +586,7 @@ function DiplomacyPanel.new(
 		end
 		popupLeft.Text = string.format(
 			Strings.get("diplo.offer.left", lang),
-			math.ceil(ClientState.diploLeft(cs, o.left, now, speed) / speed)
+			math.ceil(ClientState.diploLeft(cs, o.left, now, ClientState.simRate(cs)) / cs.speed)
 		)
 		popup.Visible = true
 	end

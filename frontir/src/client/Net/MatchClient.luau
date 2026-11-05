@@ -26,6 +26,7 @@ export type Handlers = {
 	onStability: (rebelsChanged: { number }) -> (), -- своя стабильность и повстанцы (§6.10)
 	onTech: (() -> ())?, -- свои технологии пришли (§6.14)
 	onCommander: (() -> ())?, -- свой генерал и способности (§6.15)
+	onWorld: ((newOil: { number }) -> ())?, -- события и ракеты (§6.16, §6.9); newOil — новые нефтяные поля
 	onShips: () -> (), -- корабли (§6.12)
 	onAir: () -> (), -- самолёты (§6.13)
 	onDev: ((msg: any) -> ())?, -- ответ панели разработчика (только Studio)
@@ -91,6 +92,11 @@ function MatchClient.connect(cs: ClientState, handlers: Handlers): MatchClient
 				ClientState.applyTech(cs, msg)
 				if handlers.onTech ~= nil then
 					handlers.onTech()
+				end
+			elseif msg.kind == "world" then
+				local fresh = ClientState.applyWorld(cs, msg, os.clock())
+				if handlers.onWorld ~= nil then
+					handlers.onWorld(fresh)
 				end
 			elseif msg.kind == "commander" then
 				ClientState.applyCommander(cs, msg, os.clock())

@@ -233,6 +233,15 @@ function ResultsPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang): 
 		reason.Text = if result.reason == "land"
 			then string.format(Strings.get("result.land", lang), lastShare(result, result.winner))
 			else Strings.get("result." .. result.reason, lang)
+		-- Команды (§5.1): побеждает команда; режим — в той же строке.
+		local winnerInfo = cs.nations[result.winner]
+		if winnerInfo ~= nil and winnerInfo.team ~= nil then
+			reason.Text = string.format(Strings.get("result.team", lang), winnerInfo.team, reason.Text)
+		end
+		reason.Text ..= " · " .. string.format(
+			Strings.get("result.mode", lang),
+			Strings.get("mode." .. cs.mode.mode, lang)
+		)
 
 		local mine = 0
 		for place, id in result.places do

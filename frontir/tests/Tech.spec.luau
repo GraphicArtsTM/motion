@@ -114,13 +114,14 @@ T.describe("Технологии", function()
 	)
 
 	T.it(
-		"закрытые уровни, изученная ветка, нет денег; чужая держава не затронута",
+		"с 7г закрытых уровней нет (Войска-4 изучается); изученная ветка, нет денег; чужая держава не затронута",
 		function()
 			local m = duo()
-			Tech.grant(m.tech, 1, "Army", cfg.Locked.Army - 1)
+			Tech.grant(m.tech, 1, "Army", 3)
 			local ok, reason = research(m, 1, "Army")
-			T.expect(ok).toBe(false)
-			T.expect(reason).toBe("techLocked")
+			T.expect(ok).toBe(true)
+			T.expect(m.tech.research[1].level).toBe(4)
+			m.tech.research[1] = nil
 			Tech.grant(m.tech, 1, "Economy", #cfg.Cost)
 			ok, reason = research(m, 1, "Economy")
 			T.expect(ok).toBe(false)
@@ -131,8 +132,8 @@ T.describe("Технологии", function()
 			T.expect(reason).toBe("noMoney")
 			T.expect(m.tech.research[1]).toBe(nil)
 			T.expect(Tech.level(m.tech, 2, "Army")).toBe(0)
-			T.expect(Tech.isLocked("Fleet", cfg.Locked.Fleet)).toBe(true)
-			T.expect(Tech.isLocked("Economy", 4)).toBe(false)
+			T.expect(Tech.isLocked("Fleet", 4)).toBe(false)
+			T.expect(Tech.isLocked("Army", 4)).toBe(false)
 		end
 	)
 
@@ -259,9 +260,11 @@ T.describe("Технологии", function()
 			T.expect(BotBrain.techChoice(techView(zero), BotBrain.profile("Normal", "Aggressor"), rng)).toBe("Army")
 			T.expect(BotBrain.techChoice(techView(zero), BotBrain.profile("Normal", "Trader"), rng)).toBe("Economy")
 			T.expect(BotBrain.techChoice(techView(zero), BotBrain.profile("Normal", "Admiral"), rng)).toBe("Fleet")
-			-- Войска-4 закрыта: Агрессор после трёх уровней войск — экономика.
+			-- С 7г Войска-4 открыта: Агрессор после трёх уровней войск — «Ракетная шахта», после всех — экономика.
 			local army3 = { Army = 3, Economy = 0, Fleet = 0 }
-			T.expect(BotBrain.techChoice(techView(army3), BotBrain.profile("Normal", "Aggressor"), rng)).toBe("Economy")
+			T.expect(BotBrain.techChoice(techView(army3), BotBrain.profile("Normal", "Aggressor"), rng)).toBe("Army")
+			local army4 = { Army = 4, Economy = 0, Fleet = 0 }
+			T.expect(BotBrain.techChoice(techView(army4), BotBrain.profile("Normal", "Aggressor"), rng)).toBe("Economy")
 			-- Генерал: Учебка → Налоги → Снабжение → Верфи → Авиация → Радар …
 			local general = BotBrain.profile("General", "Aggressor")
 			T.expect(BotBrain.techChoice(techView(zero), general, rng)).toBe("Army")
@@ -280,7 +283,7 @@ T.describe("Технологии", function()
 				end
 			end
 			T.expect(seen.Army and seen.Economy and seen.Fleet).toBe(true)
-			local full = { Army = 3, Economy = 4, Fleet = 3 }
+			local full = { Army = 4, Economy = 4, Fleet = 4 }
 			T.expect(BotBrain.techChoice(techView(full), BotBrain.profile("Novice", "Peaceful"), rng)).toBe(nil)
 		end
 	)
@@ -316,7 +319,7 @@ T.describe("Технологии", function()
 	end)
 
 	T.it(
-		"панель F4: изучить всё (кроме закрытых) и закончить исследование; выбывшая держава забыта",
+		"панель F4: изучить всё и закончить исследование; выбывшая держава забыта",
 		function()
 			local m = duo()
 			T.expect((DevTools.finishResearch(m, 1))).toBe(false)
@@ -326,9 +329,9 @@ T.describe("Технологии", function()
 			T.expect(Tech.level(m.tech, 1, "Fleet")).toBe(1)
 			T.expect(#events(m, "researched")).toBe(1)
 			T.expect((DevTools.researchAll(m, 1))).toBe(true)
-			T.expect(Tech.level(m.tech, 1, "Army")).toBe(cfg.Locked.Army - 1)
+			T.expect(Tech.level(m.tech, 1, "Army")).toBe(#cfg.Cost)
 			T.expect(Tech.level(m.tech, 1, "Economy")).toBe(#cfg.Cost)
-			T.expect(Tech.level(m.tech, 1, "Fleet")).toBe(cfg.Locked.Fleet - 1)
+			T.expect(Tech.level(m.tech, 1, "Fleet")).toBe(#cfg.Cost)
 			Tech.removeNation(m.tech, 1)
 			T.expect(Tech.level(m.tech, 1, "Economy")).toBe(0)
 		end

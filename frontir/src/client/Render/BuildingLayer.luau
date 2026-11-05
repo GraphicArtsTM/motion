@@ -125,8 +125,9 @@ function BuildingLayer.new(canvas: Frame, cs: ClientState, provinces: Provinces.
 		end
 		table.clear(icons)
 		for cell, b in cs.buildings do
-			-- Туман (§6.11): здание видно, если клетку хоть раз видели.
-			if not Fog.wasSeen(cs.fog, cell) then
+			-- Туман (§6.11): здание видно, если клетку хоть раз видели; города — везде, когда границы видны всем.
+			local cityShown = b.kind == "City" and not cs.fog.hideTerritory
+			if not cityShown and not Fog.wasSeen(cs.fog, cell) then
 				continue
 			end
 			if b.kind == "City" then

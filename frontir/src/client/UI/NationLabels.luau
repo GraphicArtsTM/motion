@@ -107,11 +107,15 @@ function NationLabels.new(canvas: Frame, cs: ClientState, lang: Strings.Lang, ma
 			t.FontFace = Theme.FontBold
 			t.TextSize = Config.Render.NationLabelSize
 			-- «Предатель» (§8.1) виден всем: красное имя со знаком.
-			local traitor = ClientState.isTraitor(cs, capitalOf.id, os.clock(), Config.Match.Speed)
+			local traitor = ClientState.isTraitor(cs, capitalOf.id, os.clock(), ClientState.simRate(cs))
 			t.TextColor3 = if traitor then Theme.Colors.Alert elseif isMe then Theme.Colors.Gold else Theme.Colors.Text
 			t.TextStrokeColor3 = Theme.Colors.Backdrop
 			t.TextStrokeTransparency = 0.2
-			t.Text = (if traitor then "⚠ " else "") .. (if lang == "en" then capitalOf.nameEn else capitalOf.name)
+			-- Команда (§5.1) — номером перед именем.
+			local team = if capitalOf.team ~= nil then "[" .. capitalOf.team .. "] " else ""
+			t.Text = (if traitor then "⚠ " else "")
+				.. team
+				.. (if lang == "en" then capitalOf.nameEn else capitalOf.name)
 			t.ZIndex = 5
 			t.Parent = canvas
 			text = t

@@ -3,8 +3,9 @@
 Источник истины по игре: [`docs/GDD.md`](docs/GDD.md). Читай его перед любой задачей.
 
 ## Где мы сейчас
-Сделаны этапы **0–6**, **7а**, **7б-1** (флот), **7б-2** (авиация), доработки перед 7в и **7в-1** — всё в `main` (PR #2–#7).
-**7в-1** (технологии) смержен (PR #7). **7в-2** (генералы и способности) готов и ждёт проверки в Studio, дальше 7г
+Сделаны этапы **0–6**, **7а**, **7б-1** (флот), **7б-2** (авиация), доработки перед 7в, **7в-1** и **7в-2** — всё в `main` (PR #2–#8).
+**7в-1** (технологии) и **7в-2** (генералы) смержены (PR #7, #8). **7г** принят геймдизайнером (PR #9 ещё не смержен, в нём же 8а), после него туман больше
+не прячет границы. **8а** (режимы и голосование) готов и ждёт проверки в Studio, дальше 8б и 8в
 (см. «Статус» в начале GDD §15). Обновляй «Статус» в GDD и этот раздел в конце каждого этапа.
 
 ## Порядок работы (договорённости с геймдизайнером)
@@ -17,6 +18,11 @@
 - Сначала правила этапа в GDD (отдельный коммит), потом код. Решения геймдизайнера — сразу в GDD.
 - Новые механики сразу добавлять в панель разработчика (F4) и в чек-лист README «Проверка этапа в Studio».
 - Отчёты и общение — по-русски, коротко; числа — из замеров (тесты, `tools/bench`, превью), не на глаз.
+- **Экономим лимиты** (решение геймдизайнера после 7в-2):
+  - на PR не подписываться и проверки по расписанию не ставить — если CI упадёт, геймдизайнер напишет сам;
+  - арену и долгие замеры (`bot_arena`, `bench_ab`) — только по просьбе или когда меняется баланс;
+  - CI идёт на `pull_request` и на `push` только в `main` (без двойных прогонов);
+  - отчёт короткий: что сделано, как проверить (до 5 пунктов), проблемы и вопросы к геймдизайнеру.
 
 ## Как работаем
 - **Строго по этапам** из GDD §15, по одному. В конце этапа: commit + отчёт по GDD §16, потом ждать «дальше».
@@ -36,9 +42,8 @@
   (армии, найм, перезарядки) обязаны идти через `simDt`/`simTime`, а не через реальное время.
 
 ## Отчёт по этапу (GDD §16) — всегда в конце
-Что сделано · Как проверить в Studio · Тесты · Известные проблемы · Что дальше · ссылка на `docs/previews/stage-N.png` ·
-чек-лист для геймдизайнера (заполняет он): карта/кириллица (для кириллицы при английском Roblox —
-`Config.Dev.ForceLang = "ru"`); границы в двух окнах одинаковые — да/нет; атака и отмена; ошибки в Output; телефон.
+Коротко (с 7г): что сделано · как проверить в Studio (до 5 пунктов) · проблемы и вопросы к геймдизайнеру; ссылка на
+`docs/previews/stage-N.png`. Подробный чек-лист — в README «Проверка этапа в Studio».
 
 ## Команды (из папки `frontir/`)
 ```bash
@@ -52,7 +57,7 @@ lune run tools/maps_preview    # лист всех карт → build/maps.png
 lune run tools/bench World 60 180  # нагрузка: время тика и трафик на 60 ботах
 lune run tools/genmap Pangea   # пересоздать тестовую maps/Pangea.luau (+ превью build/Pangea.bmp)
 lune run tools/palette_preview # пересоздать docs/palette.png после правки цветов
-lune run tools/match_preview 120 12345 build/match.png Europe 12  # партия ботов → картинка (секунды, сид, файл, карта, держав)
+lune run tools/match_preview 120 12345 build/match.png Europe 12 Teams  # партия ботов → картинка (секунды, сид, файл, карта, держав, режим)
 lune run tools/bot_arena Europe 20  # «игрок» (Обычный бот) против трёх Новичков / Обычных / Генералов, 20 сидов, пороги
 lune run tools/bench_ab World 60 180 5  # честный замер: main и ветка в одном запуске, 5 прогонов, минимум
 rojo sourcemap default.project.json -o sourcemap.json   # для luau-lsp
@@ -168,6 +173,8 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   раз в `Stability.UpdateSec` (`stepStability`), восстание — `MatchSim.revolt` (клетки ничьи, город повстанцев
   с гарнизоном `RebelGarrison` в `neutralCityTaker`), ничья земля повстанцев дороже (`Expansion.Hooks.costMul`),
   доход — в `stepEconomy`. Боты: `spots.unstable` / `unstableCity` и мир раньше (`BotBrain`).
+- Туман с правки после 7г прячет войска, корабли, самолёты и здания, но не границы (`Fog.hideTerritory`,
+  `Config.Fog.HideTerritory`; `true` — правило 7а, его включает «Мгла»).
 - `Fog` — чистый модуль: обзор клиента (фаска 5/7 в прямоугольнике вокруг источников, два прохода), последний
   увиденный владелец (`known`), «видно всё» (`all`, так начинается матч и так у зрителя); грубый обзор сервера
   блоками (`visionBlocks`, `lineVisible` по выборке линии фронта `Attack.line`).
@@ -215,10 +222,26 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   Клиент: `UI/TechPanel` (Y), `UI/CommanderPanel` (лобби, Q / E).
 - Найм: линии `MatchSim.recruitLines` (1 + заводы + уровни городов / `CityLevelsPerLine`, до `MaxRecruitLines`).
 
+## События и ракеты (этап 7г)
+- `WorldEvents` — расписание, выбор по весам, шторм, урожай, аукцион (`m.world`, поток `m.worldRng`). Правила —
+  секция «Случайные события и ракеты» в `MatchSim`: `worldEvent`, `bid` / `botsBid`, `launch`, `missileImpact`
+  (сеть ПВО — `m.missileRng`), `stepWorld`, боты — `botMissile`. Шторм — `Fleet.move(..., blocked)`.
+- Сеть: таблица `world` раз в секунду (`MatchStats.world`, `ClientState.applyWorld`). Клиент: `UI/WorldPanel`,
+  `Render/MarkerLayer`, кнопка R в `UI/CommanderPanel`.
+
+## Режимы (этап 8а)
+- `Modes` — правила режима (`Rules`: доля суши, лимит, скорость, туман, шахта, команды, охота), варианты голосования
+  (`options`, режим недели `weekly`), подсчёт (`tally`), команды по долготе (`assignTeams`). `MatchSim`: `m.rules`
+  вместо `Config.Match.*` (победа, лимит, скорость), `openVote` / `setMode` (в конце лобби), намерения `modeVote`,
+  `difficulty`, `solo`; команды — `MatchSim.teammates` (война, разрыв, договоры, налог), `checkTeamVictory`,
+  охота — `huntWinner`. Пауза и ×2 — в `MatchService` (Heartbeat не шагает / шагает ×2).
+- Сеть: `mode` в info (`ClientState.ModeInfo`), у держав `team`, `hunt`, `huntLeft`. Клиент: `UI/ModePanel`,
+  время и таймеры — `ClientState.matchTime` / `simRate` (не `Config.Match.Speed`).
+
 ## Панель разработчика (F4)
 - Только в Studio: `MatchService` создаёт `Remotes.Dev` при `RunService:IsStudio()`; действия — чистый `DevTools`
   (grant, forceOffer, warNow, peaceNow, councilNow, endMatch, setStability, revoltNow, navy, botLanding, airForce,
-  botRaid, researchAll, finishResearch, resetCooldowns, nextCommander, botAbility), ускорение ×5 — шагов
+  botRaid, researchAll, finishResearch, resetCooldowns, nextCommander, botAbility, eventNow, silo, botMissile; «Режим» — в `MatchService`), ускорение ×5 — шагов
   симуляции за кадр в `MatchService`, «Туман выкл» — `devNoFog` в `MatchService` и `cs.fogOff` на клиенте.
   Клиент: `UI/DevPanel`. Новые механики — сразу добавлять в панель и в чек-лист README.
 - С этапа 7 каждый этап — отдельный PR в `main` (кто мержит — см. «Порядок работы»).
@@ -229,7 +252,7 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   заново), `Expansion.line` отдаёт линию, `pruneCache` убирает ненужные. Тест `FrontCache.spec` сверяет кеш со свежим
   `Expansion.frontier`. Шум границы — один раз на клетку (`borderNoise`). Горячие модули — `--!native`.
 - Случайные числа по системам: `m.rng` — только расстановка; `m.councilRng`, `m.stabilityRng`; бой — `battleRng`
-  (поток на пару атакующий → цель); боты — `botRngsOf` (think, main, navy, air, diplo, tech, ability; в `BotBrain.decide` —
+  (поток на пару атакующий → цель); боты — `botRngsOf` (think, main, navy, air, diplo, tech, ability, missile; в `BotBrain.decide` —
   параметр `streams`). Новой механике — свой поток, не общий.
 - Замер: `tools/bench_ab` (git worktree `main` в `build/`), в отчётах — только его минимум.
 - Арена (`tools/bot_arena`) — инструмент для отчёта, **не проверка CI** (решение геймдизайнера): полоса против

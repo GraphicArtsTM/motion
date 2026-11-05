@@ -40,6 +40,7 @@ local Forces = require("./Forces")
 local Fronts = require("./Fronts")
 local Grid = require("./Grid")
 local MapData = require("./MapData")
+local Modes = require("./Modes")
 local NameGen = require("./NameGen")
 local NationColors = require("./NationColors")
 local Naval = require("./Naval")
@@ -51,6 +52,7 @@ local StartPositions = require("./StartPositions")
 local Tech = require("./Tech")
 local Types = require("./Types")
 local Wars = require("./Wars")
+local WorldEvents = require("./WorldEvents")
 
 type Grid = Grid.Grid
 type MapData = MapData.MapData
@@ -91,6 +93,13 @@ export type MatchEvent =
 	| { kind: "revolt", nation: number, province: number }
 	-- Технологии (§6.14, этап 7в-1)
 	| { kind: "researched", nation: number, branch: Types.TechBranch, level: number }
+	-- Случайные события (§6.16, этап 7г): событие; наёмники наняты (nation 0 — ставок не было)
+	| { kind: "worldEvent", event: string, cell: number?, radius: number?, province: number?, nation: number? }
+	| { kind: "mercs", nation: number, amount: number }
+	-- Ракеты (§6.9, этап 7г): пуск (target — держава в клетке цели), удар, перехват сетью ПВО
+	| { kind: "missileLaunched", nation: number, target: number, cell: number, impactIn: number }
+	| { kind: "missileHit", nation: number, cell: number, cells: number }
+	| { kind: "missileShot", nation: number, by: number, cell: number }
 	-- Генералы (§6.15, этап 7в-2): применена способность (target — держава в клетке цели, 0 — нет)
 	| { kind: "ability", nation: number, ability: string, cell: number?, target: number }
 	-- Флот (§6.12, этап 7б-1)
@@ -104,7 +113,18 @@ export type MatchEvent =
 	| { kind: "raid", nation: number, target: number, cell: number, lost: number, buildings: number }
 
 -- Потоки случайных чисел бота: когда думать, главные решения, флот, авиация, дипломатия.
-export type BotRngs = { think: Rng, main: Rng, navy: Rng, air: Rng, diplo: Rng, tech: Rng, ability: Rng }
+export type Missile = { owner: number, cell: number, impactAt: number }
+
+export type BotRngs = {
+	think: Rng,
+	main: Rng,
+	navy: Rng,
+	air: Rng,
+	diplo: Rng,
+	tech: Rng,
+	ability: Rng,
+	missile: Rng,
+}
 
 export type Match = {
 	map: MapData,
@@ -151,6 +171,11 @@ export type Match = {
 	sea: Naval.SeaMap, -- море, причалы, пути (§6.12)
 	tech: Tech.TechState, -- технологии держав (§6.14)
 	commanders: Commanders.CommanderState, -- генералы игроков и способности (§6.15)
+	world: WorldEvents.WorldState, -- случайные события (§6.16)
+	worldRng: Rng, -- поток событий
+	missileRng: Rng, -- поток сети ПВО (перехват ракет)
+	missiles: { Missile }, -- ракеты в полёте (§6.9)
+	missileReady: { [number]: number }, -- держава → когда снова можно пускать
 	fleet: Fleet.FleetState, -- корабли
 	air: Air.AirState, -- самолёты и выведенные из строя здания (§6.13)
 	bombedAt: { [number]: number }, -- держава → когда её последний раз бомбили (боты ставят батарею ПВО)
@@ -160,6 +185,21 @@ export type Match = {
 	victory: boolean, -- проверять ли победу (тесты на крошечных картах выключают)
 	history: { times: { number }, shares: { [number]: { number } } }, -- доля суши по времени
 	nextHistoryAt: number,
+	-- Режимы (§5.1, этап 8а): правила режима, голосование в лобби, команды, охота на столицы, против ботов.
+	mode: Types.ModeId,
+	rules: Modes.Rules,
+	modeOptions: { Types.ModeId }, -- варианты голосования
+	modeVotes: { [number]: Types.ModeId }, -- держава игрока → голос
+	forcedMode: Types.ModeId?, -- режим без голосования (Dev.Mode, F4)
+	teams: { [number]: number }, -- держава → команда («Команды»)
+	teamCount: number,
+	startCapitals: { [number]: number }, -- держава → исходная столица («Охота на столицы»)
+	huntCount: { [number]: number }, -- держава → сколько исходных столиц врагов держит
+	huntSince: { [number]: number }, -- держава → с какого времени держит нужное число
+	solo: boolean, -- в матче один игрок («Против ботов»): пауза и ×2
+	difficulty: Types.BotLevel?, -- уровень всех ботов, выбранный одиночным игроком
+	paused: boolean,
+	fast: boolean,
 }
 
 -- Экономика державы за последний тик, в секунду (§6.8).
@@ -233,6 +273,11 @@ function MatchSim.new(map: MapData, seed: number): Match
 		fleet = Fleet.new(),
 		tech = Tech.new(),
 		commanders = Commanders.new(),
+		world = WorldEvents.new(),
+		worldRng = Rng.stream(seed, 300),
+		missileRng = Rng.stream(seed, 301),
+		missiles = {},
+		missileReady = {},
 		air = Air.new(),
 		bombedAt = {},
 		bombedCell = {},
@@ -241,7 +286,55 @@ function MatchSim.new(map: MapData, seed: number): Match
 		victory = true,
 		history = { times = {}, shares = {} },
 		nextHistoryAt = 0,
+		mode = "Ffa",
+		rules = Modes.rules("Ffa"),
+		modeOptions = Modes.options(0),
+		modeVotes = {},
+		forcedMode = if Modes.isMode(Config.Dev.Mode) then Config.Dev.Mode :: Types.ModeId else nil,
+		teams = {},
+		teamCount = 0,
+		startCapitals = {},
+		huntCount = {},
+		huntSince = {},
+		solo = false,
+		difficulty = nil,
+		paused = false,
+		fast = false,
 	}
+end
+
+-- Режимы (§5.1) ---------------------------------------------------------------------------------
+
+-- Игроки (не боты) в матче.
+function MatchSim.humans(m: Match): number
+	local count = 0
+	for _, n in m.nations do
+		if not n.isBot then
+			count += 1
+		end
+	end
+	return count
+end
+
+-- Одна команда («Команды»): война, разрыв союза и договоры с чужими по этому правилу.
+function MatchSim.teammates(m: Match, a: number, b: number): boolean
+	local ta = m.teams[a]
+	return ta ~= nil and ta == m.teams[b]
+end
+
+-- Режим матча: правила, скорость. Зовётся в конце лобби (или тестом до выбора старта).
+function MatchSim.setMode(m: Match, mode: Types.ModeId)
+	m.mode = mode
+	m.rules = Modes.rules(mode)
+	m.speed = Config.Match.Speed * m.rules.speed
+	m.infoDirty = true
+end
+
+-- Варианты голосования по времени сервера (режим недели — по номеру недели UTC).
+function MatchSim.openVote(m: Match, unixTime: number)
+	m.modeOptions = Modes.options(unixTime)
+	table.clear(m.modeVotes)
+	m.infoDirty = true
 end
 
 -- Все города на карте (клетки) — для клиентов.
@@ -325,6 +418,7 @@ local function botRngsOf(m: Match, id: number): BotRngs
 			diplo = Rng.stream(m.seed, 204, id),
 			tech = Rng.stream(m.seed, 205, id),
 			ability = Rng.stream(m.seed, 206, id),
+			missile = Rng.stream(m.seed, 207, id),
 		}
 		m.botRngs[id] = r
 	end
@@ -408,6 +502,11 @@ function MatchSim.startPick(m: Match)
 	end
 	m.phase = "Pick"
 	m.phaseLeft = Config.Match.StartPickSec
+	MatchSim.setMode(m, m.forcedMode or Modes.tally(m.modeOptions, m.modeVotes))
+	m.solo = MatchSim.humans(m) == 1
+	if not m.solo then
+		m.difficulty = nil
+	end
 	m.infoDirty = true
 end
 
@@ -433,7 +532,7 @@ function MatchSim.finishPick(m: Match)
 	while #m.nations < m.targetNations and #m.nations < Config.Match.MaxPlayers do
 		local name = NameGen.generate(m.rng, taken)
 		taken[name.ru] = true
-		makeBot(m, newNation(m, name.ru, name.en, true, nil))
+		makeBot(m, newNation(m, name.ru, name.en, true, nil), m.difficulty)
 	end
 	local landmass: buffer? = nil
 	for _, n in m.nations do
@@ -478,6 +577,26 @@ function MatchSim.finishPick(m: Match)
 		n.money = Config.Economy.StartMoney
 		if n.isBot then
 			m.botNextThink[n.id] = BotBrain.nextThinkDelay(botRngsOf(m, n.id).think, profileOf(m, n.id))
+		end
+	end
+	for _, n in order do
+		m.startCapitals[n.id] = n.capital :: number
+	end
+	-- Команды (§5.1): по долготе столицы, внутри команды — вечный союз.
+	if m.rules.teams then
+		local byX: { { id: number, x: number } } = {}
+		for _, n in order do
+			table.insert(byX, { id = n.id, x = (n.capital :: number) % m.grid.width })
+		end
+		m.teamCount = Modes.teamCount(#byX)
+		m.teams = Modes.assignTeams(byX, m.teamCount)
+		for i, a in order do
+			for j = i + 1, #order do
+				local b = order[j]
+				if m.teams[a.id] == m.teams[b.id] then
+					Diplomacy.sign(m.diplo, "alliance", a.id, b.id, 0)
+				end
+			end
 		end
 	end
 	m.phase = "Play"
@@ -545,6 +664,39 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 			return false, err
 		end
 		n.capital = intent.cell
+		m.infoDirty = true
+		return true, nil
+	end
+	if intent.kind == "modeVote" then
+		-- Голос за режим (§5.1): только в лобби, только игрок, только из вариантов.
+		if m.phase ~= "Waiting" and m.phase ~= "Lobby" then
+			return false, "phase"
+		end
+		if n.isBot or table.find(m.modeOptions, intent.mode) == nil then
+			return false, "mode"
+		end
+		m.modeVotes[nationId] = intent.mode
+		m.infoDirty = true
+		return true, nil
+	end
+	if intent.kind == "difficulty" then
+		-- Против ботов (§5.1): сложность выбирает единственный игрок в лобби.
+		if m.phase ~= "Waiting" and m.phase ~= "Lobby" then
+			return false, "phase"
+		end
+		if n.isBot or MatchSim.humans(m) ~= 1 then
+			return false, "solo"
+		end
+		m.difficulty = intent.level
+		m.infoDirty = true
+		return true, nil
+	end
+	if intent.kind == "solo" then
+		if not m.solo or n.isBot or (m.phase ~= "Play" and m.phase ~= "Pick") then
+			return false, "solo"
+		end
+		m.paused = intent.pause
+		m.fast = intent.fast and not intent.pause
 		m.infoDirty = true
 		return true, nil
 	end
@@ -648,6 +800,13 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 		return true, nil
 	end
 
+	if intent.kind == "bid" then
+		return MatchSim.bid(m, n, intent.amount)
+	end
+	if intent.kind == "missile" then
+		return MatchSim.launch(m, n, intent.cell)
+	end
+
 	if intent.kind == "ability" then
 		return MatchSim.useAbility(m, n, intent.slot, intent.cell, intent.percent)
 	end
@@ -687,6 +846,9 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 		end
 		if Council.active(m.council, "truce", m.simTime) ~= nil then
 			return false, "truce" -- всеобщее перемирие (§8.2)
+		end
+		if MatchSim.teammates(m, nationId, intent.target) then
+			return false, "team" -- своей команде войну не объявить (§5.1)
 		end
 		local ok, reason = Wars.canDeclare(m.wars, nationId, intent.target, m.simTime)
 		if not ok then
@@ -764,6 +926,9 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 	end
 
 	if intent.kind == "breakTreaty" then
+		if MatchSim.teammates(m, nationId, intent.target) then
+			return false, "team" -- союз команды вечный (§5.1)
+		end
 		local t = Diplomacy.treaty(m.diplo, nationId, intent.target)
 		local ok, reason = Diplomacy.startBreak(m.diplo, nationId, intent.target, m.simTime)
 		if not ok or t == nil then
@@ -895,8 +1060,16 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 end
 
 -- Что бот «видит» о своей державе.
-local NO_BUILDINGS: Buildings.Owned =
-	table.freeze({ factories = 0, markets = 0, rigs = 0, forts = 0, ports = 0, airfields = 0, cityLevels = 0 })
+local NO_BUILDINGS: Buildings.Owned = table.freeze({
+	factories = 0,
+	markets = 0,
+	rigs = 0,
+	forts = 0,
+	ports = 0,
+	airfields = 0,
+	silos = 0,
+	cityLevels = 0,
+})
 
 -- Здания и уровни городов державы (пересчитываются каждый тик и после постройки).
 function MatchSim.ownedOf(m: Match, nationId: number): Buildings.Owned
@@ -1369,7 +1542,11 @@ function MatchSim.transfer(
 		return false, "tradeLimit"
 	end
 	table.insert(log, { at = m.time, money = money, oil = oil, people = people })
-	local keep = 1 - (if Council.active(m.council, "freeTrade", m.simTime) ~= nil then 0 else Config.Trade.TaxShare)
+	local tax = if Council.active(m.council, "freeTrade", m.simTime) ~= nil then 0 else Config.Trade.TaxShare
+	if MatchSim.teammates(m, from, to) then
+		tax = math.min(tax, Config.Modes.TeamTaxShare)
+	end
+	local keep = 1 - tax
 	n.money -= money
 	n.oil -= oil
 	n.people -= people
@@ -1437,6 +1614,10 @@ function MatchSim.offer(
 	end
 	if Wars.find(m.wars, from, to) ~= nil then
 		return false, "atWar"
+	end
+	-- Команды (§5.1): союз и пакты — только своя команда (вечный союз уже есть), требовать у своих нельзя.
+	if m.rules.teams and (kind ~= "trade" and (kind ~= "demand" or MatchSim.teammates(m, from, to))) then
+		return false, "team"
 	end
 	local ok, reason = Diplomacy.canOffer(m.diplo, from, to, kind, m.simTime)
 	if not ok then
@@ -2067,6 +2248,9 @@ end
 
 -- Открыто ли державе здание kind технологией (Config.Tech.Unlocks; остальные здания — всегда).
 function MatchSim.techAllows(m: Match, nationId: number, kind: Types.BuildingKind): boolean
+	if kind == "MissileSilo" and m.rules.siloFree then
+		return true -- «Супероружие» (§5.1)
+	end
 	local need = (Config.Tech.Unlocks :: any)[kind]
 	return need == nil or Tech.has(m.tech, nationId, need.branch, need.level)
 end
@@ -2409,6 +2593,337 @@ local function botAbility(m: Match, n: Nation, profile: BotBrain.Profile, rng: R
 				end
 			end
 		end
+	end
+end
+
+-- Случайные события и ракеты (§6.16, §6.9, этап 7г) -------------------------------------------
+
+-- Ставка на аукционе наёмников (деньги — в конце, если ставка победила).
+function MatchSim.bid(m: Match, n: Nation, amount: number): (boolean, string?)
+	if n.money < amount then
+		return false, "noMoney"
+	end
+	local reason = WorldEvents.bid(m.world, n.id, amount, m.simTime)
+	if reason ~= nil then
+		return false, reason
+	end
+	MatchSim.botsBid(m)
+	return true, nil
+end
+
+-- Боты перебивают ставку, пока хватает их предела (доля денег; Новичок — половина).
+function MatchSim.botsBid(m: Match)
+	local cfg = Config.Events
+	for _ = 1, 50 do
+		local need = WorldEvents.minBid(m.world, m.simTime)
+		local a = m.world.auction
+		if need == nil or a == nil then
+			return
+		end
+		local best: Nation? = nil
+		local bestCap = need - 1
+		for _, n in m.nations do
+			if n.alive and n.isBot and n.id ~= a.topId then
+				local share = cfg.BotBidShare * (if n.botLevel == "Novice" then 0.5 else 1)
+				local cap = math.floor(n.money * share)
+				if cap > bestCap then
+					best, bestCap = n, cap
+				end
+			end
+		end
+		if best == nil then
+			return
+		end
+		WorldEvents.bid(m.world, best.id, need, m.simTime)
+	end
+end
+
+-- Самая нестабильная провинция державы (не столица).
+local function mostUnstable(m: Match, id: number): number?
+	local n = m.nations[id]
+	local capitalProvince = if n ~= nil and n.capital ~= nil then MapData.getProvince(m.map, n.capital) else 0
+	local best: number? = nil
+	local bestValue = math.huge
+	for _, e in Stability.provincesOf(m.stability, id) do
+		if e.province ~= capitalProvince and e.value < bestValue then
+			best, bestValue = e.province, e.value
+		end
+	end
+	return best
+end
+
+-- Применить случайное событие kind. Возвращает false, если сейчас ему не к чему примениться.
+function MatchSim.worldEvent(m: Match, kind: string): boolean
+	local st = m.world
+	local cfg = Config.Events
+	local rng = m.worldRng
+	local g = m.grid
+	local w = g.width
+	local event: { [string]: any } = { kind = "worldEvent", event = kind }
+	if kind == "OilRush" then
+		local candidates: { number } = {}
+		for _, p in m.provinces.list do
+			if not p.oil and p.capturable > 0 and not Stability.isRebel(m.stability, p.id) then
+				table.insert(candidates, p.id)
+			end
+		end
+		if #candidates == 0 then
+			return false
+		end
+		local id = candidates[Rng.range(rng, 1, #candidates)]
+		local p = m.provinces.list[id];
+		(p :: any).oil = true
+		table.insert(st.oilExtra, id)
+		st.version += 1
+		m.infoDirty = true
+		event.province, event.cell = id, p.center
+	elseif kind == "Storm" then
+		local cell: number? = nil
+		for _ = 1, 400 do
+			local i = Rng.range(rng, 0, g.size - 1)
+			if Naval.seaAt(m.sea, i) ~= 0 then
+				cell = i
+				break
+			end
+		end
+		if cell == nil then
+			return false
+		end
+		local radius = cfg.StormRadius * w / Config.UnitsReferenceMapWidth
+		st.storm = { cell = cell, radius = radius, untilTime = m.simTime + cfg.StormSec }
+		st.version += 1
+		event.cell, event.radius = cell, radius
+	elseif kind == "Harvest" then
+		st.harvestUntil = m.simTime + cfg.HarvestSec
+	elseif kind == "Mercenaries" then
+		WorldEvents.startAuction(st, m.simTime)
+		MatchSim.botsBid(m)
+	elseif kind == "Revolt" then
+		local leader, most = 0, 0
+		for _, n in m.nations do
+			local cells = if n.alive then Grid.cellsOf(g, n.id) else 0
+			if cells > most then
+				leader, most = n.id, cells
+			end
+		end
+		local p = if leader ~= 0 then mostUnstable(m, leader) else nil
+		if p == nil then
+			return false
+		end
+		event.nation, event.province = leader, p
+		event.cell = m.provinces.list[p].center
+		table.insert(m.events, event :: any)
+		MatchSim.revolt(m, p, leader)
+		return true
+	elseif kind == "Defectors" then
+		local weakest, least = 0, math.huge
+		for _, n in m.nations do
+			if n.alive then
+				local cells = Grid.cellsOf(g, n.id)
+				if cells < least then
+					weakest, least = n.id, cells
+				end
+			end
+		end
+		if weakest == 0 then
+			return false
+		end
+		Forces.add(m.nations[weakest].home, Forces.kindIndex("Infantry") :: number, cfg.DefectorStrength)
+		event.nation = weakest
+	end
+	table.insert(m.events, event :: any)
+	return true
+end
+
+-- Пуск ракеты из своей шахты по клетке врага (§6.9).
+function MatchSim.launch(m: Match, n: Nation, cell: number): (boolean, string?)
+	local g = m.grid
+	if cell < 0 or cell >= g.size then
+		return false, "focus"
+	end
+	local hasSilo = false
+	for _, s in MatchSim.buildingsOf(m, "MissileSilo") do
+		if s.owner == n.id then
+			hasSilo = true
+		end
+	end
+	if not hasSilo then
+		return false, "needSilo"
+	end
+	if (m.missileReady[n.id] or 0) > m.simTime then
+		return false, "cooldown"
+	end
+	if Council.active(m.council, "superweaponBan", m.simTime) ~= nil then
+		return false, "banned"
+	end
+	local target = Grid.getOwner(g, cell)
+	if target == 0 or target == n.id or not Wars.isActive(m.wars, n.id, target) then
+		return false, "notAtWar"
+	end
+	local cfg = Config.Buildings.MissileSilo
+	m.missileReady[n.id] = m.simTime + cfg.cooldownSec
+	table.insert(m.missiles, { owner = n.id, cell = cell, impactAt = m.simTime + cfg.warningSec })
+	table.insert(
+		m.events,
+		{ kind = "missileLaunched", nation = n.id, target = target, cell = cell, impactIn = cfg.warningSec }
+	)
+	return true, nil
+end
+
+-- Удар ракеты (или перехват сетью ПВО).
+local function missileImpact(m: Match, missile: Missile)
+	local g = m.grid
+	local w = g.width
+	local cell = missile.cell
+	local r = Config.Buildings.MissileSilo.strikeRadius
+	local cx, cy = cell % w, cell // w
+	-- Сеть ПВО (Флот-4): батарея державы с технологией (или её друга) рядом с целью — шанс сбить.
+	local victim = Grid.getOwner(g, cell)
+	if victim ~= 0 then
+		local friends = Diplomacy.friends(m.diplo, victim)
+		local reach2 = Config.Buildings.AirDefense.radius ^ 2
+		for _, b in MatchSim.buildingsOf(m, "AirDefense") do
+			if friends[b.owner] and Tech.has(m.tech, b.owner, "Fleet", 4) then
+				local dx, dy = b.cell % w - cx, b.cell // w - cy
+				if dx * dx + dy * dy <= reach2 then
+					if Rng.nextFloat(m.missileRng) < Config.Missile.InterceptChance then
+						table.insert(
+							m.events,
+							{ kind = "missileShot", nation = missile.owner, by = b.owner, cell = cell }
+						)
+						return
+					end
+					break
+				end
+			end
+		end
+	end
+	local taken = 0
+	for dy = -r, r do
+		for dx = -r, r do
+			local x, y = cx + dx, cy + dy
+			if x >= 0 and y >= 0 and x < w and y < g.height and dx * dx + dy * dy <= r * r then
+				local i = y * w + x
+				if Grid.isCapturable(g, i) and Grid.getOwner(g, i) ~= 0 then
+					Grid.setOwner(g, i, 0)
+					taken += 1
+				end
+			end
+		end
+	end
+	for _, a in m.attacks do
+		if lineTouches(m, a, cell, r) then
+			Forces.applyDamage(a.forces, Forces.total(a.forces) * Config.Missile.FrontLoss)
+		end
+	end
+	table.insert(m.events, { kind = "missileHit", nation = missile.owner, cell = cell, cells = taken })
+end
+
+-- События по расписанию, конец шторма и аукциона, удары ракет.
+local function stepWorld(m: Match)
+	local st = m.world
+	if st.storm ~= nil and m.simTime >= (st.storm :: WorldEvents.Storm).untilTime then
+		st.storm = nil
+		st.version += 1
+	end
+	local auction = WorldEvents.closeAuction(st, m.simTime)
+	if auction ~= nil then
+		local winner = m.nations[auction.topId]
+		if winner ~= nil and winner.alive and winner.money >= auction.top then
+			winner.money -= auction.top
+			local cfg = Config.Events
+			local xp = Config.Combat.StarXp[cfg.MercStars]
+			Forces.add(winner.home, Forces.kindIndex("Infantry") :: number, cfg.MercStrength * 2 / 3, xp)
+			Forces.add(winner.home, Forces.kindIndex("Tanks") :: number, cfg.MercStrength / 3, xp)
+			table.insert(m.events, { kind = "mercs", nation = winner.id, amount = auction.top })
+		else
+			table.insert(m.events, { kind = "mercs", nation = 0, amount = 0 })
+		end
+	end
+	if WorldEvents.due(st, m.simTime, m.worldRng) then
+		-- Не к чему примениться — берём другое событие (не больше трёх попыток).
+		for _ = 1, 3 do
+			local kind = WorldEvents.pick(m.worldRng, function(k: string): boolean
+				return k ~= "Mercenaries" or st.auction == nil
+			end)
+			if kind == nil or MatchSim.worldEvent(m, kind) then
+				break
+			end
+		end
+	end
+	local k = 1
+	while k <= #m.missiles do
+		local missile = m.missiles[k]
+		if m.simTime >= missile.impactAt then
+			table.remove(m.missiles, k)
+			missileImpact(m, missile)
+		else
+			k += 1
+		end
+	end
+end
+
+-- Бот с шахтой: в войне — пуск по линии фронта врага (своей или его) или по городу врага; без шахты — строит её.
+local function botMissile(m: Match, n: Nation, rng: Rng)
+	if Rng.nextFloat(rng) >= Config.Missile.BotChance then
+		return
+	end
+	local enemy: { [number]: boolean } = {}
+	local any = false
+	for _, war in Wars.of(m.wars, n.id) do
+		if war.state == "active" then
+			enemy[Wars.enemyOf(war, n.id)] = true
+			any = true
+		end
+	end
+	if not any then
+		return
+	end
+	if MatchSim.ownedOf(m, n.id).silos == 0 then
+		local cfg = Config.Buildings.MissileSilo
+		if MatchSim.techAllows(m, n.id, "MissileSilo") and n.money >= cfg.cost * 1.5 and n.oil >= cfg.oil then
+			-- Свободная своя провинция подальше от фронта: ближайшая к столице.
+			local cap = n.capital or 0
+			local w = m.grid.width
+			local best: number? = nil
+			local bestD = math.huge
+			for _, p in m.provinces.list do
+				if Grid.getOwner(m.grid, p.center) == n.id and m.buildings.byProvince[p.id] == nil then
+					local d = (p.center % w - cap % w) ^ 2 + (p.center // w - cap // w) ^ 2
+					if d < bestD then
+						best, bestD = p.center, d
+					end
+				end
+			end
+			if best ~= nil then
+				MatchSim.applyIntent(m, n.id, { kind = "build", building = "MissileSilo", cell = best })
+			end
+		end
+		return
+	end
+	-- Цель: клетка врага на линии фронта с наибольшими войсками.
+	local target: number? = nil
+	local most = 0
+	for _, a in m.attacks do
+		local line = a.line
+		if
+			line ~= nil
+			and #(line :: { number }) > 0
+			and (enemy[a.attacker] or (a.attacker == n.id and enemy[a.target]))
+		then
+			local power = Forces.total(a.forces)
+			if power > most then
+				for _, c in line :: { number } do
+					if enemy[Grid.getOwner(m.grid, c)] then
+						target, most = c, power
+						break
+					end
+				end
+			end
+		end
+	end
+	if target ~= nil then
+		MatchSim.launch(m, n, target)
 	end
 end
 
@@ -2896,7 +3411,9 @@ local function stepFleet(m: Match, simDt: number)
 	end
 	local happenings: { Fleet.Happening } = {}
 	Fleet.planPaths(fs, m.sea, happenings)
-	Fleet.move(fs, w, simDt, happenings)
+	Fleet.move(fs, w, simDt, happenings, function(x: number, y: number): boolean
+		return WorldEvents.inStorm(m.world, w, x, y, m.simTime) -- шторм (§6.16)
+	end)
 	local war = atWar(m)
 	Fleet.fight(fs, w, simDt, war, happenings)
 	for _, h in happenings do
@@ -3483,10 +4000,124 @@ end
 -- Победа (§2, §8.1): 60% суши у державы с союзниками и вассалами, последний выживший (или все живые — союз
 -- с вассалами), больше всех суши к лимиту времени. Союзники победителя побеждают вместе с ним.
 -- Возвращает true, если матч кончился.
+local function finishMatch(m: Match, winner: number, reason: Types.VictoryReason, coWinners: { number })
+	m.nextHistoryAt = 0
+	recordHistory(m, true) -- последняя точка графика — момент победы
+	m.result = {
+		winner = winner,
+		reason = reason,
+		places = MatchSim.places(m, winner, coWinners),
+		coWinners = coWinners,
+		times = m.history.times,
+		shares = m.history.shares,
+	}
+	m.phase = "Over"
+	m.phaseLeft = Config.Match.ResultsSec
+	m.paused, m.fast = false, false
+	m.infoDirty = true
+	table.insert(m.events, { kind = "victory", nation = winner, reason = reason })
+end
+
+-- «Охота на столицы» (§5.1): сколько исходных столиц врагов держит каждая живая держава; кто держит
+-- CapitalHunt.Need столиц HoldSec секунд подряд — победитель.
+local function huntWinner(m: Match): number?
+	if not m.rules.capitalHunt then
+		return nil
+	end
+	local cfg = Config.Modes.CapitalHunt
+	local counts: { [number]: number } = {}
+	for id, cell in m.startCapitals do
+		local owner = Grid.getOwner(m.grid, cell)
+		if owner ~= 0 and owner ~= id then
+			counts[owner] = (counts[owner] or 0) + 1
+		end
+	end
+	local winner: number? = nil
+	for _, n in m.nations do
+		local c = if n.alive then counts[n.id] or 0 else 0
+		if c ~= (m.huntCount[n.id] or 0) then
+			m.huntCount[n.id] = c
+			m.infoDirty = true
+		end
+		if c >= cfg.Need then
+			local since = m.huntSince[n.id]
+			if since == nil then
+				m.huntSince[n.id] = m.time
+				m.infoDirty = true
+			elseif m.time - since >= cfg.HoldSec and winner == nil then
+				winner = n.id
+			end
+		elseif m.huntSince[n.id] ~= nil then
+			m.huntSince[n.id] = nil
+			m.infoDirty = true
+		end
+	end
+	return winner
+end
+
+-- Победа команды (§5.1): 70% суши у команды, последняя команда, больше всех суши к лимиту времени.
+-- Земля вассала считается команде сюзерена. Побеждает вся команда; первым в итогах — её самая большая держава.
+local function checkTeamVictory(m: Match): boolean
+	local land: { [number]: number } = {}
+	local alive: { [number]: boolean } = {}
+	local aliveTeams = 0
+	for _, n in m.nations do
+		if n.alive then
+			local lord = Diplomacy.overlordOf(m.diplo, n.id) or n.id
+			local t = m.teams[lord] or 0
+			land[t] = (land[t] or 0) + Grid.cellsOf(m.grid, n.id)
+			if not alive[t] then
+				alive[t] = true
+				aliveTeams += 1
+			end
+		end
+	end
+	local best, bestLand = 0, -1
+	for t = 1, m.teamCount do
+		if (land[t] or 0) > bestLand then
+			best, bestLand = t, land[t] or 0
+		end
+	end
+	local reason: Types.VictoryReason? = nil
+	if bestLand >= m.grid.capturableCount * m.rules.victoryShare then
+		reason = "land"
+	elseif aliveTeams <= 1 and #m.nations > 1 then
+		reason = "last"
+	elseif m.time >= m.rules.timeLimitSec then
+		reason = "time"
+	end
+	if reason == nil or best == 0 then
+		return false
+	end
+	local winner, winnerLand = 0, -1
+	local members: { number } = {}
+	for _, n in m.nations do
+		if m.teams[n.id] == best then
+			table.insert(members, n.id)
+			local c = if n.alive then Grid.cellsOf(m.grid, n.id) else -1
+			if c > winnerLand then
+				winner, winnerLand = n.id, c
+			end
+		end
+	end
+	local co: { number } = {}
+	for _, id in members do
+		if id ~= winner then
+			table.insert(co, id)
+		end
+	end
+	finishMatch(m, winner, reason, co)
+	return true
+end
+
 local function checkVictory(m: Match): boolean
 	if not m.victory then
 		return false
 	end
+	if m.rules.teams then
+		return checkTeamVictory(m)
+	end
+	local hunter = huntWinner(m)
 	local ds = m.diplo
 	local aliveList: { Nation } = {}
 	local leader, leaderLand = 0, -1
@@ -3502,7 +4133,7 @@ local function checkVictory(m: Match): boolean
 			end
 		end
 	end
-	local need = m.grid.capturableCount * Config.Match.VictoryLandShareFfa
+	local need = m.grid.capturableCount * m.rules.victoryShare
 	local reason: Types.VictoryReason? = nil
 	local winner = leader
 	-- Суша союза: держава, её союзники и все их вассалы.
@@ -3534,27 +4165,15 @@ local function checkVictory(m: Match): boolean
 	elseif #m.nations > 1 and (#aliveList <= 1 or allFriends) then
 		reason = "last"
 		winner = if #aliveList == 1 then aliveList[1].id else leader
-	elseif m.time >= Config.Match.TimeLimitSec then
+	elseif hunter ~= nil then
+		reason, winner = "capitals", hunter
+	elseif m.time >= m.rules.timeLimitSec then
 		reason = "time"
 	end
 	if reason == nil or winner == 0 then
 		return false
 	end
-	local coWinners = Diplomacy.alliesOf(ds, winner)
-	m.nextHistoryAt = 0
-	recordHistory(m, true) -- последняя точка графика — момент победы
-	m.result = {
-		winner = winner,
-		reason = reason,
-		places = MatchSim.places(m, winner, coWinners),
-		coWinners = coWinners,
-		times = m.history.times,
-		shares = m.history.shares,
-	}
-	m.phase = "Over"
-	m.phaseLeft = Config.Match.ResultsSec
-	m.infoDirty = true
-	table.insert(m.events, { kind = "victory", nation = winner, reason = reason })
+	finishMatch(m, winner, reason, Diplomacy.alliesOf(ds, winner))
 	return true
 end
 
@@ -3590,7 +4209,8 @@ function MatchSim.step(m: Match, dt: number)
 	for _, n in m.nations do
 		if n.alive then
 			stepEconomy(m, n, simDt)
-			local growthMul = 1 - Wars.weariness(m.wars, n.id, m.simTime)
+			local growthMul = (1 - Wars.weariness(m.wars, n.id, m.simTime))
+				* (if WorldEvents.harvest(m.world, m.simTime) then Config.Events.HarvestMul else 1) -- урожай (§6.16)
 			n.people = Economy.grow(n.people, MatchSim.maxPeopleOf(m, n.id), simDt, growthMul)
 			-- Линии найма: первые recruitLines юнитов очереди готовятся параллельно.
 			local lines = MatchSim.recruitLines(m, n.id)
@@ -3631,6 +4251,7 @@ function MatchSim.step(m: Match, dt: number)
 	stepDiplomacy(m)
 	stepCouncil(m)
 
+	stepWorld(m) -- случайные события и ракеты (§6.16, §6.9)
 	stepFleet(m, simDt)
 	stepAir(m, simDt)
 	m.lastCaptured = stepAttacks(m, simDt)
@@ -3691,6 +4312,7 @@ function MatchSim.step(m: Match, dt: number)
 				end
 			end
 			botAbility(m, n, profile, rngs.ability) -- способности генерала (§6.15)
+			botMissile(m, n, rngs.missile) -- ракетная шахта (§6.9)
 		end
 	end
 	m.botThinks = thinks

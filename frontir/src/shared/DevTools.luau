@@ -21,6 +21,10 @@
 	- resetCooldowns: обе способности генерала готовы (§6.15, этап 7в-2).
 	- nextCommander: следующий генерал по кругу (и в игре — для проверки всех способностей).
 	- botAbility: выбранный бот (война сразу, перезарядки сброшены) применяет обе способности по вам.
+	- eventNow: следующее случайное событие по кругу (нефть, шторм, урожай, наёмники, восстание, перебежчики)
+	  сразу (§6.16, этап 7г).
+	- silo: «Ракетная шахта» и «Сеть ПВО» изучены, шахта в своей провинции (если нет), пуск готов.
+	- botMissile: выбранный бот (война сразу) получает шахту и пускает ракету по вашему городу.
 	Ускорение времени — в MatchService (шагов симуляции за кадр больше).
 ]]
 
@@ -36,6 +40,7 @@ local Forces = require("./Forces")
 local MatchSim = require("./MatchSim")
 local Stability = require("./Stability")
 local Tech = require("./Tech")
+local WorldEvents = require("./WorldEvents")
 local Types = require("./Types")
 local Wars = require("./Wars")
 
@@ -133,7 +138,7 @@ function DevTools.endMatch(m: Match): (boolean, string?)
 	if m.phase ~= "Play" then
 		return false, "phase"
 	end
-	m.time = math.max(m.time, Config.Match.TimeLimitSec - Config.Dev.EndLeadSec)
+	m.time = math.max(m.time, m.rules.timeLimitSec - Config.Dev.EndLeadSec)
 	return true, nil
 end
 
@@ -373,6 +378,91 @@ function DevTools.botAbility(m: Match, bot: number, player: number): (boolean, s
 		end
 	end
 	return used > 0, if used > 0 then nil else "target"
+end
+
+local eventTurn = 0
+
+function DevTools.eventNow(m: Match): (boolean, string?)
+	local kinds = WorldEvents.Kinds
+	for _ = 1, #kinds do
+		eventTurn = eventTurn % #kinds + 1
+		local kind = kinds[eventTurn]
+		if (kind ~= "Mercenaries" or m.world.auction == nil) and MatchSim.worldEvent(m, kind) then
+			return true, nil
+		end
+	end
+	return false, "target"
+end
+
+-- Шахта державы: своя свободная провинция (ближайшая к столице); nil — негде.
+local function ensureSilo(m: Match, id: number): number?
+	for _, s in MatchSim.buildingsOf(m, "MissileSilo") do
+		if s.owner == id then
+			return s.cell
+		end
+	end
+	local n = m.nations[id]
+	local cap = n.capital or 0
+	local w = m.grid.width
+	local best: { center: number, id: number }? = nil
+	local bestD = math.huge
+	for _, p in m.provinces.list do
+		if Grid.getOwner(m.grid, p.center) == id and m.buildings.byProvince[p.id] == nil then
+			local d = (p.center % w - cap % w) ^ 2 + (p.center // w - cap // w) ^ 2
+			if d < bestD then
+				best, bestD = { center = p.center, id = p.id }, d
+			end
+		end
+	end
+	if best == nil then
+		return nil
+	end
+	Buildings.place(m.buildings, "MissileSilo", best.center, best.id)
+	MatchSim.refreshOwned(m)
+	return best.center
+end
+
+function DevTools.silo(m: Match, id: number): (boolean, string?)
+	local n = m.nations[id]
+	if n == nil or not n.alive then
+		return false, "dead"
+	end
+	Tech.grant(m.tech, id, "Army", 4)
+	Tech.grant(m.tech, id, "Fleet", 4)
+	if ensureSilo(m, id) == nil then
+		return false, "occupied"
+	end
+	m.missileReady[id] = nil
+	return true, nil
+end
+
+-- Бот bot пускает ракету по клетке у ближайшего к нему города игрока player.
+function DevTools.botMissile(m: Match, bot: number, player: number): (boolean, string?)
+	local ok, reason = DevTools.warNow(m, bot, player)
+	if not ok then
+		return false, reason
+	end
+	ok, reason = DevTools.silo(m, bot)
+	if not ok then
+		return false, reason
+	end
+	local g = m.grid
+	local w = g.width
+	local cap = m.nations[bot].capital or 0
+	local target: number? = nil
+	local best = math.huge
+	for _, c in m.cityOf do
+		if Grid.getOwner(g, c) == player then
+			local d = (c % w - cap % w) ^ 2 + (c // w - cap // w) ^ 2
+			if d < best then
+				target, best = c, d
+			end
+		end
+	end
+	if target == nil then
+		return false, "target"
+	end
+	return MatchSim.launch(m, m.nations[bot], target)
 end
 
 function DevTools.researchAll(m: Match, id: number): (boolean, string?)

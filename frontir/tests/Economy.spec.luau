@@ -214,7 +214,8 @@ T.describe("Здания", function()
 
 	T.it("намерение build проверяется", function()
 		T.expect((Intents.parse("build", { building = "Factory", cell = 10 })) ~= nil).toBe(true)
-		T.expect((Intents.parse("build", { building = "MissileSilo", cell = 10 }))).toBe(nil) -- этап 7
+		T.expect((Intents.parse("build", { building = "MissileSilo", cell = 10 })) ~= nil).toBe(true) -- этап 7г
+		T.expect((Intents.parse("build", { building = "Castle", cell = 10 }))).toBe(nil)
 		T.expect((Intents.parse("build", { building = "Factory", cell = -1 }))).toBe(nil)
 	end)
 end)

@@ -574,7 +574,7 @@ function MatchHud.new(
 						)
 						else ""
 					-- Договоры (§8.1): «Предатель» красным, наш союзник — голубым.
-					if ClientState.isTraitor(cs, s.id, os.clock(), Config.Match.Speed) then
+					if ClientState.isTraitor(cs, s.id, os.clock(), ClientState.simRate(cs)) then
 						tag ..= string.format(
 							' <font size="11" color="%s">⚠%s</font>',
 							alert,
@@ -642,6 +642,12 @@ function MatchHud.new(
 				local hint = if me ~= nil and me.capital ~= nil then "hud.pick.done" else "hud.pick.hint"
 				text ..= string.format('\n<font color="%s" size="14">%s</font>', sky, Strings.get(hint, lang))
 			end
+			-- Режим, выбранный в лобби (§5.1).
+			text ..= string.format(
+				'\n<font color="%s" size="14">%s</font>',
+				sky,
+				string.format(Strings.get("hud.mode", lang), Strings.get("mode." .. cs.mode.mode, lang))
+			)
 		elseif cs.phase == "Lobby" then
 			local left = math.max(0, math.ceil(cs.phaseEndsAt - now))
 			local players = 0
@@ -661,7 +667,7 @@ function MatchHud.new(
 			text = string.format(Strings.get("hud.over", lang), left)
 		else
 			-- Время матча / лимит (цифры — пиксельным Arcade), державы в игре.
-			local t = math.floor(cs.time + (now - cs.timeAt))
+			local t = math.floor(ClientState.matchTime(cs, now))
 			local limit = math.floor(cs.timeLimit)
 			local alive = 0
 			local total = 0
@@ -683,6 +689,32 @@ function MatchHud.new(
 			elseif not me.alive then
 				text ..= "\n" .. Strings.get("hud.defeated", lang)
 			end
+			-- Режим (§5.1): название, своя команда, охота на столицы, пауза «Против ботов».
+			local line = string.format(Strings.get("hud.mode", lang), Strings.get("mode." .. cs.mode.mode, lang))
+			if me ~= nil and me.team ~= nil then
+				line ..= " · " .. string.format(Strings.get("hud.team", lang), me.team)
+			end
+			if cs.rules.capitalHunt then
+				local need = Config.Modes.CapitalHunt.Need
+				if me ~= nil and me.hunt ~= nil then
+					line ..= " · " .. string.format(Strings.get("hud.hunt", lang), me.hunt, need)
+				end
+				-- Кто ближе всех к победе охотой — отсчёт всем.
+				for _, n in cs.nations do
+					if n.huntLeft ~= nil then
+						local left = math.max(0, math.ceil(n.huntLeft - (now - cs.timeAt) * ClientState.clockRate(cs)))
+						line ..= string.format(
+							'\n<font color="%s">%s</font>',
+							gold,
+							string.format(Strings.get("hud.huntLeader", lang), nationName(n.id), n.hunt or need, left)
+						)
+					end
+				end
+			end
+			text ..= string.format('\n<font color="%s" size="14">%s</font>', sky, line)
+			if cs.mode.paused then
+				text ..= string.format('\n<font color="%s" size="18">%s</font>', gold, Strings.get("hud.paused", lang))
+			end
 		end
 		-- Лидер к победе: доля суши / порог победы.
 		local stats = cs.stats
@@ -696,7 +728,7 @@ function MatchHud.new(
 				end
 			end
 			local share = bestCells / math.max(1, totalLand)
-			leaderFill.Size = UDim2.fromScale(math.clamp(share / Config.Match.VictoryLandShareFfa, 0, 1), 1)
+			leaderFill.Size = UDim2.fromScale(math.clamp(share / cs.rules.victoryShare, 0, 1), 1)
 			local n = cs.nations[best]
 			leaderFill.BackgroundColor3 = if n ~= nil and n.colorIndex >= 1
 				then Color3.fromRGB(
@@ -891,6 +923,17 @@ function MatchHud.new(
 				else
 					toast(string.format(Strings.get(if e.on then "event.blockade" else "event.blockadeOff", lang), a))
 				end
+			-- Ракеты (§6.9): видят все; по вам — красной строкой.
+			elseif e.kind == "missileLaunched" then
+				if e.target == cs.myNation then
+					alertLine(string.format(Strings.get("event.missileOnYou", lang), a))
+				else
+					toast(string.format(Strings.get("event.missileLaunched", lang), a, b, tonumber(e.impactIn) or 0))
+				end
+			elseif e.kind == "missileHit" then
+				toast(string.format(Strings.get("event.missileHit", lang), a, tonumber(e.cells) or 0))
+			elseif e.kind == "missileShot" then
+				toast(string.format(Strings.get("event.missileShot", lang), a, nationName(tonumber(e.by) or 0)))
 			-- Генералы (§6.15): свои способности и чужие — по вам.
 			elseif e.kind == "ability" and (e.nation == cs.myNation or e.target == cs.myNation) then
 				local name = Strings.get("ability." .. tostring(e.ability), lang)

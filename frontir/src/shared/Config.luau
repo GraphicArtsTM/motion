@@ -58,6 +58,20 @@ Config.Match = {
 	TargetNations = 6,
 }
 
+-- §5.1 Режимы (этап 8а). Правила режима — Modes.rules; база — Config.Match (каждый сам за себя).
+Config.Modes = {
+	-- Режим недели по номеру недели UTC (с понедельника) по кругу; «Потоп» — этап 8б.
+	Weekly = { "Blitz", "Mist", "Superweapon", "CapitalHunt" },
+	WeekStartUnix = 345600, -- понедельник 1970-01-05 00:00 UTC — неделя 0
+	-- Команды: держав в матче ≤ upTo — столько команд.
+	TeamsBy = { { upTo = 12, teams = 2 }, { upTo = 24, teams = 3 }, { upTo = 1e9, teams = 4 } },
+	TeamTaxShare = 0, -- налог на переводы своей команде (обычный — Trade.TaxShare)
+	BlitzSpeed = 2, -- «Блиц»: множитель скорости поверх Match.Speed
+	MistVisionMul = 0.6, -- «Мгла»: обзор ×
+	CapitalHunt = { Need = 3, HoldSec = 60 }, -- «Охота на столицы»: столиц врагов, секунд удержания (часы матча)
+	SoloFastSpeed = 2, -- «Против ботов»: ×2 — шагов симуляции за кадр
+}
+
 -- §6.2 Старт
 Config.Start = {
 	MinDistance = 48, -- минимальная дистанция между точками старта, клеток
@@ -319,6 +333,9 @@ Config.Dev = {
 	Map = "",
 	-- Все боты одного уровня (§9.1): "" — по Bots.LevelMix; "Novice", "Normal" или "General".
 	BotLevel = "",
+	-- Режим без голосования (§5.1): "" — голосование в лобби; "Ffa", "Teams", "Blitz", "Mist", "Superweapon",
+	-- "CapitalHunt" — этот.
+	Mode = "",
 	-- Сколько держав в матче (игроки + боты): 0 — как у карты (RealMaps.<карта>.Nations).
 	Nations = 0,
 	-- Панель разработчика (F4, только в Studio): сколько давать и во сколько ускорять.
@@ -417,7 +434,7 @@ Config.Render = {
 	DebugRefreshSec = 0.25, -- частота обновления окна F3
 	-- Туман (§6.11): вне обзора клетка смешивается с цветом палитры FogColor на эту долю.
 	FogColor = "Ink",
-	FogDarken = 0.5,
+	FogDarken = 0.25, -- было 0.5 (7а); после 7г туман только намекает на обзор
 	-- Повстанцы (§6.10): ничья земля их провинции — штриховка цветом RebelColor (каждая RebelHatch-я диагональ).
 	RebelColor = "Red",
 	RebelHatch = 4,
@@ -642,7 +659,7 @@ Config.Council = {
 	VoteSec = 30,
 	Options = 3, -- резолюций на голосовании
 	-- Пул резолюций; «Запрет супероружия» добавится с ракетной шахтой (этап 7).
-	Pool = { "sanctions", "truce", "aid", "freeTrade" },
+	Pool = { "sanctions", "truce", "aid", "freeTrade", "superweaponBan" }, -- запрет — с ракетной шахтой (этап 7г)
 	SanctionsIncomeMul = 0.75, -- санкции против лидера: −25% дохода…
 	SanctionsSec = 120, -- …на 2 минуты
 	TruceSec = 60, -- всеобщее перемирие
@@ -682,7 +699,35 @@ Config.Buildings = {
 }
 
 -- Что можно строить сейчас (этап 4б; радар — 7а, порт — 7б-1, аэродром и батарея ПВО — 7б-2); шахта — этап 7г.
-Config.Buildable = { "City", "OilRig", "Factory", "Fort", "Market", "Radar", "Port", "Airfield", "AirDefense" }
+Config.Buildable =
+	{ "City", "OilRig", "Factory", "Fort", "Market", "Radar", "Port", "Airfield", "AirDefense", "MissileSilo" }
+
+-- §6.9 Ракетный удар (этап 7г). Радиус, перезарядка и предупреждение — Buildings.MissileSilo.
+Config.Missile = {
+	FrontLoss = 0.5, -- фронты, линия которых касается круга, теряют эту долю войск
+	InterceptChance = 0.75, -- сеть ПВО (Флот-4): шанс сбить ракету над своей батареей ПВО
+	BotChance = 0.3, -- бот с готовой шахтой во время войны — шанс пуска за раздумье
+}
+
+-- §6.16 Случайные события (этап 7г).
+Config.Events = {
+	FirstSec = 180, -- первое событие — через столько секунд игры
+	MinGapSec = 180, -- дальше — через случайный промежуток MinGapSec..MaxGapSec
+	MaxGapSec = 240,
+	BannerSec = 6, -- баннер сверху у клиента
+	Weights = { OilRush = 2, Storm = 2, Harvest = 2, Mercenaries = 2, Revolt = 1, Defectors = 2 },
+	StormRadius = 40, -- клеток на ширине 512
+	StormSec = 40,
+	HarvestMul = 1.2,
+	HarvestSec = 60,
+	AuctionSec = 20,
+	MercMinBid = 2000,
+	MercStep = 500,
+	MercStrength = 1500, -- войска наёмников (2/3 пехота, 1/3 танки)
+	MercStars = 2, -- опыт наёмников — звёзды
+	BotBidShare = 0.3, -- бот ставит до такой доли своих денег (Новичок — вдвое меньше)
+	DefectorStrength = 1200, -- пехота перебежчиков
+}
 
 -- §6.8 Экономика (этап 4б)
 Config.Economy = {
@@ -916,6 +961,9 @@ Config.Nations = {
 -- §6.11 Туман войны (этап 7а)
 Config.Fog = {
 	Enabled = true, -- false — карта видна целиком (частные серверы, «Мгла» — этап 8)
+	-- false — границы и города всех держав видны везде, туман прячет войска, корабли, самолёты и здания
+	-- (решение геймдизайнера после 7г); true — правило 7а: вне обзора последний увиденный владелец.
+	HideTerritory = false,
 	TerritoryVision = 6, -- клеток вокруг земли своей и друзей
 	ArmyVision = 8, -- …вокруг линий фронтов (граница с державой, с которой идёт бой)
 	RadarVision = 25, -- …вокруг радара (= Buildings.Radar.visionRadius)
@@ -1033,8 +1081,8 @@ Config.Commanders = {
 Config.Tech = {
 	Cost = { 3000, 5000, 8000, 12000 }, -- цена уровня 1..4 (деньги, сразу)
 	Sec = { 40, 60, 80, 100 }, -- время исследования, игровые секунды
-	-- Закрыто до этапа 7г (ракетная шахта и сеть ПВО): уровни с этого и выше не изучаются.
-	Locked = { Army = 4, Fleet = 4 },
+	-- Закрытые уровни (ветка → с этого и выше не изучаются). До 7г были Войска-4 и Флот-4; с 7г всё открыто.
+	Locked = {} :: { [string]: number },
 	SupplyRangeMul = 1.5, -- Войска-2 «Снабжение»: дальность снабжения от городов
 	TankArmor = 1.2, -- Войска-3 «Тяжёлая броня»: защита танков в обороне
 	TaxBonus = 0.10, -- Экономика-1 «Налоги»: доход
@@ -1044,7 +1092,11 @@ Config.Tech = {
 	ShipyardDiscount = 0.20, -- Флот-1 «Верфи»: корабли дешевле в деньгах
 	-- Что открывают уровни (здание → ветка и уровень).
 	-- Флот-2 «Авиация», Флот-3 «Радар» (решение геймдизайнера перед 7в-2: аэродром раньше радара).
-	Unlocks = { Airfield = { branch = "Fleet", level = 2 }, Radar = { branch = "Fleet", level = 3 } },
+	Unlocks = {
+		Airfield = { branch = "Fleet", level = 2 },
+		Radar = { branch = "Fleet", level = 3 },
+		MissileSilo = { branch = "Army", level = 4 }, -- Войска-4 «Ракетная шахта» (этап 7г)
+	},
 	-- Боты: вероятность за раздумье заняться исследованием и порядок веток по личности (запись — следующий
 	-- уровень этой ветки). Генерал — по своей очереди GeneralOrder.
 	BotChance = 0.25,
@@ -1067,6 +1119,8 @@ Config.Tech = {
 		"Army", -- Тяжёлая броня
 		"Economy", -- Торговые пути
 		"Economy", -- Порядок
+		"Army", -- Ракетная шахта (этап 7г)
+		"Fleet", -- Сеть ПВО
 	},
 }
 

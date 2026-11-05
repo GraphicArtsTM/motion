@@ -220,6 +220,35 @@ function Intents.parse(kind: any, payload: any): (Types.Intent?, string?)
 			return nil, "bad branch"
 		end
 		return { kind = "research", branch = branch :: Types.TechBranch }, nil
+	elseif kind == "bid" then
+		local amount = payload.amount
+		if not isFinite(amount) or amount <= 0 or amount > 1e9 then
+			return nil, "bad amount"
+		end
+		return { kind = "bid", amount = math.floor(amount) }, nil
+	elseif kind == "missile" then
+		local cell = payload.cell
+		if not isInt(cell) or cell < 0 then
+			return nil, "bad cell"
+		end
+		return { kind = "missile", cell = cell }, nil
+	elseif kind == "modeVote" then
+		local mode = payload.mode
+		if table.find(Types.ModeIds, mode) == nil then
+			return nil, "bad mode"
+		end
+		return { kind = "modeVote", mode = mode :: Types.ModeId }, nil
+	elseif kind == "difficulty" then
+		local level = payload.level
+		if table.find(Types.BotLevels, level) == nil then
+			return nil, "bad level"
+		end
+		return { kind = "difficulty", level = level :: Types.BotLevel }, nil
+	elseif kind == "solo" then
+		if type(payload.pause) ~= "boolean" or type(payload.fast) ~= "boolean" then
+			return nil, "bad solo"
+		end
+		return { kind = "solo", pause = payload.pause, fast = payload.fast }, nil
 	elseif kind == "commander" then
 		local c = payload.commander
 		if table.find(Types.CommanderIds, c) == nil then

@@ -239,6 +239,11 @@ export type Intent =
 	| ResearchIntent
 	| CommanderIntent
 	| AbilityIntent
+	| BidIntent
+	| MissileIntent
+	| ModeVoteIntent
+	| DifficultyIntent
+	| SoloIntent
 
 -- Боты v2 (§9.1): уровни и личности. Списки — для перебора и проверки имён.
 export type BotLevel = "Novice" | "Normal" | "General"
@@ -324,11 +329,22 @@ Types.CommanderIds = table.freeze({ "Marshal", "Admiral", "Scout", "Engineer" } 
 export type CommanderIntent = { kind: "commander", commander: CommanderId } -- выбрать генерала (лобби, выбор старта)
 -- Способность: slot 1 — Q, 2 — E; cell — цель на карте; percent — доля войск для десантов (0..1).
 export type AbilityIntent = { kind: "ability", slot: number, cell: number?, percent: number? }
+-- Случайные события и ракеты (§6.16, §6.9, этап 7г).
+export type BidIntent = { kind: "bid", amount: number } -- ставка на аукционе наёмников
+export type MissileIntent = { kind: "missile", cell: number } -- пуск ракеты из своей шахты
 
 export type Phase = "Waiting" | "Lobby" | "Pick" | "Play" | "Over"
 
 -- Итог матча (§2, §5): кто и как победил, места, доля суши по времени для графика результатов.
-export type VictoryReason = "land" | "last" | "time"
+export type VictoryReason = "land" | "last" | "time" | "capitals"
+
+-- Режимы матча (§5.1, этап 8а).
+export type ModeId = "Ffa" | "Teams" | "Blitz" | "Mist" | "Superweapon" | "CapitalHunt"
+Types.ModeIds = table.freeze({ "Ffa", "Teams", "Blitz", "Mist", "Superweapon", "CapitalHunt" } :: { ModeId })
+export type ModeVoteIntent = { kind: "modeVote", mode: ModeId }
+export type DifficultyIntent = { kind: "difficulty", level: BotLevel }
+-- Против ботов (§5.1): пауза и ×2, только когда в матче один игрок.
+export type SoloIntent = { kind: "solo", pause: boolean, fast: boolean }
 export type MatchResult = {
 	winner: NationId,
 	reason: VictoryReason,

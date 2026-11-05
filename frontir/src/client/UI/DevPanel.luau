@@ -270,6 +270,14 @@ function DevPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang): DevP
 		fire("airForce", nil)
 	end)
 	button(Strings.get("dev.botRaid", lang), withBot("botRaid", same))
+	-- Этап 7г: события и ракеты (§6.16, §6.9).
+	button(Strings.get("dev.eventNow", lang), function()
+		fire("eventNow", nil)
+	end)
+	button(Strings.get("dev.silo", lang), function()
+		fire("silo", nil)
+	end)
+	button(Strings.get("dev.botMissile", lang), withBot("botMissile", same))
 	-- Этап 7в-2: генералы (§6.15).
 	button(Strings.get("dev.resetCooldowns", lang), function()
 		fire("resetCooldowns", nil)
@@ -284,6 +292,10 @@ function DevPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang): DevP
 	end)
 	button(Strings.get("dev.finishResearch", lang), function()
 		fire("finishResearch", nil)
+	end)
+	-- Этап 8а: режим без голосования (§5.1) — по кругу; в лобби — сразу, иначе — со следующего матча.
+	local modeButton = button(string.format(Strings.get("dev.mode", lang), "—"), function()
+		fire("mode", nil)
 	end)
 
 	UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
@@ -302,6 +314,9 @@ function DevPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang): DevP
 		onDev = function(msg: any)
 			if type(msg.fog) == "boolean" then
 				fogButton.Text = Strings.get(if msg.fog then "dev.fogOn" else "dev.fogOff", lang)
+			end
+			if type(msg.mode) == "string" then
+				modeButton.Text = string.format(Strings.get("dev.mode", lang), Strings.get("mode." .. msg.mode, lang))
 			end
 			if type(msg.speed) == "number" then
 				speedButton.Text = string.format(

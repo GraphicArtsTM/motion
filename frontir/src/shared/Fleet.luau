@@ -180,17 +180,29 @@ function Fleet.speed(kind: ShipKind, width: number): number
 	return Fleet.stats(kind).speed * width / Config.UnitsReferenceMapWidth * Config.Naval.SpeedMul
 end
 
--- Движение по пути на simDt.
-function Fleet.move(fs: FleetState, width: number, simDt: number, happenings: { Happening })
+-- Движение по пути на simDt. blocked(x, y) — точка непроходима (шторм, §6.16): корабль в ней или перед ней ждёт.
+function Fleet.move(
+	fs: FleetState,
+	width: number,
+	simDt: number,
+	happenings: { Happening },
+	blocked: ((x: number, y: number) -> boolean)?
+)
 	for _, ship in fs.ships do
 		if ship.alive and ship.state == "moving" and ship.path ~= nil then
 			local path = ship.path :: { number }
 			local left = Fleet.speed(ship.kind, width) * simDt
+			if blocked ~= nil and blocked(ship.x, ship.y) then
+				left = 0
+			end
 			while left > 0 and ship.step <= #path do
 				local p = path[ship.step]
 				local tx, ty = p % width + 0.5, p // width + 0.5
 				local dx, dy = tx - ship.x, ty - ship.y
 				local d = math.sqrt(dx * dx + dy * dy)
+				if blocked ~= nil and blocked(tx, ty) then
+					break -- следующая точка в шторме — ждём у края
+				end
 				if d <= left then
 					ship.x, ship.y = tx, ty
 					left -= d
