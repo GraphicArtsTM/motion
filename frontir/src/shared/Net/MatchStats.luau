@@ -8,6 +8,7 @@ local ClientState = require("../ClientState")
 local Config = require("../Config")
 local Council = require("../Council")
 local Diplomacy = require("../Diplomacy")
+local Air = require("../Air")
 local Fleet = require("../Fleet")
 local Fog = require("../Fog")
 local Forces = require("../Forces")
@@ -24,7 +25,7 @@ local MatchStats = {}
 function MatchStats.radarsOf(m: MatchSim.Match, friends: { [number]: boolean }): { number }
 	local out: { number } = {}
 	for cell, b in m.buildings.byCell do
-		if b.kind == "Radar" and friends[Grid.getOwner(m.grid, cell)] then
+		if b.kind == "Radar" and friends[Grid.getOwner(m.grid, cell)] and not MatchSim.isDisabled(m, cell) then
 			table.insert(out, cell)
 		end
 	end
@@ -41,10 +42,16 @@ function MatchStats.vision(m: MatchSim.Match, viewer: number): Vision
 	for id in friends do
 		table.insert(borders, Grid.borderCells(m.grid, id))
 	end
+	-- Корабли и самолёты друзей тоже дают обзор (радиусы 5–6 клеток — в блоках 8×8 одинаково).
 	local ships: { number } = {}
 	for _, ship in m.fleet.ships do
 		if ship.alive and friends[ship.owner] then
 			table.insert(ships, Fleet.cellOf(m.grid.width, ship))
+		end
+	end
+	for _, plane in m.air.planes do
+		if plane.alive and friends[plane.owner] then
+			table.insert(ships, Air.cellOf(m.grid.width, plane))
 		end
 	end
 	local blocks = Fog.visionBlocks(m.grid.width, m.grid.height, borders, MatchStats.radarsOf(m, friends), ships)
@@ -221,6 +228,46 @@ function MatchStats.stability(m: MatchSim.Match, viewer: number?): StabilityMess
 		rebels = rebels,
 		rebelLeft = rebelLeft,
 	}
+end
+
+-- Самолёты (§6.13) глазами державы viewer: свои и друзей — всегда, чужие — в грубом обзоре; выведенные из строя
+-- здания — всем; своя очередь. viewer nil или all — все самолёты.
+function MatchStats.air(m: MatchSim.Match, viewer: number?, vision: Vision?, all: boolean?): Protocol.AirMessage
+	local v = if viewer ~= nil and Config.Fog.Enabled and not all then vision or MatchStats.vision(m, viewer) else nil
+	local friends: { [number]: boolean } = if viewer ~= nil then Diplomacy.friends(m.diplo, viewer) else {}
+	local w = m.grid.width
+	local planes: { Protocol.PlaneInfo } = {}
+	for _, p in m.air.planes do
+		if p.alive then
+			local cell = Air.cellOf(w, p)
+			if friends[p.owner] or v == nil or v.blocks[Fog.blockOf(w, cell)] then
+				table.insert(planes, {
+					id = p.id,
+					owner = p.owner,
+					kind = p.kind,
+					x = p.x,
+					y = p.y,
+					state = p.state,
+					hp = math.clamp(p.hp / Air.maxHp(p.kind), 0, 1),
+				})
+			end
+		end
+	end
+	local disabled: { { cell: number, left: number } } = {}
+	for cell, untilTime in m.air.disabled do
+		if untilTime > m.simTime then
+			table.insert(disabled, { cell = cell, left = (untilTime - m.simTime) / m.speed })
+		end
+	end
+	table.sort(disabled, function(a, b): boolean
+		return a.cell < b.cell
+	end)
+	local queue: { { kind: "Fighter" | "Bomber", left: number } } = {}
+	local own: { Air.Build } = if viewer ~= nil then m.air.queues[viewer] or {} else {}
+	for _, b in own do
+		table.insert(queue, { kind = b.kind, left = b.left / m.speed })
+	end
+	return { planes = planes, disabled = disabled, queue = queue }
 end
 
 -- Войны и запреты на новую войну после мира (§6.7а). Обратные отсчёты — в секундах реального времени

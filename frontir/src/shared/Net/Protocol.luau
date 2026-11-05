@@ -32,6 +32,7 @@ Protocol.STATS = 3
 Protocol.FORCES = 5
 Protocol.WARS = 6
 Protocol.SHIPS = 7 -- корабли (§6.12, этап 7б-1)
+Protocol.AIR = 8 -- самолёты (§6.13, этап 7б-2)
 
 export type NationStats = {
 	id: number,
@@ -116,6 +117,22 @@ export type ShipsMessage = {
 	ships: { ShipInfo },
 	blocked: { number }, -- клетки заблокированных портов
 	queue: { { kind: "Transport" | "Destroyer", left: number } }, -- своя очередь кораблей
+}
+
+-- Самолёты (§6.13): позиция (1/32 клетки), прочность 0..1; выведенные из строя здания; своя очередь.
+export type PlaneInfo = {
+	id: number,
+	owner: number,
+	kind: "Fighter" | "Bomber",
+	x: number,
+	y: number,
+	state: "based" | "flying" | "raiding" | "returning",
+	hp: number,
+}
+export type AirMessage = {
+	planes: { PlaneInfo },
+	disabled: { { cell: number, left: number } }, -- здание и сколько секунд ещё не работает
+	queue: { { kind: "Fighter" | "Bomber", left: number } },
 }
 
 export type Delta = {
@@ -680,6 +697,67 @@ function Protocol.encodeShips(msg: ShipsMessage): buffer
 		u16(w, math.clamp(math.round(msg.queue[k].left * 10), 0, 65535))
 	end
 	return finish(w)
+end
+
+-- AIR -------------------------------------------------------------------------------------
+
+local PLANE_KINDS: { "Fighter" | "Bomber" } = { "Fighter", "Bomber" }
+local PLANE_STATES: { "based" | "flying" | "raiding" | "returning" } = { "based", "flying", "raiding", "returning" }
+
+function Protocol.encodeAir(msg: AirMessage): buffer
+	local w = writer(8 + #msg.planes * 10 + #msg.disabled * 6 + #msg.queue * 3)
+	u8(w, Protocol.AIR)
+	u16(w, math.min(#msg.planes, 65535))
+	for k = 1, math.min(#msg.planes, 65535) do
+		local p = msg.planes[k]
+		u16(w, p.id)
+		u8(w, p.owner)
+		u8(w, table.find(PLANE_KINDS, p.kind) or 1)
+		u16(w, math.clamp(math.round(p.x * POS_SCALE), 0, 65535))
+		u16(w, math.clamp(math.round(p.y * POS_SCALE), 0, 65535))
+		u8(w, (table.find(PLANE_STATES, p.state) or 1) + math.clamp(math.round(p.hp * 15), 0, 15) * 16)
+	end
+	u16(w, math.min(#msg.disabled, 65535))
+	for k = 1, math.min(#msg.disabled, 65535) do
+		u32(w, msg.disabled[k].cell)
+		u16(w, math.clamp(math.ceil(msg.disabled[k].left), 0, 65535))
+	end
+	u8(w, math.min(#msg.queue, 255))
+	for k = 1, math.min(#msg.queue, 255) do
+		u8(w, table.find(PLANE_KINDS, msg.queue[k].kind) or 1)
+		u16(w, math.clamp(math.round(msg.queue[k].left * 10), 0, 65535))
+	end
+	return finish(w)
+end
+
+function Protocol.decodeAir(b: buffer): AirMessage
+	local r = reader(b)
+	if ru8(r) ~= Protocol.AIR then
+		error("Protocol: не самолёты", 2)
+	end
+	local planes: { PlaneInfo } = {}
+	for _ = 1, ru16(r) do
+		local id = ru16(r)
+		local owner = ru8(r)
+		local kind: "Fighter" | "Bomber" = PLANE_KINDS[ru8(r)] or "Fighter"
+		local x = ru16(r) / POS_SCALE
+		local y = ru16(r) / POS_SCALE
+		local packed = ru8(r)
+		local state: "based" | "flying" | "raiding" | "returning" = PLANE_STATES[packed % 16] or "based"
+		local hp = (packed // 16) / 15
+		table.insert(planes, { id = id, owner = owner, kind = kind, x = x, y = y, state = state, hp = hp })
+	end
+	local disabled: { { cell: number, left: number } } = {}
+	for _ = 1, ru16(r) do
+		local cell = ru32(r)
+		table.insert(disabled, { cell = cell, left = ru16(r) })
+	end
+	local queue: { { kind: "Fighter" | "Bomber", left: number } } = {}
+	for _ = 1, ru8(r) do
+		local kind: "Fighter" | "Bomber" = PLANE_KINDS[ru8(r)] or "Fighter"
+		table.insert(queue, { kind = kind, left = ru16(r) / 10 })
+	end
+	return { planes = planes, disabled = disabled, queue = queue }
 end
 
 function Protocol.decodeShips(b: buffer): ShipsMessage

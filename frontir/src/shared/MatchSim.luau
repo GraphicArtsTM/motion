@@ -26,6 +26,7 @@
 	запрет на новую войну; долгая война — усталость (меньше прирост людей).
 ]]
 
+local Air = require("./Air")
 local BotBrain = require("./BotBrain")
 local Buildings = require("./Buildings")
 local Config = require("./Config")
@@ -91,6 +92,10 @@ export type MatchEvent =
 	| { kind: "shipSunk", nation: number, by: number, ship: Types.ShipKind, lost: number }
 	| { kind: "landed", nation: number, target: number, cell: number, cells: number }
 	| { kind: "blockade", nation: number, cell: number, on: boolean }
+	-- Авиация (§6.13, этап 7б-2)
+	| { kind: "planeBuilt", nation: number, plane: Types.PlaneKind }
+	| { kind: "planeShot", nation: number, by: number, plane: Types.PlaneKind }
+	| { kind: "raid", nation: number, target: number, cell: number, lost: number, buildings: number }
 
 export type Match = {
 	map: MapData,
@@ -129,6 +134,8 @@ export type Match = {
 	stability: Stability.State, -- стабильность провинций и повстанцы (§6.10)
 	sea: Naval.SeaMap, -- море, причалы, пути (§6.12)
 	fleet: Fleet.FleetState, -- корабли
+	air: Air.AirState, -- самолёты и выведенные из строя здания (§6.13)
+	bombedAt: { [number]: number }, -- держава → когда её последний раз бомбили (боты ставят батарею ПВО)
 	nextBlockadeAt: number,
 	result: Types.MatchResult?, -- итог (фаза Over)
 	victory: boolean, -- проверять ли победу (тесты на крошечных картах выключают)
@@ -200,6 +207,8 @@ function MatchSim.new(map: MapData, seed: number): Match
 		stability = Stability.new(),
 		sea = sea,
 		fleet = Fleet.new(),
+		air = Air.new(),
+		bombedAt = {},
 		nextBlockadeAt = 0,
 		result = nil,
 		victory = true,
@@ -577,6 +586,9 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 	if intent.kind == "ship" or intent.kind == "land" or intent.kind == "patrol" then
 		return MatchSim.navalIntent(m, n, intent)
 	end
+	if intent.kind == "plane" or intent.kind == "raid" or intent.kind == "cover" then
+		return MatchSim.airIntent(m, n, intent)
+	end
 
 	if intent.kind == "declare" then
 		local t = m.nations[intent.target]
@@ -809,7 +821,9 @@ function MatchSim.ownedOf(m: Match, nationId: number): Buildings.Owned
 end
 
 function MatchSim.refreshOwned(m: Match)
-	m.owned = Buildings.owned(m.buildings, m.grid, MatchSim.cities(m))
+	m.owned = Buildings.owned(m.buildings, m.grid, MatchSim.cities(m), function(cell: number): boolean
+		return Air.isDisabled(m.air, cell, m.simTime)
+	end)
 end
 
 -- Максимум людей державы: клетки вне котлов и уровни своих городов (§6.3, §6.7, §6.8).
@@ -873,6 +887,27 @@ local function buildSpots(m: Match, n: Nation): BotBrain.BuildSpots
 				else 0
 			if d < bestPort then
 				spots.port, bestPort = p.center, d
+			end
+		end
+	end
+	-- Провинция под аэродром (§6.13): свободная, ближайшая к врагу (к первому, с кем активная война).
+	local enemyCapital: number? = nil
+	for _, war in Wars.of(m.wars, n.id) do
+		local enemy = m.nations[Wars.enemyOf(war, n.id)]
+		if war.state == "active" and enemy ~= nil and enemy.capital ~= nil then
+			enemyCapital = enemy.capital
+			break
+		end
+	end
+	if enemyCapital ~= nil then
+		local ec = enemyCapital :: number
+		local bestAir = math.huge
+		for _, p in m.provinces.list do
+			if Grid.getOwner(g, p.center) == n.id and m.buildings.byProvince[p.id] == nil then
+				local d = (p.center % g.width - ec % g.width) ^ 2 + (p.center // g.width - ec // g.width) ^ 2
+				if d < bestAir then
+					spots.airfield, bestAir = p.center, d
+				end
 			end
 		end
 	end
@@ -1081,6 +1116,7 @@ local function botView(m: Match, n: Nation): BotBrain.BotView
 		spots = buildSpots(m, n),
 		stability = Stability.summaryOf(m.stability, n.id).average,
 		navy = MatchSim.navyView(m, n, hasNeutral, neighbours),
+		air = MatchSim.airView(m, n),
 	}
 end
 
@@ -1538,7 +1574,9 @@ local function stepAttacks(m: Match, simDt: number): number
 				-- Укреплённая линия: фронт долго стоит — защитнику бонус (§6.9).
 				local still = m.simTime - a.lastAdvance >= Config.Fortify.AfterSec
 				local function fortified(cell: number): boolean
+					local spot = m.buildings.byProvince[MapData.getProvince(m.map, cell)]
 					return Buildings.fortified(m.buildings, g, m.map, cell)
+						and not (spot ~= nil and Air.isDisabled(m.air, spot, m.simTime))
 				end
 				-- Встречные фронты пары — один бой: потери считаются один раз за тик.
 				local applyLosses = not (counter ~= nil and battled[counter])
@@ -1880,7 +1918,7 @@ export type Port = { cell: number, dock: number, owner: number }
 function MatchSim.ports(m: Match): { Port }
 	local out: { Port } = {}
 	for cell, b in m.buildings.byCell do
-		if b.kind == "Port" then
+		if b.kind == "Port" and not Air.isDisabled(m.air, cell, m.simTime) then
 			local dock = m.sea.docks[MapData.getProvince(m.map, cell)]
 			local owner = Grid.getOwner(m.grid, cell)
 			if dock ~= nil and owner ~= 0 then
@@ -2431,6 +2469,320 @@ local function stepFleet(m: Match, simDt: number)
 	end)
 end
 
+-- Авиация (§6.13, этап 7б-2) -------------------------------------------------------------
+
+-- Здание в клетке выведено из строя налётом.
+function MatchSim.isDisabled(m: Match, cell: number): boolean
+	return Air.isDisabled(m.air, cell, m.simTime)
+end
+
+-- Работающие здания вида kind (клетка, хозяин по сетке; ничьи и выведенные из строя пропускаются).
+function MatchSim.buildingsOf(m: Match, kind: Types.BuildingKind): { { cell: number, owner: number } }
+	local out: { { cell: number, owner: number } } = {}
+	for cell, b in m.buildings.byCell do
+		if b.kind == kind then
+			local owner = Grid.getOwner(m.grid, cell)
+			if owner ~= 0 and not MatchSim.isDisabled(m, cell) then
+				table.insert(out, { cell = cell, owner = owner })
+			end
+		end
+	end
+	table.sort(out, function(a, b): boolean
+		return a.cell < b.cell
+	end)
+	return out
+end
+
+-- Ближайший к точке (x, y) работающий аэродром державы (клетка) и расстояние до него в клетках.
+local function nearestAirfield(m: Match, nationId: number, x: number, y: number): (number?, number)
+	local w = m.grid.width
+	local best: number? = nil
+	local bestD = math.huge
+	for _, a in MatchSim.buildingsOf(m, "Airfield") do
+		if a.owner == nationId then
+			local dx, dy = a.cell % w + 0.5 - x, a.cell // w + 0.5 - y
+			local d = math.sqrt(dx * dx + dy * dy)
+			if d < bestD then
+				best, bestD = a.cell, d
+			end
+		end
+	end
+	return best, bestD
+end
+MatchSim.nearestAirfield = nearestAirfield
+
+-- Клетка в радиусе авиации державы (не дальше Air.Range от её работающего аэродрома).
+function MatchSim.inAirRange(m: Match, nationId: number, cell: number): boolean
+	local w = m.grid.width
+	local _, d = nearestAirfield(m, nationId, cell % w + 0.5, cell // w + 0.5)
+	return d <= Config.Air.Range * Air.scale(w)
+end
+
+-- Есть ли в круге налёта вокруг cell земля врага (активная война с nationId).
+local function enemyNear(m: Match, nationId: number, cell: number): boolean
+	local g = m.grid
+	local w = g.width
+	local r = Config.Air.BombRadius
+	local cx, cy = cell % w, cell // w
+	for dy = -r, r do
+		for dx = -r, r do
+			local x, y = cx + dx, cy + dy
+			if x >= 0 and y >= 0 and x < w and y < g.height and dx * dx + dy * dy <= r * r then
+				local o = Grid.getOwner(g, y * w + x)
+				if o ~= 0 and o ~= nationId and Wars.isActive(m.wars, nationId, o) then
+					return true
+				end
+			end
+		end
+	end
+	return false
+end
+
+-- Авиация глазами бота (§6.13): аэродром, самолёты, куда бомбить (лениво), бомбили ли нас.
+function MatchSim.airView(m: Match, n: Nation): BotBrain.AirView
+	local view: BotBrain.AirView = {
+		fighters = 0,
+		bombers = 0,
+		idleBomber = false,
+		bombed = m.bombedAt[n.id] ~= nil and m.simTime - m.bombedAt[n.id] < Config.Air.BuildingDisableSec * 2,
+	}
+	for _, a in MatchSim.buildingsOf(m, "Airfield") do
+		if a.owner == n.id and view.airfield == nil then
+			view.airfield = a.cell
+		end
+	end
+	local queue: { Air.Build } = m.air.queues[n.id] or {}
+	for _, b in queue do
+		if b.kind == "Fighter" then
+			view.fighters += 1
+		else
+			view.bombers += 1
+		end
+	end
+	for _, p in Air.ofNation(m.air, n.id) do
+		if p.kind == "Fighter" then
+			view.fighters += 1
+		else
+			view.bombers += 1
+			if p.state == "based" then
+				view.idleBomber = true
+			end
+		end
+	end
+	if view.idleBomber then
+		view.raidTarget = function(): number?
+			-- Линия фронта с врагом: главное направление своего удара, иначе выборка линии (своей или врага).
+			for _, a in m.attacks do
+				local mine = a.attacker == n.id and a.target ~= 0 and Wars.isActive(m.wars, n.id, a.target)
+				local theirs = a.target == n.id and Wars.isActive(m.wars, n.id, a.attacker)
+				if mine or theirs then
+					local candidates: { number } = {}
+					if mine and a.focus ~= nil then
+						table.insert(candidates, a.focus :: number)
+					end
+					for _, c in a.line or {} :: { number } do
+						table.insert(candidates, c)
+					end
+					for _, c in candidates do
+						if MatchSim.inAirRange(m, n.id, c) and enemyNear(m, n.id, c) then
+							return c
+						end
+					end
+				end
+			end
+			return nil
+		end
+	end
+	return view
+end
+
+-- Найм самолёта, налёт, точка прикрытия истребителя.
+function MatchSim.airIntent(m: Match, n: Nation, intent: Types.Intent): (boolean, string?)
+	local w = m.grid.width
+	if intent.kind == "plane" then
+		local b = m.buildings.byCell[intent.airfield]
+		if b == nil or b.kind ~= "Airfield" or Grid.getOwner(m.grid, intent.airfield) ~= n.id then
+			return false, "needAirfield"
+		end
+		if MatchSim.isDisabled(m, intent.airfield) then
+			return false, "disabled"
+		end
+		local queue = m.air.queues[n.id] or {}
+		if #queue >= Config.Air.Queue then
+			return false, "queueFull"
+		end
+		if Air.count(m.air, n.id) >= Config.Air.MaxAircraft then
+			return false, "maxAircraft"
+		end
+		local stats = Air.stats(intent.plane)
+		if n.money < stats.cost then
+			return false, "noMoney"
+		end
+		if n.oil < stats.oil then
+			return false, "noOil"
+		end
+		n.money -= stats.cost
+		n.oil -= stats.oil
+		table.insert(queue, { kind = intent.plane, airfield = intent.airfield, left = stats.recruitSec })
+		m.air.queues[n.id] = queue
+		return true, nil
+	elseif intent.kind == "raid" then
+		local cell = intent.cell
+		if cell < 0 or cell >= m.grid.size then
+			return false, "focus"
+		end
+		if not MatchSim.inAirRange(m, n.id, cell) then
+			return false, "outOfRange"
+		end
+		if not enemyNear(m, n.id, cell) then
+			return false, "notAtWar"
+		end
+		local bomber = Air.idleBomber(m.air, w, n.id, cell)
+		if bomber == nil then
+			return false, "noBomber"
+		end
+		Air.sortie(bomber, w, cell)
+		return true, nil
+	elseif intent.kind == "cover" then
+		local plane = Air.byId(m.air, intent.plane)
+		if plane == nil or plane.owner ~= n.id then
+			return false, "noPlane"
+		end
+		if plane.kind ~= "Fighter" then
+			return false, "notFighter"
+		end
+		if intent.cell < 0 or intent.cell >= m.grid.size or not MatchSim.inAirRange(m, n.id, intent.cell) then
+			return false, "outOfRange"
+		end
+		Air.coverAt(plane, w, intent.cell)
+		return true, nil
+	end
+	return false, "?"
+end
+
+-- Налёт (§6.13) по кругу вокруг цели бомбардировщика: фронты врага, его гарнизон у нашей линии, его здания.
+function MatchSim.bomb(m: Match, plane: Air.Plane, target: number)
+	local g = m.grid
+	local w = g.width
+	local cfg = Config.Air
+	local r = cfg.BombRadius
+	local tx, ty = target % w + 0.5, target // w + 0.5
+	local r2 = r * r
+	local damage = Air.stats("Bomber").attack * cfg.BombDamage
+	local owner = plane.owner
+	local hitGarrison: { [number]: boolean } = {}
+	local lost = 0
+	local function inCircle(c: number): boolean
+		local dx, dy = c % w + 0.5 - tx, c // w + 0.5 - ty
+		return dx * dx + dy * dy <= r2
+	end
+	for _, a in m.attacks do
+		if a.target ~= 0 and a.line ~= nil then
+			local touches = false
+			for _, c in a.line :: { number } do
+				if inCircle(c) then
+					touches = true
+					break
+				end
+			end
+			if touches then
+				if a.attacker ~= owner and Wars.isActive(m.wars, owner, a.attacker) then
+					-- Фронт врага в круге.
+					local mul = 1 - Air.aaReduction(Forces.composition(a.forces))
+					lost += Forces.applyDamage(a.forces, damage * mul)
+				elseif Wars.isActive(m.wars, owner, a.target) and not hitGarrison[a.target] then
+					-- Наша (или союзника) линия против врага: его гарнизон у этой линии.
+					hitGarrison[a.target] = true
+					local enemy = m.nations[a.target]
+					if enemy ~= nil and enemy.alive then
+						local mul = 1 - Air.aaReduction(Forces.composition(enemy.home))
+						lost += Forces.applyDamage(enemy.home, damage * cfg.GarrisonShare * mul)
+					end
+				end
+			end
+		end
+	end
+	local disabled = 0
+	for cell, b in m.buildings.byCell do
+		-- Город и батарея ПВО налётом не выводятся из строя (батарея иначе гасла бы от первого же налёта на неё).
+		if b.kind ~= "City" and b.kind ~= "AirDefense" and inCircle(cell) then
+			local o = Grid.getOwner(g, cell)
+			if o ~= 0 and o ~= owner and Wars.isActive(m.wars, owner, o) then
+				m.air.disabled[cell] = m.simTime + cfg.BuildingDisableSec
+				m.air.version += 1
+				disabled += 1
+			end
+		end
+	end
+	if disabled > 0 then
+		MatchSim.refreshOwned(m)
+	end
+	local victim = Grid.getOwner(g, target)
+	if victim ~= 0 and victim ~= owner then
+		m.bombedAt[victim] = m.simTime
+	end
+	table.insert(m.events, {
+		kind = "raid",
+		nation = owner,
+		target = Grid.getOwner(g, target),
+		cell = target,
+		lost = lost,
+		buildings = disabled,
+	})
+end
+
+-- Авиация за simDt: найм, перелёт без аэродрома, полёты, налёты, бой в воздухе, батареи ПВО, ремонт зданий.
+local function stepAir(m: Match, simDt: number)
+	local as = m.air
+	local w = m.grid.width
+	for owner, queue in as.queues do
+		local first = queue[1]
+		local nation = m.nations[owner]
+		if first ~= nil and nation ~= nil and nation.alive and not MatchSim.isDisabled(m, first.airfield) then
+			first.left -= simDt
+			if first.left <= 0 then
+				table.remove(queue, 1)
+				local b = m.buildings.byCell[first.airfield]
+				if b ~= nil and b.kind == "Airfield" and Grid.getOwner(m.grid, first.airfield) == owner then
+					Air.spawn(as, w, owner, first.kind, first.airfield)
+					table.insert(m.events, { kind = "planeBuilt", nation = owner, plane = first.kind })
+				else
+					-- Аэродром потерян: деньги и нефть возвращаются.
+					local stats = Air.stats(first.kind)
+					nation.money += stats.cost
+					nation.oil += stats.oil
+				end
+			end
+		end
+	end
+	if Air.repair(as, m.simTime) then
+		MatchSim.refreshOwned(m)
+	end
+	if #as.planes == 0 then
+		return
+	end
+	Air.rebase(as, w, function(cell: number, owner: number): boolean
+		local b = m.buildings.byCell[cell]
+		return b ~= nil and b.kind == "Airfield" and Grid.getOwner(m.grid, cell) == owner
+	end, function(owner: number, x: number, y: number): number?
+		local cell = nearestAirfield(m, owner, x, y)
+		return cell
+	end)
+	local happenings: { Air.Happening } = {}
+	Air.step(as, w, simDt, m.simTime, atWar(m), MatchSim.buildingsOf(m, "AirDefense"), happenings)
+	for _, h in happenings do
+		if h.kind == "raid" then
+			MatchSim.bomb(m, h.plane, h.cell)
+		elseif h.kind == "shot" then
+			table.insert(m.events, { kind = "planeShot", nation = h.plane.owner, by = h.by, plane = h.plane.kind })
+		end
+	end
+	Air.cleanup(as, function(owner: number): boolean
+		local nation = m.nations[owner]
+		return nation ~= nil and nation.alive
+	end)
+end
+
 -- Что Stability знает о матче (§6.10).
 function MatchSim.stabilityContext(m: Match): Stability.Context
 	return {
@@ -2700,6 +3052,7 @@ function MatchSim.step(m: Match, dt: number)
 	stepCouncil(m)
 
 	stepFleet(m, simDt)
+	stepAir(m, simDt)
 	m.lastCaptured = stepAttacks(m, simDt)
 	stepPockets(m)
 	stepStability(m)

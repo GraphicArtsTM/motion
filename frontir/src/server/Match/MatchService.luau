@@ -232,6 +232,10 @@ function MatchService.start(map: MapData)
 				ok, reason = DevTools.navy(m, id)
 			elseif action == "botLanding" and target ~= nil then
 				ok, reason = DevTools.botLanding(m, target, id)
+			elseif action == "airForce" then
+				ok, reason = DevTools.airForce(m, id)
+			elseif action == "botRaid" and target ~= nil then
+				ok, reason = DevTools.botRaid(m, target, id)
 			else
 				ok, reason = false, "target"
 			end
@@ -270,6 +274,8 @@ function MatchService.start(map: MapData)
 			-- Зритель и «Туман выкл» видят все корабли; груз и очередь — только свои.
 			local ships = MatchStats.ships(m, nationOf[player], vision, viewer == nil)
 			matchEvent:FireClient(player, Protocol.encodeShips(ships))
+			local air = MatchStats.air(m, nationOf[player], vision, viewer == nil)
+			matchEvent:FireClient(player, Protocol.encodeAir(air))
 		end
 		matchEvent:FireAllClients(Protocol.encodeWars(MatchStats.wars(m)))
 		for player, id in nationOf do

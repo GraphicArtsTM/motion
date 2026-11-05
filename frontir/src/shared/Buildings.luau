@@ -139,7 +139,13 @@ function Buildings.list(set: BuildingSet): { Building }
 end
 
 -- Что у каждой державы: здания по владельцу клетки и уровни городов (cities — клетки всех городов).
-function Buildings.owned(set: BuildingSet, g: Grid, cities: { number }): { [number]: Owned }
+-- off(cell) — здание выведено из строя (налёт, §6.13): не считается.
+function Buildings.owned(
+	set: BuildingSet,
+	g: Grid,
+	cities: { number },
+	off: ((cell: number) -> boolean)?
+): { [number]: Owned }
 	local out: { [number]: Owned } = {}
 	local function of(owner: number): Owned
 		local o = out[owner]
@@ -158,6 +164,9 @@ function Buildings.owned(set: BuildingSet, g: Grid, cities: { number }): { [numb
 	end
 	for cell, b in set.byCell do
 		local owner = Grid.getOwner(g, cell)
+		if owner ~= 0 and b.kind ~= "City" and off ~= nil and off(cell) then
+			continue
+		end
 		if owner ~= 0 then
 			local o = of(owner)
 			if b.kind == "Factory" then

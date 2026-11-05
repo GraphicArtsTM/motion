@@ -38,6 +38,7 @@ export type Sources = {
 	fronts: { { mine: number, other: number } },
 	radars: { number },
 	ships: { number }?, -- клетки кораблей друзей (обзор Naval.ShipVision, этап 7б-1)
+	planes: { number }?, -- клетки самолётов друзей (обзор Air.AirVision, этап 7б-2)
 }
 
 local Fog = {}
@@ -180,6 +181,11 @@ function Fog.compute(fs: FogState, owners: buffer, sources: Sources): (boolean, 
 	local ships: { number } = sources.ships or {}
 	for _, cell in ships do
 		point(cell, shipValue)
+	end
+	local planeValue = Config.Air.AirVision * ORTHO + 1
+	local planes: { number } = sources.planes or {}
+	for _, cell in planes do
+		point(cell, planeValue)
 	end
 	if bx1 >= 0 then
 		bx0, by0 = math.max(0, bx0 - reach), math.max(0, by0 - reach)
