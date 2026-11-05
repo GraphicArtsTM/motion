@@ -44,6 +44,10 @@ export type Data = {
 	-- Этап 10б (§13): громкости игрока 0..1.
 	sfx: number,
 	music: number,
+	-- Сводная правка ч.4: в стране игрока платные случайные награды запрещены (PolicyService). Не из DataStore —
+	-- сервер ставит при каждом входе; пока стоит, ящики за Robux (наборы, неделя, премиум-пропуск) заменяются
+	-- фиксированной наградой Config.Crates.Restricted, а наборы ящиков не продаются.
+	noPaidRandom: boolean,
 }
 
 -- Награда (пропуск, ящик, ежедневная, набор).
@@ -83,6 +87,7 @@ function Profile.new(): Data
 		tutorialDone = false,
 		sfx = Config.Audio.DefaultSfx,
 		music = Config.Audio.DefaultMusic,
+		noPaidRandom = false,
 	}
 end
 
@@ -201,6 +206,21 @@ local function emptyReward(): Reward
 	return { medals = 0, tokens = 0, crates = 0, stock = {} }
 end
 
+-- Награда за Robux (прямо или через пропуск и наборы): там, где платные случайные награды запрещены, ящики
+-- заменяются фиксированной наградой. Бесплатные ящики (ежедневная, бесплатная ступень пропуска) — как есть.
+function Profile.paidReward(r: Reward, noPaidRandom: boolean): Reward
+	if not noPaidRandom or r.crates <= 0 then
+		return r
+	end
+	local c = Config.Crates.Restricted
+	return {
+		medals = r.medals + r.crates * c.medals,
+		tokens = r.tokens + r.crates * c.tokens,
+		crates = 0,
+		stock = r.stock,
+	}
+end
+
 -- Выдать награду.
 function Profile.give(d: Data, r: Reward)
 	d.medals += r.medals
@@ -263,7 +283,7 @@ function Profile.grantSeason(d: Data): { Reward }
 	d.seasonFree = math.max(d.seasonFree, tier)
 	if d.seasonPremium then
 		for t = d.seasonPaid + 1, tier do
-			local r = Profile.seasonReward(t, true)
+			local r = Profile.paidReward(Profile.seasonReward(t, true), d.noPaidRandom)
 			Profile.give(d, r)
 			table.insert(out, r)
 		end
@@ -488,9 +508,14 @@ function Profile.grantProduct(d: Data, kind: string, key: string, purchaseId: st
 		if pack.once then
 			d.packs[key] = true
 		end
-		d.tokens += pack.tokens or 0
-		d.medals += pack.medals or 0
-		d.crates += pack.crates or 0
+		-- Набор ящиков там, где они запрещены, окно не продаёт; куплен всё же — Robux списаны, даём замену.
+		Profile.give(
+			d,
+			Profile.paidReward(
+				{ medals = pack.medals or 0, tokens = pack.tokens or 0, crates = pack.crates or 0, stock = {} },
+				d.noPaidRandom
+			)
+		)
 		if pack.season then
 			Profile.syncSeason(d)
 			d.seasonPremium = true
@@ -498,7 +523,13 @@ function Profile.grantProduct(d: Data, kind: string, key: string, purchaseId: st
 		end
 		if pack.weekly then
 			local offer = Shop.weeklyOffer(now or 0)
-			Profile.give(d, { medals = 0, tokens = offer.tokens, crates = offer.crates, stock = offer.stock })
+			Profile.give(
+				d,
+				Profile.paidReward(
+					{ medals = 0, tokens = offer.tokens, crates = offer.crates, stock = offer.stock },
+					d.noPaidRandom
+				)
+			)
 			d.weeklyWeek = Shop.week(now or 0)
 		end
 	else
@@ -524,6 +555,10 @@ function Profile.packAvailable(d: Data, key: string, now: number?): boolean
 		return false
 	end
 	if pack.weekly and d.weeklyWeek == Shop.week(now or 0) then
+		return false
+	end
+	-- Наборы ящиков — платная случайная награда (PolicyService).
+	if d.noPaidRandom and (pack.crates or 0) > 0 then
 		return false
 	end
 	return true

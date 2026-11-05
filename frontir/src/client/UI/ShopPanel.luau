@@ -411,20 +411,25 @@ function ShopPanel.new(
 			Strings.get("shop.seasonNext", lang),
 			nextTier,
 			rewardText(Profile.seasonReward(nextTier, false), lang),
-			rewardText(Profile.seasonReward(nextTier, true), lang)
+			rewardText(Profile.paidReward(Profile.seasonReward(nextTier, true), p.noPaidRandom == true), lang)
 		)
 		crateLine.Text = string.format(Strings.get("shop.crateLine", lang), p.crates, p.pityLeft)
 		openCrate.Visible = p.crates > 0
 		for _, row in packRows do
+			local cfg = (Config.Shop.Packs :: any)[row.key]
+			-- Ящики за Robux там, где платные случайные награды запрещены (PolicyService), не продаются.
+			local blocked = p.noPaidRandom == true and (cfg.crates or 0) > 0
+			row.buy.Visible = not blocked
 			if row.key == "Weekly" then
 				row.desc.Text = string.format(
 					Strings.get("shop.weeklyDesc", lang),
 					rewardText(p.weekly.offer, lang),
 					daysHours(p.weekly.left, lang)
 				)
+			else
+				row.desc.Text = if blocked then Strings.get("shop.crateRestricted", lang) else effect(row.key, lang)
 			end
 			local available = p.packs[row.key] == true
-			local cfg = (Config.Shop.Packs :: any)[row.key]
 			row.buy.Text = if available
 				then string.format(Strings.get("shop.robux", lang), cfg.price)
 				else Strings.get("shop.bought", lang)

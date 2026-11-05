@@ -1586,6 +1586,27 @@ local function buildSpots(m: Match, n: Nation): BotBrain.BuildSpots
 			end
 		end
 	end
+	-- Батарея ПВО (сводная правка): свободная своя провинция, ближайшая к месту недавнего налёта на нас.
+	local bombedAt, bombedCell = m.bombedAt[n.id], m.bombedCell[n.id]
+	if bombedAt ~= nil and bombedCell ~= nil and m.simTime - bombedAt < Config.Air.BuildingDisableSec * 2 then
+		local w = g.width
+		local bx, by = bombedCell % w, bombedCell // w
+		local r2 = Config.Buildings.AirDefense.radius ^ 2
+		for _, b in MatchSim.buildingsOf(m, "AirDefense") do
+			if b.owner == n.id and (b.cell % w - bx) ^ 2 + (b.cell // w - by) ^ 2 <= r2 then
+				spots.batteryCovered = true
+			end
+		end
+		local best = if spots.batteryCovered then -1 else r2 * 2
+		for _, p in m.provinces.list do
+			if Grid.getOwner(g, p.center) == n.id and m.buildings.byProvince[p.id] == nil then
+				local d = (p.center % w - bx) ^ 2 + (p.center // w - by) ^ 2
+				if d < best then
+					spots.battery, best = p.center, d
+				end
+			end
+		end
+	end
 	-- Прибрежная провинция под порт (§6.12): ближайшая к столице.
 	local cap = n.capital
 	local bestPort = math.huge
@@ -3351,7 +3372,7 @@ local function botMissile(m: Match, n: Nation, rng: Rng)
 	end
 	if MatchSim.ownedOf(m, n.id).silos == 0 then
 		local cfg = Config.Buildings.MissileSilo
-		if MatchSim.techAllows(m, n.id, "MissileSilo") and n.money >= cfg.cost * 1.5 and n.oil >= cfg.oil then
+		if MatchSim.techAllows(m, n.id, "MissileSilo") and n.money >= cfg.cost * Config.Missile.BotSiloMoneyMul and n.oil >= cfg.oil then
 			-- Свободная своя провинция подальше от фронта: ближайшая к столице.
 			local cap = n.capital or 0
 			local w = m.grid.width

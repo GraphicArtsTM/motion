@@ -29,7 +29,7 @@ local events: { [string]: number } = {}
 local lengths: { number } = {}
 local missiles, mercs, mercsMoney = 0, 0, 0
 -- За первые 10 минут: предательства и сбитые самолёты (сводная правка: в каждой партии хотя бы по одному).
-local early = { betrayals = 0, shot = 0, gamesBetrayal = 0, gamesShot = 0 }
+local early = { betrayals = 0, shot = 0, gamesBetrayal = 0, gamesShot = 0, planes = 0, raids = 0 }
 local techLevels, techNations = 0, 0
 
 local function count(t: Tally, key: string, won: boolean, share: number)
@@ -63,6 +63,10 @@ for k = 1, games do
 				betr += 1
 			elseif m.time <= 600 and e.kind == "planeShot" then
 				shot += 1
+			elseif m.time <= 600 and e.kind == "planeBuilt" then
+				early.planes += 1
+			elseif m.time <= 600 and e.kind == "raid" then
+				early.raids += 1
 			end
 			if e.kind == "ability" then
 				abilities[e.ability] = (abilities[e.ability] or 0) + 1
@@ -190,13 +194,15 @@ local function line(t: { [string]: number }): string
 end
 print(
 	string.format(
-		"Первые 10 минут: предательств %.1f за партию (были в %d из %d партий), сбито самолётов %.1f (в %d из %d)",
+		"Первые 10 минут: предательств %.1f за партию (были в %d из %d партий), сбито самолётов %.1f (в %d из %d), построено самолётов %.1f, налётов %.1f",
 		early.betrayals / games,
 		early.gamesBetrayal,
 		games,
 		early.shot / games,
 		early.gamesShot,
-		games
+		games,
+		early.planes / games,
+		early.raids / games
 	)
 )
 print("Способности за партию: " .. line(abilities))

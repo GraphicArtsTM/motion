@@ -260,17 +260,41 @@ T.describe("Технологии", function()
 			T.expect(BotBrain.techChoice(techView(zero), BotBrain.profile("Normal", "Aggressor"), rng)).toBe("Army")
 			T.expect(BotBrain.techChoice(techView(zero), BotBrain.profile("Normal", "Trader"), rng)).toBe("Economy")
 			T.expect(BotBrain.techChoice(techView(zero), BotBrain.profile("Normal", "Admiral"), rng)).toBe("Fleet")
-			-- С 7г Войска-4 открыта: Агрессор после трёх уровней войск — «Ракетная шахта», после всех — экономика.
+			-- Сводная правка: очередь уровней с чередованием веток. Агрессор: Учебка, Снабжение, Шахта → Верфи;
+			-- всё войско и флот изучены → экономика.
 			local army3 = { Army = 3, Economy = 0, Fleet = 0 }
-			T.expect(BotBrain.techChoice(techView(army3), BotBrain.profile("Normal", "Aggressor"), rng)).toBe("Army")
-			local army4 = { Army = 4, Economy = 0, Fleet = 0 }
+			T.expect(BotBrain.techChoice(techView(army3), BotBrain.profile("Normal", "Aggressor"), rng)).toBe("Fleet")
+			local army2 = { Army = 2, Economy = 0, Fleet = 0 }
+			T.expect(BotBrain.techChoice(techView(army2), BotBrain.profile("Normal", "Aggressor"), rng)).toBe("Army")
+			local army4 = { Army = 4, Economy = 0, Fleet = 2 }
 			T.expect(BotBrain.techChoice(techView(army4), BotBrain.profile("Normal", "Aggressor"), rng)).toBe("Economy")
-			-- Генерал: Учебка → Налоги → Снабжение → Верфи → Авиация → Радар …
+			-- Торговец — «экономика ↔ войска»: Налоги → Учебка → Нефть.
+			local trader = BotBrain.profile("Normal", "Trader")
+			T.expect(BotBrain.techChoice(techView({ Army = 0, Economy = 1, Fleet = 0 }), trader, rng)).toBe("Army")
+			T.expect(BotBrain.techChoice(techView({ Army = 1, Economy = 1, Fleet = 0 }), trader, rng)).toBe("Economy")
+			-- Генерал: Учебка → Верфи → Авиация → Налоги → Снабжение → Шахта …
 			local general = BotBrain.profile("General", "Aggressor")
 			T.expect(BotBrain.techChoice(techView(zero), general, rng)).toBe("Army")
-			T.expect(BotBrain.techChoice(techView({ Army = 1, Economy = 0, Fleet = 0 }), general, rng)).toBe("Economy")
-			T.expect(BotBrain.techChoice(techView({ Army = 1, Economy = 1, Fleet = 0 }), general, rng)).toBe("Army")
-			T.expect(BotBrain.techChoice(techView({ Army = 2, Economy = 1, Fleet = 0 }), general, rng)).toBe("Fleet")
+			T.expect(BotBrain.techChoice(techView({ Army = 1, Economy = 0, Fleet = 0 }), general, rng)).toBe("Fleet")
+			T.expect(BotBrain.techChoice(techView({ Army = 1, Economy = 0, Fleet = 2 }), general, rng)).toBe("Economy")
+			T.expect(BotBrain.techChoice(techView({ Army = 2, Economy = 1, Fleet = 2 }), general, rng)).toBe("Army")
+			-- Каждая очередь — ровно по 4 уровня каждой ветки.
+			for _, order in
+				{
+					cfg.GeneralOrder,
+					cfg.BotOrder.Peaceful,
+					cfg.BotOrder.Aggressor,
+					cfg.BotOrder.Trader,
+					cfg.BotOrder.Cunning,
+					cfg.BotOrder.Admiral,
+				}
+			do
+				local n: { [string]: number } = {}
+				for _, b in order do
+					n[b] = (n[b] or 0) + 1
+				end
+				T.expect(n.Army == 4 and n.Economy == 4 and n.Fleet == 4).toBe(true)
+			end
 			-- Денег меньше цены и запаса — нет.
 			local poor = techView(zero, cfg.Cost[1])
 			T.expect(BotBrain.techChoice(poor, BotBrain.profile("Normal", "Aggressor"), rng)).toBe(nil)

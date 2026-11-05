@@ -241,7 +241,17 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				-- nil — сезон без срока (§11.3).
 				left = if Config.Season.EndsUnix > 0 then math.max(0, Config.Season.EndsUnix - now) else nil,
 			},
-			weekly = { offer = Shop.weeklyOffer(now), left = Shop.weekLeft(now) },
+			weekly = {
+				offer = (function(): { [string]: any }
+					local o = Shop.weeklyOffer(now)
+					return Profile.paidReward(
+						{ medals = 0, tokens = o.tokens, crates = o.crates, stock = o.stock },
+						d.noPaidRandom
+					) :: any
+				end)(),
+				left = Shop.weekLeft(now),
+			},
+			noPaidRandom = d.noPaidRandom, -- сводная правка ч.4: ящики за Robux здесь не продаются
 			dailyStreak = d.dailyStreak,
 			-- Задания дня и рейтинг (§11.5).
 			quests = (function(): { { [string]: any } }
@@ -464,6 +474,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		task.spawn(function()
 			local session = profiles.load(player.UserId)
 			shop.loadPasses(player)
+			session.data.noPaidRandom = shop.noPaidRandom(player) ~= false
 			if player.Parent ~= nil then
 				applyProfile(player)
 				-- Новичок один в лобби — голос за «Обучение» стоит сам (§5.5), можно сменить.

@@ -233,6 +233,8 @@ Config.Season = {
 -- §11.3 Ящики снабжения: веса наград (шансы видны в окне до покупки) и гарантия джекпота.
 Config.Crates = {
 	Pity = 10, -- не позже этого ящика подряд без джекпота — джекпот
+	-- Где платные случайные награды запрещены (PolicyService): ящик за Robux → эта фиксированная награда.
+	Restricted = { medals = 300, tokens = 1 },
 	Table = {
 		{ key = "medalsS", weight = 40, medals = 300, tokens = 0 },
 		{ key = "medalsM", weight = 15, medals = 800, tokens = 0 },
@@ -470,7 +472,7 @@ local botPersonalities: { [string]: Types.BotPersonalityParams } = {
 		distracted = 1.2,
 		leader = 1.5,
 		forts = true,
-		alliance = 1.3, -- охота к союзам и пактам
+		alliance = 1.8, -- охота к союзам и пактам (сводная правка: было 1.3)
 		betray = 0, -- готовность предать союзника (0 — никогда)
 		demand = 0.3, -- готовность требовать провинции (0 — никогда)
 		loyalty = 1.0, -- вступает в войны союзника
@@ -837,7 +839,7 @@ Config.Forces = {
 Config.Combat = {
 	DamageSpread = 0.40, -- случайный разброс урона ±40%
 	LossRate = 0.02, -- урона в секунду на единицу силы противника
-	FrontSpeedMul = 0.5, -- фронт против державы идёт медленнее, чем экспансия на ничью землю
+	FrontSpeedMul = 0.3, -- фронт против державы идёт медленнее, чем экспансия на ничью землю (сводная правка: было 0.5)
 	FullSpeedRatio = 2.0, -- при таком перевесе фронт идёт с полной скоростью; при 1 — стоит
 	BreakthroughRatio = 3.0, -- прорыв: перевес от этого числа
 	BreakthroughMul = 1.5, -- …и фронт идёт во столько раз быстрее
@@ -946,7 +948,7 @@ Config.Buildings = {
 	Factory = { cost = 3000, recruitSpeedBonus = 0.10 },
 	Airfield = { cost = 3500, airstrikeCooldownReductionSec = 2 },
 	Fort = { cost = 1500, defenseMultiplier = 1.5 },
-	AirDefense = { cost = 2000, radius = 10 },
+	AirDefense = { cost = 2000, radius = 14 }, -- сводная правка: было 10 — батарея в центре провинции не доставала до её границы
 	Radar = { cost = 1500, visionRadius = 25 },
 	Market = { cost = 2000, incomeBonus = 0.05 },
 	MissileSilo = { cost = 10000, oil = 200, strikeRadius = 6, cooldownSec = 240, warningSec = 10 },
@@ -961,6 +963,7 @@ Config.Missile = {
 	FrontLoss = 0.5, -- фронты, линия которых касается круга, теряют эту долю войск
 	InterceptChance = 0.75, -- сеть ПВО (Флот-4): шанс сбить ракету над своей батареей ПВО
 	BotChance = 0.3, -- бот с готовой шахтой во время войны — шанс пуска за раздумье
+	BotSiloMoneyMul = 1.0, -- бот строит шахту, когда денег не меньше цены × это (сводная правка: было 1.5)
 }
 
 -- §6.16 Случайные события (этап 7г).
@@ -1329,6 +1332,7 @@ Config.Air = {
 	BotBombers = 1,
 	BotRaidChance = 0.35, -- вероятность за раздумье (× air личности) послать бомбардировщик
 	BotFightersWhenBombed = 2, -- Генерал под бомбами держит столько истребителей…
+	BotCoverAir = 0.5, -- …и так же поступает личность с air не меньше (Хитрец, Агрессор; сводная правка)
 	BotCoverNear = 0.5, -- …и переносит прикрытие, если оно дальше этой доли радиуса перехвата от места налёта
 }
 
@@ -1395,25 +1399,96 @@ Config.Tech = {
 		Radar = { branch = "Fleet", level = 3 },
 		MissileSilo = { branch = "Army", level = 3 }, -- Войска-3 «Ракетная шахта» (сводная правка; было Войска-4)
 	},
-	-- Боты: вероятность за раздумье заняться исследованием и порядок веток по личности (запись — следующий
-	-- уровень этой ветки). Генерал — по своей очереди GeneralOrder.
+	-- Боты: вероятность за раздумье заняться исследованием и очередь уровней по личности (запись — следующий
+	-- уровень этой ветки; сводная правка: ветки чередуются, «Авиация» и «Ракетная шахта» — раньше, чем было, когда
+	-- бот проходил ветку целиком). Генерал — по своей очереди GeneralOrder.
 	BotChance = 0.25,
 	BotSaveShare = 1, -- в мире бот копит на следующий уровень (доля цены), найм — только сверх неё
 	BotOrder = {
-		Peaceful = { "Economy", "Army", "Fleet" },
-		Aggressor = { "Army", "Economy", "Fleet" },
-		Trader = { "Economy", "Fleet", "Army" },
-		Cunning = { "Army", "Fleet", "Economy" },
-		Admiral = { "Fleet", "Economy", "Army" },
+		-- Налоги, Учебка, Нефть, Верфи, Авиация, Снабжение, Торговые пути, Шахта, Радар, Порядок, Броня, ПВО
+		Peaceful = {
+			"Economy",
+			"Army",
+			"Economy",
+			"Fleet",
+			"Fleet",
+			"Army",
+			"Economy",
+			"Army",
+			"Fleet",
+			"Economy",
+			"Army",
+			"Fleet",
+		},
+		-- Учебка, Снабжение, Шахта, Верфи, Авиация, Налоги, Броня, Нефть, Радар, Торговые пути, ПВО, Порядок
+		Aggressor = {
+			"Army",
+			"Army",
+			"Army",
+			"Fleet",
+			"Fleet",
+			"Economy",
+			"Army",
+			"Economy",
+			"Fleet",
+			"Economy",
+			"Fleet",
+			"Economy",
+		},
+		-- Торговец — «экономика ↔ войска»: Налоги, Учебка, Нефть, Снабжение, Торговые пути, Шахта, Верфи, Авиация, …
+		Trader = {
+			"Economy",
+			"Army",
+			"Economy",
+			"Army",
+			"Economy",
+			"Army",
+			"Fleet",
+			"Fleet",
+			"Economy",
+			"Army",
+			"Fleet",
+			"Fleet",
+		},
+		-- Верфи, Авиация, Учебка, Снабжение, Шахта, Налоги, Радар, Нефть, Броня, Торговые пути, Порядок, ПВО
+		Cunning = {
+			"Fleet",
+			"Fleet",
+			"Army",
+			"Army",
+			"Army",
+			"Economy",
+			"Fleet",
+			"Economy",
+			"Army",
+			"Economy",
+			"Economy",
+			"Fleet",
+		},
+		-- Верфи, Авиация, Налоги, Радар, Учебка, Снабжение, Шахта, ПВО, Нефть, Торговые пути, Броня, Порядок
+		Admiral = {
+			"Fleet",
+			"Fleet",
+			"Economy",
+			"Fleet",
+			"Army",
+			"Army",
+			"Army",
+			"Fleet",
+			"Economy",
+			"Economy",
+			"Army",
+			"Economy",
+		},
 	},
 	GeneralOrder = {
+		"Fleet", -- Верфи
+		"Fleet", -- Авиация (сводная правка: самолёты с первых минут войны)
 		"Army", -- Учебка
 		"Economy", -- Налоги
 		"Army", -- Снабжение
-		"Fleet", -- Верфи
-		"Fleet", -- Авиация
-		"Fleet", -- Радар
 		"Army", -- Ракетная шахта (Войска-3)
+		"Fleet", -- Радар
 		"Economy", -- Нефтедобыча
 		"Economy", -- Торговые пути
 		"Economy", -- Порядок

@@ -1019,6 +1019,10 @@ local TABLE: { [string]: Entry } = {
 	["shop.r.medals"] = { ru = "+%s медалей", en = "+%s medals" },
 	["shop.r.tokens"] = { ru = "+%d жетон.", en = "+%d tokens" },
 	["shop.r.crates"] = { ru = "+%d ящ.", en = "+%d crates" },
+	["shop.crateRestricted"] = {
+		ru = "Недоступно в вашем регионе (правила Roblox о платных случайных наградах)",
+		en = "Not available in your region (Roblox rules on paid random items)",
+	},
 	["shop.pickTarget"] = {
 		ru = "Авиаудар: нажмите на землю врага",
 		en = "Airstrike: tap enemy land",
