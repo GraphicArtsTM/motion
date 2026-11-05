@@ -47,6 +47,7 @@ local Provinces = require("./Provinces")
 local Rng = require("./Rng")
 local Stability = require("./Stability")
 local StartPositions = require("./StartPositions")
+local Tech = require("./Tech")
 local Types = require("./Types")
 local Wars = require("./Wars")
 
@@ -87,6 +88,8 @@ export type MatchEvent =
 	| { kind: "ping", nation: number, cell: number, phrase: Types.Phrase }
 	-- Стабильность (§6.10, этап 7а)
 	| { kind: "revolt", nation: number, province: number }
+	-- Технологии (§6.14, этап 7в-1)
+	| { kind: "researched", nation: number, branch: Types.TechBranch, level: number }
 	-- Флот (§6.12, этап 7б-1)
 	| { kind: "shipBuilt", nation: number, ship: Types.ShipKind }
 	| { kind: "shipSunk", nation: number, by: number, ship: Types.ShipKind, lost: number }
@@ -98,7 +101,7 @@ export type MatchEvent =
 	| { kind: "raid", nation: number, target: number, cell: number, lost: number, buildings: number }
 
 -- Потоки случайных чисел бота: когда думать, главные решения, флот, авиация, дипломатия.
-export type BotRngs = { think: Rng, main: Rng, navy: Rng, air: Rng, diplo: Rng }
+export type BotRngs = { think: Rng, main: Rng, navy: Rng, air: Rng, diplo: Rng, tech: Rng }
 
 export type Match = {
 	map: MapData,
@@ -143,6 +146,7 @@ export type Match = {
 	pocketCheck: { [number]: { version: number, at: number } }, -- когда и при какой территории считали котлы
 	stability: Stability.State, -- стабильность провинций и повстанцы (§6.10)
 	sea: Naval.SeaMap, -- море, причалы, пути (§6.12)
+	tech: Tech.TechState, -- технологии держав (§6.14)
 	fleet: Fleet.FleetState, -- корабли
 	air: Air.AirState, -- самолёты и выведенные из строя здания (§6.13)
 	bombedAt: { [number]: number }, -- держава → когда её последний раз бомбили (боты ставят батарею ПВО)
@@ -223,6 +227,7 @@ function MatchSim.new(map: MapData, seed: number): Match
 		stability = Stability.new(),
 		sea = sea,
 		fleet = Fleet.new(),
+		tech = Tech.new(),
 		air = Air.new(),
 		bombedAt = {},
 		bombedCell = {},
@@ -313,6 +318,7 @@ local function botRngsOf(m: Match, id: number): BotRngs
 			navy = Rng.stream(m.seed, 202, id),
 			air = Rng.stream(m.seed, 203, id),
 			diplo = Rng.stream(m.seed, 204, id),
+			tech = Rng.stream(m.seed, 205, id),
 		}
 		m.botRngs[id] = r
 	end
@@ -594,6 +600,9 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 			intent.cell,
 			function(province: number): boolean
 				return m.sea.docks[province] ~= nil
+			end,
+			function(kind: Types.BuildingKind): boolean
+				return MatchSim.techAllows(m, nationId, kind)
 			end
 		)
 		if spot == nil then
@@ -613,6 +622,20 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 		n.oil -= oil
 		Buildings.place(m.buildings, intent.building, spot, MapData.getProvince(m.map, spot))
 		MatchSim.refreshOwned(m)
+		return true, nil
+	end
+
+	if intent.kind == "research" then
+		local level, reason = Tech.next(m.tech, nationId, intent.branch)
+		if level == nil then
+			return false, reason
+		end
+		local cost = Config.Tech.Cost[level]
+		if n.money < cost then
+			return false, "noMoney"
+		end
+		n.money -= cost
+		Tech.start(m.tech, nationId, intent.branch, level)
 		return true, nil
 	end
 
@@ -940,6 +963,7 @@ local function buildSpots(m: Match, n: Nation): BotBrain.BuildSpots
 	local profile = profileOf(m, n.id)
 	local wantsAirfield = (profile.personality.air >= 0.5 or profile.level.smartTarget)
 		and MatchSim.ownedOf(m, n.id).airfields == 0
+		and MatchSim.techAllows(m, n.id, "Airfield") -- «Авиация» (§6.14)
 	local wars: { Wars.War } = if wantsAirfield then Wars.of(m.wars, n.id) else {}
 	for _, war in wars do
 		local enemy = m.nations[Wars.enemyOf(war, n.id)]
@@ -1175,6 +1199,7 @@ local function botView(m: Match, n: Nation): BotBrain.BotView
 		stability = Stability.summaryOf(m.stability, n.id).average,
 		navy = MatchSim.navyView(m, n, hasNeutral, neighbours),
 		air = MatchSim.airView(m, n),
+		tech = MatchSim.techView(m, n),
 	}
 end
 
@@ -1182,6 +1207,7 @@ end
 local function eliminate(m: Match, n: Nation, by: number)
 	Diplomacy.removeNation(m.diplo, n.id)
 	Stability.removeNation(m.stability, n.id)
+	Tech.removeNation(m.tech, n.id)
 	n.alive = false
 	n.eliminatedAt = m.time
 	n.people = 0
@@ -1630,7 +1656,8 @@ local function stepAttacks(m: Match, simDt: number): number
 					cities,
 					a.attacker,
 					front.list,
-					Diplomacy.friends(m.diplo, a.attacker)
+					Diplomacy.friends(m.diplo, a.attacker),
+					if Tech.has(m.tech, a.attacker, "Army", 2) then Config.Tech.SupplyRangeMul else 1
 				) and fromAtkPocket * 2 <= #front.list
 				-- Снабжение по морю (§6.12): рядом с линией фронта берег, до которого недалеко от своего порта.
 				if not landSupplied and (a.seaCheckedAt == nil or m.simTime - (a.seaCheckedAt :: number) >= 1) then
@@ -1664,6 +1691,7 @@ local function stepAttacks(m: Match, simDt: number): number
 						share = homeShare,
 						counter = if counter ~= nil then counter.forces else nil,
 						bonus = if still then Config.Fortify.LineBonus else 1,
+						armor = if Tech.has(m.tech, a.target, "Army", 3) then Config.Tech.TankArmor else nil,
 					},
 					Fronts.terrainDefense(m.map, front.list, front.river, fortified),
 					battleRng(m, a),
@@ -1897,8 +1925,17 @@ local function stepEconomy(m: Match, n: Nation, simDt: number)
 		oilIncome = Economy.oilIncome(owned.rigs),
 		upkeep = Economy.upkeep(strength),
 	}
+	-- Технологии (§6.14): «Налоги» — доход, «Нефтедобыча» — нефть, «Торговые пути» — бонус соглашений.
+	if Tech.has(m.tech, n.id, "Economy", 1) then
+		e.income *= 1 + Config.Tech.TaxBonus
+	end
+	if Tech.has(m.tech, n.id, "Economy", 2) then
+		e.oilIncome *= 1 + Config.Tech.OilBonus
+	end
+	local tradeBonus = Config.Trade.AgreementIncome
+		* (if Tech.has(m.tech, n.id, "Economy", 3) then Config.Tech.TradeMul else 1)
 	-- Торговые соглашения +5% каждое, санкции Совета −25% (§8.2).
-	e.income *= 1 + Config.Trade.AgreementIncome * Diplomacy.tradeCount(m.diplo, n.id)
+	e.income *= 1 + tradeBonus * Diplomacy.tradeCount(m.diplo, n.id)
 	local sanctions = Council.active(m.council, "sanctions", m.simTime)
 	if sanctions ~= nil and sanctions.target == n.id then
 		e.income *= Config.Council.SanctionsIncomeMul
@@ -1977,6 +2014,34 @@ local function stepPockets(m: Match)
 			end
 		end
 	end
+end
+
+-- Технологии (§6.14, этап 7в-1) ---------------------------------------------------------------
+
+-- Открыто ли державе здание kind технологией (Config.Tech.Unlocks; остальные здания — всегда).
+function MatchSim.techAllows(m: Match, nationId: number, kind: Types.BuildingKind): boolean
+	local need = (Config.Tech.Unlocks :: any)[kind]
+	return need == nil or Tech.has(m.tech, nationId, need.branch, need.level)
+end
+
+-- Цена корабля в деньгах с «Верфями» (Флот-1).
+function MatchSim.shipCost(m: Match, nationId: number, kind: Types.ShipKind): number
+	local cost = Fleet.stats(kind).cost
+	if Tech.has(m.tech, nationId, "Fleet", 1) then
+		cost *= 1 - Config.Tech.ShipyardDiscount
+	end
+	return cost
+end
+
+-- Технологии глазами бота: уровни веток и идёт ли исследование.
+function MatchSim.techView(m: Match, n: Nation): BotBrain.TechView
+	local r = m.tech.research[n.id]
+	return {
+		Army = Tech.level(m.tech, n.id, "Army"),
+		Economy = Tech.level(m.tech, n.id, "Economy"),
+		Fleet = Tech.level(m.tech, n.id, "Fleet"),
+		researching = r ~= nil,
+	}
 end
 
 -- Флот (§6.12, этап 7б-1) ------------------------------------------------------------------
@@ -2257,13 +2322,14 @@ function MatchSim.navalIntent(m: Match, n: Nation, intent: Types.Intent): (boole
 			return false, "maxShips"
 		end
 		local stats = Fleet.stats(intent.ship)
-		if n.money < stats.cost then
+		local cost = MatchSim.shipCost(m, n.id, intent.ship)
+		if n.money < cost then
 			return false, "noMoney"
 		end
 		if n.oil < stats.oil then
 			return false, "noOil"
 		end
-		n.money -= stats.cost
+		n.money -= cost
 		n.oil -= stats.oil
 		table.insert(queue, { kind = intent.ship, port = intent.port, left = stats.recruitSec })
 		m.fleet.queues[n.id] = queue
@@ -2442,7 +2508,7 @@ local function stepFleet(m: Match, simDt: number)
 				else
 					-- Порт потерян: деньги и нефть возвращаются.
 					local stats = Fleet.stats(first.kind)
-					nation.money += stats.cost
+					nation.money += MatchSim.shipCost(m, owner, first.kind)
 					nation.oil += stats.oil
 				end
 			end
@@ -2936,6 +3002,9 @@ function MatchSim.stabilityContext(m: Match): Stability.Context
 		traitor = function(id: number): boolean
 			return Diplomacy.isTraitor(m.diplo, id, m.simTime)
 		end,
+		bonus = function(id: number): number
+			return if Tech.has(m.tech, id, "Economy", 4) then Config.Tech.OrderStability else 0
+		end,
 	}
 end
 
@@ -3150,11 +3219,18 @@ function MatchSim.step(m: Match, dt: number)
 			if first ~= nil then
 				first.left -= simDt
 				if first.left <= 0 then
-					Forces.add(n.home, first.kind, Forces.stats(first.kind).strength, 0)
+					-- «Учебка» (§6.14): новобранцы сразу с 1★.
+					local xp = if Tech.has(m.tech, n.id, "Army", 1) then Config.Combat.StarXp[1] else 0
+					Forces.add(n.home, first.kind, Forces.stats(first.kind).strength, xp)
 					table.remove(n.queue, 1)
 				end
 			end
 		end
+	end
+
+	-- Технологии (§6.14): законченные исследования.
+	for _, done in Tech.step(m.tech, simDt) do
+		table.insert(m.events, { kind = "researched", nation = done.id, branch = done.branch, level = done.level })
 	end
 
 	-- Войны: конец мобилизации, истёкшие предложения мира, ответы ботов.
@@ -3214,7 +3290,7 @@ function MatchSim.step(m: Match, dt: number)
 				rngs.main,
 				profile,
 				memory,
-				{ navy = rngs.navy, air = rngs.air, diplo = rngs.diplo }
+				{ navy = rngs.navy, air = rngs.air, diplo = rngs.diplo, tech = rngs.tech }
 			)
 			if intent ~= nil then
 				MatchSim.applyIntent(m, n.id, intent)

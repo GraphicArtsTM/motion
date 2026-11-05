@@ -69,13 +69,17 @@ function Buildings.check(
 	nation: number,
 	kind: Types.BuildingKind,
 	cell: number,
-	hasDock: ((province: number) -> boolean)? -- есть ли у провинции выход к морю (порт, §6.12)
+	hasDock: ((province: number) -> boolean)?, -- есть ли у провинции выход к морю (порт, §6.12)
+	allowed: ((kind: Types.BuildingKind) -> boolean)? -- открыто ли здание технологией (§6.14)
 ): (number?, string?)
 	if cell < 0 or cell >= g.size then
 		return nil, "focus"
 	end
 	if table.find(Config.Buildable, kind) == nil then
 		return nil, "notYet"
+	end
+	if allowed ~= nil and not allowed(kind) then
+		return nil, "needTech"
 	end
 	if kind == "City" then
 		if not isCity(cell) or Grid.getOwner(g, cell) ~= nation then

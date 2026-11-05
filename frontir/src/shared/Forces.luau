@@ -42,6 +42,7 @@ for a, name in Types.LandUnits do
 end
 
 local ARTILLERY = table.find(Types.LandUnits, "Artillery") :: number
+local TANKS = table.find(Types.LandUnits, "Tanks") :: number
 
 function Forces.new(): Forces
 	local f: Forces = {}
@@ -147,12 +148,16 @@ local function counterMul(kind: number, enemy: { number }): number
 end
 
 -- Сила войск в атаке ("attack") или обороне ("defense") против войск enemy.
-function Forces.power(f: Forces, enemy: Forces, role: "attack" | "defense"): number
+-- armor — множитель защиты танков в обороне (технология «Тяжёлая броня», §6.14).
+function Forces.power(f: Forces, enemy: Forces, role: "attack" | "defense", armor: number?): number
 	local enemyComp = Forces.composition(enemy)
 	local sum = 0
 	for kind, s in f do
 		if s.strength > 0 then
 			local stat = if role == "attack" then STATS[kind].attack else STATS[kind].defense
+			if role == "defense" and kind == TANKS and armor ~= nil then
+				stat *= armor
+			end
 			sum += s.strength * stat * Forces.vetMul(s) * counterMul(kind, enemyComp)
 		end
 	end

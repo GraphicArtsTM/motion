@@ -213,6 +213,13 @@ function Intents.parse(kind: any, payload: any): (Types.Intent?, string?)
 			return nil, "bad cover"
 		end
 		return { kind = "cover", plane = plane, cell = cell }, nil
+	-- Технологии (§6.14, этап 7в-1).
+	elseif kind == "research" then
+		local branch = payload.branch
+		if branch ~= "Army" and branch ~= "Economy" and branch ~= "Fleet" then
+			return nil, "bad branch"
+		end
+		return { kind = "research", branch = branch :: Types.TechBranch }, nil
 	end
 	return nil, "unknown kind"
 end

@@ -15,6 +15,7 @@ local Forces = require("../Forces")
 local Grid = require("../Grid")
 local MatchSim = require("../MatchSim")
 local Stability = require("../Stability")
+local Tech = require("../Tech")
 local Types = require("../Types")
 local Wars = require("../Wars")
 local Protocol = require("./Protocol")
@@ -227,6 +228,27 @@ function MatchStats.stability(m: MatchSim.Match, viewer: number?): StabilityMess
 		values = values,
 		rebels = rebels,
 		rebelLeft = rebelLeft,
+	}
+end
+
+-- Технологии (§6.14) игроку: свои уровни и текущее исследование. Таблица tech.
+export type TechMessage = ClientState.TechMessage
+
+function MatchStats.tech(m: MatchSim.Match, viewer: number?): TechMessage
+	if viewer == nil then
+		return ClientState.emptyTech()
+	end
+	local r = m.tech.research[viewer]
+	return {
+		kind = "tech",
+		levels = {
+			Army = Tech.level(m.tech, viewer, "Army"),
+			Economy = Tech.level(m.tech, viewer, "Economy"),
+			Fleet = Tech.level(m.tech, viewer, "Fleet"),
+		},
+		research = if r ~= nil
+			then { branch = r.branch, level = r.level, left = math.max(0, math.ceil(r.left)), total = r.total }
+			else nil,
 	}
 end
 
