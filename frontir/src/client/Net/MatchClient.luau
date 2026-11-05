@@ -25,6 +25,7 @@ export type Handlers = {
 	onDiplo: () -> (),
 	onStability: (rebelsChanged: { number }) -> (), -- своя стабильность и повстанцы (§6.10)
 	onShips: () -> (), -- корабли (§6.12)
+	onAir: () -> (), -- самолёты (§6.13)
 	onDev: ((msg: any) -> ())?, -- ответ панели разработчика (только Studio)
 	onEvents: (events: { any }) -> (),
 	onRejected: (reason: string) -> (),
@@ -62,6 +63,9 @@ function MatchClient.connect(cs: ClientState, handlers: Handlers): MatchClient
 			elseif result == "ships" then
 				cs.shipsAt = os.clock()
 				handlers.onShips()
+			elseif result == "air" then
+				cs.airAt = os.clock()
+				handlers.onAir()
 			end
 		elseif type(msg) == "table" then
 			-- Таблицы (info, events) редкие: их размер для F3 оцениваем по JSON.

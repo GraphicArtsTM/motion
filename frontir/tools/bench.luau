@@ -55,6 +55,7 @@ for t = 1, seconds * Config.Sim.TickRate do
 		second += buffer.len(Protocol.encodeStats(MatchStats.forViewer(m, MatchStats.build(m, 0, #changes), 1))) + OVERHEAD
 		second += buffer.len(Protocol.encodeWars(MatchStats.wars(m))) + OVERHEAD
 		second += buffer.len(Protocol.encodeShips(MatchStats.ships(m, 1))) + OVERHEAD -- корабли (§6.12)
+		second += buffer.len(Protocol.encodeAir(MatchStats.air(m, 1))) + OVERHEAD -- самолёты (§6.13)
 	end
 	if t % Config.Sim.TickRate == 0 then
 		peak = math.max(peak, second)

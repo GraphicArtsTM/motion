@@ -562,6 +562,57 @@ local TABLE: { [string]: Entry } = {
 	["hud.fleet"] = { ru = "Флот: %d трансп., %d эсм.", en = "Fleet: %d transp., %d destr." },
 	["dev.navy"] = { ru = "Порт и флот", en = "Port and fleet" },
 	["dev.botLanding"] = { ru = "Бот: десант на вас", en = "Bot: lands on you" },
+	-- Этап 7б-2: авиация
+	["building.Airfield"] = { ru = "Аэродром", en = "Airfield" },
+	["building.Airfield.hint"] = {
+		ru = "истребители и бомбардировщики",
+		en = "fighters and bombers",
+	},
+	["building.AirDefense"] = { ru = "Батарея ПВО", en = "AA battery" },
+	["building.AirDefense.hint"] = {
+		ru = "сбивает самолёты в радиусе 10",
+		en = "shoots planes within 10",
+	},
+	["plane.Fighter"] = { ru = "Истребитель", en = "Fighter" },
+	["plane.Bomber"] = { ru = "Бомбардировщик", en = "Bomber" },
+	["air.title"] = { ru = "Аэродром", en = "Airfield" },
+	["air.raid"] = { ru = "Налёт (свободных: %d)", en = "Air raid (ready: %d)" },
+	["air.status"] = {
+		ru = "Истребителей %d · бомбардировщиков %d · в очереди %d",
+		en = "Fighters %d · bombers %d · queued %d",
+	},
+	["air.disabled"] = { ru = "Аэродром выведен из строя!", en = "Airfield is knocked out!" },
+	["air.pickTarget"] = {
+		ru = "Налёт: нажмите линию фронта или здание врага",
+		en = "Raid: tap an enemy front or building",
+	},
+	["air.pickCover"] = { ru = "Прикрытие: нажмите точку", en = "Cover: tap a point" },
+	["event.planeBuilt"] = { ru = "Готов самолёт: %s", en = "Plane ready: %s" },
+	["event.planeShot"] = { ru = "%s: %s сбит (%s)", en = "%s: %s shot down (%s)" },
+	["event.raidOnYou"] = {
+		ru = "Налёт %s! Потери %s, зданий выведено %d",
+		en = "%s air raid! Lost %s, buildings hit %d",
+	},
+	["event.raid"] = {
+		ru = "Налёт на %s: потери %s, зданий выведено %d",
+		en = "Raid on %s: losses %s, buildings hit %d",
+	},
+	["reject.needAirfield"] = { ru = "Нужен свой аэродром", en = "You need your own airfield" },
+	["reject.disabled"] = { ru = "Здание выведено из строя", en = "The building is knocked out" },
+	["reject.maxAircraft"] = { ru = "Слишком много самолётов", en = "Too many planes" },
+	["reject.outOfRange"] = {
+		ru = "Слишком далеко от аэродрома",
+		en = "Too far from your airfields",
+	},
+	["reject.noBomber"] = { ru = "Нет свободного бомбардировщика", en = "No free bomber" },
+	["reject.noPlane"] = { ru = "Самолёта нет", en = "No such plane" },
+	["reject.notFighter"] = {
+		ru = "Прикрытие — только истребители",
+		en = "Only fighters cover",
+	},
+	["hud.air"] = { ru = "Авиация: %d истр., %d бомб.", en = "Air: %d fight., %d bomb." },
+	["dev.airForce"] = { ru = "Аэродром и авиация", en = "Airfield and planes" },
+	["dev.botRaid"] = { ru = "Бот: налёт на вас", en = "Bot: air raid on you" },
 	["event.pocketSurrendered"] = { ru = "Котёл сдался: %s → %s", en = "Pocket surrendered: %s → %s" },
 	["hud.weariness"] = {
 		ru = "Усталость от войны: −%d%% прироста",

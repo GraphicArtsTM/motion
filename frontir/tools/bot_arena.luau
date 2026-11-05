@@ -1,6 +1,6 @@
 --!strict
 --[[
-	Арена ботов (GDD §9.1, этап 5): держава-«игрок» (Обычный бот, личность Флотоводец без флота — без перекосов) против
+	Арена ботов (GDD §9.1, этап 5): держава-«игрок» (Обычный бот, личность Флотоводец без флота и авиации — без перекосов) против
 	трёх ботов одного уровня на реальной карте. Матч до победы или лимита времени, несколько сидов.
 	Печатает место и долю суши «игрока» против Новичков, Обычных и Генералов.
 	Запуск из frontir/:  lune run tools/bot_arena [карта=Europe] [сидов=4] [уровни=Novice,Normal,General] [соперников=3]
@@ -35,11 +35,12 @@ local function play(level: any, seed: number): Outcome
 	for _, n in m.nations do
 		if n.id == 1 then
 			MatchSim.setBot(m, 1, "Normal", "Admiral")
-			-- С этапа 7б-1 Флотоводец строит флот; «игрок» арены — без флота, как раньше, чтобы замеры уровней
-			-- оставались сравнимыми.
+			-- С этапа 7б-1 Флотоводец строит флот, с 7б-2 — немного авиации; «игрок» арены — без них, как раньше,
+			-- чтобы замеры уровней оставались сравнимыми.
 			local profile = m.botProfiles[1]
 			local personality = table.clone(profile.personality)
 			personality.navy = 0
+			personality.air = 0
 			m.botProfiles[1] = { level = profile.level, personality = personality }
 		else
 			MatchSim.setBot(m, n.id, level)

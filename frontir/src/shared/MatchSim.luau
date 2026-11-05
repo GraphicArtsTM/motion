@@ -813,14 +813,25 @@ end
 
 -- Что бот «видит» о своей державе.
 local NO_BUILDINGS: Buildings.Owned =
-	table.freeze({ factories = 0, markets = 0, rigs = 0, forts = 0, ports = 0, cityLevels = 0 })
+	table.freeze({ factories = 0, markets = 0, rigs = 0, forts = 0, ports = 0, airfields = 0, cityLevels = 0 })
 
 -- Здания и уровни городов державы (пересчитываются каждый тик и после постройки).
 function MatchSim.ownedOf(m: Match, nationId: number): Buildings.Owned
 	return m.owned[nationId] or NO_BUILDINGS
 end
 
+-- Работающие здания по видам (MatchSim.buildingsOf) — кеш на тик: боты спрашивают аэродромы на каждое
+-- раздумье, а зданий на «Мире» сотни. Сбрасывается при пересчёте зданий (refreshOwned).
+local buildingsCache: { [Match]: { tick: number, lists: { [string]: { { cell: number, owner: number } } } } } = setmetatable(
+	{},
+	{ __mode = "k" }
+) :: any
+function MatchSim.clearBuildingsCache(m: Match)
+	buildingsCache[m] = nil
+end
+
 function MatchSim.refreshOwned(m: Match)
+	MatchSim.clearBuildingsCache(m) -- здания могли появиться или выйти из строя
 	m.owned = Buildings.owned(m.buildings, m.grid, MatchSim.cities(m), function(cell: number): boolean
 		return Air.isDisabled(m.air, cell, m.simTime)
 	end)
@@ -890,9 +901,14 @@ local function buildSpots(m: Match, n: Nation): BotBrain.BuildSpots
 			end
 		end
 	end
-	-- Провинция под аэродром (§6.13): свободная, ближайшая к врагу (к первому, с кем активная война).
+	-- Провинция под аэродром (§6.13): свободная, ближайшая к врагу (к первому, с кем активная война). Ищем только
+	-- для тех, кто строит аэродромы (Агрессор, Хитрец, Генерал), и пока своего аэродрома нет.
 	local enemyCapital: number? = nil
-	for _, war in Wars.of(m.wars, n.id) do
+	local profile = profileOf(m, n.id)
+	local wantsAirfield = (profile.personality.air >= 0.5 or profile.level.smartTarget)
+		and MatchSim.ownedOf(m, n.id).airfields == 0
+	local wars: { Wars.War } = if wantsAirfield then Wars.of(m.wars, n.id) else {}
+	for _, war in wars do
 		local enemy = m.nations[Wars.enemyOf(war, n.id)]
 		if war.state == "active" and enemy ~= nil and enemy.capital ~= nil then
 			enemyCapital = enemy.capital
@@ -903,7 +919,16 @@ local function buildSpots(m: Match, n: Nation): BotBrain.BuildSpots
 		local ec = enemyCapital :: number
 		local bestAir = math.huge
 		for _, p in m.provinces.list do
-			if Grid.getOwner(g, p.center) == n.id and m.buildings.byProvince[p.id] == nil then
+			-- Не в пограничной с врагом провинции: там аэродром быстро возьмут (самолёты без аэродрома теряются).
+			local frontier = false
+			for _, q in p.neighbours do
+				local o = Grid.getOwner(g, m.provinces.list[q].center)
+				if o ~= 0 and o ~= n.id and Wars.isActive(m.wars, n.id, o) then
+					frontier = true
+					break
+				end
+			end
+			if not frontier and Grid.getOwner(g, p.center) == n.id and m.buildings.byProvince[p.id] == nil then
 				local d = (p.center % g.width - ec % g.width) ^ 2 + (p.center // g.width - ec // g.width) ^ 2
 				if d < bestAir then
 					spots.airfield, bestAir = p.center, d
@@ -2478,7 +2503,17 @@ end
 
 -- Работающие здания вида kind (клетка, хозяин по сетке; ничьи и выведенные из строя пропускаются).
 function MatchSim.buildingsOf(m: Match, kind: Types.BuildingKind): { { cell: number, owner: number } }
+	local cache = buildingsCache[m]
+	if cache == nil or cache.tick ~= m.tick then
+		cache = { tick = m.tick, lists = {} }
+		buildingsCache[m] = cache
+	end
+	local hit = (cache :: any).lists[kind]
+	if hit ~= nil then
+		return hit
+	end
 	local out: { { cell: number, owner: number } } = {}
+	(cache :: any).lists[kind] = out
 	for cell, b in m.buildings.byCell do
 		if b.kind == kind then
 			local owner = Grid.getOwner(m.grid, cell)
@@ -2571,21 +2606,19 @@ function MatchSim.airView(m: Match, n: Nation): BotBrain.AirView
 	end
 	if view.idleBomber then
 		view.raidTarget = function(): number?
-			-- Линия фронта с врагом: главное направление своего удара, иначе выборка линии (своей или врага).
-			for _, a in m.attacks do
-				local mine = a.attacker == n.id and a.target ~= 0 and Wars.isActive(m.wars, n.id, a.target)
-				local theirs = a.target == n.id and Wars.isActive(m.wars, n.id, a.attacker)
-				if mine or theirs then
-					local candidates: { number } = {}
-					if mine and a.focus ~= nil then
-						table.insert(candidates, a.focus :: number)
-					end
-					for _, c in a.line or {} :: { number } do
-						table.insert(candidates, c)
-					end
-					for _, c in candidates do
-						if MatchSim.inAirRange(m, n.id, c) and enemyNear(m, n.id, c) then
-							return c
+			-- Линия фронта с врагом: сначала фронт врага против нас (его войска), потом наш фронт против него
+			-- (его гарнизон у линии). Точка — клетка выборки линии в радиусе авиации.
+			for pass = 1, 2 do
+				for _, a in m.attacks do
+					local fits = if pass == 1
+						then a.target == n.id and Wars.isActive(m.wars, n.id, a.attacker)
+						else a.attacker == n.id and a.target ~= 0 and Wars.isActive(m.wars, n.id, a.target)
+					if fits then
+						local line: { number } = a.line or {}
+						for _, c in line do
+							if MatchSim.inAirRange(m, n.id, c) and enemyNear(m, n.id, c) then
+								return c
+							end
 						end
 					end
 				end
