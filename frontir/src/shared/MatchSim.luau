@@ -891,6 +891,14 @@ function MatchSim.startLobby(m: Match)
 	m.infoDirty = true
 end
 
+-- Обучение (§5.5) идёт только на карте Tutorial.Map (сводная правка): какую карту загрузить вместо текущей (nil — эта).
+function MatchSim.tutorialMap(m: Match): string?
+	if m.rules.tutorial and m.map.name ~= Config.Tutorial.Map then
+		return Config.Tutorial.Map
+	end
+	return nil
+end
+
 -- Выбор старта (из ожидания — сразу, минуя лобби: так делают тесты и превью).
 function MatchSim.startPick(m: Match)
 	if m.phase ~= "Waiting" and m.phase ~= "Lobby" then
@@ -2340,7 +2348,7 @@ local function stepAttacks(m: Match, simDt: number): number
 						share = homeShare,
 						counter = if counter ~= nil then counter.forces else nil,
 						bonus = (if still then Config.Fortify.LineBonus else 1) * MatchSim.abilityDefenseMul(m, a),
-						armor = if Tech.has(m.tech, a.target, "Army", 3) then Config.Tech.TankArmor else nil,
+						armor = if Tech.has(m.tech, a.target, "Army", 4) then Config.Tech.TankArmor else nil, -- Войска-4 (сводная правка)
 					},
 					Fronts.terrainDefense(m.map, front.list, front.river, fortified),
 					battleRng(m, a),
@@ -3083,7 +3091,10 @@ function MatchSim.botsBid(m: Match)
 		local bestCap = need - 1
 		for _, n in m.nations do
 			if n.alive and n.isBot and n.id ~= a.topId then
-				local share = cfg.BotBidShare * (if n.botLevel == "Novice" then 0.5 else 1)
+				local personality = Config.BotPersonalities[n.personality or "Admiral"] :: any
+				local share = cfg.BotBidShare
+					* (if n.botLevel == "Novice" then 0.5 else 1)
+					* (if personality ~= nil and personality.bidShare ~= nil then personality.bidShare else 1)
 				local cap = math.floor(n.money * share)
 				if cap > bestCap then
 					best, bestCap = n, cap

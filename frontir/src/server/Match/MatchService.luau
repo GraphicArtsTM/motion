@@ -880,8 +880,17 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			acc -= step
 			steps += 1
 			local wasPlaying = m.phase == "Play"
+			local wasPick = m.phase == "Pick"
 			local t0 = os.clock()
 			MatchSim.step(m, step)
+			-- Обучение — только на «Скандинавии» (сводная правка): другая карта — сменить и сразу к выбору старта.
+			local tutorialMap = if not wasPick and m.phase == "Pick" then MatchSim.tutorialMap(m) else nil
+			if tutorialMap ~= nil then
+				startNewMatch(tutorialMap)
+				m.forcedMode = "Tutorial"
+				MatchSim.startPick(m)
+				break
+			end
 			lastTickMs = (os.clock() - t0) * 1000
 			if wasPlaying and m.phase == "Over" then
 				giveRewards() -- опыт и медали за матч (§11.2)

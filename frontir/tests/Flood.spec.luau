@@ -37,6 +37,30 @@ T.describe("Потоп (§5.3)", function()
 	)
 
 	T.it(
+		"вода поднимается только от моря: берег озера тонет не раньше, чем до него дойдёт море; ступеней 5",
+		function()
+			-- Слева — море (самая большая вода), в середине суши — озеро 2×2.
+			local rows: { string } = {}
+			for y = 1, 12 do
+				local row = ""
+				for x = 1, 40 do
+					local lake = x >= 25 and x <= 26 and y >= 6 and y <= 7
+					row ..= if x <= 6 or lake then "~" else "."
+				end
+				table.insert(rows, row)
+			end
+			local map = TinyMap.fromRows(rows)
+			local w = map.width
+			local levels = Flood.levels(map)
+			-- Индексы с нуля: море — x 0..5, озеро — x 24..25, y 5..6.
+			T.expect(level(levels, w, 6, 5)).toBe(10) -- у моря
+			T.expect(level(levels, w, 23, 5)).toBe((23 - 5) * 10) -- у озера — по расстоянию до моря
+			T.expect(level(levels, w, 24, 5)).toBe(0) -- само озеро — вода
+			T.expect(Config.Flood.MaxSteps).toBe(5)
+		end
+	)
+
+	T.it(
 		"ступени: порог растёт с шириной карты; sinking — только новые клетки",
 		function()
 			local cfg = Config.Flood

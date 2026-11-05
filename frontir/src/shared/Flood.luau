@@ -2,7 +2,8 @@
 --!native
 --[[
 	Flood — режим «Потоп» (GDD §5.3, этап 8в). Чистый модуль, одинаковый на сервере, клиенте и в превью:
-	- levels(map): «высота» клетки суши — взвешенное расстояние до воды (×10, u16): равнина, пустыня, река — 10
+	- levels(map): «высота» клетки суши — взвешенное расстояние до моря (×10, u16; озёра не растут — сводная
+	  правка): равнина, пустыня, река — 10
 	  за клетку, тундра — 12, лес — 15, холмы — 30; горы не тонут (NEVER). Вода — 0. Алгоритм Дейкстры с
 	  корзинами (веса — малые целые), считается один раз на карту.
 	- threshold(width, step): до какой высоты вода дошла на ступени step (на картах шире 512 — больше).
@@ -45,11 +46,56 @@ function Flood.levels(map: MapData): buffer
 	end
 	local pending = 0
 	local terrain = map.terrain
-	for i = 0, size - 1 do
-		if buffer.readu8(terrain, i) == 0 then
+	-- Вода поднимается только от моря (сводная правка): источник — связная вода не меньше Naval.MinSeaCells;
+	-- озёра остаются водой (высота 0), но берега вокруг них не тонут раньше, чем до них дойдёт море.
+	local seen = buffer.create(size)
+	local queue: { number } = {}
+	local bodies: { { number } } = {}
+	for start = 0, size - 1 do
+		if buffer.readu8(terrain, start) == 0 and buffer.readu8(seen, start) == 0 then
+			table.clear(queue)
+			buffer.writeu8(seen, start, 1)
+			queue[1] = start
+			local head = 1
+			while head <= #queue do
+				local i = queue[head]
+				head += 1
+				local x = i % w
+				local function visit(j: number)
+					if buffer.readu8(seen, j) == 0 and buffer.readu8(terrain, j) == 0 then
+						buffer.writeu8(seen, j, 1)
+						table.insert(queue, j)
+					end
+				end
+				if x > 0 then
+					visit(i - 1)
+				end
+				if x < w - 1 then
+					visit(i + 1)
+				end
+				if i >= w then
+					visit(i - w)
+				end
+				if i + w < size then
+					visit(i + w)
+				end
+			end
+			table.insert(bodies, table.clone(queue))
+		end
+	end
+	-- Морем считается связная вода от Naval.MinSeaCells; на крошечной карте без моря — самая большая вода.
+	local largest = 0
+	for _, body in bodies do
+		largest = math.max(largest, #body)
+	end
+	local minSea = math.min(Config.Naval.MinSeaCells, largest)
+	for _, body in bodies do
+		for _, i in body do
 			buffer.writeu16(levels, i * 2, 0)
-			table.insert(buckets[1], i)
-			pending += 1
+			if #body >= minSea then
+				table.insert(buckets[1], i)
+				pending += 1
+			end
 		end
 	end
 	local d = 0

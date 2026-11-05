@@ -98,6 +98,23 @@ T.describe("Аналитика (этап 10в)", function()
 	)
 end)
 
+T.describe("Мелкие решения (сводная правка, часть 3)", function()
+	T.it(
+		"обучение — только на «Скандинавии»: на другой карте сервер её меняет",
+		function()
+			local m = trio()
+			T.expect(MatchSim.tutorialMap(m)).toBe(nil) -- не обучение
+			local rules = table.clone(m.rules)
+			rules.tutorial = true
+			m.rules = rules
+			T.expect(MatchSim.tutorialMap(m)).toBe(Config.Tutorial.Map)
+			T.expect(Config.Tutorial.Map).toBe("Scandinavia");
+			(m.map :: any).name = "Scandinavia"
+			T.expect(MatchSim.tutorialMap(m)).toBe(nil)
+		end
+	)
+end)
+
 T.describe("Телефон (этап 10в)", function()
 	T.it("пределы эффектов: на телефоне меньше, на ПК — обычные", function()
 		T.expect(RenderBudget.isPhone(true, false)).toBe(true)

@@ -28,6 +28,8 @@ local abilities: { [string]: number } = {}
 local events: { [string]: number } = {}
 local lengths: { number } = {}
 local missiles, mercs, mercsMoney = 0, 0, 0
+-- За первые 10 минут: предательства и сбитые самолёты (сводная правка: в каждой партии хотя бы по одному).
+local early = { betrayals = 0, shot = 0, gamesBetrayal = 0, gamesShot = 0 }
 local techLevels, techNations = 0, 0
 
 local function count(t: Tally, key: string, won: boolean, share: number)
@@ -53,9 +55,15 @@ for k = 1, games do
 		MatchSim.step(m, dt)
 	end
 	local limit = m.rules.timeLimitSec + 5
+	local betr, shot = 0, 0
 	while m.phase == "Play" and m.time < limit do
 		MatchSim.step(m, dt)
 		for _, e in MatchSim.takeEvents(m) do
+			if m.time <= 600 and e.kind == "betrayal" then
+				betr += 1
+			elseif m.time <= 600 and e.kind == "planeShot" then
+				shot += 1
+			end
 			if e.kind == "ability" then
 				abilities[e.ability] = (abilities[e.ability] or 0) + 1
 			elseif e.kind == "worldEvent" then
@@ -75,6 +83,10 @@ for k = 1, games do
 		reasons[if result ~= nil then result.reason else "none"] or 0
 	) + 1
 	table.insert(lengths, m.time / 60)
+	early.betrayals += betr
+	early.shot += shot
+	early.gamesBetrayal += if betr > 0 then 1 else 0
+	early.gamesShot += if shot > 0 then 1 else 0
 	local land = math.max(1, m.grid.capturableCount)
 	for _, n in m.nations do
 		local won = n.id == winner or table.find(co, n.id) ~= nil
@@ -176,6 +188,17 @@ local function line(t: { [string]: number }): string
 	table.sort(out)
 	return table.concat(out, ", ")
 end
+print(
+	string.format(
+		"Первые 10 минут: предательств %.1f за партию (были в %d из %d партий), сбито самолётов %.1f (в %d из %d)",
+		early.betrayals / games,
+		early.gamesBetrayal,
+		games,
+		early.shot / games,
+		early.gamesShot,
+		games
+	)
+)
 print("Способности за партию: " .. line(abilities))
 print("События за партию: " .. line(events))
 print(

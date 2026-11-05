@@ -821,7 +821,9 @@ function BotBrain.decide(view: BotView, rng: Rng, profile: Profile?, memory: Mem
 		view.hasCapital
 		and view.queue < level.maxQueue
 		and view.people >= view.maxPeople * level.hireWhenFill
-		and Rng.nextFloat(rng) < level.hireChance * personality.hire
+		-- Угроза (война или мобилизация): Торговец нанимает чаще (personality.threatHire).
+		and Rng.nextFloat(rng)
+			< level.hireChance * personality.hire * (if #view.wars > 0 then personality.threatHire or 1 else 1)
 	then
 		local enemyMix = if enemy ~= nil then enemy.mix else nil
 		local unit: Types.LandUnit = chooseUnit(view, p, rng, enemyMix)

@@ -62,7 +62,7 @@ local function describe(branch: string, level: number, lang: Strings.Lang): stri
 	local key = branch .. level
 	if key == "Army2" then
 		return string.format(fmt, tostring(cfg.SupplyRangeMul))
-	elseif key == "Army3" then
+	elseif key == "Army4" then
 		return string.format(fmt, tostring(cfg.TankArmor))
 	elseif key == "Economy1" then
 		return string.format(fmt, math.round(cfg.TaxBonus * 100))

@@ -202,7 +202,9 @@ T.describe("Случайные события", function()
 		function()
 			local m = duo()
 			MatchSim.setBot(m, 2, "Normal", "Trader")
-			m.nations[2].money = 10000 -- предел бота: 30% = 3000
+			-- Предел бота ровно минимальная ставка: доля денег BotBidShare × bidShare Торговца.
+			local trader = Config.BotPersonalities.Trader :: any
+			m.nations[2].money = ev.MercMinBid / (ev.BotBidShare * (trader.bidShare or 1))
 			T.expect(select(2, MatchSim.applyIntent(m, 1, { kind = "bid", amount = 5000 }))).toBe("noAuction")
 			MatchSim.worldEvent(m, "Mercenaries")
 			local a = m.world.auction :: WorldEvents.Auction
@@ -210,16 +212,17 @@ T.describe("Случайные события", function()
 			T.expect(a.top).toBe(ev.MercMinBid)
 			T.expect(select(2, MatchSim.applyIntent(m, 1, { kind = "bid", amount = a.top }))).toBe("lowBid")
 			local n = m.nations[1]
-			n.money = 4000
-			T.expect(select(2, MatchSim.applyIntent(m, 1, { kind = "bid", amount = 5000 }))).toBe("noMoney")
+			local myBid = ev.MercMinBid + ev.MercStep
+			n.money = myBid - 1
+			T.expect(select(2, MatchSim.applyIntent(m, 1, { kind = "bid", amount = myBid }))).toBe("noMoney")
 			n.money = 100000
-			T.expect((MatchSim.applyIntent(m, 1, { kind = "bid", amount = 3000 }))).toBe(true)
-			-- Бот перебил бы, но его предел 3000 — ставка остаётся за игроком.
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "bid", amount = myBid }))).toBe(true)
+			-- Бот перебил бы, но его предел — минимальная ставка: ставка остаётся за игроком.
 			T.expect(a.topId).toBe(1)
 			local inf = n.home[INF].strength
 			runFor(m, ev.AuctionSec + 0.5)
 			T.expect(m.world.auction).toBe(nil)
-			T.expect(n.money >= 97000 and n.money < 98000).toBe(true) -- ставка списана (+ доход за 20 с)
+			T.expect(n.money >= 100000 - myBid and n.money < 100000 - myBid + 1000).toBe(true) -- ставка списана (+ доход)
 			T.expect(n.home[INF].strength).toBeNear(inf + ev.MercStrength * 2 / 3, 1e-6)
 			T.expect(n.home[TANKS].strength).toBeNear(ev.MercStrength / 3, 1e-6)
 			T.expect(Forces.stars(n.home[TANKS])).toBe(ev.MercStars)
