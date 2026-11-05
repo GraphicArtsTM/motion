@@ -39,6 +39,7 @@ T.describe("Туман войны", function()
 			local o =
 				owners({ { id = 1, x0 = 0, y0 = 0, x1 = 19, y1 = 39 }, { id = 2, x0 = 40, y0 = 0, x1 = 79, y1 = 39 } })
 			local fs = Fog.new(W, H)
+			fs.hideTerritory = true -- правило 7а («Мгла»): чужие границы вне обзора не видны
 			-- Матч начинается с «видно всё»: первый пересчёт — перерисовать всю карту.
 			T.expect(fs.all).toBe(true)
 			local full = Fog.compute(fs, o, { friends = { [1] = true }, fronts = {}, radars = {} })
@@ -53,6 +54,30 @@ T.describe("Туман войны", function()
 			T.expect(Fog.knownOwner(fs, at(50, 20))).toBe(0)
 			T.expect(Fog.wasSeen(fs, at(50, 20))).toBe(false)
 			T.expect(Fog.knownOwner(fs, at(5, 20))).toBe(1)
+		end
+	)
+
+	T.it(
+		"по умолчанию границы видны везде: чужой рост вдали виден, обзор прячет только войска и здания",
+		function()
+			T.expect(cfg.HideTerritory).toBe(false)
+			local o =
+				owners({ { id = 1, x0 = 0, y0 = 0, x1 = 19, y1 = 39 }, { id = 2, x0 = 40, y0 = 0, x1 = 79, y1 = 39 } })
+			local fs = Fog.new(W, H)
+			local sources = { friends = { [1] = true }, fronts = {}, radars = {} }
+			Fog.compute(fs, o, sources)
+			T.expect(Fog.isVisible(fs, at(50, 20))).toBe(false)
+			T.expect(Fog.wasSeen(fs, at(50, 20))).toBe(false) -- здания там не показываются
+			T.expect(Fog.knownOwner(fs, at(50, 20))).toBe(2)
+			-- Держава 2 растёт вдали: дельта сразу видна и просит перерисовку.
+			buffer.writeu16(o, at(39, 30) * 2, 2)
+			T.expect(Fog.applyDelta(fs, o, { at(39, 30) })).toEqual({ at(39, 30) })
+			T.expect(Fog.knownOwner(fs, at(39, 30))).toBe(2)
+			-- И после пересчёта обзора владельцы настоящие.
+			buffer.writeu16(o, at(70, 5) * 2, 0)
+			Fog.compute(fs, o, sources)
+			T.expect(Fog.knownOwner(fs, at(70, 5))).toBe(0)
+			T.expect(Fog.isVisible(fs, at(70, 5))).toBe(false)
 		end
 	)
 
@@ -89,6 +114,7 @@ T.describe("Туман войны", function()
 			local o =
 				owners({ { id = 1, x0 = 0, y0 = 0, x1 = 19, y1 = 39 }, { id = 2, x0 = 20, y0 = 0, x1 = 79, y1 = 39 } })
 			local fs = Fog.new(W, H)
+			fs.hideTerritory = true
 			local sources = { friends = { [1] = true }, fronts = {}, radars = {} }
 			Fog.compute(fs, o, sources)
 			T.expect(Fog.knownOwner(fs, at(22, 20))).toBe(2) -- рядом — видно
@@ -216,6 +242,7 @@ T.describe("Туман войны", function()
 			local info: ClientState.Info =
 				{ kind = "info", phase = "Play", phaseLeft = 0, time = 0, myNation = 1, nations = nations }
 			ClientState.applyInfo(cs, info, 0)
+			cs.fog.hideTerritory = true -- правило 7а («Мгла»)
 			for _, part in Protocol.encodeSnapshot(m.tick, m.grid.owner, m.grid.size) do
 				ClientState.applyBuffer(cs, part)
 			end

@@ -7,8 +7,9 @@
 	фронтов + ArmyVision, их радары + RadarVision. Расстояние — фаска 5/7 (почти круг): за шаг по стороне −5,
 	по диагонали −7. Считается за два прохода (вперёд и назад) в прямоугольнике вокруг источников.
 
-	Вне обзора клиент рисует последнего увиденного владельца (known) и темнее; seen — клетку хоть раз видели
-	(здания там показываются).
+	Вне обзора клиент рисует клетки чуть темнее; seen — клетку хоть раз видели (здания там показываются).
+	Владельцы клеток (границы держав) видны везде (решение геймдизайнера после 7г: следить за чужим ростом
+	интересно); hideTerritory = true — старое правило 7а (вне обзора — последний увиденный владелец, для «Мглы»).
 ]]
 
 local Config = require("./Config")
@@ -29,6 +30,7 @@ export type FogState = {
 	x1: number,
 	y1: number,
 	all: boolean, -- видно всё (зритель, туман выключен, не фаза игры); так начинается каждый матч
+	hideTerritory: boolean, -- true — вне обзора прятать и владельцев клеток (Config.Fog.HideTerritory, «Мгла»)
 }
 
 -- Что даёт обзор. friends — набор держав (сама держава, союзники, вассалы, сюзерен);
@@ -60,6 +62,7 @@ function Fog.new(width: number, height: number): FogState
 		x1 = 0,
 		y1 = 0,
 		all = true,
+		hideTerritory = Config.Fog.HideTerritory,
 	}
 end
 
@@ -86,11 +89,12 @@ function Fog.revealAll(fs: FogState, owners: buffer): boolean
 	return true
 end
 
--- Дельта сетки: в обзоре known обновляется сразу. Возвращает клетки, которые надо перерисовать.
+-- Дельта сетки: known обновляется сразу (при hideTerritory — только в обзоре). Возвращает клетки для перерисовки.
 function Fog.applyDelta(fs: FogState, owners: buffer, cells: { number }): { number }
 	local out: { number } = {}
+	local everywhere = fs.all or not fs.hideTerritory
 	for _, i in cells do
-		if fs.all or buffer.readu8(fs.visible, i) == 1 then
+		if everywhere or buffer.readu8(fs.visible, i) == 1 then
 			local o = buffer.readu16(owners, i * 2)
 			if buffer.readu16(fs.known, i * 2) ~= o then
 				buffer.writeu16(fs.known, i * 2, o)
@@ -107,6 +111,10 @@ function Fog.compute(fs: FogState, owners: buffer, sources: Sources): (boolean, 
 	local w, h, size = fs.width, fs.height, fs.size
 	local cfg = Config.Fog
 	local vision = fs.vision
+	if not fs.hideTerritory then
+		-- Границы видны везде: known — настоящие владельцы (дельты клиент уже перерисовал в applyDelta).
+		buffer.copy(fs.known, 0, owners, 0, size * 2)
+	end
 	local friends = sources.friends
 	local mul = sources.visionMul or 1
 	local tv, av, rv =
