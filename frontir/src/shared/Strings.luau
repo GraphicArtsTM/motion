@@ -788,6 +788,16 @@ local TABLE: { [string]: Entry } = {
 	["dev.nextCommander"] = { ru = "Следующий генерал", en = "Next commander" },
 	["dev.botAbility"] = { ru = "Бот: способности по вам", en = "Bot: abilities on you" },
 	["dev.mode"] = { ru = "Режим: %s", en = "Mode: %s" },
+	-- Разведка (§6.11а)
+	["diplo.act.intel"] = { ru = "Разведка $%s (%d с)", en = "Scout $%s (%d s)" },
+	["event.intelOnYou"] = {
+		ru = "%s провела разведку против вас: ваши силы видны ей",
+		en = "%s scouted you: your forces are visible to them",
+	},
+	["event.intelDone"] = {
+		ru = "Разведка: силы %s видны %d с",
+		en = "Intel: %s forces visible for %d s",
+	},
 
 	-- Режимы (§5.1, этап 8а)
 	["mode.Ffa"] = { ru = "Каждый сам за себя", en = "Free for all" },

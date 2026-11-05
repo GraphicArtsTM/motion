@@ -275,6 +275,17 @@ function DiplomacyPanel.new(
 		end
 	end)
 	warButton.TextColor3 = Theme.Colors.Alert
+	-- Разведка (§6.11а): мощь цели видна Intel.DurationSec; цена и проверки — на сервере.
+	local intelButton = act("intel", function()
+		if selected ~= nil and playing() then
+			send("intel", { target = selected })
+		end
+	end)
+	intelButton.Text = string.format(
+		Strings.get("diplo.act.intel", lang),
+		Strings.formatInt(Config.Intel.Cost),
+		Config.Intel.DurationSec
+	)
 	local tradeButton = act("trade", function()
 		offer("trade")
 	end)
@@ -397,6 +408,9 @@ function DiplomacyPanel.new(
 
 	local function powerOf(id: number): number
 		local s = ClientState.statsOf(cs, id)
+		if s ~= nil and (s.power < 0 or s.frontPower < 0) then
+			return -1 -- скрытая мощь (§6.11а)
+		end
 		return if s ~= nil then s.power + s.frontPower else 0
 	end
 	local function approx(v: number): string
@@ -458,7 +472,10 @@ function DiplomacyPanel.new(
 					relation(id),
 					tradeTags(id),
 					muted,
-					string.format(Strings.get("diplo.power", lang), approx(powerOf(id)))
+					string.format(
+						Strings.get("diplo.power", lang),
+						if powerOf(id) < 0 then "?" else approx(powerOf(id))
+					)
 				)
 		end
 		for id, b in rows do
@@ -492,6 +509,8 @@ function DiplomacyPanel.new(
 		for _, b in { embargoButton, moneyButton, oilButton, peopleButton } do
 			b.Visible = valid
 		end
+		-- Разведывать есть смысл, только пока мощь скрыта.
+		intelButton.Visible = valid and target ~= nil and powerOf(target) < 0
 		if valid and me ~= nil and target ~= nil then
 			embargoButton.Text = Strings.get(
 				if ClientState.embargoBy(cs, me, target) then "diplo.act.unembargo" else "diplo.act.embargo",

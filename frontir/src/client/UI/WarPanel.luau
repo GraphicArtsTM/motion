@@ -308,8 +308,10 @@ function WarPanel.new(
 			title.Text =
 				string.format(Strings.get("war.mobilizing", lang), coloredName(war.a), coloredName(war.b), left)
 		end
+		-- Скрытая мощь (§6.11а): сила стороны −1 — без разведки, полоса пополам.
+		local hidden = war.powerA < 0 or war.powerB < 0
 		local total = war.powerA + war.powerB
-		local share = if total > 0 then war.powerA / total else 0.5
+		local share = if total > 0 and not hidden then war.powerA / total else 0.5
 		barA.BackgroundColor3 = colorOf(war.a)
 		barB.BackgroundColor3 = colorOf(war.b)
 		barA.Size = UDim2.fromScale(share, 1)

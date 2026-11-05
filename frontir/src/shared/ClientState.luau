@@ -648,7 +648,15 @@ end
 function ClientState.fogSources(cs: ClientState): Fog.Sources?
 	local me = cs.myNation
 	local n = if me ~= nil then cs.nations[me] else nil
-	if me == nil or n == nil or not n.alive or cs.phase ~= "Play" or not Config.Fog.Enabled or cs.fogOff then
+	if
+		me == nil
+		or n == nil
+		or not n.alive
+		or cs.phase ~= "Play"
+		or not Config.Fog.Enabled
+		or not cs.rules.fog
+		or cs.fogOff
+	then
 		return nil
 	end
 	-- Радарная вспышка Разведчика (§6.15): пока идёт — видно всё.

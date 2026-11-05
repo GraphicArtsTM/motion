@@ -16,6 +16,7 @@ export type Rules = {
 	timeLimitSec: number, -- лимит времени матча (часы матча)
 	speed: number, -- множитель скорости поверх Config.Match.Speed
 	visionMul: number, -- обзор тумана ×
+	fog: boolean, -- туман на карте (только «Мгла»; в остальных карта открыта, скрыта мощь — §6.11а)
 	hideTerritory: boolean, -- туман прячет и чужие границы (правило 7а)
 	siloFree: boolean, -- ракетная шахта без технологии
 	teams: boolean,
@@ -36,6 +37,7 @@ function Modes.rules(id: ModeId): Rules
 		timeLimitSec = match.TimeLimitSec,
 		speed = 1,
 		visionMul = 1,
+		fog = false,
 		hideTerritory = Config.Fog.HideTerritory,
 		siloFree = false,
 		teams = false,
@@ -48,6 +50,7 @@ function Modes.rules(id: ModeId): Rules
 		r.speed = cfg.BlitzSpeed
 		r.timeLimitSec = match.BlitzDurationSec
 	elseif id == "Mist" then
+		r.fog = true
 		r.visionMul = cfg.MistVisionMul
 		r.hideTerritory = true
 	elseif id == "Superweapon" then
@@ -55,6 +58,13 @@ function Modes.rules(id: ModeId): Rules
 	elseif id == "CapitalHunt" then
 		r.capitalHunt = true
 	end
+	return table.freeze(r)
+end
+
+-- Правила режима с туманом на карте (правило 7а без «Мглы»): тесты тумана, частные серверы (8в).
+function Modes.withFog(id: ModeId): Rules
+	local r = table.clone(Modes.rules(id))
+	r.fog = true
 	return table.freeze(r)
 end
 

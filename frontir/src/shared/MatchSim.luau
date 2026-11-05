@@ -100,6 +100,8 @@ export type MatchEvent =
 	| { kind: "missileLaunched", nation: number, target: number, cell: number, impactIn: number }
 	| { kind: "missileHit", nation: number, cell: number, cells: number }
 	| { kind: "missileShot", nation: number, by: number, cell: number }
+	-- Разведка (§6.11а): nation разведал target
+	| { kind: "intel", nation: number, target: number }
 	-- Генералы (§6.15, этап 7в-2): применена способность (target — держава в клетке цели, 0 — нет)
 	| { kind: "ability", nation: number, ability: string, cell: number?, target: number }
 	-- Флот (§6.12, этап 7б-1)
@@ -124,6 +126,7 @@ export type BotRngs = {
 	tech: Rng,
 	ability: Rng,
 	missile: Rng,
+	intel: Rng,
 }
 
 export type Match = {
@@ -200,6 +203,10 @@ export type Match = {
 	difficulty: Types.BotLevel?, -- уровень всех ботов, выбранный одиночным игроком
 	paused: boolean,
 	fast: boolean,
+	-- Разведка (§6.11а): кто чью мощь видит.
+	intel: { [number]: { [number]: number } }, -- разведчик → цель → до какого simTime
+	radarIntel: { [number]: { [number]: boolean } }, -- держава → державы в радиусе её радаров
+	nextRadarIntelAt: number,
 }
 
 -- Экономика державы за последний тик, в секунду (§6.8).
@@ -300,6 +307,9 @@ function MatchSim.new(map: MapData, seed: number): Match
 		difficulty = nil,
 		paused = false,
 		fast = false,
+		intel = {},
+		radarIntel = {},
+		nextRadarIntelAt = 0,
 	}
 end
 
@@ -328,6 +338,125 @@ function MatchSim.setMode(m: Match, mode: Types.ModeId)
 	m.rules = Modes.rules(mode)
 	m.speed = Config.Match.Speed * m.rules.speed
 	m.infoDirty = true
+end
+
+-- Разведка и скрытая мощь (§6.11а) ------------------------------------------------------------
+
+-- Чью военную мощь видит viewer: сам, друзья, разведанные, в радиусе радаров (своих и друзей).
+-- nil — видно всё (мощь не скрывается или идёт «Радарная вспышка»).
+function MatchSim.knownSet(m: Match, viewer: number): { [number]: boolean }?
+	if not Config.Intel.HidePower or MatchSim.revealing(m, viewer) then
+		return nil
+	end
+	local friends = Diplomacy.friends(m.diplo, viewer)
+	local out: { [number]: boolean } = table.clone(friends)
+	local spied = m.intel[viewer]
+	if spied ~= nil then
+		for target, untilTime in spied do
+			if untilTime > m.simTime then
+				out[target] = true
+			end
+		end
+	end
+	for id in friends do
+		local seen = m.radarIntel[id]
+		if seen ~= nil then
+			for target in seen do
+				out[target] = true
+			end
+		end
+	end
+	return out
+end
+
+-- Видит ли viewer военную мощь target.
+function MatchSim.knows(m: Match, viewer: number, target: number): boolean
+	local set = MatchSim.knownSet(m, viewer)
+	return set == nil or set[target] == true
+end
+
+-- Разведка: за Intel.Cost мощь цели видна DurationSec; цели — событие (уведомление).
+function MatchSim.spy(m: Match, n: Nation, target: number): (boolean, string?)
+	local t = m.nations[target]
+	if t == nil or not t.alive or target == n.id then
+		return false, "target"
+	end
+	if Diplomacy.friends(m.diplo, n.id)[target] then
+		return false, "already" -- мощь друзей и так видна
+	end
+	local cost = Config.Intel.Cost
+	if n.money < cost then
+		return false, "noMoney"
+	end
+	n.money -= cost
+	local list = m.intel[n.id]
+	if list == nil then
+		list = {}
+		m.intel[n.id] = list
+	end
+	list[target] = math.max(list[target] or 0, m.simTime) + Config.Intel.DurationSec
+	table.insert(m.events, { kind = "intel", nation = n.id, target = target })
+	return true, nil
+end
+
+-- Радар — постоянная разведка: державы, чья земля в радиусе радара (выборка клеток круга).
+local function stepRadarIntel(m: Match)
+	if m.simTime < m.nextRadarIntelAt then
+		return
+	end
+	m.nextRadarIntelAt = m.simTime + Config.Intel.RadarEverySec
+	table.clear(m.radarIntel)
+	local g = m.grid
+	local w, h = g.width, g.height
+	local r = Config.Fog.RadarVision
+	local step = Config.Intel.RadarStep
+	for _, b in MatchSim.buildingsOf(m, "Radar") do
+		if not MatchSim.isDisabled(m, b.cell) then
+			local seen = m.radarIntel[b.owner]
+			if seen == nil then
+				seen = {}
+				m.radarIntel[b.owner] = seen
+			end
+			local cx, cy = b.cell % w, b.cell // w
+			for dy = -r, r, step do
+				local y = cy + dy
+				if y >= 0 and y < h then
+					for dx = -r, r, step do
+						local x = cx + dx
+						if x >= 0 and x < w and dx * dx + dy * dy <= r * r then
+							local o = Grid.getOwner(g, y * w + x)
+							if o ~= 0 and o ~= b.owner then
+								seen[o] = true
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+end
+
+-- Бот иногда разведывает сильнейшего соседа (§6.11а): игрок получает уведомление, сам бот видит всё и так.
+local function botIntel(m: Match, n: Nation, rng: Rng)
+	local cfg = Config.Intel
+	if n.botLevel == "Novice" or n.money < cfg.Cost * cfg.BotMoneyMul or Rng.nextFloat(rng) >= cfg.BotChance then
+		return
+	end
+	local near = Grid.adjacentOwners(m.grid, n.id)
+	local best, bestPower = 0, 0
+	local friends = Diplomacy.friends(m.diplo, n.id)
+	for id in near do
+		local other = m.nations[id]
+		if other ~= nil and other.alive and not friends[id] and not MatchSim.knows(m, n.id, id) then
+			local power = Forces.total(other.home)
+			if power > bestPower then
+				best, bestPower = id, power
+			end
+		end
+	end
+	if best ~= 0 then
+		MatchSim.spy(m, n, best)
+	end
 end
 
 -- Варианты голосования по времени сервера (режим недели — по номеру недели UTC).
@@ -419,6 +548,7 @@ local function botRngsOf(m: Match, id: number): BotRngs
 			tech = Rng.stream(m.seed, 205, id),
 			ability = Rng.stream(m.seed, 206, id),
 			missile = Rng.stream(m.seed, 207, id),
+			intel = Rng.stream(m.seed, 208, id),
 		}
 		m.botRngs[id] = r
 	end
@@ -936,6 +1066,10 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 		end
 		table.insert(m.events, { kind = "breakAnnounced", nation = nationId, target = intent.target, treaty = t.kind })
 		return true, nil
+	end
+
+	if intent.kind == "intel" then
+		return MatchSim.spy(m, n, intent.target)
 	end
 
 	if intent.kind == "transfer" then
@@ -4252,6 +4386,7 @@ function MatchSim.step(m: Match, dt: number)
 	stepCouncil(m)
 
 	stepWorld(m) -- случайные события и ракеты (§6.16, §6.9)
+	stepRadarIntel(m) -- радар — постоянная разведка (§6.11а)
 	stepFleet(m, simDt)
 	stepAir(m, simDt)
 	m.lastCaptured = stepAttacks(m, simDt)
@@ -4313,6 +4448,7 @@ function MatchSim.step(m: Match, dt: number)
 			end
 			botAbility(m, n, profile, rngs.ability) -- способности генерала (§6.15)
 			botMissile(m, n, rngs.missile) -- ракетная шахта (§6.9)
+			botIntel(m, n, rngs.intel) -- разведка (§6.11а)
 		end
 	end
 	m.botThinks = thinks

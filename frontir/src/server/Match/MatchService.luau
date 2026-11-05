@@ -325,15 +325,20 @@ function MatchService.start(map: MapData)
 		for _, player in Players:GetPlayers() do
 			local viewer = viewerOf(player)
 			-- Обзор считаем один раз: по нему и фронты, и корабли (§6.11, §6.12).
-			local vision = if viewer ~= nil and Config.Fog.Enabled then MatchStats.vision(m, viewer) else nil
-			matchEvent:FireClient(player, Protocol.encodeStats(MatchStats.forViewer(m, full, viewer, vision), head))
+			local vision = if viewer ~= nil and MatchStats.fogOn(m) then MatchStats.vision(m, viewer) else nil
+			-- Скрытая мощь (§6.11а): у кого есть держава — свой набор «чью мощь видно»; зритель видит всё.
+			local id = nationOf[player]
+			local alive = id ~= nil and m.nations[id] ~= nil and m.nations[id].alive
+			local known = if alive and not devNoFog[player] then MatchSim.knownSet(m, id :: number) else nil
+			local stats = MatchStats.forViewer(m, full, viewer, vision, known)
+			matchEvent:FireClient(player, Protocol.encodeStats(stats, if known == nil then head else nil))
+			matchEvent:FireClient(player, Protocol.encodeWars(MatchStats.wars(m, known)))
 			-- Зритель и «Туман выкл» видят все корабли; груз и очередь — только свои.
 			local ships = MatchStats.ships(m, nationOf[player], vision, viewer == nil)
 			matchEvent:FireClient(player, Protocol.encodeShips(ships))
 			local air = MatchStats.air(m, nationOf[player], vision, viewer == nil)
 			matchEvent:FireClient(player, Protocol.encodeAir(air))
 		end
-		matchEvent:FireAllClients(Protocol.encodeWars(MatchStats.wars(m)))
 		for player, id in nationOf do
 			matchEvent:FireClient(player, Protocol.encodeForces(MatchStats.forcesOf(m, id)))
 		end

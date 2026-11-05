@@ -232,6 +232,12 @@ function Intents.parse(kind: any, payload: any): (Types.Intent?, string?)
 			return nil, "bad cell"
 		end
 		return { kind = "missile", cell = cell }, nil
+	elseif kind == "intel" then
+		local target = payload.target
+		if not isInt(target) or target <= 0 then
+			return nil, "bad target"
+		end
+		return { kind = "intel", target = target }, nil
 	elseif kind == "modeVote" then
 		local mode = payload.mode
 		if table.find(Types.ModeIds, mode) == nil then

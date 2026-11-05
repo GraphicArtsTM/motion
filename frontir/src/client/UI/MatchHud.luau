@@ -332,16 +332,25 @@ function MatchHud.new(
 				parts,
 				string.format(
 					Strings.get("hud.front.people", lang),
-					string.format('<font color="%s">%s</font>', gold, Strings.formatInt(a.troops))
+					string.format(
+						'<font color="%s">%s</font>',
+						gold,
+						if a.troops < 0 then "?" else Strings.formatInt(a.troops)
+					)
 				)
 			)
 		end
-		if a.power >= 1 then
+		-- Скрытая мощь (§6.11а): сила < 0 — чужая, без разведки «?».
+		if a.power >= 1 or a.power < 0 then
 			table.insert(
 				parts,
 				string.format(
 					Strings.get("hud.front.power", lang),
-					string.format('<font color="%s">%s</font>', gold, Strings.formatInt(a.power))
+					string.format(
+						'<font color="%s">%s</font>',
+						gold,
+						if a.power < 0 then "?" else Strings.formatInt(a.power)
+					)
 				)
 			)
 		end
@@ -923,6 +932,11 @@ function MatchHud.new(
 				else
 					toast(string.format(Strings.get(if e.on then "event.blockade" else "event.blockadeOff", lang), a))
 				end
+			-- Разведка (§6.11а): цели — красной строкой, разведчику — подтверждение.
+			elseif e.kind == "intel" and e.target == cs.myNation then
+				alertLine(string.format(Strings.get("event.intelOnYou", lang), a))
+			elseif e.kind == "intel" and e.nation == cs.myNation then
+				toast(string.format(Strings.get("event.intelDone", lang), b, Config.Intel.DurationSec))
 			-- Ракеты (§6.9): видят все; по вам — красной строкой.
 			elseif e.kind == "missileLaunched" then
 				if e.target == cs.myNation then
