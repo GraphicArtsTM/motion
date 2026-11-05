@@ -17,6 +17,7 @@ local Config = require(Shared:WaitForChild("Config"))
 local NationColors = require(Shared:WaitForChild("NationColors"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
+local FlagView = require(script.Parent:WaitForChild("FlagView"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
 
 type ClientState = ClientState.ClientState
@@ -108,7 +109,12 @@ function NationLabels.new(canvas: Frame, cs: ClientState, lang: Strings.Lang, ma
 			t.TextSize = Config.Render.NationLabelSize
 			-- «Предатель» (§8.1) виден всем: красное имя со знаком.
 			local traitor = ClientState.isTraitor(cs, capitalOf.id, os.clock(), ClientState.simRate(cs))
-			t.TextColor3 = if traitor then Theme.Colors.Alert elseif isMe then Theme.Colors.Gold else Theme.Colors.Text
+			local cosmetic = capitalOf.cosmetic
+			t.TextColor3 = if traitor
+				then Theme.Colors.Alert
+				elseif isMe then Theme.Colors.Gold
+				elseif cosmetic ~= nil and cosmetic.vip then Theme.color(Config.Cosmetics.VipNameColor) -- VIP (§11.4)
+				else Theme.Colors.Text
 			t.TextStrokeColor3 = Theme.Colors.Backdrop
 			t.TextStrokeTransparency = 0.2
 			-- Команда (§5.1) — номером перед именем.
@@ -117,6 +123,30 @@ function NationLabels.new(canvas: Frame, cs: ClientState, lang: Strings.Lang, ma
 				.. team
 				.. (if lang == "en" then capitalOf.nameEn else capitalOf.name)
 			t.ZIndex = 5
+			-- Косметика (§11.4): флаг слева от имени, титул под ним.
+			if cosmetic ~= nil then
+				local size = Config.Render.NationLabelSize
+				local flag = FlagView.new(t, math.floor(size * 1.5), size, 6)
+				flag.frame.AnchorPoint = Vector2.new(1, 0.5)
+				flag.frame.Position = UDim2.new(0, -4, 0.5, 0)
+				flag.set(cosmetic.flag)
+				if cosmetic.title ~= nil then
+					local title = Instance.new("TextLabel")
+					title.AnchorPoint = Vector2.new(0.5, 0)
+					title.Position = UDim2.fromScale(0.5, 1)
+					title.Size = UDim2.fromOffset(0, size)
+					title.AutomaticSize = Enum.AutomaticSize.X
+					title.BackgroundTransparency = 1
+					title.FontFace = Theme.Font
+					title.TextSize = math.max(10, size - 4)
+					title.TextColor3 = Theme.Colors.Muted
+					title.TextStrokeColor3 = Theme.Colors.Backdrop
+					title.TextStrokeTransparency = 0.3
+					title.Text = Strings.get("title." .. cosmetic.title, lang)
+					title.ZIndex = 5
+					title.Parent = t
+				end
+			end
 			t.Parent = canvas
 			text = t
 		end

@@ -30,12 +30,15 @@ local Modes = require(Shared:WaitForChild("Modes"))
 local Protocol = require(Shared:WaitForChild("Net"):WaitForChild("Protocol"))
 local RateLimiter = require(Shared:WaitForChild("RateLimiter"))
 local ServerSettings = require(Shared:WaitForChild("ServerSettings"))
+local Cosmetics = require(Shared:WaitForChild("Cosmetics"))
 local Profile = require(Shared:WaitForChild("Profile"))
+local Quests = require(Shared:WaitForChild("Quests"))
 local Shop = require(Shared:WaitForChild("Shop"))
 
 local Services = script.Parent.Parent:WaitForChild("Services")
 local ProfileStore = require(Services:WaitForChild("ProfileStore"))
 local ShopService = require(Services:WaitForChild("ShopService"))
+local Leaders = require(Services:WaitForChild("Leaders"))
 local Types = require(Shared:WaitForChild("Types"))
 
 type MapData = MapDataModule.MapData
@@ -88,6 +91,9 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 	local nationOf: { [Player]: number } = {}
 	local limiters: { [Player]: RateLimiter.RateLimiter } = {}
 
+	-- Косметика игроков (§11.4): UserId → то, что видят все. Обновляется при входе и в гардеробе.
+	local cosmeticOf: { [number]: Cosmetics.Public } = {}
+
 	local function infoFor(player: Player): ClientState.Info
 		local nations: { ClientState.NationInfo } = {}
 		for _, n in m.nations do
@@ -103,6 +109,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				commander = Commanders.of(m.commanders, n.id),
 				alive = n.alive,
 				team = m.teams[n.id],
+				cosmetic = if n.userId ~= nil then cosmeticOf[n.userId] else nil,
 				hunt = if m.rules.capitalHunt then m.huntCount[n.id] or 0 else nil,
 				huntLeft = if m.huntSince[n.id] ~= nil
 					then math.max(0, Config.Modes.CapitalHunt.HoldSec - (m.time - m.huntSince[n.id]))
@@ -227,10 +234,44 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				xp = d.seasonXp % per,
 				per = per,
 				premium = d.seasonPremium,
-				left = math.max(0, Config.Season.EndsUnix - now),
+				-- nil — сезон без срока (§11.3).
+				left = if Config.Season.EndsUnix > 0 then math.max(0, Config.Season.EndsUnix - now) else nil,
 			},
 			weekly = { offer = Shop.weeklyOffer(now), left = Shop.weekLeft(now) },
 			dailyStreak = d.dailyStreak,
+			-- Задания дня и рейтинг (§11.5).
+			quests = (function(): { { [string]: any } }
+				Quests.sync(d, Profile.dayOf(now), player.UserId)
+				local out: { { [string]: any } } = {}
+				for _, q in d.quests do
+					local row = Config.Quests.Pool[q.pool]
+					table.insert(out, {
+						kind = row.kind,
+						target = row.target,
+						progress = q.progress,
+						done = q.done,
+						medals = row.medals,
+						xp = row.xp,
+					})
+				end
+				return out
+			end)(),
+			questsBonus = d.questsBonus,
+			dayLeft = 86400 - now % 86400,
+			elo = d.elo,
+			-- Гардероб (§11.4): что открыто, что надето, флаг.
+			wardrobe = (function(): { [string]: any }
+				local owned: { [string]: boolean } = {}
+				for _, raw in Cosmetics.Kinds do
+					local kind: Cosmetics.Kind = raw :: any
+					for _, it in Cosmetics.list(kind) do
+						if Cosmetics.owns(d, kind, it.id) then
+							owned[Cosmetics.key(kind, it.id)] = true
+						end
+					end
+				end
+				return { owned = owned, equipped = d.equipped, flag = d.flag or Cosmetics.defaultFlag() }
+			end)(),
 		}
 	end
 	local function sendProfile(player: Player)
@@ -241,6 +282,11 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 	end
 	-- Перки пассов и открытые генералы игрока — в текущий матч.
 	local function applyProfile(player: Player)
+		local s0 = profiles.get(player.UserId)
+		if s0 ~= nil then
+			cosmeticOf[player.UserId] = Cosmetics.public(s0.data, shop.passes(player).Vip == true)
+			m.infoDirty = true
+		end
 		local id = nationOf[player]
 		local session = profiles.get(player.UserId)
 		if id == nil or session == nil then
@@ -301,6 +347,11 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			sendProfile(player)
 		end,
 	})
+	-- Таблицы лидеров (§11.5): всем — когда обновились.
+	local leaders = Leaders.start(function(boards: Leaders.Boards)
+		matchEvent:FireAllClients({ kind = "leaders", weekly = boards.weekly, duel = boards.duel })
+	end)
+
 	-- Итог матча в профили (§11.2): опыт, медали, жетоны за уровни. Один раз на матч.
 	local rewardedSeed = 0
 	local function giveRewards()
@@ -314,6 +365,29 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		for _, id in coWinners do
 			co[id] = true
 		end
+		local now = os.time()
+		local day = Profile.dayOf(now)
+		-- Рейтинг дуэлей (§11.5): только дуэль игроков без ботов; у стороны — средний рейтинг.
+		local duelSides: { [number]: { number } }? = nil
+		if m.rules.duel and MatchSim.humans(m) == #m.nations then
+			local sides: { [number]: { number } } = {}
+			for player, id in nationOf do
+				local session = profiles.get(player.UserId)
+				if session ~= nil then
+					local side = m.teams[id] or id
+					sides[side] = sides[side] or {}
+					table.insert(sides[side], session.data.elo)
+				end
+			end
+			duelSides = sides
+		end
+		local function avg(list: { number }): number
+			local sum = 0
+			for _, v in list do
+				sum += v
+			end
+			return sum / math.max(1, #list)
+		end
 		for player, id in nationOf do
 			local session = profiles.get(player.UserId)
 			if session ~= nil then
@@ -325,6 +399,31 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				local xp, medals =
 					Profile.applyMatch(session.data, place, MatchSim.citiesOf(m, id), won, mul, os.time())
 				rewards[player] = { xp = xp, medals = medals, levels = Profile.levelOf(session.data.xp) - levelBefore }
+				-- Задания дня (§11.5).
+				local landPercent = Grid.cellsOf(m.grid, id) / math.max(1, m.grid.capturableCount) * 100
+				local outcome =
+					{ place = place, won = won, cities = MatchSim.citiesOf(m, id), landPercent = landPercent }
+				local done, tokens = Quests.onMatch(session.data, outcome, day, player.UserId, now)
+				if #done > 0 or tokens > 0 then
+					matchEvent:FireClient(player, { kind = "quests", done = done, tokens = tokens })
+				end
+				if won then
+					leaders.addWin(player.UserId)
+				end
+				local sides = duelSides
+				if sides ~= nil then
+					local mySide = m.teams[id] or id
+					local mine, other = 0, 0
+					for side, list in sides do
+						if side == mySide then
+							mine = avg(list)
+						else
+							other = avg(list)
+						end
+					end
+					session.data.elo += Quests.eloDelta(mine, other, if won then 1 else 0)
+					leaders.setElo(player.UserId, session.data.elo)
+				end
 				task.spawn(profiles.save, player.UserId)
 				sendProfile(player)
 			end
@@ -368,6 +467,8 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 					matchEvent:FireClient(player, { kind = "daily", streak = streak, reward = reward })
 				end
 				sendProfile(player)
+				local boards = leaders.current()
+				matchEvent:FireClient(player, { kind = "leaders", weekly = boards.weekly, duel = boards.duel })
 			end
 		end)
 	end
@@ -387,6 +488,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		rewards[player] = nil
 		shop.forget(player)
 		task.spawn(profiles.release, player.UserId)
+		cosmeticOf[player.UserId] = nil
 	end)
 
 	intentEvent.OnServerEvent:Connect(function(player: Player, kind: any, payload: any)
@@ -430,6 +532,32 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			if not ok then
 				matchEvent:FireClient(player, { kind = "rejected", reason = why or "?", intent = "boost" })
 			end
+			return
+		end
+		-- Гардероб (§11.4): купить за медали, надеть, флаг из готовых частей.
+		if kind == "buyCosmetic" or kind == "equip" or kind == "flag" then
+			local session = profiles.get(player.UserId)
+			if session == nil or type(payload) ~= "table" then
+				return
+			end
+			local ok, why = false, "target" :: string?
+			local cosKind = payload.kind
+			if kind == "flag" then
+				ok, why = Cosmetics.setFlag(session.data, payload.flag)
+			elseif table.find(Cosmetics.Kinds, cosKind) ~= nil then
+				local itemId = payload.id
+				if kind == "buyCosmetic" and type(itemId) == "string" then
+					ok, why = Cosmetics.buy(session.data, cosKind, itemId)
+				elseif kind == "equip" and (itemId == nil or type(itemId) == "string") then
+					ok, why = Cosmetics.equip(session.data, cosKind, itemId)
+				end
+			end
+			if not ok then
+				matchEvent:FireClient(player, { kind = "rejected", reason = why or "?", intent = kind })
+				return
+			end
+			applyProfile(player)
+			sendProfile(player)
 			return
 		end
 		-- Ящик снабжения (§11.3): открывает сервер своим генератором случайных чисел.
@@ -557,13 +685,15 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 					m.forcedMode = devMode
 				end
 				matchEvent:FireClient(player, { kind = "dev", mode = devMode })
-			elseif action == "tokens" or action == "xp" then
+			elseif action == "tokens" or action == "xp" or action == "medals" then
 				-- Профиль (§11.2): жетоны штаба и опыт для проверки магазина и генералов по уровням.
 				local session = profiles.get(player.UserId)
 				if session == nil then
 					ok, reason = false, "target"
 				else
-					if action == "tokens" then
+					if action == "medals" then
+						session.data.medals += Config.Dev.GrantMedals -- гардероб (§11.4)
+					elseif action == "tokens" then
 						session.data.tokens += Config.Dev.GrantTokens
 					else
 						Profile.addXp(session.data, Config.Dev.GrantXp)

@@ -11,6 +11,7 @@
 ]]
 
 local Config = require("./Config")
+local Cosmetics = require("./Cosmetics")
 local NationColors = require("./NationColors")
 local Palette = require("./Palette")
 
@@ -19,6 +20,8 @@ export type Extra = {
 	fogged: boolean?, -- вне обзора
 	rebel: boolean?, -- ничья земля провинции повстанцев
 	stability: number?, -- своя клетка в режиме «Стабильность»: стабильность её провинции 0..100
+	pattern: string?, -- узор территории владельца (косметика §11.4)
+	flashColor: string?, -- цвет вспышки захвата владельца (палитра; nil — белый)
 }
 
 local TerritoryPaint = {}
@@ -118,15 +121,28 @@ function TerritoryPaint.cellColor(
 		r = r + (c.r - r) * t
 		g = g + (c.g - g) * t
 		b = b + (c.b - b) * t
+		-- Узор территории (§11.4): часть внутренних клеток — к цвету границы.
+		local pattern = if extra ~= nil then extra.pattern else nil
+		if pattern ~= nil and Cosmetics.patternHit(pattern, i % width, i // width) then
+			local bc = NationColors.Borders[ci]
+			local k = Config.Cosmetics.PatternMix
+			r, g, b = r + (bc.r - r) * k, g + (bc.g - g) * k, b + (bc.b - b) * k
+		end
 	end
 	if extra ~= nil and extra.fogged then
 		return TerritoryPaint.fog(r, g, b)
 	end
 	if flash > 0 then
 		local f = math.clamp(flash, 0, 1) * Config.Render.CaptureFlashStrength
-		r = r + (255 - r) * f
-		g = g + (255 - g) * f
-		b = b + (255 - b) * f
+		local name = if extra ~= nil then extra.flashColor else nil
+		local tr, tg, tb = 255, 255, 255
+		if name ~= nil then
+			local c = Palette.rgb(name) -- вспышка захвата своего цвета (§11.4)
+			tr, tg, tb = c.r, c.g, c.b
+		end
+		r = r + (tr - r) * f
+		g = g + (tg - g) * f
+		b = b + (tb - b) * f
 	end
 	return math.floor(r + 0.5), math.floor(g + 0.5), math.floor(b + 0.5)
 end

@@ -383,14 +383,23 @@ function ShopPanel.new(
 		end
 		-- Пропуск и ящики.
 		local season = p.season
-		seasonLine.Text = string.format(
-			Strings.get("shop.seasonLine", lang),
-			season.tier,
-			Config.Season.Tiers,
-			season.xp,
-			season.per,
-			daysHours(season.left, lang)
-		)
+		local left = season.left
+		seasonLine.Text = if left ~= nil
+			then string.format(
+				Strings.get("shop.seasonLine", lang),
+				season.tier,
+				Config.Season.Tiers,
+				season.xp,
+				season.per,
+				daysHours(left, lang)
+			)
+			else string.format(
+				Strings.get("shop.seasonLineOpen", lang),
+				season.tier,
+				Config.Season.Tiers,
+				season.xp,
+				season.per
+			)
 		seasonBuy.Text = if season.premium
 			then Strings.get("shop.owned", lang)
 			else string.format(Strings.get("shop.robux", lang), Config.Shop.Packs.SeasonPass.price)

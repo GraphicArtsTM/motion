@@ -31,6 +31,15 @@ export type Data = {
 	dailyStreak: number,
 	firstWinDay: number,
 	weeklyWeek: number, -- неделя, когда куплено предложение недели (−1 — нет)
+	-- Этап 9в (§11.4): косметика.
+	cosmetics: { [string]: boolean }, -- купленное ("pattern:Stripes")
+	equipped: { [string]: string }, -- pattern / capture / title → id
+	flag: { bg: string, layout: string, layoutColor: string, emblem: string, emblemColor: string }?,
+	-- Этап 9г (§11.5): задания дня и рейтинг дуэлей.
+	questDay: number,
+	quests: { { pool: number, progress: number, done: boolean } },
+	questsBonus: boolean, -- жетон за все три уже выдан
+	elo: number,
 }
 
 -- Награда (пропуск, ящик, ежедневная, набор).
@@ -60,6 +69,13 @@ function Profile.new(): Data
 		dailyStreak = 0,
 		firstWinDay = 0,
 		weeklyWeek = -1,
+		cosmetics = {},
+		equipped = {},
+		flag = nil,
+		questDay = -1,
+		quests = {},
+		questsBonus = false,
+		elo = Config.Elo.Start,
 	}
 end
 
@@ -111,6 +127,47 @@ function Profile.migrate(raw: any): Data
 	d.dailyStreak = num(raw.dailyStreak)
 	d.firstWinDay = num(raw.firstWinDay)
 	d.weeklyWeek = if type(raw.weeklyWeek) == "number" then raw.weeklyWeek else -1
+	if type(raw.cosmetics) == "table" then
+		for key, v in raw.cosmetics do
+			if type(key) == "string" and v == true then
+				d.cosmetics[key] = true
+			end
+		end
+	end
+	if type(raw.equipped) == "table" then
+		for _, kind in { "pattern", "capture", "title" } do
+			if type(raw.equipped[kind]) == "string" then
+				d.equipped[kind] = raw.equipped[kind]
+			end
+		end
+	end
+	d.questDay = if type(raw.questDay) == "number" then raw.questDay else -1
+	d.questsBonus = raw.questsBonus == true
+	if type(raw.quests) == "table" then
+		for _, q in raw.quests do
+			if type(q) == "table" and type(q.pool) == "number" and Config.Quests.Pool[q.pool] ~= nil then
+				table.insert(d.quests, { pool = q.pool, progress = num(q.progress), done = q.done == true })
+			end
+		end
+	end
+	d.elo = if type(raw.elo) == "number" and raw.elo == raw.elo then math.floor(raw.elo) else Config.Elo.Start
+	local f = raw.flag
+	if
+		type(f) == "table"
+		and type(f.bg) == "string"
+		and type(f.layout) == "string"
+		and type(f.layoutColor) == "string"
+		and type(f.emblem) == "string"
+		and type(f.emblemColor) == "string"
+	then
+		d.flag = {
+			bg = f.bg,
+			layout = f.layout,
+			layoutColor = f.layoutColor,
+			emblem = f.emblem,
+			emblemColor = f.emblemColor,
+		}
+	end
 	Profile.syncSeason(d)
 	return d
 end
@@ -193,7 +250,8 @@ end
 -- Опыт в пропуск (после конца сезона — нет).
 function Profile.addSeasonXp(d: Data, xp: number, now: number): { Reward }
 	Profile.syncSeason(d)
-	if now >= Config.Season.EndsUnix then
+	local ends = Config.Season.EndsUnix
+	if ends > 0 and now >= ends then
 		return {}
 	end
 	d.seasonXp += math.max(0, math.floor(xp))

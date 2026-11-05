@@ -153,10 +153,69 @@ Config.Shop = {
 	} :: { { stock: { [string]: number }, crates: number, tokens: number } },
 }
 
+-- §11.4 Косметика и флаг (этап 9в): только вид, за медали, уровень или пропуск. Порядок — как в гардеробе.
+Config.Cosmetics = {
+	PatternMix = 0.28, -- узор: доля цвета границы державы на внутренних клетках
+	Patterns = {
+		{ id = "Stripes", price = 800 },
+		{ id = "Checker", price = 800 },
+		{ id = "Dots", price = 600 },
+		{ id = "Grid", price = 1000 },
+		{ id = "Waves", price = 1500 },
+	},
+	Captures = { -- цвет вспышки захвата (имена — палитра)
+		{ id = "Gold", price = 500 },
+		{ id = "Sky", price = 500 },
+		{ id = "Red", price = 700 },
+		{ id = "Lime", price = 700 },
+		{ id = "Violet", price = 900 },
+	},
+	Titles = { -- price — за медали; level — за уровень; seasonTier — премиум-пропуск
+		{ id = "Strategist", price = 300 },
+		{ id = "Diplomat", price = 300 },
+		{ id = "Seawolf", price = 400 },
+		{ id = "Veteran", level = 10 },
+		{ id = "Conqueror", level = 20 },
+		{ id = "Legend", seasonTier = 30 },
+	} :: { { id: string, price: number?, level: number?, seasonTier: number? } },
+	Flag = {
+		Colors = { "Red", "Gold", "White", "Sky", "Forest", "Ink", "Violet", "Orange", "Teal", "Rose", "Sea", "Lime" },
+		Layouts = { "Plain", "HStripe", "VStripe", "Cross", "Diagonal", "Border" },
+		Emblems = { "None", "Circle", "Diamond", "Square", "Ring", "Cross" },
+		FreeParts = 2, -- первые столько раскладок и эмблем — бесплатно
+		PartPrice = 400, -- остальные — за медали
+	},
+	VipNameColor = "Gold",
+}
+
+-- §11.5 Ежедневные задания (этап 9г): PerDay из пула, награда за каждое и жетон за все за день.
+Config.Quests = {
+	PerDay = 3,
+	AllDoneTokens = 1,
+	Pool = {
+		{ kind = "play", target = 2, medals = 120, xp = 150 },
+		{ kind = "play", target = 4, medals = 220, xp = 300 },
+		{ kind = "win", target = 1, medals = 300, xp = 350 },
+		{ kind = "top3", target = 2, medals = 200, xp = 250 },
+		{ kind = "cities", target = 8, medals = 180, xp = 200 }, -- городов к концу матча
+		{ kind = "land", target = 15, medals = 220, xp = 250 }, -- % суши к концу матча
+	},
+}
+
+-- §11.5 Таблицы лидеров (OrderedDataStore) и рейтинг дуэлей.
+Config.Leaders = {
+	RefreshSec = 60,
+	Top = 10,
+	WeeklyStore = "FrontirWeeklyWins_", -- + номер недели UTC
+	DuelStore = "FrontirDuelElo",
+}
+Config.Elo = { Start = 1000, K = 32 }
+
 -- §11.3 Боевой пропуск сезона (этап 9б): опыт за матчи → ступени; бесплатная и премиум-дорожки (Season.reward).
 Config.Season = {
 	Id = 1,
-	EndsUnix = 1799020800, -- 2027-01-04 00:00 UTC (понедельник) — конец сезона 1
+	-- Конец сезона (unix UTC); 0 — без срока (решение геймдизайнера: сезон 1 без даты окончания).
+	EndsUnix = 0,
 	Tiers = 30,
 	XpPerTier = 400,
 }
@@ -480,6 +539,7 @@ Config.Dev = {
 	GrantOil = 2000,
 	GrantTokens = 3, -- «+3 жетона» (этап 9а)
 	GrantXp = 2000, -- «+опыт» (этап 9а)
+	GrantMedals = 5000, -- «+медали» (этап 9в)
 	FastSpeed = 5, -- «Время ×5»
 	EndLeadSec = 5, -- «К концу матча»: до лимита времени остаётся столько секунд
 	StabilityLow = 10, -- «Стабильность 10»: свои провинции сразу на это значение

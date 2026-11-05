@@ -69,6 +69,11 @@ function TerritoryLayer.new(
 		local p = MapDataModule.getProvince(map, i)
 		extra.fogged = not Fog.isVisible(cs.fog, i)
 		extra.rebel = owner == 0 and p ~= 0 and cs.rebelSet[p] == true
+		-- Косметика владельца (§11.4): узор и цвет вспышки захвата.
+		local info = if owner ~= 0 then cs.nations[owner] else nil
+		local cosmetic = if info ~= nil then info.cosmetic else nil
+		extra.pattern = if cosmetic ~= nil then cosmetic.pattern else nil
+		extra.flashColor = if cosmetic ~= nil then cosmetic.capture else nil
 		extra.stability = if stabilityOn
 				and owner ~= 0
 				and owner == cs.myNation

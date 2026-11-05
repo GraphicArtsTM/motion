@@ -33,7 +33,8 @@ export type Handlers = {
 	onAir: () -> (), -- самолёты (§6.13)
 	onDev: ((msg: any) -> ())?, -- ответ панели разработчика (только Studio)
 	onProfile: (() -> ())?, -- профиль игрока (§11.2)
-	onShopEvent: ((msg: any) -> ())?, -- ежедневная награда, открытый ящик (§11.3)
+	onShopEvent: ((msg: any) -> ())?, -- ежедневная награда, открытый ящик (§11.3), задания (§11.5)
+	onLeaders: (() -> ())?, -- таблицы лидеров (§11.5)
 	onEvents: (events: { any }) -> (),
 	onRejected: (reason: string) -> (),
 }
@@ -121,7 +122,14 @@ function MatchClient.connect(cs: ClientState, handlers: Handlers, mapId: string?
 				if handlers.onCommander ~= nil then
 					handlers.onCommander()
 				end
-			elseif (msg.kind == "daily" or msg.kind == "crate") and handlers.onShopEvent ~= nil then
+			elseif msg.kind == "leaders" then
+				cs.leaders = { weekly = msg.weekly or {}, duel = msg.duel or {} }
+				if handlers.onLeaders ~= nil then
+					handlers.onLeaders()
+				end
+			elseif
+				(msg.kind == "daily" or msg.kind == "crate" or msg.kind == "quests") and handlers.onShopEvent ~= nil
+			then
 				handlers.onShopEvent(msg)
 			elseif msg.kind == "profile" then
 				cs.profile = msg :: ClientState.ProfileInfo

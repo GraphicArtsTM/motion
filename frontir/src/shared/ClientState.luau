@@ -8,6 +8,7 @@
 
 local Config = require("./Config")
 local Fog = require("./Fog")
+local Cosmetics = require("./Cosmetics")
 local Modes = require("./Modes")
 local ServerSettings = require("./ServerSettings")
 local Protocol = require("./Net/Protocol")
@@ -27,6 +28,7 @@ export type NationInfo = {
 	team: number?, -- команда («Команды», §5.1)
 	hunt: number?, -- исходных столиц врагов держит («Охота на столицы»)
 	huntLeft: number?, -- секунд до победы охотой (держит нужное число)
+	cosmetic: Cosmetics.Public?, -- косметика и флаг игрока (§11.4); у ботов — nil
 }
 
 -- Режим матча (§5.1, этап 8а): голосование в лобби, против ботов, пауза и ×2.
@@ -86,10 +88,20 @@ export type ProfileInfo = {
 	-- Этап 9б (§11.3)
 	crates: number,
 	pityLeft: number, -- через сколько ящиков гарантированный джекпот
-	season: { tier: number, xp: number, per: number, premium: boolean, left: number },
+	season: { tier: number, xp: number, per: number, premium: boolean, left: number? }, -- left nil — без срока
 	weekly: { offer: { stock: { [string]: number }, crates: number, tokens: number }, left: number },
 	dailyStreak: number,
+	wardrobe: { owned: { [string]: boolean }, equipped: { [string]: string }, flag: Cosmetics.Flag }, -- §11.4
+	-- §11.5: задания дня, жетон за все, секунд до новых заданий, рейтинг дуэлей.
+	quests: { { kind: string, target: number, progress: number, done: boolean, medals: number, xp: number } },
+	questsBonus: boolean,
+	dayLeft: number,
+	elo: number,
 }
+
+-- Таблицы лидеров (§11.5).
+export type LeaderEntry = { userId: number, name: string, value: number }
+export type LeadersInfo = { weekly: { LeaderEntry }, duel: { LeaderEntry } }
 
 export type MapVoteInfo = { options: { string }, counts: { number }, myVote: string? }
 
@@ -203,6 +215,7 @@ export type ClientState = {
 	floodAt: number, -- когда пришла ступень (часы клиента)
 	server: ServerInfo?, -- частный сервер (§5.4): настройки и владелец ли я
 	profile: ProfileInfo?, -- профиль (§11.2)
+	leaders: LeadersInfo?, -- таблицы лидеров (§11.5)
 	rules: Modes.Rules,
 	speed: number, -- темп игрового времени: Match.Speed × режим («Блиц» — ×2)
 }
@@ -291,6 +304,7 @@ function ClientState.new(width: number, height: number): ClientState
 		floodAt = 0,
 		server = nil,
 		profile = nil,
+		leaders = nil,
 		rules = Modes.rules("Ffa"),
 		speed = Config.Match.Speed,
 		stability = ClientState.emptyStability(),
