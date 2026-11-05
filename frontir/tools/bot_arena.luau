@@ -1,9 +1,13 @@
 --!strict
 --[[
-	Арена ботов (GDD §9.1, этап 5): держава-«игрок» (Обычный бот, личность Флотоводец без флота и авиации — без перекосов) против
-	трёх ботов одного уровня на реальной карте. Матч до победы или лимита времени, несколько сидов.
-	Печатает место и долю суши «игрока» против Новичков, Обычных и Генералов.
-	Запуск из frontir/:  lune run tools/bot_arena [карта=Europe] [сидов=4] [уровни=Novice,Normal,General] [соперников=3]
+	Арена ботов (GDD §9.1): держава-«игрок» (Обычный бот, личность Флотоводец — с флотом и авиацией) против
+	трёх ботов одного уровня на реальной карте. Матч до победы или лимита времени, по умолчанию 20 сидов.
+	Печатает место и долю суши «игрока» и проверяет пороги Config.Bots.Arena*: против Новичков «игрок» первый
+	не реже ArenaNoviceFirstShare партий, против Генералов его среднее место хуже ArenaGeneralBestPlace (сложно)
+	и не хуже ArenaGeneralWorstPlace (не безнадёжно).
+	У каждой системы и каждого бота свой поток случайных чисел (MatchSim), поэтому решения «игрока» не меняют
+	ход боёв и решений остальных ботов.
+	Запуск из frontir/:  lune run tools/bot_arena [карта=Europe] [сидов=20] [уровни=Novice,Normal,General] [соперников=3]
 ]]
 
 local process = require("@lune/process")
@@ -15,7 +19,7 @@ local MatchSim = require("../src/shared/MatchSim")
 local Types = require("../src/shared/Types")
 
 local mapName = process.args[1] or "Europe"
-local seeds = tonumber(process.args[2]) or 4
+local seeds = tonumber(process.args[2]) or 20
 local levelsArg = process.args[3] or "Novice,Normal,General"
 local rivals = tonumber(process.args[4]) or 3
 
@@ -35,13 +39,6 @@ local function play(level: any, seed: number): Outcome
 	for _, n in m.nations do
 		if n.id == 1 then
 			MatchSim.setBot(m, 1, "Normal", "Admiral")
-			-- С этапа 7б-1 Флотоводец строит флот, с 7б-2 — немного авиации; «игрок» арены — без них, как раньше,
-			-- чтобы замеры уровней оставались сравнимыми.
-			local profile = m.botProfiles[1]
-			local personality = table.clone(profile.personality)
-			personality.navy = 0
-			personality.air = 0
-			m.botProfiles[1] = { level = profile.level, personality = personality }
 		else
 			MatchSim.setBot(m, n.id, level)
 		end
@@ -108,5 +105,30 @@ for level in string.gmatch(levelsArg, "[^,]+") do
 	)
 	for _, line in lines do
 		print(line)
+	end
+	-- Пороги (Config.Bots): Новички — лёгкие, Генералы — тяжёлые.
+	local cfg = Config.Bots
+	if lvl == "Novice" then
+		local share = wins / seeds
+		print(
+			string.format(
+				"  ПОРОГ Новички: первый в %.0f%% партий (нужно ≥ %.0f%%) — %s",
+				share * 100,
+				cfg.ArenaNoviceFirstShare * 100,
+				if share >= cfg.ArenaNoviceFirstShare then "выполнен" else "НЕ ВЫПОЛНЕН"
+			)
+		)
+	elseif lvl == "General" then
+		local avg = places / seeds
+		local ok = avg > cfg.ArenaGeneralBestPlace and avg <= cfg.ArenaGeneralWorstPlace
+		print(
+			string.format(
+				"  ПОРОГ Генералы: среднее место %.2f (нужно хуже %.1f и не хуже %.1f) — %s",
+				avg,
+				cfg.ArenaGeneralBestPlace,
+				cfg.ArenaGeneralWorstPlace,
+				if ok then "выполнен" else "НЕ ВЫПОЛНЕН"
+			)
+		)
 	end
 end

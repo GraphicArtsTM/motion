@@ -332,6 +332,7 @@ client = MatchClient.connect(cs, {
 		hud.onEvents(events)
 		wars.onEvents(events)
 		pings.onEvents(events)
+		airLayer.onEvents(events) -- вспышки бомб и сбитые самолёты
 	end,
 	onDev = function(msg: any)
 		if type(msg.fog) == "boolean" then

@@ -293,3 +293,41 @@ T.describe("Автостарт на крупной суше", function()
 		end
 	end)
 end)
+
+T.describe("Потоки случайных чисел", function()
+	T.it(
+		"решения одного бота не сдвигают случайные числа остальных (§12)",
+		function()
+			local function run(navy: number, air: number): { [number]: number }
+				local m = MatchSim.new(Fixtures.pangea, 31)
+				m.targetNations = 8
+				MatchSim.startPick(m)
+				while m.phase ~= "Play" do
+					MatchSim.step(m, DT)
+				end
+				m.victory = false
+				local profile = m.botProfiles[1]
+				local personality = table.clone(profile.personality)
+				personality.navy, personality.air = navy, air
+				m.botProfiles[1] = { level = profile.level, personality = personality }
+				-- Сколько раз подумал каждый бот к 60 с: зависит только от его потока «раздумий».
+				local thinks: { [number]: number } = {}
+				local last: { [number]: number } = {}
+				for _ = 1, 60 * Config.Sim.TickRate do
+					MatchSim.step(m, DT)
+					for id, due in m.botNextThink do
+						if last[id] ~= due then
+							thinks[id] = (thinks[id] or 0) + 1
+							last[id] = due
+						end
+					end
+				end
+				return thinks
+			end
+			local a, b = run(0, 0), run(1, 1)
+			for id = 2, 8 do
+				T.expect(a[id]).toBe(b[id])
+			end
+		end
+	)
+end)

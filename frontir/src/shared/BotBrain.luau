@@ -110,6 +110,8 @@ export type AirView = {
 	idleBomber: boolean, -- есть бомбардировщик на аэродроме
 	raidTarget: (() -> number?)?, -- точка на линии фронта с врагом в радиусе авиации
 	bombed: boolean, -- нас недавно бомбили (нужна батарея ПВО)
+	bombedCell: number?, -- где бомбили в последний раз (в радиусе нашей авиации)
+	coverFighter: number?, -- наш истребитель, который прикрывает другое место (можно перенацелить)
 }
 
 -- Флот бота (§6.12): что есть и что можно сделать — подбирает MatchSim.
@@ -410,6 +412,19 @@ local function airDecision(view: BotView, p: Profile, rng: Rng): Types.Intent?
 	if air == nil or level.randomTarget then
 		return nil
 	end
+	-- Генерал под бомбами (§6.13): истребитель прикрывает место налёта, а если истребителей мало — нанимает их.
+	if level.smartTarget and air.bombed then
+		local bombedCell, fighter = air.bombedCell, air.coverFighter
+		if bombedCell ~= nil and fighter ~= nil then
+			return { kind = "cover", plane = fighter, cell = bombedCell }
+		end
+		if air.airfield ~= nil and air.fighters < Config.Air.BotFightersWhenBombed then
+			local stats = (Config.Units :: any).Fighter
+			if view.money >= stats.cost and view.oil >= stats.oil then
+				return { kind = "plane", plane = "Fighter", airfield = air.airfield }
+			end
+		end
+	end
 	local interest = math.max(personality.air, if level.smartTarget then 0.6 else 0)
 	if interest <= 0 or Rng.nextFloat(rng) >= Config.Air.BotRaidChance * interest then
 		return nil
@@ -640,7 +655,11 @@ local function diplomacy(view: BotView, p: Profile, rng: Rng, memory: Memory?, n
 end
 BotBrain.diplomacy = diplomacy
 
-function BotBrain.decide(view: BotView, rng: Rng, profile: Profile?, memory: Memory?): Types.Intent?
+-- Отдельные потоки случайных чисел бота для флота, авиации и дипломатии (§12): новые решения в этих системах
+-- не сдвигают числа главных решений. Без них всё берётся из rng (тесты).
+export type Streams = { navy: Rng?, air: Rng?, diplo: Rng? }
+
+function BotBrain.decide(view: BotView, rng: Rng, profile: Profile?, memory: Memory?, streams: Streams?): Types.Intent?
 	local p = profile or BotBrain.profile(nil, nil)
 	local now = view.time or 0
 	local level, personality = p.level, p.personality
@@ -678,11 +697,11 @@ function BotBrain.decide(view: BotView, rng: Rng, profile: Profile?, memory: Mem
 		end
 	end
 
-	local navalIntent = navyDecision(view, p, rng)
+	local navalIntent = navyDecision(view, p, if streams ~= nil and streams.navy ~= nil then streams.navy else rng)
 	if navalIntent ~= nil then
 		return navalIntent
 	end
-	local airIntent = airDecision(view, p, rng)
+	local airIntent = airDecision(view, p, if streams ~= nil and streams.air ~= nil then streams.air else rng)
 	if airIntent ~= nil then
 		return airIntent
 	end
@@ -747,7 +766,8 @@ function BotBrain.decide(view: BotView, rng: Rng, profile: Profile?, memory: Mem
 		end
 	end
 
-	local diplo = diplomacy(view, p, rng, memory, now, send)
+	local diplo =
+		diplomacy(view, p, if streams ~= nil and streams.diplo ~= nil then streams.diplo else rng, memory, now, send)
 	if diplo ~= nil then
 		return diplo
 	end

@@ -23,6 +23,12 @@ function Rng.new(seed: number): Rng
 	return { state = s }
 end
 
+-- Отдельный поток для системы или державы (§12): числа одной системы не сдвигают другую.
+-- (seed, a, b) — сид матча и любые два числа (номер системы, держава, цель).
+function Rng.stream(seed: number, a: number, b: number?): Rng
+	return Rng.new(Bits.hash2(a, b or 0, seed))
+end
+
 -- Следующее число в [0, 2^32).
 function Rng.nextU32(rng: Rng): number
 	local x = rng.state
