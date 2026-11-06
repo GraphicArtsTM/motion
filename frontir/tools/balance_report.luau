@@ -1,6 +1,6 @@
 --!strict
 --[[
-	Отчёт для правок баланса (этап 10в): lune run tools/balance_report [партий=10] [карта=Europe] [держав=12]
+	Отчёт для правок баланса (этап 10в): lune run tools/balance_report [партий=10] [карта=Europe] [держав=12] [база сидов=5000]
 	Пока живой аналитики нет, «логи» — полные партии ботов (сиды 5000 + k·31): длина матча, причины победы, победы
 	по генералам, уровням и личностям (доля побед к доле в партиях), способности, события, ракеты, наёмники.
 ]]
@@ -18,6 +18,7 @@ local Types = require("../src/shared/Types")
 local games = tonumber(process.args[1]) or 10
 local mapName = process.args[2] or "Europe"
 local nations = tonumber(process.args[3]) or 12
+local seedBase = tonumber(process.args[4]) or 5000 -- новые сиды — новая выборка (§15д ч.3)
 local map = MapFormat.fromModule((require :: any)("../maps/" .. mapName) :: MapFormat.MapModule)
 local dt = 1 / Config.Sim.TickRate
 
@@ -57,7 +58,7 @@ end
 
 local t0 = os.clock()
 for k = 1, games do
-	local seed = 5000 + k * 31
+	local seed = seedBase + k * 31
 	local m = MatchSim.new(map, seed)
 	m.targetNations = nations
 	MatchSim.startPick(m)

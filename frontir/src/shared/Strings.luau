@@ -499,20 +499,102 @@ local TABLE: { [string]: Entry } = {
 		ru = "1–9 — выбрать · Shift+клик — ещё одно · Esc — отмена",
 		en = "1–9 pick · Shift+click — one more · Esc cancel",
 	},
-	["build.pickCity"] = { ru = "%s: нажмите на свой город", en = "%s: tap your city" },
-	["building.City"] = { ru = "Город +1 уровень", en = "City +1 level" },
-	["building.City.hint"] = { ru = "доход и максимум людей", en = "income and max people" },
+	["build.pickCity"] = {
+		ru = "%s: свой город — улучшить, своя земля — основать новый",
+		en = "%s: your city — upgrade, your land — found a new one",
+	},
+	["building.City"] = { ru = "Город", en = "City" },
+	["building.City.hint"] = {
+		ru = "основать новый или улучшить свой (до ур. 5)",
+		en = "found a new one or upgrade yours (up to lv 5)",
+	},
+	-- Подсказки «что делать дальше» (§15д ч.5)
+	["hint.expand"] = {
+		ru = "Расширяйтесь: нажмите на ничью землю рядом. Ползунок «Атака» — сколько людей идёт.",
+		en = "Expand: tap neutral land nearby. The Attack slider sets how many people go.",
+	},
+	["hint.barracks"] = {
+		ru = "Постройте Казармы (B → 2): больше линий найма — войска быстрее.",
+		en = "Build Barracks (B → 2): more hiring lines — troops faster.",
+	},
+	["hint.factory"] = {
+		ru = "Постройте Завод (B → 3): +$15 в секунду. Рядом с городом — ещё больше.",
+		en = "Build a Factory (B → 3): +$15 per second. Next to a city — even more.",
+	},
+	["hint.hire"] = {
+		ru = "Нанимайте войска: Z — пехота. Без войск страну не взять.",
+		en = "Hire troops: Z — infantry. You can't take a country without troops.",
+	},
+	["hint.city"] = {
+		ru = "Улучшите город (B → 1, нажмите на свой город): доход, люди и линия найма.",
+		en = "Upgrade a city (B → 1, tap your city): income, people and a hiring line.",
+	},
+	["hint.tanks"] = {
+		ru = "Идёт война: улучшите Казармы до ур. 2 — откроются танки и пушки.",
+		en = "You're at war: upgrade Barracks to lv 2 — unlocks tanks and guns.",
+	},
+	["hint.defense"] = {
+		ru = "Вас бомбят: батарея ПВО рядом с целями ловит налёты и ракеты.",
+		en = "You're being bombed: an AA battery near targets stops raids and missiles.",
+	},
+	["hint.stability"] = {
+		ru = "Низкая стабильность — восстание! Укрепление или улучшение города в провинции (N — карта).",
+		en = "Low stability — revolt! A fort or city upgrade in the province (N — map).",
+	},
+	["hint.war"] = {
+		ru = "Войска готовы: нажмите на землю соседа — объявите войну и наступайте.",
+		en = "Troops are ready: tap a neighbour's land — declare war and attack.",
+	},
+	["hint.close"] = { ru = "Понятно", en = "Got it" },
+	["res.army"] = { ru = "войска", en = "army" },
+	["res.land"] = { ru = "суша", en = "land" },
+	["res.perSec"] = { ru = "/с", en = "/s" },
+	["build.found"] = { ru = "Основать город «%s»  $%s", en = "Found the city of %s  $%s" },
+	["reject.cityTooClose"] = {
+		ru = "Слишком близко к другому городу",
+		en = "Too close to another city",
+	},
+	["event.cityFounded"] = { ru = "%s основала город %s", en = "%s founded the city of %s" },
 	["building.OilRig"] = { ru = "Нефтяная вышка", en = "Oil rig" },
 	["building.OilRig.hint"] = { ru = "только на нефтяном поле", en = "oil fields only" },
 	["building.Factory"] = { ru = "Завод", en = "Factory" },
 	["building.Factory.hint"] = {
-		ru = "танки, пушки, ПВО; найм быстрее",
-		en = "tanks, guns, AA; faster hiring",
+		ru = "деньги: +$15/с за уровень",
+		en = "money: +$15/s per level",
 	},
+	-- Экономика 2.0 (§15д)
+	["building.Barracks"] = { ru = "Казармы", en = "Barracks" },
+	["building.Barracks.hint"] = {
+		ru = "линия найма; ур. 2 — танки и пушки, ур. 3 — ПВО",
+		en = "hiring line; lv 2 — tanks, guns; lv 3 — AA",
+	},
+	["building.Housing"] = { ru = "Жилой квартал", en = "Housing" },
+	["building.Housing.hint"] = { ru = "+500 людей за уровень", en = "+500 people per level" },
+	["building.Market.hint"] = { ru = "+5% дохода", en = "+5% income" },
+	["build.upgrade"] = { ru = "Улучшить: %s ур. %d  $%s", en = "Upgrade: %s lv %d  $%s" },
+	["build.levelOf"] = { ru = "%s · ур. %d из %d", en = "%s · lv %d of %d" },
+	["build.district"] = { ru = "Район города: +%d%%", en = "City district: +%d%%" },
+	["build.upkeep"] = { ru = "Содержание: $%s/с", en = "Upkeep: $%s/s" },
+	["build.demolish"] = { ru = "Снести (+$%s)", en = "Demolish (+$%s)" },
+	["build.upgradeButton"] = { ru = "Улучшить ($%s)", en = "Upgrade ($%s)" },
+	["build.maxed"] = { ru = "Максимальный уровень", en = "Top level" },
+	["build.close"] = { ru = "Закрыть", en = "Close" },
+	["reject.recentlyHit"] = {
+		ru = "По зданию недавно ударили",
+		en = "The building was hit recently",
+	},
+	["reject.nearFront"] = {
+		ru = "Рядом фронт — сносить нельзя",
+		en = "Front nearby — can't demolish",
+	},
+	["reject.needBarracks"] = {
+		ru = "Нужны казармы выше уровнем",
+		en = "You need higher-level barracks",
+	},
+	["hire.needBarracks"] = { ru = "нужны казармы ур. %d", en = "needs barracks lv %d" },
 	["building.Fort"] = { ru = "Укрепление", en = "Fortification" },
 	["building.Fort.hint"] = { ru = "защита провинции ×1.5", en = "province defence ×1.5" },
 	["building.Market"] = { ru = "Рынок", en = "Market" },
-	["building.Market.hint"] = { ru = "+5% дохода", en = "+5% income" },
 	["building.Radar"] = { ru = "Радар", en = "Radar" },
 	["building.Radar.hint"] = { ru = "обзор 25 клеток в тумане", en = "sees 25 cells through fog" },
 	-- Этап 7а: стабильность, восстания, туман
@@ -598,8 +680,8 @@ local TABLE: { [string]: Entry } = {
 	},
 	["building.AirDefense"] = { ru = "Батарея ПВО", en = "AA battery" },
 	["building.AirDefense.hint"] = {
-		ru = "сбивает самолёты в радиусе 10",
-		en = "shoots planes within 10",
+		ru = "заряды: ловит налёты и ракеты рядом",
+		en = "charges: stops raids and missiles nearby",
 	},
 	["plane.Fighter"] = { ru = "Истребитель", en = "Fighter" },
 	["plane.Bomber"] = { ru = "Бомбардировщик", en = "Bomber" },
@@ -671,8 +753,8 @@ local TABLE: { [string]: Entry } = {
 	["tech.desc.Fleet.2"] = { ru = "Открывает «Аэродром»", en = "Unlocks Airfield" },
 	["tech.desc.Fleet.3"] = { ru = "Открывает «Радар»", en = "Unlocks Radar" },
 	["tech.desc.Fleet.4"] = {
-		ru = "Батареи ПВО сбивают ракеты (75%%)",
-		en = "AA batteries shoot missiles (75%%)",
+		ru = "+1 заряд каждой батарее ПВО",
+		en = "+1 charge for every AA battery",
 	},
 	["tech.locked"] = { ru = "Закрыто", en = "Locked" },
 	["tech.done"] = { ru = "Изучено", en = "Done" },
@@ -803,6 +885,14 @@ local TABLE: { [string]: Entry } = {
 	["event.missileHit"] = {
 		ru = "Удар ракеты %s: %d клеток ничьи",
 		en = "%s missile strike: %d cells lost",
+	},
+	["event.raidIntercepted"] = {
+		ru = "ПВО %s перехватила налёт %s",
+		en = "%s air defense stopped a raid by %s",
+	},
+	["event.revoltSoon"] = {
+		ru = "Провинция %s восстанет через %d с — поднимите стабильность!",
+		en = "Province %s will revolt in %d s — raise stability!",
 	},
 	["event.missileShot"] = {
 		ru = "Ракета %s сбита сетью ПВО (%s)",

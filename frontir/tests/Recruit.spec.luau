@@ -43,12 +43,13 @@ local function duo(): MatchSim.Match
 	return m
 end
 
-local function factories(m: MatchSim.Match, id: number, count: number)
+-- Казармы ур. 1 в count провинциях державы id (§15д: линии найма дают казармы, а не заводы).
+local function barracks(m: MatchSim.Match, id: number, count: number)
 	for k = 1, count do
 		local province = (id - 1) * 6 + k
 		-- Допустимая клетка провинции (§15г): центр может совпасть с городом — тогда рядом.
-		local spot = MatchSim.buildSpot(m, id, "Factory", m.provinces.list[province].center)
-		Buildings.place(m.buildings, "Factory", spot, province)
+		local spot = MatchSim.buildSpot(m, id, "Barracks", m.provinces.list[province].center)
+		Buildings.place(m.buildings, "Barracks", spot, province)
 	end
 	MatchSim.refreshOwned(m)
 end
@@ -61,13 +62,13 @@ end
 
 T.describe("Найм (правка перед 7в-2)", function()
 	T.it(
-		"линии найма: 1 + заводы + уровни городов / CityLevelsPerLine, не больше MaxRecruitLines; готовятся одновременно",
+		"линии найма: 1 + уровни казарм + уровни городов / CityLevelsPerLine, не больше MaxRecruitLines; готовятся одновременно",
 		function()
 			local m = duo()
 			T.expect(MatchSim.recruitLines(m, 1)).toBe(1)
-			factories(m, 1, 2)
+			barracks(m, 1, 2)
 			T.expect(MatchSim.recruitLines(m, 1)).toBe(3)
-			factories(m, 2, 5)
+			barracks(m, 2, 5)
 			T.expect(MatchSim.recruitLines(m, 2)).toBe(6)
 			-- Уровни своих городов тоже дают линии; больше MaxRecruitLines — нет.
 			local owned = MatchSim.ownedOf(m, 2)
@@ -81,8 +82,8 @@ T.describe("Найм (правка перед 7в-2)", function()
 			for _ = 1, 4 do
 				T.expect((MatchSim.applyIntent(m, 1, { kind = "hire", unit = "Infantry" }))).toBe(true)
 			end
-			-- Три линии: за время одного юнита (с бонусом завода) готовы трое, четвёртый — ещё нет.
-			local sec = Forces.stats(INF).recruitSec * (1 - Config.Buildings.Factory.recruitSpeedBonus)
+			-- Три линии: за время одного юнита готовы трое, четвёртый — ещё нет (быстрее — только казармы ур. 3).
+			local sec = Forces.stats(INF).recruitSec
 			runFor(m, sec + 0.2)
 			T.expect(n.home[INF].strength).toBe(3 * Forces.stats(INF).strength)
 			T.expect(#n.queue).toBe(1)
@@ -92,12 +93,12 @@ T.describe("Найм (правка перед 7в-2)", function()
 	)
 
 	T.it(
-		"бот с большим запасом денег в мире нанимает войска: заводы-линии ускоряют найм, деньги тратятся",
+		"бот с большим запасом денег в мире нанимает войска: казармы-линии ускоряют найм, деньги тратятся",
 		function()
 			local function hiredWith(count: number): (number, number)
 				local m = duo()
 				MatchSim.setBot(m, 2, "General", "Aggressor")
-				factories(m, 2, count)
+				barracks(m, 2, count)
 				local n = m.nations[2]
 				n.money = 500000
 				n.home = Forces.new()

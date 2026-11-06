@@ -184,33 +184,44 @@ T.describe("Стабильность", function()
 		end
 	)
 
-	T.it("ниже 15 — восстания, но не в провинции столицы", function()
-		local m = trio()
-		runFor(m, 1.1)
-		local st = m.stability
-		local ctx = MatchSim.stabilityContext(m)
-		local found: { [number]: boolean } = {}
-		for _ = 1, 200 do
-			Stability.setAll(st, 1, 0)
-			st.nextUpdateAt, st.nextRevoltAt = 0, 0
-			for _, r in Stability.update(st, ctx) do
-				T.expect(r.owner).toBe(1)
-				found[r.province] = true
+	T.it(
+		"ниже 15 — восстание через RevoltDelaySec по таймеру (§15д), но не в провинции столицы",
+		function()
+			local m = trio()
+			runFor(m, 1.1)
+			local st = m.stability
+			local ctx = MatchSim.stabilityContext(m)
+			local t0 = ctx.now
+			local function at(t: number, value: number): { [number]: boolean }
+				local found: { [number]: boolean } = {}
+				Stability.setAll(st, 1, value)
+				st.nextUpdateAt = 0
+				ctx.now = t
+				for _, r in Stability.update(st, ctx) do
+					T.expect(r.owner).toBe(1)
+					found[r.province] = true
+				end
+				return found
+			end
+			-- Начало отсчёта — предупреждение, восстания ещё нет.
+			T.expect((next(at(t0, 0)))).toBe(nil)
+			local warned: { [number]: boolean } = {}
+			for _, wr in st.warnings do
+				warned[wr.province] = true
+			end
+			T.expect(warned[2] and warned[3]).toBeTruthy()
+			T.expect(warned[1]).toBe(nil) -- столица
+			table.clear(st.warnings)
+			T.expect((next(at(t0 + cfg.RevoltDelaySec - 1, 0)))).toBe(nil)
+			local found = at(t0 + cfg.RevoltDelaySec, 0)
+			T.expect(found[1]).toBe(nil)
+			T.expect(found[2] and found[3]).toBeTruthy()
+			-- Поднял стабильность до RevoltBelow — отсчёт сброшен, восстания нет никогда.
+			for k = 1, 5 do
+				T.expect((next(at(t0 + 100 + k * cfg.RevoltDelaySec, cfg.RevoltBelow)))).toBe(nil)
 			end
 		end
-		T.expect(found[1]).toBe(nil) -- столица
-		T.expect(found[2] and found[3]).toBeTruthy()
-		-- Выше RevoltBelow — не восстаёт никогда.
-		local none = true
-		for _ = 1, 200 do
-			Stability.setAll(st, 1, cfg.RevoltBelow)
-			st.nextUpdateAt, st.nextRevoltAt = 0, 0
-			if #Stability.update(st, ctx) > 0 then
-				none = false
-			end
-		end
-		T.expect(none).toBe(true)
-	end)
+	)
 
 	T.it(
 		"восстание: земля ничья, город повстанцев с гарнизоном 600, срок RebelSec",
@@ -321,6 +332,10 @@ T.describe("Стабильность", function()
 		local n = m.nations[1]
 		n.money = 100000
 		Buildings.place(m.buildings, "Factory", m.provinces.list[1].center, 1)
+		-- §15д: казармы ур. 2 уже есть — бот не начинает с них.
+		local barracksAt = m.provinces.list[1].center + 4 * m.grid.width
+		Buildings.place(m.buildings, "Barracks", barracksAt, 1)
+		Buildings.place(m.buildings, "Barracks", barracksAt, 1)
 		runFor(m, 1.1)
 		DevTools.setStability(m, 1, false)
 		local calmed = false

@@ -139,10 +139,20 @@ T.describe("Здания", function()
 			T.expect(me.money).toBe(money - Config.Buildings.Factory.cost)
 			T.expect(m.buildings.byCell[cell].kind).toBe("Factory")
 			T.expect(MatchSim.ownedOf(m, 1).factories).toBe(1)
-			T.expect(
-				select(2, MatchSim.applyIntent(m, 1, { kind = "build", building = "Market", cell = target.center }))
-			)
-				.toBe("occupied")
+			-- §15д: в провинции можно и второе здание; следующее того же типа дороже на CostStep, нажатие на своё —
+			-- улучшение (ур. 2), до maxLevel.
+			local market = MatchSim.buildSpot(m, 1, "Market", target.cells[1])
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "build", building = "Market", cell = market }))).toBe(true)
+			local step = Config.Build.CostStep
+			local up = (MatchSim.buildPrice(m, 1, "Factory", cell)) :: number
+			T.expect(up).toBeNear(Config.Buildings.Factory.cost * Config.Build.UpgradeMul[2] * (1 + step), 1e-6)
+			money = me.money
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "build", building = "Factory", cell = cell }))).toBe(true)
+			T.expect(m.buildings.byCell[cell].level).toBe(2)
+			T.expect(me.money).toBeNear(money - up, 1e-6)
+			m.buildings.byCell[cell].level = Config.Buildings.Factory.maxLevel
+			T.expect(select(2, MatchSim.applyIntent(m, 1, { kind = "build", building = "Factory", cell = cell })))
+				.toBe("maxLevel")
 			-- Своя клетка вплотную к столице (ближе Build.MinGap к городу) — нельзя; вода — нельзя.
 			local cap = me.capital :: number
 			T.expect(select(2, MatchSim.checkBuild(m, 1, "Market", cap + 1))).toBe("tooClose")
@@ -179,7 +189,7 @@ T.describe("Здания", function()
 	)
 
 	T.it(
-		"город: улучшение до ур. 3 поднимает доход и максимум людей; денег мало — отказ",
+		"город: улучшение до ур. 5 поднимает доход и максимум людей; денег мало — отказ; рядом новый не основать",
 		function()
 			local m = started(44)
 			local me = m.nations[1]
@@ -195,11 +205,18 @@ T.describe("Здания", function()
 			local money = me.money
 			T.expect((MatchSim.applyIntent(m, 1, { kind = "build", building = "City", cell = capital }))).toBe(true)
 			T.expect(me.money).toBe(money - Config.Buildings.City.upgradeCosts[1])
+			-- §15д ч.4: до ур. 5 (Мегаполис), дальше — «maxLevel».
+			for level = 4, Config.Economy.MaxCityLevel do
+				T.expect((MatchSim.applyIntent(m, 1, { kind = "build", building = "City", cell = capital }))).toBe(true)
+				T.expect(Buildings.cityLevel(m.buildings, capital)).toBe(level)
+			end
 			T.expect(select(2, MatchSim.applyIntent(m, 1, { kind = "build", building = "City", cell = capital })))
 				.toBe("maxLevel")
-			-- Не город — «Город» не строится.
+			-- Рядом с городом новый не основать (§15д ч.4); клик в соседнюю клетку — тот же город.
 			T.expect(select(2, MatchSim.applyIntent(m, 1, { kind = "build", building = "City", cell = capital + 1 })))
-				.toBe("needCity")
+				.toBe("maxLevel")
+			T.expect(select(2, MatchSim.applyIntent(m, 1, { kind = "build", building = "City", cell = capital + 4 })))
+				.toBe("cityTooClose")
 		end
 	)
 
@@ -234,8 +251,8 @@ T.describe("Укрепления и котлы", function()
 			local map = TinyMap.plains(10, 6)
 			local front = { 12, 13, 14 }
 			local plain = Fronts.terrainDefense(map, front)
-			local fortified = Fronts.terrainDefense(map, front, nil, function(): boolean
-				return true
+			local fortified = Fronts.terrainDefense(map, front, nil, function(): number
+				return Config.Buildings.Fort.defenseMultiplier
 			end)
 			T.expect(fortified).toBeNear(plain * Config.Buildings.Fort.defenseMultiplier, 1e-9)
 			local attack: Types.Attack = {

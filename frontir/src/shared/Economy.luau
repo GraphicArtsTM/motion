@@ -16,14 +16,21 @@ function Economy.maxPeople(cells: number, cityLevels: number?): number
 	return cfg.BaseMax + cfg.PerCell * cells + (cityLevels or 0) * Config.Economy.CityMaxPeoplePerLevel
 end
 
--- Доход денег в секунду (§6.8): налог с клеток и уровни городов, рынки дают +incomeBonus каждый.
-function Economy.income(cells: number, cityLevels: number, markets: number): number
+-- Доход денег в секунду (§6.8): налог с клеток, уровни городов и заводы (§15д: factoryIncome); рынки дают
+-- +incomeBonus каждый (markets — число) или готовую долю marketBonus (с районами); доли складываются.
+function Economy.income(
+	cells: number,
+	cityLevels: number,
+	markets: number,
+	factoryIncome: number?,
+	marketBonus: number?
+): number
 	local cfg = Config.Economy
-	local base = cfg.TaxPerCellPerSec * cells + cfg.CityIncomePerLevel * cityLevels
-	return base * (1 + Config.Buildings.Market.incomeBonus * markets)
+	local base = cfg.TaxPerCellPerSec * cells + cfg.CityIncomePerLevel * cityLevels + (factoryIncome or 0)
+	return base * (1 + Config.Buildings.Market.incomeBonus * markets + (marketBonus or 0))
 end
 
--- Нефть в секунду с вышек.
+-- Нефть в секунду с вышек (rigs — число вышек или сумма множителей их уровней, §15д).
 function Economy.oilIncome(rigs: number): number
 	return Config.Oil.PerRigPerSec * rigs
 end

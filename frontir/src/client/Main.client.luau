@@ -48,6 +48,9 @@ local MarkerLayer = require(Render:WaitForChild("MarkerLayer"))
 local WarFxLayer = require(Render:WaitForChild("WarFxLayer"))
 local AirPanel = require(UI:WaitForChild("AirPanel"))
 local BuildPanel = require(UI:WaitForChild("BuildPanel"))
+local CityLabels = require(UI:WaitForChild("CityLabels"))
+local HintPanel = require(UI:WaitForChild("HintPanel"))
+local BuildingInfo = require(UI:WaitForChild("BuildingInfo"))
 local Polish = require(UI:WaitForChild("Polish"))
 local BuildGhost = require(Render:WaitForChild("BuildGhost"))
 local CloudLayer = require(Render:WaitForChild("CloudLayer"))
@@ -199,8 +202,10 @@ local function runSession(mapId: string, resync: boolean)
 	local airLayer = AirLayer.new(view.canvas, cs)
 	local markerLayer = MarkerLayer.new(view.canvas, cs) -- шторм и ракеты (§6.16, §6.9)
 	local provinceLabels = ProvinceLabels.new(view.canvas, provinces, map.width, lang) -- названия с зума ×6
+	local cityLabels = CityLabels.new(view.canvas, cs, provinces, map, lang) -- названия городов (§15д ч.4)
 	camera.onChanged(function(state)
 		provinceLabels.onCamera(state)
+		cityLabels.onCamera(state)
 		labels.onCamera(state)
 		buildingLayer.onCamera(state)
 		buildGhost.onCamera(state)
@@ -260,6 +265,8 @@ local function runSession(mapId: string, resync: boolean)
 	wars.refresh()
 	local build = BuildPanel.new(hudGui, cs, lang, send, hud.toast, map, provinces, buildGhost)
 	build.refresh()
+	local buildingInfo = BuildingInfo.new(hudGui, cs, lang, send, map) -- окно своего здания (§15д)
+	local hints = HintPanel.new(hudGui, cs, lang) -- «что делать дальше» (§15д ч.5)
 	local forcesPanel = ForcesPanel.new(hudGui, cs, lang, send)
 	forcesPanel.refresh()
 	-- Мини-карта справа снизу: нажатие — камера туда. Нет памяти под EditableImage — играем без неё.
@@ -278,6 +285,21 @@ local function runSession(mapId: string, resync: boolean)
 	stabilityPanel.refresh()
 	local techPanel = TechPanel.new(hudGui, cs, lang, send)
 	local commanderPanel = CommanderPanel.new(hudGui, cs, lang, send, hud.percent)
+	-- Слева сверху столбиком (§15д ч.5): полоса ресурсов → панель державы → способности генерала (без наложений).
+	do
+		local nationPanel = hudGui:FindFirstChild("NationPanel") :: Frame?
+		local abilities = hudGui:FindFirstChild("Abilities") :: Frame?
+		if nationPanel ~= nil and abilities ~= nil then
+			local np, ab = nationPanel :: Frame, abilities :: Frame
+			local function stack()
+				local bottom = np.Position.Y.Offset + (if np.Visible then np.AbsoluteSize.Y else 0)
+				ab.Position = UDim2.fromOffset(12, bottom + 8)
+			end
+			Session.connect(np:GetPropertyChangedSignal("AbsoluteSize"), stack)
+			Session.connect(np:GetPropertyChangedSignal("Visible"), stack)
+			stack()
+		end
+	end
 	local modePanel = ModePanel.new(hudGui, cs, lang, send)
 	local serverPanel = ServerPanel.new(hudGui, cs, lang, send) -- частный сервер (§5.4)
 	local shopPanel = ShopPanel.new(hudGui, cs, lang, send, hud.toast) -- профиль и магазин (§11.1)
@@ -458,6 +480,7 @@ local function runSession(mapId: string, resync: boolean)
 			syncFlood()
 			refreshFog(os.clock()) -- фаза или своя держава могли смениться (зритель видит всё)
 			labels.refresh()
+			cityLabels.refresh() -- новые города (§15д ч.4)
 			hud.refresh()
 			forcesPanel.refresh()
 			wars.refresh()
@@ -535,10 +558,14 @@ local function runSession(mapId: string, resync: boolean)
 			forcesPanel.refresh()
 			hud.refresh()
 			build.refresh()
+			buildingInfo.refresh() -- деньги поменялись: цена улучшения доступна или нет
 		end,
 		onBuildings = function()
 			buildingLayer.refresh()
 			build.onBuildings() -- эффект постройки (§15г)
+			cityLabels.refresh() -- уровни городов
+			labels.refresh() -- город растёт на карте (§15д ч.4)
+			buildingInfo.refresh()
 		end,
 		onShips = function()
 			shipLayer.refresh()
@@ -561,6 +588,7 @@ local function runSession(mapId: string, resync: boolean)
 				buildingLayer.refresh()
 			end
 			markerLayer.refresh()
+			buildingLayer.charges() -- заряды ПВО (§15д ч.3)
 			worldPanel.refresh()
 			commanderPanel.update(os.clock())
 		end,
@@ -592,6 +620,7 @@ local function runSession(mapId: string, resync: boolean)
 				sound(name)
 			end
 			hud.onEvents(events)
+			hints.onEvents(events)
 			wars.onEvents(events)
 			pings.onEvents(events)
 			airLayer.onEvents(events) -- вспышки бомб и сбитые самолёты
@@ -661,6 +690,7 @@ local function runSession(mapId: string, resync: boolean)
 					or pings.tap(cell)
 					or naval.tap(cell, camera.state.zoom)
 					or airPanel.tap(cell, camera.state.zoom)
+					or buildingInfo.tap(cell)
 				if not handled then
 					hud.tapCell(cell)
 				end
@@ -715,6 +745,7 @@ local function runSession(mapId: string, resync: boolean)
 		warFx.update(now, camera.state)
 		worldPanel.update(now)
 		hud.update(now)
+		hints.update(now)
 		commanderPanel.update(now)
 		wars.update(now)
 		results.update(now)

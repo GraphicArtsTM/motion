@@ -189,13 +189,14 @@ function ForcesPanel.new(
 			end
 		end
 
-		-- Карточки: клавиша, тип; деньги и нефть, люди и время; без завода техника недоступна.
+		-- Карточки: клавиша, тип; деньги и нефть, люди и время; без казарм нужного уровня техника недоступна (§15д).
 		local economy = if forces ~= nil then forces.economy else nil
-		local hasFactory = economy ~= nil and economy.factories > 0
+		local barracks = if economy ~= nil then economy.barracks else 0
 		for k, b in cardButtons do
 			local stats = Forces.stats(k)
 			local inQueue = queued[k] or 0
-			local needsFactory = stats.requires == "Factory" and not hasFactory
+			local needLevel = stats.requiresLevel or 1
+			local needsFactory = stats.requires == "Barracks" and barracks < needLevel
 			-- Маршал (§6.15): танки дешевле — та же формула, что на сервере (MatchSim.unitCost).
 			local cost = stats.cost
 				* (if Types.LandUnits[k] == "Tanks" then Commanders.tankCostMul(ClientState.myCommander(cs)) else 1)
@@ -204,7 +205,11 @@ function ForcesPanel.new(
 				price ..= " · " .. string.format(Strings.get("hire.oil", lang), Strings.formatInt(stats.oil))
 			end
 			local second = if needsFactory
-				then string.format('<font color="%s">%s</font>', alert, Strings.get("hire.needFactory", lang))
+				then string.format(
+					'<font color="%s">%s</font>',
+					alert,
+					string.format(Strings.get("hire.needBarracks", lang), needLevel)
+				)
 				else string.format(
 					'<font color="%s">%s</font> · %s',
 					gold,

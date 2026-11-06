@@ -219,7 +219,7 @@ T.describe("Protocol: войска и фронты", function()
 				{ home = 0, xp = 0, front = 0 },
 			},
 			queue = { { kind = 2, left = 3.5 }, { kind = 1, left = 3 } },
-			economy = { money = 12345.5, oil = 42, income = 88.25, oilIncome = 2, upkeep = 31.5, factories = 1 },
+			economy = { money = 12345.5, oil = 42, income = 88.25, oilIncome = 2, upkeep = 31.5, barracks = 2 },
 		}
 		local back = Protocol.decodeForces(Protocol.encodeForces(f))
 		T.expect(back.kinds[1].xp).toBeNear(1.5, 1e-6)
@@ -228,7 +228,7 @@ T.describe("Protocol: войска и фронты", function()
 		T.expect(back.queue[1].kind).toBe(2)
 		T.expect(back.economy.money).toBeNear(12345.5, 1e-3)
 		T.expect(back.economy.upkeep).toBeNear(31.5, 1e-6)
-		T.expect(back.economy.factories).toBe(1)
+		T.expect(back.economy.barracks).toBe(2)
 	end)
 end)
 

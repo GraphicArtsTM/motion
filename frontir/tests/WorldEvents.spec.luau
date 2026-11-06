@@ -309,23 +309,23 @@ T.describe("Ракетная шахта", function()
 			runFor(m, silo.warningSec + 0.5)
 			T.expect(Grid.getOwner(m.grid, cap2)).toBe(0)
 			T.expect(m.nations[2].capital ~= cap2).toBe(true)
-			-- Батарея ПВО и сеть ПВО у державы 2: из 12 ракет часть сбита.
+			-- Заряды ПВО (§15д ч.3, без случайности): батарея ур. 1 + «Сеть ПВО» — 2 заряда: две ракеты подряд
+			-- сбиты, третья (заряды ещё не восстановились) — попадает.
 			Tech.grant(m.tech, 2, "Fleet", 4)
 			local p = m.provinces.list[10]
 			Buildings.place(m.buildings, "AirDefense", p.center, 10)
 			MatchSim.refreshOwned(m)
-			local shot, hits = 0, 0
-			for _ = 1, 12 do
+			T.expect(select(2, MatchSim.batteryCharges(m, p.center))).toBe(2)
+			local results: { string } = {}
+			for _ = 1, 3 do
 				m.missileReady[1] = nil
 				MatchSim.applyIntent(m, 1, { kind = "missile", cell = p.center + 1 })
 				runFor(m, silo.warningSec + 0.2)
-				shot += #events(m, "missileShot")
-				hits += 1
+				table.insert(results, if #events(m, "missileShot") > 0 then "shot" else "hit")
 				Grid.setOwner(m.grid, p.center + 1, 2)
 				Grid.setOwner(m.grid, p.center, 2)
 			end
-			T.expect(shot >= 5 and shot < 12).toBe(true)
-			local _ = hits
+			T.expect(table.concat(results, ",")).toBe("shot,shot,hit")
 		end
 	)
 

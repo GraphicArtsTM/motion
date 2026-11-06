@@ -1,7 +1,7 @@
 --!strict
 --[[
 	BuildingLayer — здания и нефтяные поля на карте (GDD §6.8–6.9).
-	Значки 7×7 (Shared.BuildingSprites) в клетке здания (§15г — любая своя клетка), цветом владельца клетки;
+	Значки 12×12 (Shared.BuildingSprites, §15д ч.4) в клетке здания (§15г — любая своя клетка), цветом владельца клетки;
 	улучшенный город — золотые точки-уровни рядом с городом; нефтяное поле без вышки — тёмная капля в центре
 	провинции. С приближением значки крупнее (Render.BuildingIconScales). Владельцы меняются вместе с клетками —
 	recolor() перекрашивает.
@@ -27,6 +27,7 @@ type CameraState = CameraMath.CameraState
 export type BuildingLayer = {
 	refresh: () -> (), -- здания поменялись
 	recolor: () -> (), -- владельцы клеток поменялись
+	charges: () -> (), -- заряды батарей ПВО поменялись (cs.world.batteries, §15д ч.3)
 	onCamera: (state: CameraState) -> (),
 }
 
@@ -60,8 +61,9 @@ function BuildingLayer.new(
 
 	local function paint(icon: Icon)
 		local color = ownerColor(icon.owner)
+		local r, g, b = math.round(color.R * 255), math.round(color.G * 255), math.round(color.B * 255)
 		for k, p in shapeOf(icon.kind) do
-			icon.parts[k].BackgroundColor3 = if p.ink then Theme.Colors.Backdrop else color
+			icon.parts[k].BackgroundColor3 = Color3.fromRGB(BuildingSprites.rgb(p, r, g, b))
 		end
 	end
 
@@ -88,11 +90,18 @@ function BuildingLayer.new(
 			return
 		end
 		icon.root.Size = UDim2.fromOffset(size * scale, size * scale)
-		-- Значок стоит над центром провинции.
+		-- Значок стоит над своей клеткой.
 		icon.root.Position = UDim2.fromOffset(math.round(x - size * scale / 2), y - size * scale)
-		for k, p in shapeOf(icon.kind) do
+		local shape = shapeOf(icon.kind)
+		for k, p in shape do
 			icon.parts[k].Position = UDim2.fromOffset(p.x * scale, p.y * scale)
 			icon.parts[k].Size = UDim2.fromOffset(p.w * scale, p.h * scale)
+		end
+		-- Уровень здания (§15д): золотые точки под значком.
+		for k = #shape + 1, #icon.parts do
+			local i = k - #shape - 1
+			icon.parts[k].Position = UDim2.fromOffset(i * 3 * scale, (size + 1) * scale)
+			icon.parts[k].Size = UDim2.fromOffset(2 * scale, 2 * scale)
 		end
 	end
 
@@ -102,12 +111,12 @@ function BuildingLayer.new(
 		root.BackgroundTransparency = 1
 		root.ZIndex = 5
 		local parts: { Frame } = {}
-		local count = if kind == "City" then pips else #shapeOf(kind)
-		for _ = 1, count do
+		local count = if kind == "City" then pips else #shapeOf(kind) + pips
+		for k = 1, count do
 			local f = Instance.new("Frame")
 			f.BorderSizePixel = 0
 			f.ZIndex = 5
-			if kind == "City" then
+			if kind == "City" or k > #shapeOf(kind) then
 				f.BackgroundColor3 = Theme.Colors.Gold
 				local stroke = Instance.new("UIStroke")
 				stroke.Color = Theme.Colors.Backdrop
@@ -148,7 +157,7 @@ function BuildingLayer.new(
 					add("City", cell, b.level - 1)
 				end
 			else
-				add(b.kind, cell, 0)
+				add(b.kind, cell, b.level - 1)
 			end
 		end
 		-- Нефтяные поля без вышки (вышка — в любой клетке провинции, §15г).
@@ -161,6 +170,45 @@ function BuildingLayer.new(
 		for _, p in provinces.list do
 			if p.oil and not rigged[p.id] then
 				add("OilField", p.center, 0)
+			end
+		end
+	end
+
+	-- Заряды батарей ПВО (§15д ч.3): голубые точки над значком — готов, тёмные — восстанавливается.
+	local chargeDots: { [number]: { Frame } } = {}
+	local function charges()
+		for _, dots in chargeDots do
+			for _, f in dots do
+				f:Destroy()
+			end
+		end
+		table.clear(chargeDots)
+		local list = cs.world.batteries
+		if list == nil then
+			return
+		end
+		local byCell: { [number]: Icon } = {}
+		for _, icon in icons do
+			byCell[icon.cell] = icon
+		end
+		for _, b in list do
+			local icon = byCell[b.cell]
+			if icon ~= nil and icon.kind == "AirDefense" then
+				local dots: { Frame } = {}
+				for k = 1, b.max do
+					local f = Instance.new("Frame")
+					f.BorderSizePixel = 0
+					f.ZIndex = 6
+					f.Size = UDim2.fromOffset(4, 4)
+					f.Position = UDim2.fromOffset((k - 1) * 6, -7)
+					f.BackgroundColor3 = if k <= b.ready then Theme.Colors.Sky else Theme.Colors.Slate
+					local stroke = Instance.new("UIStroke")
+					stroke.Color = Theme.Colors.Backdrop
+					stroke.Parent = f
+					f.Parent = icon.root
+					table.insert(dots, f)
+				end
+				chargeDots[b.cell] = dots
 			end
 		end
 	end
@@ -178,8 +226,12 @@ function BuildingLayer.new(
 	end
 
 	return {
-		refresh = refresh,
+		refresh = function()
+			refresh()
+			charges()
+		end,
 		recolor = recolor,
+		charges = charges,
 		onCamera = function(state: CameraState)
 			if state.zoom ~= zoom then
 				zoom = state.zoom

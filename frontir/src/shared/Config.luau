@@ -650,7 +650,15 @@ Config.Render = {
 	AttackedFlashSec = 2.5, -- баннер войны мигает, когда на вас напали
 	-- С какого зума спрайты юнитов крупнее (§15г: спрайт 12×10 — крупные и видные с общего плана).
 	UnitSpriteScales = { { zoom = 2.5, scale = 2 }, { zoom = 6, scale = 3 }, { zoom = 10, scale = 4 } },
-	BuildingIconScales = { { zoom = 3, scale = 2 }, { zoom = 8, scale = 3 } }, -- значки зданий 7×7 (§15г)
+	BuildingIconScales = { { zoom = 5, scale = 2 }, { zoom = 10, scale = 3 } }, -- значки зданий 12×12 (§15д ч.4)
+	-- Названия городов (§15д ч.4): крупные (с этого уровня) — всегда, остальные — с зума CityLabelZoom.
+	CityScales = { { zoom = 2.5, scale = 2 }, { zoom = 7, scale = 3 } }, -- пиксель-арт города (§15д ч.4)
+	ResourceLerpPerSec = 8, -- полоса ресурсов (§15д ч.5): скорость «бегущих» чисел
+	ResourceFlashMin = 200, -- вспышка плашки — изменение не меньше (и не меньше 5% значения)
+	CityLabelZoom = 2.5,
+	CityLabelBigLevel = 3,
+	CityLabelSize = 11, -- + 2 за каждый уровень города
+	CityLabelMax = 80,
 	-- Тени облаков над картой (§15г): размеры в клетках для ширины карты 512, ветер — клеток в секунду.
 	Clouds = {
 		Count = 7,
@@ -791,7 +799,8 @@ local units: Types.UnitTable = {
 		speed = 3.6,
 		attack = 1.6,
 		defense = 1.0,
-		requires = "Factory",
+		requires = "Barracks", -- §15д: Казармы ур. requiresLevel (было — Завод)
+		requiresLevel = 2,
 		people = 450,
 		recruitSec = 5,
 		strength = 300,
@@ -803,7 +812,8 @@ local units: Types.UnitTable = {
 		attack = 1.4,
 		defense = 0.6,
 		range = 4,
-		requires = "Factory",
+		requires = "Barracks",
+		requiresLevel = 2,
 		people = 400,
 		recruitSec = 6,
 		strength = 250,
@@ -814,7 +824,8 @@ local units: Types.UnitTable = {
 		speed = 2.0,
 		attack = 0.6,
 		defense = 1.0,
-		requires = "Factory",
+		requires = "Barracks",
+		requiresLevel = 3,
 		people = 300,
 		recruitSec = 4,
 		strength = 200,
@@ -987,16 +998,39 @@ Config.Counters = {
 -- §6.9 Здания (цены в деньгах)
 Config.Buildings = {
 	-- Город: улучшение своего города до ур. 2 стоит cost, до ур. 3 — upgradeCosts[1].
-	City = { cost = 2000, upgradeCosts = { 4000 } },
-	OilRig = { cost = 1500 },
+	City = { cost = 2000, upgradeCosts = { 4000, 7000, 11000 } }, -- §15д ч.4: ур. до 5
+	-- §15д: maxLevel — до какого уровня здание улучшается (нет — только ур. 1).
+	OilRig = { cost = 1500, maxLevel = 2, oilByLevel = { 1, 1.8 } }, -- нефть × (Oil.PerRigPerSec)
 	Port = { cost = 2500 },
-	Factory = { cost = 3000, recruitSpeedBonus = 0.10 },
+	Factory = { cost = 3000, maxLevel = 3, income = 15 }, -- §15д: деньги в секунду за уровень (было — найм)
+	Barracks = { cost = 2000, maxLevel = 3, recruitSpeedBonus = 0.15 }, -- §15д: линия найма за уровень; ур. 3 — найм быстрее
+	Housing = { cost = 2000, maxLevel = 3, people = 500 }, -- §15д: + к максимуму людей за уровень
 	Airfield = { cost = 3500, airstrikeCooldownReductionSec = 2 },
-	Fort = { cost = 1500, defenseMultiplier = 1.5 },
-	AirDefense = { cost = 2000, radius = 14 }, -- сводная правка: было 10 — батарея в центре провинции не доставала до её границы
+	Fort = { cost = 1500, maxLevel = 2, defenseMultiplier = 1.5, defenseByLevel = { 1.5, 1.8 } },
+	AirDefense = { cost = 2000, radius = 14, maxLevel = 3 }, -- сводная правка: было 10 — батарея в центре провинции не доставала до её границы
 	Radar = { cost = 1500, visionRadius = 25 },
 	Market = { cost = 2000, incomeBonus = 0.05 },
 	MissileSilo = { cost = 10000, oil = 200, strikeRadius = 6, cooldownSec = 240, warningSec = 10 },
+}
+
+-- Подсказки «что делать дальше» (§15д ч.5, Shared.Hints).
+Config.Hints = {
+	EarlySec = 240, -- «расширяйтесь» — только в начале матча
+	ExpandFill = 0.5, -- …когда людей не меньше этой доли максимума и атак нет
+	FewTroops = 1500, -- «нанимайте» — войск дома меньше
+	WarAfterSec = 360, -- «можно воевать» — не раньше
+	WarTroops = 6000, -- …и войск не меньше
+	ShowEverySec = 1, -- пересчёт подсказки
+	BombedSec = 60, -- «вас бомбят» — столько секунд после налёта
+}
+
+-- Удары и защита (§15д ч.3): без случайности.
+Config.Defense = {
+	ChargesPerLevel = 1, -- батарея ПВО ур. N — N зарядов; каждый перехватывает один удар (налёт или ракету)
+	NetworkBonus = 1, -- «Сеть ПВО» (Флот-4): + столько зарядов каждой батарее
+	RechargeSec = 30, -- потраченный заряд восстанавливается за столько секунд
+	ProtectSec = 30, -- после удара по городу или зданию столько секунд следующий удар уровень не снимает
+	HitDisableSec = 60, -- здание ур. 1 после удара выключено на столько (не разрушается)
 }
 
 -- Стройка на любой своей клетке (§15г).
@@ -1006,16 +1040,37 @@ Config.Build = {
 	PopSec = 0.45, -- новое здание «вырастает» за столько секунд
 	DustPuffs = 10, -- пыль при постройке
 	CostFloatSec = 1.4, -- «−$цена» всплывает и гаснет
+	-- Экономика 2.0 (§15д): без ограничения числа зданий — баланс ценой.
+	CostStep = 0.25, -- каждое следующее здание того же типа (уровни считаются) дороже на столько
+	UpgradeMul = { 1.0, 1.0, 1.5 }, -- цена уровня L = cost × UpgradeMul[L] (ур. 1 — постройка)
+	UpkeepShare = 0.0005, -- содержание здания: cost × это в секунду за уровень
+	DistrictRadius = 6, -- район города: здание не дальше стольких клеток от своего города…
+	DistrictPerCityLevel = 0.10, -- …работает сильнее на столько за уровень города
+	DemolishRefund = 0.5, -- снос: доля цены назад
+	DemolishFrontCells = 8, -- снос нельзя, если земля врага в войне ближе стольких клеток
+	DemolishAfterHitSec = 30, -- …и если по зданию ударили меньше стольких секунд назад
 }
 
 -- Что можно строить сейчас (этап 4б; радар — 7а, порт — 7б-1, аэродром и батарея ПВО — 7б-2); шахта — этап 7г.
-Config.Buildable =
-	{ "City", "OilRig", "Factory", "Fort", "Market", "Radar", "Port", "Airfield", "AirDefense", "MissileSilo" }
+Config.Buildable = {
+	"City",
+	"Barracks",
+	"Factory",
+	"Housing",
+	"OilRig",
+	"Market",
+	"Fort",
+	"Port",
+	"Radar",
+	"Airfield",
+	"AirDefense",
+	"MissileSilo",
+}
 
 -- §6.9 Ракетный удар (этап 7г). Радиус, перезарядка и предупреждение — Buildings.MissileSilo.
 Config.Missile = {
 	FrontLoss = 0.5, -- фронты, линия которых касается круга, теряют эту долю войск
-	InterceptChance = 0.75, -- сеть ПВО (Флот-4): шанс сбить ракету над своей батареей ПВО
+	-- §15д: шанса перехвата нет — ракету и налёт ловят заряды батарей ПВО (Config.Defense).
 	BotChance = 0.3, -- бот с готовой шахтой во время войны — шанс пуска за раздумье
 	BotSiloMoneyMul = 1.0, -- бот строит шахту, когда денег не меньше цены × это (сводная правка: было 1.5)
 }
@@ -1046,7 +1101,7 @@ Config.Economy = {
 	TaxPerCellPerSec = 0.012, -- денег в секунду с клетки суши
 	CityIncomePerLevel = 10, -- денег в секунду за уровень каждого своего города (столица — город ур. 1)
 	CityMaxPeoplePerLevel = 400, -- +к максимуму людей за уровень города
-	MaxCityLevel = 3,
+	MaxCityLevel = 5, -- §15д ч.4: Посёлок, Город, Промышленный, Крупный, Мегаполис (было 3)
 	UpkeepPerStrengthPerSec = 0.01, -- содержание войск: денег в секунду за единицу силы
 	UnpaidAttritionPerSec = 0.02, -- денег нет, доход ниже содержания — войска тают на 2% в секунду
 }
@@ -1303,6 +1358,14 @@ Config.MapFile = {
 Config.Cities = {
 	ProvinceShare = 0.3, -- доля провинций с нейтральным городом на старте
 	MinDistance = 28, -- минимальное расстояние между городами, клеток
+	-- Реальные города на реальных картах (§15д ч.4, tools/realcities): 2–3 крупнейших в каждой стране.
+	RealPerCountry = 3,
+	RealMinPop = 400000, -- второй и третий город страны — не меньше такого населения
+	RealMinDistance = 7, -- реальные города не ближе стольких клеток друг к другу
+	-- «Основать город» (§15д ч.4): свой город на своей земле, каждый следующий дороже.
+	FoundCost = 6000,
+	FoundStep = 0.5, -- +50% за каждый уже основанный державой город
+	FoundMinDistance = 12, -- не ближе стольких клеток к другому городу
 }
 
 -- Цвета держав (отдельный набор, не входит в 32 цвета палитры — см. NationColors.luau)
@@ -1576,9 +1639,8 @@ Config.Stability = {
 	SettleStart = 50, -- новая провинция с ничьей земли начинает с этого
 	LowBelow = 30, -- ниже — доход провинции ×LowIncomeMul
 	LowIncomeMul = 0.5,
-	RevoltBelow = 15, -- ниже — шанс восстания
-	RevoltCheckSec = 10, -- проверка раз в столько секунд…
-	RevoltChance = 0.25, -- …с вероятностью RevoltChance × (1 − стабильность / RevoltBelow)
+	RevoltBelow = 15, -- ниже — провинция восстаёт через RevoltDelaySec (§15д: по таймеру, а не по шансу)
+	RevoltDelaySec = 30, -- столько секунд подряд ниже RevoltBelow — восстание (отсчёт виден игроку)
 	RebelGarrison = 600, -- сила гарнизона города повстанцев (обычный ничейный — Combat.NeutralCityGarrison)
 	RebelSec = 180, -- столько провинция — «Повстанцы»
 	RebelCellCostMul = 3, -- ничья земля повстанцев дороже для границы людей

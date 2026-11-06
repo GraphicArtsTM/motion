@@ -709,4 +709,26 @@ function Geo.isNameAllowed(ru: string, en: string): boolean
 	return true
 end
 
+-- Название города (§15д ч.4): отбрасывается, если какое-то его слово — почти целиком корень реальной страны
+-- (Алжир, Люксембург, Кувейт, Бразилиа, Андорра-ла-Велья), но не когда корень — лишь начало длинного слова
+-- (Бирмингем — не «Бирма»). Слова — по пробелам и дефисам; доля длины корня в слове не меньше 0.6.
+function Geo.isCityNameAllowed(ru: string, en: string): boolean
+	if ru == "" or en == "" then
+		return false
+	end
+	local function denied(name: string, stems: { string }, lower: boolean): boolean
+		local text = if lower then string.lower(name) else name
+		for word in string.gmatch(text, "[^%s%-]+") do
+			local len = utf8.len(word) or #word
+			for _, stem in stems do
+				if string.sub(word, 1, #stem) == stem and (utf8.len(stem) or #stem) / len >= 0.6 then
+					return true
+				end
+			end
+		end
+		return false
+	end
+	return not denied(ru, DENY_RU, false) and not denied(en, DENY_EN, true)
+end
+
 return table.freeze(Geo)

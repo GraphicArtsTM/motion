@@ -16,7 +16,10 @@ export type MapData = {
 	terrain: buffer, -- u8 на клетку, значения Types.Terrain
 	province: buffer, -- u16 на клетку, 0 — нет провинции
 	provinceNames: { ProvinceName }?, -- имена провинций по id; nil — имена придумает Provinces (NameGen)
+	cities: { MapCity }?, -- реальные города (§15д ч.4); nil — города расставит и назовёт Provinces
 }
+
+export type MapCity = { cell: number, ru: string, en: string }
 
 local MapData = {}
 

@@ -134,6 +134,25 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
 - Клиент: `UI/BuildPanel` (B, меню, режим стройки забирает нажатие на карту), `Render/BuildingLayer`
   (значки из `BuildingSprites`, общие с превью).
 - Нагрузку проверять `lune run tools/bench Europe 12 300` и `tools/bench World 60 180`: тик в среднем ≤ 10 мс.
+- **Экономика 2.0 (§15д ч.2):** роли — Завод (деньги `factoryIncome`), Казармы (`recruitLines`, `barracksLevel`
+  открывает технику — `Units.*.requiresLevel`), Жилой квартал (`housingPeople`); без лимита зданий, цена
+  `MatchSim.buildPrice` (`Buildings.levelsOf` + `Build.CostStep`), уровни (`Buildings.maxLevel`, своё здание того же
+  типа ±1 клетка — улучшение), районы и содержание — в `Buildings.owned`, укрепления по провинциям —
+  `set.forts` / `Buildings.fortMul`, снос — `MatchSim.demolish` (намерение `demolish`). Клиент: `UI/BuildingInfo`
+  (нажатие на своё здание), уровни на значках — `Render/BuildingLayer`.
+- **Удары и защита (§15д ч.3):** `MatchSim.strikeDamage` / `hitCell` (−1 уровень, `m.hitAt` — защита
+  `Defense.ProtectSec`), перехват — `MatchSim.intercept` / `batteryCharges` (`m.aaSpent`, без случайности; в `bomb`
+  и `missileImpact`), захват — `stepCaptures` (`m.buildingOwner`), восстание по таймеру — `ProvinceState.lowSince`,
+  `st.warnings` → событие `revoltSoon`. Заряды — в таблице `world` (`batteries`), на карте —
+  `BuildingLayer.charges`.
+- **Города (§15д ч.4):** реальные — `tools/realcities` → `cities` в модуле карты (`MapData.cities`), раскладка
+  и названия — `Provinces.build` (`set.cityNames`, `Provinces.cityName` / `foundedName`); основать — «Город» на
+  своей земле (`Buildings.check`, `MatchSim.foundCity`, `m.founded`, цена `Buildings.foundPrice`); уровни до 5.
+  Рисунок — `CitySprites` (общий с превью, `UI/NationLabels`), подписи — `UI/CityLabels`. Значки зданий 12×12 —
+  `BuildingSprites.rgb`.
+- **Интерфейс «как игра» (§15д ч.5):** `UI/ResourceBar` (значения — из `MatchHud.refresh`, анимация — `update`),
+  `PixelIcons` (значки 8×8), подсказки — чистый `Hints.pick(facts, dismissed)` + `UI/HintPanel` (факты собирает
+  из `cs`), тексты `hint.*`. Левый верхний столбик (ресурсы → `NationPanel` → `Abilities`) — в `Main.client`.
 
 ## Цикл матча и HUD (этап 4в)
 - Фазы `Waiting → Lobby → Pick → Play → Over` в `MatchSim`; победа (`checkVictory`): доля суши, последняя держава,

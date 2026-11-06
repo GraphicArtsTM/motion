@@ -20,6 +20,8 @@ local process = require("@lune/process")
 local BattleLayout = require("../src/shared/BattleLayout")
 local WarFx = require("../src/shared/WarFx")
 local BuildingSprites = require("../src/shared/BuildingSprites")
+local Buildings = require("../src/shared/Buildings")
+local CitySprites = require("../src/shared/CitySprites")
 local Commanders = require("../src/shared/Commanders")
 local Config = require("../src/shared/Config")
 local Diplomacy = require("../src/shared/Diplomacy")
@@ -341,20 +343,44 @@ local function renderRegion(
 			rect(ox + (x - x0) * cell, oy + (y - y0) * cell, cell, cell, { r = r, g = gg, b = b })
 		end
 	end
-	-- Города: квадрат цвета владельца с белой точкой.
-	local citySize = math.max(8, cell * 2)
+	-- Города (§15д ч.4): пиксельный город по уровню (CitySprites), как у клиента.
+	local cityScale = if cell >= 3 then 2 else 1
+	local capitalCells: { [number]: boolean } = {}
+	for _, n in m.nations do
+		if n.alive and n.capital ~= nil then
+			capitalCells[n.capital :: number] = true
+		end
+	end
+	local roadRgb = Palette.rgb("Slate")
+	local glassRgb = Palette.rgb("Sky")
 	for _, c in MatchSim.cities(m) do
 		local cx, cy = c % w, c // w
 		if inRegion(cx, cy) then
 			local sx, sy = px(cx + 0.5, cy + 0.5)
-			local half = citySize // 2
-			rect(sx - half - 1, sy - half - 1, citySize + 2, citySize + 2, ink)
-			rect(sx - half, sy - half, citySize, citySize, ownerRgb(Grid.getOwner(g, c)))
-			rect(sx - 1, sy - 1, 2, 2, white)
+			local level = Buildings.cityLevel(m.buildings, c)
+			local size = CitySprites.size(level) * cityScale
+			local left, top = sx - size // 2, sy - size // 2
+			local body = ownerRgb(Grid.getOwner(g, c))
+			blend(left - 1, top - 1, size + 2, size + 2, ink, 0.55)
+			for _, p in CitySprites.parts(level, capitalCells[c] == true) do
+				local color = ink
+				local shade = CitySprites.Shade[p.tone]
+				if shade ~= nil then
+					local r, gg, b = UnitSprites.shade(body.r, body.g, body.b, shade)
+					color = { r = r, g = gg, b = b }
+				elseif p.tone == "road" then
+					color = roadRgb
+				elseif p.tone == "window" then
+					color = gold
+				elseif p.tone == "glass" then
+					color = glassRgb
+				end
+				rect(left + p.x * cityScale, top + p.y * cityScale, p.w * cityScale, p.h * cityScale, color)
+			end
 		end
 	end
 	-- Здания и нефтяные поля (как у клиента, Render/BuildingLayer): значок над центром провинции.
-	local iconScale = if cell >= 6 then 2 else 1
+	local iconScale = if cell >= 8 then 2 else 1
 	local function icon(kind: string, at: number, owner: number)
 		local x, y = at % w, at // w
 		if not inRegion(x, y) then
@@ -376,12 +402,13 @@ local function renderRegion(
 			end
 		end
 		for _, p in BuildingSprites.Shapes[kind] do
+			local r, gg, b = BuildingSprites.rgb(p, body.r, body.g, body.b)
 			rect(
 				left + p.x * iconScale,
 				top + p.y * iconScale,
 				p.w * iconScale,
 				p.h * iconScale,
-				if p.ink then ink else body
+				{ r = r, g = gg, b = b }
 			)
 		end
 	end

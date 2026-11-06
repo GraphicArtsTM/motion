@@ -120,6 +120,7 @@ T.describe("Боты v2: решения", function()
 			local v = view()
 			v.queue = 0
 			v.people = 1000
+			v.owned.barracksLevel = 3 -- §15д: вся техника открыта казармами ур. 3
 			local general = profile("General")
 			general.level = table.clone(general.level)
 			general.level.hireChance = 1

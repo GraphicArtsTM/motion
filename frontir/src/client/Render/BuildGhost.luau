@@ -12,6 +12,7 @@ local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local BuildingSprites = require(Shared:WaitForChild("BuildingSprites"))
+local CitySprites = require(Shared:WaitForChild("CitySprites"))
 local CameraMath = require(Shared:WaitForChild("CameraMath"))
 local Config = require(Shared:WaitForChild("Config"))
 
@@ -37,7 +38,7 @@ export type BuildGhost = {
 
 local BuildGhost = {}
 
-local GHOST_SCALE = 3 -- значок призрака крупный, чтобы было видно, что ставишь
+local GHOST_SCALE = 2 -- значок призрака крупный, чтобы было видно, что ставишь
 
 function BuildGhost.new(canvas: Frame, mapWidth: number): BuildGhost
 	local zoom = 1
@@ -77,16 +78,29 @@ function BuildGhost.new(canvas: Frame, mapWidth: number): BuildGhost
 			f:Destroy()
 		end
 		table.clear(parts)
+		local r, g, b = math.round(color.R * 255), math.round(color.G * 255), math.round(color.B * 255)
 		local shape = BuildingSprites.Shapes[kind]
+		local rects: { { x: number, y: number, w: number, h: number, c: Color3 } } = {}
 		if shape == nil then
-			-- Город: золотой квадрат-«площадь» (у города нет своего значка).
-			shape = { { x = 1, y = 1, w = 5, h = 5, ink = false } }
-			color = Theme.Colors.Gold
+			-- Город (§15д ч.4): посёлок из CitySprites.
+			for _, cp in CitySprites.parts(1, false) do
+				table.insert(
+					rects,
+					{ x = cp.x, y = cp.y, w = cp.w, h = cp.h, c = Color3.fromRGB(CitySprites.rgb(cp, r, g, b)) }
+				)
+			end
+		else
+			for _, bp in shape do
+				table.insert(
+					rects,
+					{ x = bp.x, y = bp.y, w = bp.w, h = bp.h, c = Color3.fromRGB(BuildingSprites.rgb(bp, r, g, b)) }
+				)
+			end
 		end
-		for _, p in shape do
+		for _, p in rects do
 			local f = Instance.new("Frame")
 			f.BorderSizePixel = 0
-			f.BackgroundColor3 = if p.ink then Theme.Colors.Backdrop else color
+			f.BackgroundColor3 = p.c
 			f.BackgroundTransparency = 0.15
 			f.Position = UDim2.fromOffset(p.x * GHOST_SCALE, p.y * GHOST_SCALE)
 			f.Size = UDim2.fromOffset(p.w * GHOST_SCALE, p.h * GHOST_SCALE)

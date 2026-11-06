@@ -98,7 +98,7 @@ export type MyEconomy = {
 	income: number,
 	oilIncome: number,
 	upkeep: number,
-	factories: number,
+	barracks: number, -- лучший уровень казарм (§15д: открывает танки и ПВО)
 }
 export type MyForces = { kinds: { KindForces }, queue: { QueueItem }, economy: MyEconomy }
 
@@ -583,7 +583,7 @@ function Protocol.encodeForces(f: MyForces): buffer
 	f32(w, e.income)
 	f32(w, e.oilIncome)
 	f32(w, e.upkeep)
-	u8(w, math.clamp(e.factories, 0, 255))
+	u8(w, math.clamp(e.barracks, 0, 255))
 	return finish(w)
 end
 
@@ -613,7 +613,7 @@ function Protocol.decodeForces(b: buffer): MyForces
 	local income = rf32(r)
 	local oilIncome = rf32(r)
 	local upkeep = rf32(r)
-	local factories = ru8(r)
+	local barracks = ru8(r)
 	if r.pos ~= r.len then
 		error("Protocol: лишние байты в войсках", 2)
 	end
@@ -626,7 +626,7 @@ function Protocol.decodeForces(b: buffer): MyForces
 			income = income,
 			oilIncome = oilIncome,
 			upkeep = upkeep,
-			factories = factories,
+			barracks = barracks,
 		},
 	}
 end

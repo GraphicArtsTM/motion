@@ -48,6 +48,8 @@ export type BuildingKind =
 	| "Radar"
 	| "Market"
 	| "MissileSilo"
+	| "Barracks" -- §15д
+	| "Housing"
 
 export type UnitStats = {
 	cost: number,
@@ -57,6 +59,7 @@ export type UnitStats = {
 	defense: number,
 	range: number?,
 	requires: BuildingKind?,
+	requiresLevel: number?, -- уровень здания requires (§15д: Казармы ур. 2 / 3)
 	people: number, -- людей на найм (этап 3: найм стоит людей; деньги и нефть — этап 4)
 	recruitSec: number, -- время найма, игровые секунды
 	strength: number, -- сила юнита, добавляемая в пул войск
@@ -213,6 +216,7 @@ export type DeclareIntent = { kind: "declare", target: NationId }
 export type PeaceIntent = { kind: "peace", target: NationId, terms: PeaceTerms }
 export type PeaceReplyIntent = { kind: "peaceReply", target: NationId, accept: boolean }
 export type BuildIntent = { kind: "build", building: BuildingKind, cell: number }
+export type DemolishIntent = { kind: "demolish", cell: number } -- снос своего здания (§15д)
 export type Intent =
 	PickIntent
 	| AttackIntent
@@ -222,6 +226,7 @@ export type Intent =
 	| PeaceIntent
 	| PeaceReplyIntent
 	| BuildIntent
+	| DemolishIntent
 	| OfferIntent
 	| OfferReplyIntent
 	| BreakIntent
