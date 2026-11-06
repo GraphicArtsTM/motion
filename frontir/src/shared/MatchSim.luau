@@ -2381,7 +2381,9 @@ local function stepAttacks(m: Match, simDt: number): number
 				a.fighting = result.fighting
 				Wars.addLosses(war, a.attacker, result.lostAttacker)
 				Wars.addLosses(war, a.target, result.lostDefender)
-				local mul = Fronts.advanceMul(a, result.ratio) * MatchSim.surgeMul(m, a.attacker)
+				local mul = Fronts.advanceMul(a, result.ratio)
+					* MatchSim.surgeMul(m, a.attacker)
+					* MatchSim.openingMul(m, war, a.attacker)
 				local allowCities = result.ratio >= Config.Combat.CityCaptureRatio
 				local took = Expansion.advanceFront(
 					m.map,
@@ -2807,6 +2809,15 @@ end
 -- Свои фронты идут быстрее (Прорыв).
 function MatchSim.surgeMul(m: Match, id: number): number
 	return if Commanders.surging(m.commanders, id, m.simTime) then Config.Commanders.SurgeMul else 1
+end
+
+-- «Первый удар» (§15б): объявивший войну первые Combat.OpeningSec после мобилизации наступает быстрее.
+function MatchSim.openingMul(m: Match, war: Wars.War, attacker: number): number
+	local cfg = Config.Combat
+	if war.a == attacker and war.state == "active" and m.simTime - war.activeAt < cfg.OpeningSec then
+		return cfg.OpeningSpeedMul
+	end
+	return 1
 end
 
 -- Видно ли державе всю карту (Радарная вспышка).
@@ -4134,6 +4145,27 @@ function MatchSim.airView(m: Match, n: Nation): BotBrain.AirView
 					break
 				end
 			end
+		end
+	end
+	-- §15б: истребитель над своим аэродромом и точка на фронте, где враг наступает на нас (туда летят его бомбардировщики).
+	for _, p in Air.ofNation(m.air, n.id) do
+		if p.kind == "Fighter" and p.cover == p.base then
+			view.homeFighter = p.id
+			break
+		end
+	end
+	if view.homeFighter ~= nil then
+		view.frontCover = function(): number?
+			for _, a in m.attacks do
+				if a.target == n.id and Wars.isActive(m.wars, n.id, a.attacker) then
+					local line: { number } = a.line or {}
+					local mid = line[(#line + 1) // 2]
+					if mid ~= nil and MatchSim.inAirRange(m, n.id, mid) then
+						return mid
+					end
+				end
+			end
+			return nil
 		end
 	end
 	if view.idleBomber then

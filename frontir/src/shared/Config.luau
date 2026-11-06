@@ -676,7 +676,38 @@ Config.Render = {
 	},
 	NarrowScreenPx = 1160, -- уже — раскладка HUD для телефона (карточки найма в две строки слева от мини-карты)
 	-- Телефон (касание без клавиатуры, этап 10в): меньше эффектов, чтобы держать 60 FPS (RenderBudget).
-	Phone = { MaxUnitsOnScreen = 90, MaxParticles = 100, MaxCraters = 30, SparkleMax = 16 },
+	Phone = {
+		MaxUnitsOnScreen = 90,
+		MaxParticles = 100,
+		MaxCraters = 30,
+		SparkleMax = 16,
+		-- Зрелищная война (§15б) на телефоне — меньше.
+		BorderSparks = 24,
+		MaxArrows = 10,
+		MaxCaptureFlashes = 40,
+	},
+	-- Зрелищная война (§15б): баннер войны, вспышка общей границы, виньетка, стрелки наступления, вспышки захвата.
+	WarFx = {
+		BannerSec = 2.6, -- крупный баннер (война касается вас или союзника)
+		BannerSmallSec = 1.8, -- малый (чужая война)
+		BannerFadeSec = 0.35, -- появление и исчезновение
+		BorderFlashSec = 3.0, -- искры на общей границе
+		BorderSparks = 60, -- искр не больше (по всей границе, равномерно)
+		BorderStride = 2, -- шаг поиска границы, клеток
+		VignetteSec = 2.2, -- красные края экрана, когда война против вас
+		ArrowScanSec = 0.5, -- пересчёт стрелок наступления
+		ArrowStride = 2,
+		MaxArrowsPerFront = 3,
+		ArrowMinCells = 10, -- кусок линии фронта на одну стрелку (клеток выборки)
+		MaxArrows = 24, -- стрелок на экране
+		ArrowChevrons = 3, -- шевронов в стрелке
+		ArrowLengthCells = 10, -- длина стрелки в клетках…
+		ArrowMinPx = 36, -- …но не короче (px)
+		ArrowCycleSec = 1.2, -- шевроны пробегают стрелку за столько секунд (победа — вдвое быстрее)
+		CaptureFlashSec = 0.6,
+		MaxCaptureFlashes = 120, -- вспышек захвата одновременно
+		CaptureFlashPerDelta = 30, -- из одной дельты — не больше
+	},
 	-- Блики воды — отдельные пиксели поверх карты, текстуру не перерисовываем.
 	SparkleMax = 48,
 	SparklesPerSec = 24,
@@ -801,7 +832,7 @@ local units: Types.UnitTable = {
 	},
 	Fighter = {
 		cost = 4000,
-		oil = 30,
+		oil = 20, -- правка после PR #16: было 30 (ботам не хватало нефти на авиацию)
 		speed = 7.0,
 		attack = 1.2,
 		defense = 1.0,
@@ -812,7 +843,7 @@ local units: Types.UnitTable = {
 	},
 	Bomber = {
 		cost = 5000,
-		oil = 40,
+		oil = 25, -- правка после PR #16: было 40
 		speed = 5.0,
 		attack = 2.0,
 		defense = 0.6,
@@ -839,7 +870,10 @@ Config.Forces = {
 Config.Combat = {
 	DamageSpread = 0.40, -- случайный разброс урона ±40%
 	LossRate = 0.02, -- урона в секунду на единицу силы противника
-	FrontSpeedMul = 0.3, -- фронт против державы идёт медленнее, чем экспансия на ничью землю (сводная правка: было 0.5)
+	FrontSpeedMul = 0.25, -- фронт против державы идёт медленнее, чем экспансия на ничью землю (0.5 → 0.3 сводная правка, → 0.25 §15б: «Первый удар» и события ускорили войны)
+	-- «Первый удар» (§15б): объявивший войну первые OpeningSec после мобилизации наступает быстрее.
+	OpeningSec = 20,
+	OpeningSpeedMul = 1.4,
 	FullSpeedRatio = 2.0, -- при таком перевесе фронт идёт с полной скоростью; при 1 — стоит
 	BreakthroughRatio = 3.0, -- прорыв: перевес от этого числа
 	BreakthroughMul = 1.5, -- …и фронт идёт во столько раз быстрее
@@ -968,9 +1002,9 @@ Config.Missile = {
 
 -- §6.16 Случайные события (этап 7г).
 Config.Events = {
-	FirstSec = 180, -- первое событие — через столько секунд игры
-	MinGapSec = 180, -- дальше — через случайный промежуток MinGapSec..MaxGapSec
-	MaxGapSec = 240,
+	FirstSec = 150, -- первое событие — через столько секунд игры (§15б: было 180)
+	MinGapSec = 150, -- дальше — через случайный промежуток MinGapSec..MaxGapSec (§15б: было 180..240)
+	MaxGapSec = 200,
 	BannerSec = 6, -- баннер сверху у клиента
 	Weights = { OilRush = 2, Storm = 2, Harvest = 2, Mercenaries = 2, Revolt = 1, Defectors = 2 },
 	StormRadius = 40, -- клеток на ширине 512

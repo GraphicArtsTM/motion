@@ -317,3 +317,21 @@ T.describe("Войны ботов на «Пангее»", function()
 		end
 	)
 end)
+
+T.describe("«Первый удар» (§15б)", function()
+	T.it(
+		"объявивший войну первые OpeningSec после мобилизации наступает быстрее; защитник — нет",
+		function()
+			local m = pair()
+			goToWar(m, 1, 2)
+			local war = Wars.find(m.wars, 1, 2) :: Wars.War
+			T.expect(war.state).toBe("active")
+			local c = Config.Combat
+			T.expect(MatchSim.openingMul(m, war, 1)).toBe(c.OpeningSpeedMul)
+			T.expect(MatchSim.openingMul(m, war, 2)).toBe(1)
+			runFor(m, c.OpeningSec + 0.5)
+			T.expect(MatchSim.openingMul(m, war, 1)).toBe(1)
+			T.expect(c.OpeningSpeedMul > 1 and c.OpeningSpeedMul <= 1.5).toBe(true)
+		end
+	)
+end)

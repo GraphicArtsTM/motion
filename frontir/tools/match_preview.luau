@@ -18,6 +18,7 @@ local fs = require("@lune/fs")
 local process = require("@lune/process")
 
 local BattleLayout = require("../src/shared/BattleLayout")
+local WarFx = require("../src/shared/WarFx")
 local BuildingSprites = require("../src/shared/BuildingSprites")
 local Commanders = require("../src/shared/Commanders")
 local Config = require("../src/shared/Config")
@@ -597,6 +598,68 @@ local function renderRegion(
 		local s = math.max(3, math.round(cell * 0.5))
 		rect(sx - s // 2, sy - s // 2, s, s, ink)
 		rect(sx - s // 2, sy - s // 2 - 1, s, 1, gold)
+	end
+	-- Стрелки наступления (§15б): как у клиента (Shared.WarFx) — шевроны цвета нападающего к врагу.
+	do
+		local wcfg = Config.Render.WarFx
+		local length = math.max(wcfg.ArrowMinPx, wcfg.ArrowLengthCells * cell)
+		local size = math.max(6, length / wcfg.ArrowChevrons * 1.1)
+		local thick = math.max(3, math.round(size * 0.25))
+		for _, a in m.attacks do
+			if a.target ~= 0 then
+				local list = WarFx.frontArrows(
+					ownerAt,
+					w,
+					h,
+					a.attacker,
+					a.target,
+					x0,
+					y0,
+					x0 + cw - 1,
+					y0 + ch - 1,
+					wcfg.ArrowStride,
+					wcfg.MaxArrowsPerFront,
+					wcfg.ArrowMinCells
+				)
+				local strength = WarFx.arrowStrength(a.ratio, Config.Combat.FullSpeedRatio, false)
+				local color = ownerRgb(a.attacker)
+				for _, ar in list do
+					local cx, cy = px(ar.x, ar.y)
+					-- Перпендикуляр к направлению.
+					local nx, ny = -ar.dy, ar.dx
+					for j = 0, wcfg.ArrowChevrons - 1 do
+						local s01 = (j + 0.5) / wcfg.ArrowChevrons
+						local along = (s01 - 0.35) * length
+						local tipX, tipY =
+							cx + ar.dx * along + ar.dx * size * 0.35, cy + ar.dy * along + ar.dy * size * 0.35
+						local alpha = math.clamp(strength * math.sin(s01 * math.pi), 0.25, 1)
+						local barLen = size * 0.62
+						for t = 0, barLen, 1 do
+							for sgn = -1, 1, 2 do
+								local bx = tipX - ar.dx * t * 0.7071 + nx * sgn * t * 0.7071
+								local by = tipY - ar.dy * t * 0.7071 + ny * sgn * t * 0.7071
+								blend(
+									math.round(bx - thick / 2) - 1,
+									math.round(by - thick / 2) - 1,
+									thick + 2,
+									thick + 2,
+									ink,
+									alpha * 0.5
+								)
+								blend(
+									math.round(bx - thick / 2),
+									math.round(by - thick / 2),
+									thick,
+									thick,
+									color,
+									alpha
+								)
+							end
+						end
+					end
+				end
+			end
+		end
 	end
 	-- На всей карте — только отметки боёв на линиях.
 	if not fx then

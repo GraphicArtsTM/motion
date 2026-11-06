@@ -1,6 +1,6 @@
 --!strict
 --[[
-	Арена генералов (сводная правка): lune run tools/arena_commanders [партий=40] [карта=Europe] [уровень=Normal] [личность=Cunning]
+	Арена генералов (сводная правка): lune run tools/arena_commanders [партий=40] [карта=Europe] [уровень=Normal] [личность=Cunning] [база сидов=9000]
 	Четыре бота одного уровня и одной личности, у каждого свой генерал (Маршал, Адмирал, Разведчик, Инженер);
 	от партии к партии генералы сдвигаются по местам старта (старт не решает). Печатает долю побед каждого генерала
 	(ровно — около 25%) и среднее место; генерал дальше ±10% — помечен.
@@ -19,6 +19,8 @@ local games = tonumber(process.args[1]) or 40
 local mapName = process.args[2] or "Europe"
 local level: Types.BotLevel = (process.args[3] or "Normal") :: any
 local personality: Types.BotPersonality = (process.args[4] or "Cunning") :: any
+-- Новые сиды — новая выборка (одинаковые сиды дают одинаковый результат, это не подтверждение).
+local seedBase = tonumber(process.args[5]) or 9000
 local map = MapFormat.fromModule((require :: any)("../maps/" .. mapName) :: MapFormat.MapModule)
 local dt = 1 / Config.Sim.TickRate
 local ids = Types.CommanderIds
@@ -28,7 +30,7 @@ local places: { [string]: number } = {}
 local lengths = 0
 local t0 = os.clock()
 for k = 1, games do
-	local seed = 9000 + k * 53
+	local seed = seedBase + k * 53
 	local m = MatchSim.new(map, seed)
 	m.targetNations = #ids
 	MatchSim.startPick(m)

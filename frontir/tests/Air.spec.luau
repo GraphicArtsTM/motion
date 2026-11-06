@@ -369,3 +369,22 @@ T.describe("Авиация", function()
 		end
 	)
 end)
+
+T.describe("Авиация ботов (§15б)", function()
+	T.it(
+		"бот с аэродромом бережёт нефть на первые самолёты; самолёты дешевле в нефти",
+		function()
+			local BotBrain = require("../src/shared/BotBrain")
+			local bomberOil = Config.Units.Bomber.oil
+			T.expect(Config.Units.Fighter.oil).toBe(20)
+			T.expect(bomberOil).toBe(25)
+			local view: any = { air = { airfield = 5, fighters = 0, bombers = 0, idleBomber = false, bombed = false } }
+			T.expect(BotBrain.oilForPlanes(view)).toBe(bomberOil)
+			view.air.fighters, view.air.bombers = Config.Air.BotFighters, Config.Air.BotBombers
+			T.expect(BotBrain.oilForPlanes(view)).toBe(0)
+			view.air.airfield = nil
+			view.air.fighters, view.air.bombers = 0, 0
+			T.expect(BotBrain.oilForPlanes(view)).toBe(0)
+		end
+	)
+end)
