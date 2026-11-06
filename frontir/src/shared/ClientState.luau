@@ -90,7 +90,8 @@ export type ProfileInfo = {
 	crates: number,
 	pityLeft: number, -- через сколько ящиков гарантированный джекпот
 	season: { tier: number, xp: number, per: number, premium: boolean, left: number? }, -- left nil — без срока
-	weekly: { offer: { stock: { [string]: number }, crates: number, tokens: number }, left: number },
+	weekly: { offer: { stock: { [string]: number }, crates: number, tokens: number, medals: number? }, left: number },
+	noPaidRandom: boolean?, -- сводная правка ч.4: в стране игрока ящики за Robux не продаются (PolicyService)
 	dailyStreak: number,
 	wardrobe: { owned: { [string]: boolean }, equipped: { [string]: string }, flag: Cosmetics.Flag }, -- §11.4
 	-- §11.5: задания дня, жетон за все, секунд до новых заданий, рейтинг дуэлей.

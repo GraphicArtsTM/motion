@@ -891,6 +891,14 @@ function MatchSim.startLobby(m: Match)
 	m.infoDirty = true
 end
 
+-- Обучение (§5.5) идёт только на карте Tutorial.Map (сводная правка): какую карту загрузить вместо текущей (nil — эта).
+function MatchSim.tutorialMap(m: Match): string?
+	if m.rules.tutorial and m.map.name ~= Config.Tutorial.Map then
+		return Config.Tutorial.Map
+	end
+	return nil
+end
+
 -- Выбор старта (из ожидания — сразу, минуя лобби: так делают тесты и превью).
 function MatchSim.startPick(m: Match)
 	if m.phase ~= "Waiting" and m.phase ~= "Lobby" then
@@ -1575,6 +1583,27 @@ local function buildSpots(m: Match, n: Nation): BotBrain.BuildSpots
 		if Grid.getOwner(g, cell) == n.id and Buildings.cityLevel(m.buildings, cell) < Config.Economy.MaxCityLevel then
 			if spots.city == nil or cell == n.capital then
 				spots.city = cell
+			end
+		end
+	end
+	-- Батарея ПВО (сводная правка): свободная своя провинция, ближайшая к месту недавнего налёта на нас.
+	local bombedAt, bombedCell = m.bombedAt[n.id], m.bombedCell[n.id]
+	if bombedAt ~= nil and bombedCell ~= nil and m.simTime - bombedAt < Config.Air.BuildingDisableSec * 2 then
+		local w = g.width
+		local bx, by = bombedCell % w, bombedCell // w
+		local r2 = Config.Buildings.AirDefense.radius ^ 2
+		for _, b in MatchSim.buildingsOf(m, "AirDefense") do
+			if b.owner == n.id and (b.cell % w - bx) ^ 2 + (b.cell // w - by) ^ 2 <= r2 then
+				spots.batteryCovered = true
+			end
+		end
+		local best = if spots.batteryCovered then -1 else r2 * 2
+		for _, p in m.provinces.list do
+			if Grid.getOwner(g, p.center) == n.id and m.buildings.byProvince[p.id] == nil then
+				local d = (p.center % w - bx) ^ 2 + (p.center // w - by) ^ 2
+				if d < best then
+					spots.battery, best = p.center, d
+				end
 			end
 		end
 	end
@@ -2340,7 +2369,7 @@ local function stepAttacks(m: Match, simDt: number): number
 						share = homeShare,
 						counter = if counter ~= nil then counter.forces else nil,
 						bonus = (if still then Config.Fortify.LineBonus else 1) * MatchSim.abilityDefenseMul(m, a),
-						armor = if Tech.has(m.tech, a.target, "Army", 3) then Config.Tech.TankArmor else nil,
+						armor = if Tech.has(m.tech, a.target, "Army", 4) then Config.Tech.TankArmor else nil, -- Войска-4 (сводная правка)
 					},
 					Fronts.terrainDefense(m.map, front.list, front.river, fortified),
 					battleRng(m, a),
@@ -3083,7 +3112,10 @@ function MatchSim.botsBid(m: Match)
 		local bestCap = need - 1
 		for _, n in m.nations do
 			if n.alive and n.isBot and n.id ~= a.topId then
-				local share = cfg.BotBidShare * (if n.botLevel == "Novice" then 0.5 else 1)
+				local personality = Config.BotPersonalities[n.personality or "Admiral"] :: any
+				local share = cfg.BotBidShare
+					* (if n.botLevel == "Novice" then 0.5 else 1)
+					* (if personality ~= nil and personality.bidShare ~= nil then personality.bidShare else 1)
 				local cap = math.floor(n.money * share)
 				if cap > bestCap then
 					best, bestCap = n, cap
@@ -3340,7 +3372,11 @@ local function botMissile(m: Match, n: Nation, rng: Rng)
 	end
 	if MatchSim.ownedOf(m, n.id).silos == 0 then
 		local cfg = Config.Buildings.MissileSilo
-		if MatchSim.techAllows(m, n.id, "MissileSilo") and n.money >= cfg.cost * 1.5 and n.oil >= cfg.oil then
+		if
+			MatchSim.techAllows(m, n.id, "MissileSilo")
+			and n.money >= cfg.cost * Config.Missile.BotSiloMoneyMul
+			and n.oil >= cfg.oil
+		then
 			-- Свободная своя провинция подальше от фронта: ближайшая к столице.
 			local cap = n.capital or 0
 			local w = m.grid.width

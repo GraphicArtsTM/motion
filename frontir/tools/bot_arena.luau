@@ -12,6 +12,7 @@
 
 local process = require("@lune/process")
 
+local Commanders = require("../src/shared/Commanders")
 local Config = require("../src/shared/Config")
 local Grid = require("../src/shared/Grid")
 local MapFormat = require("../src/shared/MapFormat")
@@ -28,7 +29,12 @@ local dt = 1 / Config.Sim.TickRate
 
 export type Outcome = { place: number, share: number, winner: number, reason: string, time: number }
 
-local function play(level: any, seed: number): Outcome
+-- «Игрок» по очереди играет всеми генералами (сводная правка): партии 1–5 — первым, 6–10 — вторым и т. д.
+local function commanderFor(k: number): Types.CommanderId
+	return Types.CommanderIds[((k - 1) // 5) % #Types.CommanderIds + 1] :: any
+end
+
+local function play(level: any, seed: number, commander: Types.CommanderId): Outcome
 	local m = MatchSim.new(map, seed)
 	MatchSim.addPlayer(m, 1, "Игрок")
 	m.targetNations = rivals + 1
@@ -39,6 +45,7 @@ local function play(level: any, seed: number): Outcome
 	for _, n in m.nations do
 		if n.id == 1 then
 			MatchSim.setBot(m, 1, "Normal", "Admiral")
+			Commanders.choose(m.commanders, 1, commander)
 		else
 			MatchSim.setBot(m, n.id, level)
 		end
@@ -72,7 +79,8 @@ for level in string.gmatch(levelsArg, "[^,]+") do
 	for k = 1, seeds do
 		local seed = 1000 + k * 77
 		local t0 = os.clock()
-		local o = play(lvl, seed)
+		local commander: Types.CommanderId = commanderFor(k)
+		local o = play(lvl, seed, commander)
 		places += o.place
 		shares += o.share
 		if o.place == 1 then
@@ -81,8 +89,9 @@ for level in string.gmatch(levelsArg, "[^,]+") do
 		table.insert(
 			lines,
 			string.format(
-				"    сид %d: место %d, суша %4.1f%%, победа %d (%s) на %d:%02d  [%.0f с]",
+				"    сид %d (%s): место %d, суша %4.1f%%, победа %d (%s) на %d:%02d  [%.0f с]",
 				seed,
+				commander,
 				o.place,
 				o.share * 100,
 				o.winner,

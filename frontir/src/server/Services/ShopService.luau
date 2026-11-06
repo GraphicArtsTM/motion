@@ -6,11 +6,15 @@
 	  (Roblox повторит позже). Буст — в запас; hooks.onStock пробует сразу применить его в идущем матче.
 	- Геймпассы: UserOwnsGamePassAsync при входе (кеш на сессию), PromptGamePassPurchaseFinished — купил сейчас.
 	- Premium: Player.MembershipType.
+	- Политика (сводная правка ч.4): PolicyService.ArePaidRandomItemsRestricted при входе (не узнали — считаем, что
+	  запрещено). Пока запрещено, профиль помечен noPaidRandom: наборы ящиков не продаются, ящики за Robux
+	  (неделя, премиум-пропуск) заменяются фиксированной наградой (Profile.paidReward).
 	Товары без id (0 — ещё не созданы на сайте Roblox) просто не продаются.
 ]]
 
 local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
+local PolicyService = game:GetService("PolicyService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
@@ -29,6 +33,7 @@ export type ShopService = {
 	passes: (player: Player) -> { [string]: boolean },
 	premium: (player: Player) -> boolean,
 	loadPasses: (player: Player) -> (),
+	noPaidRandom: (player: Player) -> boolean?, -- nil — политика ещё не узнана
 	forget: (player: Player) -> (),
 }
 
@@ -36,6 +41,7 @@ local ShopService = {}
 
 function ShopService.start(profiles: ProfileStore.ProfileStore, hooks: Hooks): ShopService
 	local owned: { [Player]: { [string]: boolean } } = {}
+	local restricted: { [Player]: boolean } = {}
 	local passCfg = (Config.Shop.Passes :: any) :: { [string]: { id: number } }
 
 	MarketplaceService.ProcessReceipt = function(info: any): Enum.ProductPurchaseDecision
@@ -49,6 +55,12 @@ function ShopService.start(profiles: ProfileStore.ProfileStore, hooks: Hooks): S
 			warn("[Frontir] неизвестный продукт", info.ProductId)
 			return Enum.ProductPurchaseDecision.NotProcessedYet
 		end
+		-- Политика игрока ещё не узнана — начислим, когда узнаем (ящик может стать фиксированной наградой).
+		local noRandom = restricted[player]
+		if noRandom == nil then
+			return Enum.ProductPurchaseDecision.NotProcessedYet
+		end
+		session.data.noPaidRandom = noRandom
 		local purchaseId = tostring(info.PurchaseId)
 		local fresh = not Profile.hasPurchase(session.data, purchaseId)
 		if not Profile.grantProduct(session.data, kind, key, purchaseId, os.time()) then
@@ -100,9 +112,19 @@ function ShopService.start(profiles: ProfileStore.ProfileStore, hooks: Hooks): S
 				end
 			end
 			owned[player] = set
+			local ok, policy = pcall(function(): any
+				return PolicyService:GetPolicyInfoForPlayerAsync(player)
+			end)
+			restricted[player] = not ok
+				or type(policy) ~= "table"
+				or (policy :: any).ArePaidRandomItemsRestricted ~= false
+		end,
+		noPaidRandom = function(player: Player): boolean?
+			return restricted[player]
 		end,
 		forget = function(player: Player)
 			owned[player] = nil
+			restricted[player] = nil
 		end,
 	}
 end

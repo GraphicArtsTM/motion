@@ -23,6 +23,9 @@ type ClientState = ClientState.ClientState
 
 export type TechPanel = {
 	refresh: () -> (), -- пришли технологии или сменилась фаза
+	-- Самопроверка (сводная правка, часть 1): открыть/закрыть окно и узнать, открыто ли.
+	toggle: () -> (),
+	isOpen: () -> boolean,
 }
 
 local TechPanel = {}
@@ -59,7 +62,7 @@ local function describe(branch: string, level: number, lang: Strings.Lang): stri
 	local key = branch .. level
 	if key == "Army2" then
 		return string.format(fmt, tostring(cfg.SupplyRangeMul))
-	elseif key == "Army3" then
+	elseif key == "Army4" then
 		return string.format(fmt, tostring(cfg.TankArmor))
 	elseif key == "Economy1" then
 		return string.format(fmt, math.round(cfg.TaxBonus * 100))
@@ -357,7 +360,15 @@ function TechPanel.new(
 	end)
 
 	refresh()
-	return { refresh = refresh }
+	return {
+		refresh = refresh,
+		toggle = function()
+			setOpen(not window.Visible)
+		end,
+		isOpen = function(): boolean
+			return window.Visible
+		end,
+	}
 end
 
 return table.freeze(TechPanel)

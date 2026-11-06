@@ -24,6 +24,9 @@ type ClientState = ClientState.ClientState
 
 export type WardrobePanel = {
 	refresh: () -> (),
+	-- Самопроверка (сводная правка, часть 1): открыть/закрыть окно и узнать, открыто ли.
+	toggle: () -> (),
+	isOpen: () -> boolean,
 }
 
 local WardrobePanel = {}
@@ -260,7 +263,13 @@ function WardrobePanel.new(
 		end
 	end)
 
-	return { refresh = draw }
+	return {
+		refresh = draw,
+		toggle = open,
+		isOpen = function(): boolean
+			return window.Visible
+		end,
+	}
 end
 
 return table.freeze(WardrobePanel)

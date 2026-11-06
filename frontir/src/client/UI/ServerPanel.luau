@@ -24,6 +24,9 @@ type Settings = ServerSettings.Settings
 
 export type ServerPanel = {
 	refresh: () -> (), -- пришло info
+	-- Самопроверка (сводная правка, часть 1): открыть/закрыть окно и узнать, открыто ли.
+	toggle: () -> (),
+	isOpen: () -> boolean,
 }
 
 local ServerPanel = {}
@@ -271,7 +274,19 @@ function ServerPanel.new(
 		end
 	end
 
-	return { refresh = refresh }
+	return {
+		refresh = refresh,
+		toggle = function()
+			if window.Visible then
+				window.Visible = false
+			else
+				open()
+			end
+		end,
+		isOpen = function(): boolean
+			return window.Visible
+		end,
+	}
 end
 
 -- Значения строк окна по черновику настроек.

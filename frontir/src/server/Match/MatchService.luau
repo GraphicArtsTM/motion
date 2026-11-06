@@ -14,6 +14,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local ScriptContext = game:GetService("ScriptContext")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Analytics = require(Shared:WaitForChild("Analytics"))
@@ -240,7 +241,17 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				-- nil — сезон без срока (§11.3).
 				left = if Config.Season.EndsUnix > 0 then math.max(0, Config.Season.EndsUnix - now) else nil,
 			},
-			weekly = { offer = Shop.weeklyOffer(now), left = Shop.weekLeft(now) },
+			weekly = {
+				offer = (function(): { [string]: any }
+					local o = Shop.weeklyOffer(now)
+					return Profile.paidReward(
+						{ medals = 0, tokens = o.tokens, crates = o.crates, stock = o.stock },
+						d.noPaidRandom
+					) :: any
+				end)(),
+				left = Shop.weekLeft(now),
+			},
+			noPaidRandom = d.noPaidRandom, -- сводная правка ч.4: ящики за Robux здесь не продаются
 			dailyStreak = d.dailyStreak,
 			-- Задания дня и рейтинг (§11.5).
 			quests = (function(): { { [string]: any } }
@@ -463,6 +474,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		task.spawn(function()
 			local session = profiles.load(player.UserId)
 			shop.loadPasses(player)
+			session.data.noPaidRandom = shop.noPaidRandom(player) ~= false
 			if player.Parent ~= nil then
 				applyProfile(player)
 				-- Новичок один в лобби — голос за «Обучение» стоит сам (§5.5), можно сменить.
@@ -645,6 +657,14 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		local devEvent = Instance.new("RemoteEvent")
 		devEvent.Name = "Dev"
 		devEvent.Parent = remotes
+		-- Самопроверка (сводная правка, часть 1): ошибки скриптов сервера, пока идёт проверка.
+		local checkErrors: { string }? = nil
+		ScriptContext.Error:Connect(function(message: string, trace: string)
+			local list = checkErrors
+			if list ~= nil and #list < 50 then
+				table.insert(list, message .. " | " .. string.sub(trace, 1, 200))
+			end
+		end)
 		devEvent.OnServerEvent:Connect(function(player: Player, action: any, arg: any)
 			local id = nationOf[player]
 			if id == nil or type(action) ~= "string" then
@@ -736,6 +756,22 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				end
 			elseif action == "flood" then
 				ok, reason = DevTools.floodNow(m)
+			elseif action == "selfAbility" and type(arg) == "table" and type(arg.commander) == "string" then
+				ok, reason = DevTools.selfAbility(m, id, arg.commander, tonumber(arg.slot) or 0)
+			elseif action == "worldEvent" and type(arg) == "string" then
+				ok, reason = DevTools.worldEventKind(m, arg)
+			elseif action == "selfCheck" and (arg == "start" or arg == "stop") then
+				if arg == "start" then
+					checkErrors = {}
+				else
+					matchEvent:FireClient(player, { kind = "dev", serverErrors = checkErrors or {} })
+					checkErrors = nil
+				end
+			elseif action == "mapNow" then
+				-- Смена карты сейчас (самопроверка): следующая карта пула, новый матч в лобби.
+				local pool = Config.MapVote.Pool
+				local k = table.find(pool, map.name) or 0
+				task.defer(startNewMatch, pool[k % #pool + 1])
 			elseif action == "map" then
 				-- Карта следующего матча без голосования (§5.2): по кругу пула.
 				local pool = Config.MapVote.Pool
@@ -748,6 +784,8 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			if not ok then
 				matchEvent:FireClient(player, { kind = "rejected", reason = reason or "?", intent = "dev" })
 			end
+			-- Подтверждение каждого действия (самопроверка ждёт его).
+			matchEvent:FireClient(player, { kind = "dev", ack = action, ok = ok, reason = reason })
 		end)
 	end
 
@@ -853,8 +891,17 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			acc -= step
 			steps += 1
 			local wasPlaying = m.phase == "Play"
+			local wasPick = m.phase == "Pick"
 			local t0 = os.clock()
 			MatchSim.step(m, step)
+			-- Обучение — только на «Скандинавии» (сводная правка): другая карта — сменить и сразу к выбору старта.
+			local tutorialMap = if not wasPick and m.phase == "Pick" then MatchSim.tutorialMap(m) else nil
+			if tutorialMap ~= nil then
+				startNewMatch(tutorialMap)
+				m.forcedMode = "Tutorial"
+				MatchSim.startPick(m)
+				break
+			end
 			lastTickMs = (os.clock() - t0) * 1000
 			if wasPlaying and m.phase == "Over" then
 				giveRewards() -- опыт и медали за матч (§11.2)

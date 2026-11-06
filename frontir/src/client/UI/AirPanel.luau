@@ -27,6 +27,9 @@ type MapData = MapDataModule.MapData
 export type AirPanel = {
 	refresh: () -> (),
 	tap: (cell: number, zoom: number) -> boolean, -- true — нажатие ушло авиации
+	-- Самопроверка (сводная правка, часть 1): закрыть меню и узнать, открыто ли.
+	close: () -> (),
+	isOpen: () -> boolean,
 }
 
 export type PlanePicker = (x: number, y: number, owner: number, reach: number) -> Protocol.PlaneInfo?
@@ -272,6 +275,10 @@ function AirPanel.new(
 	end
 
 	return {
+		close = close,
+		isOpen = function(): boolean
+			return panel.Visible
+		end,
 		refresh = function()
 			if not playing() then
 				setMode(nil)

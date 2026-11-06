@@ -28,6 +28,7 @@ export type CommanderPanel = {
 	refresh: () -> (), -- пришли info / commander или сменилась фаза
 	update: (now: number) -> (), -- обратные отсчёты
 	tap: (cell: number) -> boolean, -- true — нажатие ушло в цель способности
+	isOpen: () -> boolean, -- самопроверка: карточки (лобби) или кнопки способностей (игра) на экране
 }
 
 local CommanderPanel = {}
@@ -373,7 +374,14 @@ function CommanderPanel.new(
 	end
 
 	refresh()
-	return { refresh = refresh, update = update, tap = tap }
+	return {
+		refresh = refresh,
+		update = update,
+		tap = tap,
+		isOpen = function(): boolean
+			return picker.Visible or bar.Visible
+		end,
+	}
 end
 
 return table.freeze(CommanderPanel)

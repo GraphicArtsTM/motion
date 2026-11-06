@@ -141,6 +141,8 @@ export type BuildSpots = {
 	unstableCity: number?, -- свой город в такой провинции, который можно улучшить
 	port: number?, -- своя прибрежная провинция без здания (§6.12)
 	airfield: number?, -- своя провинция без здания, ближайшая к врагу (§6.13)
+	battery: number?, -- своя провинция без здания, ближайшая к месту недавнего налёта на нас (сводная правка)
+	batteryCovered: boolean?, -- место налёта уже прикрыто своей батареей ПВО — новую не ставить
 }
 
 -- Что бот знает, отвечая на предложение договора или требование (§8.1).
@@ -332,14 +334,27 @@ local function chooseBuild(view: BotView, profile: Profile, rng: Rng, atWar: boo
 	local air = view.air
 	if atWar and air ~= nil then
 		local keen = personality.air >= 0.5 or level.smartTarget
+		-- Сводная правка: самолётам нужна нефть — аэродром без нефтедобычи стоит без дела.
+		if
+			keen
+			and air.airfield ~= nil
+			and view.oil < (Config.Units :: any).Bomber.oil
+			and view.economy.oilIncome <= 0
+		then
+			local rig = want("OilRig", spots.oilRig)
+			if rig ~= nil then
+				return rig
+			end
+		end
 		if keen and air.airfield == nil and spots.airfield ~= nil then
 			local airfield = want("Airfield", spots.airfield)
 			if airfield ~= nil then
 				return airfield
 			end
 		end
-		if air.bombed then
-			local battery = want("AirDefense", spots.fort or spots.free)
+		if air.bombed and not spots.batteryCovered then
+			-- Сводная правка: батарея — туда, куда бомбили (враг бьёт ту же линию снова).
+			local battery = want("AirDefense", spots.battery or spots.fort or spots.free)
 			if battery ~= nil then
 				return battery
 			end
@@ -420,7 +435,8 @@ local function airDecision(view: BotView, p: Profile, rng: Rng): Types.Intent?
 		return nil
 	end
 	-- Генерал под бомбами (§6.13): истребитель прикрывает место налёта, а если истребителей мало — нанимает их.
-	if level.smartTarget and air.bombed then
+	-- Сводная правка: так же — личности, любящие авиацию (Хитрец, Агрессор).
+	if (level.smartTarget or personality.air >= Config.Air.BotCoverAir) and air.bombed then
 		local bombedCell, fighter = air.bombedCell, air.coverFighter
 		if bombedCell ~= nil and fighter ~= nil then
 			return { kind = "cover", plane = fighter, cell = bombedCell }
@@ -488,20 +504,15 @@ local function techWanted(view: BotView, p: Profile, rng: Rng?): (string?, numbe
 		if #open > 0 then
 			branch = open[Rng.range(rng, 1, #open)]
 		end
-	elseif p.level.smartTarget then
-		-- Очередь Генерала: первая запись, уровень которой ещё не изучен.
+	else
+		-- Очередь (Генерал — своя, остальные — по личности): первая запись, уровень которой ещё не изучен.
+		local order: { string } = if p.level.smartTarget
+			then cfg.GeneralOrder
+			else (cfg.BotOrder :: any)[p.personalityName or ""] or cfg.GeneralOrder
 		local seen: { [string]: number } = {}
-		for _, b: string in cfg.GeneralOrder do
+		for _, b: string in order do
 			seen[b] = (seen[b] or 0) + 1
 			if nextLevel(b) == seen[b] then
-				branch = b
-				break
-			end
-		end
-	else
-		local order: { string } = (cfg.BotOrder :: any)[p.personalityName or ""] or { "Army", "Economy", "Fleet" }
-		for _, b in order do
-			if nextLevel(b) ~= nil then
 				branch = b
 				break
 			end
@@ -821,7 +832,9 @@ function BotBrain.decide(view: BotView, rng: Rng, profile: Profile?, memory: Mem
 		view.hasCapital
 		and view.queue < level.maxQueue
 		and view.people >= view.maxPeople * level.hireWhenFill
-		and Rng.nextFloat(rng) < level.hireChance * personality.hire
+		-- Угроза (война или мобилизация): Торговец нанимает чаще (personality.threatHire).
+		and Rng.nextFloat(rng)
+			< level.hireChance * personality.hire * (if #view.wars > 0 then personality.threatHire or 1 else 1)
 	then
 		local enemyMix = if enemy ~= nil then enemy.mix else nil
 		local unit: Types.LandUnit = chooseUnit(view, p, rng, enemyMix)

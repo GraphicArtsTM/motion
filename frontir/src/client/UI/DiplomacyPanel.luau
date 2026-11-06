@@ -29,6 +29,9 @@ export type DiplomacyPanel = {
 	refresh: () -> (),
 	update: (now: number) -> (),
 	tap: (cell: number) -> boolean, -- режим требования забирает нажатие на карту
+	-- Самопроверка (сводная правка, часть 1): открыть/закрыть окно и узнать, открыто ли.
+	toggle: () -> (),
+	isOpen: () -> boolean,
 }
 
 local DiplomacyPanel = {}
@@ -690,7 +693,17 @@ function DiplomacyPanel.new(
 		return true
 	end
 
-	return { refresh = refresh, update = update, tap = tap }
+	return {
+		refresh = refresh,
+		update = update,
+		tap = tap,
+		toggle = function()
+			setOpen(not window.Visible)
+		end,
+		isOpen = function(): boolean
+			return window.Visible
+		end,
+	}
 end
 
 return table.freeze(DiplomacyPanel)

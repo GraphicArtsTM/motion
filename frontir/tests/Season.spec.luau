@@ -175,3 +175,46 @@ T.describe(
 		)
 	end
 )
+
+T.describe(
+	"Платные случайные награды (PolicyService, сводная правка ч.4)",
+	function()
+		T.it(
+			"где запрещены: наборы ящиков не продаются, ящики за Robux — фиксированная награда",
+			function()
+				local c = Config.Crates.Restricted
+				local d = Profile.new()
+				d.noPaidRandom = true
+				T.expect(Profile.packAvailable(d, "Crate1", NOW)).toBe(false)
+				T.expect(Profile.packAvailable(d, "Crate5", NOW)).toBe(false)
+				T.expect(Profile.packAvailable(d, "Weekly", NOW)).toBe(true)
+				-- Куплен всё же (Robux списаны) — замена вместо ящиков.
+				T.expect(Profile.grantProduct(d, "pack", "Crate5", "c5", NOW)).toBe(true)
+				T.expect(d.crates).toBe(0)
+				T.expect(d.medals).toBe(5 * c.medals)
+				T.expect(d.tokens).toBe(5 * c.tokens)
+				-- Премиум-пропуск: ящиков нет ни на одной ступени; бесплатные ящики пропуска остаются.
+				T.expect(Profile.grantProduct(d, "pack", "SeasonPass", "sp", NOW)).toBe(true)
+				local paid = 0
+				for t = 1, Config.Season.Tiers do
+					paid += Profile.seasonReward(t, true).crates
+				end
+				local free = 0
+				for t = 1, Config.Season.Tiers do
+					free += Profile.seasonReward(t, false).crates
+				end
+				Profile.addSeasonXp(d, Config.Season.XpPerTier * Config.Season.Tiers, NOW)
+				T.expect(paid > 0).toBe(true)
+				T.expect(d.crates).toBe(free)
+			end
+		)
+		T.it("где разрешены — всё как было", function()
+			local d = Profile.new()
+			T.expect(Profile.packAvailable(d, "Crate1", NOW)).toBe(true)
+			T.expect(Profile.grantProduct(d, "pack", "Crate5", "c5", NOW)).toBe(true)
+			T.expect(d.crates).toBe(5)
+			local r = { medals = 0, tokens = 0, crates = 2, stock = {} }
+			T.expect(Profile.paidReward(r, false)).toBe(r)
+		end)
+	end
+)
