@@ -49,6 +49,7 @@ local WarFxLayer = require(Render:WaitForChild("WarFxLayer"))
 local ActionRingUI = require(UI:WaitForChild("ActionRing"))
 local DoomBar = require(UI:WaitForChild("DoomBar"))
 local Dock = require(UI:WaitForChild("Dock"))
+local LobbyScreen = require(UI:WaitForChild("LobbyScreen"))
 local AirPanel = require(UI:WaitForChild("AirPanel"))
 local BuildPanel = require(UI:WaitForChild("BuildPanel"))
 local CityLabels = require(UI:WaitForChild("CityLabels"))
@@ -310,6 +311,9 @@ local function runSession(mapId: string, resync: boolean)
 	local questsPanel = QuestsPanel.new(hudGui, cs, lang, hud.toast) -- задания и лидеры (§11.5)
 	local tutorial = TutorialPanel.new(hudGui, cs, lang, hud.toast) -- обучение (§5.5)
 	local soundPanel = SoundPanel.new(hudGui, cs, lang, send) -- громкости (§13)
+	-- Экран лобби (§15и): «Следующий матч», голосование и выбор генерала переезжают в него на время лобби.
+	local lobby = LobbyScreen.new(hudGui, cs, lang, map.name)
+	lobby.attach(modePanel.voteFrame, commanderPanel.pickerFrame)
 	-- Док снизу по центру (§15з): все окна — отсюда; прежние кнопки окон прячутся, их состояние — в подсказке.
 	local dock = Dock.new(hudGui, lang, {
 		{
@@ -393,6 +397,7 @@ local function runSession(mapId: string, resync: boolean)
 			toggle = soundPanel.toggle,
 			isOpen = soundPanel.isOpen,
 		},
+		{ icon = "help", name = "dock.help", key = "H", toggle = lobby.toggleHelp, isOpen = lobby.helpOpen },
 	})
 	-- Клик (§13): любая кнопка HUD, в том числе созданная позже.
 	local function hookButton(inst: Instance)
@@ -894,6 +899,7 @@ local function runSession(mapId: string, resync: boolean)
 		warFx.update(now, camera.state)
 		doomBar.update(now)
 		dock.update(now)
+		lobby.update(now)
 		worldPanel.update(now)
 		hud.update(now)
 		hints.update(now)

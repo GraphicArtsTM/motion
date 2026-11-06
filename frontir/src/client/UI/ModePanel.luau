@@ -24,6 +24,7 @@ type ClientState = ClientState.ClientState
 
 export type ModePanel = {
 	refresh: () -> (), -- пришло info
+	voteFrame: Frame, -- §15и: на время лобби переезжает в экран лобби
 }
 
 local ModePanel = {}
@@ -282,7 +283,7 @@ function ModePanel.new(
 		fast.Text = Strings.get(if info.fast then "solo.normal" else "solo.fast", lang)
 	end
 
-	return { refresh = refresh }
+	return { refresh = refresh, voteFrame = vote }
 end
 
 return table.freeze(ModePanel)

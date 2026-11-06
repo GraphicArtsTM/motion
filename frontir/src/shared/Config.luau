@@ -652,7 +652,24 @@ Config.Render = {
 	ActionRing = { Radius = 78, ButtonW = 128 }, -- кольцо действий (§15е): радиус круга и ширина кнопки, px
 	PeopleZone = { 0.35, 0.65 },
 	-- §15з док снизу по центру: кнопка, отступы, масштаб значка 8×8, над карточками найма (56 px).
-	Dock = { ButtonPx = 52, PadPx = 6, GapPx = 6, IconScale = 4, BottomPx = 12 + 56 + 10, RefreshSec = 0.2 }, -- §15е: зона лучшего роста людей (доля максимума) на столбике в полосе ресурсов
+	Dock = { ButtonPx = 52, PadPx = 6, GapPx = 6, IconScale = 4, BottomPx = 12 + 56 + 10, RefreshSec = 0.2 },
+	-- §15и экран лобби: затемнение карты, ширина карточки, место под док; «Как играть» — шаги со значками PixelIcons.
+	Lobby = {
+		ShadeAlpha = 0.35,
+		TopPx = 36,
+		WidthPx = 760,
+		HeightPx = 620,
+		DockSpacePx = 150, -- док (§15з) стоит над карточками найма — карточка лобби не заходит под него
+		HelpWidthPx = 620,
+		HelpSteps = {
+			{ key = "start", icon = "land" },
+			{ key = "expand", icon = "people" },
+			{ key = "war", icon = "army" },
+			{ key = "build", icon = "build" },
+			{ key = "goal", icon = "money" },
+			{ key = "doom", icon = "stability" },
+		},
+	}, -- §15е: зона лучшего роста людей (доля максимума) на столбике в полосе ресурсов
 	ToastSec = 3, -- сколько висит всплывающее сообщение
 	MinimapSide = 200, -- мини-карта вписана в квадрат стольких пикселей (HUD v1)
 	MinimapEverySec = 2, -- как часто перерисовывать мини-карту

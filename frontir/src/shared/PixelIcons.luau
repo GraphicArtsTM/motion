@@ -125,6 +125,14 @@ PixelIcons.Icons = table.freeze({
 		p(1, 1, 6, 6, "Steel"),
 		p(3, 3, 2, 2, "Ink"),
 	},
+	help = { -- вопрос
+		p(2, 0, 4, 1, "Gold"),
+		p(1, 1, 2, 2, "Gold"),
+		p(5, 1, 2, 3, "Gold"),
+		p(3, 4, 3, 1, "Gold"),
+		p(3, 5, 2, 1, "Gold"),
+		p(3, 7, 2, 1, "Gold"),
+	},
 	sound = { -- нота
 		p(5, 0, 1, 6, "White"),
 		p(5, 0, 3, 1, "White"),

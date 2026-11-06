@@ -931,6 +931,46 @@ local TABLE: { [string]: Entry } = {
 		en = "☢ %s: %s hit %s — %s cells",
 	},
 	["ring.emoji"] = { ru = "Эмодзи", en = "Emoji" },
+	-- Экран лобби и «Как играть» (§15и).
+	["lobby.title"] = { ru = "ФРОНТИР", en = "FRONTIR" },
+	["lobby.subtitle"] = {
+		ru = "Захватите больше суши, чем соседи, — союзом, торговлей или войной",
+		en = "Hold more land than your neighbours — by alliance, trade or war",
+	},
+	["lobby.next"] = { ru = "СЛЕДУЮЩИЙ МАТЧ", en = "NEXT MATCH" },
+	["lobby.info"] = { ru = "Режим: %s  ·  игроков %d из %d", en = "Mode: %s  ·  players %d of %d" },
+	["lobby.players"] = { ru = "В лобби:", en = "In lobby:" },
+	["help.title"] = { ru = "Как играть", en = "How to play" },
+	["help.start"] = {
+		ru = "<b>Старт.</b> Нажмите на сушу, где начнёте: там появится столица.",
+		en = "<b>Start.</b> Tap the land where you begin: your capital appears there.",
+	},
+	["help.expand"] = {
+		ru = "<b>Расширение.</b> Нажмите на ничью землю — люди идут туда. Людей больше всего прибывает около половины максимума.",
+		en = "<b>Expand.</b> Tap empty land — your people move in. People grow fastest around half of the maximum.",
+	},
+	["help.war"] = {
+		ru = "<b>Война.</b> Правая кнопка (или долгое нажатие) по соседу → «Объявить войну». Через 5 с — бой: нажмите на врага, ползунок — доля войск. Найм — Z/X/C/V.",
+		en = "<b>War.</b> Right-click (or long-press) a neighbour → “Declare war”. Fighting starts in 5 s: tap the enemy, the slider sets the troop share. Hire — Z/X/C/V.",
+	},
+	["help.build"] = {
+		ru = "<b>Стройка (B).</b> Завод — деньги, Казармы — войска, Жилой квартал — люди, Порт — торговые суда, ЗРК — защита от ракет.",
+		en = "<b>Build (B).</b> Factory — money, Barracks — troops, Housing — people, Port — trade ships, SAM — missile defence.",
+	},
+	["help.goal"] = {
+		ru = "<b>Цель.</b> 60% суши (в «Командах» — 70%) или больше всех к концу лимита времени.",
+		en = "<b>Goal.</b> 60% of the land (70% in Teams) or the most land when time runs out.",
+	},
+	["help.doom"] = {
+		ru = "<b>Часы судного дня.</b> С 14-й минуты растёт обязательная доля суши: кто ниже — распадается через 30 с.",
+		en = "<b>Doomsday clock.</b> From minute 14 the required land share rises: anyone below collapses in 30 s.",
+	},
+	["help.keys"] = {
+		ru = "Клавиши: Z/X/C/V — найм · B — стройка · Y — технологии · T — дипломатия · Q/E — способности · R — ракеты · G — метки · M — магазин · H — эта подсказка · Space — к столице",
+		en = "Keys: Z/X/C/V — hire · B — build · Y — technology · T — diplomacy · Q/E — abilities · R — missiles · G — pings · M — shop · H — this help · Space — to capital",
+	},
+	["help.close"] = { ru = "Понятно!", en = "Got it!" },
+	["dock.help"] = { ru = "Как играть", en = "How to play" },
 	-- Док (§15з).
 	["dock.build"] = { ru = "Стройка", en = "Build" },
 	["dock.tech"] = { ru = "Технологии", en = "Technology" },

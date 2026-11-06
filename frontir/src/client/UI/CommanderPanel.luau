@@ -29,6 +29,7 @@ export type CommanderPanel = {
 	update: (now: number) -> (), -- обратные отсчёты
 	tap: (cell: number) -> boolean, -- true — нажатие ушло в цель способности
 	isOpen: () -> boolean, -- самопроверка: карточки (лобби) или кнопки способностей (игра) на экране
+	pickerFrame: Frame, -- §15и: на время лобби переезжает в экран лобби
 }
 
 local CommanderPanel = {}
@@ -405,6 +406,7 @@ function CommanderPanel.new(
 
 	refresh()
 	return {
+		pickerFrame = picker,
 		refresh = refresh,
 		update = update,
 		tap = tap,

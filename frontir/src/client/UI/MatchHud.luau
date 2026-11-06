@@ -736,6 +736,11 @@ function MatchHud.new(
 			lastBanner = text
 			bannerText.Text = text
 		end
+		-- §15и: в лобби карточку «Следующий матч» показывает экран лобби — баннер не дублирует.
+		local lobby = cs.phase == "Lobby" or cs.phase == "Waiting"
+		if banner.Visible == lobby then
+			banner.Visible = not lobby
+		end
 		local j = 1
 		while j <= #feedLines do
 			local line = feedLines[j]
