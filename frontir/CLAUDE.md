@@ -145,6 +145,11 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   и `missileImpact`), захват — `stepCaptures` (`m.buildingOwner`), восстание по таймеру — `ProvinceState.lowSince`,
   `st.warnings` → событие `revoltSoon`. Заряды — в таблице `world` (`batteries`), на карте —
   `BuildingLayer.charges`.
+- **Города (§15д ч.4):** реальные — `tools/realcities` → `cities` в модуле карты (`MapData.cities`), раскладка
+  и названия — `Provinces.build` (`set.cityNames`, `Provinces.cityName` / `foundedName`); основать — «Город» на
+  своей земле (`Buildings.check`, `MatchSim.foundCity`, `m.founded`, цена `Buildings.foundPrice`); уровни до 5.
+  Рисунок — `CitySprites` (общий с превью, `UI/NationLabels`), подписи — `UI/CityLabels`. Значки зданий 12×12 —
+  `BuildingSprites.rgb`.
 
 ## Цикл матча и HUD (этап 4в)
 - Фазы `Waiting → Lobby → Pick → Play → Over` в `MatchSim`; победа (`checkVictory`): доля суши, последняя держава,

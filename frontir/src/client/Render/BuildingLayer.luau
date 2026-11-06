@@ -1,7 +1,7 @@
 --!strict
 --[[
 	BuildingLayer — здания и нефтяные поля на карте (GDD §6.8–6.9).
-	Значки 7×7 (Shared.BuildingSprites) в клетке здания (§15г — любая своя клетка), цветом владельца клетки;
+	Значки 12×12 (Shared.BuildingSprites, §15д ч.4) в клетке здания (§15г — любая своя клетка), цветом владельца клетки;
 	улучшенный город — золотые точки-уровни рядом с городом; нефтяное поле без вышки — тёмная капля в центре
 	провинции. С приближением значки крупнее (Render.BuildingIconScales). Владельцы меняются вместе с клетками —
 	recolor() перекрашивает.
@@ -61,8 +61,9 @@ function BuildingLayer.new(
 
 	local function paint(icon: Icon)
 		local color = ownerColor(icon.owner)
+		local r, g, b = math.round(color.R * 255), math.round(color.G * 255), math.round(color.B * 255)
 		for k, p in shapeOf(icon.kind) do
-			icon.parts[k].BackgroundColor3 = if p.ink then Theme.Colors.Backdrop else color
+			icon.parts[k].BackgroundColor3 = Color3.fromRGB(BuildingSprites.rgb(p, r, g, b))
 		end
 	end
 

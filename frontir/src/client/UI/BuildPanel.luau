@@ -13,6 +13,7 @@ local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local BuildingSprites = require(Shared:WaitForChild("BuildingSprites"))
+local CitySprites = require(Shared:WaitForChild("CitySprites"))
 local Buildings = require(Shared:WaitForChild("Buildings"))
 local ClientState = require(Shared:WaitForChild("ClientState"))
 local Commanders = require(Shared:WaitForChild("Commanders"))
@@ -42,7 +43,7 @@ local BuildPanel = {}
 
 local BUTTON = Config.Render.MinTouchTargetPx
 local CARD_W, CARD_H = 236, 56
-local ICON_SCALE = 4
+local ICON_SCALE = 3 -- значок 12×12 → 36 px (§15д ч.4)
 local KEYS = {
 	Enum.KeyCode.One,
 	Enum.KeyCode.Two,
@@ -87,15 +88,28 @@ local function icon(parent: Instance, kind: string, color: Color3): Frame
 	root.Position = UDim2.new(0, 8, 0.5, -size // 2)
 	root.Parent = parent
 	local shape = BuildingSprites.Shapes[kind]
-	local tint = color
+	local r, g, b = math.round(color.R * 255), math.round(color.G * 255), math.round(color.B * 255)
+	local rects: { { x: number, y: number, w: number, h: number, c: Color3 } } = {}
 	if shape == nil then
-		shape = { { x = 1, y = 2, w = 5, h = 5, ink = false }, { x = 2, y = 0, w = 3, h = 2, ink = false } }
-		tint = Theme.Colors.Gold
+		-- Город (§15д ч.4): посёлок из CitySprites.
+		for _, cp in CitySprites.parts(1, false) do
+			table.insert(
+				rects,
+				{ x = cp.x, y = cp.y, w = cp.w, h = cp.h, c = Color3.fromRGB(CitySprites.rgb(cp, r, g, b)) }
+			)
+		end
+	else
+		for _, bp in shape do
+			table.insert(
+				rects,
+				{ x = bp.x, y = bp.y, w = bp.w, h = bp.h, c = Color3.fromRGB(BuildingSprites.rgb(bp, r, g, b)) }
+			)
+		end
 	end
-	for _, p in shape do
+	for _, p in rects do
 		local f = Instance.new("Frame")
 		f.BorderSizePixel = 0
-		f.BackgroundColor3 = if p.ink then Theme.Colors.Backdrop else tint
+		f.BackgroundColor3 = p.c
 		f.Position = UDim2.fromOffset(p.x * ICON_SCALE, p.y * ICON_SCALE)
 		f.Size = UDim2.fromOffset(p.w * ICON_SCALE, p.h * ICON_SCALE)
 		f.Parent = root
@@ -317,6 +331,9 @@ function BuildPanel.new(
 
 	local items: { [string]: TextButton } = {}
 	local icons: { [string]: Frame } = {}
+	local iconColor: { [string]: Color3 } = {}
+	local iconPos =
+		UDim2.new(0, -(BuildingSprites.Size * ICON_SCALE + 8), 0.5, -(BuildingSprites.Size * ICON_SCALE) // 2)
 
 	local function cancel()
 		selected = nil
@@ -358,7 +375,7 @@ function BuildPanel.new(
 		pad.PaddingRight = UDim.new(0, 22)
 		pad.Parent = b
 		icons[kind] = icon(b, kind, Theme.Colors.Sky)
-		icons[kind].Position = UDim2.new(0, -(BuildingSprites.Size * ICON_SCALE + 8), 0.5, -BuildingSprites.Size * 2)
+		icons[kind].Position = iconPos
 		if k <= #KEYS then
 			local badge = Instance.new("TextLabel")
 			badge.Name = "Key"
@@ -438,12 +455,15 @@ function BuildPanel.new(
 			)
 			local can = money >= cost and open
 			b.TextTransparency = if can then 0 else 0.5
+			-- Значок — цветом своей державы (перерисовать, если цвет сменился).
+			if iconColor[kind] ~= color then
+				iconColor[kind] = color
+				icons[kind]:Destroy()
+				icons[kind] = icon(b, kind, color)
+				icons[kind].Position = iconPos
+			end
 			for _, f in icons[kind]:GetChildren() do
 				if f:IsA("Frame") then
-					local ink = f.BackgroundColor3 == Theme.Colors.Backdrop
-					if not ink and kind ~= "City" then
-						f.BackgroundColor3 = color
-					end
 					f.BackgroundTransparency = if can then 0 else 0.55
 				end
 			end

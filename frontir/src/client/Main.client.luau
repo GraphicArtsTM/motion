@@ -547,6 +547,7 @@ local function runSession(mapId: string, resync: boolean)
 			buildingLayer.refresh()
 			build.onBuildings() -- эффект постройки (§15г)
 			cityLabels.refresh() -- уровни городов
+			labels.refresh() -- город растёт на карте (§15д ч.4)
 			buildingInfo.refresh()
 		end,
 		onShips = function()

@@ -650,8 +650,9 @@ Config.Render = {
 	AttackedFlashSec = 2.5, -- баннер войны мигает, когда на вас напали
 	-- С какого зума спрайты юнитов крупнее (§15г: спрайт 12×10 — крупные и видные с общего плана).
 	UnitSpriteScales = { { zoom = 2.5, scale = 2 }, { zoom = 6, scale = 3 }, { zoom = 10, scale = 4 } },
-	BuildingIconScales = { { zoom = 3, scale = 2 }, { zoom = 8, scale = 3 } }, -- значки зданий 7×7 (§15г)
+	BuildingIconScales = { { zoom = 5, scale = 2 }, { zoom = 10, scale = 3 } }, -- значки зданий 12×12 (§15д ч.4)
 	-- Названия городов (§15д ч.4): крупные (с этого уровня) — всегда, остальные — с зума CityLabelZoom.
+	CityScales = { { zoom = 2.5, scale = 2 }, { zoom = 7, scale = 3 } }, -- пиксель-арт города (§15д ч.4)
 	CityLabelZoom = 2.5,
 	CityLabelBigLevel = 3,
 	CityLabelSize = 11, -- + 2 за каждый уровень города

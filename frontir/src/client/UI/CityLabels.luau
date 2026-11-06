@@ -9,6 +9,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local CameraMath = require(Shared:WaitForChild("CameraMath"))
+local CitySprites = require(Shared:WaitForChild("CitySprites"))
 local ClientState = require(Shared:WaitForChild("ClientState"))
 local Config = require(Shared:WaitForChild("Config"))
 local MapDataModule = require(Shared:WaitForChild("MapData"))
@@ -90,9 +91,16 @@ function CityLabels.new(
 					end
 				end
 				l.TextColor3 = if capital then Theme.Colors.Gold else Theme.Colors.Text
+				-- Под пиксельным городом (его сторона — CitySprites.size × масштаб зума).
+				local scale = 1
+				for _, step in cfg.CityScales do
+					if state.zoom >= step.zoom then
+						scale = step.scale
+					end
+				end
 				l.Position = UDim2.fromOffset(
 					CameraMath.cellEdge(state.zoom, cx + 0.5),
-					CameraMath.cellEdge(state.zoom, cy + 1) + 2
+					CameraMath.cellEdge(state.zoom, cy + 0.5) + CitySprites.size(level) * scale / 2 + 2
 				)
 				l.Visible = true
 			end
