@@ -70,7 +70,7 @@ local function passive(c: Types.CommanderId, lang: Strings.Lang): string
 	elseif c == "Admiral" then
 		return string.format(fmt, math.round(cfg.ShipDiscount * 100), cfg.PortVision)
 	elseif c == "Scout" then
-		return string.format(fmt, tostring(cfg.VisionMul))
+		return fmt -- мощь соседей видна всегда (без чисел)
 	end
 	return string.format(fmt, math.round(cfg.BuildDiscount * 100))
 end

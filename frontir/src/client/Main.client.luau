@@ -45,6 +45,7 @@ local Camera2D = require(Render:WaitForChild("Camera2D"))
 local CameraInput = require(Client:WaitForChild("Input"):WaitForChild("CameraInput"))
 local AirLayer = require(Render:WaitForChild("AirLayer"))
 local MarkerLayer = require(Render:WaitForChild("MarkerLayer"))
+local WarFxLayer = require(Render:WaitForChild("WarFxLayer"))
 local AirPanel = require(UI:WaitForChild("AirPanel"))
 local BuildPanel = require(UI:WaitForChild("BuildPanel"))
 local BuildingLayer = require(Render:WaitForChild("BuildingLayer"))
@@ -247,6 +248,8 @@ local function runSession(mapId: string, resync: boolean)
 	end
 	local wars = WarPanel.new(hudGui, cs, lang, send, hud.toast, toFront)
 	warPanel = wars
+	-- Зрелищная война (§15б): баннер, искры границы, виньетка, стрелки наступления, вспышки захвата.
+	local warFx = WarFxLayer.new(view.canvas, hudGui, cs, lang)
 	wars.refresh()
 	local build = BuildPanel.new(hudGui, cs, lang, send, hud.toast)
 	build.refresh()
@@ -473,8 +476,10 @@ local function runSession(mapId: string, resync: boolean)
 			gridChanged()
 			labels.recolor()
 			buildingLayer.recolor()
+			warFx.onSnapshot()
 		end,
 		onDelta = function(cells: { number })
+			warFx.onDelta(cells) -- вспышки захвата (§15б)
 			-- Звук захвата (§13): свои новые клетки; город — «Province».
 			local me = cs.myNation
 			if me ~= nil and cs.phase == "Play" then
@@ -583,6 +588,7 @@ local function runSession(mapId: string, resync: boolean)
 			pings.onEvents(events)
 			airLayer.onEvents(events) -- вспышки бомб и сбитые самолёты
 			markerLayer.onEvents(events) -- круг ракеты сразу при пуске
+			warFx.onEvents(events) -- баннер войны, искры границы (§15б)
 			worldPanel.onEvents(events) -- баннер события
 			tutorial.onEvents(events) -- шаги обучения (§5.5)
 		end,
@@ -685,6 +691,7 @@ local function runSession(mapId: string, resync: boolean)
 		shipLayer.update(now, camera.state)
 		airLayer.update(now, camera.state)
 		markerLayer.update(now, camera.state)
+		warFx.update(now, camera.state)
 		worldPanel.update(now)
 		hud.update(now)
 		commanderPanel.update(now)

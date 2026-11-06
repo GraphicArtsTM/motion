@@ -41,7 +41,7 @@ export type Sources = {
 	radars: { number },
 	ships: { number }?, -- клетки кораблей друзей (обзор Naval.ShipVision, этап 7б-1)
 	planes: { number }?, -- клетки самолётов друзей (обзор Air.AirVision, этап 7б-2)
-	visionMul: number?, -- Разведчик (§6.15): обзор вокруг земли, фронтов и радаров ×
+	visionMul: number?, -- «Мгла» (§5.1): обзор вокруг земли, фронтов и радаров ×
 	ports: { number }?, -- свои порты Адмирала (§6.15): обзор TerritoryVision + Commanders.PortVision
 }
 
@@ -344,7 +344,7 @@ function Fog.visionBlocks(
 	borderCells: { { [number]: boolean } },
 	radars: { number },
 	ships: { number }?,
-	visionMul: number? -- Разведчик (§6.15)
+	visionMul: number? -- «Мгла» (§5.1)
 ): { [number]: boolean }
 	local cfg = Config.Fog
 	local bs = cfg.BlockSize

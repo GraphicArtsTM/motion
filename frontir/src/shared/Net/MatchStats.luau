@@ -63,7 +63,7 @@ function MatchStats.vision(m: MatchSim.Match, viewer: number): Vision
 		borders,
 		MatchStats.radarsOf(m, friends),
 		ships,
-		Commanders.visionMul(Commanders.of(m.commanders, viewer)) * m.rules.visionMul -- «Мгла» (§5.1)
+		m.rules.visionMul -- «Мгла» (§5.1)
 	)
 	return { friends = friends, blocks = blocks }
 end

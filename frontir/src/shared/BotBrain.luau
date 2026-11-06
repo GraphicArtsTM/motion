@@ -116,6 +116,8 @@ export type AirView = {
 	bombed: boolean, -- нас недавно бомбили (нужна батарея ПВО)
 	bombedCell: number?, -- где бомбили в последний раз (в радиусе нашей авиации)
 	coverFighter: number?, -- наш истребитель, который прикрывает другое место (можно перенацелить)
+	homeFighter: number?, -- наш истребитель, который прикрывает свой аэродром (§15б: его можно выдвинуть к фронту)
+	frontCover: (() -> number?)?, -- точка на линии фронта, где враг наступает на нас (в радиусе авиации)
 }
 
 -- Флот бота (§6.12): что есть и что можно сделать — подбирает MatchSim.
@@ -382,6 +384,19 @@ local function chooseBuild(view: BotView, profile: Profile, rng: Rng, atWar: boo
 end
 
 -- Флот (§6.12): высадка, патруль к порту врага, найм кораблей. Новичок флотом не пользуется.
+-- Нефть, которую бот с аэродромом бережёт на первые самолёты (§15б): пока нет бомбардировщика или истребителя,
+-- танки и корабли не тратят нефть ниже цены бомбардировщика (денег у ботов хватает, нефти — нет).
+function BotBrain.oilForPlanes(view: BotView): number
+	local air = view.air
+	if air == nil or air.airfield == nil then
+		return 0
+	end
+	if air.bombers < Config.Air.BotBombers or air.fighters < Config.Air.BotFighters then
+		return (Config.Units :: any).Bomber.oil
+	end
+	return 0
+end
+
 local function navyDecision(view: BotView, p: Profile, rng: Rng): Types.Intent?
 	local navy = view.navy
 	local level, personality = p.level, p.personality
@@ -419,7 +434,10 @@ local function navyDecision(view: BotView, p: Profile, rng: Rng): Types.Intent?
 			else nil
 		if kind ~= nil then
 			local stats = (Config.Units :: any)[kind]
-			if view.money >= stats.cost + level.buildReserve and view.oil >= stats.oil then
+			if
+				view.money >= stats.cost + level.buildReserve
+				and view.oil >= stats.oil + BotBrain.oilForPlanes(view)
+			then
 				return { kind = "ship", ship = kind, port = navy.port }
 			end
 		end
@@ -446,6 +464,18 @@ local function airDecision(view: BotView, p: Profile, rng: Rng): Types.Intent?
 			if view.money >= stats.cost and view.oil >= stats.oil then
 				return { kind = "plane", plane = "Fighter", airfield = air.airfield }
 			end
+		end
+	end
+	-- §15б: в войне истребитель не сидит над аэродромом — прикрывает фронт, куда летят бомбардировщики врага.
+	local frontCover = air.frontCover
+	if
+		(level.smartTarget or personality.air >= Config.Air.BotCoverAir)
+		and air.homeFighter ~= nil
+		and frontCover ~= nil
+	then
+		local cell = frontCover()
+		if cell ~= nil then
+			return { kind = "cover", plane = air.homeFighter, cell = cell }
 		end
 	end
 	local interest = math.max(personality.air, if level.smartTarget then 0.6 else 0)
@@ -844,7 +874,7 @@ function BotBrain.decide(view: BotView, rng: Rng, profile: Profile?, memory: Mem
 			local net = view.economy.income - view.economy.upkeep
 			return view.people >= stats.people
 				and view.money >= stats.cost + savings
-				and view.oil >= stats.oil
+				and view.oil >= stats.oil + (if stats.oil > 0 then BotBrain.oilForPlanes(view) else 0)
 				and net >= Economy.upkeep(stats.strength)
 		end
 		-- Хватает людей, денег, нефти, и доход покроет содержание; не хватает на выбранный — пехота.

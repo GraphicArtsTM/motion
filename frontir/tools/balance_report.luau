@@ -38,6 +38,7 @@ local early = {
 	raids = 0,
 	shotAll = 0,
 	firstShot = math.huge,
+	gamesShot15 = 0, -- §15б: партий, где первый сбитый самолёт — до 15-й минуты
 }
 local techLevels, techNations = 0, 0
 
@@ -65,6 +66,7 @@ for k = 1, games do
 	end
 	local limit = m.rules.timeLimitSec + 5
 	local betr, shot = 0, 0
+	local shot15 = false
 	while m.phase == "Play" and m.time < limit do
 		MatchSim.step(m, dt)
 		for _, e in MatchSim.takeEvents(m) do
@@ -79,6 +81,7 @@ for k = 1, games do
 			end
 			if e.kind == "planeShot" then
 				early.shotAll += 1
+				shot15 = shot15 or m.time <= 900
 				early.firstShot = math.min(early.firstShot, m.time / 60)
 			end
 			if e.kind == "ability" then
@@ -104,6 +107,7 @@ for k = 1, games do
 	early.shot += shot
 	early.gamesBetrayal += if betr > 0 then 1 else 0
 	early.gamesShot += if shot > 0 then 1 else 0
+	early.gamesShot15 += if shot15 then 1 else 0
 	local land = math.max(1, m.grid.capturableCount)
 	for _, n in m.nations do
 		local won = n.id == winner or table.find(co, n.id) ~= nil
@@ -220,9 +224,11 @@ print(
 )
 print(
 	string.format(
-		"За весь матч сбито самолётов %.1f за партию, первый — на %s",
+		"За весь матч сбито самолётов %.1f за партию, первый — на %s; партий со сбитым до 15-й минуты — %d из %d",
 		early.shotAll / games,
-		if early.firstShot < math.huge then string.format("%.1f мин", early.firstShot) else "—"
+		if early.firstShot < math.huge then string.format("%.1f мин", early.firstShot) else "—",
+		early.gamesShot15,
+		games
 	)
 )
 print("Способности за партию: " .. line(abilities))

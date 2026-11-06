@@ -903,29 +903,32 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				break
 			end
 			lastTickMs = (os.clock() - t0) * 1000
-			if wasPlaying and m.phase == "Over" then
-				giveRewards() -- опыт и медали за матч (§11.2)
-				local record = Analytics.matchEnd(m) -- длина матча (аналитика, этап 10в)
-				for player in nationOf do
-					Telemetry.custom(player, record)
-				end
-			end
-			if not wasPlaying and m.phase == "Play" then
-				-- Выбор генералов игроками (аналитика, этап 10в).
+			-- Аналитика (этап 10в, §15в): записи по державам — тому игроку, кто сейчас за неё играет.
+			local function sendEntries(entries: { Analytics.Entry })
 				local players: { [number]: Player } = {}
 				for player, id in nationOf do
 					players[id] = player
 				end
-				for _, entry in
-					Analytics.commanders(m, function(id: number): string
-						return Commanders.of(m.commanders, id)
-					end)
-				do
+				for _, entry in entries do
 					local player: Player? = players[entry.nation]
 					if player then
 						Telemetry.custom(player, entry.record)
 					end
 				end
+			end
+			local function commanderOf(id: number): string
+				return Commanders.of(m.commanders, id)
+			end
+			if wasPlaying and m.phase == "Over" then
+				giveRewards() -- опыт и медали за матч (§11.2)
+				local record = Analytics.matchEnd(m) -- длина матча
+				for player in nationOf do
+					Telemetry.custom(player, record)
+				end
+				sendEntries(Analytics.results(m, commanderOf)) -- генерал и место
+			end
+			if not wasPlaying and m.phase == "Play" then
+				sendEntries(Analytics.commanders(m, commanderOf)) -- выбор генералов
 			end
 
 			-- info — не чаще Net.InfoMinSec (смена фазы — сразу): выбывания подряд уходят одним сообщением.

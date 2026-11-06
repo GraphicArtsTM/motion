@@ -2,6 +2,7 @@
 local T = require("./lib/TestKit")
 local TinyMap = require("./lib/TinyMap")
 local Analytics = require("../src/shared/Analytics")
+local Commanders = require("../src/shared/Commanders")
 local Config = require("../src/shared/Config")
 local Grid = require("../src/shared/Grid")
 local MapData = require("../src/shared/MapData")
@@ -34,7 +35,7 @@ end
 
 T.describe("Аналитика (этап 10в)", function()
 	T.it(
-		"Leave: минута, фаза, режим, место по суше; выбывший — последний",
+		"Leave: минута, фаза, генерал, место по суше; выбывший — последний",
 		function()
 			local m = trio()
 			m.time = 125
@@ -44,8 +45,10 @@ T.describe("Аналитика (этап 10в)", function()
 			T.expect(r.name).toBe("Leave")
 			T.expect(r.value).toBeNear(2.1, 1e-9)
 			T.expect(r.fields[1]).toBe("Play")
-			T.expect(r.fields[2]).toBe(m.rules.mode)
+			T.expect(r.fields[2]).toBe("Marshal") -- не выбрал — Маршал
 			T.expect(r.fields[3]).toBe("2")
+			Commanders.choose(m.commanders, 2, "Engineer")
+			T.expect(Analytics.leave(m, 2)[1].fields[2]).toBe("Engineer")
 			T.expect(Analytics.placeOf(m, 1)).toBe(1)
 			T.expect(Analytics.placeOf(m, 3)).toBe(3)
 			m.nations[1].alive = false
@@ -54,7 +57,7 @@ T.describe("Аналитика (этап 10в)", function()
 	)
 
 	T.it(
-		"MatchEnd и Commander: длина, режим, карта; генералы только у людей; не больше трёх полей",
+		"MatchEnd, Commander, MatchResult: длина, генерал и место только у людей; не больше трёх полей",
 		function()
 			local m = trio()
 			m.time = 600
@@ -68,7 +71,23 @@ T.describe("Аналитика (этап 10в)", function()
 			end)
 			T.expect(#list).toBe(2)
 			T.expect(list[1].record.fields[1]).toBe("Scout")
-			for _, rec in { e, list[1].record, Analytics.leave(m, 1)[1] } do
+			-- Итог: генерал и место у людей; место — из итогов матча, без итогов — по суше.
+			local results = Analytics.results(m, function(id: number): string
+				return if id == 1 then "Scout" else "Marshal"
+			end)
+			T.expect(#results).toBe(2)
+			local r1 = results[1].record
+			T.expect(r1.name).toBe("MatchResult")
+			T.expect(r1.value).toBe(1)
+			T.expect(r1.fields[1]).toBe("Scout")
+			T.expect(r1.fields[2]).toBe("1")
+			T.expect(r1.fields[3]).toBe(m.rules.mode)
+			m.result = { winner = 2, reason = "land", places = { 2, 3, 1 }, times = {}, shares = {} } :: any
+			T.expect(Analytics.finalPlace(m, 1)).toBe(3)
+			T.expect(Analytics.results(m, function(): string
+				return "Scout"
+			end)[2].record.value).toBe(1)
+			for _, rec in { e, list[1].record, r1, Analytics.leave(m, 1)[1] } do
 				T.expect(#rec.fields <= 3).toBe(true)
 			end
 		end

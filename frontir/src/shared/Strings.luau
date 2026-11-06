@@ -680,7 +680,10 @@ local TABLE: { [string]: Entry } = {
 		ru = "Корабли −%d%%, обзор портов +%d",
 		en = "Ships −%d%%, port vision +%d",
 	},
-	["commander.passive.Scout"] = { ru = "Обзор ×%s", en = "Vision ×%s" },
+	["commander.passive.Scout"] = {
+		ru = "Сила соседей видна всегда",
+		en = "Neighbours' power always visible",
+	},
 	["commander.passive.Engineer"] = { ru = "Здания −%d%%", en = "Buildings −%d%%" },
 	["ability.Airstrike"] = { ru = "Авиаудар", en = "Airstrike" },
 	["ability.Surge"] = { ru = "Прорыв", en = "Breakthrough" },
@@ -703,14 +706,17 @@ local TABLE: { [string]: Entry } = {
 		ru = "Порты врага в круге отключены 30 с",
 		en = "Enemy ports in circle off for 30 s",
 	},
-	["ability.desc.Reveal"] = { ru = "Вся карта видна 10 с", en = "Whole map visible for 10 s" },
+	["ability.desc.Reveal"] = {
+		ru = "20 с видна сила всех держав и фронтов",
+		en = "All nations' power and fronts visible for 20 s",
+	},
 	["ability.desc.Propaganda"] = {
 		ru = "Стабильность врага в круге −30",
 		en = "Enemy stability in circle −30",
 	},
 	["ability.desc.Fortify"] = {
-		ru = "Своя провинция: оборона ×2 на 30 с",
-		en = "Own province: defense ×2 for 30 s",
+		ru = "Своя провинция: оборона ×1.7 на 30 с",
+		en = "Own province: defense ×1.7 for 30 s",
 	},
 	["ability.desc.Airdrop"] = {
 		ru = "До 20%% пехоты — плацдарм где угодно",
@@ -1019,6 +1025,10 @@ local TABLE: { [string]: Entry } = {
 	["shop.r.medals"] = { ru = "+%s медалей", en = "+%s medals" },
 	["shop.r.tokens"] = { ru = "+%d жетон.", en = "+%d tokens" },
 	["shop.r.crates"] = { ru = "+%d ящ.", en = "+%d crates" },
+	-- Зрелищная война (§15б).
+	["warfx.war"] = { ru = "⚔ ВОЙНА ⚔", en = "⚔ WAR ⚔" },
+	["warfx.offensive"] = { ru = "НАСТУПЛЕНИЕ!", en = "OFFENSIVE!" },
+	["warfx.vs"] = { ru = "%s → %s", en = "%s → %s" },
 	["shop.crateRestricted"] = {
 		ru = "Недоступно в вашем регионе (правила Roblox о платных случайных наградах)",
 		en = "Not available in your region (Roblox rules on paid random items)",

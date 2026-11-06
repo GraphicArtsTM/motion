@@ -5,7 +5,7 @@
 ## Где мы сейчас
 Сделаны этапы **0–6**, **7а**, **7б-1** (флот), **7б-2** (авиация), доработки перед 7в, **7в-1** и **7в-2** — всё в `main` (PR #2–#8).
 **7в-1** (технологии) и **7в-2** (генералы) смержены (PR #7, #8). **7г** и **8а** смержены (PR #9), разведка, **8б** и **8в** — PR #10. **8г** — PR #11. **9а** и **9б** — PR #12, **9в** и **9г** — PR #13.
-Этап 10 смержен (PR #14–#15). **Сводная правка §15а** (4 части: самопроверка, баланс, мелкие решения, публикация — `docs/PUBLISH.md`, PolicyService) — PR #16.
+Этап 10 смержен (PR #14–#15). **Сводная правка §15а** (4 части: самопроверка, баланс, мелкие решения, публикация — `docs/PUBLISH.md`, PolicyService) — PR #16 (смержен). **Правка §15б** (самолёты, Инженер, зрелищная война, «Первый удар») — PR #17.
 **10а** (обучение) готов и ждёт проверки в Studio; **10б** (звук и музыка) и **10в** (телефон, аналитика, отчёт баланса) — тоже
 (см. «Статус» в начале GDD §15). Обновляй «Статус» в GDD и этот раздел в конце каждого этапа.
 
@@ -179,7 +179,7 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   доход — в `stepEconomy`. Боты: `spots.unstable` / `unstableCity` и мир раньше (`BotBrain`).
 - **С правки после 8а карта открыта:** туман на карте только в «Мгле» (`m.rules.fog`, `MatchStats.fogOn`,
   `cs.rules.fog`; тесты тумана — `Modes.withFog`). Скрыта чужая военная мощь (§6.11а): `MatchSim.knownSet` (друзья,
-  разведка `m.intel`, радары `m.radarIntel`, вспышка), `MatchStats.forViewer(..., known)` / `wars(m, known)` — «?»
+  разведка `m.intel`, радары `m.radarIntel`, соседи Разведчика, вспышка), `MatchStats.forViewer(..., known)` / `wars(m, known)` — «?»
   (−1) и грубая сила (`MatchStats.hidden`, клиент рисует юнитов по модулю). Разведка — `MatchSim.spy` (намерение
   `intel`), боты — `botIntel`.
 - `Fog` — чистый модуль: обзор клиента (фаска 5/7 в прямоугольнике вокруг источников, два прохода), последний
@@ -301,7 +301,8 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   («♪», громкости в профиле: `Profile.setVolumes`, намерение `volume`).
 
 ## Телефон и аналитика (этап 10в)
-- Аналитика: чистый `Analytics` (записи `MatchEnd`, `Commander`, `Leave`, `TutorialSkip`, воронка обучения) →
+- Аналитика: чистый `Analytics` (записи `MatchEnd`, `Commander`, `MatchResult` — генерал и место, `Leave`,
+  `TutorialSkip`, воронка обучения; что смотреть в Creator Hub — `docs/LIVE_TEST.md`) →
   сервер `Services/Telemetry` (AnalyticsService в pcall); хуки — в `MatchService` (конец матча, начало игры,
   PlayerRemoving, события обучения).
 - Телефон: `RenderBudget` (`isPhone`, `limit` из `Config.Render.Phone`) в `FrontLayer` и `WaterSparkles`; кнопка «⌂»
@@ -313,6 +314,14 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   в список `windows` в `Main.client` (нужны `toggle` / `isOpen`). Что видно только глазами — `docs/STUDIO_CHECK.md`.
 - Проверки перед коммитом: смотреть **весь** вывод Selene и luau-lsp (`grep -i error` по всему выводу), а не
   последнюю строку — так в PR #15 ушли две ошибки CI.
+
+## Зрелищная война (§15б)
+- `WarFx` (чистый): общая граница (`borderSamples`), стрелки наступления (`frontArrows` — куски линии и направление),
+  вспышки захвата (`captures`, память владельцев u8), яркость (`arrowStrength`). Клиент — `Render/WarFxLayer`
+  (баннер и виньетка — в `hudGui`, искры, вспышки, шевроны — на canvas; события `warDeclared` / `warStarted`,
+  `onSnapshot` / `onDelta`). Числа — `Config.Render.WarFx`, телефон — `Config.Render.Phone`. Превью рисует стрелки
+  так же (`tools/match_preview`).
+- «Первый удар» — `MatchSim.openingMul` (`Combat.OpeningSec` / `OpeningSpeedMul`) в `stepAttacks`.
 
 ## Панель разработчика (F4)
 - Только в Studio: `MatchService` создаёт `Remotes.Dev` при `RunService:IsStudio()`; действия — чистый `DevTools`

@@ -106,7 +106,7 @@ function Commanders.resetCooldowns(st: CommanderState, id: number)
 	st.version += 1
 end
 
--- Пассивки — множители цены и обзора.
+-- Пассивки — множители цены (Разведчик — мощь соседей, MatchSim.knownSet).
 function Commanders.tankCostMul(c: CommanderId): number
 	return if c == "Marshal" then 1 - Config.Commanders.TankDiscount else 1
 end
@@ -117,10 +117,6 @@ end
 
 function Commanders.buildCostMul(c: CommanderId): number
 	return if c == "Engineer" then 1 - Config.Commanders.BuildDiscount else 1
-end
-
-function Commanders.visionMul(c: CommanderId): number
-	return if c == "Scout" then Config.Commanders.VisionMul else 1
 end
 
 function Commanders.surging(st: CommanderState, id: number, now: number): boolean
