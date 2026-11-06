@@ -5,7 +5,7 @@
 ## Где мы сейчас
 Сделаны этапы **0–6**, **7а**, **7б-1** (флот), **7б-2** (авиация), доработки перед 7в, **7в-1** и **7в-2** — всё в `main` (PR #2–#8).
 **7в-1** (технологии) и **7в-2** (генералы) смержены (PR #7, #8). **7г** и **8а** смержены (PR #9), разведка, **8б** и **8в** — PR #10. **8г** — PR #11. **9а** и **9б** — PR #12, **9в** и **9г** — PR #13.
-Этап 10 смержен (PR #14–#15). **Сводная правка §15а** (4 части: самопроверка, баланс, мелкие решения, публикация — `docs/PUBLISH.md`, PolicyService) — PR #16 (смержен). **Правка §15б** (самолёты, Инженер, зрелищная война, «Первый удар») — PR #17.
+Этап 10 смержен (PR #14–#15). **Сводная правка §15а** (4 части: самопроверка, баланс, мелкие решения, публикация — `docs/PUBLISH.md`, PolicyService) — PR #16 (смержен). **Правка §15б** (самолёты, Инженер, зрелищная война, «Первый удар») — PR #17. §15в–§15д — PR #17–#19 (смержены). **§15е** (идеи из OpenFront) — PR #20.
 **10а** (обучение) готов и ждёт проверки в Studio; **10б** (звук и музыка) и **10в** (телефон, аналитика, отчёт баланса) — тоже
 (см. «Статус» в начале GDD §15). Обновляй «Статус» в GDD и этот раздел в конце каждого этапа.
 
@@ -345,6 +345,15 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   `onSnapshot` / `onDelta`). Числа — `Config.Render.WarFx`, телефон — `Config.Render.Phone`. Превью рисует стрелки
   так же (`tools/match_preview`).
 - «Первый удар» — `MatchSim.openingMul` (`Combat.OpeningSec` / `OpeningSpeedMul`) в `stepAttacks`.
+
+## Идеи из OpenFront (§15е)
+- Торговые суда: `Config.TradeShips`, вид `Merchant` в `Fleet` (`Fleet.merchants`, `ship.trade`; не в `Fleet.count`,
+  не нанимается — `Types.ShipKind` только Transport / Destroyer), `MatchSim.canTrade` / `tradeValue` / `stepTrade`
+  (раз в секунду, поток `m.tradeRng`, `m.tradeAt`), доставка и пиратство — в `stepFleet`, события `tradeDelivered`,
+  `merchantSunk`. Клиент: `ShipSprites.Merchant`, «+$» — `WarFxLayer`, лента — `MatchHud`.
+- Кольцо действий: чистый `ActionRing.actions(facts)`, клиент `UI/ActionRing` + `CameraInput.onContext`
+  (ПКМ без сдвига, долгое касание `Render.LongPressSec`), обработчик — в `Main.client`.
+- Столбик людей с зоной `Render.PeopleZone` — в `UI/ResourceBar`.
 
 ## Панель разработчика (F4)
 - Только в Studio: `MatchService` создаёт `Remotes.Dev` при `RunService:IsStudio()`; действия — чистый `DevTools`

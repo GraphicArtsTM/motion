@@ -29,6 +29,7 @@ local abilities: { [string]: number } = {}
 local events: { [string]: number } = {}
 local lengths: { number } = {}
 local missiles, mercs, mercsMoney = 0, 0, 0
+local trades, tradeMoney, pirated = 0, 0, 0 -- торговые суда (§15е)
 -- За первые 10 минут: предательства и сбитые самолёты (сводная правка: в каждой партии хотя бы по одному).
 local early = {
 	betrayals = 0,
@@ -94,6 +95,11 @@ for k = 1, games do
 			elseif e.kind == "mercs" and e.nation ~= 0 then
 				mercs += 1
 				mercsMoney += e.amount
+			elseif e.kind == "tradeDelivered" then
+				trades += 1
+				tradeMoney += e.amount * 2 -- обоим
+			elseif e.kind == "merchantSunk" then
+				pirated += 1
 			end
 		end
 	end
@@ -241,5 +247,13 @@ print(
 		mercs,
 		if mercs > 0 then mercsMoney / mercs else 0,
 		techLevels / math.max(1, techNations)
+	)
+)
+print(
+	string.format(
+		"Торговые суда (§15е): доставок %.1f за партию ($%.0f всем), потоплено пиратами %.1f",
+		trades / games,
+		tradeMoney / games,
+		pirated / games
 	)
 )
