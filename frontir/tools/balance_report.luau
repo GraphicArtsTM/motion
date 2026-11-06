@@ -31,6 +31,7 @@ local lengths: { number } = {}
 local missiles, mercs, mercsMoney = 0, 0, 0
 local trades, tradeMoney, pirated = 0, 0, 0 -- торговые суда (§15е)
 local nukes = 0 -- ядерные взрывы (§15ж)
+local collapses = 0 -- распады по «часам судного дня» (§15з)
 -- За первые 10 минут: предательства и сбитые самолёты (сводная правка: в каждой партии хотя бы по одному).
 local early = {
 	betrayals = 0,
@@ -103,6 +104,8 @@ for k = 1, games do
 				pirated += 1
 			elseif e.kind == "nukeHit" then
 				nukes += 1
+			elseif e.kind == "doomCollapse" then
+				collapses += 1
 			end
 		end
 	end
@@ -260,4 +263,10 @@ print(
 		pirated / games
 	)
 )
-print(string.format("Ядерных взрывов (§15ж) за партию %.1f", nukes / games))
+print(
+	string.format(
+		"Ядерных взрывов (§15ж) за партию %.1f; распадов по «часам судного дня» (§15з) %.1f",
+		nukes / games,
+		collapses / games
+	)
+)
