@@ -1,6 +1,6 @@
 --!strict
 --[[
-	Dock — док снизу по центру (GDD §15з, понятность как у OpenFront, свой вид): все окна открываются отсюда.
+	Dock — док окон (GDD §15з; с §15л ч.2 — вертикальной полосой слева под «≡»): все окна открываются отсюда.
 	Квадратные кнопки со значком (Shared.PixelIcons) и клавишей в уголке; открытое окно — золотая рамка; при
 	наведении над доком — подсказка: название и состояние (текст прежней кнопки окна, например «Технологии —
 	исследуется: Авиация, 30 с»). Прежние разбросанные кнопки окон переезжают в скрытую папку: их логика (когда
@@ -49,10 +49,12 @@ function Dock.new(gui: ScreenGui, lang: Strings.Lang, items: { Item }): Dock
 
 	local frame = Instance.new("Frame")
 	frame.Name = "Dock"
-	frame.AnchorPoint = Vector2.new(0.5, 1)
-	frame.Position = UDim2.new(0.5, 0, 1, -cfg.BottomPx)
-	frame.Size = UDim2.fromOffset(0, cfg.ButtonPx + 2 * cfg.PadPx)
-	frame.AutomaticSize = Enum.AutomaticSize.X
+	-- §15л ч.2: слева под кнопкой «≡» (снизу теперь командная полоса матча).
+	frame.Position = UDim2.fromOffset(cfg.LeftPx, cfg.TopPx)
+	frame.Size = UDim2.fromOffset(cfg.ButtonPx + 2 * cfg.PadPx, 0)
+	frame.AutomaticSize = Enum.AutomaticSize.Y
+	local dockScale = Instance.new("UIScale")
+	dockScale.Parent = frame
 	frame.BackgroundColor3 = Theme.Colors.Backdrop
 	frame.BackgroundTransparency = 0.25
 	frame.BorderSizePixel = 0
@@ -72,16 +74,16 @@ function Dock.new(gui: ScreenGui, lang: Strings.Lang, items: { Item }): Dock
 	pad.PaddingBottom = UDim.new(0, cfg.PadPx)
 	pad.Parent = frame
 	local row = Instance.new("UIListLayout")
-	row.FillDirection = Enum.FillDirection.Horizontal
+	row.FillDirection = Enum.FillDirection.Vertical
 	row.Padding = UDim.new(0, cfg.GapPx)
 	row.SortOrder = Enum.SortOrder.LayoutOrder
-	row.VerticalAlignment = Enum.VerticalAlignment.Center
+	row.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	row.Parent = frame
 
-	-- Подсказка над доком.
+	-- Подсказка справа от кнопки.
 	local tip = Instance.new("TextLabel")
 	tip.Name = "DockTip"
-	tip.AnchorPoint = Vector2.new(0.5, 1)
+	tip.AnchorPoint = Vector2.new(0, 0.5)
 	tip.Size = UDim2.fromOffset(0, 26)
 	tip.AutomaticSize = Enum.AutomaticSize.X
 	tip.BackgroundColor3 = Theme.Colors.PanelBg
@@ -210,13 +212,17 @@ function Dock.new(gui: ScreenGui, lang: Strings.Lang, items: { Item }): Dock
 				slot.root.BackgroundColor3 = if open then Theme.Colors.Slate else Theme.Colors.PanelBg
 			end
 			frame.Visible = any
+			-- Не ниже места под командную полосу: высокий док ужимается (телефон, маленький экран).
+			local natural = frame.AbsoluteSize.Y / math.max(0.01, dockScale.Scale)
+			local room = gui.AbsoluteSize.Y - cfg.TopPx - cfg.BottomPx
+			dockScale.Scale = math.clamp(room / math.max(1, natural), 0.5, 1)
 		end
 		local h = hovered
 		if h ~= nil and h.root.Visible and frame.Visible then
 			tip.Visible = true
 			tip.Text = tipText(h.item)
 			local p = h.root.AbsolutePosition - gui.AbsolutePosition
-			tip.Position = UDim2.fromOffset(p.X + h.root.AbsoluteSize.X / 2, p.Y - 8)
+			tip.Position = UDim2.fromOffset(p.X + h.root.AbsoluteSize.X + 10, p.Y + h.root.AbsoluteSize.Y / 2)
 		else
 			tip.Visible = false
 		end

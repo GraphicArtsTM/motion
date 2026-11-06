@@ -48,6 +48,7 @@ local MarkerLayer = require(Render:WaitForChild("MarkerLayer"))
 local WarFxLayer = require(Render:WaitForChild("WarFxLayer"))
 local ActionRingUI = require(UI:WaitForChild("ActionRing"))
 local DoomBar = require(UI:WaitForChild("DoomBar"))
+local CommandBar = require(UI:WaitForChild("CommandBar"))
 local Dock = require(UI:WaitForChild("Dock"))
 local LobbyScreen = require(UI:WaitForChild("LobbyScreen"))
 local GameMenu = require(UI:WaitForChild("GameMenu"))
@@ -305,8 +306,11 @@ local function runSession(mapId: string, resync: boolean)
 		if nationPanel ~= nil and abilities ~= nil then
 			local np, ab = nationPanel :: Frame, abilities :: Frame
 			local function stack()
+				-- §15л ч.2: правее дока (он — полосой слева под «≡»), с самого верха.
+				local left = Config.Render.Dock.LeftPx + Config.Render.Dock.ButtonPx + 2 * Config.Render.Dock.PadPx + 8
+				np.Position = UDim2.fromOffset(left, 8)
 				local bottom = np.Position.Y.Offset + (if np.Visible then np.AbsoluteSize.Y else 0)
-				ab.Position = UDim2.fromOffset(12, bottom + 8)
+				ab.Position = UDim2.fromOffset(left, bottom + 8)
 			end
 			Session.connect(np:GetPropertyChangedSignal("AbsoluteSize"), stack)
 			Session.connect(np:GetPropertyChangedSignal("Visible"), stack)
@@ -522,13 +526,70 @@ local function runSession(mapId: string, resync: boolean)
 		mainMenu = mainMenu.open,
 		blocked = mainMenu.isOpen,
 	})
-	-- Кнопка «≡» стоит слева сверху — полоса ресурсов сдвигается вправо от неё.
-	do
-		local res = hudGui:FindFirstChild("ResourceBar")
-		if res ~= nil and res:IsA("GuiObject") then
-			res.Position = UDim2.fromOffset(12 + Config.Render.MinTouchTargetPx + 8, 8)
+	-- §15л ч.2: командная полоса снизу по центру. Прежние полоса ресурсов и карточки найма — в выключенный
+	-- ScreenGui (их код работает как раньше, но на экране их нет: всё это — в полосе).
+	local stash = Instance.new("ScreenGui")
+	stash.Name = "FrontirStash"
+	stash.Enabled = false
+	stash.ResetOnSpawn = false
+	Session.track(stash)
+	stash.Parent = playerGui
+	for _, name in { "ResourceBar", "HireCards" } do
+		local g = hudGui:FindFirstChild(name)
+		if g ~= nil then
+			g.Parent = stash
 		end
 	end
+	local commandBar = CommandBar.new(hudGui, cs, lang, {
+		values = hud.values,
+		percent = hud.percent,
+		setPercent = hud.setPercent,
+		hire = forcesPanel.hire,
+		hireInfo = forcesPanel.hireInfo,
+		build = build,
+		buildIcon = BuildPanel.icon,
+		shop = openShop,
+	})
+	-- Меню фраз меток (G) лежало внутри кнопки, которую док прячет, — переносим в HUD (меню стройки — так же,
+	-- в BuildPanel).
+	local phrases = pings.button:FindFirstChild("Phrases")
+	if phrases ~= nil and phrases:IsA("GuiObject") then
+		phrases.AnchorPoint = Vector2.new(0.5, 1)
+		phrases.Parent = hudGui
+	end
+	-- Над полосой: слева атаки и лента, справа мини-карта, по центру окна стройки, меток, здания, порта,
+	-- аэродрома. Полоса скрыта (лобби, выбор, итоги) — всё на прежней высоте от края.
+	local function aboveBar()
+		local bar = commandBar.frame
+		local off = if bar.Visible then bar.AbsoluteSize.Y + Config.Render.CommandBar.BottomPx + 10 else 12
+		local function at(name: string, anchor: Vector2, x: UDim, extra: number)
+			local g = hudGui:FindFirstChild(name)
+			if g ~= nil and g:IsA("GuiObject") then
+				g.AnchorPoint = anchor
+				g.Position = UDim2.new(x, UDim.new(1, -(off + extra)))
+			end
+		end
+		at("AttackArea", Vector2.new(0, 1), UDim.new(0, 12), 0)
+		at("Minimap", Vector2.new(1, 1), UDim.new(1, -12), 0)
+		at("BuildMenu", Vector2.new(0.5, 1), UDim.new(0.5, 0), 0)
+		at("Phrases", Vector2.new(0.5, 1), UDim.new(0.5, 0), 0)
+		at("BuildingInfoPanel", Vector2.new(0.5, 1), UDim.new(0.5, 0), 0)
+		at("AirPanel", Vector2.new(0.5, 1), UDim.new(0.5, 0), 0)
+		at("NavalPanel", Vector2.new(0.5, 1), UDim.new(0.5, 0), 0)
+		local mapH = if minimap ~= nil then minimap.height else 0
+		at("HomeButton", Vector2.new(1, 1), UDim.new(1, -12), mapH + 8)
+	end
+	-- Обучение — правее дока (раньше стояло у левого края, где теперь док).
+	do
+		local tutorialFrame = hudGui:FindFirstChild("Tutorial")
+		if tutorialFrame ~= nil and tutorialFrame:IsA("GuiObject") then
+			local dockCfg = Config.Render.Dock
+			tutorialFrame.Position = UDim2.new(0, dockCfg.LeftPx + dockCfg.ButtonPx + 2 * dockCfg.PadPx + 8, 0.5, 0)
+		end
+	end
+	Session.connect(commandBar.frame:GetPropertyChangedSignal("AbsoluteSize"), aboveBar)
+	Session.connect(commandBar.frame:GetPropertyChangedSignal("Visible"), aboveBar)
+	aboveBar()
 	if menuWasOpen then
 		mainMenu.open()
 	end
@@ -924,6 +985,7 @@ local function runSession(mapId: string, resync: boolean)
 		stroke.Color = Theme.Colors.PanelBorder
 		stroke.Parent = home
 		home.Parent = hudGui
+		aboveBar() -- §15л ч.2: над мини-картой, которая стоит над командной полосой
 		Session.connect(home.Activated, goHome)
 	end
 
@@ -1085,6 +1147,7 @@ local function runSession(mapId: string, resync: boolean)
 		dock.update(now)
 		lobby.update(now)
 		mainMenu.update(now)
+		commandBar.update(now)
 		worldPanel.update(now)
 		hud.update(now)
 		hints.update(now)

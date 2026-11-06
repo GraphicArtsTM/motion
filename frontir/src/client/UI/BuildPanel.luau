@@ -41,6 +41,14 @@ export type BuildPanel = {
 	button: GuiButton, -- §15з: кнопка прячется в док
 	toggle: () -> (),
 	isOpen: () -> boolean,
+	-- §15л ч.2: быстрые клетки стройки в командной полосе.
+	menu: Frame,
+	pick: (kind: Types.BuildingKind) -> (),
+	price: (kind: Types.BuildingKind) -> number?,
+	unlocked: (kind: Types.BuildingKind) -> boolean, -- технология открыта
+	selected: () -> Types.BuildingKind?,
+	canBuild: () -> boolean,
+	color: () -> Color3, -- цвет своей державы (значки)
 }
 
 local BuildPanel = {}
@@ -303,13 +311,14 @@ function BuildPanel.new(
 	menu.BackgroundColor3 = Theme.Colors.PanelBg
 	menu.BackgroundTransparency = 0.15
 	menu.BorderSizePixel = 0
-	-- Две колонки: меню не выше экрана телефона; правый край — у кнопки.
-	menu.AnchorPoint = Vector2.new(1, 1)
-	menu.Position = UDim2.new(1, 0, 0, -8)
+	-- Две колонки: меню не выше экрана телефона. §15л ч.2: меню — прямо в HUD снизу по центру (раньше лежало
+	-- внутри кнопки, а кнопку док прячет — меню не было видно); над командной полосой его ставит Main.client.
+	menu.AnchorPoint = Vector2.new(0.5, 1)
+	menu.Position = UDim2.new(0.5, 0, 1, -110)
 	menu.Size = UDim2.fromOffset(2 * CARD_W + 4 + 16, 0)
 	menu.AutomaticSize = Enum.AutomaticSize.Y
 	menu.Visible = false
-	menu.Parent = main
+	menu.Parent = gui
 	Theme.decorate(menu)
 	local menuPad = Instance.new("UIPadding")
 	for _, side in { "PaddingLeft", "PaddingRight", "PaddingTop", "PaddingBottom" } do
@@ -423,7 +432,8 @@ function BuildPanel.new(
 			toggleMenu()
 		elseif input.KeyCode == Enum.KeyCode.Escape then
 			cancel()
-		elseif menu.Visible then
+		elseif menu.Visible or canBuild() then
+			-- §15л ч.2: 1–0 выбирают здание сразу (как клетки командной полосы), меню не нужно.
 			local k = table.find(KEYS, input.KeyCode)
 			if k ~= nil and Config.Buildable[k] ~= nil then
 				pick(Config.Buildable[k] :: Types.BuildingKind)
@@ -562,7 +572,32 @@ function BuildPanel.new(
 		isOpen = function(): boolean
 			return menu.Visible or selected ~= nil
 		end,
+		menu = menu,
+		pick = function(kind: Types.BuildingKind)
+			if not canBuild() then
+				return
+			end
+			if selected == kind then
+				cancel() -- повторное нажатие на ту же клетку — отмена
+			else
+				pick(kind)
+			end
+		end,
+		price = function(kind: Types.BuildingKind): number?
+			return price(kind, nil)
+		end,
+		unlocked = function(kind: Types.BuildingKind): boolean
+			return (techOpen(kind))
+		end,
+		selected = function(): Types.BuildingKind?
+			return selected
+		end,
+		canBuild = canBuild,
+		color = myColor,
 	}
 end
+
+-- §15л ч.2: значок здания (цветом державы) — и для клеток командной полосы.
+BuildPanel.icon = icon
 
 return table.freeze(BuildPanel)

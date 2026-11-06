@@ -1081,6 +1081,27 @@ local TABLE: { [string]: Entry } = {
 	["menu.sound"] = { ru = "Звук", en = "Sound" },
 	["menu.help"] = { ru = "Как играть", en = "How to play" },
 
+	-- §15л ч.2 Командная полоса матча
+	["bar.world"] = { ru = "%.1f%% мира", en = "%.1f%% of the world" },
+	["bar.people"] = { ru = "ЛЮДИ", en = "PEOPLE" },
+	["bar.attack"] = { ru = "АТАКА", en = "ATTACK" },
+	["bar.sends"] = { ru = "пошлёт %s людей", en = "sends %s people" },
+	["bar.money"] = { ru = "ДЕНЬГИ", en = "MONEY" },
+	["bar.oil"] = { ru = "нефть %s", en = "oil %s" },
+	["bar.hire"] = { ru = "НАЙМ", en = "RECRUIT" },
+	["bar.build"] = { ru = "СТРОЙКА", en = "BUILD" },
+	["bar.shop"] = { ru = "МАГАЗИН", en = "SHOP" },
+	["bar.queued"] = { ru = "+%d", en = "+%d" },
+	["build.locked"] = { ru = "Нужна технология (Y)", en = "Needs a technology (Y)" },
+	["bar.attackTip"] = {
+		ru = "Доля людей, которая уйдёт в атаку по клику на карту",
+		en = "Share of people sent when you click the map",
+	},
+	["bar.peopleTip"] = {
+		ru = "Люди растут быстрее всего в зелёной зоне. Выше неё — пора в атаку.",
+		en = "People grow fastest in the green zone. Above it — time to attack.",
+	},
+
 	-- §15л Меню игры (≡)
 	["gamemenu.title"] = { ru = "МЕНЮ", en = "MENU" },
 	["gamemenu.button"] = { ru = "Меню (Tab)", en = "Menu (Tab)" },

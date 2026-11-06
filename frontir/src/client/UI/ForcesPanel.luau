@@ -25,8 +25,22 @@ local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
 
+-- §15л ч.2: найм для клеток командной полосы — те же числа, что на карточках.
+export type HireInfo = {
+	cost: number, -- деньги (с учётом генерала)
+	oil: number,
+	people: number,
+	sec: number, -- время найма
+	queued: number, -- в очереди
+	needLevel: number?, -- нужны казармы этого уровня (иначе nil)
+	affordable: boolean,
+}
+
 export type ForcesPanel = {
 	refresh: () -> (),
+	hire: (k: number) -> (),
+	hireInfo: (k: number) -> HireInfo,
+	cards: Frame, -- прежние карточки найма (Main.client прячет их: найм — в полосе)
 }
 
 local ForcesPanel = {}
@@ -173,6 +187,45 @@ function ForcesPanel.new(
 		return string.format(' <font color="%s">%s</font>', gold, string.rep("★", n))
 	end
 
+	-- Маршал (§6.15): танки дешевле — та же формула, что на сервере (MatchSim.unitCost).
+	local function costOf(k: number): number
+		return Forces.stats(k).cost
+			* (if Types.LandUnits[k] == "Tanks" then Commanders.tankCostMul(ClientState.myCommander(cs)) else 1)
+	end
+
+	local function hireInfo(k: number): HireInfo
+		local stats = Forces.stats(k)
+		local forces = cs.myForces
+		local economy = if forces ~= nil then forces.economy else nil
+		local myStats = if cs.myNation ~= nil then ClientState.statsOf(cs, cs.myNation) else nil
+		local queuedK = 0
+		if forces ~= nil then
+			for _, q in forces.queue do
+				if q.kind == k then
+					queuedK += 1
+				end
+			end
+		end
+		local needLevel = stats.requiresLevel or 1
+		local barracks = if economy ~= nil then economy.barracks else 0
+		local needs = stats.requires == "Barracks" and barracks < needLevel
+		local cost = costOf(k)
+		return {
+			cost = cost,
+			oil = stats.oil,
+			people = stats.people,
+			sec = stats.recruitSec,
+			queued = queuedK,
+			needLevel = if needs then needLevel else nil,
+			affordable = myStats ~= nil
+				and economy ~= nil
+				and myStats.people >= stats.people
+				and economy.money >= cost
+				and economy.oil >= stats.oil
+				and not needs,
+		}
+	end
+
 	local function refresh()
 		local playing = canCommand()
 		cards.Visible = playing
@@ -197,9 +250,7 @@ function ForcesPanel.new(
 			local inQueue = queued[k] or 0
 			local needLevel = stats.requiresLevel or 1
 			local needsFactory = stats.requires == "Barracks" and barracks < needLevel
-			-- Маршал (§6.15): танки дешевле — та же формула, что на сервере (MatchSim.unitCost).
-			local cost = stats.cost
-				* (if Types.LandUnits[k] == "Tanks" then Commanders.tankCostMul(ClientState.myCommander(cs)) else 1)
+			local cost = costOf(k)
 			local price = string.format(Strings.get("hire.money", lang), Strings.formatInt(cost))
 			if stats.oil > 0 then
 				price ..= " · " .. string.format(Strings.get("hire.oil", lang), Strings.formatInt(stats.oil))
@@ -296,7 +347,7 @@ function ForcesPanel.new(
 		info.Text = table.concat(lines, "\n")
 	end
 
-	return { refresh = refresh }
+	return { refresh = refresh, hire = hire, hireInfo = hireInfo, cards = cards }
 end
 
 return table.freeze(ForcesPanel)

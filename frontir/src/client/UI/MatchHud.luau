@@ -43,6 +43,8 @@ export type Hud = {
 	alert: (text: string) -> (), -- строка ленты красным (на вас напали)
 	onEvents: (events: { any }) -> (),
 	percent: () -> number, -- ползунок «Атака» (доля 0..1): им же — сколько войск на высадку (§6.12)
+	setPercent: (p: number) -> (), -- §15л ч.2: кнопки доли атаки в командной полосе
+	values: () -> ResourceBar.Values?, -- §15л ч.2: ресурсы своей державы (для командной полосы)
 }
 
 local MatchHud = {}
@@ -446,8 +448,12 @@ function MatchHud.new(
 		push(text, Theme.Colors.Alert)
 	end
 
+	local lastValues: ResourceBar.Values? = nil
 	local function refresh()
 		local me = if cs.myNation ~= nil then cs.nations[cs.myNation] else nil
+		if me == nil or cs.phase ~= "Play" then
+			lastValues = nil
+		end
 		local playing = cs.phase == "Play"
 		local stats = cs.stats
 
@@ -475,7 +481,7 @@ function MatchHud.new(
 					for _, k in (cs.myForces :: any).kinds do
 						army += k.home + k.front
 					end
-					resources.set({
+					local v: ResourceBar.Values = {
 						money = economy.money,
 						income = economy.income - economy.upkeep,
 						oil = economy.oil,
@@ -485,7 +491,9 @@ function MatchHud.new(
 						growth = growth,
 						army = army,
 						land = myStats.cells / math.max(1, totalLand) * 100,
-					})
+					}
+					lastValues = v
+					resources.set(v)
 				end
 				-- Средняя стабильность (§6.10): зелёная от 50, жёлтая от 30, красная ниже; клетки с половинным доходом.
 				if #cs.stability.ids > 0 then
@@ -608,7 +616,8 @@ function MatchHud.new(
 
 		-- Ползунок и атаки — только у живой державы в игре.
 		local canAttack = playing and me ~= nil and me.alive
-		slider.Visible = canAttack
+		-- §15л ч.2: доля атаки — кнопками в командной полосе; старый ползунок не показываем.
+		slider.Visible = false
 		local k = 0
 		if canAttack and stats ~= nil and me ~= nil then
 			for _, a in stats.attacks do
@@ -1123,6 +1132,10 @@ function MatchHud.new(
 		onEvents = onEvents,
 		percent = function(): number
 			return percent
+		end,
+		setPercent = setPercent,
+		values = function(): ResourceBar.Values?
+			return lastValues
 		end,
 	}
 end
