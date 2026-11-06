@@ -2,7 +2,8 @@
 --[[
 	Buildings — здания (GDD §6.9, этап 4б). Чистый модуль: где можно строить, что стоит, кому что принадлежит.
 
-	- Здание стоит в клетке: обычное — в центре провинции, «Город» — улучшение города в его клетке.
+	- Здание стоит в клетке: обычное — на любой своей клетке суши (§15г; не ближе Build.MinGap к другим зданиям
+	  и городам), «Город» — улучшение города в его клетке. Проверка общая для сервера и «призрака» на клиенте.
 	- Владелец здания — владелец его клетки по сетке: провинция сменила хозяина — здание тоже.
 	- В провинции одно здание (плюс город). Нефтяная вышка — только в провинции с нефтяным полем.
 	- Город ур. 1 — любой город на карте (столица тоже); улучшения до Economy.MaxCityLevel.
@@ -60,10 +61,57 @@ function Buildings.cost(set: BuildingSet, kind: Types.BuildingKind, cell: number
 	return stats.cost, stats.oil or 0
 end
 
+-- Множество зданий из списка (клиент: «призрак» стройки проверяет тем же Buildings.check).
+function Buildings.fromList(list: { [any]: Building }, map: MapData.MapData): BuildingSet
+	local set = Buildings.new()
+	for _, b in list do
+		set.byCell[b.cell] = b
+		if b.kind ~= "City" then
+			local p = MapData.getProvince(map, b.cell)
+			if p ~= 0 then
+				set.byProvince[p] = b.cell
+			end
+		end
+	end
+	return set
+end
+
+-- Радиус действия здания в клетках для круга у «призрака» стройки (§15г); nil — круга нет.
+function Buildings.rangeOf(kind: string, mapWidth: number): number?
+	if kind == "Radar" then
+		return Config.Fog.RadarVision
+	elseif kind == "AirDefense" then
+		return Config.Buildings.AirDefense.radius
+	elseif kind == "Airfield" then
+		return Config.Air.Range * mapWidth / Config.UnitsReferenceMapWidth
+	end
+	return nil
+end
+
+-- Клетка у воды (порт ставят на берег, §15г).
+function Buildings.coastal(map: MapData.MapData, cell: number): boolean
+	local w, h = map.width, map.height
+	local x, y = cell % w, cell // w
+	for _, d in { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } } do
+		local nx, ny = x + d[1], y + d[2]
+		if
+			nx >= 0
+			and ny >= 0
+			and nx < w
+			and ny < h
+			and MapData.getTerrain(map, ny * w + nx) == Types.Terrain.Water
+		then
+			return true
+		end
+	end
+	return false
+end
+
 -- Можно ли державе nation построить kind по нажатию на клетку cell. Возвращает клетку здания или причину.
+-- ownerAt — владелец клетки (сервер — сетка, клиент — его копия).
 function Buildings.check(
 	set: BuildingSet,
-	g: Grid,
+	ownerAt: (cell: number) -> number,
 	map: MapData.MapData,
 	provinces: Provinces.ProvinceSet,
 	isCity: (cell: number) -> boolean,
@@ -73,7 +121,7 @@ function Buildings.check(
 	hasDock: ((province: number) -> boolean)?, -- есть ли у провинции выход к морю (порт, §6.12)
 	allowed: ((kind: Types.BuildingKind) -> boolean)? -- открыто ли здание технологией (§6.14)
 ): (number?, string?)
-	if cell < 0 or cell >= g.size then
+	if cell < 0 or cell >= map.width * map.height then
 		return nil, "focus"
 	end
 	if table.find(Config.Buildable, kind) == nil then
@@ -83,7 +131,7 @@ function Buildings.check(
 		return nil, "needTech"
 	end
 	if kind == "City" then
-		if not isCity(cell) or Grid.getOwner(g, cell) ~= nation then
+		if not isCity(cell) or ownerAt(cell) ~= nation then
 			return nil, "needCity"
 		end
 		if Buildings.cityLevel(set, cell) >= Config.Economy.MaxCityLevel then
@@ -93,11 +141,7 @@ function Buildings.check(
 	end
 	local id = MapData.getProvince(map, cell)
 	local province = if id ~= 0 then provinces.list[id] else nil
-	if province == nil then
-		return nil, "notOwner"
-	end
-	local spot = province.center
-	if Grid.getOwner(g, spot) ~= nation then
+	if province == nil or MapData.getTerrain(map, cell) == Types.Terrain.Water or ownerAt(cell) ~= nation then
 		return nil, "notOwner"
 	end
 	if set.byProvince[id] ~= nil then
@@ -106,10 +150,28 @@ function Buildings.check(
 	if kind == "OilRig" and not province.oil then
 		return nil, "needOil"
 	end
-	if kind == "Port" and (hasDock == nil or not hasDock(id)) then
+	if kind == "Port" and (hasDock == nil or not hasDock(id) or not Buildings.coastal(map, cell)) then
 		return nil, "needCoast"
 	end
-	return spot, nil
+	-- Не ближе MinGap к другим зданиям и городам (значки не налезают).
+	local gap = Config.Build.MinGap - 1
+	local w, h = map.width, map.height
+	local x, y = cell % w, cell // w
+	for dy = -gap, gap do
+		local ny = y + dy
+		if ny >= 0 and ny < h then
+			for dx = -gap, gap do
+				local nx = x + dx
+				if nx >= 0 and nx < w then
+					local j = ny * w + nx
+					if set.byCell[j] ~= nil or isCity(j) then
+						return nil, "tooClose"
+					end
+				end
+			end
+		end
+	end
+	return cell, nil
 end
 
 -- Ставит здание (или поднимает уровень города) в клетке spot провинции id.

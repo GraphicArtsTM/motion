@@ -27,6 +27,7 @@ export type SeaMap = {
 	height: number,
 	size: number,
 	sea: buffer, -- u16: номер моря, 0 — суша или маленькое озеро
+	land: buffer, -- u32: номер массива суши (связная суша по стороне; 0 — вода) — «другой берег» (§15д)
 	docks: { [number]: number }, -- провинция → клетка-причал
 	-- Навигация: узел клетки (u32, 0 — нет), центры узлов и их соседи.
 	node: buffer,
@@ -109,6 +110,22 @@ function Naval.buildSea(map: MapData, provinces: Provinces.ProvinceSet): SeaMap
 					buffer.writeu16(sea, i * 2, nextSea)
 				end
 			end
+		end
+	end
+
+	-- 1б. Массивы суши (§15д): цель на другом массиве — десант на корабле.
+	local land = buffer.create(size * 4)
+	local nextLand = 0
+	local function landAccept(j: number, _x: number, _y: number): boolean
+		return buffer.readu32(land, j * 4) == 0 and buffer.readu8(terrain, j) ~= WATER
+	end
+	local function markLand(j: number)
+		buffer.writeu32(land, j * 4, nextLand)
+	end
+	for start = 0, size - 1 do
+		if buffer.readu32(land, start * 4) == 0 and buffer.readu8(terrain, start) ~= WATER then
+			nextLand += 1
+			flood(w, size, start, queue, landAccept, markLand)
 		end
 	end
 
@@ -210,6 +227,7 @@ function Naval.buildSea(map: MapData, provinces: Provinces.ProvinceSet): SeaMap
 		height = h,
 		size = size,
 		sea = sea,
+		land = land,
 		docks = docks,
 		node = node,
 		nodeX = nodeX,
@@ -230,6 +248,14 @@ function Naval.seaAt(s: SeaMap, i: number): number
 		return 0
 	end
 	return buffer.readu16(s.sea, i * 2)
+end
+
+-- Номер массива суши клетки (0 — вода).
+function Naval.landAt(s: SeaMap, i: number): number
+	if i < 0 or i >= s.size then
+		return 0
+	end
+	return buffer.readu32(s.land, i * 4)
 end
 
 -- Ближайшая к cell клетка моря не дальше reach клеток (в квадрате), в море seaId (nil или 0 — в любом).

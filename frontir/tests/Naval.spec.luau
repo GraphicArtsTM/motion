@@ -117,6 +117,80 @@ local function hire(m: MatchSim.Match, id: number, kind: Fleet.ShipKind, at: num
 end
 
 T.describe("Флот", function()
+	T.it(
+		"десант на другой берег (§15д): нажатие на ничий остров — корабль сам плывёт и высаживается, без порта",
+		function()
+			local m = islands(0)
+			local n = m.nations[1]
+			local target = 12 * W + 130 -- середина правого острова
+			T.expect(MatchSim.overSea(m, 1, target)).toBe(true)
+			T.expect(MatchSim.overSea(m, 1, 12 * W + 30)).toBe(false) -- свой остров
+			T.expect(#MatchSim.portsOf(m, 1)).toBe(0)
+			local people = n.people
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "attack", target = 0, percent = 0.5, focus = target })))
+				.toBe(true)
+			T.expect(Fleet.boats(m.fleet, 1)).toBe(1)
+			T.expect(Fleet.count(m.fleet, 1)).toBe(0) -- в лимит кораблей порта не входит
+			T.expect(n.people < people).toBe(true)
+			local events = MatchSim.takeEvents(m)
+			local launched = false
+			for _, e in events do
+				launched = launched or e.kind == "boatLaunched"
+			end
+			T.expect(launched).toBe(true)
+			runFor(m, 60)
+			T.expect(Fleet.boats(m.fleet, 1)).toBe(0) -- высадился и исчез
+			local mine = 0
+			for x = RIGHT0, RIGHT1 do
+				if Grid.getOwner(m.grid, 12 * W + x) == 1 then
+					mine += 1
+				end
+			end
+			T.expect(mine > 0).toBe(true)
+		end
+	)
+
+	T.it(
+		"десант на вражеский остров в войне: войска плывут фронтом; лимит десантов; нет берега у моря — отказ",
+		function()
+			local m = islands(2)
+			local n = m.nations[1]
+			Forces.add(n.home, INF, 3000)
+			DevTools.warNow(m, 1, 2)
+			local target = 12 * W + 120
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "attack", target = 2, percent = 0.2, focus = target })))
+				.toBe(true)
+			for _ = 2, cfg.MaxBoats do
+				MatchSim.applyIntent(m, 1, { kind = "attack", target = 2, percent = 0.1, focus = target })
+			end
+			T.expect(Fleet.boats(m.fleet, 1)).toBe(cfg.MaxBoats)
+			T.expect(
+				select(2, MatchSim.applyIntent(m, 1, { kind = "attack", target = 2, percent = 0.1, focus = target }))
+			)
+				.toBe("tooManyBoats")
+			runFor(m, 60)
+			local front = false
+			for _, a in m.attacks do
+				front = front or (a.attacker == 1 and a.target == 2)
+			end
+			T.expect(front).toBe(true)
+			-- Земля на острове за морем (без города и порта) не сдаётся как котёл — снабжается морем.
+			T.expect(Grid.getOwner(m.grid, 12 * W + RIGHT0) == 1 or Grid.getOwner(m.grid, 3 * W + RIGHT0) == 1)
+				.toBe(true)
+			-- Без своего берега у моря — отказ.
+			for i = 0, W * H - 1 do
+				if Grid.getOwner(m.grid, i) == 1 then
+					Grid.setOwner(m.grid, i, 0)
+				end
+			end
+			Grid.setOwner(m.grid, 12 * W + 30, 1) -- одна клетка в глубине острова, провинции не наши
+			T.expect(
+				select(2, MatchSim.applyIntent(m, 1, { kind = "attack", target = 2, percent = 0.1, focus = target }))
+			)
+				.toBe("noCoast")
+		end
+	)
+
 	T.it("море, причалы и путь по воде без суши", function()
 		local m = islands(2)
 		local s = m.sea
@@ -306,7 +380,7 @@ T.describe("Флот", function()
 	)
 
 	T.it(
-		"плацдарм без города со снабжением по морю не сдаётся, без него — сдаётся",
+		"плацдарм за морем у берега не сдаётся (§15д) — с портом и без",
 		function()
 			local function beachhead(withPort: boolean): boolean
 				local m = islands(2)
@@ -324,7 +398,8 @@ T.describe("Флот", function()
 				return Grid.getOwner(m.grid, 12 * W + RIGHT0) == 1
 			end
 			T.expect(beachhead(true)).toBe(true)
-			T.expect(beachhead(false)).toBe(false)
+			T.expect(beachhead(false)).toBe(true)
+			-- Окружение на своём массиве суши по-прежнему котёл — тест «котёл» в Economy.spec.
 		end
 	)
 

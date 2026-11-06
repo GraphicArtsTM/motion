@@ -560,15 +560,29 @@ local function renderRegion(
 				local top = sy - math.round(UnitSprites.Height * sprite * 0.75)
 				local flip = sl.dx < 0
 				local shape = UnitSprites.Shapes[sl.kind]
+				-- Тень под юнитом (§15г).
+				blend(
+					left + sprite,
+					top + (UnitSprites.Height - 1) * sprite,
+					(UnitSprites.Width - 2) * sprite,
+					math.max(2, math.round(sprite * 1.6)),
+					ink,
+					0.45
+				)
 				for _, p in shape do
-					if not p.ink then
+					if not p.ink and p.shade == nil then
 						local x = if flip then UnitSprites.Width - p.x - p.w else p.x
 						rect(left + x * sprite - 1, top + p.y * sprite - 1, p.w * sprite + 2, p.h * sprite + 2, outline)
 					end
 				end
 				for _, p in shape do
 					local x = if flip then UnitSprites.Width - p.x - p.w else p.x
-					rect(left + x * sprite, top + p.y * sprite, p.w * sprite, p.h * sprite, if p.ink then ink else body)
+					local c = ink
+					if not p.ink then
+						local r, g, b = UnitSprites.shade(body.r, body.g, body.b, p.shade)
+						c = { r = r, g = g, b = b }
+					end
+					rect(left + x * sprite, top + p.y * sprite, p.w * sprite, p.h * sprite, c)
 				end
 			end
 		end

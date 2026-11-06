@@ -100,7 +100,7 @@ end)
 
 T.describe("Здания", function()
 	T.it(
-		"стройка: в своей провинции, одно на провинцию, вышка — только на нефти, деньги списываются",
+		"стройка: любая своя клетка (§15г), одно на провинцию, не вплотную к зданию, вышка — только на нефти",
 		function()
 			local m = started(43)
 			local me = m.nations[1]
@@ -132,15 +132,21 @@ T.describe("Здания", function()
 			)
 				.toBe("needOil")
 			local money = me.money
-			T.expect((MatchSim.applyIntent(m, 1, { kind = "build", building = "Factory", cell = target.cells[1] })))
-				.toBe(true)
+			-- Нажатая клетка — место здания (§15г); бот и F4 берут ближайшую допустимую к центру.
+			local cell = MatchSim.buildSpot(m, 1, "Factory", target.cells[#target.cells])
+			T.expect((MatchSim.checkBuild(m, 1, "Factory", cell))).toBe(cell)
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "build", building = "Factory", cell = cell }))).toBe(true)
 			T.expect(me.money).toBe(money - Config.Buildings.Factory.cost)
-			T.expect(m.buildings.byCell[target.center].kind).toBe("Factory") -- в центре провинции
+			T.expect(m.buildings.byCell[cell].kind).toBe("Factory")
 			T.expect(MatchSim.ownedOf(m, 1).factories).toBe(1)
 			T.expect(
 				select(2, MatchSim.applyIntent(m, 1, { kind = "build", building = "Market", cell = target.center }))
 			)
 				.toBe("occupied")
+			-- Своя клетка вплотную к столице (ближе Build.MinGap к городу) — нельзя; вода — нельзя.
+			local cap = me.capital :: number
+			T.expect(select(2, MatchSim.checkBuild(m, 1, "Market", cap + 1))).toBe("tooClose")
+			T.expect(select(2, MatchSim.checkBuild(m, 1, "Market", 0))).toBe("notOwner")
 			-- Чужая провинция — нельзя.
 			for _, q in m.provinces.list do
 				local o = Grid.getOwner(m.grid, q.center)
@@ -156,7 +162,8 @@ T.describe("Здания", function()
 			for _, q in m.provinces.list do
 				if q.oil and Grid.getOwner(m.grid, q.center) == 0 then
 					give(m, q, 1)
-					T.expect((MatchSim.applyIntent(m, 1, { kind = "build", building = "OilRig", cell = q.center })))
+					local spot = MatchSim.buildSpot(m, 1, "OilRig", q.center)
+					T.expect((MatchSim.applyIntent(m, 1, { kind = "build", building = "OilRig", cell = spot })))
 						.toBe(true)
 					break
 				end

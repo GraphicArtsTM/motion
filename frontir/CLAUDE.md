@@ -202,6 +202,10 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   `land` (плацдарм и фронт), `stepFleet` (найм, высадки, обстрел берега, блокада), снабжение по морю в `stepAttacks`
   (`seaSupplySets`, `Attack.seaSupplied`) и `pocketSeaSupplied` в котлах. Боты: `navyView` (цели — лениво, функциями)
   и `navyDecision` в `BotBrain` (личность `navy`).
+- **Десант на другой берег (§15д):** атака с `focus` на суше другого массива (`Naval.landAt`, `MatchSim.overSea`) —
+  `MatchSim.seaInvade`: десантный корабль (`ship.boat`, `Fleet.boats`, лимит `Naval.MaxBoats`) из ближайшей своей
+  прибрежной провинции, высадка у ближайшего берега, потом исчезает. Земля за морем у берега — не котёл
+  (`MatchSim.overseas`, фильтр в `stepPockets`).
 - Сеть: SHIPS (`Protocol.encodeShips`, `MatchStats.ships` — по тому же обзору, что фронты, `MatchStats.vision`).
   Клиент: `Render/ShipLayer` (плавное движение, туман), `UI/NavalPanel` (меню порта, высадка, патруль),
   `ShipSprites` общие с превью.

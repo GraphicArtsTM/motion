@@ -1,9 +1,10 @@
 --!strict
 --[[
 	BuildingLayer — здания и нефтяные поля на карте (GDD §6.8–6.9).
-	Значки 7×7 (Shared.BuildingSprites) в центре провинции, цветом владельца клетки; улучшенный город —
-	золотые точки-уровни рядом с городом; нефтяное поле без вышки — тёмная капля. С приближением значки
-	крупнее (×2 с зума 6). Владельцы меняются вместе с клетками — recolor() перекрашивает.
+	Значки 7×7 (Shared.BuildingSprites) в клетке здания (§15г — любая своя клетка), цветом владельца клетки;
+	улучшенный город — золотые точки-уровни рядом с городом; нефтяное поле без вышки — тёмная капля в центре
+	провинции. С приближением значки крупнее (Render.BuildingIconScales). Владельцы меняются вместе с клетками —
+	recolor() перекрашивает.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -12,7 +13,9 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local BuildingSprites = require(Shared:WaitForChild("BuildingSprites"))
 local CameraMath = require(Shared:WaitForChild("CameraMath"))
 local ClientState = require(Shared:WaitForChild("ClientState"))
+local Config = require(Shared:WaitForChild("Config"))
 local Fog = require(Shared:WaitForChild("Fog"))
+local MapData = require(Shared:WaitForChild("MapData"))
 local NationColors = require(Shared:WaitForChild("NationColors"))
 local Provinces = require(Shared:WaitForChild("Provinces"))
 
@@ -31,7 +34,12 @@ type Icon = { root: Frame, parts: { Frame }, kind: string, cell: number, owner: 
 
 local BuildingLayer = {}
 
-function BuildingLayer.new(canvas: Frame, cs: ClientState, provinces: Provinces.ProvinceSet): BuildingLayer
+function BuildingLayer.new(
+	canvas: Frame,
+	cs: ClientState,
+	provinces: Provinces.ProvinceSet,
+	map: MapData.MapData
+): BuildingLayer
 	local icons: { Icon } = {}
 	local zoom = 1
 	local size = BuildingSprites.Size
@@ -59,7 +67,12 @@ function BuildingLayer.new(canvas: Frame, cs: ClientState, provinces: Provinces.
 
 	local function place(icon: Icon)
 		local w = cs.width
-		local scale = if zoom >= 6 then 2 else 1
+		local scale = 1
+		for _, step in Config.Render.BuildingIconScales do
+			if zoom >= step.zoom then
+				scale = step.scale
+			end
+		end
 		local cx, cy = icon.cell % w, icon.cell // w
 		local left = CameraMath.cellEdge(zoom, cx)
 		local x = left + (CameraMath.cellEdge(zoom, cx + 1) - left) / 2
@@ -138,10 +151,15 @@ function BuildingLayer.new(canvas: Frame, cs: ClientState, provinces: Provinces.
 				add(b.kind, cell, 0)
 			end
 		end
-		-- Нефтяные поля без вышки.
+		-- Нефтяные поля без вышки (вышка — в любой клетке провинции, §15г).
+		local rigged: { [number]: boolean } = {}
+		for cell, b in cs.buildings do
+			if b.kind == "OilRig" then
+				rigged[MapData.getProvince(map, cell)] = true
+			end
+		end
 		for _, p in provinces.list do
-			local b = cs.buildings[p.center]
-			if p.oil and (b == nil or b.kind ~= "OilRig") then
+			if p.oil and not rigged[p.id] then
 				add("OilField", p.center, 0)
 			end
 		end

@@ -430,8 +430,12 @@ local TABLE: { [string]: Entry } = {
 		en = "Oil rigs go only on oil fields",
 	},
 	["reject.notOwner"] = {
-		ru = "Центр провинции должен быть вашим",
-		en = "The province centre must be yours",
+		ru = "Стройте на своей земле",
+		en = "Build on your own land",
+	},
+	["reject.tooClose"] = {
+		ru = "Слишком близко к зданию или городу",
+		en = "Too close to a building or city",
 	},
 	["reject.notYet"] = {
 		ru = "Капитуляция появится вместе с дипломатией",
@@ -485,7 +489,16 @@ local TABLE: { [string]: Entry } = {
 	["hire.needFactory"] = { ru = "нужен завод", en = "needs a factory" },
 	["build.button"] = { ru = "Построить (B)", en = "Build (B)" },
 	["build.cancel"] = { ru = "Отмена (Esc): %s", en = "Cancel (Esc): %s" },
-	["build.pick"] = { ru = "%s: нажмите на свою провинцию", en = "%s: tap your province" },
+	["build.pick"] = {
+		ru = "%s: выберите место на своей земле",
+		en = "%s: pick a spot on your land",
+	},
+	["build.ok"] = { ru = "Построить: %s", en = "Build: %s" },
+	["build.tapAgain"] = { ru = "Нажмите ещё раз — построить", en = "Tap again to build" },
+	["build.keys"] = {
+		ru = "1–9 — выбрать · Shift+клик — ещё одно · Esc — отмена",
+		en = "1–9 pick · Shift+click — one more · Esc cancel",
+	},
 	["build.pickCity"] = { ru = "%s: нажмите на свой город", en = "%s: tap your city" },
 	["building.City"] = { ru = "Город +1 уровень", en = "City +1 level" },
 	["building.City.hint"] = { ru = "доход и максимум людей", en = "income and max people" },
@@ -539,6 +552,18 @@ local TABLE: { [string]: Entry } = {
 	["naval.pickSea"] = { ru = "Патруль: нажмите море", en = "Patrol: tap the sea" },
 	["naval.cancel"] = { ru = "Отмена (Esc)", en = "Cancel (Esc)" },
 	["event.shipBuilt"] = { ru = "Готов корабль: %s", en = "Ship ready: %s" },
+	["event.boatLaunched"] = {
+		ru = "Десант вышел в море — войска высадятся на том берегу",
+		en = "Landing party at sea — troops will land on the far shore",
+	},
+	["reject.noCoast"] = {
+		ru = "Нет своего берега у этого моря",
+		en = "You have no coast on this sea",
+	},
+	["reject.tooManyBoats"] = {
+		ru = "Все десантные корабли в море — дождитесь высадки",
+		en = "All landing ships are at sea — wait for a landing",
+	},
 	["event.shipSunk"] = { ru = "%s: %s потоплен (%s)", en = "%s: %s sunk (%s)" },
 	["event.shipSunkCargo"] = {
 		ru = "%s: %s потоплен с войсками %s (%s)",
@@ -1162,8 +1187,8 @@ local TABLE: { [string]: Entry } = {
 		en = "T → pick a neighbour → Declare war, then tap their land to open a front.",
 	},
 	["tutorial.hint.build"] = {
-		ru = "B → выберите здание и нажмите на свою провинцию.",
-		en = "B → pick a building and tap your province.",
+		ru = "B → выберите здание и нажмите на свою землю: зелёный значок — можно строить.",
+		en = "B → pick a building and tap your land: a green icon means you can build.",
 	},
 	["tutorial.hint.alliance"] = {
 		ru = "T → выберите второго соседа → «Союз». В обучении он согласится.",

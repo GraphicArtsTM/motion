@@ -103,6 +103,7 @@ export type MatchEvent =
 	| { kind: "missileLaunched", nation: number, target: number, cell: number, impactIn: number }
 	| { kind: "missileHit", nation: number, cell: number, cells: number }
 	| { kind: "missileShot", nation: number, by: number, cell: number }
+	| { kind: "boatLaunched", nation: number, target: number } -- десант на другой берег (§15д)
 	-- Разведка (§6.11а): nation разведал target
 	| { kind: "flood", step: number, cells: number } -- «Потоп» (§5.3): вода поднялась
 	| { kind: "boost", nation: number, boost: string } -- буст магазина (§11.1)
@@ -1078,6 +1079,52 @@ function MatchSim.frontForces(m: Match, nationId: number): Types.Forces
 	return sum
 end
 
+-- Можно ли державе id построить kind по нажатию на клетку cell (§6.9, §15г). Клетка здания или причина.
+function MatchSim.checkBuild(m: Match, id: number, kind: Types.BuildingKind, cell: number): (number?, string?)
+	return Buildings.check(
+		m.buildings,
+		function(c: number): number
+			return Grid.getOwner(m.grid, c)
+		end,
+		m.map,
+		m.provinces,
+		function(c: number): boolean
+			return Grid.isCity(m.grid, c)
+		end,
+		id,
+		kind,
+		cell,
+		function(province: number): boolean
+			return m.sea.docks[province] ~= nil
+		end,
+		function(k: Types.BuildingKind): boolean
+			return MatchSim.techAllows(m, id, k)
+		end
+	)
+end
+
+-- Бот и F4 называют провинцию её центром (§15г): ближайшая к cell допустимая клетка той же провинции
+-- (сама cell, если можно). Ничего не подошло — cell (сервер откажет с причиной).
+function MatchSim.buildSpot(m: Match, id: number, kind: Types.BuildingKind, cell: number): number
+	if kind == "City" or MatchSim.checkBuild(m, id, kind, cell) ~= nil then
+		return cell
+	end
+	local p = m.provinces.list[MapData.getProvince(m.map, cell)]
+	if p == nil then
+		return cell
+	end
+	local w = m.grid.width
+	local cx, cy = cell % w, cell // w
+	local best, bestD = cell, math.huge
+	for _, c in p.cells do
+		local d = (c % w - cx) ^ 2 + (c // w - cy) ^ 2
+		if d < bestD and MatchSim.checkBuild(m, id, kind, c) ~= nil then
+			best, bestD = c, d
+		end
+	end
+	return best
+end
+
 -- Применяет намерение державы. Возвращает успех и код ошибки (для клиента и логов).
 function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent): (boolean, string?)
 	local n = m.nations[nationId]
@@ -1205,24 +1252,7 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 	end
 
 	if intent.kind == "build" then
-		local spot, reason = Buildings.check(
-			m.buildings,
-			m.grid,
-			m.map,
-			m.provinces,
-			function(cell: number): boolean
-				return Grid.isCity(m.grid, cell)
-			end,
-			nationId,
-			intent.building,
-			intent.cell,
-			function(province: number): boolean
-				return m.sea.docks[province] ~= nil
-			end,
-			function(kind: Types.BuildingKind): boolean
-				return MatchSim.techAllows(m, nationId, kind)
-			end
-		)
+		local spot, reason = MatchSim.checkBuild(m, nationId, intent.building, intent.cell)
 		if spot == nil then
 			return false, reason
 		end
@@ -1460,6 +1490,10 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 	local focus = intent.focus
 	if focus ~= nil and focus >= m.grid.size then
 		return false, "focus"
+	end
+	-- Нажатая суша на другом берегу (на её массиве нет нашей земли) — десант на корабле (§15д).
+	if focus ~= nil and MatchSim.overSea(m, nationId, focus) then
+		return MatchSim.seaInvade(m, n, target, focus, intent.percent)
 	end
 	-- Города в соседстве считаются, если их есть чем брать: фронт против державы или войска с собой.
 	-- Фронт против страны видит и землю за рекой; граница людей реку не переходит.
@@ -2672,9 +2706,23 @@ local function stepPockets(m: Match)
 		local stale = check == nil or (check.version ~= version and m.simTime - check.at >= Config.Pocket.CheckEverySec)
 		if n.alive and stale then
 			m.pocketCheck[n.id] = { version = version, at = m.simTime }
-			m.pockets[n.id] = Pockets.compute(m.grid, n.id, n.capital, function(cell: number): boolean
+			local computed = Pockets.compute(m.grid, n.id, n.capital, function(cell: number): boolean
 				return Grid.isCity(m.grid, cell)
 			end, m.simTime, previous)
+			-- Земля за морем у берега (§15д) — не котёл: даёт людей, фронты из неё снабжены, не сдаётся.
+			local kept: { Pockets.Pocket } = {}
+			local inPocket: { [number]: number } = {}
+			local cells = 0
+			for _, pocket in computed.pockets do
+				if not MatchSim.overseas(m, n, pocket.cells) then
+					table.insert(kept, pocket)
+					for _, cell in pocket.cells do
+						inPocket[cell] = #kept
+					end
+					cells += #pocket.cells
+				end
+			end
+			m.pockets[n.id] = { pockets = kept, inPocket = inPocket, cells = cells }
 		end
 		local result = m.pockets[n.id]
 		if n.alive and result ~= nil then
@@ -3409,7 +3457,8 @@ local function botMissile(m: Match, n: Nation, rng: Rng)
 				end
 			end
 			if best ~= nil then
-				MatchSim.applyIntent(m, n.id, { kind = "build", building = "MissileSilo", cell = best })
+				local spot = MatchSim.buildSpot(m, n.id, "MissileSilo", best)
+				MatchSim.applyIntent(m, n.id, { kind = "build", building = "MissileSilo", cell = spot })
 			end
 		end
 		return
@@ -3453,6 +3502,32 @@ function MatchSim.pocketSeaSupplied(m: Match, nationId: number, cells: { number 
 			if set[cell] then
 				return true
 			end
+		end
+	end
+	return false
+end
+
+-- Земля за морем (§15д): кусок на другом массиве суши, чем столица, и у моря — снабжается морем (десантные
+-- корабли ходят без порта), котлом не считается. Окружение на своём массиве суши — котёл, как раньше.
+function MatchSim.overseas(m: Match, n: Nation, cells: { number }): boolean
+	local cap = n.capital
+	if cap == nil or #cells == 0 then
+		return false
+	end
+	local home = Naval.landAt(m.sea, cap)
+	if Naval.landAt(m.sea, cells[1]) == home then
+		return false
+	end
+	local w, size = m.grid.width, m.grid.size
+	for _, cell in cells do
+		local x = cell % w
+		if
+			(x > 0 and Naval.seaAt(m.sea, cell - 1) ~= 0)
+			or (x < w - 1 and Naval.seaAt(m.sea, cell + 1) ~= 0)
+			or (cell >= w and Naval.seaAt(m.sea, cell - w) ~= 0)
+			or (cell + w < size and Naval.seaAt(m.sea, cell + w) ~= 0)
+		then
+			return true
 		end
 	end
 	return false
@@ -3700,6 +3775,107 @@ function MatchSim.navyView(
 end
 
 -- Найм корабля, высадка, патруль.
+-- Груз корабля (§6.12): доля гарнизона (не больше вместимости) и столько же процентов людей. nil — нечего везти.
+local function loadCargo(n: Nation, percent: number): (Types.Forces?, number)
+	local share = percent
+	local total = Forces.total(n.home)
+	if total > 0 then
+		share = math.min(share, Config.Naval.TransportCapacity / total)
+	end
+	local cargo = if total > 0 then Forces.take(n.home, share) else Forces.new()
+	local people = math.min(n.people * percent, Config.Naval.TransportPeople)
+	if Forces.total(cargo) < 1 and people < Config.Expansion.MinTroops then
+		Forces.merge(n.home, cargo)
+		return nil, 0
+	end
+	n.people -= people
+	return cargo, people
+end
+
+-- Клетка cell — суша на другом берегу: на её массиве суши нет земли державы id (§15д).
+function MatchSim.overSea(m: Match, id: number, cell: number): boolean
+	if cell < 0 or cell >= m.grid.size or not Grid.isCapturable(m.grid, cell) then
+		return false
+	end
+	local island = Naval.landAt(m.sea, cell)
+	if island == 0 then
+		return false
+	end
+	for i in Grid.borderCells(m.grid, id) do
+		if Naval.landAt(m.sea, i) == island then
+			return false
+		end
+	end
+	return true
+end
+
+-- Десант на корабле (§15д): из своей прибрежной провинции у того же моря, ближайшей к focus, выходит десантный
+-- корабль с долей войск (и людей), плывёт и высаживается у focus. Порт не нужен; после высадки корабль исчезает.
+function MatchSim.seaInvade(m: Match, n: Nation, target: number, focus: number, percent: number): (boolean, string?)
+	local cfg = Config.Naval
+	if Fleet.boats(m.fleet, n.id) >= cfg.MaxBoats then
+		return false, "tooManyBoats"
+	end
+	-- Берег острова, ближайший к нажатой клетке: море — расширяющимся поиском, высадка — на суше того же острова у него.
+	local w = m.grid.width
+	local water: number? = nil
+	for _, r in cfg.BoatSearch do
+		water = Naval.waterNear(m.sea, focus, r)
+		if water ~= nil then
+			break
+		end
+	end
+	if water == nil then
+		return false, "notCoast"
+	end
+	local island = Naval.landAt(m.sea, focus)
+	local shore: number? = nil
+	local shoreD = math.huge
+	local wx, wy = (water :: number) % w, (water :: number) // w
+	for dy = -2, 2 do
+		for dx = -2, 2 do
+			local x, y = wx + dx, wy + dy
+			if x >= 0 and y >= 0 and x < w and y < m.grid.height then
+				local j = y * w + x
+				if Naval.landAt(m.sea, j) == island and Grid.isCapturable(m.grid, j) and dx * dx + dy * dy < shoreD then
+					shore, shoreD = j, dx * dx + dy * dy
+				end
+			end
+		end
+	end
+	if shore == nil then
+		return false, "notCoast"
+	end
+	local seaId = Naval.seaAt(m.sea, water :: number)
+	local fx, fy = focus % w, focus // w
+	local launch: { cell: number, dock: number }? = nil
+	local bestD = math.huge
+	for _, p in m.provinces.list do
+		local dock = m.sea.docks[p.id]
+		if dock ~= nil and Naval.seaAt(m.sea, dock) == seaId and Grid.getOwner(m.grid, p.center) == n.id then
+			local d = (dock % w - fx) ^ 2 + (dock // w - fy) ^ 2
+			if d < bestD then
+				launch, bestD = { cell = p.center, dock = dock }, d
+			end
+		end
+	end
+	if launch == nil then
+		return false, "noCoast"
+	end
+	local cargo, people = loadCargo(n, percent)
+	if cargo == nil then
+		return false, if target == 0 then "noTroops" else "noUnits"
+	end
+	local ship = Fleet.spawn(m.fleet, w, n.id, "Transport", launch.cell, launch.dock)
+	ship.boat = true
+	ship.cargo = cargo
+	ship.people = people
+	ship.target = shore
+	Fleet.order(ship, "land", water :: number)
+	table.insert(m.events, { kind = "boatLaunched", nation = n.id, target = target })
+	return true, nil
+end
+
 function MatchSim.navalIntent(m: Match, n: Nation, intent: Types.Intent): (boolean, string?)
 	local w = m.grid.width
 	if intent.kind == "ship" then
@@ -3755,19 +3931,10 @@ function MatchSim.navalIntent(m: Match, n: Nation, intent: Types.Intent): (boole
 		if owner ~= 0 and owner ~= n.id and not Wars.isActive(m.wars, n.id, owner) then
 			return false, "notAtWar"
 		end
-		-- Груз: доля гарнизона (не больше вместимости) и столько же процентов людей.
-		local share = intent.percent
-		local total = Forces.total(n.home)
-		if total > 0 then
-			share = math.min(share, Config.Naval.TransportCapacity / total)
-		end
-		local cargo = if total > 0 then Forces.take(n.home, share) else Forces.new()
-		local people = math.min(n.people * intent.percent, Config.Naval.TransportPeople)
-		if Forces.total(cargo) < 1 and people < Config.Expansion.MinTroops then
-			Forces.merge(n.home, cargo)
+		local cargo, people = loadCargo(n, intent.percent)
+		if cargo == nil then
 			return false, "noTroops"
 		end
-		n.people -= people
 		ship.cargo = cargo
 		ship.people = people
 		ship.target = target
@@ -3935,6 +4102,10 @@ local function stepFleet(m: Match, simDt: number)
 			if ship.order == "land" then
 				MatchSim.land(m, ship)
 				ship.order = "return"
+				if ship.boat then
+					ship.alive = false -- десантный корабль (§15д) после высадки исчезает
+					continue
+				end
 			end
 			if ship.order == "return" then
 				local here = Fleet.cellOf(w, ship)
@@ -3956,6 +4127,9 @@ local function stepFleet(m: Match, simDt: number)
 				Forces.merge(nation.home, ship.cargo)
 				nation.people += ship.people
 				ship.cargo, ship.people, ship.target = nil, 0, nil
+			end
+			if ship.boat then
+				ship.alive = false
 			end
 		elseif h.kind == "sunk" then
 			table.insert(m.events, {
@@ -4845,6 +5019,9 @@ function MatchSim.step(m: Match, dt: number)
 				{ navy = rngs.navy, air = rngs.air, diplo = rngs.diplo, tech = rngs.tech }
 			)
 			if intent ~= nil then
+				if intent.kind == "build" then
+					intent.cell = MatchSim.buildSpot(m, n.id, intent.building, intent.cell)
+				end
 				local ok = MatchSim.applyIntent(m, n.id, intent)
 				-- Богатый бот (правка перед 7в-2) за одно раздумье ставит в очередь столько же юнитов, сколько у него
 				-- линий найма: иначе один юнит за раздумье не успевает за доходом большой державы.

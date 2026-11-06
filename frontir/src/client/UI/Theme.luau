@@ -5,6 +5,7 @@
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
@@ -45,6 +46,80 @@ Theme.Colors = table.freeze({
 	Gold = color("Gold"),
 	Sky = color("Sky"),
 	Alert = color("Red"),
+	Good = color("Meadow"), -- «можно» (призрак стройки, §15г)
+	Slate = color("Slate"),
 })
+
+-- Оформление окон и кнопок (§15г): скругление, мягкий градиент сверху вниз, рамка; кнопки откликаются —
+-- наведение: золотая рамка и ×1.04, нажатие: ×0.95 и пружинка обратно. Повторный вызов ничего не меняет.
+Theme.CornerPx = 6
+local HOVER = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local SPRING = TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+
+local function scaleOf(g: GuiObject): UIScale
+	local found = g:FindFirstChildOfClass("UIScale")
+	if found ~= nil then
+		return found
+	end
+	local s = Instance.new("UIScale")
+	s.Parent = g
+	return s
+end
+
+function Theme.decorate(g: GuiObject)
+	if g:GetAttribute("FrontirStyled") then
+		return
+	end
+	g:SetAttribute("FrontirStyled", true)
+	if g:FindFirstChildOfClass("UICorner") == nil then
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0, Theme.CornerPx)
+		corner.Parent = g
+	end
+	if g:FindFirstChildOfClass("UIGradient") == nil then
+		local grad = Instance.new("UIGradient")
+		grad.Rotation = 90
+		grad.Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(196, 202, 222))
+		grad.Parent = g
+	end
+	local stroke = g:FindFirstChildOfClass("UIStroke")
+	if stroke == nil then
+		stroke = Instance.new("UIStroke")
+		local st = stroke :: UIStroke
+		st.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		st.Color = Theme.Colors.PanelBorder
+		st.Thickness = Theme.BorderPx
+		st.Parent = g
+	end
+	if g:IsA("GuiButton") then
+		local st = stroke :: UIStroke
+		local base = st.Color
+		local scale = scaleOf(g)
+		local over = false
+		g.MouseEnter:Connect(function()
+			over = true
+			TweenService:Create(scale, HOVER, { Scale = 1.04 }):Play()
+			TweenService:Create(st, HOVER, { Color = Theme.Colors.Gold }):Play()
+		end)
+		g.MouseLeave:Connect(function()
+			over = false
+			TweenService:Create(scale, HOVER, { Scale = 1 }):Play()
+			TweenService:Create(st, HOVER, { Color = base }):Play()
+		end)
+		g.MouseButton1Down:Connect(function()
+			TweenService:Create(scale, HOVER, { Scale = 0.95 }):Play()
+		end)
+		g.MouseButton1Up:Connect(function()
+			TweenService:Create(scale, SPRING, { Scale = if over then 1.04 else 1 }):Play()
+		end)
+	end
+end
+
+-- Окно появляется: из ×0.9 с пружинкой.
+function Theme.popIn(g: GuiObject)
+	local scale = scaleOf(g)
+	scale.Scale = 0.9
+	TweenService:Create(scale, SPRING, { Scale = 1 }):Play()
+end
 
 return table.freeze(Theme)

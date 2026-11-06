@@ -124,7 +124,7 @@ T.describe("Авиация", function()
 			Tech.grant(m.tech, 1, "Fleet", 2)
 			T.expect((MatchSim.applyIntent(m, 1, { kind = "build", building = "Airfield", cell = 12 * W + 45 })))
 				.toBe(true)
-			local airfield = m.provinces.list[45 // 10 + 1].center
+			local airfield = 12 * W + 45 -- здание — в нажатой клетке (§15г)
 			local money = m.nations[1].money
 			T.expect((MatchSim.applyIntent(m, 1, { kind = "plane", plane = "Bomber", airfield = airfield }))).toBe(true)
 			T.expect(m.nations[1].money).toBe(money - Air.stats("Bomber").cost)
