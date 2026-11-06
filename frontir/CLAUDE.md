@@ -140,6 +140,11 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   типа ±1 клетка — улучшение), районы и содержание — в `Buildings.owned`, укрепления по провинциям —
   `set.forts` / `Buildings.fortMul`, снос — `MatchSim.demolish` (намерение `demolish`). Клиент: `UI/BuildingInfo`
   (нажатие на своё здание), уровни на значках — `Render/BuildingLayer`.
+- **Удары и защита (§15д ч.3):** `MatchSim.strikeDamage` / `hitCell` (−1 уровень, `m.hitAt` — защита
+  `Defense.ProtectSec`), перехват — `MatchSim.intercept` / `batteryCharges` (`m.aaSpent`, без случайности; в `bomb`
+  и `missileImpact`), захват — `stepCaptures` (`m.buildingOwner`), восстание по таймеру — `ProvinceState.lowSince`,
+  `st.warnings` → событие `revoltSoon`. Заряды — в таблице `world` (`batteries`), на карте —
+  `BuildingLayer.charges`.
 
 ## Цикл матча и HUD (этап 4в)
 - Фазы `Waiting → Lobby → Pick → Play → Over` в `MatchSim`; победа (`checkVictory`): доля суши, последняя держава,
