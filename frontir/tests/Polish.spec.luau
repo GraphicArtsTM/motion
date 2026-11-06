@@ -2,6 +2,7 @@
 local T = require("./lib/TestKit")
 local TinyMap = require("./lib/TinyMap")
 local Analytics = require("../src/shared/Analytics")
+local Commanders = require("../src/shared/Commanders")
 local Config = require("../src/shared/Config")
 local Grid = require("../src/shared/Grid")
 local MapData = require("../src/shared/MapData")
@@ -34,7 +35,7 @@ end
 
 T.describe("Аналитика (этап 10в)", function()
 	T.it(
-		"Leave: минута, фаза, режим, место по суше; выбывший — последний",
+		"Leave: минута, фаза, генерал, место по суше; выбывший — последний",
 		function()
 			local m = trio()
 			m.time = 125
@@ -44,8 +45,10 @@ T.describe("Аналитика (этап 10в)", function()
 			T.expect(r.name).toBe("Leave")
 			T.expect(r.value).toBeNear(2.1, 1e-9)
 			T.expect(r.fields[1]).toBe("Play")
-			T.expect(r.fields[2]).toBe(m.rules.mode)
+			T.expect(r.fields[2]).toBe("Marshal") -- не выбрал — Маршал
 			T.expect(r.fields[3]).toBe("2")
+			Commanders.choose(m.commanders, 2, "Engineer")
+			T.expect(Analytics.leave(m, 2)[1].fields[2]).toBe("Engineer")
 			T.expect(Analytics.placeOf(m, 1)).toBe(1)
 			T.expect(Analytics.placeOf(m, 3)).toBe(3)
 			m.nations[1].alive = false

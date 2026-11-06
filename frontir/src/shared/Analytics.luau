@@ -9,11 +9,13 @@
 	- MatchResult — итог игрока, дожившего в игре до конца матча (значение — место); поля: генерал, место, режим
 	  (§15в: баланс генералов на живых игроках).
 	Отчёт, какие графики смотреть в Creator Hub, — docs/LIVE_TEST.md.
-	- Leave — игрок вышел (минута матча); поля: фаза, режим, место по суше.
+	- Leave — игрок вышел (минута матча); поля: фаза, генерал, место по суше (на закрытый тест генерал вместо режима;
+	  режим — в TutorialSkip и других событиях).
 	- TutorialSkip — вышел из обучения, не пройдя его (номер шага).
 	- Воронка обучения: шаги 1..N (Config.Tutorial.Steps) и N+1 — «пройдено».
 ]]
 
+local Commanders = require("./Commanders")
 local Config = require("./Config")
 local Grid = require("./Grid")
 local MatchSim = require("./MatchSim")
@@ -96,7 +98,7 @@ function Analytics.leave(m: Match, id: number): { Record }
 		{
 			name = "Leave",
 			value = minutes(m),
-			fields = { m.phase, m.rules.mode, tostring(Analytics.placeOf(m, id)) },
+			fields = { m.phase, Commanders.of(m.commanders, id), tostring(Analytics.placeOf(m, id)) },
 		},
 	}
 	if m.rules.tutorial and m.phase == "Play" and m.tutorialStep <= #Config.Tutorial.Steps then

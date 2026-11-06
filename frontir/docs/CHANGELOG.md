@@ -11,6 +11,8 @@
   `Analytics.results` / `finalPlace`); хуки в `MatchService` сведены в `sendEntries`. `docs/LIVE_TEST.md` — что пишет
   игра и какие графики смотреть в Creator Hub.
 - Тесты: Разведчик — мощь соседей и вспышка (`Commanders.spec`), `MatchResult` (`Polish.spec`).
+- **Закрытый тест:** в `Leave` поле 2 — генерал вместо режима; `docs/LIVE_TEST.md` — как пригласить друзей в закрытую
+  версию (Early testers), опрос тестеров после матча (5 вопросов).
 
 ## Правка §15б — зрелищная война, динамика, решения после PR #16
 - **Война красивее** (`Render/WarFxLayer`, расчёты — чистый `WarFx`, числа — `Config.Render.WarFx`):
