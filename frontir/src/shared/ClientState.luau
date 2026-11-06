@@ -775,8 +775,7 @@ function ClientState.fogSources(cs: ClientState): Fog.Sources?
 		ships = ships,
 		planes = planes,
 		ports = ports,
-		-- Разведчик (§6.15) и «Мгла» (§5.1).
-		visionMul = (if commander == "Scout" then Config.Commanders.VisionMul else 1) * cs.rules.visionMul,
+		visionMul = cs.rules.visionMul, -- «Мгла» (§5.1)
 	}
 end
 

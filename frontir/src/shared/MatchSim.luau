@@ -498,8 +498,8 @@ end
 
 -- Разведка и скрытая мощь (§6.11а) ------------------------------------------------------------
 
--- Чью военную мощь видит viewer: сам, друзья, разведанные, в радиусе радаров (своих и друзей).
--- nil — видно всё (мощь не скрывается или идёт «Радарная вспышка»).
+-- Чью военную мощь видит viewer: сам, друзья, разведанные, в радиусе радаров (своих и друзей),
+-- у Разведчика — соседи по суше (§6.15). nil — видно всё (мощь не скрывается или идёт «Радарная вспышка»).
 function MatchSim.knownSet(m: Match, viewer: number): { [number]: boolean }?
 	if not Config.Intel.HidePower or MatchSim.revealing(m, viewer) then
 		return nil
@@ -518,6 +518,13 @@ function MatchSim.knownSet(m: Match, viewer: number): { [number]: boolean }?
 		local seen = m.radarIntel[id]
 		if seen ~= nil then
 			for target in seen do
+				out[target] = true
+			end
+		end
+	end
+	if Commanders.of(m.commanders, viewer) == "Scout" then
+		for target in Grid.adjacentOwners(m.grid, viewer) do
+			if target ~= 0 then
 				out[target] = true
 			end
 		end

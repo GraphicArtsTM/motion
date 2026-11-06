@@ -6,6 +6,9 @@
 
 	- MatchEnd — длина матча (минуты); поля: режим, карта, причина победы.
 	- Commander — выбор генерала игроком в начале игры (значение 1); поля: генерал, режим.
+	- MatchResult — итог игрока, дожившего в игре до конца матча (значение — место); поля: генерал, место, режим
+	  (§15в: баланс генералов на живых игроках).
+	Отчёт, какие графики смотреть в Creator Hub, — docs/LIVE_TEST.md.
 	- Leave — игрок вышел (минута матча); поля: фаза, режим, место по суше.
 	- TutorialSkip — вышел из обучения, не пройдя его (номер шага).
 	- Воронка обучения: шаги 1..N (Config.Tutorial.Steps) и N+1 — «пройдено».
@@ -47,18 +50,44 @@ function Analytics.matchEnd(m: Match): Record
 	return { name = "MatchEnd", value = minutes(m), fields = { m.rules.mode, m.map.name, tostring(reason) } }
 end
 
--- Генералы игроков-людей (userId ~= nil) в начале игры.
-function Analytics.commanders(m: Match, commanderOf: (id: number) -> string): { { nation: number, record: Record } }
-	local out: { { nation: number, record: Record } } = {}
+export type Entry = { nation: number, record: Record }
+
+-- Запись для каждой державы игрока-человека (userId ~= nil, не бот).
+local function forHumans(m: Match, make: (id: number) -> Record): { Entry }
+	local out: { Entry } = {}
 	for _, n in m.nations do
 		if n.userId ~= nil and not n.isBot then
-			table.insert(out, {
-				nation = n.id,
-				record = { name = "Commander", value = 1, fields = { commanderOf(n.id), m.rules.mode } },
-			})
+			table.insert(out, { nation = n.id, record = make(n.id) })
 		end
 	end
 	return out
+end
+
+-- Генералы игроков-людей в начале игры.
+function Analytics.commanders(m: Match, commanderOf: (id: number) -> string): { Entry }
+	return forHumans(m, function(id: number): Record
+		return { name = "Commander", value = 1, fields = { commanderOf(id), m.rules.mode } }
+	end)
+end
+
+-- Итоговое место державы: из итогов матча (m.result.places), иначе — по суше.
+function Analytics.finalPlace(m: Match, id: number): number
+	local result = m.result :: any
+	if result ~= nil then
+		local place = table.find(result.places :: { number }, id)
+		if place ~= nil then
+			return place
+		end
+	end
+	return Analytics.placeOf(m, id)
+end
+
+-- Конец матча: генерал и место каждого игрока-человека (выбор генерала + результат — §15в).
+function Analytics.results(m: Match, commanderOf: (id: number) -> string): { Entry }
+	return forHumans(m, function(id: number): Record
+		local place = Analytics.finalPlace(m, id)
+		return { name = "MatchResult", value = place, fields = { commanderOf(id), tostring(place), m.rules.mode } }
+	end)
 end
 
 -- Игрок державы id выходит: где и когда. В обучении, не пройдя его, — ещё TutorialSkip.

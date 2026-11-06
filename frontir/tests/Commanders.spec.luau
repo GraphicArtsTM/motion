@@ -160,39 +160,61 @@ T.describe("Генералы: выбор и пассивки", function()
 	)
 
 	T.it(
-		"Разведчик видит дальше (клиент и сервер), порты Адмирала — +2 клетки обзора",
+		"Разведчик: мощь соседей по суше видна всегда, дальних — нет; вспышка — видно всё",
 		function()
 			local m = duo()
-			local friends = { [1] = true }
-			local function visible(sources: Fog.Sources): number
-				local fs = Fog.new(W, H)
-				Fog.compute(fs, m.grid.owner, sources)
-				local n = 0
-				for i = 0, W * H - 1 do
-					n += buffer.readu8(fs.visible, i)
+			-- Держава 3 — x 125..150, через ничью полосу от державы 2 (с державой 1 не граничит).
+			MatchSim.addPlayer(m, 3, "N3")
+			for y = 1, H - 2 do
+				for x = 125, 150 do
+					Grid.setOwner(m.grid, y * W + x, 3)
 				end
-				return n
 			end
-			local plain = visible({ friends = friends, fronts = {}, radars = {} })
-			local scout = visible({ friends = friends, fronts = {}, radars = {}, visionMul = cfg.VisionMul })
-			T.expect(scout > plain).toBe(true)
-			-- Порт у края своей земли (x=58): обзор за границей дальше на PortVision.
-			local port = 16 * W + 60
-			local admiral = visible({ friends = friends, fronts = {}, radars = {}, ports = { port } })
-			T.expect(admiral > plain).toBe(true)
-
-			local function blocks(): number
-				local n = 0
-				for _ in MatchStats.vision(m, 1).blocks do
-					n += 1
-				end
-				return n
-			end
-			local before = blocks()
+			T.expect(Config.Intel.HidePower).toBe(true)
+			Commanders.choose(m.commanders, 1, "Marshal")
+			T.expect(MatchSim.knows(m, 1, 2)).toBe(false)
 			Commanders.choose(m.commanders, 1, "Scout")
-			T.expect(blocks() >= before).toBe(true)
+			T.expect(MatchSim.knows(m, 1, 2)).toBe(true)
+			T.expect(MatchSim.knows(m, 1, 3)).toBe(false)
+			-- Державе 2 Разведчик державы 1 не помогает (пассивка — только своя).
+			T.expect(MatchSim.knows(m, 2, 1)).toBe(false)
+			-- Вспышка: мощь всех держав (knownSet = nil).
+			DevTools.warNow(m, 1, 2)
+			T.expect((use(m, 1, 1))).toBe(true)
+			T.expect(MatchSim.knownSet(m, 1) == nil).toBe(true)
+			T.expect(MatchSim.knows(m, 1, 3)).toBe(true)
 		end
 	)
+
+	T.it("порты Адмирала — +2 клетки обзора (клиент и сервер)", function()
+		local m = duo()
+		local friends = { [1] = true }
+		local function visible(sources: Fog.Sources): number
+			local fs = Fog.new(W, H)
+			Fog.compute(fs, m.grid.owner, sources)
+			local n = 0
+			for i = 0, W * H - 1 do
+				n += buffer.readu8(fs.visible, i)
+			end
+			return n
+		end
+		local plain = visible({ friends = friends, fronts = {}, radars = {} })
+		-- Порт у края своей земли (x=58): обзор за границей дальше на PortVision.
+		local port = 16 * W + 60
+		local admiral = visible({ friends = friends, fronts = {}, radars = {}, ports = { port } })
+		T.expect(admiral > plain).toBe(true)
+
+		local function blocks(): number
+			local n = 0
+			for _ in MatchStats.vision(m, 1).blocks do
+				n += 1
+			end
+			return n
+		end
+		local before = blocks()
+		Commanders.choose(m.commanders, 1, "Admiral")
+		T.expect(blocks() >= before).toBe(true)
+	end)
 end)
 
 T.describe("Генералы: способности", function()
@@ -286,7 +308,7 @@ T.describe("Генералы: способности", function()
 	)
 
 	T.it(
-		"Укрепрайон: своя провинция, оборона ×2 на линиях у неё; чужая клетка — отказ",
+		"Укрепрайон: своя провинция, оборона ×1.7 на линиях у неё; чужая клетка — отказ",
 		function()
 			local m = duo()
 			Commanders.choose(m.commanders, 1, "Engineer")
@@ -316,7 +338,7 @@ T.describe("Генералы: способности", function()
 	)
 
 	T.it(
-		"Разведчик: вспышка — всё видно 10 с; пропаганда −30 стабильности врагу",
+		"Разведчик: вспышка — всё видно 20 с; пропаганда −30 стабильности врагу",
 		function()
 			local m = duo()
 			Commanders.choose(m.commanders, 1, "Scout")

@@ -179,7 +179,7 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   доход — в `stepEconomy`. Боты: `spots.unstable` / `unstableCity` и мир раньше (`BotBrain`).
 - **С правки после 8а карта открыта:** туман на карте только в «Мгле» (`m.rules.fog`, `MatchStats.fogOn`,
   `cs.rules.fog`; тесты тумана — `Modes.withFog`). Скрыта чужая военная мощь (§6.11а): `MatchSim.knownSet` (друзья,
-  разведка `m.intel`, радары `m.radarIntel`, вспышка), `MatchStats.forViewer(..., known)` / `wars(m, known)` — «?»
+  разведка `m.intel`, радары `m.radarIntel`, соседи Разведчика, вспышка), `MatchStats.forViewer(..., known)` / `wars(m, known)` — «?»
   (−1) и грубая сила (`MatchStats.hidden`, клиент рисует юнитов по модулю). Разведка — `MatchSim.spy` (намерение
   `intel`), боты — `botIntel`.
 - `Fog` — чистый модуль: обзор клиента (фаска 5/7 в прямоугольнике вокруг источников, два прохода), последний
@@ -301,7 +301,8 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   («♪», громкости в профиле: `Profile.setVolumes`, намерение `volume`).
 
 ## Телефон и аналитика (этап 10в)
-- Аналитика: чистый `Analytics` (записи `MatchEnd`, `Commander`, `Leave`, `TutorialSkip`, воронка обучения) →
+- Аналитика: чистый `Analytics` (записи `MatchEnd`, `Commander`, `MatchResult` — генерал и место, `Leave`,
+  `TutorialSkip`, воронка обучения; что смотреть в Creator Hub — `docs/LIVE_TEST.md`) →
   сервер `Services/Telemetry` (AnalyticsService в pcall); хуки — в `MatchService` (конец матча, начало игры,
   PlayerRemoving, события обучения).
 - Телефон: `RenderBudget` (`isPhone`, `limit` из `Config.Render.Phone`) в `FrontLayer` и `WaterSparkles`; кнопка «⌂»

@@ -329,13 +329,13 @@
 ## Генералы (этап 7в-2)
 | Параметр | Значение | Где |
 |---|---|---|
-| Пассивки | танки −15% / корабли −20%, порты +2 обзора / обзор ×1.3 / здания −25% | `Commanders.TankDiscount`, `ShipDiscount`, `PortVision`, `VisionMul`, `BuildDiscount` |
+| Пассивки | танки −15% / корабли −20%, порты +2 обзора / мощь соседей видна всегда / здания −25% | `Commanders.TankDiscount`, `ShipDiscount`, `PortVision`, `MatchSim.knownSet`, `BuildDiscount` |
 | Перезарядки Q / E | Маршал 90 / 120, Адмирал 120 / 150, Разведчик 100 / 140, Инженер 90 / 120 с | `Commanders.Cooldown` |
 | Авиаудар | круг 5, −25% силы фронтам врага, оборона ×0.7 на 15 с | `StrikeRadius`, `StrikeLoss`, `StrikeDefenseMul`, `StrikeSec` |
 | Прорыв | фронты ×1.5 на 15 с | `SurgeMul`, `SurgeSec` |
 | Блокада | круг 30 (ref), порты врага выключены 30 с | `BlockadeRadius`, `BlockadeSec` |
-| Вспышка / Пропаганда | 10 с / круг 25 (ref), −30 стабильности | `RevealSec`, `PropagandaRadius`, `PropagandaLoss` |
-| Укрепрайон | оборона ×2 на 30 с | `FortMul`, `FortSec` |
+| Вспышка / Пропаганда | 20 с (мощь всех и все фронты) / круг 25 (ref), −30 стабильности | `RevealSec`, `PropagandaRadius`, `PropagandaLoss` |
+| Укрепрайон | оборона ×1.7 на 30 с (PR #17, было ×2) | `FortMul`, `FortSec` |
 | Воздушный десант | до 20% пехоты, плацдарм r=3 | `AirdropShare`, `AirdropRadius` |
 | Боты | шанс 0.35 за раздумье в войне (Новичок ×0.3), морской десант — 30% гарнизона | `BotChance`, `BotLandPercent` |
 
