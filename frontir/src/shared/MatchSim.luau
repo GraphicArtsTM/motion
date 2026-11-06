@@ -191,6 +191,7 @@ export type Match = {
 	air: Air.AirState, -- самолёты и выведенные из строя здания (§6.13)
 	bombedAt: { [number]: number }, -- держава → когда её последний раз бомбили (боты ставят батарею ПВО)
 	bombedCell: { [number]: number }, -- держава → клетка последнего налёта на неё (Генерал прикрывает её истребителем)
+	hitAt: { [number]: number }, -- клетка здания → когда по нему ударили (снос нельзя сразу, §15д; ч.3 — защита)
 	nextBlockadeAt: number,
 	result: Types.MatchResult?, -- итог (фаза Over)
 	victory: boolean, -- проверять ли победу (тесты на крошечных картах выключают)
@@ -306,6 +307,7 @@ function MatchSim.new(map: MapData, seed: number): Match
 		missileReady = {},
 		air = Air.new(),
 		bombedAt = {},
+		hitAt = {},
 		bombedCell = {},
 		nextBlockadeAt = 0,
 		result = nil,
@@ -609,7 +611,7 @@ function MatchSim.tutorialDone(m: Match, n: Nation, step: number): boolean
 		return MatchSim.citiesOf(m, n.id) >= 2
 	elseif kind == "build" then
 		local o = MatchSim.ownedOf(m, n.id)
-		return o.factories + o.markets + o.rigs + o.forts + o.ports + o.airfields + o.silos > 0
+		return o.factories + o.markets + o.rigs + o.forts + o.ports + o.airfields + o.silos + o.barracks + o.housing > 0
 	elseif kind == "alliance" then
 		return #Diplomacy.alliesOf(m.diplo, n.id) > 0
 	end
@@ -1103,6 +1105,56 @@ function MatchSim.checkBuild(m: Match, id: number, kind: Types.BuildingKind, cel
 	)
 end
 
+-- Цена постройки или улучшения в клетке spot для державы id: рост цены по её зданиям этого типа (§15д),
+-- скидка Инженера (§6.15). nil — дальше улучшать некуда.
+function MatchSim.buildPrice(m: Match, id: number, kind: Types.BuildingKind, spot: number): (number?, number)
+	local levels = if kind == "City"
+		then 0
+		else Buildings.levelsOf(m.buildings, function(c: number): number
+			return Grid.getOwner(m.grid, c)
+		end, id, kind)
+	local base, oil = Buildings.cost(m.buildings, kind, spot, levels)
+	if base == nil then
+		return nil, 0
+	end
+	return base * Commanders.buildCostMul(Commanders.of(m.commanders, id)), oil
+end
+
+-- Снос своего здания (§15д): доля цены назад; нельзя у фронта (земля врага в войне ближе Build.DemolishFrontCells)
+-- и вскоре после удара по зданию.
+function MatchSim.demolish(m: Match, n: Nation, cell: number): (boolean, string?)
+	local b = m.buildings.byCell[cell]
+	if b == nil or b.kind == "City" or Grid.getOwner(m.grid, cell) ~= n.id then
+		return false, "notOwner"
+	end
+	if Air.isDisabled(m.air, cell, m.simTime) then
+		return false, "recentlyHit"
+	end
+	local hitAt = m.hitAt[cell]
+	if hitAt ~= nil and m.simTime - hitAt < Config.Build.DemolishAfterHitSec then
+		return false, "recentlyHit"
+	end
+	local g = m.grid
+	local w = g.width
+	local r = Config.Build.DemolishFrontCells
+	local cx, cy = cell % w, cell // w
+	for dy = -r, r do
+		for dx = -r, r do
+			local x, y = cx + dx, cy + dy
+			if x >= 0 and y >= 0 and x < w and y < g.height then
+				local o = Grid.getOwner(g, y * w + x)
+				if o ~= 0 and o ~= n.id and Wars.isActive(m.wars, n.id, o) then
+					return false, "nearFront"
+				end
+			end
+		end
+	end
+	n.money += Buildings.refundOf(b)
+	Buildings.remove(m.buildings, cell, MapData.getProvince(m.map, cell))
+	MatchSim.refreshOwned(m)
+	return true, nil
+end
+
 -- Бот и F4 называют провинцию её центром (§15г): ближайшая к cell допустимая клетка той же провинции
 -- (сама cell, если можно). Ничего не подошло — cell (сервер откажет с причиной).
 function MatchSim.buildSpot(m: Match, id: number, kind: Types.BuildingKind, cell: number): number
@@ -1229,8 +1281,9 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 		local kind = Forces.kindIndex(intent.unit) :: number
 		local stats = Forces.stats(kind)
 		local owned = MatchSim.ownedOf(m, nationId)
-		if stats.requires == "Factory" and owned.factories == 0 then
-			return false, "needFactory"
+		-- Танки и артиллерия — Казармы ур. 2, ПВО — ур. 3 (§15д).
+		if stats.requires == "Barracks" and owned.barracksLevel < (stats.requiresLevel or 1) then
+			return false, "needBarracks"
 		end
 		if n.people < stats.people then
 			return false, "noTroops"
@@ -1245,8 +1298,10 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 		n.people -= stats.people
 		n.money -= cost
 		n.oil -= stats.oil
-		-- Свой завод ускоряет найм (§6.9).
-		local speed = if owned.factories > 0 then 1 - Config.Buildings.Factory.recruitSpeedBonus else 1
+		-- Казармы ур. 3 ускоряют найм (§15д).
+		local speed = if owned.barracksLevel >= Buildings.maxLevel("Barracks")
+			then 1 - Config.Buildings.Barracks.recruitSpeedBonus
+			else 1
 		table.insert(n.queue, { kind = kind, left = stats.recruitSec * speed })
 		return true, nil
 	end
@@ -1256,12 +1311,10 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 		if spot == nil then
 			return false, reason
 		end
-		local base, oil = Buildings.cost(m.buildings, intent.building, spot)
-		if base == nil then
+		local money, oil = MatchSim.buildPrice(m, nationId, intent.building, spot)
+		if money == nil then
 			return false, "maxLevel"
 		end
-		-- Инженер (§6.15): здания дешевле.
-		local money = base * Commanders.buildCostMul(Commanders.of(m.commanders, nationId))
 		if n.money < money then
 			return false, "noMoney"
 		end
@@ -1273,6 +1326,10 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 		Buildings.place(m.buildings, intent.building, spot, MapData.getProvince(m.map, spot))
 		MatchSim.refreshOwned(m)
 		return true, nil
+	end
+
+	if intent.kind == "demolish" then
+		return MatchSim.demolish(m, n, intent.cell)
 	end
 
 	if intent.kind == "bid" then
@@ -1543,16 +1600,7 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 end
 
 -- Что бот «видит» о своей державе.
-local NO_BUILDINGS: Buildings.Owned = table.freeze({
-	factories = 0,
-	markets = 0,
-	rigs = 0,
-	forts = 0,
-	ports = 0,
-	airfields = 0,
-	silos = 0,
-	cityLevels = 0,
-})
+local NO_BUILDINGS: Buildings.Owned = table.freeze(Buildings.emptyOwned())
 
 -- Здания и уровни городов державы (пересчитываются каждый тик и после постройки).
 function MatchSim.ownedOf(m: Match, nationId: number): Buildings.Owned
@@ -1580,7 +1628,8 @@ end
 function MatchSim.maxPeopleOf(m: Match, nationId: number): number
 	local pocket = m.pockets[nationId]
 	local cells = Grid.cellsOf(m.grid, nationId) - (if pocket ~= nil then pocket.cells else 0)
-	return Economy.maxPeople(cells, MatchSim.ownedOf(m, nationId).cityLevels)
+	local owned = MatchSim.ownedOf(m, nationId)
+	return Economy.maxPeople(cells, owned.cityLevels) + owned.housingPeople -- жилые кварталы (§15д)
 end
 
 -- Вся сила державы: гарнизон и фронты.
@@ -1618,6 +1667,13 @@ local function buildSpots(m: Match, n: Nation): BotBrain.BuildSpots
 					spots.fort = p.center
 				end
 			end
+		end
+	end
+	-- Свои казармы ниже предела — улучшить (§15д).
+	for cell, b in m.buildings.byCell do
+		if b.kind == "Barracks" and b.level < Buildings.maxLevel("Barracks") and Grid.getOwner(g, cell) == n.id then
+			spots.barracks = cell
+			break
 		end
 	end
 	for _, cell in m.cityOf do
@@ -2396,10 +2452,10 @@ local function stepAttacks(m: Match, simDt: number): number
 				local homeShare = #front.list / totalLen * (1 - inDefPocket / #front.list)
 				-- Укреплённая линия: фронт долго стоит — защитнику бонус (§6.9).
 				local still = m.simTime - a.lastAdvance >= Config.Fortify.AfterSec
-				local function fortified(cell: number): boolean
-					local spot = m.buildings.byProvince[MapData.getProvince(m.map, cell)]
-					return Buildings.fortified(m.buildings, g, m.map, cell)
-						and not (spot ~= nil and Air.isDisabled(m.air, spot, m.simTime))
+				local function fortified(cell: number): number
+					return Buildings.fortMul(m.buildings, g, m.map, cell, function(spot: number): boolean
+						return Air.isDisabled(m.air, spot, m.simTime)
+					end)
 				end
 				-- Встречные фронты пары — один бой: потери считаются один раз за тик.
 				local applyLosses = not (counter ~= nil and battled[counter])
@@ -2644,10 +2700,10 @@ local function stepEconomy(m: Match, n: Nation, simDt: number)
 	local cityLevels = owned.cityLevels - unrest.lowCityLevels * cut
 	local e: NationEconomy = {
 		-- Генералу +10% дохода — единственное послабление ботам (§9).
-		income = Economy.income(math.max(0, cells), math.max(0, cityLevels), owned.markets)
+		income = Economy.income(math.max(0, cells), math.max(0, cityLevels), 0, owned.factoryIncome, owned.marketBonus)
 			* (1 + (if n.isBot then profileOf(m, n.id).level.incomeBonus else 0)),
-		oilIncome = Economy.oilIncome(owned.rigs),
-		upkeep = Economy.upkeep(strength),
+		oilIncome = Economy.oilIncome(owned.rigOil),
+		upkeep = Economy.upkeep(strength) + owned.upkeep, -- войска и здания (§15д)
 	}
 	-- Технологии (§6.14): «Налоги» — доход, «Нефтедобыча» — нефть, «Торговые пути» — бонус соглашений.
 	if Tech.has(m.tech, n.id, "Economy", 1) then
@@ -2769,7 +2825,8 @@ end
 function MatchSim.recruitLines(m: Match, nationId: number): number
 	local cfg = Config.Forces
 	local owned = MatchSim.ownedOf(m, nationId)
-	return math.min(cfg.MaxRecruitLines, 1 + owned.factories + owned.cityLevels // cfg.CityLevelsPerLine)
+	-- §15д: линии дают казармы (уровень — линия), а не заводы.
+	return math.min(cfg.MaxRecruitLines, 1 + owned.recruitLines + owned.cityLevels // cfg.CityLevelsPerLine)
 		+ MatchSim.perksOf(m, nationId).recruitLines -- «Штаб» (§11.1)
 end
 
@@ -4586,9 +4643,13 @@ function MatchSim.stabilityContext(m: Match): Stability.Context
 			return Buildings.cityLevel(m.buildings, cell)
 		end,
 		fort = function(p: number, owner: number): boolean
-			local spot = m.buildings.byProvince[p]
-			local b = if spot ~= nil then m.buildings.byCell[spot] else nil
-			return b ~= nil and b.kind == "Fort" and Grid.getOwner(m.grid, spot :: number) == owner
+			local forts: { number } = m.buildings.forts[p] or {}
+			for _, spot in forts do
+				if Grid.getOwner(m.grid, spot) == owner then
+					return true
+				end
+			end
+			return false
 		end,
 		atWar = function(id: number): boolean
 			for _, war in Wars.of(m.wars, id) do

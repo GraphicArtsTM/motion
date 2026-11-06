@@ -95,7 +95,15 @@ export type BotView = {
 	money: number,
 	oil: number,
 	economy: { income: number, oilIncome: number, upkeep: number }, -- в секунду
-	owned: { factories: number, markets: number, rigs: number, forts: number, cityLevels: number },
+	owned: {
+		factories: number,
+		markets: number,
+		rigs: number,
+		forts: number,
+		cityLevels: number,
+		barracksLevel: number?, -- §15д: лучший уровень казарм (танки — 2, ПВО — 3)
+		housing: number?,
+	},
 	spots: BuildSpots,
 	stability: number?, -- средняя стабильность своих провинций (§6.10, этап 7а)
 	navy: NavyView?, -- флот (§6.12, этап 7б-1)
@@ -144,6 +152,7 @@ export type BuildSpots = {
 	port: number?, -- своя прибрежная провинция без здания (§6.12)
 	airfield: number?, -- своя провинция без здания, ближайшая к врагу (§6.13)
 	battery: number?, -- своя провинция без здания, ближайшая к месту недавнего налёта на нас (сводная правка)
+	barracks: number?, -- свои казармы, которые можно улучшить (§15д)
 	batteryCovered: boolean?, -- место налёта уже прикрыто своей батареей ПВО — новую не ставить
 }
 
@@ -264,10 +273,15 @@ end
 
 -- Какой юнит нанять.
 local function chooseUnit(view: BotView, profile: Profile, rng: Rng, enemyMix: { number }?): Types.LandUnit
-	local hasFactory = view.owned.factories > 0
+	-- Техника — по уровню казарм (§15д): танки и пушки — ур. 2, ПВО — ур. 3.
+	local barracks = view.owned.barracksLevel or 0
 	local level = profile.level
-	if not hasFactory then
+	if barracks < 2 then
 		return "Infantry"
+	end
+	local function allowed(kind: number): boolean
+		local stats = Forces.stats(kind)
+		return stats.requires ~= "Barracks" or barracks >= (stats.requiresLevel or 1)
 	end
 	if level.counterMix then
 		local mine = view.mix
@@ -277,7 +291,7 @@ local function chooseUnit(view: BotView, profile: Profile, rng: Rng, enemyMix: {
 		local best, bestValue = 1, -1
 		for k in Types.LandUnits do
 			local v = BotBrain.unitValue(k, enemyMix)
-			if v > bestValue then
+			if v > bestValue and allowed(k) then
 				best, bestValue = k, v
 			end
 		end
@@ -313,14 +327,27 @@ local function chooseBuild(view: BotView, profile: Profile, rng: Rng, atWar: boo
 				table.insert(options, intent)
 			end
 		end
-		add(want("Factory", if owned.factories == 0 then spots.free else nil))
+		add(want("Barracks", if (owned.barracksLevel or 0) == 0 then spots.free else spots.barracks))
+		add(want("Factory", spots.free))
+		add(want("Housing", spots.free))
 		add(want("OilRig", spots.oilRig))
 		add(want("Market", spots.free))
 		add(want("City", spots.city))
 		return if #options > 0 then options[Rng.range(rng, 1, #options)] else nil
 	end
+	-- Экономика 2.0 (§15д): казармы (линия найма), завод (деньги), казармы ур. 2 (танки и пушки).
+	local barracks = owned.barracksLevel or 0
+	if barracks == 0 then
+		return want("Barracks", spots.free or spots.oilRig)
+	end
 	if owned.factories == 0 then
 		return want("Factory", spots.free or spots.oilRig)
+	end
+	if barracks < 2 and spots.barracks ~= nil then
+		local up = want("Barracks", spots.barracks)
+		if up ~= nil then
+			return up
+		end
 	end
 	-- Порт (§6.12): Флотоводец — сразу после завода, остальные — когда без флота расти некуда.
 	local navy = view.navy
@@ -378,6 +405,9 @@ local function chooseBuild(view: BotView, profile: Profile, rng: Rng, atWar: boo
 		end
 	end
 	return want("OilRig", if owned.rigs < Config.Bots.MaxRigs then spots.oilRig else nil)
+		or want("Factory", if owned.factories <= personality.maxMarkets then spots.free else nil)
+		or want("Barracks", if atWar or barracks < 2 then spots.barracks else nil)
+		or want("Housing", if (owned.housing or 0) < 1 + owned.factories // 2 then spots.free else nil)
 		or want("Market", if owned.markets < personality.maxMarkets then spots.free else nil)
 		or want("Fort", fortSpot)
 		or want("City", spots.city)

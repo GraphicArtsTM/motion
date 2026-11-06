@@ -88,11 +88,18 @@ function BuildingLayer.new(
 			return
 		end
 		icon.root.Size = UDim2.fromOffset(size * scale, size * scale)
-		-- Значок стоит над центром провинции.
+		-- Значок стоит над своей клеткой.
 		icon.root.Position = UDim2.fromOffset(math.round(x - size * scale / 2), y - size * scale)
-		for k, p in shapeOf(icon.kind) do
+		local shape = shapeOf(icon.kind)
+		for k, p in shape do
 			icon.parts[k].Position = UDim2.fromOffset(p.x * scale, p.y * scale)
 			icon.parts[k].Size = UDim2.fromOffset(p.w * scale, p.h * scale)
+		end
+		-- Уровень здания (§15д): золотые точки под значком.
+		for k = #shape + 1, #icon.parts do
+			local i = k - #shape - 1
+			icon.parts[k].Position = UDim2.fromOffset(i * 3 * scale, (size + 1) * scale)
+			icon.parts[k].Size = UDim2.fromOffset(2 * scale, 2 * scale)
 		end
 	end
 
@@ -102,12 +109,12 @@ function BuildingLayer.new(
 		root.BackgroundTransparency = 1
 		root.ZIndex = 5
 		local parts: { Frame } = {}
-		local count = if kind == "City" then pips else #shapeOf(kind)
-		for _ = 1, count do
+		local count = if kind == "City" then pips else #shapeOf(kind) + pips
+		for k = 1, count do
 			local f = Instance.new("Frame")
 			f.BorderSizePixel = 0
 			f.ZIndex = 5
-			if kind == "City" then
+			if kind == "City" or k > #shapeOf(kind) then
 				f.BackgroundColor3 = Theme.Colors.Gold
 				local stroke = Instance.new("UIStroke")
 				stroke.Color = Theme.Colors.Backdrop
@@ -148,7 +155,7 @@ function BuildingLayer.new(
 					add("City", cell, b.level - 1)
 				end
 			else
-				add(b.kind, cell, 0)
+				add(b.kind, cell, b.level - 1)
 			end
 		end
 		-- Нефтяные поля без вышки (вышка — в любой клетке провинции, §15г).

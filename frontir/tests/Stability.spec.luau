@@ -321,6 +321,10 @@ T.describe("Стабильность", function()
 		local n = m.nations[1]
 		n.money = 100000
 		Buildings.place(m.buildings, "Factory", m.provinces.list[1].center, 1)
+		-- §15д: казармы ур. 2 уже есть — бот не начинает с них.
+		local barracksAt = m.provinces.list[1].center + 4 * m.grid.width
+		Buildings.place(m.buildings, "Barracks", barracksAt, 1)
+		Buildings.place(m.buildings, "Barracks", barracksAt, 1)
 		runFor(m, 1.1)
 		DevTools.setStability(m, 1, false)
 		local calmed = false

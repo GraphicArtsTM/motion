@@ -92,12 +92,12 @@ function Fronts.supplied(
 end
 
 -- Средняя защита местности вдоль фронта (§6.1); клетки за рекой (river) — с бонусом берега RiverBankDefense,
--- клетки провинций с укреплением защитника (fortified) — ×Buildings.Fort.defenseMultiplier.
+-- клетки провинций с укреплением защитника — ×fortified(cell) (Buildings.fortMul: 1 — нет укрепления).
 function Fronts.terrainDefense(
 	map: MapData,
 	front: { number },
 	river: { [number]: boolean }?,
-	fortified: ((cell: number) -> boolean)?
+	fortified: ((cell: number) -> number)?
 ): number
 	local list = sample(front, Config.Combat.SupplySamples)
 	if #list == 0 then
@@ -109,8 +109,8 @@ function Fronts.terrainDefense(
 		if river ~= nil and river[i] then
 			d *= Config.Combat.RiverBankDefense
 		end
-		if fortified ~= nil and fortified(i) then
-			d *= Config.Buildings.Fort.defenseMultiplier
+		if fortified ~= nil then
+			d *= fortified(i)
 		end
 		sum += d
 	end

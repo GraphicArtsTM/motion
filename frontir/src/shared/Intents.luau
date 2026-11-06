@@ -87,6 +87,12 @@ function Intents.parse(kind: any, payload: any): (Types.Intent?, string?)
 			return nil, "bad cell"
 		end
 		return { kind = "build", building = building :: Types.BuildingKind, cell = cell }, nil
+	elseif kind == "demolish" then
+		local cell = payload.cell
+		if not isInt(cell) or cell < 0 then
+			return nil, "bad cell"
+		end
+		return { kind = "demolish", cell = cell }, nil
 	elseif kind == "offer" then
 		local target, offer, province = payload.target, payload.offer, payload.province
 		if not isInt(target) or target <= 0 then

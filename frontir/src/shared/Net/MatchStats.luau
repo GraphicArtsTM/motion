@@ -250,7 +250,7 @@ function MatchStats.forcesOf(m: MatchSim.Match, nationId: number): Protocol.MyFo
 			income = if e ~= nil then e.income else 0,
 			oilIncome = if e ~= nil then e.oilIncome else 0,
 			upkeep = if e ~= nil then e.upkeep else 0,
-			factories = MatchSim.ownedOf(m, nationId).factories,
+			barracks = MatchSim.ownedOf(m, nationId).barracksLevel, -- лучший уровень казарм (§15д)
 		},
 	}
 end

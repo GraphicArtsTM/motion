@@ -791,7 +791,8 @@ local units: Types.UnitTable = {
 		speed = 3.6,
 		attack = 1.6,
 		defense = 1.0,
-		requires = "Factory",
+		requires = "Barracks", -- §15д: Казармы ур. requiresLevel (было — Завод)
+		requiresLevel = 2,
 		people = 450,
 		recruitSec = 5,
 		strength = 300,
@@ -803,7 +804,8 @@ local units: Types.UnitTable = {
 		attack = 1.4,
 		defense = 0.6,
 		range = 4,
-		requires = "Factory",
+		requires = "Barracks",
+		requiresLevel = 2,
 		people = 400,
 		recruitSec = 6,
 		strength = 250,
@@ -814,7 +816,8 @@ local units: Types.UnitTable = {
 		speed = 2.0,
 		attack = 0.6,
 		defense = 1.0,
-		requires = "Factory",
+		requires = "Barracks",
+		requiresLevel = 3,
 		people = 300,
 		recruitSec = 4,
 		strength = 200,
@@ -988,12 +991,15 @@ Config.Counters = {
 Config.Buildings = {
 	-- Город: улучшение своего города до ур. 2 стоит cost, до ур. 3 — upgradeCosts[1].
 	City = { cost = 2000, upgradeCosts = { 4000 } },
-	OilRig = { cost = 1500 },
+	-- §15д: maxLevel — до какого уровня здание улучшается (нет — только ур. 1).
+	OilRig = { cost = 1500, maxLevel = 2, oilByLevel = { 1, 1.8 } }, -- нефть × (Oil.PerRigPerSec)
 	Port = { cost = 2500 },
-	Factory = { cost = 3000, recruitSpeedBonus = 0.10 },
+	Factory = { cost = 3000, maxLevel = 3, income = 15 }, -- §15д: деньги в секунду за уровень (было — найм)
+	Barracks = { cost = 2000, maxLevel = 3, recruitSpeedBonus = 0.15 }, -- §15д: линия найма за уровень; ур. 3 — найм быстрее
+	Housing = { cost = 2000, maxLevel = 3, people = 500 }, -- §15д: + к максимуму людей за уровень
 	Airfield = { cost = 3500, airstrikeCooldownReductionSec = 2 },
-	Fort = { cost = 1500, defenseMultiplier = 1.5 },
-	AirDefense = { cost = 2000, radius = 14 }, -- сводная правка: было 10 — батарея в центре провинции не доставала до её границы
+	Fort = { cost = 1500, maxLevel = 2, defenseMultiplier = 1.5, defenseByLevel = { 1.5, 1.8 } },
+	AirDefense = { cost = 2000, radius = 14, maxLevel = 3 }, -- сводная правка: было 10 — батарея в центре провинции не доставала до её границы
 	Radar = { cost = 1500, visionRadius = 25 },
 	Market = { cost = 2000, incomeBonus = 0.05 },
 	MissileSilo = { cost = 10000, oil = 200, strikeRadius = 6, cooldownSec = 240, warningSec = 10 },
@@ -1006,11 +1012,32 @@ Config.Build = {
 	PopSec = 0.45, -- новое здание «вырастает» за столько секунд
 	DustPuffs = 10, -- пыль при постройке
 	CostFloatSec = 1.4, -- «−$цена» всплывает и гаснет
+	-- Экономика 2.0 (§15д): без ограничения числа зданий — баланс ценой.
+	CostStep = 0.25, -- каждое следующее здание того же типа (уровни считаются) дороже на столько
+	UpgradeMul = { 1.0, 1.0, 1.5 }, -- цена уровня L = cost × UpgradeMul[L] (ур. 1 — постройка)
+	UpkeepShare = 0.0005, -- содержание здания: cost × это в секунду за уровень
+	DistrictRadius = 6, -- район города: здание не дальше стольких клеток от своего города…
+	DistrictPerCityLevel = 0.10, -- …работает сильнее на столько за уровень города
+	DemolishRefund = 0.5, -- снос: доля цены назад
+	DemolishFrontCells = 8, -- снос нельзя, если земля врага в войне ближе стольких клеток
+	DemolishAfterHitSec = 30, -- …и если по зданию ударили меньше стольких секунд назад
 }
 
 -- Что можно строить сейчас (этап 4б; радар — 7а, порт — 7б-1, аэродром и батарея ПВО — 7б-2); шахта — этап 7г.
-Config.Buildable =
-	{ "City", "OilRig", "Factory", "Fort", "Market", "Radar", "Port", "Airfield", "AirDefense", "MissileSilo" }
+Config.Buildable = {
+	"City",
+	"Barracks",
+	"Factory",
+	"Housing",
+	"OilRig",
+	"Market",
+	"Fort",
+	"Port",
+	"Radar",
+	"Airfield",
+	"AirDefense",
+	"MissileSilo",
+}
 
 -- §6.9 Ракетный удар (этап 7г). Радиус, перезарядка и предупреждение — Buildings.MissileSilo.
 Config.Missile = {

@@ -221,9 +221,12 @@ T.describe("Фронты в матче", function()
 		function()
 			local m, cityA = duel()
 			local me = m.nations[1]
-			-- Танкам нужен завод (§6.9); он же ускоряет найм.
-			T.expect(select(2, MatchSim.applyIntent(m, 1, { kind = "hire", unit = "Tanks" }))).toBe("needFactory")
-			Buildings.place(m.buildings, "Factory", cityA + 1, 0)
+			-- Танкам нужны казармы ур. 2 (§15д).
+			T.expect(select(2, MatchSim.applyIntent(m, 1, { kind = "hire", unit = "Tanks" }))).toBe("needBarracks")
+			Buildings.place(m.buildings, "Barracks", cityA + 1, 0)
+			MatchSim.refreshOwned(m)
+			T.expect(select(2, MatchSim.applyIntent(m, 1, { kind = "hire", unit = "Tanks" }))).toBe("needBarracks")
+			Buildings.place(m.buildings, "Barracks", cityA + 1, 0) -- ур. 2
 			MatchSim.refreshOwned(m)
 			local before, money, oil = me.people, me.money, me.oil
 			T.expect((MatchSim.applyIntent(m, 1, { kind = "hire", unit = "Tanks" }))).toBe(true)
@@ -231,8 +234,7 @@ T.describe("Фронты в матче", function()
 			T.expect(me.money).toBe(money - Config.Units.Tanks.cost * (1 - Config.Commanders.TankDiscount)) -- Маршал (§6.15)
 			T.expect(me.oil).toBe(oil - Config.Units.Tanks.oil)
 			T.expect(#me.queue).toBe(1)
-			T.expect(me.queue[1].left)
-				.toBeNear(Config.Units.Tanks.recruitSec * (1 - Config.Buildings.Factory.recruitSpeedBonus), 1e-9)
+			T.expect(me.queue[1].left).toBeNear(Config.Units.Tanks.recruitSec, 1e-9) -- быстрее — только казармы ур. 3
 			runFor(m, Config.Units.Tanks.recruitSec + 0.2)
 			T.expect(#me.queue).toBe(0)
 			T.expect(me.home[TANKS].strength).toBe(Config.Units.Tanks.strength)

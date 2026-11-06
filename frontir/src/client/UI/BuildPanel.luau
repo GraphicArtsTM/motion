@@ -140,11 +140,19 @@ function BuildPanel.new(
 		return need == nil or (cs.tech.levels :: any)[need.branch] >= need.level, need
 	end
 
+	-- Цена как на сервере (MatchSim.buildPrice): рост цены по своим зданиям этого типа (§15д), скидка Инженера.
 	local function price(kind: Types.BuildingKind, cell: number?): number?
 		local set = Buildings.fromList(cs.buildings, map)
+		local me = cs.myNation or 0
+		local levels = if kind == "City"
+			then 0
+			else Buildings.levelsOf(set, function(c: number): number
+				return ClientState.ownerAt(cs, c)
+			end, me, kind)
 		local base = if cell ~= nil
-			then (Buildings.cost(set, kind, cell))
-			else (Config.Buildings :: any)[kind].cost :: number
+			then (Buildings.cost(set, kind, cell, levels))
+			elseif kind == "City" then (Config.Buildings :: any)[kind].cost :: number
+			else Buildings.priceFor(kind, 1, levels)
 		if base == nil then
 			return nil
 		end
@@ -204,7 +212,17 @@ function BuildPanel.new(
 		elseif money < cost then
 			label = string.format("$%s — %s", Strings.formatInt(cost), Strings.get("reject.noMoney", lang))
 		else
-			label = string.format("%s  $%s", Strings.get("building." .. kind, lang), Strings.formatInt(cost))
+			local here = cs.buildings[spot]
+			label = if here ~= nil
+					and here.kind == kind
+					and kind ~= "City"
+				then string.format(
+					Strings.get("build.upgrade", lang),
+					Strings.get("building." .. kind, lang),
+					here.level + 1,
+					Strings.formatInt(cost)
+				)
+				else string.format("%s  $%s", Strings.get("building." .. kind, lang), Strings.formatInt(cost))
 			if touch then
 				label ..= "\n" .. Strings.get("build.tapAgain", lang)
 			end

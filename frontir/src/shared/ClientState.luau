@@ -613,7 +613,11 @@ function ClientState.applyBuildings(cs: ClientState, list: { any })
 			and type(b.kind) == "string"
 			and type(b.level) == "number"
 		then
-			cs.buildings[b.cell] = { kind = b.kind :: Types.BuildingKind, cell = b.cell, level = b.level }
+			if b.level <= 0 then
+				cs.buildings[b.cell] = nil -- снесено (§15д)
+			else
+				cs.buildings[b.cell] = { kind = b.kind :: Types.BuildingKind, cell = b.cell, level = b.level }
+			end
 		end
 	end
 end
