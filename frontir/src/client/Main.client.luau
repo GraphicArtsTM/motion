@@ -50,6 +50,9 @@ local ActionRingUI = require(UI:WaitForChild("ActionRing"))
 local DoomBar = require(UI:WaitForChild("DoomBar"))
 local Dock = require(UI:WaitForChild("Dock"))
 local LobbyScreen = require(UI:WaitForChild("LobbyScreen"))
+local GameMenu = require(UI:WaitForChild("GameMenu"))
+local MainMenu = require(UI:WaitForChild("MainMenu"))
+local RanksPanel = require(UI:WaitForChild("RanksPanel"))
 local MapTooltip = require(UI:WaitForChild("MapTooltip"))
 local AirPanel = require(UI:WaitForChild("AirPanel"))
 local BuildPanel = require(UI:WaitForChild("BuildPanel"))
@@ -133,6 +136,8 @@ while type(mapId) ~= "string" do
 	ReplicatedStorage:GetAttributeChangedSignal("MapId"):Wait()
 	mapId = ReplicatedStorage:GetAttribute("MapId")
 end
+-- Главное меню (§15л) открыто при входе; смена карты (новая сессия) сохраняет, было ли оно открыто.
+local menuWasOpen = true
 -- Сессия на одну карту (этап 8б, §5.2): при смене карты всё снимается и строится заново.
 local function runSession(mapId: string, resync: boolean)
 	local teardown: () -> ()
@@ -279,7 +284,10 @@ local function runSession(mapId: string, resync: boolean)
 		CameraMath.centerOn(camera.state, wx, wy)
 		camera.refresh()
 	end)
-	local results = ResultsPanel.new(hudGui, cs, lang)
+	local openMainMenu: () -> () = function() end -- главное меню создаётся ниже (§15л)
+	local results = ResultsPanel.new(hudGui, cs, lang, function()
+		openMainMenu()
+	end)
 	results.refresh()
 	local diplomacy = DiplomacyPanel.new(hudGui, cs, lang, map, provinces, send, hud.toast, wars.offerDeclare)
 	diplomacy.refresh()
@@ -429,6 +437,137 @@ local function runSession(mapId: string, resync: boolean)
 	end)
 	local naval = NavalPanel.new(hudGui, cs, lang, map, provinces, send, hud.percent, shipLayer.pick, shipLayer.select)
 	local airPanel = AirPanel.new(hudGui, cs, lang, map, provinces, send, airLayer.pick, airLayer.select)
+
+	-- §15л: слои над HUD — главное меню (2) и окна (3). Магазин, гардероб, задания, звук, настройки сервера,
+	-- «Как играть», «Звания» и меню игры открываются и поверх главного меню, и поверх матча.
+	local playerGui = player:WaitForChild("PlayerGui") :: PlayerGui
+	local function layer(name: string, order: number, fullScreen: boolean): ScreenGui
+		local g = Instance.new("ScreenGui")
+		g.Name = name
+		g.ResetOnSpawn = false
+		g.DisplayOrder = order
+		g.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+		if fullScreen then
+			g.IgnoreGuiInset = true
+		else
+			g.ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets
+		end
+		Session.track(g)
+		g.Parent = playerGui
+		Polish.attach(g)
+		for _, d in g:GetDescendants() do
+			hookButton(d)
+		end
+		Session.connect(g.DescendantAdded, hookButton)
+		return g
+	end
+	local menuGui = layer("FrontirMenu", 2, true)
+	local windowsGui = layer("FrontirWindows", 3, false)
+	for _, name in { "Shop", "Wardrobe", "Quests", "Sound", "ServerSettings", "HowToPlay" } do
+		local w = hudGui:FindFirstChild(name)
+		if w ~= nil and w:IsA("GuiObject") then
+			w.Parent = windowsGui
+			if name == "Sound" then
+				-- Звук открывается и из меню — по центру, а не у мини-карты.
+				w.AnchorPoint = Vector2.new(0.5, 0.5)
+				w.Position = UDim2.fromScale(0.5, 0.5)
+			end
+		end
+	end
+	local ranksPanel = RanksPanel.new(windowsGui, cs, lang)
+	-- Открыть окно (если уже открыто — оставить).
+	local function opener(isOpen: () -> boolean, toggle: () -> ()): () -> ()
+		return function()
+			if not isOpen() then
+				toggle()
+			end
+		end
+	end
+	local openShop = opener(shopPanel.isOpen, shopPanel.toggle)
+	local openSound = opener(soundPanel.isOpen, soundPanel.toggle)
+	local openHelp = opener(lobby.helpOpen, lobby.toggleHelp)
+	local gameMenu: GameMenu.GameMenu? = nil
+	local mainMenu = MainMenu.new(menuGui, cs, lang, map.name, {
+		shop = openShop,
+		wardrobe = opener(wardrobe.isOpen, wardrobe.toggle),
+		quests = opener(questsPanel.isOpen, questsPanel.toggle),
+		ranks = opener(ranksPanel.isOpen, ranksPanel.toggle),
+		help = openHelp,
+		sound = openSound,
+		server = opener(serverPanel.isOpen, serverPanel.toggle),
+		serverVisible = function(): boolean
+			local info = cs.server
+			return info ~= nil and info.isOwner and (cs.phase == "Lobby" or cs.phase == "Waiting")
+		end,
+		rewardText = function(r: any): string
+			return ShopPanel.rewardText(r, lang)
+		end,
+		timeLeft = function(sec: number): string
+			return ShopPanel.daysHours(sec, lang)
+		end,
+		onOpenChanged = function(open: boolean)
+			menuWasOpen = open
+			-- Под меню интерфейс матча скрыт целиком (карта видна через затемнение).
+			hudGui.Enabled = not open
+			if gameMenu ~= nil then
+				gameMenu.close()
+			end
+		end,
+	})
+	openMainMenu = mainMenu.open
+	gameMenu = GameMenu.new(hudGui, windowsGui, cs, lang, map.name, {
+		help = openHelp,
+		sound = openSound,
+		shop = openShop,
+		mainMenu = mainMenu.open,
+		blocked = mainMenu.isOpen,
+	})
+	-- Кнопка «≡» стоит слева сверху — полоса ресурсов сдвигается вправо от неё.
+	do
+		local res = hudGui:FindFirstChild("ResourceBar")
+		if res ~= nil and res:IsA("GuiObject") then
+			res.Position = UDim2.fromOffset(12 + Config.Render.MinTouchTargetPx + 8, 8)
+		end
+	end
+	if menuWasOpen then
+		mainMenu.open()
+	end
+
+	-- §15л: без наложений — всё, что появляется сверху по центру, идёт одним столбиком; справа сверху — тоже.
+	local function column(name: string, anchorX: number, x: UDim, align: Enum.HorizontalAlignment): Frame
+		local f = Instance.new("Frame")
+		f.Name = name
+		f.BackgroundTransparency = 1
+		f.AnchorPoint = Vector2.new(anchorX, 0)
+		f.Position = UDim2.new(x, UDim.new(0, 8))
+		f.Size = UDim2.fromOffset(0, 0)
+		f.AutomaticSize = Enum.AutomaticSize.XY
+		f.Parent = hudGui
+		local list = Instance.new("UIListLayout")
+		list.SortOrder = Enum.SortOrder.LayoutOrder
+		list.HorizontalAlignment = align
+		list.Padding = UDim.new(0, 6)
+		list.Parent = f
+		return f
+	end
+	local function stackInto(target: Frame, names: { string })
+		for order, name in names do
+			local g = hudGui:FindFirstChild(name)
+			if g ~= nil and g:IsA("GuiObject") then
+				g.AnchorPoint = Vector2.new(0, 0)
+				g.LayoutOrder = order
+				g.Parent = target
+			end
+		end
+	end
+	stackInto(
+		column("TopCenter", 0.5, UDim.new(0.5, 0), Enum.HorizontalAlignment.Center),
+		{ "PhaseBanner", "DoomBar", "PrivateServer", "WarStatus", "Resolutions", "HintPanel", "WorldBanner" }
+	)
+	stackInto(
+		column("TopRight", 1, UDim.new(1, -12), Enum.HorizontalAlignment.Right),
+		{ "Leaders", "Auction", "Forces" }
+	)
 	-- Панель разработчика (F4) — только в Studio; создаётся в фоне (ждёт канал Remotes.Dev от сервера).
 	local devPanel: DevPanel.DevPanel? = nil
 	task.spawn(function()
@@ -444,6 +583,23 @@ local function runSession(mapId: string, resync: boolean)
 			{ name = "магазин", toggle = shopPanel.toggle, isOpen = shopPanel.isOpen },
 			{ name = "гардероб", toggle = wardrobe.toggle, isOpen = wardrobe.isOpen },
 			{ name = "задания", toggle = questsPanel.toggle, isOpen = questsPanel.isOpen },
+			{ name = "звания", toggle = ranksPanel.toggle, isOpen = ranksPanel.isOpen },
+			{
+				name = "главное меню",
+				toggle = function()
+					if mainMenu.isOpen() then
+						mainMenu.close()
+					else
+						mainMenu.open()
+					end
+				end,
+				isOpen = mainMenu.isOpen,
+			},
+			{
+				name = "меню игры",
+				toggle = (gameMenu :: GameMenu.GameMenu).toggle,
+				isOpen = (gameMenu :: GameMenu.GameMenu).isOpen,
+			},
 			{
 				name = "настройки сервера",
 				toggle = serverPanel.toggle,
@@ -857,7 +1013,6 @@ local function runSession(mapId: string, resync: boolean)
 	-- «Призрак» стройки за курсором (§15г).
 	-- §15к: подсказка при наведении на карту (владелец, местность, провинция, что будет по клику).
 	local tooltip = MapTooltip.new(hudGui, cs, lang, map, provinces)
-	local playerGui = player:WaitForChild("PlayerGui") :: PlayerGui
 	Session.connect(UserInputService.InputChanged, function(io: InputObject)
 		if io.UserInputType ~= Enum.UserInputType.MouseMovement then
 			return
@@ -879,7 +1034,7 @@ local function runSession(mapId: string, resync: boolean)
 			local screen = hudGui.AbsoluteSize
 			for _, g in playerGui:GetGuiObjectsAtPosition(p.X, p.Y) do
 				if
-					g:IsDescendantOf(hudGui)
+					(g:IsDescendantOf(hudGui) or g:IsDescendantOf(windowsGui) or g:IsDescendantOf(menuGui))
 					and not g:IsDescendantOf(view.canvas)
 					and g.Name ~= "MapTooltip"
 					and (g.BackgroundTransparency < 0.99 or g:IsA("GuiButton"))
@@ -929,6 +1084,7 @@ local function runSession(mapId: string, resync: boolean)
 		doomBar.update(now)
 		dock.update(now)
 		lobby.update(now)
+		mainMenu.update(now)
 		worldPanel.update(now)
 		hud.update(now)
 		hints.update(now)

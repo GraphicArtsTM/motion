@@ -168,7 +168,7 @@ function WarPanel.new(
 	end
 
 	-- Баннер войны.
-	local banner = panel(gui, "WarBanner")
+	local banner = panel(gui, "WarStatus") -- не «WarBanner»: так зовётся заставка WarFxLayer
 	banner.AnchorPoint = Vector2.new(0.5, 0)
 	banner.Position = UDim2.new(0.5, 0, 0, 58)
 	banner.AutomaticSize = Enum.AutomaticSize.Y

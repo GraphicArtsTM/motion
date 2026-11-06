@@ -356,7 +356,8 @@ function ShopPanel.new(
 
 	local function draw()
 		local p = cs.profile
-		strip.Visible = p ~= nil
+		-- §15л: уровень, медали и жетоны — в главном меню; строка над картой справа лишняя (налезала на лидеров).
+		strip.Visible = false
 		if p == nil then
 			return
 		end
@@ -513,5 +514,9 @@ function ShopPanel.new(
 		end,
 	}
 end
+
+-- §15л: главное меню пишет предложение недели так же, как магазин.
+ShopPanel.rewardText = rewardText
+ShopPanel.daysHours = daysHours
 
 return table.freeze(ShopPanel)

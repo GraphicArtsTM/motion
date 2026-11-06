@@ -1,0 +1,429 @@
+--!strict
+--[[
+	MainMenu — главное меню (GDD §15л): открывается при входе в игру, поверх затемнённой карты текущего матча;
+	интерфейс матча под ним скрыт (Main.client выключает hudGui). Живёт в своём ScreenGui (IgnoreGuiInset):
+	- сверху полоса: круглые «Звук» и «Как играть», «ФРОНТИР», справа — звание, имя, уровень с полосой опыта,
+	  медали и жетоны (нажатие — «Звания»);
+	- карточки: «Задания дня» (слева), «Сейчас на сервере» с кнопкой «В БОЙ» (по центру), «Магазин» (справа);
+	- снизу плитки: Магазин, Гардероб, Лидеры, Звания, Как играть, Сервер (только владельцу частного сервера).
+	Окна (магазин, гардероб…) открываются в слое окон над меню. Узкий экран — всё ужимается UIScale.
+]]
+
+local GuiService = game:GetService("GuiService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local ClientState = require(Shared:WaitForChild("ClientState"))
+local Config = require(Shared:WaitForChild("Config"))
+local Ranks = require(Shared:WaitForChild("Ranks"))
+local Strings = require(Shared:WaitForChild("Strings"))
+
+local MenuKit = require(script.Parent:WaitForChild("MenuKit"))
+local Theme = require(script.Parent:WaitForChild("Theme"))
+local Session = require(script.Parent.Parent:WaitForChild("Session"))
+
+type ClientState = ClientState.ClientState
+
+export type Actions = {
+	shop: () -> (),
+	wardrobe: () -> (),
+	quests: () -> (),
+	ranks: () -> (),
+	help: () -> (),
+	sound: () -> (),
+	server: () -> (),
+	serverVisible: () -> boolean, -- плитка «Сервер» — только владельцу частного сервера в лобби
+	rewardText: (reward: any) -> string, -- что в наборе (как в магазине)
+	timeLeft: (sec: number) -> string, -- «N дн. N ч»
+	onOpenChanged: (open: boolean) -> (),
+}
+
+export type MainMenu = {
+	open: () -> (),
+	close: () -> (),
+	isOpen: () -> boolean,
+	update: (now: number) -> (),
+}
+
+local MainMenu = {}
+
+function MainMenu.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, mapName: string, act: Actions): MainMenu
+	local cfg = Config.Render.Menu
+	local player = Players.LocalPlayer
+	local function t(key: string): string
+		return Strings.get(key, lang)
+	end
+
+	-- Затемнение карты: сверху и снизу темнее. Active — клики и колесо не уходят в карту.
+	local root = Instance.new("Frame")
+	root.Name = "MainMenu"
+	root.Size = UDim2.fromScale(1, 1)
+	root.BackgroundColor3 = Theme.Colors.Backdrop
+	root.BackgroundTransparency = cfg.ShadeAlpha
+	root.BorderSizePixel = 0
+	root.Active = true
+	root.Visible = false
+	root.Parent = gui
+	local shade = Instance.new("UIGradient")
+	shade.Rotation = 90
+	shade.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0),
+		NumberSequenceKeypoint.new(0.35, 0.45),
+		NumberSequenceKeypoint.new(0.7, 0.45),
+		NumberSequenceKeypoint.new(1, 0),
+	})
+	shade.Parent = root
+
+	-- Верхняя полоса — под кнопками Roblox (GetGuiInset), во всю ширину.
+	local inset = GuiService:GetGuiInset()
+	local top = Instance.new("Frame")
+	top.Name = "TopBar"
+	top.Position = UDim2.fromOffset(0, inset.Y)
+	top.Size = UDim2.new(1, 0, 0, cfg.TopBarPx)
+	top.BackgroundColor3 = Theme.Colors.Backdrop
+	top.BackgroundTransparency = 0.1
+	top.BorderSizePixel = 0
+	top:SetAttribute("FrontirStyled", true) -- плоская полоса: без скругления и рамки Polish
+	top.Parent = root
+	local topLine = Instance.new("Frame")
+	topLine.AnchorPoint = Vector2.new(0, 1)
+	topLine.Position = UDim2.fromScale(0, 1)
+	topLine.Size = UDim2.new(1, 0, 0, 2)
+	topLine.BackgroundColor3 = Theme.Colors.Gold
+	topLine.BackgroundTransparency = 0.5
+	topLine.BorderSizePixel = 0
+	topLine.Parent = top
+
+	local leftButtons = MenuKit.box(top, "Left")
+	leftButtons.AnchorPoint = Vector2.new(0, 0.5)
+	leftButtons.Position = UDim2.new(0, 16, 0.5, 0)
+	MenuKit.list(leftButtons, 8, true)
+	local soundButton = MenuKit.roundButton(leftButtons, "Sound", "sound", 1)
+	local helpButton = MenuKit.roundButton(leftButtons, "Help", "help", 2)
+	Session.connect(soundButton.Activated, act.sound)
+	Session.connect(helpButton.Activated, act.help)
+
+	local logo = MenuKit.label(top, t("lobby.title"), 34, Theme.Colors.Gold, true)
+	logo.AnchorPoint = Vector2.new(0.5, 0.5)
+	logo.Position = UDim2.fromScale(0.5, 0.5)
+	logo.TextStrokeTransparency = 0.3
+	logo.TextStrokeColor3 = Theme.color("Orange")
+
+	-- Профиль справа: звание, имя, уровень, полоса опыта; медали и жетоны.
+	local right = MenuKit.box(top, "Right")
+	right.AnchorPoint = Vector2.new(1, 0.5)
+	right.Position = UDim2.new(1, -16, 0.5, 0)
+	MenuKit.list(right, 12, true)
+	local profile = Instance.new("TextButton")
+	profile.Name = "Profile"
+	profile.Text = ""
+	profile.AutoButtonColor = true
+	profile.BackgroundColor3 = Theme.Colors.PanelBg
+	profile.BackgroundTransparency = 0.95
+	profile.BorderSizePixel = 0
+	profile.Size = UDim2.fromOffset(0, cfg.TopBarPx - 12)
+	profile.AutomaticSize = Enum.AutomaticSize.X
+	profile.LayoutOrder = 1
+	profile.Parent = right
+	MenuKit.pad(profile, 6, 4)
+	MenuKit.list(profile, 10, true)
+	local rankIcon = MenuKit.rankIcon(profile, 1, cfg.RankIconScale, 1)
+	local who = MenuKit.box(profile, "Who", 2)
+	MenuKit.list(who, 2)
+	local nameLabel = MenuKit.label(who, player.DisplayName, 17, Theme.Colors.Text, true, 1)
+	local levelLabel = MenuKit.label(who, "", 12, Theme.Colors.Gold, true, 2)
+	local xpRow = MenuKit.box(who, "Xp", 3)
+	MenuKit.list(xpRow, 8, true)
+	local xpBarHost = Instance.new("Frame")
+	xpBarHost.BackgroundTransparency = 1
+	xpBarHost.Size = UDim2.fromOffset(150, 6)
+	xpBarHost.LayoutOrder = 1
+	xpBarHost.Parent = xpRow
+	local xpBar = MenuKit.bar(xpBarHost, 6, Theme.Colors.Sky)
+	local xpLabel = MenuKit.label(xpRow, "", 11, Theme.Colors.Muted, false, 2)
+	Session.connect(profile.Activated, act.ranks)
+
+	local function chip(order: number): TextLabel
+		local c = Instance.new("TextLabel")
+		c.LayoutOrder = order
+		c.Size = UDim2.fromOffset(0, 36)
+		c.AutomaticSize = Enum.AutomaticSize.X
+		c.BackgroundColor3 = Theme.Colors.PanelBg
+		c.BorderSizePixel = 0
+		c.FontFace = Theme.FontBold
+		c.TextSize = 17
+		c.TextColor3 = Theme.Colors.Text
+		c.Parent = right
+		MenuKit.corner(c, 6)
+		MenuKit.stroke(c, Theme.Colors.Sky, 2)
+		MenuKit.pad(c, 12, 0)
+		return c
+	end
+	local medals = chip(2)
+	local tokens = chip(3)
+	tokens.TextColor3 = Theme.Colors.Gold
+
+	-- Середина: три карточки (масштаб под экран — общий с плитками).
+	local stage = Instance.new("Frame")
+	stage.Name = "Stage"
+	stage.BackgroundTransparency = 1
+	stage.AnchorPoint = Vector2.new(0.5, 0)
+	stage.Position = UDim2.new(0.5, 0, 0, inset.Y + cfg.TopBarPx + 20)
+	stage.Size = UDim2.fromOffset(0, 0)
+	stage.AutomaticSize = Enum.AutomaticSize.XY
+	stage.Parent = root
+	local stageScale = Instance.new("UIScale")
+	stageScale.Parent = stage
+	local cards = MenuKit.box(stage, "Cards")
+	local cardsList = MenuKit.list(cards, 18, true)
+	cardsList.VerticalAlignment = Enum.VerticalAlignment.Top
+
+	-- «Задания дня».
+	local quests = MenuKit.card(cards, "Quests", t("menu.quests"), cfg.SideCardPx, 1)
+	type QuestRow = { frame: Frame, name: TextLabel, reward: TextLabel, bar: MenuKit.Bar, count: TextLabel }
+	local questRows: { QuestRow } = {}
+	for k = 1, Config.Quests.PerDay do
+		local row = MenuKit.row(quests.body, "Quest" .. k, k)
+		local name = MenuKit.wrapLabel(row, "", 13, Theme.Colors.Text, 1)
+		local line = Instance.new("Frame")
+		line.BackgroundTransparency = 1
+		line.Size = UDim2.new(1, 0, 0, 16)
+		line.LayoutOrder = 2
+		line.Parent = row
+		local barHost = Instance.new("Frame")
+		barHost.BackgroundTransparency = 1
+		barHost.AnchorPoint = Vector2.new(0, 0.5)
+		barHost.Position = UDim2.fromScale(0, 0.5)
+		barHost.Size = UDim2.new(1, -110, 0, 6)
+		barHost.Parent = line
+		local bar = MenuKit.bar(barHost, 6, Theme.Colors.Sky)
+		local count = MenuKit.label(line, "", 12, Theme.Colors.Muted, true)
+		count.AnchorPoint = Vector2.new(1, 0.5)
+		count.Position = UDim2.new(1, -54, 0.5, 0)
+		count.TextXAlignment = Enum.TextXAlignment.Right
+		local reward = MenuKit.label(line, "", 13, Theme.Colors.Gold, true)
+		reward.AnchorPoint = Vector2.new(1, 0.5)
+		reward.Position = UDim2.fromScale(1, 0.5)
+		reward.TextXAlignment = Enum.TextXAlignment.Right
+		table.insert(questRows, { frame = row, name = name, reward = reward, bar = bar, count = count })
+	end
+	local questsNote = MenuKit.wrapLabel(quests.body, "", 12, Theme.Colors.Muted, 10)
+
+	-- «Сейчас на сервере».
+	local server = MenuKit.card(cards, "Server", t("menu.server"), cfg.CenterCardPx, 2)
+	server.accent.TextColor3 = Theme.Colors.Alert
+	local mapLabel = MenuKit.label(server.body, Strings.get("map." .. mapName, lang), 30, Theme.Colors.Text, true, 1)
+	local modeLabel = MenuKit.label(server.body, "", 15, Theme.Colors.Sky, false, 2)
+	local playersLabel = MenuKit.label(server.body, "", 14, Theme.Colors.Muted, false, 3)
+	local statusLabel = MenuKit.label(server.body, "", 18, Theme.Colors.Gold, true, 4)
+	local phaseBar = MenuKit.bar(server.body, 8, Theme.Colors.Gold, 5)
+	local playButton = MenuKit.button(server.body, "", "primary", 64, 6)
+	local playHint = MenuKit.wrapLabel(server.body, "", 13, Theme.Colors.Muted, 7)
+	local roster = MenuKit.wrapLabel(server.body, "", 12, Theme.Colors.Muted, 8)
+	mapLabel.TextStrokeTransparency = 0.6
+
+	-- «Магазин».
+	local shop = MenuKit.card(cards, "Shop", t("menu.shop"), cfg.SideCardPx, 3)
+	shop.accent.TextColor3 = Theme.Colors.Sky
+	local weekly = MenuKit.row(shop.body, "Weekly", 1)
+	MenuKit.label(weekly, t("menu.weekly"), 14, Theme.Colors.Gold, true, 1)
+	local weeklyWhat = MenuKit.wrapLabel(weekly, "", 13, Theme.Colors.Text, 2)
+	local weeklyLeft = MenuKit.label(weekly, "", 11, Theme.Colors.Muted, false, 3)
+	local daily = MenuKit.row(shop.body, "Daily", 2)
+	MenuKit.label(daily, t("menu.daily"), 14, Theme.Colors.Gold, true, 1)
+	local dailyLine = MenuKit.label(daily, "", 13, Theme.Colors.Text, false, 2)
+	local openShop = MenuKit.button(shop.body, t("menu.open"), "normal", nil, 3)
+	Session.connect(openShop.Activated, act.shop)
+
+	-- Плитки снизу.
+	local tiles = MenuKit.box(root, "Tiles")
+	tiles.AnchorPoint = Vector2.new(0.5, 1)
+	tiles.Position = UDim2.new(0.5, 0, 1, -20)
+	MenuKit.list(tiles, 10, true)
+	local tilesScale = Instance.new("UIScale")
+	tilesScale.Parent = tiles
+	local serverTile: TextButton? = nil
+	local tileRank: Frame? = nil
+	local tileDefs: { { key: string, icon: string, action: () -> () } } = {
+		{ key = "shop", icon = "shop", action = act.shop },
+		{ key = "wardrobe", icon = "wardrobe", action = act.wardrobe },
+		{ key = "quests", icon = "quests", action = act.quests },
+		{ key = "ranks", icon = "", action = act.ranks },
+		{ key = "help", icon = "help", action = act.help },
+		{ key = "server", icon = "server", action = act.server },
+	}
+	for k, def in tileDefs do
+		local b, slot = MenuKit.tile(tiles, "Tile_" .. def.key, t("menu.tile." .. def.key), cfg.TilePx, k)
+		local icon = if def.icon == "" then MenuKit.rankIcon(slot, 1, 3) else MenuKit.icon(slot, def.icon, 5)
+		MenuKit.center(icon)
+		if def.icon == "" then
+			tileRank = icon
+		end
+		if def.key == "server" then
+			serverTile = b
+		end
+		Session.connect(b.Activated, def.action)
+	end
+
+	local function fit()
+		local s = gui.AbsoluteSize
+		local scale = math.clamp(math.min(s.X / cfg.MinWidthPx, s.Y / cfg.MinHeightPx), 0.45, 1)
+		stageScale.Scale = scale
+		tilesScale.Scale = scale
+		-- На узком экране профиль справа налезет на логотип — логотип прячем.
+		logo.Visible = s.X >= 900
+	end
+	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fit)
+	fit()
+
+	local opened = false
+	local function setOpen(on: boolean)
+		if opened == on then
+			return
+		end
+		opened = on
+		root.Visible = on
+		act.onOpenChanged(on)
+	end
+	Session.connect(playButton.Activated, function()
+		setOpen(false)
+	end)
+
+	-- Режим: в лобби — лидер голосования.
+	local function modeName(): string
+		local mode = cs.mode
+		local best, bestVotes = mode.mode, -1
+		if cs.phase == "Lobby" or cs.phase == "Waiting" then
+			for k, id in mode.options do
+				local v = mode.counts[k] or 0
+				if v > bestVotes then
+					best, bestVotes = id, v
+				end
+			end
+		end
+		return Strings.get("mode." .. best, lang)
+	end
+
+	local nextAt = 0
+	local function update(now: number)
+		if not opened or now < nextAt then
+			return
+		end
+		nextAt = now + cfg.RefreshSec
+
+		-- Профиль.
+		local p = cs.profile
+		local level = if p ~= nil then p.level else 1
+		local rank = Ranks.of(level)
+		MenuKit.setRank(rankIcon, rank, cfg.RankIconScale)
+		if tileRank ~= nil then
+			MenuKit.setRank(tileRank, rank, 3)
+		end
+		nameLabel.Text = player.DisplayName
+		levelLabel.Text = string.format(t("menu.level"), level) .. "  ·  " .. Strings.get("rank." .. rank, lang)
+		if p ~= nil and p.need > 0 then
+			xpBar.set(p.xp / p.need)
+			xpLabel.Text = string.format(t("menu.xp"), p.xp, p.need)
+		else
+			xpBar.set(if p ~= nil then 1 else 0)
+			xpLabel.Text = if p ~= nil then t("menu.maxLevel") else ""
+		end
+		medals.Text = string.format(t("menu.medals"), Strings.formatInt(if p ~= nil then p.medals else 0))
+		tokens.Text = string.format(t("menu.tokens"), if p ~= nil then p.tokens else 0)
+
+		-- Задания дня.
+		local list = if p ~= nil then p.quests else {}
+		for k, row in questRows do
+			local q = list[k]
+			row.frame.Visible = q ~= nil
+			if q ~= nil then
+				row.name.Text = (if q.done then "✓ " else "")
+					.. string.format(Strings.get("quest." .. q.kind, lang), q.target)
+				row.name.TextColor3 = if q.done then Theme.Colors.Gold else Theme.Colors.Text
+				row.reward.Text = string.format(t("menu.questReward"), q.medals)
+				row.count.Text = string.format("%d / %d", math.min(q.progress, q.target), q.target)
+				row.bar.set(q.progress / math.max(1, q.target))
+				row.bar.fill.BackgroundColor3 = if q.done then Theme.Colors.Good else Theme.Colors.Sky
+			end
+		end
+		if p == nil then
+			questsNote.Text = t("menu.questsEmpty")
+			quests.accent.Text = ""
+		else
+			questsNote.Text = if p.questsBonus
+				then t("menu.questsBonusDone")
+				else string.format(t("menu.questsBonus"), Config.Quests.AllDoneTokens)
+			quests.accent.Text = string.format(t("menu.questsNew"), math.max(0, p.dayLeft) // 3600)
+		end
+
+		-- Сервер: что идёт сейчас.
+		local phase = cs.phase
+		modeLabel.Text = string.format(t("menu.mode"), modeName())
+		local humans: { string } = {}
+		for _, n in cs.nations do
+			if not n.isBot then
+				table.insert(humans, if lang == "en" then n.nameEn else n.name)
+			end
+		end
+		playersLabel.Text = string.format(t("menu.players"), #humans, math.max(cs.targetNations, #humans))
+		roster.Text = table.concat(humans, " · ")
+		roster.Visible = #humans > 0
+		local left = math.max(0, math.ceil(cs.phaseEndsAt - now))
+		if phase == "Play" then
+			statusLabel.Text = string.format(t("menu.status.Play"), MenuKit.clock(ClientState.matchTime(cs, now)))
+		elseif phase == "Waiting" then
+			statusLabel.Text = t("menu.status.Waiting")
+		else
+			statusLabel.Text = string.format(Strings.get("menu.status." .. phase, lang), left)
+		end
+		server.accent.Text = if phase == "Play" then "● " .. t("menu.live") else ""
+		phaseBar.frame.Visible = phase == "Lobby" or phase == "Pick" or phase == "Over"
+		if phase == "Lobby" then
+			phaseBar.set(1 - left / math.max(1, Config.Match.LobbySec))
+		elseif phase == "Pick" then
+			phaseBar.set(1 - left / math.max(1, Config.Match.StartPickSec))
+		else
+			phaseBar.set(0)
+		end
+		local me = if cs.myNation ~= nil then cs.nations[cs.myNation] else nil
+		local watching = (phase == "Play" or phase == "Over") and (me == nil or not me.alive)
+		playButton.Text = "▶  " .. t(if watching then "menu.watch" else "menu.play")
+		playHint.Text = if watching
+			then t("menu.watchHint")
+			elseif phase == "Lobby" or phase == "Waiting" then t("menu.playHint")
+			else ""
+		playHint.Visible = playHint.Text ~= ""
+
+		-- Магазин.
+		if p ~= nil then
+			weeklyWhat.Text = act.rewardText(p.weekly.offer)
+			weeklyLeft.Text = string.format(t("menu.weeklyLeft"), act.timeLeft(p.weekly.left))
+			dailyLine.Text = string.format(t("menu.dailyStreak"), p.dailyStreak)
+				.. "  ·  "
+				.. string.format(t("menu.crates"), p.crates)
+			shop.accent.Text = string.format(t("menu.tokens"), p.tokens)
+		end
+		local st = serverTile
+		if st ~= nil then
+			st.Visible = act.serverVisible()
+		end
+	end
+
+	return {
+		open = function()
+			setOpen(true)
+			nextAt = 0
+			update(os.clock())
+		end,
+		close = function()
+			setOpen(false)
+		end,
+		isOpen = function(): boolean
+			return opened
+		end,
+		update = update,
+	}
+end
+
+return table.freeze(MainMenu)
