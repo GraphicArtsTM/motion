@@ -25,6 +25,10 @@ type CameraState = CameraMath.CameraState
 export type StabilityPanel = {
 	refresh: () -> (), -- пришла стабильность или сменилась фаза
 	onCamera: (state: CameraState) -> (),
+	-- §15з док: кнопка (прячется в док) и включение режима карты.
+	button: GuiButton,
+	toggle: () -> (),
+	isOpen: () -> boolean,
 }
 
 local StabilityPanel = {}
@@ -161,6 +165,13 @@ function StabilityPanel.new(
 	end)
 
 	return {
+		button = main,
+		toggle = function()
+			setOn(not on)
+		end,
+		isOpen = function(): boolean
+			return on
+		end,
 		refresh = function()
 			main.Visible = playing()
 			if not playing() and on then

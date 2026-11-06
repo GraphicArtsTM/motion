@@ -24,6 +24,8 @@ type ClientState = ClientState.ClientState
 
 export type ModePanel = {
 	refresh: () -> (), -- пришло info
+	voteFrame: Frame, -- §15и: на время лобби переезжает в экран лобби
+	mapVoteFrame: Frame, -- §15к: голосование за карту — тоже в экране лобби
 }
 
 local ModePanel = {}
@@ -148,7 +150,7 @@ function ModePanel.new(
 		levelButtons[level] = { button = b, edge = edge }
 	end
 
-	-- Голосование за карту следующего матча (экран итогов, §5.2): снизу, над кнопкой «Смотреть карту».
+	-- Голосование за карту (§15к: в лобби, рядом с режимом; экран лобби забирает рамку к себе).
 	local MAP_CARDS = Config.MapVote.Options
 	local MAP_H = 52
 	local mapVote = Instance.new("Frame")
@@ -260,9 +262,9 @@ function ModePanel.new(
 				lb.edge.Thickness = if chosen then 2 else Theme.BorderPx
 			end
 		end
-		-- Голосование за карту на экране итогов (§5.2).
+		-- Голосование за карту в лобби (§15к).
 		local mv = cs.mapVote
-		mapVote.Visible = mv ~= nil and cs.phase == "Over" and me ~= nil
+		mapVote.Visible = mv ~= nil and cs.phase == "Lobby" and me ~= nil
 		if mv ~= nil and mapVote.Visible then
 			for k, card in mapCards do
 				local id = mv.options[k]
@@ -282,7 +284,7 @@ function ModePanel.new(
 		fast.Text = Strings.get(if info.fast then "solo.normal" else "solo.fast", lang)
 	end
 
-	return { refresh = refresh }
+	return { refresh = refresh, voteFrame = vote, mapVoteFrame = mapVote }
 end
 
 return table.freeze(ModePanel)

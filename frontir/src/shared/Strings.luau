@@ -416,6 +416,7 @@ local TABLE: { [string]: Entry } = {
 	["reject.needFactory"] = { ru = "Нужен свой завод", en = "You need a factory" },
 	["reject.noMoney"] = { ru = "Не хватает денег", en = "Not enough money" },
 	["reject.noOil"] = { ru = "Не хватает нефти", en = "Not enough oil" },
+	["reject.tooSoon"] = { ru = "Слишком часто — подождите", en = "Too often — wait a bit" },
 	["reject.needCity"] = { ru = "Нажмите на свой город", en = "Tap your own city" },
 	["reject.maxLevel"] = {
 		ru = "Это уже самый высокий уровень",
@@ -618,6 +619,32 @@ local TABLE: { [string]: Entry } = {
 	},
 	["ship.Transport"] = { ru = "Транспорт", en = "Transport" },
 	["ship.Destroyer"] = { ru = "Эсминец", en = "Destroyer" },
+	["ship.Merchant"] = { ru = "Торговое судно", en = "Trade ship" },
+	-- Кольцо действий (§15е).
+	["ring.expand"] = { ru = "Расширяться", en = "Expand" },
+	["ring.attack"] = { ru = "Атаковать", en = "Attack" },
+	["ring.declare"] = { ru = "Объявить войну", en = "Declare war" },
+	["ring.alliance"] = { ru = "Союз", en = "Alliance" },
+	["ring.trade"] = { ru = "Торговля", en = "Trade" },
+	["ring.intel"] = { ru = "Разведка", en = "Spy" },
+	["ring.target"] = { ru = "Цель союзникам", en = "Mark target" },
+	["ring.help"] = { ru = "Помогите", en = "Need help" },
+	["ring.build"] = { ru = "Построить", en = "Build" },
+	["ring.mark"] = { ru = "Метка", en = "Mark" },
+	["res.peopleTip"] = {
+		ru = "Люди прибывают быстрее всего около половины максимума (зелёная зона). Выше — рост замедляется: пора отправить излишек в атаку.",
+		en = "People grow fastest around half of the maximum (green zone). Above it growth slows down: send the surplus to attack.",
+	},
+	-- Торговые суда (§15е).
+	["event.tradeDelivered"] = { ru = "Торговое судно: +$%s (с %s)", en = "Trade ship: +$%s (with %s)" },
+	["event.merchantLost"] = {
+		ru = "Ваше торговое судно потопил %s",
+		en = "%s sank your trade ship",
+	},
+	["event.merchantLoot"] = {
+		ru = "Захвачен груз: +$%s (судно %s)",
+		en = "Cargo seized: +$%s (%s's ship)",
+	},
 	["naval.title"] = { ru = "Порт", en = "Port" },
 	["naval.hire"] = { ru = "%s  $%s · нефть %s", en = "%s  $%s · oil %s" },
 	["naval.land"] = { ru = "Высадка (свободных: %d)", en = "Landing (ready: %d)" },
@@ -679,6 +706,11 @@ local TABLE: { [string]: Entry } = {
 		en = "fighters and bombers",
 	},
 	["building.AirDefense"] = { ru = "Батарея ПВО", en = "AA battery" },
+	["building.Sam"] = { ru = "ЗРК", en = "SAM site" },
+	["building.Sam.hint"] = {
+		ru = "далеко сбивает ракеты и ядерные бомбы (не самолёты)",
+		en = "shoots down missiles and nukes far away (not planes)",
+	},
 	["building.AirDefense.hint"] = {
 		ru = "заряды: ловит налёты и ракеты рядом",
 		en = "charges: stops raids and missiles nearby",
@@ -877,6 +909,119 @@ local TABLE: { [string]: Entry } = {
 		ru = "Ракета: нажмите цель — землю врага (Esc — отмена)",
 		en = "Missile: tap an enemy target (Esc — cancel)",
 	},
+	-- §15ж: боеголовки и ядерные удары.
+	["missile.targetWarhead"] = {
+		ru = "%s: нажмите цель — землю врага (R — сменить боеголовку, Esc — отмена)",
+		en = "%s: tap an enemy target (R — change warhead, Esc — cancel)",
+	},
+	["missile.targetNuke"] = {
+		ru = "☢ %s ($%s, нефть %s): нажмите цель (R — сменить, Esc — отмена)",
+		en = "☢ %s ($%s, oil %s): tap a target (R — change, Esc — cancel)",
+	},
+	["warhead.missile"] = { ru = "Ракета", en = "Missile" },
+	["warhead.atom"] = { ru = "Атомная бомба", en = "Atom bomb" },
+	["warhead.hydrogen"] = { ru = "Водородная бомба", en = "Hydrogen bomb" },
+	["event.nukeLaunched"] = { ru = "☢ %s: %s → %s (%d с)", en = "☢ %s: %s → %s (%d s)" },
+	["event.nukeOnYou"] = {
+		ru = "☢ %s летит на вас (%s)! Батареи ПВО: нужно %d заряда",
+		en = "☢ %s incoming from %s! AA needs %d charges",
+	},
+	["event.nukeHit"] = {
+		ru = "☢ %s: %s ударил по %s — %s клеток",
+		en = "☢ %s: %s hit %s — %s cells",
+	},
+	["ring.emoji"] = { ru = "Эмодзи", en = "Emoji" },
+	-- Экран лобби и «Как играть» (§15и).
+	["lobby.title"] = { ru = "ФРОНТИР", en = "FRONTIR" },
+	["lobby.subtitle"] = {
+		ru = "Захватите больше суши, чем соседи, — союзом, торговлей или войной",
+		en = "Hold more land than your neighbours — by alliance, trade or war",
+	},
+	["lobby.next"] = { ru = "СЛЕДУЮЩИЙ МАТЧ", en = "NEXT MATCH" },
+	["lobby.info"] = { ru = "Режим: %s  ·  игроков %d из %d", en = "Mode: %s  ·  players %d of %d" },
+	["lobby.players"] = { ru = "В лобби:", en = "In lobby:" },
+	["hud.control"] = {
+		ru = "Контроль суши: вы %.1f%% · лидер %s %.1f%% · цель %d%%",
+		en = "Land control: you %.1f%% · leader %s %.1f%% · goal %d%%",
+	},
+	-- §15к подсказка при наведении на карту
+	["tip.neutral"] = { ru = "Ничья земля", en = "Unclaimed land" },
+	["tip.yours"] = { ru = "Ваша земля", en = "Your land" },
+	["tip.expand"] = { ru = "Клик: расширение с %s людьми", en = "Click: expand with %s people" },
+	["tip.attack"] = { ru = "Клик: атака (идёт война)", en = "Click: attack (at war)" },
+	["tip.declare"] = { ru = "Клик: объявить войну", en = "Click: declare war" },
+	["tip.mobilizing"] = { ru = "Мобилизация — бои скоро", en = "Mobilizing — fighting soon" },
+	["tip.boat"] = { ru = "Клик: десант на корабле", en = "Click: send a landing ship" },
+	-- §15к плашка игрока и флаг в лобби
+	["lobby.level"] = { ru = "Уровень %d", en = "Level %d" },
+	["lobby.editFlag"] = { ru = "Изменить флаг", en = "Edit flag" },
+	["lobby.closeFlag"] = { ru = "Закрыть", en = "Close" },
+	["lobby.flagPart"] = { ru = "🔒 в гардеробе за %d 🏅", en = "🔒 in wardrobe for %d 🏅" },
+	["lobby.flagLocked"] = {
+		ru = "Есть закрытые части — выберите открытые или купите их в гардеробе (K)",
+		en = "Some parts are locked — pick unlocked ones or buy them in the wardrobe (K)",
+	},
+	["help.title"] = { ru = "Как играть", en = "How to play" },
+	["help.start"] = {
+		ru = "<b>Старт.</b> Нажмите на сушу, где начнёте: там появится столица.",
+		en = "<b>Start.</b> Tap the land where you begin: your capital appears there.",
+	},
+	["help.expand"] = {
+		ru = "<b>Расширение.</b> Нажмите на ничью землю — люди идут туда. Людей больше всего прибывает около половины максимума.",
+		en = "<b>Expand.</b> Tap empty land — your people move in. People grow fastest around half of the maximum.",
+	},
+	["help.war"] = {
+		ru = "<b>Война.</b> Правая кнопка (или долгое нажатие) по соседу → «Объявить войну». Через 5 с — бой: нажмите на врага, ползунок — доля войск. Найм — Z/X/C/V.",
+		en = "<b>War.</b> Right-click (or long-press) a neighbour → “Declare war”. Fighting starts in 5 s: tap the enemy, the slider sets the troop share. Hire — Z/X/C/V.",
+	},
+	["help.build"] = {
+		ru = "<b>Стройка (B).</b> Завод — деньги, Казармы — войска, Жилой квартал — люди, Порт — торговые суда, ЗРК — защита от ракет.",
+		en = "<b>Build (B).</b> Factory — money, Barracks — troops, Housing — people, Port — trade ships, SAM — missile defence.",
+	},
+	["help.goal"] = {
+		ru = "<b>Цель.</b> 60% суши (в «Командах» — 70%) или больше всех к концу лимита времени.",
+		en = "<b>Goal.</b> 60% of the land (70% in Teams) or the most land when time runs out.",
+	},
+	["help.doom"] = {
+		ru = "<b>Часы судного дня.</b> С 14-й минуты растёт обязательная доля суши: кто ниже — распадается через 30 с.",
+		en = "<b>Doomsday clock.</b> From minute 14 the required land share rises: anyone below collapses in 30 s.",
+	},
+	["help.keys"] = {
+		ru = "Клавиши: Z/X/C/V — найм · B — стройка · Y — технологии · T — дипломатия · Q/E — способности · R — ракеты · G — метки · M — магазин · H — эта подсказка · Space — к столице",
+		en = "Keys: Z/X/C/V — hire · B — build · Y — technology · T — diplomacy · Q/E — abilities · R — missiles · G — pings · M — shop · H — this help · Space — to capital",
+	},
+	["help.close"] = { ru = "Понятно!", en = "Got it!" },
+	["dock.help"] = { ru = "Как играть", en = "How to play" },
+	-- Док (§15з).
+	["dock.build"] = { ru = "Стройка", en = "Build" },
+	["dock.tech"] = { ru = "Технологии", en = "Technology" },
+	["dock.diplomacy"] = { ru = "Дипломатия", en = "Diplomacy" },
+	["dock.stability"] = { ru = "Стабильность", en = "Stability" },
+	["dock.ping"] = { ru = "Метки", en = "Pings" },
+	["dock.shop"] = { ru = "Магазин", en = "Shop" },
+	["dock.quests"] = { ru = "Задания", en = "Quests" },
+	["dock.wardrobe"] = { ru = "Гардероб", en = "Wardrobe" },
+	["dock.server"] = { ru = "Настройки сервера", en = "Server settings" },
+	["dock.sound"] = { ru = "Звук", en = "Sound" },
+	-- «Часы судного дня» (§15з).
+	["doom.soon"] = { ru = "☠ Часы судного дня через %s", en = "☠ Doomsday clock in %s" },
+	["doom.bar"] = {
+		ru = "☠ Держите ≥ %.0f%% суши (у вас %.1f%%)",
+		en = "☠ Hold ≥ %.0f%% of land (you: %.1f%%)",
+	},
+	["doom.next"] = { ru = " · дальше %.0f%% через %s", en = " · next %.0f%% in %s" },
+	["doom.you"] = {
+		ru = "Вы ниже планки! Распад через %s",
+		en = "You are below the bar! Collapse in %s",
+	},
+	["event.doomWarning"] = {
+		ru = "☠ %s ниже планки судного дня",
+		en = "☠ %s is below the doomsday bar",
+	},
+	["event.doomCollapse"] = {
+		ru = "☠ %s распалась (ниже планки %.0f%%)",
+		en = "☠ %s collapsed (below %.0f%%)",
+	},
 	["event.missileLaunched"] = {
 		ru = "Ракета летит: %s → %s (%d с)",
 		en = "Missile incoming: %s → %s (%d s)",
@@ -907,7 +1052,9 @@ local TABLE: { [string]: Entry } = {
 	["reject.lowBid"] = { ru = "Ставка мала", en = "Bid too low" },
 	["dev.eventNow"] = { ru = "Событие сейчас", en = "Event now" },
 	["dev.silo"] = { ru = "Ракетная шахта", en = "Missile silo" },
+	["dev.tradeNow"] = { ru = "Торговое судно сейчас", en = "Trade ship now" },
 	["dev.botMissile"] = { ru = "Бот: ракета по вам", en = "Bot: missile on you" },
+	["dev.botNuke"] = { ru = "Бот: атомная бомба по вам", en = "Bot: atom bomb on you" },
 	-- Звук и музыка (§13, этап 10б)
 	["sound.title"] = { ru = "Звук", en = "Sound" },
 	["sound.sfx"] = { ru = "Звуки: %d%%", en = "Effects: %d%%" },

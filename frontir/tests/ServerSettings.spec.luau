@@ -2,7 +2,6 @@
 local T = require("./lib/TestKit")
 local Fixtures = require("./lib/Fixtures")
 local Config = require("../src/shared/Config")
-local DevTools = require("../src/shared/DevTools")
 local MatchSim = require("../src/shared/MatchSim")
 local Modes = require("../src/shared/Modes")
 local ServerSettings = require("../src/shared/ServerSettings")
@@ -100,11 +99,8 @@ T.describe("Частный сервер (§5.4)", function()
 			T.expect(select(2, MatchSim.offer(m, 1, 2, "trade"))).toBe("diplomacyOff")
 			-- Война и мир — можно.
 			T.expect((MatchSim.applyIntent(m, 1, { kind = "declare", target = 2 }))).toBe(true)
-			-- Карта выбрана владельцем — голосования за карту нет.
-			DevTools.endMatch(m)
-			while m.phase == "Play" do
-				MatchSim.step(m, DT)
-			end
+			-- Карта выбрана владельцем — голосования за карту в лобби нет (§15к).
+			MatchSim.openMapVote(m)
 			T.expect(#m.mapOptions).toBe(0)
 			T.expect(MatchSim.mapWinner(m)).toBe(m.map.name)
 		end

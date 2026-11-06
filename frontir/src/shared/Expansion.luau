@@ -612,6 +612,9 @@ function Expansion.advance(
 			if costMul ~= nil then
 				cost *= costMul(i)
 			end
+			if cost == math.huge then
+				continue -- клетку брать нельзя (заражённая зона, §15ж), берём другие
+			end
 			if attack.troops < cost then
 				finished = true
 				break

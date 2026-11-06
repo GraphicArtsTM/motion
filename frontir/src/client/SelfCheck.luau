@@ -216,12 +216,14 @@ local function run()
 		f4("туман обратно", "fog", nil)
 		f4("способности готовы", "resetCooldowns", nil)
 		f4("следующий генерал", "nextCommander", nil)
+		f4("торговое судно", "tradeNow", nil, { "needCoast", "noPartner" }) -- §15е
 		if bot ~= nil then
 			f4("война сейчас", "war", bot)
 			f4("бот: десант на вас", "botLanding", bot, { "noPort", "target", "occupied" })
 			f4("бот: налёт на вас", "botRaid", bot, { "target", "occupied" })
 			f4("бот: способности по вам", "botAbility", bot, { "target" })
 			f4("бот: ракета по вам", "botMissile", bot, { "target", "occupied" })
+			f4("бот: атомная бомба по вам", "botNuke", bot, { "target", "occupied", "cooldown" }) -- §15ж
 			f4("белый мир", "peace", bot, { "notAtWar", "target" })
 		else
 			report("F4: действия с ботом", nil, "нет живого бота")

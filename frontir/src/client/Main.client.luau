@@ -46,6 +46,11 @@ local CameraInput = require(Client:WaitForChild("Input"):WaitForChild("CameraInp
 local AirLayer = require(Render:WaitForChild("AirLayer"))
 local MarkerLayer = require(Render:WaitForChild("MarkerLayer"))
 local WarFxLayer = require(Render:WaitForChild("WarFxLayer"))
+local ActionRingUI = require(UI:WaitForChild("ActionRing"))
+local DoomBar = require(UI:WaitForChild("DoomBar"))
+local Dock = require(UI:WaitForChild("Dock"))
+local LobbyScreen = require(UI:WaitForChild("LobbyScreen"))
+local MapTooltip = require(UI:WaitForChild("MapTooltip"))
 local AirPanel = require(UI:WaitForChild("AirPanel"))
 local BuildPanel = require(UI:WaitForChild("BuildPanel"))
 local CityLabels = require(UI:WaitForChild("CityLabels"))
@@ -307,6 +312,94 @@ local function runSession(mapId: string, resync: boolean)
 	local questsPanel = QuestsPanel.new(hudGui, cs, lang, hud.toast) -- задания и лидеры (§11.5)
 	local tutorial = TutorialPanel.new(hudGui, cs, lang, hud.toast) -- обучение (§5.5)
 	local soundPanel = SoundPanel.new(hudGui, cs, lang, send) -- громкости (§13)
+	-- Экран лобби (§15и): «Следующий матч», голосование и выбор генерала переезжают в него на время лобби.
+	local lobby = LobbyScreen.new(hudGui, cs, lang, map.name, send)
+	lobby.attach(modePanel.voteFrame, commanderPanel.pickerFrame, modePanel.mapVoteFrame)
+	-- Док снизу по центру (§15з): все окна — отсюда; прежние кнопки окон прячутся, их состояние — в подсказке.
+	local dock = Dock.new(hudGui, lang, {
+		{
+			icon = "build",
+			name = "dock.build",
+			key = "B",
+			button = build.button,
+			toggle = build.toggle,
+			isOpen = build.isOpen,
+		},
+		{
+			icon = "tech",
+			name = "dock.tech",
+			key = "Y",
+			button = techPanel.button,
+			toggle = techPanel.toggle,
+			isOpen = techPanel.isOpen,
+		},
+		{
+			icon = "diplomacy",
+			name = "dock.diplomacy",
+			key = "T",
+			visible = function(): boolean
+				return cs.phase == "Play" and cs.myNation ~= nil
+			end,
+			toggle = diplomacy.toggle,
+			isOpen = diplomacy.isOpen,
+		},
+		{
+			icon = "stability",
+			name = "dock.stability",
+			key = "N",
+			button = stabilityPanel.button,
+			toggle = stabilityPanel.toggle,
+			isOpen = stabilityPanel.isOpen,
+		},
+		{
+			icon = "ping",
+			name = "dock.ping",
+			key = "G",
+			button = pings.button,
+			toggle = pings.toggle,
+			isOpen = pings.isOpen,
+		},
+		{
+			icon = "shop",
+			name = "dock.shop",
+			key = "M",
+			button = shopPanel.button,
+			toggle = shopPanel.toggle,
+			isOpen = shopPanel.isOpen,
+		},
+		{
+			icon = "quests",
+			name = "dock.quests",
+			key = "J",
+			button = questsPanel.button,
+			toggle = questsPanel.toggle,
+			isOpen = questsPanel.isOpen,
+		},
+		{
+			icon = "wardrobe",
+			name = "dock.wardrobe",
+			key = "K",
+			button = wardrobe.button,
+			toggle = wardrobe.toggle,
+			isOpen = wardrobe.isOpen,
+		},
+		{
+			icon = "server",
+			name = "dock.server",
+			key = "O",
+			button = serverPanel.button,
+			toggle = serverPanel.toggle,
+			isOpen = serverPanel.isOpen,
+		},
+		{
+			icon = "sound",
+			name = "dock.sound",
+			button = soundPanel.button,
+			toggle = soundPanel.toggle,
+			isOpen = soundPanel.isOpen,
+		},
+		{ icon = "help", name = "dock.help", key = "H", toggle = lobby.toggleHelp, isOpen = lobby.helpOpen },
+	})
 	-- Клик (§13): любая кнопка HUD, в том числе созданная позже.
 	local function hookButton(inst: Instance)
 		if inst:IsA("GuiButton") then
@@ -326,6 +419,7 @@ local function runSession(mapId: string, resync: boolean)
 			totalLand += 1
 		end
 	end
+	local doomBar = DoomBar.new(hudGui, cs, lang, totalLand) -- «часы судного дня» (§15з)
 	local citySet: { [number]: boolean } = {}
 	local resultFor: number? = nil -- matchId, за который уже прозвучал итог
 	local lastReward: any = nil
@@ -677,7 +771,68 @@ local function runSession(mapId: string, resync: boolean)
 		Session.connect(home.Activated, goHome)
 	end
 
+	-- Кольцо действий (§15е): ПКМ или долгое касание — «что можно сделать здесь».
+	-- Последняя точка кольца: «Эмодзи» открывает второе кольцо там же.
+	local ringAt: { x: number, y: number, reopen: boolean, pick: ((index: number) -> ())? } =
+		{ x = 0, y = 0, reopen = false, pick = nil }
+	local ring
+	ring = ActionRingUI.new(hudGui, viewport, lang, function(action, cell: number, owner: number)
+		if action == "expand" or action == "attack" then
+			hud.tapCell(cell)
+		elseif action == "declare" then
+			wars.offerDeclare(owner)
+		elseif action == "alliance" or action == "trade" then
+			send("offer", { target = owner, offer = action })
+		elseif action == "intel" then
+			send("intel", { target = owner })
+		elseif action == "target" or action == "mark" then
+			send("ping", { cell = cell, phrase = "attack" })
+		elseif action == "help" then
+			send("ping", { cell = cell, phrase = "help" })
+		elseif action == "build" then
+			build.open()
+		elseif action == "emoji" then
+			-- Второе кольцо: 8 эмодзи (§15ж); державу берём по клетке (своя — своя столица).
+			local target = if owner ~= 0 then owner else cs.myNation
+			if target ~= nil then
+				ringAt.pick = function(index: number)
+					send("emoji", { target = target, emoji = index })
+				end
+				ringAt.reopen = true
+			end
+		end
+	end)
+	-- Второе кольцо открывается после того, как первое закрылось (нажатие уже обработано).
+	Session.connect(RunService.Heartbeat, function()
+		local pick = ringAt.pick
+		if ringAt.reopen and pick ~= nil then
+			ringAt.reopen = false
+			ring.choose(ringAt.x, ringAt.y, table.clone(Config.Emoji.List) :: { string }, pick)
+		end
+	end)
+	local function openRing(sx: number, sy: number)
+		ringAt.x, ringAt.y = sx, sy
+		local cx, cy = CameraMath.cellAt(camera.state, sx, sy)
+		local me = cs.myNation
+		if cx == nil or cy == nil or me == nil then
+			return
+		end
+		local cell = cy * map.width + cx
+		local owner = ClientState.ownerAt(cs, cell)
+		local war = if owner ~= 0 and owner ~= me then ClientState.warBetween(cs, me, owner) else nil
+		ring.open(sx, sy, cell, {
+			playing = cs.phase == "Play" and cs.nations[me] ~= nil and cs.nations[me].alive,
+			me = me,
+			owner = owner,
+			land = MapDataModule.getTerrain(map, cell) ~= 0, -- 0 — вода (Types.Terrain.Water)
+			war = if war == nil then "none" elseif war.active then "active" else "mobilizing",
+			allied = table.find(ClientState.alliesOf(cs, me), owner) ~= nil,
+			trade = owner ~= 0 and ClientState.hasTrade(cs, me, owner),
+		})
+	end
+
 	local input = CameraInput.bind(camera, viewport, {
+		onContext = openRing,
 		onTap = function(sx: number, sy: number)
 			local cx, cy = CameraMath.cellAt(camera.state, sx, sy)
 			if cx ~= nil and cy ~= nil then
@@ -700,14 +855,42 @@ local function runSession(mapId: string, resync: boolean)
 		onHome = goHome,
 	})
 	-- «Призрак» стройки за курсором (§15г).
+	-- §15к: подсказка при наведении на карту (владелец, местность, провинция, что будет по клику).
+	local tooltip = MapTooltip.new(hudGui, cs, lang, map, provinces)
+	local playerGui = player:WaitForChild("PlayerGui") :: PlayerGui
 	Session.connect(UserInputService.InputChanged, function(io: InputObject)
-		if io.UserInputType ~= Enum.UserInputType.MouseMovement or not build.active() then
+		if io.UserInputType ~= Enum.UserInputType.MouseMovement then
 			return
 		end
 		local p = io.Position
 		local inset = viewport.AbsolutePosition
 		local cx, cy = CameraMath.cellAt(camera.state, p.X - inset.X, p.Y - inset.Y)
-		build.hover(if cx ~= nil and cy ~= nil then cy * map.width + cx else nil)
+		local cell = if cx ~= nil and cy ~= nil then cy * map.width + cx else nil
+		if build.active() then
+			tooltip.show(nil, 0, 0, 0)
+			build.hover(cell)
+			return
+		end
+		-- Не в игре или над окном интерфейса (док, панели, лобби) — без подсказки.
+		if cs.phase ~= "Play" and cs.phase ~= "Pick" then
+			cell = nil
+		else
+			-- Считаем окном только непрозрачную рамку или кнопку не во весь экран (виньетка войны — не окно).
+			local screen = hudGui.AbsoluteSize
+			for _, g in playerGui:GetGuiObjectsAtPosition(p.X, p.Y) do
+				if
+					g:IsDescendantOf(hudGui)
+					and not g:IsDescendantOf(view.canvas)
+					and g.Name ~= "MapTooltip"
+					and (g.BackgroundTransparency < 0.99 or g:IsA("GuiButton"))
+					and (g.AbsoluteSize.X < screen.X * 0.9 or g.AbsoluteSize.Y < screen.Y * 0.9)
+				then
+					cell = nil
+					break
+				end
+			end
+		end
+		tooltip.show(cell, p.X, p.Y, hud.percent())
 	end)
 
 	local musicAt = 0
@@ -743,6 +926,9 @@ local function runSession(mapId: string, resync: boolean)
 		airLayer.update(now, camera.state)
 		markerLayer.update(now, camera.state)
 		warFx.update(now, camera.state)
+		doomBar.update(now)
+		dock.update(now)
+		lobby.update(now)
 		worldPanel.update(now)
 		hud.update(now)
 		hints.update(now)

@@ -282,6 +282,197 @@ function WarFxLayer.new(canvas: Frame, screen: ScreenGui, cs: ClientState, lang:
 		end
 	end
 
+	-- §15ж: ракета летит по дуге со следом; взрыв — огненный шар, ударная волна, «гриб», вспышка экрана; эмодзи.
+	local function round(z: number, color: Color3): Frame
+		local f = Instance.new("Frame")
+		f.AnchorPoint = Vector2.new(0.5, 0.5)
+		f.BorderSizePixel = 0
+		f.BackgroundColor3 = color
+		f.ZIndex = z
+		local c = Instance.new("UICorner")
+		c.CornerRadius = UDim.new(0.5, 0)
+		c.Parent = f
+		f.Parent = canvas
+		return f
+	end
+	type Rocket = {
+		frame: Frame,
+		x0: number,
+		y0: number,
+		x1: number,
+		y1: number,
+		born: number,
+		dur: number,
+		nuke: boolean,
+		nextSmoke: number,
+		pop: boolean?, -- перехватчик: в конце — маленький взрыв
+	}
+	local rockets: { Rocket } = {}
+	type Puff = { frame: Frame, x: number, y: number, born: number, life: number, grow: number, rise: number }
+	local puffs: { Puff } = {}
+	type Blast = {
+		x: number,
+		y: number,
+		r: number,
+		born: number,
+		nuke: boolean,
+		ball: Frame,
+		ring: Frame,
+		ringStroke: UIStroke,
+	}
+	local blasts: { Blast } = {}
+	type Emoji = { label: TextLabel, cell: number, born: number }
+	local emojis: { Emoji } = {}
+	local flash = Instance.new("Frame")
+	flash.Name = "NukeFlash"
+	flash.Size = UDim2.fromScale(1, 1)
+	flash.BackgroundColor3 = Theme.color("White")
+	flash.BackgroundTransparency = 1
+	flash.BorderSizePixel = 0
+	flash.ZIndex = 70
+	flash.Visible = false
+	flash.Parent = screen
+	local flashAt = -math.huge
+	local smokeColor, fireColor, hotColor = Theme.color("Mist"), Theme.color("Orange"), Theme.color("Gold")
+
+	local function puff(x: number, y: number, life: number, grow: number, rise: number, color: Color3, z: number)
+		if #puffs >= cfg.MaxSmoke then
+			return
+		end
+		local f = round(z, color)
+		table.insert(puffs, { frame = f, x = x, y = y, born = os.clock(), life = life, grow = grow, rise = rise })
+	end
+
+	local function launch(from: number, to: number, impactIn: number, nuke: boolean)
+		local rate = math.max(ClientState.simRate(cs), 1e-3)
+		local f = round(13, if nuke then Theme.Colors.Alert else Theme.color("White"))
+		f.Size = UDim2.fromOffset(if nuke then 9 else 6, if nuke then 9 else 6)
+		local stroke = Instance.new("UIStroke")
+		stroke.Color = Theme.Colors.Backdrop
+		stroke.Thickness = 1
+		stroke.Parent = f
+		local fromRow, toRow = from // w, to // w -- StyLua 2.6 падает на «//» внутри конструктора таблицы
+		table.insert(rockets, {
+			frame = f,
+			x0 = from % w + 0.5,
+			y0 = fromRow + 0.5,
+			x1 = to % w + 0.5,
+			y1 = toRow + 0.5,
+			born = os.clock(),
+			dur = math.max(0.5, impactIn / rate),
+			nuke = nuke,
+			nextSmoke = 0,
+		})
+	end
+
+	-- §15з: ракету сбили — убираем её с неба, от защитника летит перехватчик и взрывается у цели.
+	local function intercepted(at: number?, cell: number)
+		local tx, ty = cell % w + 0.5, cell // w + 0.5
+		local k = 1
+		while k <= #rockets do
+			local r = rockets[k]
+			if math.abs(r.x1 - tx) < 0.6 and math.abs(r.y1 - ty) < 0.6 then
+				r.frame:Destroy()
+				rockets[k] = rockets[#rockets]
+				rockets[#rockets] = nil
+			else
+				k += 1
+			end
+		end
+		if at ~= nil then
+			local f = round(13, Theme.Colors.Sky)
+			f.Size = UDim2.fromOffset(5, 5)
+			local atRow, cellRow = at // w, cell // w
+			table.insert(rockets, {
+				frame = f,
+				x0 = at % w + 0.5,
+				y0 = atRow + 0.5,
+				x1 = tx,
+				y1 = cellRow + 0.5,
+				born = os.clock(),
+				dur = cfg.InterceptSec,
+				nuke = false,
+				nextSmoke = 0,
+				pop = true,
+			})
+		end
+	end
+
+	local function explode(cell: number, r: number, nuke: boolean)
+		local x, y = cell % w + 0.5, cell // w + 0.5
+		local ball = round(14, hotColor)
+		local ring = round(14, Theme.color("White"))
+		ring.BackgroundTransparency = 1
+		local ringStroke = Instance.new("UIStroke")
+		ringStroke.Color = Theme.color("White")
+		ringStroke.Thickness = if nuke then 4 else 2
+		ringStroke.Parent = ring
+		table.insert(blasts, {
+			x = x,
+			y = y,
+			r = r,
+			born = os.clock(),
+			nuke = nuke,
+			ball = ball,
+			ring = ring,
+			ringStroke = ringStroke,
+		})
+		if nuke then
+			-- «Гриб»: клубы дыма поднимаются и расплываются; вспышка экрана, если взрыв в обзоре.
+			for k = 1, 8 do
+				local spread = (k - 4.5) / 4.5
+				puff(x + spread * r * 0.25, y, cfg.MushroomSec, 0.5 + 0.15 * k, r * (0.6 + 0.08 * k), smokeColor, 12)
+			end
+			local state = lastState
+			if state ~= nil then
+				local x0, y0, x1, y1 = CameraMath.visibleRect(state)
+				if x >= x0 - r and x <= x1 + r and y >= y0 - r and y <= y1 + r then
+					flashAt = os.clock()
+					flash.Visible = true
+				end
+			end
+		end
+	end
+
+	local function showEmoji(target: number, index: number)
+		local n = cs.nations[target]
+		local cell = if n ~= nil then n.capital else nil
+		local icon = Config.Emoji.List[index]
+		if cell == nil or icon == nil or not visible(cell) then
+			return
+		end
+		local l = Instance.new("TextLabel")
+		l.AnchorPoint = Vector2.new(0.5, 1)
+		l.BackgroundTransparency = 1
+		l.Size = UDim2.fromOffset(cfg.EmojiSize * 2, cfg.EmojiSize)
+		l.TextSize = cfg.EmojiSize
+		l.Text = icon
+		l.ZIndex = 15
+		l.Parent = canvas
+		table.insert(emojis, { label = l, cell = cell, born = os.clock() })
+	end
+
+	-- «+$» над портом, куда доплыло торговое судно (§15е): поднимается и тает.
+	type Floater = { label: TextLabel, cell: number, born: number }
+	local floaters: { Floater } = {}
+	local function floatText(cell: number, text: string)
+		if #floaters >= cfg.MaxFloats or not visible(cell) then
+			return
+		end
+		local l = Instance.new("TextLabel")
+		l.AnchorPoint = Vector2.new(0.5, 1)
+		l.BackgroundTransparency = 1
+		l.FontFace = Theme.FontBold
+		l.TextSize = 14
+		l.TextColor3 = Theme.Colors.Gold
+		l.TextStrokeTransparency = 0.3
+		l.Size = UDim2.fromOffset(80, 18)
+		l.ZIndex = 12
+		l.Text = text
+		l.Parent = canvas
+		table.insert(floaters, { label = l, cell = cell, born = os.clock() })
+	end
+
 	local function onEvents(events: { any })
 		local me = cs.myNation
 		local friends: { [number]: boolean } = if me ~= nil then ClientState.friendsOf(cs, me) else {}
@@ -290,7 +481,31 @@ function WarFxLayer.new(canvas: Frame, screen: ScreenGui, cs: ClientState, lang:
 		end
 		local now = os.clock()
 		for _, e in events do
-			if type(e) ~= "table" or type(e.nation) ~= "number" or type(e.target) ~= "number" then
+			if type(e) ~= "table" then
+				continue
+			end
+			-- §15ж: пуск, взрыв, эмодзи (у взрыва ракеты нет target — разбираем до общей проверки).
+			if e.kind == "missileLaunched" and type(e.from) == "number" and type(e.cell) == "number" then
+				launch(e.from, e.cell, tonumber(e.impactIn) or 10, e.warhead == "atom" or e.warhead == "hydrogen")
+				continue
+			elseif e.kind == "nukeHit" and type(e.cell) == "number" then
+				explode(e.cell, tonumber(e.radius) or 10, true)
+				continue
+			elseif e.kind == "missileShot" and type(e.cell) == "number" then
+				intercepted(if type(e.at) == "number" then e.at else nil, e.cell)
+				continue
+			elseif e.kind == "missileHit" and type(e.cell) == "number" then
+				explode(e.cell, Config.Buildings.MissileSilo.strikeRadius, false)
+				continue
+			elseif e.kind == "emoji" and type(e.target) == "number" then
+				showEmoji(e.target, tonumber(e.emoji) or 0)
+				continue
+			end
+			if type(e.nation) ~= "number" or type(e.target) ~= "number" then
+				continue
+			end
+			if e.kind == "tradeDelivered" and type(e.cell) == "number" then
+				floatText(e.cell, "+$" .. Strings.formatInt(tonumber(e.amount) or 0))
 				continue
 			end
 			local a, b = e.nation :: number, e.target :: number
@@ -352,6 +567,111 @@ function WarFxLayer.new(canvas: Frame, screen: ScreenGui, cs: ClientState, lang:
 	local function update(now: number, state: CameraState)
 		lastState = state
 		local zoom = state.zoom
+		-- §15ж: ракеты, дым, взрывы, вспышка, эмодзи.
+		local ri = 1
+		while ri <= #rockets do
+			local r = rockets[ri]
+			local t = (now - r.born) / r.dur
+			if t >= 1 then
+				r.frame:Destroy()
+				rockets[ri] = rockets[#rockets]
+				rockets[#rockets] = nil
+				if r.pop then
+					explode(math.floor(r.y1) * w + math.floor(r.x1), 2, false)
+				end
+			else
+				local x, y, angle = WarFx.arc(r.x0, r.y0, r.x1, r.y1, t, cfg.RocketArc)
+				r.frame.Position = UDim2.fromOffset(x * zoom, y * zoom)
+				r.frame.Rotation = angle
+				if now >= r.nextSmoke then
+					r.nextSmoke = now + cfg.SmokeEverySec
+					puff(x, y, cfg.SmokeSec, if r.nuke then 1.6 else 1.0, 0.6, smokeColor, 11)
+				end
+				ri += 1
+			end
+		end
+		local pi = 1
+		while pi <= #puffs do
+			local p = puffs[pi]
+			local t = (now - p.born) / p.life
+			if t >= 1 then
+				p.frame:Destroy()
+				puffs[pi] = puffs[#puffs]
+				puffs[#puffs] = nil
+			else
+				local size = math.max(2, (0.6 + p.grow * t) * zoom)
+				p.frame.Size = UDim2.fromOffset(size, size)
+				p.frame.Position = UDim2.fromOffset(p.x * zoom, (p.y - p.rise * t) * zoom)
+				p.frame.BackgroundTransparency = 0.35 + 0.65 * t
+				pi += 1
+			end
+		end
+		local bi = 1
+		while bi <= #blasts do
+			local b = blasts[bi]
+			local t = (now - b.born) / cfg.BlastSec
+			if t >= 1 then
+				b.ball:Destroy()
+				b.ring:Destroy()
+				blasts[bi] = blasts[#blasts]
+				blasts[#blasts] = nil
+			else
+				local px, py = b.x * zoom, b.y * zoom
+				-- Огненный шар: раздувается до радиуса удара, краснеет и тает.
+				local ball = math.max(4, b.r * zoom * 2 * math.min(1, 0.25 + t * 1.6))
+				b.ball.Position = UDim2.fromOffset(px, py)
+				b.ball.Size = UDim2.fromOffset(ball, ball)
+				b.ball.BackgroundColor3 = hotColor:Lerp(fireColor, math.min(1, t * 2))
+				b.ball.BackgroundTransparency = math.clamp(t * 1.3 - 0.2, 0, 1)
+				-- Ударная волна: кольцо расходится дальше круга удара.
+				local ring = math.max(4, b.r * zoom * 2 * cfg.ShockwaveMul * t)
+				b.ring.Position = UDim2.fromOffset(px, py)
+				b.ring.Size = UDim2.fromOffset(ring, ring)
+				b.ringStroke.Transparency = t
+				bi += 1
+			end
+		end
+		if flash.Visible then
+			local t = (now - flashAt) / cfg.FlashSec
+			if t >= 1 then
+				flash.Visible = false
+			else
+				flash.BackgroundTransparency = 0.15 + 0.85 * t
+			end
+		end
+		local ei = 1
+		while ei <= #emojis do
+			local e = emojis[ei]
+			local t = (now - e.born) / cfg.EmojiSec
+			if t >= 1 then
+				e.label:Destroy()
+				emojis[ei] = emojis[#emojis]
+				emojis[#emojis] = nil
+			else
+				local cx, cy = e.cell % w, e.cell // w
+				local pop = math.min(1, t * 6) -- выскакивает
+				e.label.TextSize = cfg.EmojiSize * (0.6 + 0.4 * pop)
+				e.label.Position = UDim2.fromOffset((cx + 0.5) * zoom, cy * zoom - 10 - 16 * t)
+				e.label.TextTransparency = math.max(0, (t - 0.7) / 0.3)
+				ei += 1
+			end
+		end
+		local fk = 1
+		while fk <= #floaters do
+			local f = floaters[fk]
+			local t = (now - f.born) / cfg.FloatSec
+			if t >= 1 then
+				f.label:Destroy()
+				floaters[fk] = floaters[#floaters]
+				floaters[#floaters] = nil
+			else
+				local cx, cy = f.cell % w, f.cell // w
+				f.label.Position = UDim2.fromOffset((cx + 0.5) * zoom, cy * zoom - 18 * t)
+				f.label.TextTransparency = t * t
+				f.label.TextStrokeTransparency = 0.3 + 0.7 * t
+				fk += 1
+			end
+		end
 		-- Баннер: появляется и тает.
 		if banner.Visible then
 			if now >= bannerUntil then

@@ -300,7 +300,12 @@ function DevPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, selfC
 	button(Strings.get("dev.silo", lang), function()
 		fire("silo", nil)
 	end)
+	-- §15е: торговые суда.
+	button(Strings.get("dev.tradeNow", lang), function()
+		fire("tradeNow", nil)
+	end)
 	button(Strings.get("dev.botMissile", lang), withBot("botMissile", same))
+	button(Strings.get("dev.botNuke", lang), withBot("botNuke", same)) -- §15ж
 	-- Этап 7в-2: генералы (§6.15).
 	button(Strings.get("dev.resetCooldowns", lang), function()
 		fire("resetCooldowns", nil)

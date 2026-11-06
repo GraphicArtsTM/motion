@@ -16,7 +16,7 @@ local Forces = require("./Forces")
 local Naval = require("./Naval")
 local Types = require("./Types")
 
-export type ShipKind = "Transport" | "Destroyer"
+export type ShipKind = "Transport" | "Destroyer" | "Merchant" -- Merchant — торговое судно (§15е), не нанимается
 export type ShipState = "docked" | "planning" | "moving" | "patrol"
 export type ShipOrder = "land" | "patrol" | "return"
 
@@ -37,10 +37,14 @@ export type Ship = {
 	cargo: Types.Forces?, -- войска на борту транспорта
 	people: number, -- люди на борту
 	boat: boolean, -- десантный корабль (§15д): вышел с берега сам, после высадки исчезает
+	trade: Trade?, -- торговое судно (§15е): откуда, куда, с кем и сколько везёт
 	alive: boolean,
 }
 
-export type Build = { kind: ShipKind, port: number, left: number }
+export type Build = { kind: Types.ShipKind, port: number, left: number } -- нанимаются только транспорт и эсминец
+
+-- Рейс торгового судна (§15е): порты (клетки зданий), партнёр и груз (деньги каждой стороне при доставке).
+export type Trade = { from: number, to: number, partner: number, value: number }
 
 export type FleetState = {
 	ships: { Ship },
@@ -65,11 +69,28 @@ function Fleet.new(): FleetState
 end
 
 function Fleet.stats(kind: ShipKind): Types.UnitStats
+	if kind == "Merchant" then
+		return (Config.TradeShips.Stats :: any) :: Types.UnitStats
+	end
 	return (Config.Units :: any)[kind]
 end
 
 function Fleet.maxHp(kind: ShipKind): number
-	return if kind == "Transport" then Config.Naval.TransportHp else Config.Naval.DestroyerHp
+	return if kind == "Transport"
+		then Config.Naval.TransportHp
+		elseif kind == "Merchant" then Config.TradeShips.Hp
+		else Config.Naval.DestroyerHp
+end
+
+-- Торговых судов державы в пути (§15е).
+function Fleet.merchants(fs: FleetState, owner: number): number
+	local n = 0
+	for _, s in fs.ships do
+		if s.alive and s.owner == owner and s.kind == "Merchant" then
+			n += 1
+		end
+	end
+	return n
 end
 
 -- Клетка корабля.
@@ -92,7 +113,7 @@ function Fleet.count(fs: FleetState, owner: number): number
 	local q = fs.queues[owner]
 	local n = 0
 	for _, s in fs.ships do
-		if s.alive and s.owner == owner and not s.boat then
+		if s.alive and s.owner == owner and not s.boat and s.kind ~= "Merchant" then
 			n += 1
 		end
 	end
@@ -130,6 +151,7 @@ function Fleet.spawn(fs: FleetState, width: number, owner: number, kind: ShipKin
 		cargo = nil,
 		people = 0,
 		boat = false,
+		trade = nil,
 		alive = true,
 	}
 	fs.nextId = fs.nextId % 65535 + 1

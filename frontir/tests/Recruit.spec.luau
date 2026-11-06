@@ -97,7 +97,7 @@ T.describe("Найм (правка перед 7в-2)", function()
 		function()
 			local function hiredWith(count: number): (number, number)
 				local m = duo()
-				MatchSim.setBot(m, 2, "General", "Aggressor")
+				MatchSim.setBot(m, 2, "General", "Peaceful") -- «в мире»: §15з мобилизация 5 с — Агрессор успевал воевать и терять войска
 				barracks(m, 2, count)
 				local n = m.nations[2]
 				n.money = 500000

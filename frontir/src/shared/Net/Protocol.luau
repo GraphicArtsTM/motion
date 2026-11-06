@@ -106,7 +106,7 @@ export type MyForces = { kinds: { KindForces }, queue: { QueueItem }, economy: M
 export type ShipInfo = {
 	id: number,
 	owner: number,
-	kind: "Transport" | "Destroyer",
+	kind: "Transport" | "Destroyer" | "Merchant", -- Merchant — торговое судно (§15е)
 	x: number,
 	y: number,
 	state: "docked" | "planning" | "moving" | "patrol",
@@ -668,7 +668,7 @@ end
 
 -- SHIPS ------------------------------------------------------------------------------------
 
-local SHIP_KINDS: { "Transport" | "Destroyer" } = { "Transport", "Destroyer" }
+local SHIP_KINDS: { "Transport" | "Destroyer" | "Merchant" } = { "Transport", "Destroyer", "Merchant" }
 local SHIP_STATES: { "docked" | "planning" | "moving" | "patrol" } = { "docked", "planning", "moving", "patrol" }
 local POS_SCALE = 32
 
@@ -769,7 +769,7 @@ function Protocol.decodeShips(b: buffer): ShipsMessage
 	for _ = 1, ru16(r) do
 		local id = ru16(r)
 		local owner = ru8(r)
-		local kind: "Transport" | "Destroyer" = SHIP_KINDS[ru8(r)] or "Transport"
+		local kind: "Transport" | "Destroyer" | "Merchant" = SHIP_KINDS[ru8(r)] or "Transport"
 		local x = ru16(r) / POS_SCALE
 		local y = ru16(r) / POS_SCALE
 		local state: "docked" | "planning" | "moving" | "patrol" = SHIP_STATES[ru8(r)] or "docked"
@@ -786,7 +786,8 @@ function Protocol.decodeShips(b: buffer): ShipsMessage
 	end
 	local queue: { { kind: "Transport" | "Destroyer", left: number } } = {}
 	for _ = 1, ru8(r) do
-		local kind: "Transport" | "Destroyer" = SHIP_KINDS[ru8(r)] or "Transport"
+		local raw = SHIP_KINDS[ru8(r)]
+		local kind: "Transport" | "Destroyer" = if raw == "Destroyer" then "Destroyer" else "Transport"
 		table.insert(queue, { kind = kind, left = ru16(r) / 10 })
 	end
 	return { ships = ships, blocked = blocked, queue = queue }

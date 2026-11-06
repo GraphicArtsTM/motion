@@ -197,4 +197,17 @@ function WarFx.arrowStrength(ratio: number, fullSpeedRatio: number, opening: boo
 	return math.clamp(0.35 + 0.65 * r + (if opening then 0.3 else 0), 0, 1)
 end
 
+-- Полёт ракеты (§15ж): точка на дуге от (x0, y0) к (x1, y1) в момент t (0..1); arc — высота дуги в долях
+-- расстояния (дуга «вверх» по экрану). Возвращает x, y и угол касательной в градусах.
+function WarFx.arc(x0: number, y0: number, x1: number, y1: number, t: number, arc: number): (number, number, number)
+	t = math.clamp(t, 0, 1)
+	local dist = math.sqrt((x1 - x0) ^ 2 + (y1 - y0) ^ 2)
+	local lift = arc * dist
+	local x = x0 + (x1 - x0) * t
+	local y = y0 + (y1 - y0) * t - lift * 4 * t * (1 - t)
+	local dx = x1 - x0
+	local dy = (y1 - y0) - lift * 4 * (1 - 2 * t)
+	return x, y, math.deg(math.atan2(dy, dx))
+end
+
 return table.freeze(WarFx)

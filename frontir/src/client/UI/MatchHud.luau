@@ -188,6 +188,21 @@ function MatchHud.new(
 	leaderFill.BorderSizePixel = 0
 	leaderFill.Size = UDim2.fromScale(0, 1)
 	leaderFill.Parent = leaderBar
+	-- §15к «Контроль суши»: полоска шире, своя доля — белой чертой, подпись «вы · лидер · цель».
+	leaderBar.Size = UDim2.fromOffset(320, 8)
+	local myMark = Instance.new("Frame")
+	myMark.Name = "Me"
+	myMark.AnchorPoint = Vector2.new(0.5, 0.5)
+	myMark.Size = UDim2.fromOffset(3, 14)
+	myMark.Position = UDim2.fromScale(0, 0.5)
+	myMark.BackgroundColor3 = Theme.color("White")
+	myMark.BorderSizePixel = 0
+	myMark.ZIndex = 3
+	myMark.Parent = leaderBar
+	local controlText = richLabel(banner, 13)
+	controlText.TextXAlignment = Enum.TextXAlignment.Center
+	controlText.LayoutOrder = 3
+	controlText.Visible = false
 
 	-- Слева сверху: полоса ресурсов «как в игре» (§15д ч.5), под ней — держава.
 	local resources = ResourceBar.new(gui, lang)
@@ -714,6 +729,7 @@ function MatchHud.new(
 		local stats = cs.stats
 		local showBar = cs.phase == "Play" and stats ~= nil
 		leaderBar.Visible = showBar
+		controlText.Visible = showBar
 		if showBar and stats ~= nil then
 			local best, bestCells = 0, -1
 			for _, s in stats.nations do
@@ -723,6 +739,17 @@ function MatchHud.new(
 			end
 			local share = bestCells / math.max(1, totalLand)
 			leaderFill.Size = UDim2.fromScale(math.clamp(share / cs.rules.victoryShare, 0, 1), 1)
+			local mine = if cs.myNation ~= nil then ClientState.statsOf(cs, cs.myNation) else nil
+			local myShare = if mine ~= nil then mine.cells / math.max(1, totalLand) else 0
+			myMark.Visible = mine ~= nil
+			myMark.Position = UDim2.fromScale(math.clamp(myShare / cs.rules.victoryShare, 0, 1), 0.5)
+			controlText.Text = string.format(
+				Strings.get("hud.control", lang),
+				myShare * 100,
+				escape(nationName(best)),
+				share * 100,
+				math.round(cs.rules.victoryShare * 100)
+			)
 			local n = cs.nations[best]
 			leaderFill.BackgroundColor3 = if n ~= nil and n.colorIndex >= 1
 				then Color3.fromRGB(
@@ -735,6 +762,11 @@ function MatchHud.new(
 		if text ~= lastBanner then
 			lastBanner = text
 			bannerText.Text = text
+		end
+		-- §15и: в лобби карточку «Следующий матч» показывает экран лобби — баннер не дублирует.
+		local lobby = cs.phase == "Lobby" or cs.phase == "Waiting"
+		if banner.Visible == lobby then
+			banner.Visible = not lobby
 		end
 		local j = 1
 		while j <= #feedLines do
@@ -886,6 +918,30 @@ function MatchHud.new(
 				toast(
 					string.format(Strings.get("event.shipBuilt", lang), Strings.get("ship." .. tostring(e.ship), lang))
 				)
+			-- Торговые суда (§15е): своя доставка и пиратство — в ленту.
+			elseif
+				e.kind == "tradeDelivered"
+				and cs.myNation ~= nil
+				and (e.nation == cs.myNation or e.target == cs.myNation)
+			then
+				local other = if e.nation == cs.myNation then e.target else e.nation
+				toast(
+					string.format(
+						Strings.get("event.tradeDelivered", lang),
+						Strings.formatInt(tonumber(e.amount) or 0),
+						nationName(tonumber(other) or 0)
+					)
+				)
+			elseif e.kind == "merchantSunk" and cs.myNation ~= nil and e.nation == cs.myNation then
+				alertLine(string.format(Strings.get("event.merchantLost", lang), nationName(tonumber(e.by) or 0)))
+			elseif e.kind == "merchantSunk" and cs.myNation ~= nil and e.by == cs.myNation then
+				toast(
+					string.format(
+						Strings.get("event.merchantLoot", lang),
+						Strings.formatInt(tonumber(e.amount) or 0),
+						nationName(tonumber(e.nation) or 0)
+					)
+				)
 			elseif e.kind == "shipSunk" then
 				local shipName = Strings.get("ship." .. tostring(e.ship), lang)
 				local by = nationName(tonumber(e.by) or 0)
@@ -933,6 +989,35 @@ function MatchHud.new(
 			elseif e.kind == "intel" and e.nation == cs.myNation then
 				toast(string.format(Strings.get("event.intelDone", lang), b, Config.Intel.DurationSec))
 			-- Ракеты (§6.9): видят все; по вам — красной строкой.
+			elseif e.kind == "missileLaunched" and (e.warhead == "atom" or e.warhead == "hydrogen") then
+				-- §15ж: ядерный пуск — крупно и всем.
+				local name = Strings.get("warhead." .. tostring(e.warhead), lang)
+				local nuke = if e.warhead == "atom" then Config.Nukes.Atom else Config.Nukes.Hydrogen
+				if e.target == cs.myNation then
+					alertLine(string.format(Strings.get("event.nukeOnYou", lang), name, a, nuke.charges))
+				else
+					alertLine(
+						string.format(Strings.get("event.nukeLaunched", lang), name, a, b, tonumber(e.impactIn) or 0)
+					)
+				end
+			elseif e.kind == "doomWarning" then
+				if e.nation == cs.myNation then
+					alertLine(string.format(Strings.get("event.doomWarning", lang), a))
+				else
+					toast(string.format(Strings.get("event.doomWarning", lang), a))
+				end
+			elseif e.kind == "doomCollapse" then
+				alertLine(string.format(Strings.get("event.doomCollapse", lang), a, (tonumber(e.bar) or 0) * 100))
+			elseif e.kind == "nukeHit" then
+				alertLine(
+					string.format(
+						Strings.get("event.nukeHit", lang),
+						Strings.get("warhead." .. tostring(e.warhead), lang),
+						a,
+						b,
+						Strings.formatInt(tonumber(e.cells) or 0)
+					)
+				)
 			elseif e.kind == "missileLaunched" then
 				if e.target == cs.myNation then
 					alertLine(string.format(Strings.get("event.missileOnYou", lang), a))

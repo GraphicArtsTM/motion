@@ -383,3 +383,175 @@ T.describe("Ракетная шахта", function()
 		end
 	)
 end)
+
+T.describe("Ядерные удары (§15ж)", function()
+	T.it(
+		"атомная: цена, удар только по врагу, своя земля цела, заражение не даёт брать землю",
+		function()
+			local m = duo()
+			DevTools.silo(m, 1)
+			DevTools.warNow(m, 1, 2)
+			local atom = Config.Nukes.Atom
+			local r = MatchSim.warheadRadius(m, "atom")
+			T.expect(r >= 3).toBe(true)
+			-- Цель у самой границы: часть круга — своя земля (x ≤ 60), она не задевается.
+			local target = 16 * W + 62
+			m.nations[1].money = 0
+			T.expect(select(2, MatchSim.applyIntent(m, 1, { kind = "missile", cell = target, warhead = "atom" })))
+				.toBe("noMoney")
+			m.nations[1].money = 100000
+			local garrison = Forces.total(m.nations[2].home)
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "missile", cell = target, warhead = "atom" }))).toBe(true)
+			T.expect(m.nations[1].money).toBe(100000 - atom.cost)
+			local launched = events(m, "missileLaunched")
+			T.expect(launched[1].warhead).toBe("atom")
+			T.expect(launched[1].impactIn).toBe(atom.warningSec)
+			runFor(m, atom.warningSec + 0.5)
+			T.expect(Grid.getOwner(m.grid, target)).toBe(0)
+			T.expect(Grid.getOwner(m.grid, 16 * W + 60)).toBe(1) -- своя клетка в круге цела
+			T.expect(Forces.total(m.nations[2].home) < garrison).toBe(true)
+			T.expect(MatchSim.inFallout(m, target)).toBe(true)
+			T.expect(#(MatchStats.world(m, 1).fallout or {})).toBe(1)
+			-- Заражённую ничью землю нельзя взять: цена клетки — бесконечность, расширение её пропускает.
+			runFor(m, atom.falloutSec + 1)
+			T.expect(MatchSim.inFallout(m, target)).toBe(false)
+		end
+	)
+
+	T.it(
+		"водородная — только с Войска-4; ПВО сбивает бомбу, если хватает зарядов, иначе заряды целы",
+		function()
+			local m = duo()
+			DevTools.silo(m, 1)
+			DevTools.warNow(m, 1, 2)
+			local target = 16 * W + 100
+			Tech.removeNation(m.tech, 1) -- F4 «шахта» даёт всё; оставим Войска-3
+			Tech.grant(m.tech, 1, "Army", 3)
+			T.expect(select(2, MatchSim.applyIntent(m, 1, { kind = "missile", cell = target, warhead = "hydrogen" })))
+				.toBe("needTech")
+			-- Батарея ур. 1 у цели: 1 заряд — на атомную (нужно 2) не хватает, заряд не тратится, бомба падает.
+			local p = m.provinces.list[11]
+			Buildings.place(m.buildings, "AirDefense", p.center, 11)
+			MatchSim.refreshOwned(m)
+			T.expect((MatchSim.batteryCharges(m, p.center))).toBe(1)
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "missile", cell = p.center + 1, warhead = "atom" })))
+				.toBe(true)
+			runFor(m, Config.Nukes.Atom.warningSec + 0.5)
+			T.expect(#events(m, "nukeHit")).toBe(1)
+			-- «Сеть ПВО» (+1 заряд) и новая батарея: 2 заряда — атомная сбита, оба заряда потрачены.
+			Tech.grant(m.tech, 2, "Fleet", 4)
+			local q = m.provinces.list[10]
+			Buildings.place(m.buildings, "AirDefense", q.center, 10)
+			MatchSim.refreshOwned(m)
+			Grid.setOwner(m.grid, q.center + 1, 2)
+			m.missileReady[1] = nil
+			local before = (MatchSim.batteryCharges(m, q.center))
+			T.expect(before >= 2).toBe(true)
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "missile", cell = q.center + 1, warhead = "atom" })))
+				.toBe(true)
+			runFor(m, Config.Nukes.Atom.warningSec + 0.5)
+			T.expect(#events(m, "missileShot")).toBe(1)
+			T.expect((MatchSim.batteryCharges(m, q.center))).toBe(before - 2)
+			-- С Войска-4 водородная разрешена.
+			Tech.grant(m.tech, 1, "Army", 4)
+			m.missileReady[1] = nil
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "missile", cell = 16 * W + 110, warhead = "hydrogen" })))
+				.toBe(true)
+			T.expect(MatchSim.warheadRadius(m, "hydrogen") > MatchSim.warheadRadius(m, "atom")).toBe(true)
+		end
+	)
+
+	T.it(
+		"эмодзи: картинка из списка, не чаще Emoji.MinGapSec; разбор намерения",
+		function()
+			local m = duo()
+			T.expect((Intents.parse("emoji", { target = 2, emoji = 1 }))).toBeTruthy()
+			T.expect((Intents.parse("emoji", { target = 2, emoji = #Config.Emoji.List + 1 }))).toBe(nil)
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "emoji", target = 2, emoji = 3 }))).toBe(true)
+			local got = events(m, "emoji")
+			T.expect(#got).toBe(1)
+			T.expect(got[1].emoji).toBe(3)
+			T.expect(select(2, MatchSim.applyIntent(m, 1, { kind = "emoji", target = 2, emoji = 1 }))).toBe("tooSoon")
+			runFor(m, Config.Emoji.MinGapSec + 0.1)
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "emoji", target = 2, emoji = 1 }))).toBe(true)
+		end
+	)
+end)
+
+T.describe("ЗРК и «часы судного дня» (§15з)", function()
+	T.it(
+		"ЗРК: далеко сбивает ракету и бомбу (не налёт), ур. N — N зарядов; нужна Флот-3",
+		function()
+			local m = duo()
+			DevTools.silo(m, 1)
+			DevTools.warNow(m, 1, 2)
+			T.expect(MatchSim.techAllows(m, 2, "Sam")).toBe(false)
+			Tech.grant(m.tech, 2, "Fleet", 3)
+			T.expect(MatchSim.techAllows(m, 2, "Sam")).toBe(true)
+			-- ЗРК у столицы врага (x 115) накрывает цель в 20+ клетках (вне радиуса батареи ПВО).
+			local p = m.provinces.list[12]
+			Buildings.place(m.buildings, "Sam", p.center, 12)
+			MatchSim.refreshOwned(m)
+			T.expect(MatchSim.ownedOf(m, 2).sams).toBe(1)
+			T.expect((MatchSim.batteryCharges(m, p.center))).toBe(1)
+			-- Радиус ЗРК на этой узкой карте (160) — 12 клеток: цель в 9 клетках от него.
+			local target = 16 * W + 106
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "missile", cell = target }))).toBe(true)
+			runFor(m, silo.warningSec + 0.5)
+			local shot = events(m, "missileShot")
+			T.expect(#shot).toBe(1)
+			T.expect(shot[1].at).toBe(p.center)
+			T.expect((MatchSim.batteryCharges(m, p.center))).toBe(0)
+			-- Против налёта ЗРК не работает.
+			T.expect((MatchSim.intercept(m, 2, target))).toBe(nil)
+			T.expect(Config.Buildings.Sam.radius > Config.Buildings.AirDefense.radius).toBe(true)
+		end
+	)
+
+	T.it(
+		"планка растёт волнами; держава ниже планки 30 с распадается, самая большая — никогда",
+		function()
+			local m = duo()
+			local cfg = Config.Doomsday
+			T.expect(m.rules.doomsday).toBe(true)
+			local start = m.rules.timeLimitSec * cfg.StartShare
+			m.time = start - 1
+			T.expect((MatchSim.doomBar(m))).toBe(0)
+			m.time = start + cfg.WaveSec + 1
+			local bar, wave = MatchSim.doomBar(m)
+			T.expect(wave).toBe(2)
+			T.expect(bar).toBe(cfg.Shares[2])
+			-- Держава 2 почти без земли: оставим ей 3 клетки у столицы.
+			for y = 1, H - 2 do
+				for x = 61, 120 do
+					Grid.setOwner(m.grid, y * W + x, 0)
+				end
+			end
+			local cap2 = m.nations[2].capital :: number
+			Grid.setOwner(m.grid, cap2, 2)
+			Grid.setOwner(m.grid, cap2 + 1, 2)
+			Grid.setOwner(m.grid, cap2 - 1, 2)
+			m.doomCheckAt = 0
+			MatchSim.stepDoomsday(m)
+			local warned = events(m, "doomWarning")
+			T.expect(#warned).toBe(1)
+			T.expect(warned[1].nation).toBe(2)
+			T.expect(m.nations[1].alive).toBe(true) -- самая большая не под угрозой
+			T.expect(#(MatchStats.world(m, 1).doom :: any).marked).toBe(1)
+			m.time += cfg.GraceSec + 1
+			m.doomCheckAt = 0
+			MatchSim.stepDoomsday(m)
+			T.expect(m.nations[2].alive).toBe(false)
+			T.expect(#events(m, "doomCollapse")).toBe(1)
+			T.expect(Grid.getOwner(m.grid, cap2)).toBe(0)
+		end
+	)
+
+	T.it("нет в «Обучении» и «Дуэли»; мобилизация 5 с", function()
+		local Modes = require("../src/shared/Modes")
+		T.expect(Modes.rules("Tutorial").doomsday).toBe(false)
+		T.expect(Modes.rules("Duel").doomsday).toBe(false)
+		T.expect(Modes.rules("Ffa").doomsday).toBe(true)
+		T.expect(Config.War.MobilizationSec).toBe(5)
+	end)
+end)

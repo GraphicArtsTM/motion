@@ -50,6 +50,7 @@ export type BuildingKind =
 	| "MissileSilo"
 	| "Barracks" -- §15д
 	| "Housing"
+	| "Sam" -- §15з: зенитный ракетный комплекс (ЗРК)
 
 export type UnitStats = {
 	cost: number,
@@ -246,6 +247,7 @@ export type Intent =
 	| AbilityIntent
 	| BidIntent
 	| MissileIntent
+	| EmojiIntent
 	| ModeVoteIntent
 	| MapVoteIntent
 	| IntelIntent
@@ -340,7 +342,9 @@ export type CommanderIntent = { kind: "commander", commander: CommanderId } -- �
 export type AbilityIntent = { kind: "ability", slot: number, cell: number?, percent: number? }
 -- Случайные события и ракеты (§6.16, §6.9, этап 7г).
 export type BidIntent = { kind: "bid", amount: number } -- ставка на аукционе наёмников
-export type MissileIntent = { kind: "missile", cell: number } -- пуск ракеты из своей шахты
+export type Warhead = "missile" | "atom" | "hydrogen" -- §15ж: боеголовка шахты
+export type EmojiIntent = { kind: "emoji", target: number, emoji: number } -- §15ж: эмодзи над столицей target
+export type MissileIntent = { kind: "missile", cell: number, warhead: Warhead? } -- пуск ракеты из своей шахты (nil — ракета)
 
 export type Phase = "Waiting" | "Lobby" | "Pick" | "Play" | "Over"
 

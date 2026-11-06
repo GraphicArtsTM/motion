@@ -6,7 +6,8 @@
 	- клавиатура: WASD и стрелки — сдвиг, Space — показать всю карту;
 	- телефон: перетаскивание пальцем — сдвиг, щипок двумя пальцами — зум к центру щипка;
 	- нажатие (левая кнопка или короткое касание без сдвига) — onTap(точка экрана, Shift): выбор старта, атака;
-	- Space — onHome (к своей столице), если задан, иначе вся карта.
+	- Space — onHome (к своей столице), если задан, иначе вся карта;
+	- правая кнопка без сдвига или долгое касание (Render.LongPressSec) — onContext: кольцо действий (§15е).
 	Координаты ввода переводятся в координаты области карты через её AbsolutePosition,
 	поэтому верхняя панель Roblox (GUI inset) не сбивает зум к курсору.
 ]]
@@ -49,6 +50,7 @@ end
 export type Handlers = {
 	onTap: ((sx: number, sy: number, shift: boolean) -> ())?,
 	onHome: (() -> ())?,
+	onContext: ((sx: number, sy: number) -> ())?, -- кольцо действий (§15е)
 }
 
 local function shiftDown(): boolean
@@ -76,6 +78,9 @@ function CameraInput.bind(camera: Camera2D, viewport: GuiObject, handlers: Handl
 	-- Мышь
 	local dragging = false
 	local lastX, lastY = 0, 0
+	-- Правая кнопка без сдвига — кольцо действий (§15е).
+	local rightX: number?, rightY: number? = nil, nil
+	local rightAt = 0
 	local hoverX: number?, hoverY: number? = nil, nil
 
 	table.insert(
@@ -91,6 +96,10 @@ function CameraInput.bind(camera: Camera2D, viewport: GuiObject, handlers: Handl
 			elseif t == Enum.UserInputType.MouseButton2 or t == Enum.UserInputType.MouseButton3 then
 				dragging = true
 				lastX, lastY = toLocal(input.Position)
+				if t == Enum.UserInputType.MouseButton2 then
+					rightX, rightY = lastX, lastY
+					rightAt = os.clock()
+				end
 			elseif t == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.Space then
 				local onHome = h.onHome
 				if onHome then
@@ -108,6 +117,18 @@ function CameraInput.bind(camera: Camera2D, viewport: GuiObject, handlers: Handl
 			local t = input.UserInputType
 			if t == Enum.UserInputType.MouseButton2 or t == Enum.UserInputType.MouseButton3 then
 				dragging = false
+				local onContext = h.onContext
+				if t == Enum.UserInputType.MouseButton2 and onContext and rightX ~= nil and rightY ~= nil then
+					local x, y = toLocal(input.Position)
+					if
+						os.clock() - rightAt <= Config.Render.TapMaxSec
+						and math.abs(x - rightX) <= slop
+						and math.abs(y - rightY) <= slop
+					then
+						onContext(x, y)
+					end
+				end
+				rightX, rightY = nil, nil
 			elseif t == Enum.UserInputType.MouseButton1 and clickX ~= nil and clickY ~= nil then
 				local x, y = toLocal(input.Position)
 				local quick = os.clock() - clickAt <= Config.Render.TapMaxSec
@@ -157,7 +178,15 @@ function CameraInput.bind(camera: Camera2D, viewport: GuiObject, handlers: Handl
 	)
 
 	-- Касания: один палец — сдвиг, два — щипок.
-	type Touch = { x: number, y: number, startX: number, startY: number, startAt: number, moved: boolean }
+	type Touch = {
+		x: number,
+		y: number,
+		startX: number,
+		startY: number,
+		startAt: number,
+		moved: boolean,
+		held: boolean?, -- долгое касание уже открыло кольцо (§15е): отпускание — не нажатие
+	}
 	local touches: { [InputObject]: Touch } = {}
 	local touchCount = 0
 	local pinchStartDist = 0
@@ -246,6 +275,7 @@ function CameraInput.bind(camera: Camera2D, viewport: GuiObject, handlers: Handl
 					onTap
 					and touchCount == 0
 					and not touch.moved
+					and not touch.held
 					and os.clock() - touch.startAt <= Config.Render.TapMaxSec
 				then
 					onTap(touch.startX, touch.startY, false)
@@ -255,6 +285,23 @@ function CameraInput.bind(camera: Camera2D, viewport: GuiObject, handlers: Handl
 				elseif touchCount == 1 then
 					-- Щипок закончился: доводим зум до ближайшего целого (от ×2) плавно.
 					camera.zoomTo(CameraMath.snapZoom(state, state.zoom), pinchMidX, pinchMidY)
+				end
+			end
+		end)
+	)
+
+	-- Долгое касание одним пальцем без сдвига — кольцо действий (§15е).
+	table.insert(
+		connections,
+		Session.connect(RunService.RenderStepped, function()
+			local onContext = h.onContext
+			if onContext == nil or touchCount ~= 1 then
+				return
+			end
+			for _, touch in touches do
+				if not touch.moved and not touch.held and os.clock() - touch.startAt >= Config.Render.LongPressSec then
+					touch.held = true
+					onContext(touch.startX, touch.startY)
 				end
 			end
 		end)

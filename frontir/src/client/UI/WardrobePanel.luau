@@ -23,6 +23,7 @@ local Session = require(script.Parent.Parent:WaitForChild("Session"))
 type ClientState = ClientState.ClientState
 
 export type WardrobePanel = {
+	button: GuiButton, -- §15з: кнопка прячется в док
 	refresh: () -> (),
 	-- Самопроверка (сводная правка, часть 1): открыть/закрыть окно и узнать, открыто ли.
 	toggle: () -> (),
@@ -264,6 +265,7 @@ function WardrobePanel.new(
 	end)
 
 	return {
+		button = openButton,
 		refresh = draw,
 		toggle = open,
 		isOpen = function(): boolean

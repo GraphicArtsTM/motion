@@ -152,6 +152,7 @@ export type BuildSpots = {
 	port: number?, -- своя прибрежная провинция без здания (§6.12)
 	airfield: number?, -- своя провинция без здания, ближайшая к врагу (§6.13)
 	battery: number?, -- своя провинция без здания, ближайшая к месту недавнего налёта на нас (сводная правка)
+	sam: number?, -- §15з: место под ЗРК у столицы — у врага в войне есть ракетная шахта, своего ЗРК нет
 	barracks: number?, -- свои казармы, которые можно улучшить (§15д)
 	batteryCovered: boolean?, -- место налёта уже прикрыто своей батареей ПВО — новую не ставить
 }
@@ -379,6 +380,13 @@ local function chooseBuild(view: BotView, profile: Profile, rng: Rng, atWar: boo
 			local airfield = want("Airfield", spots.airfield)
 			if airfield ~= nil then
 				return airfield
+			end
+		end
+		-- §15з: у врага шахта — Генерал ставит ЗРК у столицы.
+		if level.smartTarget and spots.sam ~= nil then
+			local sam = want("Sam", spots.sam)
+			if sam ~= nil then
+				return sam
 			end
 		end
 		if air.bombed and not spots.batteryCovered then

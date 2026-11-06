@@ -335,15 +335,22 @@ function MatchStats.world(m: MatchSim.Match, viewer: number?): WorldMessage
 	local now = m.simTime
 	local storm = st.storm
 	local a = st.auction
-	local missiles: { { cell: number, owner: number, left: number } } = {}
+	local missiles: { { cell: number, owner: number, left: number, radius: number? } } = {}
 	for _, mi in m.missiles do
-		table.insert(missiles, { cell = mi.cell, owner = mi.owner, left = math.max(0, mi.impactAt - now) })
+		table.insert(missiles, {
+			cell = mi.cell,
+			owner = mi.owner,
+			left = math.max(0, mi.impactAt - now),
+			radius = MatchSim.warheadRadius(m, mi.warhead),
+		})
 	end
 	-- Заряды батарей ПВО (§15д ч.3): видны всем — атакующий знает, сколько ударов нужно.
 	local batteries: { { cell: number, ready: number, max: number } } = {}
-	for _, b in MatchSim.buildingsOf(m, "AirDefense") do
-		local ready, max = MatchSim.batteryCharges(m, b.cell)
-		table.insert(batteries, { cell = b.cell, ready = ready, max = max })
+	for _, kind: Types.BuildingKind in { "AirDefense", "Sam" } :: { Types.BuildingKind } do -- §15з: заряды ЗРК — тоже
+		for _, b in MatchSim.buildingsOf(m, kind) do
+			local ready, max = MatchSim.batteryCharges(m, b.cell)
+			table.insert(batteries, { cell = b.cell, ready = ready, max = max })
+		end
 	end
 	local silo = false
 	if viewer ~= nil then
@@ -371,6 +378,38 @@ function MatchStats.world(m: MatchSim.Match, viewer: number?): WorldMessage
 		silo = silo,
 		missileLeft = if viewer ~= nil then math.max(0, (m.missileReady[viewer] or 0) - now) else 0,
 		batteries = batteries,
+		doom = (function(): ClientState.DoomInfo?
+			-- §15з «часы судного дня»: планка, до следующей волны / до начала, кто под угрозой и сколько осталось.
+			local bar, wave, nextAt = MatchSim.doomBar(m)
+			if not m.rules.doomsday then
+				return nil
+			end
+			local marked: { { id: number, left: number } } = {}
+			for id, since in m.doomSince do
+				local left = Config.Doomsday.GraceSec - (m.time - since)
+				table.insert(marked, { id = id, left = math.max(0, left) })
+			end
+			table.sort(marked, function(a: { id: number, left: number }, b: { id: number, left: number }): boolean
+				return a.id < b.id
+			end)
+			local nextWave = if wave < #Config.Doomsday.Shares then Config.Doomsday.Shares[wave + 1] else nil
+			return {
+				bar = bar,
+				wave = wave,
+				nextBar = nextWave,
+				nextIn = if nextAt ~= nil then math.max(0, nextAt - m.time) else nil,
+				marked = marked,
+			}
+		end)(),
+		fallout = (function(): { { cell: number, radius: number, left: number } }
+			local out: { { cell: number, radius: number, left: number } } = {}
+			for _, f in m.fallout do
+				if f.untilTime > now then
+					table.insert(out, { cell = f.cell, radius = f.radius, left = f.untilTime - now })
+				end
+			end
+			return out
+		end)(),
 	}
 end
 
