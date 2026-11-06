@@ -30,6 +30,7 @@ local events: { [string]: number } = {}
 local lengths: { number } = {}
 local missiles, mercs, mercsMoney = 0, 0, 0
 local trades, tradeMoney, pirated = 0, 0, 0 -- торговые суда (§15е)
+local nukes = 0 -- ядерные взрывы (§15ж)
 -- За первые 10 минут: предательства и сбитые самолёты (сводная правка: в каждой партии хотя бы по одному).
 local early = {
 	betrayals = 0,
@@ -100,6 +101,8 @@ for k = 1, games do
 				tradeMoney += e.amount * 2 -- обоим
 			elseif e.kind == "merchantSunk" then
 				pirated += 1
+			elseif e.kind == "nukeHit" then
+				nukes += 1
 			end
 		end
 	end
@@ -257,3 +260,4 @@ print(
 		pirated / games
 	)
 )
+print(string.format("Ядерных взрывов (§15ж) за партию %.1f", nukes / games))
