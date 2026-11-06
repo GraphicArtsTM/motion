@@ -653,6 +653,8 @@ Config.Render = {
 	BuildingIconScales = { { zoom = 5, scale = 2 }, { zoom = 10, scale = 3 } }, -- значки зданий 12×12 (§15д ч.4)
 	-- Названия городов (§15д ч.4): крупные (с этого уровня) — всегда, остальные — с зума CityLabelZoom.
 	CityScales = { { zoom = 2.5, scale = 2 }, { zoom = 7, scale = 3 } }, -- пиксель-арт города (§15д ч.4)
+	ResourceLerpPerSec = 8, -- полоса ресурсов (§15д ч.5): скорость «бегущих» чисел
+	ResourceFlashMin = 200, -- вспышка плашки — изменение не меньше (и не меньше 5% значения)
 	CityLabelZoom = 2.5,
 	CityLabelBigLevel = 3,
 	CityLabelSize = 11, -- + 2 за каждый уровень города
@@ -1009,6 +1011,17 @@ Config.Buildings = {
 	Radar = { cost = 1500, visionRadius = 25 },
 	Market = { cost = 2000, incomeBonus = 0.05 },
 	MissileSilo = { cost = 10000, oil = 200, strikeRadius = 6, cooldownSec = 240, warningSec = 10 },
+}
+
+-- Подсказки «что делать дальше» (§15д ч.5, Shared.Hints).
+Config.Hints = {
+	EarlySec = 240, -- «расширяйтесь» — только в начале матча
+	ExpandFill = 0.5, -- …когда людей не меньше этой доли максимума и атак нет
+	FewTroops = 1500, -- «нанимайте» — войск дома меньше
+	WarAfterSec = 360, -- «можно воевать» — не раньше
+	WarTroops = 6000, -- …и войск не меньше
+	ShowEverySec = 1, -- пересчёт подсказки
+	BombedSec = 60, -- «вас бомбят» — столько секунд после налёта
 }
 
 -- Удары и защита (§15д ч.3): без случайности.

@@ -28,6 +28,7 @@ local Protocol = require(Shared:WaitForChild("Net"):WaitForChild("Protocol"))
 local Provinces = require(Shared:WaitForChild("Provinces"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
+local ResourceBar = require(script.Parent:WaitForChild("ResourceBar"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
@@ -188,9 +189,10 @@ function MatchHud.new(
 	leaderFill.Size = UDim2.fromScale(0, 1)
 	leaderFill.Parent = leaderBar
 
-	-- Слева сверху: держава.
+	-- Слева сверху: полоса ресурсов «как в игре» (§15д ч.5), под ней — держава.
+	local resources = ResourceBar.new(gui, lang)
 	local nationPanel = panel(gui, "NationPanel")
-	nationPanel.Position = UDim2.fromOffset(12, GAP)
+	nationPanel.Position = UDim2.fromOffset(12, GAP + 48)
 	local nationText = richLabel(nationPanel, 15)
 	nationPanel.Visible = false
 
@@ -437,6 +439,7 @@ function MatchHud.new(
 		-- Своя держава.
 		local myStats = if me ~= nil then ClientState.statsOf(cs, me.id) else nil
 		nationPanel.Visible = me ~= nil
+		resources.setVisible(me ~= nil and playing)
 		if me ~= nil then
 			local lines = {
 				string.format(
@@ -450,59 +453,25 @@ function MatchHud.new(
 				if growth > 0 then
 					growth *= 1 - myStats.weariness -- усталость от войны (§6.7а)
 				end
-				table.insert(
-					lines,
-					string.format(
-						Strings.get("hud.people", lang),
-						string.format('<font color="%s">%s</font>', gold, Strings.formatInt(myStats.people)),
-						Strings.formatInt(myStats.maxPeople)
-					)
-				)
-				table.insert(
-					lines,
-					string.format(
-						Strings.get("hud.growth", lang),
-						string.format(
-							'<font color="%s">%s%s</font>',
-							sky,
-							if growth >= 0 then "+" else "",
-							Strings.formatInt(growth)
-						)
-					)
-				)
-				-- Деньги и нефть (§6.8): запас и прирост в секунду (доход минус содержание войск).
+				-- Люди, деньги, нефть, войска и суша — в полосе ресурсов (§15д ч.5), здесь не повторяются.
 				local economy = if cs.myForces ~= nil then cs.myForces.economy else nil
 				if economy ~= nil then
-					local net = economy.income - economy.upkeep
-					table.insert(
-						lines,
-						string.format(
-							Strings.get("hud.money", lang),
-							string.format('<font color="%s">%s</font>', gold, Strings.formatInt(economy.money)),
-							string.format(
-								'<font color="%s">%s%s</font>',
-								if net >= 0 then sky else alert,
-								if net >= 0 then "+" else "",
-								Strings.formatInt(net)
-							)
-						)
-					)
-					table.insert(
-						lines,
-						string.format(
-							Strings.get("hud.oil", lang),
-							string.format('<font color="%s">%s</font>', gold, Strings.formatInt(economy.oil)),
-							string.format('<font color="%s">+%s</font>', sky, Strings.formatInt(economy.oilIncome))
-						)
-					)
+					local army = 0
+					for _, k in (cs.myForces :: any).kinds do
+						army += k.home + k.front
+					end
+					resources.set({
+						money = economy.money,
+						income = economy.income - economy.upkeep,
+						oil = economy.oil,
+						oilIncome = economy.oilIncome,
+						people = myStats.people,
+						maxPeople = myStats.maxPeople,
+						growth = growth,
+						army = army,
+						land = myStats.cells / math.max(1, totalLand) * 100,
+					})
 				end
-				table.insert(
-					lines,
-					string.format(
-						Strings.get("hud.land", lang),
-						string.format('<font color="%s">%.1f</font>', sky, myStats.cells / math.max(1, totalLand) * 100)
-					)
-				)
 				-- Средняя стабильность (§6.10): зелёная от 50, жёлтая от 30, красная ниже; клетки с половинным доходом.
 				if #cs.stability.ids > 0 then
 					local avg = cs.stability.average
@@ -645,6 +614,7 @@ function MatchHud.new(
 
 	local lastBanner = ""
 	local function update(now: number)
+		resources.update(now) -- «бегущие» числа (§15д ч.5)
 		local text: string
 		if cs.phase == "Waiting" then
 			text = Strings.get("hud.waiting", lang)

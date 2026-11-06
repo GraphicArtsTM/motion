@@ -150,6 +150,9 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   своей земле (`Buildings.check`, `MatchSim.foundCity`, `m.founded`, цена `Buildings.foundPrice`); уровни до 5.
   Рисунок — `CitySprites` (общий с превью, `UI/NationLabels`), подписи — `UI/CityLabels`. Значки зданий 12×12 —
   `BuildingSprites.rgb`.
+- **Интерфейс «как игра» (§15д ч.5):** `UI/ResourceBar` (значения — из `MatchHud.refresh`, анимация — `update`),
+  `PixelIcons` (значки 8×8), подсказки — чистый `Hints.pick(facts, dismissed)` + `UI/HintPanel` (факты собирает
+  из `cs`), тексты `hint.*`. Левый верхний столбик (ресурсы → `NationPanel` → `Abilities`) — в `Main.client`.
 
 ## Цикл матча и HUD (этап 4в)
 - Фазы `Waiting → Lobby → Pick → Play → Over` в `MatchSim`; победа (`checkVictory`): доля суши, последняя держава,

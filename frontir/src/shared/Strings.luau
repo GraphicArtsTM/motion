@@ -508,6 +508,47 @@ local TABLE: { [string]: Entry } = {
 		ru = "основать новый или улучшить свой (до ур. 5)",
 		en = "found a new one or upgrade yours (up to lv 5)",
 	},
+	-- Подсказки «что делать дальше» (§15д ч.5)
+	["hint.expand"] = {
+		ru = "Расширяйтесь: нажмите на ничью землю рядом. Ползунок «Атака» — сколько людей идёт.",
+		en = "Expand: tap neutral land nearby. The Attack slider sets how many people go.",
+	},
+	["hint.barracks"] = {
+		ru = "Постройте Казармы (B → 2): больше линий найма — войска быстрее.",
+		en = "Build Barracks (B → 2): more hiring lines — troops faster.",
+	},
+	["hint.factory"] = {
+		ru = "Постройте Завод (B → 3): +$15 в секунду. Рядом с городом — ещё больше.",
+		en = "Build a Factory (B → 3): +$15 per second. Next to a city — even more.",
+	},
+	["hint.hire"] = {
+		ru = "Нанимайте войска: Z — пехота. Без войск страну не взять.",
+		en = "Hire troops: Z — infantry. You can't take a country without troops.",
+	},
+	["hint.city"] = {
+		ru = "Улучшите город (B → 1, нажмите на свой город): доход, люди и линия найма.",
+		en = "Upgrade a city (B → 1, tap your city): income, people and a hiring line.",
+	},
+	["hint.tanks"] = {
+		ru = "Идёт война: улучшите Казармы до ур. 2 — откроются танки и пушки.",
+		en = "You're at war: upgrade Barracks to lv 2 — unlocks tanks and guns.",
+	},
+	["hint.defense"] = {
+		ru = "Вас бомбят: батарея ПВО рядом с целями ловит налёты и ракеты.",
+		en = "You're being bombed: an AA battery near targets stops raids and missiles.",
+	},
+	["hint.stability"] = {
+		ru = "Низкая стабильность — восстание! Укрепление или улучшение города в провинции (N — карта).",
+		en = "Low stability — revolt! A fort or city upgrade in the province (N — map).",
+	},
+	["hint.war"] = {
+		ru = "Войска готовы: нажмите на землю соседа — объявите войну и наступайте.",
+		en = "Troops are ready: tap a neighbour's land — declare war and attack.",
+	},
+	["hint.close"] = { ru = "Понятно", en = "Got it" },
+	["res.army"] = { ru = "войска", en = "army" },
+	["res.land"] = { ru = "суша", en = "land" },
+	["res.perSec"] = { ru = "/с", en = "/s" },
 	["build.found"] = { ru = "Основать город «%s»  $%s", en = "Found the city of %s  $%s" },
 	["reject.cityTooClose"] = {
 		ru = "Слишком близко к другому городу",

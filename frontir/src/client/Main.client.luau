@@ -49,6 +49,7 @@ local WarFxLayer = require(Render:WaitForChild("WarFxLayer"))
 local AirPanel = require(UI:WaitForChild("AirPanel"))
 local BuildPanel = require(UI:WaitForChild("BuildPanel"))
 local CityLabels = require(UI:WaitForChild("CityLabels"))
+local HintPanel = require(UI:WaitForChild("HintPanel"))
 local BuildingInfo = require(UI:WaitForChild("BuildingInfo"))
 local Polish = require(UI:WaitForChild("Polish"))
 local BuildGhost = require(Render:WaitForChild("BuildGhost"))
@@ -265,6 +266,7 @@ local function runSession(mapId: string, resync: boolean)
 	local build = BuildPanel.new(hudGui, cs, lang, send, hud.toast, map, provinces, buildGhost)
 	build.refresh()
 	local buildingInfo = BuildingInfo.new(hudGui, cs, lang, send, map) -- окно своего здания (§15д)
+	local hints = HintPanel.new(hudGui, cs, lang) -- «что делать дальше» (§15д ч.5)
 	local forcesPanel = ForcesPanel.new(hudGui, cs, lang, send)
 	forcesPanel.refresh()
 	-- Мини-карта справа снизу: нажатие — камера туда. Нет памяти под EditableImage — играем без неё.
@@ -283,6 +285,21 @@ local function runSession(mapId: string, resync: boolean)
 	stabilityPanel.refresh()
 	local techPanel = TechPanel.new(hudGui, cs, lang, send)
 	local commanderPanel = CommanderPanel.new(hudGui, cs, lang, send, hud.percent)
+	-- Слева сверху столбиком (§15д ч.5): полоса ресурсов → панель державы → способности генерала (без наложений).
+	do
+		local nationPanel = hudGui:FindFirstChild("NationPanel") :: Frame?
+		local abilities = hudGui:FindFirstChild("Abilities") :: Frame?
+		if nationPanel ~= nil and abilities ~= nil then
+			local np, ab = nationPanel :: Frame, abilities :: Frame
+			local function stack()
+				local bottom = np.Position.Y.Offset + (if np.Visible then np.AbsoluteSize.Y else 0)
+				ab.Position = UDim2.fromOffset(12, bottom + 8)
+			end
+			Session.connect(np:GetPropertyChangedSignal("AbsoluteSize"), stack)
+			Session.connect(np:GetPropertyChangedSignal("Visible"), stack)
+			stack()
+		end
+	end
 	local modePanel = ModePanel.new(hudGui, cs, lang, send)
 	local serverPanel = ServerPanel.new(hudGui, cs, lang, send) -- частный сервер (§5.4)
 	local shopPanel = ShopPanel.new(hudGui, cs, lang, send, hud.toast) -- профиль и магазин (§11.1)
@@ -603,6 +620,7 @@ local function runSession(mapId: string, resync: boolean)
 				sound(name)
 			end
 			hud.onEvents(events)
+			hints.onEvents(events)
 			wars.onEvents(events)
 			pings.onEvents(events)
 			airLayer.onEvents(events) -- вспышки бомб и сбитые самолёты
@@ -727,6 +745,7 @@ local function runSession(mapId: string, resync: boolean)
 		warFx.update(now, camera.state)
 		worldPanel.update(now)
 		hud.update(now)
+		hints.update(now)
 		commanderPanel.update(now)
 		wars.update(now)
 		results.update(now)
