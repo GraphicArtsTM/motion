@@ -477,3 +477,81 @@ T.describe("Ядерные удары (§15ж)", function()
 		end
 	)
 end)
+
+T.describe("ЗРК и «часы судного дня» (§15з)", function()
+	T.it(
+		"ЗРК: далеко сбивает ракету и бомбу (не налёт), ур. N — N зарядов; нужна Флот-3",
+		function()
+			local m = duo()
+			DevTools.silo(m, 1)
+			DevTools.warNow(m, 1, 2)
+			T.expect(MatchSim.techAllows(m, 2, "Sam")).toBe(false)
+			Tech.grant(m.tech, 2, "Fleet", 3)
+			T.expect(MatchSim.techAllows(m, 2, "Sam")).toBe(true)
+			-- ЗРК у столицы врага (x 115) накрывает цель в 20+ клетках (вне радиуса батареи ПВО).
+			local p = m.provinces.list[12]
+			Buildings.place(m.buildings, "Sam", p.center, 12)
+			MatchSim.refreshOwned(m)
+			T.expect(MatchSim.ownedOf(m, 2).sams).toBe(1)
+			T.expect((MatchSim.batteryCharges(m, p.center))).toBe(1)
+			-- Радиус ЗРК на этой узкой карте (160) — 12 клеток: цель в 9 клетках от него.
+			local target = 16 * W + 106
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "missile", cell = target }))).toBe(true)
+			runFor(m, silo.warningSec + 0.5)
+			local shot = events(m, "missileShot")
+			T.expect(#shot).toBe(1)
+			T.expect(shot[1].at).toBe(p.center)
+			T.expect((MatchSim.batteryCharges(m, p.center))).toBe(0)
+			-- Против налёта ЗРК не работает.
+			T.expect((MatchSim.intercept(m, 2, target))).toBe(nil)
+			T.expect(Config.Buildings.Sam.radius > Config.Buildings.AirDefense.radius).toBe(true)
+		end
+	)
+
+	T.it(
+		"планка растёт волнами; держава ниже планки 30 с распадается, самая большая — никогда",
+		function()
+			local m = duo()
+			local cfg = Config.Doomsday
+			T.expect(m.rules.doomsday).toBe(true)
+			local start = m.rules.timeLimitSec * cfg.StartShare
+			m.time = start - 1
+			T.expect((MatchSim.doomBar(m))).toBe(0)
+			m.time = start + cfg.WaveSec + 1
+			local bar, wave = MatchSim.doomBar(m)
+			T.expect(wave).toBe(2)
+			T.expect(bar).toBe(cfg.Shares[2])
+			-- Держава 2 почти без земли: оставим ей 3 клетки у столицы.
+			for y = 1, H - 2 do
+				for x = 61, 120 do
+					Grid.setOwner(m.grid, y * W + x, 0)
+				end
+			end
+			local cap2 = m.nations[2].capital :: number
+			Grid.setOwner(m.grid, cap2, 2)
+			Grid.setOwner(m.grid, cap2 + 1, 2)
+			Grid.setOwner(m.grid, cap2 - 1, 2)
+			m.doomCheckAt = 0
+			MatchSim.stepDoomsday(m)
+			local warned = events(m, "doomWarning")
+			T.expect(#warned).toBe(1)
+			T.expect(warned[1].nation).toBe(2)
+			T.expect(m.nations[1].alive).toBe(true) -- самая большая не под угрозой
+			T.expect(#(MatchStats.world(m, 1).doom :: any).marked).toBe(1)
+			m.time += cfg.GraceSec + 1
+			m.doomCheckAt = 0
+			MatchSim.stepDoomsday(m)
+			T.expect(m.nations[2].alive).toBe(false)
+			T.expect(#events(m, "doomCollapse")).toBe(1)
+			T.expect(Grid.getOwner(m.grid, cap2)).toBe(0)
+		end
+	)
+
+	T.it("нет в «Обучении» и «Дуэли»; мобилизация 5 с", function()
+		local Modes = require("../src/shared/Modes")
+		T.expect(Modes.rules("Tutorial").doomsday).toBe(false)
+		T.expect(Modes.rules("Duel").doomsday).toBe(false)
+		T.expect(Modes.rules("Ffa").doomsday).toBe(true)
+		T.expect(Config.War.MobilizationSec).toBe(5)
+	end)
+end)

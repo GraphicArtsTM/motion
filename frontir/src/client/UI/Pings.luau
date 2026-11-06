@@ -28,6 +28,9 @@ export type Pings = {
 	onEvents: (events: { any }) -> (),
 	onCamera: (state: CameraState) -> (),
 	update: (now: number) -> (),
+	button: GuiButton, -- §15з: кнопка прячется в док
+	toggle: () -> (),
+	isOpen: () -> boolean,
 }
 
 type Marker = { label: TextLabel, cell: number, untilTime: number }
@@ -219,7 +222,22 @@ function Pings.new(
 		end
 	end
 
-	return { refresh = refresh, tap = tap, onEvents = onEvents, onCamera = onCamera, update = update }
+	return {
+		refresh = refresh,
+		tap = tap,
+		onEvents = onEvents,
+		onCamera = onCamera,
+		update = update,
+		button = main,
+		toggle = function()
+			if playing() then
+				menu.Visible = not menu.Visible
+			end
+		end,
+		isOpen = function(): boolean
+			return menu.Visible
+		end,
+	}
 end
 
 return table.freeze(Pings)

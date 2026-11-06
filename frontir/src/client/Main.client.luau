@@ -47,6 +47,8 @@ local AirLayer = require(Render:WaitForChild("AirLayer"))
 local MarkerLayer = require(Render:WaitForChild("MarkerLayer"))
 local WarFxLayer = require(Render:WaitForChild("WarFxLayer"))
 local ActionRingUI = require(UI:WaitForChild("ActionRing"))
+local DoomBar = require(UI:WaitForChild("DoomBar"))
+local Dock = require(UI:WaitForChild("Dock"))
 local AirPanel = require(UI:WaitForChild("AirPanel"))
 local BuildPanel = require(UI:WaitForChild("BuildPanel"))
 local CityLabels = require(UI:WaitForChild("CityLabels"))
@@ -308,6 +310,90 @@ local function runSession(mapId: string, resync: boolean)
 	local questsPanel = QuestsPanel.new(hudGui, cs, lang, hud.toast) -- задания и лидеры (§11.5)
 	local tutorial = TutorialPanel.new(hudGui, cs, lang, hud.toast) -- обучение (§5.5)
 	local soundPanel = SoundPanel.new(hudGui, cs, lang, send) -- громкости (§13)
+	-- Док снизу по центру (§15з): все окна — отсюда; прежние кнопки окон прячутся, их состояние — в подсказке.
+	local dock = Dock.new(hudGui, lang, {
+		{
+			icon = "build",
+			name = "dock.build",
+			key = "B",
+			button = build.button,
+			toggle = build.toggle,
+			isOpen = build.isOpen,
+		},
+		{
+			icon = "tech",
+			name = "dock.tech",
+			key = "Y",
+			button = techPanel.button,
+			toggle = techPanel.toggle,
+			isOpen = techPanel.isOpen,
+		},
+		{
+			icon = "diplomacy",
+			name = "dock.diplomacy",
+			key = "T",
+			visible = function(): boolean
+				return cs.phase == "Play" and cs.myNation ~= nil
+			end,
+			toggle = diplomacy.toggle,
+			isOpen = diplomacy.isOpen,
+		},
+		{
+			icon = "stability",
+			name = "dock.stability",
+			key = "N",
+			button = stabilityPanel.button,
+			toggle = stabilityPanel.toggle,
+			isOpen = stabilityPanel.isOpen,
+		},
+		{
+			icon = "ping",
+			name = "dock.ping",
+			key = "G",
+			button = pings.button,
+			toggle = pings.toggle,
+			isOpen = pings.isOpen,
+		},
+		{
+			icon = "shop",
+			name = "dock.shop",
+			key = "M",
+			button = shopPanel.button,
+			toggle = shopPanel.toggle,
+			isOpen = shopPanel.isOpen,
+		},
+		{
+			icon = "quests",
+			name = "dock.quests",
+			key = "J",
+			button = questsPanel.button,
+			toggle = questsPanel.toggle,
+			isOpen = questsPanel.isOpen,
+		},
+		{
+			icon = "wardrobe",
+			name = "dock.wardrobe",
+			key = "K",
+			button = wardrobe.button,
+			toggle = wardrobe.toggle,
+			isOpen = wardrobe.isOpen,
+		},
+		{
+			icon = "server",
+			name = "dock.server",
+			key = "O",
+			button = serverPanel.button,
+			toggle = serverPanel.toggle,
+			isOpen = serverPanel.isOpen,
+		},
+		{
+			icon = "sound",
+			name = "dock.sound",
+			button = soundPanel.button,
+			toggle = soundPanel.toggle,
+			isOpen = soundPanel.isOpen,
+		},
+	})
 	-- Клик (§13): любая кнопка HUD, в том числе созданная позже.
 	local function hookButton(inst: Instance)
 		if inst:IsA("GuiButton") then
@@ -327,6 +413,7 @@ local function runSession(mapId: string, resync: boolean)
 			totalLand += 1
 		end
 	end
+	local doomBar = DoomBar.new(hudGui, cs, lang, totalLand) -- «часы судного дня» (§15з)
 	local citySet: { [number]: boolean } = {}
 	local resultFor: number? = nil -- matchId, за который уже прозвучал итог
 	local lastReward: any = nil
@@ -805,6 +892,8 @@ local function runSession(mapId: string, resync: boolean)
 		airLayer.update(now, camera.state)
 		markerLayer.update(now, camera.state)
 		warFx.update(now, camera.state)
+		doomBar.update(now)
+		dock.update(now)
 		worldPanel.update(now)
 		hud.update(now)
 		hints.update(now)

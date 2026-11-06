@@ -25,6 +25,7 @@ local Session = require(script.Parent.Parent:WaitForChild("Session"))
 type ClientState = ClientState.ClientState
 
 export type ShopPanel = {
+	button: GuiButton, -- §15з: кнопка прячется в док
 	refresh: () -> (), -- пришёл профиль или сменилась фаза
 	tap: (cell: number) -> boolean, -- true — нажатие ушло в цель «Авиаудара»
 	onShopEvent: (msg: any) -> (), -- ежедневная награда, открытый ящик (§11.3)
@@ -475,6 +476,7 @@ function ShopPanel.new(
 	end
 
 	return {
+		button = openButton,
 		refresh = refresh,
 		toggle = function()
 			window.Visible = not window.Visible

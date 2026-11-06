@@ -346,9 +346,11 @@ function MatchStats.world(m: MatchSim.Match, viewer: number?): WorldMessage
 	end
 	-- Заряды батарей ПВО (§15д ч.3): видны всем — атакующий знает, сколько ударов нужно.
 	local batteries: { { cell: number, ready: number, max: number } } = {}
-	for _, b in MatchSim.buildingsOf(m, "AirDefense") do
-		local ready, max = MatchSim.batteryCharges(m, b.cell)
-		table.insert(batteries, { cell = b.cell, ready = ready, max = max })
+	for _, kind: Types.BuildingKind in { "AirDefense", "Sam" } :: { Types.BuildingKind } do -- §15з: заряды ЗРК — тоже
+		for _, b in MatchSim.buildingsOf(m, kind) do
+			local ready, max = MatchSim.batteryCharges(m, b.cell)
+			table.insert(batteries, { cell = b.cell, ready = ready, max = max })
+		end
 	end
 	local silo = false
 	if viewer ~= nil then
@@ -376,6 +378,29 @@ function MatchStats.world(m: MatchSim.Match, viewer: number?): WorldMessage
 		silo = silo,
 		missileLeft = if viewer ~= nil then math.max(0, (m.missileReady[viewer] or 0) - now) else 0,
 		batteries = batteries,
+		doom = (function(): ClientState.DoomInfo?
+			-- §15з «часы судного дня»: планка, до следующей волны / до начала, кто под угрозой и сколько осталось.
+			local bar, wave, nextAt = MatchSim.doomBar(m)
+			if not m.rules.doomsday then
+				return nil
+			end
+			local marked: { { id: number, left: number } } = {}
+			for id, since in m.doomSince do
+				local left = Config.Doomsday.GraceSec - (m.time - since)
+				table.insert(marked, { id = id, left = math.max(0, left) })
+			end
+			table.sort(marked, function(a: { id: number, left: number }, b: { id: number, left: number }): boolean
+				return a.id < b.id
+			end)
+			local nextWave = if wave < #Config.Doomsday.Shares then Config.Doomsday.Shares[wave + 1] else nil
+			return {
+				bar = bar,
+				wave = wave,
+				nextBar = nextWave,
+				nextIn = if nextAt ~= nil then math.max(0, nextAt - m.time) else nil,
+				marked = marked,
+			}
+		end)(),
 		fallout = (function(): { { cell: number, radius: number, left: number } }
 			local out: { { cell: number, radius: number, left: number } } = {}
 			for _, f in m.fallout do

@@ -305,6 +305,7 @@ function WarFxLayer.new(canvas: Frame, screen: ScreenGui, cs: ClientState, lang:
 		dur: number,
 		nuke: boolean,
 		nextSmoke: number,
+		pop: boolean?, -- перехватчик: в конце — маленький взрыв
 	}
 	local rockets: { Rocket } = {}
 	type Puff = { frame: Frame, x: number, y: number, born: number, life: number, grow: number, rise: number }
@@ -362,6 +363,39 @@ function WarFxLayer.new(canvas: Frame, screen: ScreenGui, cs: ClientState, lang:
 			nuke = nuke,
 			nextSmoke = 0,
 		})
+	end
+
+	-- §15з: ракету сбили — убираем её с неба, от защитника летит перехватчик и взрывается у цели.
+	local function intercepted(at: number?, cell: number)
+		local tx, ty = cell % w + 0.5, cell // w + 0.5
+		local k = 1
+		while k <= #rockets do
+			local r = rockets[k]
+			if math.abs(r.x1 - tx) < 0.6 and math.abs(r.y1 - ty) < 0.6 then
+				r.frame:Destroy()
+				rockets[k] = rockets[#rockets]
+				rockets[#rockets] = nil
+			else
+				k += 1
+			end
+		end
+		if at ~= nil then
+			local f = round(13, Theme.Colors.Sky)
+			f.Size = UDim2.fromOffset(5, 5)
+			local atRow, cellRow = at // w, cell // w
+			table.insert(rockets, {
+				frame = f,
+				x0 = at % w + 0.5,
+				y0 = atRow + 0.5,
+				x1 = tx,
+				y1 = cellRow + 0.5,
+				born = os.clock(),
+				dur = cfg.InterceptSec,
+				nuke = false,
+				nextSmoke = 0,
+				pop = true,
+			})
+		end
 	end
 
 	local function explode(cell: number, r: number, nuke: boolean)
@@ -457,6 +491,9 @@ function WarFxLayer.new(canvas: Frame, screen: ScreenGui, cs: ClientState, lang:
 			elseif e.kind == "nukeHit" and type(e.cell) == "number" then
 				explode(e.cell, tonumber(e.radius) or 10, true)
 				continue
+			elseif e.kind == "missileShot" and type(e.cell) == "number" then
+				intercepted(if type(e.at) == "number" then e.at else nil, e.cell)
+				continue
 			elseif e.kind == "missileHit" and type(e.cell) == "number" then
 				explode(e.cell, Config.Buildings.MissileSilo.strikeRadius, false)
 				continue
@@ -539,6 +576,9 @@ function WarFxLayer.new(canvas: Frame, screen: ScreenGui, cs: ClientState, lang:
 				r.frame:Destroy()
 				rockets[ri] = rockets[#rockets]
 				rockets[#rockets] = nil
+				if r.pop then
+					explode(math.floor(r.y1) * w + math.floor(r.x1), 2, false)
+				end
 			else
 				local x, y, angle = WarFx.arc(r.x0, r.y0, r.x1, r.y1, t, cfg.RocketArc)
 				r.frame.Position = UDim2.fromOffset(x * zoom, y * zoom)

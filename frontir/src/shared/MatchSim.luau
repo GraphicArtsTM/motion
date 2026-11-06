@@ -65,6 +65,9 @@ type Attack = Types.Attack
 
 export type MatchEvent =
 	{ kind: "eliminated", nation: number, by: number }
+	-- §15з «часы судного дня»: держава ниже планки (left — секунд до распада) и распад
+	| { kind: "doomWarning", nation: number, bar: number, left: number }
+	| { kind: "doomCollapse", nation: number, bar: number }
 	| { kind: "capitalLost", nation: number, by: number }
 	| { kind: "warDeclared", nation: number, target: number }
 	| { kind: "warStarted", nation: number, target: number }
@@ -125,7 +128,7 @@ export type MatchEvent =
 	-- §15ж: эмодзи над столицей державы target
 	| { kind: "emoji", nation: number, target: number, emoji: number }
 	| { kind: "missileHit", nation: number, cell: number, cells: number }
-	| { kind: "missileShot", nation: number, by: number, cell: number }
+	| { kind: "missileShot", nation: number, by: number, cell: number, at: number? } -- at — клетка батареи / ЗРК (§15з)
 	| { kind: "raidIntercepted", nation: number, by: number, cell: number } -- заряд ПВО перехватил налёт (§15д)
 	| { kind: "boatLaunched", nation: number, target: number } -- десант на другой берег (§15д)
 	-- Разведка (§6.11а): nation разведал target
@@ -219,6 +222,8 @@ export type Match = {
 	tradeCheckAt: number, -- торговля проверяется раз в секунду (не каждый тик)
 	missiles: { Missile }, -- ракеты в полёте (§6.9)
 	fallout: { Fallout }, -- заражённые зоны после ядерных ударов (§15ж)
+	doomSince: { [number]: number }, -- §15з: держава → m.time, с какого она ниже планки судного дня
+	doomCheckAt: number,
 	emojiAt: { [number]: number }, -- держава → simTime последнего эмодзи (§15ж)
 	missileReady: { [number]: number }, -- держава → когда снова можно пускать
 	fleet: Fleet.FleetState, -- корабли
@@ -345,6 +350,8 @@ function MatchSim.new(map: MapData, seed: number): Match
 		tradeCheckAt = 0,
 		missiles = {},
 		fallout = {},
+		doomSince = {},
+		doomCheckAt = 0,
 		emojiAt = {},
 		missileReady = {},
 		air = Air.new(),
@@ -1775,6 +1782,29 @@ local function buildSpots(m: Match, n: Nation): BotBrain.BuildSpots
 		if Grid.getOwner(g, cell) == n.id and Buildings.cityLevel(m.buildings, cell) < Config.Economy.MaxCityLevel then
 			if spots.city == nil or cell == n.capital then
 				spots.city = cell
+			end
+		end
+	end
+	-- §15з: ЗРК у столицы, если у врага в войне есть ракетная шахта, а своего ЗРК нет.
+	if n.capital ~= nil and MatchSim.ownedOf(m, n.id).sams == 0 and MatchSim.techAllows(m, n.id, "Sam") then
+		local threat = false
+		for _, s in MatchSim.buildingsOf(m, "MissileSilo") do
+			if Wars.isActive(m.wars, n.id, s.owner) then
+				threat = true
+				break
+			end
+		end
+		if threat then
+			local w = g.width
+			local cap = n.capital :: number
+			local best = math.huge
+			for _, p in m.provinces.list do
+				if Grid.getOwner(g, p.center) == n.id and m.buildings.byProvince[p.id] == nil then
+					local d = (p.center % w - cap % w) ^ 2 + (p.center // w - cap // w) ^ 2
+					if d < best then
+						spots.sam, best = p.center, d
+					end
+				end
 			end
 		end
 	end
@@ -3539,15 +3569,18 @@ end
 -- Удар ракеты (или перехват сетью ПВО).
 -- Удары и защита (§15д ч.3) -----------------------------------------------------------------------
 
--- Заряды батареи ПВО в клетке cell: сколько готово и сколько всего (ур. × ChargesPerLevel, «Сеть ПВО» — больше).
+-- Заряды батареи ПВО или ЗРК (§15з) в клетке cell: сколько готово и сколько всего. Батарея — ур. × ChargesPerLevel
+-- («Сеть ПВО» — больше), ЗРК — по заряду за уровень.
 function MatchSim.batteryCharges(m: Match, cell: number): (number, number)
 	local b = m.buildings.byCell[cell]
-	if b == nil or b.kind ~= "AirDefense" then
+	if b == nil or (b.kind ~= "AirDefense" and b.kind ~= "Sam") then
 		return 0, 0
 	end
 	local cfg = Config.Defense
 	local owner = Grid.getOwner(m.grid, cell)
-	local max = b.level * cfg.ChargesPerLevel + (if Tech.has(m.tech, owner, "Fleet", 4) then cfg.NetworkBonus else 0)
+	local max = if b.kind == "Sam"
+		then b.level
+		else b.level * cfg.ChargesPerLevel + (if Tech.has(m.tech, owner, "Fleet", 4) then cfg.NetworkBonus else 0)
 	local spent = m.aaSpent[cell]
 	local used = 0
 	if spent ~= nil then
@@ -3564,34 +3597,56 @@ function MatchSim.batteryCharges(m: Match, cell: number): (number, number)
 	return math.max(0, max - used), max
 end
 
--- Удар по клетке cell державы victim: батарея victim или её друга, накрывающая клетку, тратит заряд — удар
--- перехвачен. Ближайшая батарея с зарядом; без случайности. Возвращает хозяина батареи или nil.
-function MatchSim.intercept(m: Match, victim: number, cell: number): number?
+-- Защитники клетки: батареи ПВО (радиус Buildings.AirDefense.radius) victim и её друзей с готовыми зарядами,
+-- а против ракет и бомб (vsMissile) — ещё ЗРК (§15з, дальнобойные). Ближайшие — первыми.
+type Defender = { cell: number, owner: number, d: number, charges: number, recharge: number }
+local function defenders(m: Match, victim: number, cell: number, vsMissile: boolean): { Defender }
+	local out: { Defender } = {}
 	if victim == 0 then
-		return nil
+		return out
 	end
 	local friends = Diplomacy.friends(m.diplo, victim)
 	local w = m.grid.width
 	local cx, cy = cell % w, cell // w
-	local reach2 = Config.Buildings.AirDefense.radius ^ 2
-	local best: { cell: number, owner: number }? = nil
-	local bestD = math.huge
-	for _, b in MatchSim.buildingsOf(m, "AirDefense") do
-		if b.owner == victim or friends[b.owner] then
-			local dx, dy = b.cell % w - cx, b.cell // w - cy
-			local d = dx * dx + dy * dy
-			if d <= reach2 and d < bestD and (MatchSim.batteryCharges(m, b.cell)) > 0 then
-				best, bestD = b, d
+	local function scan(kind: Types.BuildingKind, reach: number, recharge: number)
+		for _, b in MatchSim.buildingsOf(m, kind) do
+			if b.owner == victim or friends[b.owner] then
+				local dx, dy = b.cell % w - cx, b.cell // w - cy
+				local d = dx * dx + dy * dy
+				local charges = MatchSim.batteryCharges(m, b.cell)
+				if d <= reach * reach and charges > 0 then
+					table.insert(out, { cell = b.cell, owner = b.owner, d = d, charges = charges, recharge = recharge })
+				end
 			end
 		end
 	end
-	if best == nil then
-		return nil
+	scan("AirDefense", Config.Buildings.AirDefense.radius, Config.Defense.RechargeSec)
+	if vsMissile then
+		local sam = Config.Buildings.Sam
+		scan("Sam", sam.radius * w / Config.UnitsReferenceMapWidth, sam.rechargeSec)
 	end
-	local spent = m.aaSpent[best.cell] or {}
-	table.insert(spent, m.simTime + Config.Defense.RechargeSec)
-	m.aaSpent[best.cell] = spent
-	return best.owner
+	table.sort(out, function(a: Defender, b: Defender): boolean
+		return if a.d ~= b.d then a.d < b.d else a.cell < b.cell
+	end)
+	return out
+end
+
+local function spendCharge(m: Match, def: Defender)
+	local spent = m.aaSpent[def.cell] or {}
+	table.insert(spent, m.simTime + def.recharge)
+	m.aaSpent[def.cell] = spent
+end
+
+-- Удар по клетке cell державы victim: ближайшая батарея (а против ракет — и ЗРК, vsMissile) victim или её друга
+-- с зарядом тратит заряд — удар перехвачен; без случайности. Возвращает хозяина и клетку защитника или nil.
+function MatchSim.intercept(m: Match, victim: number, cell: number, vsMissile: boolean?): (number?, number?)
+	local list = defenders(m, victim, cell, vsMissile == true)
+	local best = list[1]
+	if best == nil then
+		return nil, nil
+	end
+	spendCharge(m, best)
+	return best.owner, best.cell
 end
 
 -- Под защитой после удара (ProtectSec): следующий удар уровень не снимает.
@@ -3683,47 +3738,26 @@ MatchSim.stepCaptures = stepCaptures
 
 -- Ядерную бомбу (§15ж) сбивают need зарядов батарей victim и её друзей, накрывающих клетку. Хватает — заряды
 -- тратятся (сначала ближайшие), возвращается хозяин ближайшей батареи; не хватает — ничего не тратится, nil.
-function MatchSim.interceptCharges(m: Match, victim: number, cell: number, need: number): number?
-	if victim == 0 then
-		return nil
-	end
-	local friends = Diplomacy.friends(m.diplo, victim)
-	local w = m.grid.width
-	local cx, cy = cell % w, cell // w
-	local reach2 = Config.Buildings.AirDefense.radius ^ 2
-	type Near = { cell: number, owner: number, d: number, charges: number }
-	local near: { Near } = {}
+function MatchSim.interceptCharges(m: Match, victim: number, cell: number, need: number): (number?, number?)
+	local list = defenders(m, victim, cell, true)
 	local total = 0
-	for _, b in MatchSim.buildingsOf(m, "AirDefense") do
-		if b.owner == victim or friends[b.owner] then
-			local dx, dy = b.cell % w - cx, b.cell // w - cy
-			local d = dx * dx + dy * dy
-			local charges = MatchSim.batteryCharges(m, b.cell)
-			if d <= reach2 and charges > 0 then
-				table.insert(near, { cell = b.cell, owner = b.owner, d = d, charges = charges })
-				total += charges
-			end
-		end
+	for _, d in list do
+		total += d.charges
 	end
-	if total < need then
-		return nil
+	if total < need or #list == 0 then
+		return nil, nil
 	end
-	table.sort(near, function(a: Near, b: Near): boolean
-		return if a.d ~= b.d then a.d < b.d else a.cell < b.cell
-	end)
 	local left = need
-	for _, b in near do
-		local spent = m.aaSpent[b.cell] or {}
-		for _ = 1, math.min(left, b.charges) do
-			table.insert(spent, m.simTime + Config.Defense.RechargeSec)
+	for _, d in list do
+		for _ = 1, math.min(left, d.charges) do
+			spendCharge(m, d)
 			left -= 1
 		end
-		m.aaSpent[b.cell] = spent
 		if left <= 0 then
 			break
 		end
 	end
-	return near[1].owner
+	return list[1].owner, list[1].cell
 end
 
 -- Ядерный взрыв (§15ж): гибнет только враг (держава, с которой у запустившего идёт война). Его земля в круге —
@@ -3735,9 +3769,9 @@ local function nukeImpact(m: Match, missile: Missile)
 	local nuke = MatchSim.nukeConfig(missile.warhead)
 	local r = MatchSim.warheadRadius(m, missile.warhead)
 	local victim = Grid.getOwner(g, cell)
-	local by = MatchSim.interceptCharges(m, victim, cell, nuke.charges)
+	local by, at = MatchSim.interceptCharges(m, victim, cell, nuke.charges)
 	if by ~= nil then
-		table.insert(m.events, { kind = "missileShot", nation = missile.owner, by = by, cell = cell })
+		table.insert(m.events, { kind = "missileShot", nation = missile.owner, by = by, cell = cell, at = at })
 		return
 	end
 	local function hostile(owner: number): boolean
@@ -3826,9 +3860,9 @@ local function missileImpact(m: Match, missile: Missile)
 	local r = Config.Buildings.MissileSilo.strikeRadius
 	local cx, cy = cell % w, cell // w
 	-- Заряды ПВО (§15д ч.3): батарея державы-цели или её друга рядом с целью с зарядом — ракета сбита.
-	local by = MatchSim.intercept(m, Grid.getOwner(g, cell), cell)
+	local by, at = MatchSim.intercept(m, Grid.getOwner(g, cell), cell, true)
 	if by ~= nil then
-		table.insert(m.events, { kind = "missileShot", nation = missile.owner, by = by, cell = cell })
+		table.insert(m.events, { kind = "missileShot", nation = missile.owner, by = by, cell = cell, at = at })
 		return
 	end
 	-- Города и здания в круге: −1 уровень (до того, как земля станет ничьей).
@@ -3857,6 +3891,81 @@ local function missileImpact(m: Match, missile: Missile)
 end
 
 -- События по расписанию, конец шторма и аукциона, удары ракет.
+-- «Часы судного дня» (§15з): планка доли суши сейчас, номер волны (0 — ещё не начались) и m.time следующей волны.
+function MatchSim.doomBar(m: Match): (number, number, number?)
+	local cfg = Config.Doomsday
+	if not m.rules.doomsday or m.rules.timeLimitSec <= 0 then
+		return 0, 0, nil
+	end
+	local start = m.rules.timeLimitSec * cfg.StartShare
+	if m.time < start then
+		return 0, 0, start
+	end
+	local wave = math.min(#cfg.Shares, math.floor((m.time - start) / cfg.WaveSec) + 1)
+	local nextAt = if wave < #cfg.Shares then start + wave * cfg.WaveSec else nil
+	return cfg.Shares[wave], wave, nextAt
+end
+
+-- Доля суши «стороны» державы: в «Командах» — вся команда, иначе — она сама.
+function MatchSim.sideShare(m: Match, id: number): number
+	local g = m.grid
+	local land = math.max(1, g.capturableCount)
+	if m.rules.teams then
+		local team = m.teams[id]
+		local cells = 0
+		for _, other in m.nations do
+			if other.alive and m.teams[other.id] == team then
+				cells += Grid.cellsOf(g, other.id)
+			end
+		end
+		return cells / land
+	end
+	return Grid.cellsOf(g, id) / land
+end
+
+local function stepDoomsday(m: Match)
+	if m.time < m.doomCheckAt then
+		return
+	end
+	m.doomCheckAt = m.time + 1
+	local bar, wave = MatchSim.doomBar(m)
+	if wave == 0 then
+		return
+	end
+	-- Самая большая сторона не распадается никогда (иначе планка могла бы стереть всех).
+	local biggest, biggestShare = 0, -1
+	for _, n in m.nations do
+		if n.alive then
+			local share = MatchSim.sideShare(m, n.id)
+			if share > biggestShare then
+				biggest, biggestShare = n.id, share
+			end
+		end
+	end
+	local grace = Config.Doomsday.GraceSec
+	for _, n in m.nations do
+		if n.alive then
+			local below = MatchSim.sideShare(m, n.id) < bar
+				and not (m.rules.teams and m.teams[n.id] == m.teams[biggest])
+				and n.id ~= biggest
+			if below then
+				local since = m.doomSince[n.id]
+				if since == nil then
+					m.doomSince[n.id] = m.time
+					table.insert(m.events, { kind = "doomWarning", nation = n.id, bar = bar, left = grace })
+				elseif m.time - since >= grace then
+					m.doomSince[n.id] = nil
+					table.insert(m.events, { kind = "doomCollapse", nation = n.id, bar = bar })
+					eliminate(m, n, 0)
+				end
+			else
+				m.doomSince[n.id] = nil
+			end
+		end
+	end
+end
+MatchSim.stepDoomsday = stepDoomsday
+
 local function stepWorld(m: Match)
 	local st = m.world
 	if st.storm ~= nil and m.simTime >= (st.storm :: WorldEvents.Storm).untilTime then
@@ -5591,6 +5700,7 @@ function MatchSim.step(m: Match, dt: number)
 	stepCouncil(m)
 
 	stepWorld(m) -- случайные события и ракеты (§6.16, §6.9)
+	stepDoomsday(m) -- «часы судного дня» (§15з)
 	stepRadarIntel(m) -- радар — постоянная разведка (§6.11а)
 	stepFlood(m) -- «Потоп» (§5.3)
 	stepTutorial(m) -- «Обучение» (§5.5)

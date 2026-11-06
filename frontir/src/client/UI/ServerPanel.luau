@@ -23,6 +23,7 @@ type ClientState = ClientState.ClientState
 type Settings = ServerSettings.Settings
 
 export type ServerPanel = {
+	button: GuiButton, -- §15з: кнопка прячется в док
 	refresh: () -> (), -- пришло info
 	-- Самопроверка (сводная правка, часть 1): открыть/закрыть окно и узнать, открыто ли.
 	toggle: () -> (),
@@ -275,6 +276,7 @@ function ServerPanel.new(
 	end
 
 	return {
+		button = openButton,
 		refresh = refresh,
 		toggle = function()
 			if window.Visible then

@@ -37,6 +37,7 @@ export type Owned = {
 	ports: number, -- §6.12
 	airfields: number, -- §6.13
 	silos: number, -- ракетные шахты (§6.9, этап 7г)
+	sams: number, -- ЗРК (§15з)
 	cityLevels: number, -- сумма уровней своих городов
 	-- Экономика 2.0 (§15д)
 	barracks: number, -- число казарм
@@ -65,6 +66,7 @@ function Buildings.emptyOwned(): Owned
 		ports = 0,
 		airfields = 0,
 		silos = 0,
+		sams = 0, -- §15з
 		cityLevels = 0,
 		barracks = 0,
 		barracksLevel = 0,
@@ -161,6 +163,8 @@ function Buildings.rangeOf(kind: string, mapWidth: number): number?
 		return Config.Fog.RadarVision
 	elseif kind == "AirDefense" then
 		return Config.Buildings.AirDefense.radius
+	elseif kind == "Sam" then
+		return Config.Buildings.Sam.radius * mapWidth / Config.UnitsReferenceMapWidth
 	elseif kind == "Airfield" then
 		return Config.Air.Range * mapWidth / Config.UnitsReferenceMapWidth
 	end
@@ -473,6 +477,8 @@ function Buildings.owned(
 			o.airfields += 1
 		elseif b.kind == "MissileSilo" then
 			o.silos += 1
+		elseif b.kind == "Sam" then
+			o.sams += 1
 		end
 	end
 	return out

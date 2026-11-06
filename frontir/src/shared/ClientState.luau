@@ -169,6 +169,17 @@ export type WorldMessage = {
 	missileLeft: number, -- до готовности пуска
 	batteries: { { cell: number, ready: number, max: number } }?, -- заряды батарей ПВО (§15д ч.3, видны всем)
 	fallout: { { cell: number, radius: number, left: number } }?, -- заражённые зоны (§15ж)
+	doom: DoomInfo?, -- «часы судного дня» (§15з)
+}
+
+-- «Часы судного дня» (§15з): планка доли суши, номер волны (0 — ещё не начались), следующая планка и секунды
+-- (часов матча) до неё / до начала, кто ниже планки и сколько секунд до распада.
+export type DoomInfo = {
+	bar: number,
+	wave: number,
+	nextBar: number?,
+	nextIn: number?,
+	marked: { { id: number, left: number } },
 }
 
 export type ApplyResult = "snapshot" | "delta" | "stats" | "forces" | "wars" | "ships" | "air" | "partial" | "ignored"
@@ -389,6 +400,25 @@ function ClientState.applyWorld(cs: ClientState, msg: any, now: number): { numbe
 			end
 		end
 	end
+	local doom: DoomInfo? = nil
+	if type(msg.doom) == "table" then
+		local d = msg.doom :: any
+		local marked: { { id: number, left: number } } = {}
+		if type(d.marked) == "table" then
+			for _, e in d.marked do
+				if type(e) == "table" then
+					table.insert(marked, { id = num(e.id), left = num(e.left) })
+				end
+			end
+		end
+		doom = {
+			bar = num(d.bar),
+			wave = num(d.wave),
+			nextBar = if type(d.nextBar) == "number" then d.nextBar else nil,
+			nextIn = if type(d.nextIn) == "number" then d.nextIn else nil,
+			marked = marked,
+		}
+	end
 	cs.world = {
 		kind = "world",
 		storm = storm,
@@ -399,6 +429,7 @@ function ClientState.applyWorld(cs: ClientState, msg: any, now: number): { numbe
 		missileLeft = num(msg.missileLeft),
 		batteries = batteries,
 		fallout = fallout,
+		doom = doom,
 	}
 	cs.worldAt = now
 	return fresh

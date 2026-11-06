@@ -27,6 +27,7 @@ export type Rules = {
 	boosts: boolean, -- бусты магазина и бонусы пропусков (§11.1); в «Дуэли» — нет
 	tutorial: boolean, -- «Обучение» (§5.5): шаги, без победы
 	events: boolean, -- случайные события (§6.16); в обучении — нет
+	doomsday: boolean, -- §15з «часы судного дня»; нет в «Обучении» и «Дуэли»
 }
 
 local Modes = {}
@@ -54,6 +55,7 @@ function Modes.rules(id: ModeId): Rules
 		boosts = true,
 		tutorial = false,
 		events = true,
+		doomsday = true,
 	}
 	if id == "Teams" then
 		r.teams = true
@@ -72,12 +74,14 @@ function Modes.rules(id: ModeId): Rules
 	elseif id == "Tutorial" then
 		r.tutorial = true
 		r.events = false
+		r.doomsday = false
 		r.boosts = false
 	elseif id == "Flood" then
 		r.flood = true
 	elseif id == "Duel" then
 		local duel = cfg.Duel
 		r.duel = true
+		r.doomsday = false
 		r.boosts = false -- рейтинговая дуэль — без платных преимуществ (§11.1)
 		r.victoryShare = duel.VictoryShare
 		r.timeLimitSec = duel.TimeLimitSec

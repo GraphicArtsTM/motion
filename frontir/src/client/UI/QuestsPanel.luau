@@ -21,6 +21,7 @@ local Session = require(script.Parent.Parent:WaitForChild("Session"))
 type ClientState = ClientState.ClientState
 
 export type QuestsPanel = {
+	button: GuiButton, -- §15з: кнопка прячется в док
 	refresh: () -> (),
 	onQuests: (msg: any) -> (),
 	-- Самопроверка (сводная правка, часть 1): открыть/закрыть окно и узнать, открыто ли.
@@ -181,6 +182,7 @@ function QuestsPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, to
 	end)
 
 	return {
+		button = openButton,
 		refresh = draw,
 		toggle = toggle,
 		isOpen = function(): boolean

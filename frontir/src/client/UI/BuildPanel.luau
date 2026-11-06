@@ -38,6 +38,9 @@ export type BuildPanel = {
 	active: () -> boolean, -- идёт выбор места
 	onBuildings: () -> (), -- здания поменялись (эффект постройки)
 	open: () -> (), -- открыть меню стройки (кольцо действий, §15е)
+	button: GuiButton, -- §15з: кнопка прячется в док
+	toggle: () -> (),
+	isOpen: () -> boolean,
 }
 
 local BuildPanel = {}
@@ -549,6 +552,15 @@ function BuildPanel.new(
 			if canBuild() and not menu.Visible then
 				toggleMenu()
 			end
+		end,
+		button = main,
+		toggle = function()
+			if canBuild() or selected ~= nil or menu.Visible then
+				toggleMenu()
+			end
+		end,
+		isOpen = function(): boolean
+			return menu.Visible or selected ~= nil
 		end,
 	}
 end

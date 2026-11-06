@@ -22,6 +22,7 @@ local Session = require(script.Parent.Parent:WaitForChild("Session"))
 type ClientState = ClientState.ClientState
 
 export type TechPanel = {
+	button: GuiButton, -- §15з: кнопка прячется в док
 	refresh: () -> (), -- пришли технологии или сменилась фаза
 	-- Самопроверка (сводная правка, часть 1): открыть/закрыть окно и узнать, открыто ли.
 	toggle: () -> (),
@@ -361,6 +362,7 @@ function TechPanel.new(
 
 	refresh()
 	return {
+		button = main,
 		refresh = refresh,
 		toggle = function()
 			setOpen(not window.Visible)

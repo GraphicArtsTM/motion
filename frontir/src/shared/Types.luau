@@ -50,6 +50,7 @@ export type BuildingKind =
 	| "MissileSilo"
 	| "Barracks" -- §15д
 	| "Housing"
+	| "Sam" -- §15з: зенитный ракетный комплекс (ЗРК)
 
 export type UnitStats = {
 	cost: number,

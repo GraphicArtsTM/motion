@@ -53,6 +53,7 @@ Theme.Colors = table.freeze({
 -- Оформление окон и кнопок (§15г): скругление, мягкий градиент сверху вниз, рамка; кнопки откликаются —
 -- наведение: золотая рамка и ×1.04, нажатие: ×0.95 и пружинка обратно. Повторный вызов ничего не меняет.
 Theme.CornerPx = 6
+Theme.PanelAlpha = 0.08 -- §15з: прозрачность фона окон
 local HOVER = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 local SPRING = TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 
@@ -71,6 +72,10 @@ function Theme.decorate(g: GuiObject)
 		return
 	end
 	g:SetAttribute("FrontirStyled", true)
+	-- §15з: окна чуть прозрачные — карта просвечивает, как в играх жанра.
+	if not g:IsA("GuiButton") and g.BackgroundTransparency < Theme.PanelAlpha then
+		g.BackgroundTransparency = Theme.PanelAlpha
+	end
 	if g:FindFirstChildOfClass("UICorner") == nil then
 		local corner = Instance.new("UICorner")
 		corner.CornerRadius = UDim.new(0, Theme.CornerPx)

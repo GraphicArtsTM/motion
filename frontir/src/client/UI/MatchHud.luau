@@ -968,6 +968,14 @@ function MatchHud.new(
 						string.format(Strings.get("event.nukeLaunched", lang), name, a, b, tonumber(e.impactIn) or 0)
 					)
 				end
+			elseif e.kind == "doomWarning" then
+				if e.nation == cs.myNation then
+					alertLine(string.format(Strings.get("event.doomWarning", lang), a))
+				else
+					toast(string.format(Strings.get("event.doomWarning", lang), a))
+				end
+			elseif e.kind == "doomCollapse" then
+				alertLine(string.format(Strings.get("event.doomCollapse", lang), a, (tonumber(e.bar) or 0) * 100))
 			elseif e.kind == "nukeHit" then
 				alertLine(
 					string.format(

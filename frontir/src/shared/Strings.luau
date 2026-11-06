@@ -706,6 +706,11 @@ local TABLE: { [string]: Entry } = {
 		en = "fighters and bombers",
 	},
 	["building.AirDefense"] = { ru = "Батарея ПВО", en = "AA battery" },
+	["building.Sam"] = { ru = "ЗРК", en = "SAM site" },
+	["building.Sam.hint"] = {
+		ru = "далеко сбивает ракеты и ядерные бомбы (не самолёты)",
+		en = "shoots down missiles and nukes far away (not planes)",
+	},
 	["building.AirDefense.hint"] = {
 		ru = "заряды: ловит налёты и ракеты рядом",
 		en = "charges: stops raids and missiles nearby",
@@ -926,6 +931,36 @@ local TABLE: { [string]: Entry } = {
 		en = "☢ %s: %s hit %s — %s cells",
 	},
 	["ring.emoji"] = { ru = "Эмодзи", en = "Emoji" },
+	-- Док (§15з).
+	["dock.build"] = { ru = "Стройка", en = "Build" },
+	["dock.tech"] = { ru = "Технологии", en = "Technology" },
+	["dock.diplomacy"] = { ru = "Дипломатия", en = "Diplomacy" },
+	["dock.stability"] = { ru = "Стабильность", en = "Stability" },
+	["dock.ping"] = { ru = "Метки", en = "Pings" },
+	["dock.shop"] = { ru = "Магазин", en = "Shop" },
+	["dock.quests"] = { ru = "Задания", en = "Quests" },
+	["dock.wardrobe"] = { ru = "Гардероб", en = "Wardrobe" },
+	["dock.server"] = { ru = "Настройки сервера", en = "Server settings" },
+	["dock.sound"] = { ru = "Звук", en = "Sound" },
+	-- «Часы судного дня» (§15з).
+	["doom.soon"] = { ru = "☠ Часы судного дня через %s", en = "☠ Doomsday clock in %s" },
+	["doom.bar"] = {
+		ru = "☠ Держите ≥ %.0f%% суши (у вас %.1f%%)",
+		en = "☠ Hold ≥ %.0f%% of land (you: %.1f%%)",
+	},
+	["doom.next"] = { ru = " · дальше %.0f%% через %s", en = " · next %.0f%% in %s" },
+	["doom.you"] = {
+		ru = "Вы ниже планки! Распад через %s",
+		en = "You are below the bar! Collapse in %s",
+	},
+	["event.doomWarning"] = {
+		ru = "☠ %s ниже планки судного дня",
+		en = "☠ %s is below the doomsday bar",
+	},
+	["event.doomCollapse"] = {
+		ru = "☠ %s распалась (ниже планки %.0f%%)",
+		en = "☠ %s collapsed (below %.0f%%)",
+	},
 	["event.missileLaunched"] = {
 		ru = "Ракета летит: %s → %s (%d с)",
 		en = "Missile incoming: %s → %s (%d s)",

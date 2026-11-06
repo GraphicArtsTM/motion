@@ -15,11 +15,15 @@ local Strings = require(Shared:WaitForChild("Strings"))
 
 local Theme = require(script.Parent:WaitForChild("Theme"))
 local Audio = require(script.Parent.Parent:WaitForChild("Audio"))
+local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
 
 export type SoundPanel = {
 	refresh: () -> (), -- пришёл profile (громкости)
+	button: GuiButton, -- §15з: кнопка прячется в док
+	toggle: () -> (),
+	isOpen: () -> boolean,
 }
 
 local SoundPanel = {}
@@ -154,12 +158,13 @@ function SoundPanel.new(
 		draw()
 	end)
 
-	main.Activated:Connect(function()
+	local function toggle()
 		window.Visible = not window.Visible
 		if window.Visible then
 			draw()
 		end
-	end)
+	end
+	Session.connect(main.Activated, toggle)
 
 	local function refresh()
 		local p = cs.profile
@@ -171,7 +176,14 @@ function SoundPanel.new(
 		draw()
 	end
 	draw()
-	return { refresh = refresh }
+	return {
+		refresh = refresh,
+		button = main,
+		toggle = toggle,
+		isOpen = function(): boolean
+			return window.Visible
+		end,
+	}
 end
 
 return table.freeze(SoundPanel)
