@@ -120,6 +120,9 @@ export type MatchEvent =
 	| { kind: "shipSunk", nation: number, by: number, ship: Types.ShipKind, lost: number }
 	| { kind: "landed", nation: number, target: number, cell: number, cells: number }
 	| { kind: "blockade", nation: number, cell: number, on: boolean }
+	-- Торговые суда (§15е): доставка (деньги обоим) и пиратство (эсминец врага забрал часть груза)
+	| { kind: "tradeDelivered", nation: number, target: number, amount: number, cell: number }
+	| { kind: "merchantSunk", nation: number, by: number, amount: number }
 	-- Авиация (§6.13, этап 7б-2)
 	| { kind: "planeBuilt", nation: number, plane: Types.PlaneKind }
 	| { kind: "planeShot", nation: number, by: number, plane: Types.PlaneKind }
@@ -188,6 +191,9 @@ export type Match = {
 	world: WorldEvents.WorldState, -- случайные события (§6.16)
 	worldRng: Rng, -- поток событий
 	missileRng: Rng, -- поток сети ПВО (перехват ракет)
+	tradeRng: Rng, -- поток торговых судов (§15е): куда плыть
+	tradeAt: { [number]: number }, -- клетка порта → simTime следующего торгового судна
+	tradeCheckAt: number, -- торговля проверяется раз в секунду (не каждый тик)
 	missiles: { Missile }, -- ракеты в полёте (§6.9)
 	missileReady: { [number]: number }, -- держава → когда снова можно пускать
 	fleet: Fleet.FleetState, -- корабли
@@ -309,6 +315,9 @@ function MatchSim.new(map: MapData, seed: number): Match
 		world = WorldEvents.new(),
 		worldRng = Rng.stream(seed, 300),
 		missileRng = Rng.stream(seed, 301),
+		tradeRng = Rng.stream(seed, 302),
+		tradeAt = {},
+		tradeCheckAt = 0,
 		missiles = {},
 		missileReady = {},
 		air = Air.new(),
@@ -3880,7 +3889,7 @@ function MatchSim.navyView(
 			if ship.state == "docked" and ship.home ~= nil and not fs.blocked[ship.home :: number] then
 				idleTransport = ship
 			end
-		else
+		elseif ship.kind == "Destroyer" then
 			view.destroyers += 1
 			-- Свободен — стоит у причала (в патруле он уже при деле).
 			if ship.state == "docked" then
@@ -4292,9 +4301,109 @@ function MatchSim.landAt(m: Match, owner: number, target: number, cargo: Types.F
 end
 
 -- Флот за simDt: найм, пути, движение и высадки, бой кораблей, обстрел берега, блокада.
+-- Торговые суда (§15е): можно ли торговать двум державам (обе живы, нет войны — и объявленной, — нет эмбарго).
+function MatchSim.canTrade(m: Match, a: number, b: number): boolean
+	local na, nb = m.nations[a], m.nations[b]
+	return a ~= b
+		and na ~= nil
+		and nb ~= nil
+		and na.alive
+		and nb.alive
+		and Wars.find(m.wars, a, b) == nil
+		and not Diplomacy.embargoed(m.diplo, a, b)
+end
+
+-- Груз торгового судна: деньги каждой стороне при доставке (по расстоянию между причалами).
+function MatchSim.tradeValue(m: Match, a: number, b: number, fromDock: number, toDock: number): number
+	local cfg = Config.TradeShips
+	local w = m.grid.width
+	local dx, dy = fromDock % w - toDock % w, fromDock // w - toDock // w
+	local dist = math.sqrt(dx * dx + dy * dy) * Config.UnitsReferenceMapWidth / w
+	local value = cfg.BaseMoney + cfg.PerCellMoney * dist
+	if Diplomacy.hasTrade(m.diplo, a, b) then
+		value *= cfg.AgreementMul
+	end
+	return math.floor(value)
+end
+
+-- Каждый свой порт раз в TradeShips.EverySec отправляет судно в случайный порт торгового партнёра у того же моря.
+local function stepTrade(m: Match)
+	if m.simTime < m.tradeCheckAt then
+		return
+	end
+	m.tradeCheckAt = m.simTime + 1
+	local cfg = Config.TradeShips
+	local fs = m.fleet
+	local ports = MatchSim.ports(m)
+	if #ports < 2 then
+		return
+	end
+	for _, p in ports do
+		local due = m.tradeAt[p.cell]
+		if due == nil then
+			-- Первый рейс — через полный интервал после постройки (порт не начинает торговлю сразу).
+			m.tradeAt[p.cell] = m.simTime + cfg.EverySec
+		elseif m.simTime >= due then
+			m.tradeAt[p.cell] = m.simTime + cfg.EverySec
+			if not fs.blocked[p.cell] and Fleet.merchants(fs, p.owner) < cfg.MaxPerNation then
+				local seaId = Naval.seaAt(m.sea, p.dock)
+				local options: { Port } = {}
+				for _, q in ports do
+					if
+						q.owner ~= p.owner
+						and not fs.blocked[q.cell]
+						and Naval.seaAt(m.sea, q.dock) == seaId
+						and MatchSim.canTrade(m, p.owner, q.owner)
+					then
+						table.insert(options, q)
+					end
+				end
+				if #options > 0 then
+					local q = options[Rng.range(m.tradeRng, 1, #options)]
+					local ship = Fleet.spawn(fs, m.grid.width, p.owner, "Merchant", p.cell, p.dock)
+					ship.trade = {
+						from = p.cell,
+						to = q.cell,
+						partner = q.owner,
+						value = MatchSim.tradeValue(m, p.owner, q.owner, p.dock, q.dock),
+					}
+					Fleet.order(ship, "return", q.dock) -- по прибытии — доставка (stepFleet)
+				end
+			end
+		end
+	end
+	-- Порты, которых больше нет, забываем.
+	for cell in m.tradeAt do
+		local b = m.buildings.byCell[cell]
+		if b == nil or b.kind ~= "Port" then
+			m.tradeAt[cell] = nil
+		end
+	end
+end
+
+-- Торговое судно доплыло: деньги обоим, если порт партнёра ещё его и торговать можно; судно исчезает.
+local function deliverTrade(m: Match, ship: Fleet.Ship)
+	local trade = ship.trade
+	ship.alive = false
+	if trade == nil then
+		return
+	end
+	if Grid.getOwner(m.grid, trade.to) ~= trade.partner or not MatchSim.canTrade(m, ship.owner, trade.partner) then
+		return
+	end
+	local a, b = m.nations[ship.owner], m.nations[trade.partner]
+	a.money += trade.value
+	b.money += trade.value
+	table.insert(
+		m.events,
+		{ kind = "tradeDelivered", nation = ship.owner, target = trade.partner, amount = trade.value, cell = trade.to }
+	)
+end
+
 local function stepFleet(m: Match, simDt: number)
 	local fs = m.fleet
 	local w = m.grid.width
+	stepTrade(m)
 	-- Найм: у каждой державы готовится первый корабль очереди; заблокированный порт — ждёт.
 	for owner, queue in fs.queues do
 		local first = queue[1]
@@ -4329,6 +4438,23 @@ local function stepFleet(m: Match, simDt: number)
 	Fleet.fight(fs, w, simDt, war, happenings)
 	for _, h in happenings do
 		local ship = h.ship
+		if ship.kind == "Merchant" then
+			-- Торговое судно (§15е): доплыло — доставка; пути нет — исчезает; потоплено — пиратство.
+			if h.kind == "arrived" then
+				deliverTrade(m, ship)
+			elseif h.kind == "noPath" then
+				ship.alive = false
+			elseif h.kind == "sunk" then
+				local loot =
+					math.floor((if ship.trade ~= nil then ship.trade.value else 0) * Config.TradeShips.PiracyShare)
+				local pirate = m.nations[h.by]
+				if pirate ~= nil then
+					pirate.money += loot
+				end
+				table.insert(m.events, { kind = "merchantSunk", nation = ship.owner, by = h.by, amount = loot })
+			end
+			continue
+		end
 		if h.kind == "arrived" then
 			if ship.order == "land" then
 				MatchSim.land(m, ship)

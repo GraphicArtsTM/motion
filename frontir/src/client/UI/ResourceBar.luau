@@ -4,6 +4,8 @@
 	деньги, нефть, люди, войска, земля — число крупно и прирост в секунду мелко. Числа «бегут» к новому значению,
 	при росте плашка коротко вспыхивает зелёным, при падении — красным. Значения даёт MatchHud.refresh (set),
 	анимация — update(now) каждый кадр.
+	У людей (§15е) — столбик «сколько от максимума» с зелёной зоной Render.PeopleZone: рост логистический, быстрее
+	всего около половины; при наведении — подсказка.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -15,6 +17,7 @@ local PixelIcons = require(Shared:WaitForChild("PixelIcons"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 export type Values = {
 	money: number,
@@ -149,6 +152,56 @@ function ResourceBar.new(gui: ScreenGui, lang: Strings.Lang): ResourceBar
 		return string.format("%.1f%%", n)
 	end)
 
+	-- Столбик людей (§15е): заполнение снизу, зелёная зона лучшего роста, подсказка при наведении.
+	local zone = Config.Render.PeopleZone
+	local gauge = Instance.new("Frame")
+	gauge.Name = "PeopleGauge"
+	gauge.LayoutOrder = 3
+	gauge.Size = UDim2.fromOffset(8, 34)
+	gauge.BackgroundColor3 = Theme.Colors.Backdrop
+	gauge.BorderSizePixel = 0
+	gauge.Parent = chips.people.frame
+	local band = Instance.new("Frame")
+	band.BorderSizePixel = 0
+	band.BackgroundColor3 = Theme.Colors.Good
+	band.BackgroundTransparency = 0.55
+	band.AnchorPoint = Vector2.new(0, 1)
+	band.Position = UDim2.fromScale(0, 1 - zone[1])
+	band.Size = UDim2.fromScale(1, zone[2] - zone[1])
+	band.ZIndex = 2
+	band.Parent = gauge
+	local fill = Instance.new("Frame")
+	fill.BorderSizePixel = 0
+	fill.AnchorPoint = Vector2.new(0, 1)
+	fill.Position = UDim2.fromScale(0, 1)
+	fill.Size = UDim2.fromScale(1, 0)
+	fill.ZIndex = 3
+	fill.BackgroundTransparency = 0.15
+	fill.Parent = gauge
+	local tipLabel = Instance.new("TextLabel")
+	tipLabel.Name = "PeopleTip"
+	tipLabel.AnchorPoint = Vector2.new(0, 0)
+	tipLabel.Position = UDim2.new(0, 0, 1, 6)
+	tipLabel.Size = UDim2.fromOffset(300, 0)
+	tipLabel.AutomaticSize = Enum.AutomaticSize.Y
+	tipLabel.BackgroundColor3 = Theme.Colors.PanelBg
+	tipLabel.BorderSizePixel = 0
+	tipLabel.FontFace = Theme.Font
+	tipLabel.TextSize = 13
+	tipLabel.TextWrapped = true
+	tipLabel.TextXAlignment = Enum.TextXAlignment.Left
+	tipLabel.TextColor3 = Theme.Colors.Text
+	tipLabel.Text = Strings.get("res.peopleTip", lang)
+	tipLabel.Visible = false
+	tipLabel.ZIndex = 20
+	tipLabel.Parent = chips.people.frame
+	Session.connect(chips.people.frame.MouseEnter, function()
+		tipLabel.Visible = true
+	end)
+	Session.connect(chips.people.frame.MouseLeave, function()
+		tipLabel.Visible = false
+	end)
+
 	local FLASH = TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 	local function flash(c: Chip, up: boolean)
 		c.frame.BackgroundColor3 = if up then Theme.Colors.Good else Theme.Colors.Alert
@@ -182,6 +235,13 @@ function ResourceBar.new(gui: ScreenGui, lang: Strings.Lang): ResourceBar
 			string.format("/%s  %s", Strings.formatInt(v.maxPeople), signed(v.growth)),
 			v.growth >= 0
 		)
+		-- Столбик людей: в зелёной зоне — зелёный, ниже — золотой (копим), выше — серый (рост замедлился, пора в атаку).
+		local share = if v.maxPeople > 0 then math.clamp(v.people / v.maxPeople, 0, 1) else 0
+		fill.Size = UDim2.fromScale(1, share)
+		fill.BackgroundColor3 = if share < zone[1]
+			then Theme.Colors.Gold
+			elseif share <= zone[2] then Theme.Colors.Good
+			else Theme.Colors.Muted
 		setChip("army", v.army, nil, nil)
 		setChip("land", v.land, nil, nil)
 	end

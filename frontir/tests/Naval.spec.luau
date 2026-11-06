@@ -4,7 +4,9 @@ local TinyMap = require("./lib/TinyMap")
 local Buildings = require("../src/shared/Buildings")
 local Config = require("../src/shared/Config")
 local DevTools = require("../src/shared/DevTools")
+local Diplomacy = require("../src/shared/Diplomacy")
 local Fleet = require("../src/shared/Fleet")
+local Types = require("../src/shared/Types")
 local Forces = require("../src/shared/Forces")
 local Grid = require("../src/shared/Grid")
 local Intents = require("../src/shared/Intents")
@@ -109,7 +111,7 @@ local function eventsOf(m: MatchSim.Match, kind: string): { any }
 	return out
 end
 
-local function hire(m: MatchSim.Match, id: number, kind: Fleet.ShipKind, at: number): Fleet.Ship
+local function hire(m: MatchSim.Match, id: number, kind: Types.ShipKind, at: number): Fleet.Ship
 	T.expect((MatchSim.applyIntent(m, id, { kind = "ship", ship = kind, port = at }))).toBe(true)
 	runFor(m, Fleet.stats(kind).recruitSec + 0.2)
 	local ships = Fleet.ofNation(m.fleet, id)
@@ -491,6 +493,112 @@ T.describe("Флот", function()
 				end
 			end
 			T.expect(seen).toBe(true)
+		end
+	)
+end)
+
+T.describe("Торговые суда (§15е)", function()
+	local tc = Config.TradeShips
+
+	T.it(
+		"порт сам отправляет судно в порт другой державы; доплыло — деньги обоим",
+		function()
+			local m = islands(2)
+			local p1, p2 = port(m, 1), port(m, 2)
+			local before1, before2 = m.nations[1].money, m.nations[2].money
+			runFor(m, tc.EverySec + 1)
+			local merchants = 0
+			for _, s in m.fleet.ships do
+				if s.alive and s.kind == "Merchant" then
+					merchants += 1
+					local trade = s.trade :: Fleet.Trade
+					T.expect(trade.to == p1 or trade.to == p2).toBe(true)
+					T.expect(trade.value >= tc.BaseMoney).toBe(true)
+				end
+			end
+			T.expect(merchants).toBe(2) -- по судну из каждого порта
+			T.expect(Fleet.count(m.fleet, 1)).toBe(0) -- торговые суда не в лимите кораблей
+			local got: { any } = {}
+			for _ = 1, 600 do
+				MatchSim.step(m, DT)
+				for _, e in MatchSim.takeEvents(m) do
+					if e.kind == "tradeDelivered" then
+						table.insert(got, e)
+					end
+				end
+				if #got >= 2 then
+					break
+				end
+			end
+			T.expect(#got).toBe(2)
+			local paid = got[1].amount + got[2].amount
+			-- Каждая доставка — обоим; содержание и доход за это время тоже идут, поэтому сверяем с запасом.
+			T.expect(m.nations[1].money - before1 >= paid * 0.9 - 2000).toBe(true)
+			T.expect(m.nations[2].money - before2 >= paid * 0.9 - 2000).toBe(true)
+			T.expect(got[1].cell == p1 or got[1].cell == p2).toBe(true)
+		end
+	)
+
+	T.it(
+		"с войной (и объявленной) и с эмбарго — не торгуют; сеть знает вид Merchant",
+		function()
+			local m = islands(2)
+			port(m, 1)
+			port(m, 2)
+			T.expect(MatchSim.canTrade(m, 1, 2)).toBe(true)
+			Diplomacy.setEmbargo(m.diplo, 2, 1, true, m.simTime)
+			T.expect(MatchSim.canTrade(m, 1, 2)).toBe(false)
+			Diplomacy.setEmbargo(m.diplo, 2, 1, false, m.simTime)
+			T.expect(MatchSim.canTrade(m, 1, 2)).toBe(true)
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "declare", target = 2 }))).toBe(true)
+			T.expect(MatchSim.canTrade(m, 1, 2)).toBe(false)
+			runFor(m, tc.EverySec + 1)
+			T.expect(Fleet.merchants(m.fleet, 1) + Fleet.merchants(m.fleet, 2)).toBe(0)
+			-- Вид судна проходит по сети.
+			local ship = Fleet.spawn(m.fleet, W, 1, "Merchant", port(m, 1), 12 * W + 61)
+			local msg = MatchStats.ships(m, 1, nil)
+			local decoded = Protocol.decodeShips(Protocol.encodeShips(msg))
+			local found = false
+			for _, s in decoded.ships do
+				if s.id == ship.id then
+					found = s.kind == "Merchant"
+				end
+			end
+			T.expect(found).toBe(true)
+		end
+	)
+
+	T.it(
+		"пиратство: эсминец врага топит торговое судно и забирает долю груза",
+		function()
+			local m = islands(2)
+			local p1 = port(m, 1)
+			local p2 = port(m, 2)
+			T.expect((MatchSim.applyIntent(m, 2, { kind = "declare", target = 1 }))).toBe(true)
+			runFor(m, Config.War.MobilizationSec + 0.2)
+			T.expect(Wars.isActive(m.wars, 1, 2)).toBe(true)
+			local dock1 = m.sea.docks[MapData.getProvince(m.map, p1)] :: number
+			local merchant = Fleet.spawn(m.fleet, W, 1, "Merchant", p1, dock1)
+			merchant.trade = { from = p1, to = p2, partner = 2, value = 1000 }
+			local destroyer = Fleet.spawn(m.fleet, W, 2, "Destroyer", p2, dock1)
+			destroyer.state = "patrol"
+			local before = m.nations[2].money
+			local sunk: any = nil
+			for _ = 1, 300 do
+				MatchSim.step(m, DT)
+				for _, e in MatchSim.takeEvents(m) do
+					if e.kind == "merchantSunk" then
+						sunk = e
+					end
+				end
+				if sunk ~= nil then
+					break
+				end
+			end
+			T.expect(sunk ~= nil).toBe(true)
+			T.expect(sunk.by).toBe(2)
+			T.expect(sunk.amount).toBe(math.floor(1000 * tc.PiracyShare))
+			T.expect(m.nations[2].money - before >= sunk.amount - 3000).toBe(true)
 		end
 	)
 end)

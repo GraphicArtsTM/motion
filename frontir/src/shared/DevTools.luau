@@ -212,6 +212,32 @@ function DevTools.navy(m: Match, id: number): (boolean, string?)
 	return true, nil
 end
 
+-- Торговое судно сейчас (§15е): свой порт и порт торгового партнёра у того же моря, рейс — на следующем шаге.
+function DevTools.tradeNow(m: Match, id: number): (boolean, string?)
+	local n = m.nations[id]
+	if n == nil or not n.alive then
+		return false, "dead"
+	end
+	local port = ensurePort(m, id)
+	if port == nil then
+		return false, "needCoast"
+	end
+	local mine = m.sea.docks[MapData.getProvince(m.map, port)] :: number
+	local seaId = Naval.seaAt(m.sea, mine)
+	for _, other in m.nations do
+		if MatchSim.canTrade(m, id, other.id) then
+			local theirs = ensurePort(m, other.id)
+			local dock = if theirs ~= nil then m.sea.docks[MapData.getProvince(m.map, theirs)] else nil
+			if dock ~= nil and Naval.seaAt(m.sea, dock) == seaId then
+				m.tradeAt[port] = m.simTime
+				m.tradeCheckAt = m.simTime
+				return true, nil
+			end
+		end
+	end
+	return false, "noPartner"
+end
+
 function DevTools.botLanding(m: Match, bot: number, player: number): (boolean, string?)
 	local ok, reason = DevTools.warNow(m, bot, player)
 	if not ok then

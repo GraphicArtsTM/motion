@@ -37,6 +37,7 @@ export type BuildPanel = {
 	hover: (cell: number?) -> (), -- курсор над клеткой (ПК)
 	active: () -> boolean, -- идёт выбор места
 	onBuildings: () -> (), -- здания поменялись (эффект постройки)
+	open: () -> (), -- открыть меню стройки (кольцо действий, §15е)
 }
 
 local BuildPanel = {}
@@ -544,6 +545,11 @@ function BuildPanel.new(
 			return selected ~= nil
 		end,
 		onBuildings = onBuildings,
+		open = function()
+			if canBuild() and not menu.Visible then
+				toggleMenu()
+			end
+		end,
 	}
 end
 

@@ -46,6 +46,7 @@ local CameraInput = require(Client:WaitForChild("Input"):WaitForChild("CameraInp
 local AirLayer = require(Render:WaitForChild("AirLayer"))
 local MarkerLayer = require(Render:WaitForChild("MarkerLayer"))
 local WarFxLayer = require(Render:WaitForChild("WarFxLayer"))
+local ActionRingUI = require(UI:WaitForChild("ActionRing"))
 local AirPanel = require(UI:WaitForChild("AirPanel"))
 local BuildPanel = require(UI:WaitForChild("BuildPanel"))
 local CityLabels = require(UI:WaitForChild("CityLabels"))
@@ -677,7 +678,46 @@ local function runSession(mapId: string, resync: boolean)
 		Session.connect(home.Activated, goHome)
 	end
 
+	-- Кольцо действий (§15е): ПКМ или долгое касание — «что можно сделать здесь».
+	local ring = ActionRingUI.new(hudGui, viewport, lang, function(action, cell: number, owner: number)
+		if action == "expand" or action == "attack" then
+			hud.tapCell(cell)
+		elseif action == "declare" then
+			wars.offerDeclare(owner)
+		elseif action == "alliance" or action == "trade" then
+			send("offer", { target = owner, offer = action })
+		elseif action == "intel" then
+			send("intel", { target = owner })
+		elseif action == "target" or action == "mark" then
+			send("ping", { cell = cell, phrase = "attack" })
+		elseif action == "help" then
+			send("ping", { cell = cell, phrase = "help" })
+		elseif action == "build" then
+			build.open()
+		end
+	end)
+	local function openRing(sx: number, sy: number)
+		local cx, cy = CameraMath.cellAt(camera.state, sx, sy)
+		local me = cs.myNation
+		if cx == nil or cy == nil or me == nil then
+			return
+		end
+		local cell = cy * map.width + cx
+		local owner = ClientState.ownerAt(cs, cell)
+		local war = if owner ~= 0 and owner ~= me then ClientState.warBetween(cs, me, owner) else nil
+		ring.open(sx, sy, cell, {
+			playing = cs.phase == "Play" and cs.nations[me] ~= nil and cs.nations[me].alive,
+			me = me,
+			owner = owner,
+			land = MapDataModule.getTerrain(map, cell) ~= 0, -- 0 — вода (Types.Terrain.Water)
+			war = if war == nil then "none" elseif war.active then "active" else "mobilizing",
+			allied = table.find(ClientState.alliesOf(cs, me), owner) ~= nil,
+			trade = owner ~= 0 and ClientState.hasTrade(cs, me, owner),
+		})
+	end
+
 	local input = CameraInput.bind(camera, viewport, {
+		onContext = openRing,
 		onTap = function(sx: number, sy: number)
 			local cx, cy = CameraMath.cellAt(camera.state, sx, sy)
 			if cx ~= nil and cy ~= nil then

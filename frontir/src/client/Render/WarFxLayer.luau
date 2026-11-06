@@ -282,6 +282,27 @@ function WarFxLayer.new(canvas: Frame, screen: ScreenGui, cs: ClientState, lang:
 		end
 	end
 
+	-- «+$» над портом, куда доплыло торговое судно (§15е): поднимается и тает.
+	type Floater = { label: TextLabel, cell: number, born: number }
+	local floaters: { Floater } = {}
+	local function floatText(cell: number, text: string)
+		if #floaters >= cfg.MaxFloats or not visible(cell) then
+			return
+		end
+		local l = Instance.new("TextLabel")
+		l.AnchorPoint = Vector2.new(0.5, 1)
+		l.BackgroundTransparency = 1
+		l.FontFace = Theme.FontBold
+		l.TextSize = 14
+		l.TextColor3 = Theme.Colors.Gold
+		l.TextStrokeTransparency = 0.3
+		l.Size = UDim2.fromOffset(80, 18)
+		l.ZIndex = 12
+		l.Text = text
+		l.Parent = canvas
+		table.insert(floaters, { label = l, cell = cell, born = os.clock() })
+	end
+
 	local function onEvents(events: { any })
 		local me = cs.myNation
 		local friends: { [number]: boolean } = if me ~= nil then ClientState.friendsOf(cs, me) else {}
@@ -291,6 +312,10 @@ function WarFxLayer.new(canvas: Frame, screen: ScreenGui, cs: ClientState, lang:
 		local now = os.clock()
 		for _, e in events do
 			if type(e) ~= "table" or type(e.nation) ~= "number" or type(e.target) ~= "number" then
+				continue
+			end
+			if e.kind == "tradeDelivered" and type(e.cell) == "number" then
+				floatText(e.cell, "+$" .. Strings.formatInt(tonumber(e.amount) or 0))
 				continue
 			end
 			local a, b = e.nation :: number, e.target :: number
@@ -352,6 +377,22 @@ function WarFxLayer.new(canvas: Frame, screen: ScreenGui, cs: ClientState, lang:
 	local function update(now: number, state: CameraState)
 		lastState = state
 		local zoom = state.zoom
+		local fk = 1
+		while fk <= #floaters do
+			local f = floaters[fk]
+			local t = (now - f.born) / cfg.FloatSec
+			if t >= 1 then
+				f.label:Destroy()
+				floaters[fk] = floaters[#floaters]
+				floaters[#floaters] = nil
+			else
+				local cx, cy = f.cell % w, f.cell // w
+				f.label.Position = UDim2.fromOffset((cx + 0.5) * zoom, cy * zoom - 18 * t)
+				f.label.TextTransparency = t * t
+				f.label.TextStrokeTransparency = 0.3 + 0.7 * t
+				fk += 1
+			end
+		end
 		-- Баннер: появляется и тает.
 		if banner.Visible then
 			if now >= bannerUntil then

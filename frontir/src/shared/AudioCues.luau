@@ -58,7 +58,7 @@ function AudioCues.cueOf(e: { [string]: any }, me: number?): string?
 		or kind == "councilOpened"
 	then
 		return "Notify"
-	elseif kind == "mercs" and mine then
+	elseif (kind == "mercs" and mine) or (kind == "tradeDelivered" and (mine or onMe)) then
 		return "Coin"
 	end
 	return nil

@@ -464,7 +464,7 @@ local function renderRegion(
 					top + p.y * shipScale,
 					p.w * shipScale,
 					p.h * shipScale,
-					if p.ink then ink else ownerRgb(ship.owner)
+					if p.ink then ink elseif p.light then white else ownerRgb(ship.owner)
 				)
 			end
 		end

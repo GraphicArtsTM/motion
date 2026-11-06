@@ -718,6 +718,8 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				ok, reason = DevTools.eventNow(m)
 			elseif action == "silo" then
 				ok, reason = DevTools.silo(m, id)
+			elseif action == "tradeNow" then
+				ok, reason = DevTools.tradeNow(m, id)
 			elseif action == "botMissile" and target ~= nil then
 				ok, reason = DevTools.botMissile(m, target, id)
 			elseif action == "resetCooldowns" then

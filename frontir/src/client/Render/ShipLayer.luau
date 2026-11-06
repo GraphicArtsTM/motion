@@ -96,7 +96,10 @@ function ShipLayer.new(canvas: Frame, cs: ClientState): ShipLayer
 			local f = Instance.new("Frame")
 			f.BorderSizePixel = 0
 			f.ZIndex = 10
-			f.BackgroundColor3 = if p.ink then Theme.Colors.Backdrop else colorOf(info.owner)
+			f.BackgroundColor3 = if p.ink
+				then Theme.Colors.Backdrop
+				elseif p.light then Theme.Colors.Text
+				else colorOf(info.owner)
 			f.Parent = root
 			table.insert(parts, f)
 		end

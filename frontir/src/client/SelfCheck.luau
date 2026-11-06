@@ -216,6 +216,7 @@ local function run()
 		f4("туман обратно", "fog", nil)
 		f4("способности готовы", "resetCooldowns", nil)
 		f4("следующий генерал", "nextCommander", nil)
+		f4("торговое судно", "tradeNow", nil, { "needCoast", "noPartner" }) -- §15е
 		if bot ~= nil then
 			f4("война сейчас", "war", bot)
 			f4("бот: десант на вас", "botLanding", bot, { "noPort", "target", "occupied" })

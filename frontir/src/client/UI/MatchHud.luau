@@ -886,6 +886,30 @@ function MatchHud.new(
 				toast(
 					string.format(Strings.get("event.shipBuilt", lang), Strings.get("ship." .. tostring(e.ship), lang))
 				)
+			-- Торговые суда (§15е): своя доставка и пиратство — в ленту.
+			elseif
+				e.kind == "tradeDelivered"
+				and cs.myNation ~= nil
+				and (e.nation == cs.myNation or e.target == cs.myNation)
+			then
+				local other = if e.nation == cs.myNation then e.target else e.nation
+				toast(
+					string.format(
+						Strings.get("event.tradeDelivered", lang),
+						Strings.formatInt(tonumber(e.amount) or 0),
+						nationName(tonumber(other) or 0)
+					)
+				)
+			elseif e.kind == "merchantSunk" and cs.myNation ~= nil and e.nation == cs.myNation then
+				alertLine(string.format(Strings.get("event.merchantLost", lang), nationName(tonumber(e.by) or 0)))
+			elseif e.kind == "merchantSunk" and cs.myNation ~= nil and e.by == cs.myNation then
+				toast(
+					string.format(
+						Strings.get("event.merchantLoot", lang),
+						Strings.formatInt(tonumber(e.amount) or 0),
+						nationName(tonumber(e.nation) or 0)
+					)
+				)
 			elseif e.kind == "shipSunk" then
 				local shipName = Strings.get("ship." .. tostring(e.ship), lang)
 				local by = nationName(tonumber(e.by) or 0)

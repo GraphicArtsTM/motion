@@ -618,6 +618,32 @@ local TABLE: { [string]: Entry } = {
 	},
 	["ship.Transport"] = { ru = "Транспорт", en = "Transport" },
 	["ship.Destroyer"] = { ru = "Эсминец", en = "Destroyer" },
+	["ship.Merchant"] = { ru = "Торговое судно", en = "Trade ship" },
+	-- Кольцо действий (§15е).
+	["ring.expand"] = { ru = "Расширяться", en = "Expand" },
+	["ring.attack"] = { ru = "Атаковать", en = "Attack" },
+	["ring.declare"] = { ru = "Объявить войну", en = "Declare war" },
+	["ring.alliance"] = { ru = "Союз", en = "Alliance" },
+	["ring.trade"] = { ru = "Торговля", en = "Trade" },
+	["ring.intel"] = { ru = "Разведка", en = "Spy" },
+	["ring.target"] = { ru = "Цель союзникам", en = "Mark target" },
+	["ring.help"] = { ru = "Помогите", en = "Need help" },
+	["ring.build"] = { ru = "Построить", en = "Build" },
+	["ring.mark"] = { ru = "Метка", en = "Mark" },
+	["res.peopleTip"] = {
+		ru = "Люди прибывают быстрее всего около половины максимума (зелёная зона). Выше — рост замедляется: пора отправить излишек в атаку.",
+		en = "People grow fastest around half of the maximum (green zone). Above it growth slows down: send the surplus to attack.",
+	},
+	-- Торговые суда (§15е).
+	["event.tradeDelivered"] = { ru = "Торговое судно: +$%s (с %s)", en = "Trade ship: +$%s (with %s)" },
+	["event.merchantLost"] = {
+		ru = "Ваше торговое судно потопил %s",
+		en = "%s sank your trade ship",
+	},
+	["event.merchantLoot"] = {
+		ru = "Захвачен груз: +$%s (судно %s)",
+		en = "Cargo seized: +$%s (%s's ship)",
+	},
 	["naval.title"] = { ru = "Порт", en = "Port" },
 	["naval.hire"] = { ru = "%s  $%s · нефть %s", en = "%s  $%s · oil %s" },
 	["naval.land"] = { ru = "Высадка (свободных: %d)", en = "Landing (ready: %d)" },
@@ -907,6 +933,7 @@ local TABLE: { [string]: Entry } = {
 	["reject.lowBid"] = { ru = "Ставка мала", en = "Bid too low" },
 	["dev.eventNow"] = { ru = "Событие сейчас", en = "Event now" },
 	["dev.silo"] = { ru = "Ракетная шахта", en = "Missile silo" },
+	["dev.tradeNow"] = { ru = "Торговое судно сейчас", en = "Trade ship now" },
 	["dev.botMissile"] = { ru = "Бот: ракета по вам", en = "Bot: missile on you" },
 	-- Звук и музыка (§13, этап 10б)
 	["sound.title"] = { ru = "Звук", en = "Sound" },

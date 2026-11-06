@@ -193,7 +193,7 @@ function NavalPanel.new(
 			if s.owner == cs.myNation then
 				if s.kind == "Transport" then
 					transports += 1
-				else
+				elseif s.kind == "Destroyer" then -- торговые суда (§15е) в счёт не идут
 					destroyers += 1
 				end
 			end
