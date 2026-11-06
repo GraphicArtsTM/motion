@@ -140,6 +140,21 @@ function BuildPanel.new(
 		return need == nil or (cs.tech.levels :: any)[need.branch] >= need.level, need
 	end
 
+	-- Клетка — город (по списку городов клиента).
+	local function isCityCell(cell: number): boolean
+		return table.find(cs.cities, cell) ~= nil
+	end
+	-- Основанные мной города: города не из карты (реальные и придуманные при сборке — в provinces.cityNames).
+	local function foundedMine(): number
+		local n = 0
+		for _, c in cs.cities do
+			if provinces.cityNames[c] == nil and ClientState.ownerAt(cs, c) == cs.myNation then
+				n += 1
+			end
+		end
+		return n
+	end
+
 	-- Цена как на сервере (MatchSim.buildPrice): рост цены по своим зданиям этого типа (§15д), скидка Инженера.
 	local function price(kind: Types.BuildingKind, cell: number?): number?
 		local set = Buildings.fromList(cs.buildings, map)
@@ -149,6 +164,9 @@ function BuildPanel.new(
 			else Buildings.levelsOf(set, function(c: number): number
 				return ClientState.ownerAt(cs, c)
 			end, me, kind)
+		if kind == "City" and cell ~= nil and not isCityCell(cell) then
+			return Buildings.foundPrice(foundedMine()) * Commanders.buildCostMul(ClientState.myCommander(cs))
+		end
 		local base = if cell ~= nil
 			then (Buildings.cost(set, kind, cell, levels))
 			elseif kind == "City" then (Config.Buildings :: any)[kind].cost :: number
@@ -211,6 +229,17 @@ function BuildPanel.new(
 			label = Strings.get("reject.maxLevel", lang)
 		elseif money < cost then
 			label = string.format("$%s — %s", Strings.formatInt(cost), Strings.get("reject.noMoney", lang))
+		elseif kind == "City" and not isCityCell(spot) then
+			-- Новый город (§15д ч.4): название — то же, что даст сервер.
+			local name = Provinces.foundedName(map, spot)
+			label = string.format(
+				Strings.get("build.found", lang),
+				if lang == "en" then name.en else name.ru,
+				Strings.formatInt(cost)
+			)
+			if touch then
+				label ..= "\n" .. Strings.get("build.tapAgain", lang)
+			end
 		else
 			local here = cs.buildings[spot]
 			label = if here ~= nil

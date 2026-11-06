@@ -29,9 +29,21 @@ export type Province = {
 export type ProvinceSet = {
 	count: number,
 	list: { Province },
+	cityNames: { [number]: MapData.ProvinceName }, -- клетка города → название (§15д ч.4)
 }
 
 local Provinces = {}
+
+-- Название основанного игроком города (§15д ч.4) — придумано по клетке, одинаково на сервере и клиенте.
+function Provinces.foundedName(map: MapData, cell: number): MapData.ProvinceName
+	local name = NameGen.generate(Rng.stream(map.seed + cell, 9200), nil)
+	return { ru = name.ru, en = name.en }
+end
+
+-- Название города в клетке: реальный или придуманный при сборке, иначе — основанный (foundedName).
+function Provinces.cityName(set: ProvinceSet, map: MapData, cell: number): MapData.ProvinceName
+	return set.cityNames[cell] or Provinces.foundedName(map, cell)
+end
 
 function Provinces.idAt(map: MapData, i: number): number
 	return MapData.getProvince(map, i)
@@ -138,6 +150,18 @@ function Provinces.build(map: MapData): ProvinceSet
 	local want = math.floor(count * Config.Cities.ProvinceShare + 0.5)
 	local cities: { number } = {}
 	local minD = Config.Cities.MinDistance
+	local cityNames: { [number]: MapData.ProvinceName } = {}
+	-- Реальные города (§15д ч.4): по одному на провинцию, крупные — первыми; дальше — придуманные до доли.
+	local realCities: { MapData.MapCity } = map.cities or {}
+	for _, rc in realCities do
+		local id = MapData.getProvince(map, rc.cell)
+		local p = if id ~= 0 then list[id] else nil
+		if p ~= nil and p.city == nil then
+			p.city = rc.cell
+			table.insert(cities, rc.cell)
+			cityNames[rc.cell] = { ru = rc.ru, en = rc.en }
+		end
+	end
 	for _, id in order do
 		if #cities >= want then
 			break
@@ -151,10 +175,20 @@ function Provinces.build(map: MapData): ProvinceSet
 					break
 				end
 			end
-			if ok then
+			if ok and list[id].city == nil then
 				table.insert(cities, c)
 				list[id].city = c
 			end
+		end
+	end
+	-- Придуманные названия — своим потоком ГСЧ (нефть и остальное не сдвигаются).
+	local nameRng = Rng.stream(map.seed, 9100)
+	local takenCity: { [string]: boolean } = {}
+	for _, c in cities do
+		if cityNames[c] == nil then
+			local name = NameGen.generate(nameRng, takenCity)
+			takenCity[name.ru] = true
+			cityNames[c] = { ru = name.ru, en = name.en }
 		end
 	end
 
@@ -181,7 +215,7 @@ function Provinces.build(map: MapData): ProvinceSet
 		end
 	end
 
-	return { count = count, list = list }
+	return { count = count, list = list, cityNames = cityNames }
 end
 
 return table.freeze(Provinces)

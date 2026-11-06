@@ -189,7 +189,7 @@ T.describe("Здания", function()
 	)
 
 	T.it(
-		"город: улучшение до ур. 3 поднимает доход и максимум людей; денег мало — отказ",
+		"город: улучшение до ур. 5 поднимает доход и максимум людей; денег мало — отказ; рядом новый не основать",
 		function()
 			local m = started(44)
 			local me = m.nations[1]
@@ -205,11 +205,18 @@ T.describe("Здания", function()
 			local money = me.money
 			T.expect((MatchSim.applyIntent(m, 1, { kind = "build", building = "City", cell = capital }))).toBe(true)
 			T.expect(me.money).toBe(money - Config.Buildings.City.upgradeCosts[1])
+			-- §15д ч.4: до ур. 5 (Мегаполис), дальше — «maxLevel».
+			for level = 4, Config.Economy.MaxCityLevel do
+				T.expect((MatchSim.applyIntent(m, 1, { kind = "build", building = "City", cell = capital }))).toBe(true)
+				T.expect(Buildings.cityLevel(m.buildings, capital)).toBe(level)
+			end
 			T.expect(select(2, MatchSim.applyIntent(m, 1, { kind = "build", building = "City", cell = capital })))
 				.toBe("maxLevel")
-			-- Не город — «Город» не строится.
+			-- Рядом с городом новый не основать (§15д ч.4); клик в соседнюю клетку — тот же город.
 			T.expect(select(2, MatchSim.applyIntent(m, 1, { kind = "build", building = "City", cell = capital + 1 })))
-				.toBe("needCity")
+				.toBe("maxLevel")
+			T.expect(select(2, MatchSim.applyIntent(m, 1, { kind = "build", building = "City", cell = capital + 4 })))
+				.toBe("cityTooClose")
 		end
 	)
 

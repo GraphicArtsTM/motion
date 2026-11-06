@@ -98,6 +98,11 @@ function Buildings.levelsOf(set: BuildingSet, ownerAt: (cell: number) -> number,
 	return n
 end
 
+-- Цена нового своего города (§15д ч.4): founded — сколько основанных городов у державы сейчас.
+function Buildings.foundPrice(founded: number): number
+	return Config.Cities.FoundCost * (1 + Config.Cities.FoundStep * founded)
+end
+
 -- Цена здания kind (нового или следующего уровня), когда у державы уже levels уровней этого типа (§15д).
 function Buildings.priceFor(kind: string, nextLevel: number, levels: number): number
 	local stats = (Config.Buildings :: any)[kind]
@@ -205,11 +210,52 @@ function Buildings.check(
 		return nil, "needTech"
 	end
 	if kind == "City" then
-		if not isCity(cell) or ownerAt(cell) ~= nation then
-			return nil, "needCity"
+		-- Свой город (±1 клетка) — улучшение; своя земля без города рядом — основать новый (§15д ч.4).
+		local w0, h0 = map.width, map.height
+		local x0, y0 = cell % w0, cell // w0
+		for dy = -1, 1 do
+			for dx = -1, 1 do
+				local nx, ny = x0 + dx, y0 + dy
+				if nx >= 0 and ny >= 0 and nx < w0 and ny < h0 and isCity(ny * w0 + nx) then
+					local c = ny * w0 + nx
+					if ownerAt(c) ~= nation then
+						return nil, "needCity"
+					end
+					if Buildings.cityLevel(set, c) >= Config.Economy.MaxCityLevel then
+						return nil, "maxLevel"
+					end
+					return c, nil
+				end
+			end
 		end
-		if Buildings.cityLevel(set, cell) >= Config.Economy.MaxCityLevel then
-			return nil, "maxLevel"
+		local terrain = MapData.getTerrain(map, cell)
+		if
+			terrain == Types.Terrain.Water
+			or terrain == Types.Terrain.River
+			or MapData.getProvince(map, cell) == 0
+			or ownerAt(cell) ~= nation
+		then
+			return nil, "notOwner"
+		end
+		local far = Config.Cities.FoundMinDistance
+		for dy = -far, far do
+			for dx = -far, far do
+				local nx, ny = x0 + dx, y0 + dy
+				if nx >= 0 and ny >= 0 and nx < w0 and ny < h0 and dx * dx + dy * dy < far * far then
+					if isCity(ny * w0 + nx) then
+						return nil, "cityTooClose"
+					end
+				end
+			end
+		end
+		local gap = Config.Build.MinGap - 1
+		for dy = -gap, gap do
+			for dx = -gap, gap do
+				local nx, ny = x0 + dx, y0 + dy
+				if nx >= 0 and ny >= 0 and nx < w0 and ny < h0 and set.byCell[ny * w0 + nx] ~= nil then
+					return nil, "tooClose"
+				end
+			end
 		end
 		return cell, nil
 	end

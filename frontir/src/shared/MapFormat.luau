@@ -33,6 +33,7 @@ export type MapModule = {
 	formatVersion: number,
 	data: { string },
 	provinceNames: { { string } }?, -- { ru, en } по id провинции
+	cities: { { any } }?, -- реальные города (§15д ч.4, tools/realcities): { клетка, ru, en }, крупные — первыми
 }
 
 local MAGIC = "FRMP"
@@ -232,6 +233,14 @@ function MapFormat.fromModule(module: MapModule): MapData
 			list[id] = { ru = pair[1], en = pair[2] }
 		end
 		map.provinceNames = list
+	end
+	local cities = module.cities
+	if cities ~= nil then
+		local list: { MapData.MapCity } = {}
+		for _, c in cities do
+			table.insert(list, { cell = c[1] :: number, ru = c[2] :: string, en = c[3] :: string })
+		end
+		map.cities = list
 	end
 	if map.width ~= module.width or map.height ~= module.height then
 		error(

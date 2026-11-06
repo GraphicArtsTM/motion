@@ -17,6 +17,36 @@ local function load(name: string): MapData.MapData
 end
 
 T.describe("Карты с реальной географией", function()
+	T.it(
+		"реальные города (§15д ч.4): у каждой карты есть, на суше, с именами, без названий реальных стран",
+		function()
+			for _, name in Config.RealMapOrder do
+				local map = load(name)
+				local list: { MapData.MapCity } = map.cities or {}
+				T.expect(#list > 0).toBe(true)
+				local set = Provinces.build(map)
+				for _, c in list do
+					T.expect(MapData.getTerrain(map, c.cell) ~= Types.Terrain.Water).toBe(true)
+					T.expect(Geo.isCityNameAllowed(c.ru, c.en)).toBe(true)
+				end
+				-- Каждый город карты назван: реальный — его именем, остальные — придуманным.
+				for _, p in set.list do
+					if p.city ~= nil then
+						local n = set.cityNames[p.city :: number]
+						T.expect(n ~= nil and n.ru ~= "" and n.en ~= "").toBe(true)
+					end
+				end
+			end
+			-- Пример геймдизайнера: в Англии Лондон и Бирмингем.
+			local europe: { [string]: boolean } = {}
+			local europeList: { MapData.MapCity } = load("Europe").cities or {}
+			for _, c in europeList do
+				europe[c.en] = true
+			end
+			T.expect(europe.London and europe.Birmingham and europe.Paris and europe.Berlin).toBe(true)
+		end
+	)
+
 	for _, name in Config.RealMapOrder do
 		T.it(
 			name .. ": размер, суша, провинции с именами, места для старта",

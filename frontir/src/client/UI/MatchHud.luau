@@ -1017,6 +1017,12 @@ function MatchHud.new(
 				else
 					toast(string.format(Strings.get("event.raid", lang), b, lost, count))
 				end
+			elseif e.kind == "cityFounded" then
+				-- Новый город (§15д ч.4).
+				local name = Provinces.cityName(provinces, map, tonumber(e.cell) or 0)
+				toast(
+					string.format(Strings.get("event.cityFounded", lang), a, if lang == "en" then name.en else name.ru)
+				)
 			elseif e.kind == "revoltSoon" and e.nation == cs.myNation then
 				-- Отсчёт до восстания (§15д): красной строкой, с секундами.
 				local province = provinces.list[tonumber(e.province) or 0]

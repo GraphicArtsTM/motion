@@ -95,6 +95,7 @@ export type MatchEvent =
 	-- Стабильность (§6.10, этап 7а)
 	| { kind: "revolt", nation: number, province: number }
 	| { kind: "revoltSoon", nation: number, province: number, sec: number } -- отсчёт до восстания (§15д)
+	| { kind: "cityFounded", nation: number, cell: number } -- новый город (§15д ч.4)
 	-- Технологии (§6.14, этап 7в-1)
 	| { kind: "researched", nation: number, branch: Types.TechBranch, level: number }
 	-- Случайные события (§6.16, этап 7г): событие; наёмники наняты (nation 0 — ставок не было)
@@ -196,6 +197,7 @@ export type Match = {
 	hitAt: { [number]: number }, -- клетка здания или города → когда по нему ударили (защита и снос, §15д)
 	aaSpent: { [number]: { number } }, -- клетка батареи ПВО → когда восстановятся потраченные заряды (§15д ч.3)
 	buildingOwner: { [number]: number }, -- клетка здания → хозяин в прошлый тик (захват −1 уровень, §15д ч.3)
+	founded: { [number]: boolean }, -- клетки городов, основанных игроками (§15д ч.4)
 	nextBlockadeAt: number,
 	result: Types.MatchResult?, -- итог (фаза Over)
 	victory: boolean, -- проверять ли победу (тесты на крошечных картах выключают)
@@ -314,6 +316,7 @@ function MatchSim.new(map: MapData, seed: number): Match
 		hitAt = {},
 		aaSpent = {},
 		buildingOwner = {},
+		founded = {},
 		bombedCell = {},
 		nextBlockadeAt = 0,
 		result = nil,
@@ -1114,6 +1117,13 @@ end
 -- Цена постройки или улучшения в клетке spot для державы id: рост цены по её зданиям этого типа (§15д),
 -- скидка Инженера (§6.15). nil — дальше улучшать некуда.
 function MatchSim.buildPrice(m: Match, id: number, kind: Types.BuildingKind, spot: number): (number?, number)
+	-- Новый город (§15д ч.4): своя цена, растёт с числом основанных.
+	if kind == "City" and not Grid.isCity(m.grid, spot) then
+		return Buildings.foundPrice(MatchSim.foundedOf(m, id)) * Commanders.buildCostMul(
+			Commanders.of(m.commanders, id)
+		),
+			0
+	end
 	local levels = if kind == "City"
 		then 0
 		else Buildings.levelsOf(m.buildings, function(c: number): number
@@ -1124,6 +1134,27 @@ function MatchSim.buildPrice(m: Match, id: number, kind: Types.BuildingKind, spo
 		return nil, 0
 	end
 	return base * Commanders.buildCostMul(Commanders.of(m.commanders, id)), oil
+end
+
+-- Основанные города (§15д ч.4): сколько их у державы сейчас (по хозяину клетки).
+function MatchSim.foundedOf(m: Match, id: number): number
+	local n = 0
+	for cell in m.founded do
+		if Grid.getOwner(m.grid, cell) == id then
+			n += 1
+		end
+	end
+	return n
+end
+
+-- Новый город державы id в клетке cell: город ур. 1 (как нейтральный, но свой), событие для ленты.
+function MatchSim.foundCity(m: Match, id: number, cell: number)
+	Grid.setCity(m.grid, cell, true)
+	m.cityOf[-(1000000 + cell)] = cell -- ключ вне id провинций и столиц
+	m.founded[cell] = true
+	m.infoDirty = true
+	MatchSim.refreshOwned(m)
+	table.insert(m.events, { kind = "cityFounded", nation = id, cell = cell })
 end
 
 -- Снос своего здания (§15д): доля цены назад; нельзя у фронта (земля врага в войне ближе Build.DemolishFrontCells)
@@ -1329,6 +1360,10 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 		end
 		n.money -= money
 		n.oil -= oil
+		if intent.building == "City" and not Grid.isCity(m.grid, spot) then
+			MatchSim.foundCity(m, nationId, spot)
+			return true, nil
+		end
 		Buildings.place(m.buildings, intent.building, spot, MapData.getProvince(m.map, spot))
 		MatchSim.refreshOwned(m)
 		return true, nil

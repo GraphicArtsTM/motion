@@ -218,4 +218,38 @@ T.describe("Экономика 2.0 (§15д)", function()
 			T.expect(MatchSim.ownedOf(m, 2).factories).toBe(1)
 		end
 	)
+
+	T.it(
+		"основать город (§15д ч.4): своя земля вдали от городов, цена растёт с числом основанных, имя по клетке",
+		function()
+			local m = duo()
+			local spot = 40 * W + 30
+			local price = (MatchSim.buildPrice(m, 1, "City", spot)) :: number
+			T.expect(price).toBe(Config.Cities.FoundCost)
+			local money = m.nations[1].money
+			T.expect((build(m, "City", spot))).toBe(true)
+			T.expect(m.nations[1].money).toBe(money - price)
+			T.expect(Grid.isCity(m.grid, spot)).toBe(true)
+			T.expect(MatchSim.foundedOf(m, 1)).toBe(1)
+			T.expect(table.find(MatchSim.cities(m), spot) ~= nil).toBe(true)
+			local founded = false
+			for _, e in MatchSim.takeEvents(m) do
+				founded = founded or (e.kind == "cityFounded" and e.cell == spot)
+			end
+			T.expect(founded).toBe(true)
+			-- Второй — дороже на FoundStep; рядом с городом — нельзя; на чужой земле — нельзя.
+			T.expect((MatchSim.buildPrice(m, 1, "City", 20 * W + 30)))
+				.toBe(Config.Cities.FoundCost * (1 + Config.Cities.FoundStep))
+			T.expect(select(2, build(m, "City", spot + 5))).toBe("cityTooClose")
+			T.expect(select(2, build(m, "City", 40 * W + 100))).toBe("notOwner")
+			-- Новый город улучшается, как любой (уровень 2).
+			T.expect((build(m, "City", spot))).toBe(true)
+			T.expect(Buildings.cityLevel(m.buildings, spot)).toBe(2)
+			-- Имя основанного города — одинаковое на сервере и клиенте (по клетке).
+			local Provinces = require("../src/shared/Provinces")
+			local a = Provinces.foundedName(m.map, spot)
+			local b = Provinces.foundedName(m.map, spot)
+			T.expect(a.ru ~= "" and a.ru == b.ru and a.en == b.en).toBe(true)
+		end
+	)
 end)
