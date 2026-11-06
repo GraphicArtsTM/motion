@@ -940,6 +940,27 @@ local TABLE: { [string]: Entry } = {
 	["lobby.next"] = { ru = "СЛЕДУЮЩИЙ МАТЧ", en = "NEXT MATCH" },
 	["lobby.info"] = { ru = "Режим: %s  ·  игроков %d из %d", en = "Mode: %s  ·  players %d of %d" },
 	["lobby.players"] = { ru = "В лобби:", en = "In lobby:" },
+	["hud.control"] = {
+		ru = "Контроль суши: вы %.1f%% · лидер %s %.1f%% · цель %d%%",
+		en = "Land control: you %.1f%% · leader %s %.1f%% · goal %d%%",
+	},
+	-- §15к подсказка при наведении на карту
+	["tip.neutral"] = { ru = "Ничья земля", en = "Unclaimed land" },
+	["tip.yours"] = { ru = "Ваша земля", en = "Your land" },
+	["tip.expand"] = { ru = "Клик: расширение с %s людьми", en = "Click: expand with %s people" },
+	["tip.attack"] = { ru = "Клик: атака (идёт война)", en = "Click: attack (at war)" },
+	["tip.declare"] = { ru = "Клик: объявить войну", en = "Click: declare war" },
+	["tip.mobilizing"] = { ru = "Мобилизация — бои скоро", en = "Mobilizing — fighting soon" },
+	["tip.boat"] = { ru = "Клик: десант на корабле", en = "Click: send a landing ship" },
+	-- §15к плашка игрока и флаг в лобби
+	["lobby.level"] = { ru = "Уровень %d", en = "Level %d" },
+	["lobby.editFlag"] = { ru = "Изменить флаг", en = "Edit flag" },
+	["lobby.closeFlag"] = { ru = "Закрыть", en = "Close" },
+	["lobby.flagPart"] = { ru = "🔒 в гардеробе за %d 🏅", en = "🔒 in wardrobe for %d 🏅" },
+	["lobby.flagLocked"] = {
+		ru = "Есть закрытые части — выберите открытые или купите их в гардеробе (K)",
+		en = "Some parts are locked — pick unlocked ones or buy them in the wardrobe (K)",
+	},
 	["help.title"] = { ru = "Как играть", en = "How to play" },
 	["help.start"] = {
 		ru = "<b>Старт.</b> Нажмите на сушу, где начнёте: там появится столица.",

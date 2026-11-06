@@ -283,19 +283,25 @@ T.describe("Режимы (§5.1)", function()
 				.toBe(options[3])
 			T.expect(Modes.mapWinner(options, { [1] = options[3], [2] = options[2] })).toBe(options[2]) -- ничья — раньше
 			T.expect(Modes.mapCounts(options, { [1] = options[2], [7] = "Nowhere" })).toEqual({ 0, 1, 0 })
-			-- В матче: голос только на экране итогов, только из вариантов.
+			-- §15к: голос — в лобби (не в игре и не на итогах), только игрок, только из вариантов.
 			local m = played("Ffa", 2, 3)
-			T.expect((MatchSim.applyIntent(m, 1, { kind = "mapVote", map = "World" }))).toBe(false) -- рано
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "mapVote", map = "World" }))).toBe(false) -- в игре
 			DevTools.endMatch(m)
 			while m.phase == "Play" do
 				MatchSim.step(m, DT)
 			end
 			T.expect(m.phase).toBe("Over")
-			T.expect(m.mapOptions[1]).toBe(m.map.name)
-			local other = m.mapOptions[2]
-			T.expect((MatchSim.applyIntent(m, 1, { kind = "mapVote", map = other }))).toBe(true)
-			T.expect((MatchSim.applyIntent(m, 3, { kind = "mapVote", map = other }))).toBe(false) -- бот
-			T.expect(MatchSim.mapWinner(m)).toBe(other)
+			T.expect(select(2, MatchSim.applyIntent(m, 1, { kind = "mapVote", map = "World" }))).toBe("phase")
+			local lobby = MatchSim.new(Fixtures.pangea, 78)
+			MatchSim.addPlayer(lobby, 1001, "Игрок1")
+			MatchSim.addPlayer(lobby, 1002, "Игрок2")
+			MatchSim.startLobby(lobby)
+			T.expect(lobby.phase).toBe("Lobby")
+			T.expect(lobby.mapOptions[1]).toBe(lobby.map.name)
+			local other = lobby.mapOptions[2]
+			T.expect((MatchSim.applyIntent(lobby, 1, { kind = "mapVote", map = other }))).toBe(true)
+			T.expect((MatchSim.applyIntent(lobby, 1, { kind = "mapVote", map = "Atlantis" }))).toBe(false)
+			T.expect(MatchSim.mapWinner(lobby)).toBe(other)
 			T.expect((Intents.parse("mapVote", { map = "Europe" }))).toEqual({ kind = "mapVote", map = "Europe" })
 			T.expect((Intents.parse("mapVote", { map = "Atlantis" }))).toBe(nil)
 		end

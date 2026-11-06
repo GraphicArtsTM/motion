@@ -50,6 +50,7 @@ local ActionRingUI = require(UI:WaitForChild("ActionRing"))
 local DoomBar = require(UI:WaitForChild("DoomBar"))
 local Dock = require(UI:WaitForChild("Dock"))
 local LobbyScreen = require(UI:WaitForChild("LobbyScreen"))
+local MapTooltip = require(UI:WaitForChild("MapTooltip"))
 local AirPanel = require(UI:WaitForChild("AirPanel"))
 local BuildPanel = require(UI:WaitForChild("BuildPanel"))
 local CityLabels = require(UI:WaitForChild("CityLabels"))
@@ -312,8 +313,8 @@ local function runSession(mapId: string, resync: boolean)
 	local tutorial = TutorialPanel.new(hudGui, cs, lang, hud.toast) -- обучение (§5.5)
 	local soundPanel = SoundPanel.new(hudGui, cs, lang, send) -- громкости (§13)
 	-- Экран лобби (§15и): «Следующий матч», голосование и выбор генерала переезжают в него на время лобби.
-	local lobby = LobbyScreen.new(hudGui, cs, lang, map.name)
-	lobby.attach(modePanel.voteFrame, commanderPanel.pickerFrame)
+	local lobby = LobbyScreen.new(hudGui, cs, lang, map.name, send)
+	lobby.attach(modePanel.voteFrame, commanderPanel.pickerFrame, modePanel.mapVoteFrame)
 	-- Док снизу по центру (§15з): все окна — отсюда; прежние кнопки окон прячутся, их состояние — в подсказке.
 	local dock = Dock.new(hudGui, lang, {
 		{
@@ -854,14 +855,42 @@ local function runSession(mapId: string, resync: boolean)
 		onHome = goHome,
 	})
 	-- «Призрак» стройки за курсором (§15г).
+	-- §15к: подсказка при наведении на карту (владелец, местность, провинция, что будет по клику).
+	local tooltip = MapTooltip.new(hudGui, cs, lang, map, provinces)
+	local playerGui = player:WaitForChild("PlayerGui") :: PlayerGui
 	Session.connect(UserInputService.InputChanged, function(io: InputObject)
-		if io.UserInputType ~= Enum.UserInputType.MouseMovement or not build.active() then
+		if io.UserInputType ~= Enum.UserInputType.MouseMovement then
 			return
 		end
 		local p = io.Position
 		local inset = viewport.AbsolutePosition
 		local cx, cy = CameraMath.cellAt(camera.state, p.X - inset.X, p.Y - inset.Y)
-		build.hover(if cx ~= nil and cy ~= nil then cy * map.width + cx else nil)
+		local cell = if cx ~= nil and cy ~= nil then cy * map.width + cx else nil
+		if build.active() then
+			tooltip.show(nil, 0, 0, 0)
+			build.hover(cell)
+			return
+		end
+		-- Не в игре или над окном интерфейса (док, панели, лобби) — без подсказки.
+		if cs.phase ~= "Play" and cs.phase ~= "Pick" then
+			cell = nil
+		else
+			-- Считаем окном только непрозрачную рамку или кнопку не во весь экран (виньетка войны — не окно).
+			local screen = hudGui.AbsoluteSize
+			for _, g in playerGui:GetGuiObjectsAtPosition(p.X, p.Y) do
+				if
+					g:IsDescendantOf(hudGui)
+					and not g:IsDescendantOf(view.canvas)
+					and g.Name ~= "MapTooltip"
+					and (g.BackgroundTransparency < 0.99 or g:IsA("GuiButton"))
+					and (g.AbsoluteSize.X < screen.X * 0.9 or g.AbsoluteSize.Y < screen.Y * 0.9)
+				then
+					cell = nil
+					break
+				end
+			end
+		end
+		tooltip.show(cell, p.X, p.Y, hud.percent())
 	end)
 
 	local musicAt = 0

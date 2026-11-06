@@ -5,7 +5,7 @@
 ## Где мы сейчас
 Сделаны этапы **0–6**, **7а**, **7б-1** (флот), **7б-2** (авиация), доработки перед 7в, **7в-1** и **7в-2** — всё в `main` (PR #2–#8).
 **7в-1** (технологии) и **7в-2** (генералы) смержены (PR #7, #8). **7г** и **8а** смержены (PR #9), разведка, **8б** и **8в** — PR #10. **8г** — PR #11. **9а** и **9б** — PR #12, **9в** и **9г** — PR #13.
-Этап 10 смержен (PR #14–#15). **Сводная правка §15а** (4 части: самопроверка, баланс, мелкие решения, публикация — `docs/PUBLISH.md`, PolicyService) — PR #16 (смержен). **Правка §15б** (самолёты, Инженер, зрелищная война, «Первый удар») — PR #17. §15в–§15д — PR #17–#19 (смержены). **§15е–§15и** (идеи из OpenFront, ядерные удары, ЗРК, «судный день», док, экран лобби) — PR #20.
+Этап 10 смержен (PR #14–#15). **Сводная правка §15а** (4 части: самопроверка, баланс, мелкие решения, публикация — `docs/PUBLISH.md`, PolicyService) — PR #16 (смержен). **Правка §15б** (самолёты, Инженер, зрелищная война, «Первый удар») — PR #17. §15в–§15д — PR #17–#19 (смержены). **§15е–§15к** (идеи из OpenFront, ядерные удары, ЗРК, «судный день», док, экран лобби, флаг и карта в лобби) — PR #20.
 **10а** (обучение) готов и ждёт проверки в Studio; **10б** (звук и музыка) и **10в** (телефон, аналитика, отчёт баланса) — тоже
 (см. «Статус» в начале GDD §15). Обновляй «Статус» в GDD и этот раздел в конце каждого этапа.
 
@@ -269,8 +269,8 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   время и таймеры — `ClientState.matchTime` / `simRate` (не `Config.Match.Speed`).
 
 ## Карты и дуэль (этап 8б)
-- Голосование за карту — `m.mapOptions` / `m.mapVotes` (открывается в `finishMatch`), `MatchSim.mapWinner`; сервер
-  после итогов зовёт `loadMap` (из `Main.server`) и начинает матч на новой карте. Дуэль — `rules.duel`
+- Голосование за карту — `m.mapOptions` / `m.mapVotes` (с §15к открывается в лобби — `openMapVote`),
+  `MatchSim.mapWinner`; сервер в конце лобби зовёт `loadMap` (из `Main.server`) и начинает матч на новой карте. Дуэль — `rules.duel`
   (`targetNations` = игроки, 2×2 — `teamCount = 2`).
 - **Клиент живёт сессиями:** `Main.client` → `runSession(mapId, resync)`. Любая подписка в клиенте — только
   `Session.connect(signal, fn)` (не `:Connect`), EditableImage и ScreenGui — `Session.track`; `teardown` снимает всё
@@ -378,6 +378,10 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   `CommanderPanel.pickerFrame` (`attach` — на время Lobby/Waiting переезжают в экран, потом обратно), окно
   «Как играть» (`toggleHelp`, H, шаги — `Config.Render.Lobby.HelpSteps`, тексты `help.*`). Баннер `MatchHud` в лобби
   скрыт.
+- §15к: голосование за карту — в лобби (`MatchSim.openMapVote` из `startLobby`; смена карты в конце лобби —
+  `MatchService`, режим через `m.forcedMode`, генералы переносятся), рамка `ModePanel.mapVoteFrame` — третий аргумент
+  `attach`; плашка игрока и редактор флага — в `LobbyScreen` (нужен `send`). Подсказка над картой — `UI/MapTooltip`
+  (`InputChanged` в `Main.client`, окна отсекает `GetGuiObjectsAtPosition`), «Контроль суши» — в баннере `MatchHud`.
 
 ## Панель разработчика (F4)
 - Только в Studio: `MatchService` создаёт `Remotes.Dev` при `RunService:IsStudio()`; действия — чистый `DevTools`

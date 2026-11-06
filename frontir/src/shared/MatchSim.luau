@@ -245,7 +245,7 @@ export type Match = {
 	modeOptions: { Types.ModeId }, -- варианты голосования
 	modeVotes: { [number]: Types.ModeId }, -- держава игрока → голос
 	voteTime: number, -- время сервера (unix) для режима недели
-	mapOptions: { string }, -- голосование за карту на экране итогов (§5.2)
+	mapOptions: { string }, -- голосование за карту в лобби (§15к; раньше — на экране итогов, §5.2)
 	mapVotes: { [number]: string },
 	forcedMode: Types.ModeId?, -- режим без голосования (Dev.Mode, F4)
 	teams: { [number]: number }, -- держава → команда («Команды»)
@@ -943,13 +943,28 @@ function MatchSim.removePlayer(m: Match, nationId: number)
 	refreshModeOptions(m)
 end
 
--- Лобби (этап 4в): игроки собираются, через LobbySec начинается выбор старта.
+-- Голосование за карту (§15к, в лобби): текущая и случайные другие (свой поток ГСЧ). Карта владельца
+-- частного сервера (§5.4) — без голосования.
+function MatchSim.openMapVote(m: Match)
+	local mapRng = Rng.stream(m.seed, 400)
+	m.mapOptions = Modes.mapOptions(m.map.name, function(n: number): number
+		return Rng.range(mapRng, 1, n)
+	end)
+	if m.settings ~= nil and m.settings.map ~= nil then
+		m.mapOptions = {}
+	end
+	table.clear(m.mapVotes)
+	m.infoDirty = true
+end
+
+-- Лобби (этап 4в): игроки собираются, голосуют за режим и карту (§15к), через LobbySec — выбор старта.
 function MatchSim.startLobby(m: Match)
 	if m.phase ~= "Waiting" then
 		return
 	end
 	m.phase = "Lobby"
 	m.phaseLeft = Config.Match.LobbySec
+	MatchSim.openMapVote(m)
 	m.infoDirty = true
 end
 
@@ -1288,8 +1303,8 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 		return true, nil
 	end
 	if intent.kind == "mapVote" then
-		-- Голос за карту (§5.2): только на экране итогов, только игрок, только из вариантов.
-		if m.phase ~= "Over" then
+		-- Голос за карту (§15к): в лобби, только игрок, только из вариантов.
+		if m.phase ~= "Lobby" then
 			return false, "phase"
 		end
 		if n.isBot or table.find(m.mapOptions, intent.map) == nil then
@@ -5453,15 +5468,7 @@ local function finishMatch(m: Match, winner: number, reason: Types.VictoryReason
 	m.phase = "Over"
 	m.phaseLeft = Config.Match.ResultsSec
 	m.paused, m.fast = false, false
-	-- Голосование за карту следующего матча (§5.2): текущая и случайные другие (свой поток ГСЧ).
-	local mapRng = Rng.stream(m.seed, 400)
-	m.mapOptions = Modes.mapOptions(m.map.name, function(n: number): number
-		return Rng.range(mapRng, 1, n)
-	end)
-	if m.settings ~= nil and m.settings.map ~= nil then
-		m.mapOptions = {} -- карту выбрал владелец частного сервера (§5.4)
-	end
-	table.clear(m.mapVotes)
+	-- Голосование за карту — в лобби следующего матча (§15к), здесь — только итоги.
 	m.infoDirty = true
 	table.insert(m.events, { kind = "victory", nation = winner, reason = reason })
 end

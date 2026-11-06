@@ -139,7 +139,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			flood = if m.rules.flood
 				then { step = m.flood.step, nextIn = math.max(0, m.flood.nextAt - m.time) }
 				else nil,
-			mapVote = if m.phase == "Over"
+			mapVote = if m.phase == "Lobby" and #m.mapOptions > 0
 				then {
 					options = m.mapOptions,
 					counts = Modes.mapCounts(m.mapOptions, m.mapVotes),
@@ -906,6 +906,26 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				MatchSim.startPick(m)
 				break
 			end
+			-- Голосование за карту в лобби (§15к): лобби кончилось и победила другая карта — загрузить её и сразу
+			-- к выбору старта; режим (итог голосования) и выбранные генералы сохраняются.
+			if not wasPick and m.phase == "Pick" and not m.rules.tutorial and MatchSim.mapWinner(m) ~= map.name then
+				local mode = m.rules.mode
+				local chosen: { [Player]: string } = {}
+				for player, id in nationOf do
+					chosen[player] = Commanders.of(m.commanders, id)
+				end
+				startNewMatch(MatchSim.mapWinner(m))
+				m.forcedMode = mode :: any
+				for player, id in nationOf do
+					local c = chosen[player]
+					if c ~= nil then
+						Commanders.choose(m.commanders, id, c :: any)
+					end
+				end
+				MatchSim.startPick(m)
+				sendInfoAll()
+				break
+			end
 			lastTickMs = (os.clock() - t0) * 1000
 			-- Аналитика (этап 10в, §15в): записи по державам — тому игроку, кто сейчас за неё играет.
 			local function sendEntries(entries: { Analytics.Entry })
@@ -988,10 +1008,10 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		if acc > step * Config.Net.MaxStepsPerFrame * devSpeed * soloSpeed then
 			acc = 0 -- сервер не успевает: лучше пропустить время, чем копить отставание
 		end
-		-- Результаты показаны — новый матч (на карте из голосования, §5.2): все игроки снова в лобби.
+		-- Результаты показаны — новый матч на той же карте (её меняет голосование в лобби, §15к), из F4 или
+		-- настроек частного сервера (§5.4): все игроки снова в лобби.
 		if m.phase == "Over" and m.phaseLeft <= 0 then
-			-- Карта следующего матча — по голосованию на экране итогов (§5.2), из F4 или настроек сервера (§5.4).
-			local nextMap = devMap or (if settings ~= nil then settings.map else nil) or MatchSim.mapWinner(m)
+			local nextMap = devMap or (if settings ~= nil then settings.map else nil) or map.name
 			devMap = nil
 			startNewMatch(nextMap)
 		end

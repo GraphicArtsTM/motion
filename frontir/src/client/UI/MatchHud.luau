@@ -188,6 +188,21 @@ function MatchHud.new(
 	leaderFill.BorderSizePixel = 0
 	leaderFill.Size = UDim2.fromScale(0, 1)
 	leaderFill.Parent = leaderBar
+	-- §15к «Контроль суши»: полоска шире, своя доля — белой чертой, подпись «вы · лидер · цель».
+	leaderBar.Size = UDim2.fromOffset(320, 8)
+	local myMark = Instance.new("Frame")
+	myMark.Name = "Me"
+	myMark.AnchorPoint = Vector2.new(0.5, 0.5)
+	myMark.Size = UDim2.fromOffset(3, 14)
+	myMark.Position = UDim2.fromScale(0, 0.5)
+	myMark.BackgroundColor3 = Theme.color("White")
+	myMark.BorderSizePixel = 0
+	myMark.ZIndex = 3
+	myMark.Parent = leaderBar
+	local controlText = richLabel(banner, 13)
+	controlText.TextXAlignment = Enum.TextXAlignment.Center
+	controlText.LayoutOrder = 3
+	controlText.Visible = false
 
 	-- Слева сверху: полоса ресурсов «как в игре» (§15д ч.5), под ней — держава.
 	local resources = ResourceBar.new(gui, lang)
@@ -714,6 +729,7 @@ function MatchHud.new(
 		local stats = cs.stats
 		local showBar = cs.phase == "Play" and stats ~= nil
 		leaderBar.Visible = showBar
+		controlText.Visible = showBar
 		if showBar and stats ~= nil then
 			local best, bestCells = 0, -1
 			for _, s in stats.nations do
@@ -723,6 +739,17 @@ function MatchHud.new(
 			end
 			local share = bestCells / math.max(1, totalLand)
 			leaderFill.Size = UDim2.fromScale(math.clamp(share / cs.rules.victoryShare, 0, 1), 1)
+			local mine = if cs.myNation ~= nil then ClientState.statsOf(cs, cs.myNation) else nil
+			local myShare = if mine ~= nil then mine.cells / math.max(1, totalLand) else 0
+			myMark.Visible = mine ~= nil
+			myMark.Position = UDim2.fromScale(math.clamp(myShare / cs.rules.victoryShare, 0, 1), 0.5)
+			controlText.Text = string.format(
+				Strings.get("hud.control", lang),
+				myShare * 100,
+				escape(nationName(best)),
+				share * 100,
+				math.round(cs.rules.victoryShare * 100)
+			)
 			local n = cs.nations[best]
 			leaderFill.BackgroundColor3 = if n ~= nil and n.colorIndex >= 1
 				then Color3.fromRGB(
