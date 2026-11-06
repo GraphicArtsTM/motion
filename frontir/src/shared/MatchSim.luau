@@ -1078,6 +1078,52 @@ function MatchSim.frontForces(m: Match, nationId: number): Types.Forces
 	return sum
 end
 
+-- Можно ли державе id построить kind по нажатию на клетку cell (§6.9, §15г). Клетка здания или причина.
+function MatchSim.checkBuild(m: Match, id: number, kind: Types.BuildingKind, cell: number): (number?, string?)
+	return Buildings.check(
+		m.buildings,
+		function(c: number): number
+			return Grid.getOwner(m.grid, c)
+		end,
+		m.map,
+		m.provinces,
+		function(c: number): boolean
+			return Grid.isCity(m.grid, c)
+		end,
+		id,
+		kind,
+		cell,
+		function(province: number): boolean
+			return m.sea.docks[province] ~= nil
+		end,
+		function(k: Types.BuildingKind): boolean
+			return MatchSim.techAllows(m, id, k)
+		end
+	)
+end
+
+-- Бот и F4 называют провинцию её центром (§15г): ближайшая к cell допустимая клетка той же провинции
+-- (сама cell, если можно). Ничего не подошло — cell (сервер откажет с причиной).
+function MatchSim.buildSpot(m: Match, id: number, kind: Types.BuildingKind, cell: number): number
+	if kind == "City" or MatchSim.checkBuild(m, id, kind, cell) ~= nil then
+		return cell
+	end
+	local p = m.provinces.list[MapData.getProvince(m.map, cell)]
+	if p == nil then
+		return cell
+	end
+	local w = m.grid.width
+	local cx, cy = cell % w, cell // w
+	local best, bestD = cell, math.huge
+	for _, c in p.cells do
+		local d = (c % w - cx) ^ 2 + (c // w - cy) ^ 2
+		if d < bestD and MatchSim.checkBuild(m, id, kind, c) ~= nil then
+			best, bestD = c, d
+		end
+	end
+	return best
+end
+
 -- Применяет намерение державы. Возвращает успех и код ошибки (для клиента и логов).
 function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent): (boolean, string?)
 	local n = m.nations[nationId]
@@ -1205,24 +1251,7 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 	end
 
 	if intent.kind == "build" then
-		local spot, reason = Buildings.check(
-			m.buildings,
-			m.grid,
-			m.map,
-			m.provinces,
-			function(cell: number): boolean
-				return Grid.isCity(m.grid, cell)
-			end,
-			nationId,
-			intent.building,
-			intent.cell,
-			function(province: number): boolean
-				return m.sea.docks[province] ~= nil
-			end,
-			function(kind: Types.BuildingKind): boolean
-				return MatchSim.techAllows(m, nationId, kind)
-			end
-		)
+		local spot, reason = MatchSim.checkBuild(m, nationId, intent.building, intent.cell)
 		if spot == nil then
 			return false, reason
 		end
@@ -3409,7 +3438,8 @@ local function botMissile(m: Match, n: Nation, rng: Rng)
 				end
 			end
 			if best ~= nil then
-				MatchSim.applyIntent(m, n.id, { kind = "build", building = "MissileSilo", cell = best })
+				local spot = MatchSim.buildSpot(m, n.id, "MissileSilo", best)
+				MatchSim.applyIntent(m, n.id, { kind = "build", building = "MissileSilo", cell = spot })
 			end
 		end
 		return
@@ -4845,6 +4875,9 @@ function MatchSim.step(m: Match, dt: number)
 				{ navy = rngs.navy, air = rngs.air, diplo = rngs.diplo, tech = rngs.tech }
 			)
 			if intent ~= nil then
+				if intent.kind == "build" then
+					intent.cell = MatchSim.buildSpot(m, n.id, intent.building, intent.cell)
+				end
 				local ok = MatchSim.applyIntent(m, n.id, intent)
 				-- Богатый бот (правка перед 7в-2) за одно раздумье ставит в очередь столько же юнитов, сколько у него
 				-- линий найма: иначе один юнит за раздумье не успевает за доходом большой державы.

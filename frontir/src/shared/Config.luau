@@ -988,6 +988,15 @@ Config.Buildings = {
 	MissileSilo = { cost = 10000, oil = 200, strikeRadius = 6, cooldownSec = 240, warningSec = 10 },
 }
 
+-- Стройка на любой своей клетке (§15г).
+Config.Build = {
+	MinGap = 3, -- не ближе стольких клеток (по большей оси) к другому зданию и городу
+	GhostEveryMs = 50, -- «призрак» под курсором пересчитывается не чаще
+	PopSec = 0.45, -- новое здание «вырастает» за столько секунд
+	DustPuffs = 10, -- пыль при постройке
+	CostFloatSec = 1.4, -- «−$цена» всплывает и гаснет
+}
+
 -- Что можно строить сейчас (этап 4б; радар — 7а, порт — 7б-1, аэродром и батарея ПВО — 7б-2); шахта — этап 7г.
 Config.Buildable =
 	{ "City", "OilRig", "Factory", "Fort", "Market", "Radar", "Port", "Airfield", "AirDefense", "MissileSilo" }

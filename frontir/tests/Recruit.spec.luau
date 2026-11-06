@@ -46,7 +46,9 @@ end
 local function factories(m: MatchSim.Match, id: number, count: number)
 	for k = 1, count do
 		local province = (id - 1) * 6 + k
-		Buildings.place(m.buildings, "Factory", m.provinces.list[province].center, province)
+		-- Допустимая клетка провинции (§15г): центр может совпасть с городом — тогда рядом.
+		local spot = MatchSim.buildSpot(m, id, "Factory", m.provinces.list[province].center)
+		Buildings.place(m.buildings, "Factory", spot, province)
 	end
 	MatchSim.refreshOwned(m)
 end

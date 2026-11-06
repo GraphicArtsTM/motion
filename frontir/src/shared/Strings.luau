@@ -430,8 +430,12 @@ local TABLE: { [string]: Entry } = {
 		en = "Oil rigs go only on oil fields",
 	},
 	["reject.notOwner"] = {
-		ru = "Центр провинции должен быть вашим",
-		en = "The province centre must be yours",
+		ru = "Стройте на своей земле",
+		en = "Build on your own land",
+	},
+	["reject.tooClose"] = {
+		ru = "Слишком близко к зданию или городу",
+		en = "Too close to a building or city",
 	},
 	["reject.notYet"] = {
 		ru = "Капитуляция появится вместе с дипломатией",
@@ -485,7 +489,16 @@ local TABLE: { [string]: Entry } = {
 	["hire.needFactory"] = { ru = "нужен завод", en = "needs a factory" },
 	["build.button"] = { ru = "Построить (B)", en = "Build (B)" },
 	["build.cancel"] = { ru = "Отмена (Esc): %s", en = "Cancel (Esc): %s" },
-	["build.pick"] = { ru = "%s: нажмите на свою провинцию", en = "%s: tap your province" },
+	["build.pick"] = {
+		ru = "%s: выберите место на своей земле",
+		en = "%s: pick a spot on your land",
+	},
+	["build.ok"] = { ru = "Построить: %s", en = "Build: %s" },
+	["build.tapAgain"] = { ru = "Нажмите ещё раз — построить", en = "Tap again to build" },
+	["build.keys"] = {
+		ru = "1–9 — выбрать · Shift+клик — ещё одно · Esc — отмена",
+		en = "1–9 pick · Shift+click — one more · Esc cancel",
+	},
 	["build.pickCity"] = { ru = "%s: нажмите на свой город", en = "%s: tap your city" },
 	["building.City"] = { ru = "Город +1 уровень", en = "City +1 level" },
 	["building.City.hint"] = { ru = "доход и максимум людей", en = "income and max people" },
