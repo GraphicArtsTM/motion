@@ -36,6 +36,7 @@ export type Ship = {
 	home: number?, -- клетка порта (здания), у которого стоит
 	cargo: Types.Forces?, -- войска на борту транспорта
 	people: number, -- люди на борту
+	boat: boolean, -- десантный корабль (§15д): вышел с берега сам, после высадки исчезает
 	alive: boolean,
 }
 
@@ -86,10 +87,27 @@ function Fleet.ofNation(fs: FleetState, owner: number): { Ship }
 	return out
 end
 
--- Сколько кораблей у державы (с очередью).
+-- Сколько кораблей у державы (с очередью); десантные корабли (§15д) — отдельно, Fleet.boats.
 function Fleet.count(fs: FleetState, owner: number): number
 	local q = fs.queues[owner]
-	return #Fleet.ofNation(fs, owner) + (if q ~= nil then #q else 0)
+	local n = 0
+	for _, s in fs.ships do
+		if s.alive and s.owner == owner and not s.boat then
+			n += 1
+		end
+	end
+	return n + (if q ~= nil then #q else 0)
+end
+
+-- Сколько десантных кораблей державы в море (§15д).
+function Fleet.boats(fs: FleetState, owner: number): number
+	local n = 0
+	for _, s in fs.ships do
+		if s.alive and s.owner == owner and s.boat then
+			n += 1
+		end
+	end
+	return n
 end
 
 -- Новый корабль у причала dock порта port.
@@ -111,6 +129,7 @@ function Fleet.spawn(fs: FleetState, width: number, owner: number, kind: ShipKin
 		home = port,
 		cargo = nil,
 		people = 0,
+		boat = false,
 		alive = true,
 	}
 	fs.nextId = fs.nextId % 65535 + 1

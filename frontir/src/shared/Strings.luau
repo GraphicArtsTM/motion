@@ -552,6 +552,18 @@ local TABLE: { [string]: Entry } = {
 	["naval.pickSea"] = { ru = "Патруль: нажмите море", en = "Patrol: tap the sea" },
 	["naval.cancel"] = { ru = "Отмена (Esc)", en = "Cancel (Esc)" },
 	["event.shipBuilt"] = { ru = "Готов корабль: %s", en = "Ship ready: %s" },
+	["event.boatLaunched"] = {
+		ru = "Десант вышел в море — войска высадятся на том берегу",
+		en = "Landing party at sea — troops will land on the far shore",
+	},
+	["reject.noCoast"] = {
+		ru = "Нет своего берега у этого моря",
+		en = "You have no coast on this sea",
+	},
+	["reject.tooManyBoats"] = {
+		ru = "Все десантные корабли в море — дождитесь высадки",
+		en = "All landing ships are at sea — wait for a landing",
+	},
 	["event.shipSunk"] = { ru = "%s: %s потоплен (%s)", en = "%s: %s sunk (%s)" },
 	["event.shipSunkCargo"] = {
 		ru = "%s: %s потоплен с войсками %s (%s)",

@@ -910,6 +910,8 @@ function MatchHud.new(
 			then
 				toast(string.format(Strings.get("event.ping", lang), a, Strings.get("ping." .. e.phrase, lang)))
 			-- Флот (§6.12).
+			elseif e.kind == "boatLaunched" and e.nation == cs.myNation then
+				toast(Strings.get("event.boatLaunched", lang)) -- десант на другой берег (§15д)
 			elseif e.kind == "shipBuilt" and e.nation == cs.myNation then
 				toast(
 					string.format(Strings.get("event.shipBuilt", lang), Strings.get("ship." .. tostring(e.ship), lang))
