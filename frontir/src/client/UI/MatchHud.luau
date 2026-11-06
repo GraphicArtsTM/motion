@@ -15,6 +15,7 @@
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
@@ -413,6 +414,9 @@ function MatchHud.new(
 		line.label.Text = escape(text)
 		line.label.TextColor3 = color
 		line.label.Visible = true
+		-- Новая строка проявляется (§15г).
+		line.label.TextTransparency = 1
+		TweenService:Create(line.label, TweenInfo.new(0.25, Enum.EasingStyle.Quad), { TextTransparency = 0 }):Play()
 		line.untilTime = os.clock() + Config.Render.FeedSec
 		table.insert(feedLines, line)
 	end

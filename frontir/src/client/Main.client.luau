@@ -48,6 +48,9 @@ local MarkerLayer = require(Render:WaitForChild("MarkerLayer"))
 local WarFxLayer = require(Render:WaitForChild("WarFxLayer"))
 local AirPanel = require(UI:WaitForChild("AirPanel"))
 local BuildPanel = require(UI:WaitForChild("BuildPanel"))
+local Polish = require(UI:WaitForChild("Polish"))
+local BuildGhost = require(Render:WaitForChild("BuildGhost"))
+local CloudLayer = require(Render:WaitForChild("CloudLayer"))
 local BuildingLayer = require(Render:WaitForChild("BuildingLayer"))
 local CouncilPanel = require(UI:WaitForChild("CouncilPanel"))
 local DebugOverlay = require(UI:WaitForChild("DebugOverlay"))
@@ -189,7 +192,9 @@ local function runSession(mapId: string, resync: boolean)
 	local territory = TerritoryLayer.new(view, map, colors, cs, provinces)
 	local labels = NationLabels.new(view.canvas, cs, lang, map.width)
 	local frontLayer = FrontLayer.new(view.canvas, cs, map)
-	local buildingLayer = BuildingLayer.new(view.canvas, cs, provinces)
+	local buildingLayer = BuildingLayer.new(view.canvas, cs, provinces, map)
+	local buildGhost = BuildGhost.new(view.canvas, map.width) -- «призрак» стройки (§15г)
+	local clouds = CloudLayer.new(view.canvas, map.width, map.height) -- тени облаков (§15г)
 	local shipLayer = ShipLayer.new(view.canvas, cs)
 	local airLayer = AirLayer.new(view.canvas, cs)
 	local markerLayer = MarkerLayer.new(view.canvas, cs) -- шторм и ракеты (§6.16, §6.9)
@@ -198,6 +203,7 @@ local function runSession(mapId: string, resync: boolean)
 		provinceLabels.onCamera(state)
 		labels.onCamera(state)
 		buildingLayer.onCamera(state)
+		buildGhost.onCamera(state)
 	end)
 
 	-- Интерфейс создаётся до подключения к серверу: сообщения из очереди могут прийти сразу при подключении.
@@ -228,6 +234,7 @@ local function runSession(mapId: string, resync: boolean)
 	hudGui.DisplayOrder = 1
 	Session.track(hudGui)
 	hudGui.Parent = player:WaitForChild("PlayerGui")
+	Polish.attach(hudGui) -- скругления, градиенты, отклик кнопок, появление окон (§15г)
 
 	-- Нажатие на страну без войны → окно «Объявить войну» (WarPanel создаётся после HUD: ей нужна лента HUD).
 	local warPanel: WarPanel.WarPanel? = nil
@@ -251,7 +258,7 @@ local function runSession(mapId: string, resync: boolean)
 	-- Зрелищная война (§15б): баннер, искры границы, виньетка, стрелки наступления, вспышки захвата.
 	local warFx = WarFxLayer.new(view.canvas, hudGui, cs, lang)
 	wars.refresh()
-	local build = BuildPanel.new(hudGui, cs, lang, send, hud.toast)
+	local build = BuildPanel.new(hudGui, cs, lang, send, hud.toast, map, provinces, buildGhost)
 	build.refresh()
 	local forcesPanel = ForcesPanel.new(hudGui, cs, lang, send)
 	forcesPanel.refresh()
@@ -531,6 +538,7 @@ local function runSession(mapId: string, resync: boolean)
 		end,
 		onBuildings = function()
 			buildingLayer.refresh()
+			build.onBuildings() -- эффект постройки (§15г)
 		end,
 		onShips = function()
 			shipLayer.refresh()
@@ -661,8 +669,19 @@ local function runSession(mapId: string, resync: boolean)
 		-- Space — к своей столице (GDD §10); нет столицы — вся карта. На телефоне — кнопка «⌂».
 		onHome = goHome,
 	})
+	-- «Призрак» стройки за курсором (§15г).
+	Session.connect(UserInputService.InputChanged, function(io: InputObject)
+		if io.UserInputType ~= Enum.UserInputType.MouseMovement or not build.active() then
+			return
+		end
+		local p = io.Position
+		local inset = viewport.AbsolutePosition
+		local cx, cy = CameraMath.cellAt(camera.state, p.X - inset.X, p.Y - inset.Y)
+		build.hover(if cx ~= nil and cy ~= nil then cy * map.width + cx else nil)
+	end)
 
 	local musicAt = 0
+	local cloudsAt = os.clock()
 	local frameConn = Session.connect(RunService.RenderStepped, function()
 		local now = os.clock()
 		-- Музыка (§13): лобби, игра или финал — раз в полсекунды.
@@ -687,6 +706,8 @@ local function runSession(mapId: string, resync: boolean)
 			refreshFog(now)
 		end
 		territory.update(now)
+		clouds.update(math.clamp(now - cloudsAt, 0, 0.25), camera.state)
+		cloudsAt = now
 		frontLayer.update(now, camera.state)
 		shipLayer.update(now, camera.state)
 		airLayer.update(now, camera.state)

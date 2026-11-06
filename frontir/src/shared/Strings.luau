@@ -1175,8 +1175,8 @@ local TABLE: { [string]: Entry } = {
 		en = "T → pick a neighbour → Declare war, then tap their land to open a front.",
 	},
 	["tutorial.hint.build"] = {
-		ru = "B → выберите здание и нажмите на свою провинцию.",
-		en = "B → pick a building and tap your province.",
+		ru = "B → выберите здание и нажмите на свою землю: зелёный значок — можно строить.",
+		en = "B → pick a building and tap your land: a green icon means you can build.",
 	},
 	["tutorial.hint.alliance"] = {
 		ru = "T → выберите второго соседа → «Союз». В обучении он согласится.",

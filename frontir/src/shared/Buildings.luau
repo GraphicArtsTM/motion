@@ -76,6 +76,18 @@ function Buildings.fromList(list: { [any]: Building }, map: MapData.MapData): Bu
 	return set
 end
 
+-- Радиус действия здания в клетках для круга у «призрака» стройки (§15г); nil — круга нет.
+function Buildings.rangeOf(kind: string, mapWidth: number): number?
+	if kind == "Radar" then
+		return Config.Fog.RadarVision
+	elseif kind == "AirDefense" then
+		return Config.Buildings.AirDefense.radius
+	elseif kind == "Airfield" then
+		return Config.Air.Range * mapWidth / Config.UnitsReferenceMapWidth
+	end
+	return nil
+end
+
 -- Клетка у воды (порт ставят на берег, §15г).
 function Buildings.coastal(map: MapData.MapData, cell: number): boolean
 	local w, h = map.width, map.height

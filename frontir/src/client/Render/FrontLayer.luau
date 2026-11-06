@@ -42,6 +42,7 @@ local SPRITE_W, SPRITE_H = UnitSprites.Width, UnitSprites.Height
 
 type Unit = {
 	root: Frame,
+	shadow: Frame, -- тень под ногами (§15г)
 	parts: { Frame },
 	strokes: { UIStroke },
 	kind: string,
@@ -190,6 +191,17 @@ function FrontLayer.new(canvas: Frame, cs: ClientState, map: MapData): FrontLaye
 		root.ZIndex = 6
 		local parts: { Frame } = {}
 		local strokes: { UIStroke } = {}
+		-- Тень — мягкий тёмный овал под юнитом: юнит «стоит» на карте, а не плавает.
+		local shadow = Instance.new("Frame")
+		shadow.Name = "Shadow"
+		shadow.BorderSizePixel = 0
+		shadow.BackgroundColor3 = ink
+		shadow.BackgroundTransparency = 0.55
+		shadow.ZIndex = 6
+		shadow.Parent = root
+		local shadowCorner = Instance.new("UICorner")
+		shadowCorner.CornerRadius = UDim.new(0.5, 0)
+		shadowCorner.Parent = shadow
 		for _, p in SHAPES[kind] or SHAPES.Infantry do
 			local f = Instance.new("Frame")
 			f.BorderSizePixel = 0
@@ -197,7 +209,8 @@ function FrontLayer.new(canvas: Frame, cs: ClientState, map: MapData): FrontLaye
 			f.Parent = root
 			if p.ink then
 				f.BackgroundColor3 = ink
-			else
+			elseif p.shade == nil then
+				-- Контур — только у основных деталей (у оттенков нет: иначе спрайт рябит линиями).
 				local st = Instance.new("UIStroke")
 				st.Thickness = 1
 				st.Parent = f
@@ -208,6 +221,7 @@ function FrontLayer.new(canvas: Frame, cs: ClientState, map: MapData): FrontLaye
 		root.Parent = canvas
 		return {
 			root = root,
+			shadow = shadow,
 			parts = parts,
 			strokes = strokes,
 			kind = kind,
@@ -232,6 +246,8 @@ function FrontLayer.new(canvas: Frame, cs: ClientState, map: MapData): FrontLaye
 		end
 		u.scale, u.flip = scale, flip
 		u.root.Size = UDim2.fromOffset(SPRITE_W * scale, SPRITE_H * scale)
+		u.shadow.Position = UDim2.fromOffset(scale, (SPRITE_H - 1) * scale)
+		u.shadow.Size = UDim2.fromOffset((SPRITE_W - 2) * scale, math.max(2, math.round(scale * 1.6)))
 		for k, p in SHAPES[u.kind] or SHAPES.Infantry do
 			local f = u.parts[k]
 			local x = if flip then SPRITE_W - p.x - p.w else p.x
@@ -250,9 +266,10 @@ function FrontLayer.new(canvas: Frame, cs: ClientState, map: MapData): FrontLaye
 		local list = unitPool[kind]
 		local u = if list ~= nil and #list > 0 then table.remove(list) :: Unit else newUnit(kind)
 		local color = colorOf(owner)
+		local r, g, b = math.round(color.R * 255), math.round(color.G * 255), math.round(color.B * 255)
 		for k, p in SHAPES[kind] or SHAPES.Infantry do
 			if not p.ink then
-				u.parts[k].BackgroundColor3 = color
+				u.parts[k].BackgroundColor3 = Color3.fromRGB(UnitSprites.shade(r, g, b, p.shade))
 			end
 		end
 		setStroke(u, unsupplied)
