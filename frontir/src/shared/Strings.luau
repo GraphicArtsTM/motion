@@ -627,8 +627,8 @@ local TABLE: { [string]: Entry } = {
 	},
 	["building.AirDefense"] = { ru = "Батарея ПВО", en = "AA battery" },
 	["building.AirDefense.hint"] = {
-		ru = "сбивает самолёты в радиусе 10",
-		en = "shoots planes within 10",
+		ru = "заряды: ловит налёты и ракеты рядом",
+		en = "charges: stops raids and missiles nearby",
 	},
 	["plane.Fighter"] = { ru = "Истребитель", en = "Fighter" },
 	["plane.Bomber"] = { ru = "Бомбардировщик", en = "Bomber" },
@@ -700,8 +700,8 @@ local TABLE: { [string]: Entry } = {
 	["tech.desc.Fleet.2"] = { ru = "Открывает «Аэродром»", en = "Unlocks Airfield" },
 	["tech.desc.Fleet.3"] = { ru = "Открывает «Радар»", en = "Unlocks Radar" },
 	["tech.desc.Fleet.4"] = {
-		ru = "Батареи ПВО сбивают ракеты (75%%)",
-		en = "AA batteries shoot missiles (75%%)",
+		ru = "+1 заряд каждой батарее ПВО",
+		en = "+1 charge for every AA battery",
 	},
 	["tech.locked"] = { ru = "Закрыто", en = "Locked" },
 	["tech.done"] = { ru = "Изучено", en = "Done" },
@@ -832,6 +832,14 @@ local TABLE: { [string]: Entry } = {
 	["event.missileHit"] = {
 		ru = "Удар ракеты %s: %d клеток ничьи",
 		en = "%s missile strike: %d cells lost",
+	},
+	["event.raidIntercepted"] = {
+		ru = "ПВО %s перехватила налёт %s",
+		en = "%s air defense stopped a raid by %s",
+	},
+	["event.revoltSoon"] = {
+		ru = "Провинция %s восстанет через %d с — поднимите стабильность!",
+		en = "Province %s will revolt in %d s — raise stability!",
 	},
 	["event.missileShot"] = {
 		ru = "Ракета %s сбита сетью ПВО (%s)",

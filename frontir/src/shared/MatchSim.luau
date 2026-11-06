@@ -94,6 +94,7 @@ export type MatchEvent =
 	| { kind: "ping", nation: number, cell: number, phrase: Types.Phrase }
 	-- Стабильность (§6.10, этап 7а)
 	| { kind: "revolt", nation: number, province: number }
+	| { kind: "revoltSoon", nation: number, province: number, sec: number } -- отсчёт до восстания (§15д)
 	-- Технологии (§6.14, этап 7в-1)
 	| { kind: "researched", nation: number, branch: Types.TechBranch, level: number }
 	-- Случайные события (§6.16, этап 7г): событие; наёмники наняты (nation 0 — ставок не было)
@@ -103,6 +104,7 @@ export type MatchEvent =
 	| { kind: "missileLaunched", nation: number, target: number, cell: number, impactIn: number }
 	| { kind: "missileHit", nation: number, cell: number, cells: number }
 	| { kind: "missileShot", nation: number, by: number, cell: number }
+	| { kind: "raidIntercepted", nation: number, by: number, cell: number } -- заряд ПВО перехватил налёт (§15д)
 	| { kind: "boatLaunched", nation: number, target: number } -- десант на другой берег (§15д)
 	-- Разведка (§6.11а): nation разведал target
 	| { kind: "flood", step: number, cells: number } -- «Потоп» (§5.3): вода поднялась
@@ -191,7 +193,9 @@ export type Match = {
 	air: Air.AirState, -- самолёты и выведенные из строя здания (§6.13)
 	bombedAt: { [number]: number }, -- держава → когда её последний раз бомбили (боты ставят батарею ПВО)
 	bombedCell: { [number]: number }, -- держава → клетка последнего налёта на неё (Генерал прикрывает её истребителем)
-	hitAt: { [number]: number }, -- клетка здания → когда по нему ударили (снос нельзя сразу, §15д; ч.3 — защита)
+	hitAt: { [number]: number }, -- клетка здания или города → когда по нему ударили (защита и снос, §15д)
+	aaSpent: { [number]: { number } }, -- клетка батареи ПВО → когда восстановятся потраченные заряды (§15д ч.3)
+	buildingOwner: { [number]: number }, -- клетка здания → хозяин в прошлый тик (захват −1 уровень, §15д ч.3)
 	nextBlockadeAt: number,
 	result: Types.MatchResult?, -- итог (фаза Over)
 	victory: boolean, -- проверять ли победу (тесты на крошечных картах выключают)
@@ -308,6 +312,8 @@ function MatchSim.new(map: MapData, seed: number): Match
 		air = Air.new(),
 		bombedAt = {},
 		hitAt = {},
+		aaSpent = {},
+		buildingOwner = {},
 		bombedCell = {},
 		nextBlockadeAt = 0,
 		result = nil,
@@ -3385,33 +3391,166 @@ function MatchSim.launch(m: Match, n: Nation, cell: number): (boolean, string?)
 end
 
 -- Удар ракеты (или перехват сетью ПВО).
+-- Удары и защита (§15д ч.3) -----------------------------------------------------------------------
+
+-- Заряды батареи ПВО в клетке cell: сколько готово и сколько всего (ур. × ChargesPerLevel, «Сеть ПВО» — больше).
+function MatchSim.batteryCharges(m: Match, cell: number): (number, number)
+	local b = m.buildings.byCell[cell]
+	if b == nil or b.kind ~= "AirDefense" then
+		return 0, 0
+	end
+	local cfg = Config.Defense
+	local owner = Grid.getOwner(m.grid, cell)
+	local max = b.level * cfg.ChargesPerLevel + (if Tech.has(m.tech, owner, "Fleet", 4) then cfg.NetworkBonus else 0)
+	local spent = m.aaSpent[cell]
+	local used = 0
+	if spent ~= nil then
+		local k = 1
+		while k <= #spent do
+			if spent[k] <= m.simTime then
+				table.remove(spent, k)
+			else
+				used += 1
+				k += 1
+			end
+		end
+	end
+	return math.max(0, max - used), max
+end
+
+-- Удар по клетке cell державы victim: батарея victim или её друга, накрывающая клетку, тратит заряд — удар
+-- перехвачен. Ближайшая батарея с зарядом; без случайности. Возвращает хозяина батареи или nil.
+function MatchSim.intercept(m: Match, victim: number, cell: number): number?
+	if victim == 0 then
+		return nil
+	end
+	local friends = Diplomacy.friends(m.diplo, victim)
+	local w = m.grid.width
+	local cx, cy = cell % w, cell // w
+	local reach2 = Config.Buildings.AirDefense.radius ^ 2
+	local best: { cell: number, owner: number }? = nil
+	local bestD = math.huge
+	for _, b in MatchSim.buildingsOf(m, "AirDefense") do
+		if b.owner == victim or friends[b.owner] then
+			local dx, dy = b.cell % w - cx, b.cell // w - cy
+			local d = dx * dx + dy * dy
+			if d <= reach2 and d < bestD and (MatchSim.batteryCharges(m, b.cell)) > 0 then
+				best, bestD = b, d
+			end
+		end
+	end
+	if best == nil then
+		return nil
+	end
+	local spent = m.aaSpent[best.cell] or {}
+	table.insert(spent, m.simTime + Config.Defense.RechargeSec)
+	m.aaSpent[best.cell] = spent
+	return best.owner
+end
+
+-- Под защитой после удара (ProtectSec): следующий удар уровень не снимает.
+function MatchSim.protected(m: Match, cell: number): boolean
+	local at = m.hitAt[cell]
+	return at ~= nil and m.simTime - at < Config.Defense.ProtectSec
+end
+
+-- Удар по клетке здания или города: −1 уровень; город не ниже ур. 1; здание ур. 1 — выключено на HitDisableSec.
+-- false — место под защитой после прошлого удара.
+local function hitCell(m: Match, cell: number): boolean
+	if MatchSim.protected(m, cell) then
+		return false
+	end
+	m.hitAt[cell] = m.simTime
+	local b = m.buildings.byCell[cell]
+	local province = MapData.getProvince(m.map, cell)
+	if b ~= nil and b.level > 1 then
+		Buildings.setLevel(m.buildings, cell, b.level - 1, province)
+	elseif b ~= nil and b.kind ~= "City" then
+		m.air.disabled[cell] = m.simTime + Config.Defense.HitDisableSec
+		m.air.version += 1
+	end
+	return true
+end
+
+-- Удар по кругу радиуса r у center: города и здания, чей хозяин hostile(owner), теряют уровень (hitCell).
+-- Возвращает, сколько мест задето.
+function MatchSim.strikeDamage(m: Match, center: number, r: number, hostile: (owner: number) -> boolean): number
+	local g = m.grid
+	local w = g.width
+	local cx, cy = center % w + 0.5, center // w + 0.5
+	local r2 = r * r
+	local function inside(c: number): boolean
+		local dx, dy = c % w + 0.5 - cx, c // w + 0.5 - cy
+		return dx * dx + dy * dy <= r2
+	end
+	local cells: { number } = {}
+	for cell in m.buildings.byCell do
+		if inside(cell) then
+			local o = Grid.getOwner(g, cell)
+			if o ~= 0 and hostile(o) then
+				table.insert(cells, cell)
+			end
+		end
+	end
+	table.sort(cells)
+	local hits = 0
+	for _, cell in cells do
+		if hitCell(m, cell) then
+			hits += 1
+		end
+	end
+	if hits > 0 then
+		MatchSim.refreshOwned(m)
+	end
+	return hits
+end
+
+-- Захват (§15д ч.3): здание (и улучшенный город) сменило хозяина на другую державу — −1 уровень,
+-- ур. 1 — выключено на HitDisableSec. Раз в тик.
+local function stepCaptures(m: Match)
+	local seen = m.buildingOwner
+	local changed = false
+	for cell, b in m.buildings.byCell do
+		local o = Grid.getOwner(m.grid, cell)
+		local prev = seen[cell]
+		if prev ~= nil and prev ~= o and prev ~= 0 and o ~= 0 then
+			if b.level > 1 then
+				Buildings.setLevel(m.buildings, cell, b.level - 1, MapData.getProvince(m.map, cell))
+			elseif b.kind ~= "City" then
+				m.air.disabled[cell] = m.simTime + Config.Defense.HitDisableSec
+				m.air.version += 1
+			end
+			changed = true
+		end
+		seen[cell] = o
+	end
+	for cell in seen do
+		if m.buildings.byCell[cell] == nil then
+			seen[cell] = nil
+		end
+	end
+	if changed then
+		MatchSim.refreshOwned(m)
+	end
+end
+MatchSim.stepCaptures = stepCaptures
+
 local function missileImpact(m: Match, missile: Missile)
 	local g = m.grid
 	local w = g.width
 	local cell = missile.cell
 	local r = Config.Buildings.MissileSilo.strikeRadius
 	local cx, cy = cell % w, cell // w
-	-- Сеть ПВО (Флот-4): батарея державы с технологией (или её друга) рядом с целью — шанс сбить.
-	local victim = Grid.getOwner(g, cell)
-	if victim ~= 0 then
-		local friends = Diplomacy.friends(m.diplo, victim)
-		local reach2 = Config.Buildings.AirDefense.radius ^ 2
-		for _, b in MatchSim.buildingsOf(m, "AirDefense") do
-			if friends[b.owner] and Tech.has(m.tech, b.owner, "Fleet", 4) then
-				local dx, dy = b.cell % w - cx, b.cell // w - cy
-				if dx * dx + dy * dy <= reach2 then
-					if Rng.nextFloat(m.missileRng) < Config.Missile.InterceptChance then
-						table.insert(
-							m.events,
-							{ kind = "missileShot", nation = missile.owner, by = b.owner, cell = cell }
-						)
-						return
-					end
-					break
-				end
-			end
-		end
+	-- Заряды ПВО (§15д ч.3): батарея державы-цели или её друга рядом с целью с зарядом — ракета сбита.
+	local by = MatchSim.intercept(m, Grid.getOwner(g, cell), cell)
+	if by ~= nil then
+		table.insert(m.events, { kind = "missileShot", nation = missile.owner, by = by, cell = cell })
+		return
 	end
+	-- Города и здания в круге: −1 уровень (до того, как земля станет ничьей).
+	MatchSim.strikeDamage(m, cell, r, function(owner: number): boolean
+		return owner ~= missile.owner
+	end)
 	local taken = 0
 	for dy = -r, r do
 		for dx = -r, r do
@@ -4511,6 +4650,12 @@ function MatchSim.bomb(m: Match, plane: Air.Plane, target: number)
 		local dx, dy = c % w + 0.5 - tx, c // w + 0.5 - ty
 		return dx * dx + dy * dy <= r2
 	end
+	-- Заряды ПВО (§15д ч.3): налёт перехвачен целиком — ни фронты, ни здания не страдают.
+	local by = MatchSim.intercept(m, Grid.getOwner(g, target), target)
+	if by ~= nil then
+		table.insert(m.events, { kind = "raidIntercepted", nation = owner, by = by, cell = target })
+		return
+	end
 	for _, a in m.attacks do
 		if a.target ~= 0 and a.line ~= nil then
 			local touches = false
@@ -4537,21 +4682,10 @@ function MatchSim.bomb(m: Match, plane: Air.Plane, target: number)
 			end
 		end
 	end
-	local disabled = 0
-	for cell, b in m.buildings.byCell do
-		-- Город и батарея ПВО налётом не выводятся из строя (батарея иначе гасла бы от первого же налёта на неё).
-		if b.kind ~= "City" and b.kind ~= "AirDefense" and inCircle(cell) then
-			local o = Grid.getOwner(g, cell)
-			if o ~= 0 and o ~= owner and Wars.isActive(m.wars, owner, o) then
-				m.air.disabled[cell] = m.simTime + cfg.BuildingDisableSec
-				m.air.version += 1
-				disabled += 1
-			end
-		end
-	end
-	if disabled > 0 then
-		MatchSim.refreshOwned(m)
-	end
+	-- Города и здания врага в круге (§15д ч.3): −1 уровень, ур. 1 — выключено; батарея — тоже (её защищают заряды).
+	local disabled = MatchSim.strikeDamage(m, target, r, function(o: number): boolean
+		return o ~= owner and Wars.isActive(m.wars, owner, o)
+	end)
 	local victim = Grid.getOwner(g, target)
 	if victim ~= 0 and victim ~= owner then
 		m.bombedAt[victim] = m.simTime
@@ -4697,6 +4831,16 @@ local function stepStability(m: Match)
 			MatchSim.revolt(m, r.province, r.owner)
 		end
 	end
+	-- Начался отсчёт до восстания (§15д): хозяину — предупреждение с секундами.
+	for _, wr in m.stability.warnings do
+		table.insert(m.events, {
+			kind = "revoltSoon",
+			nation = wr.owner,
+			province = wr.province,
+			sec = Config.Stability.RevoltDelaySec,
+		})
+	end
+	table.clear(m.stability.warnings)
 end
 
 -- Точка графика доли суши (раз в HistoryEverySec секунд матча).
@@ -5037,6 +5181,7 @@ function MatchSim.step(m: Match, dt: number)
 	stepAir(m, simDt)
 	m.lastCaptured = stepAttacks(m, simDt)
 	stepPockets(m)
+	stepCaptures(m) -- захват здания: −1 уровень (§15д ч.3)
 	stepStability(m)
 
 	-- Столицы и выбывание: держава живёт, пока у неё есть хоть один город.

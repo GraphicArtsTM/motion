@@ -27,6 +27,7 @@ type CameraState = CameraMath.CameraState
 export type BuildingLayer = {
 	refresh: () -> (), -- здания поменялись
 	recolor: () -> (), -- владельцы клеток поменялись
+	charges: () -> (), -- заряды батарей ПВО поменялись (cs.world.batteries, §15д ч.3)
 	onCamera: (state: CameraState) -> (),
 }
 
@@ -172,6 +173,45 @@ function BuildingLayer.new(
 		end
 	end
 
+	-- Заряды батарей ПВО (§15д ч.3): голубые точки над значком — готов, тёмные — восстанавливается.
+	local chargeDots: { [number]: { Frame } } = {}
+	local function charges()
+		for _, dots in chargeDots do
+			for _, f in dots do
+				f:Destroy()
+			end
+		end
+		table.clear(chargeDots)
+		local list = cs.world.batteries
+		if list == nil then
+			return
+		end
+		local byCell: { [number]: Icon } = {}
+		for _, icon in icons do
+			byCell[icon.cell] = icon
+		end
+		for _, b in list do
+			local icon = byCell[b.cell]
+			if icon ~= nil and icon.kind == "AirDefense" then
+				local dots: { Frame } = {}
+				for k = 1, b.max do
+					local f = Instance.new("Frame")
+					f.BorderSizePixel = 0
+					f.ZIndex = 6
+					f.Size = UDim2.fromOffset(4, 4)
+					f.Position = UDim2.fromOffset((k - 1) * 6, -7)
+					f.BackgroundColor3 = if k <= b.ready then Theme.Colors.Sky else Theme.Colors.Slate
+					local stroke = Instance.new("UIStroke")
+					stroke.Color = Theme.Colors.Backdrop
+					stroke.Parent = f
+					f.Parent = icon.root
+					table.insert(dots, f)
+				end
+				chargeDots[b.cell] = dots
+			end
+		end
+	end
+
 	local function recolor()
 		for _, icon in icons do
 			if icon.kind ~= "City" and icon.kind ~= "OilField" then
@@ -185,8 +225,12 @@ function BuildingLayer.new(
 	end
 
 	return {
-		refresh = refresh,
+		refresh = function()
+			refresh()
+			charges()
+		end,
 		recolor = recolor,
+		charges = charges,
 		onCamera = function(state: CameraState)
 			if state.zoom ~= zoom then
 				zoom = state.zoom

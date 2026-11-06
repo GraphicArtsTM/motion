@@ -141,4 +141,81 @@ T.describe("Экономика 2.0 (§15д)", function()
 			T.expect(select(2, MatchSim.applyIntent(m, 1, { kind = "demolish", cell = cap }))).toBe("notOwner")
 		end
 	)
+
+	T.it(
+		"удар (§15д ч.3): −1 уровень, город не ниже 1, ур. 1 — выключено; 30 с защиты; налёт ловит заряд ПВО",
+		function()
+			local m = duo()
+			DevTools.warNow(m, 1, 2)
+			local far = 40 * W + 30
+			T.expect((build(m, "Factory", far))).toBe(true)
+			T.expect((build(m, "Factory", far))).toBe(true) -- ур. 2
+			local cap = m.nations[1].capital :: number
+			T.expect((build(m, "City", cap))).toBe(true) -- город ур. 2
+			local plane: any = { owner = 2 }
+			MatchSim.bomb(m, plane, far)
+			T.expect(m.buildings.byCell[far].level).toBe(1)
+			-- Защита: повторный налёт сразу — уровень не падает и здание не выключается.
+			MatchSim.bomb(m, plane, far)
+			T.expect(m.buildings.byCell[far].level).toBe(1)
+			T.expect(MatchSim.isDisabled(m, far)).toBe(false)
+			-- После защиты здание ур. 1 — выключено (не разрушено).
+			m.simTime += Config.Defense.ProtectSec + 1
+			MatchSim.bomb(m, plane, far)
+			T.expect(m.buildings.byCell[far] ~= nil).toBe(true)
+			T.expect(MatchSim.isDisabled(m, far)).toBe(true)
+			-- Город: −1 уровень, не ниже 1.
+			MatchSim.bomb(m, plane, cap)
+			T.expect(Buildings.cityLevel(m.buildings, cap)).toBe(1)
+			m.simTime += Config.Defense.ProtectSec + 1
+			MatchSim.bomb(m, plane, cap)
+			T.expect(Buildings.cityLevel(m.buildings, cap)).toBe(1)
+			-- Батарея ПВО ур. 2 рядом с заводом: два налёта перехвачены, третий — нет.
+			local target = 20 * W + 30
+			T.expect((build(m, "Factory", target))).toBe(true)
+			T.expect((build(m, "Factory", target))).toBe(true)
+			local battery = 20 * W + 36
+			T.expect((build(m, "AirDefense", battery))).toBe(true)
+			T.expect((build(m, "AirDefense", battery))).toBe(true)
+			T.expect((MatchSim.batteryCharges(m, battery))).toBe(2)
+			m.simTime += Config.Defense.ProtectSec + 1
+			local function raidAndCount(): number
+				MatchSim.takeEvents(m)
+				MatchSim.bomb(m, plane, target)
+				local n = 0
+				for _, e in MatchSim.takeEvents(m) do
+					if e.kind == "raidIntercepted" then
+						n += 1
+					end
+				end
+				return n
+			end
+			T.expect(raidAndCount()).toBe(1)
+			T.expect(raidAndCount()).toBe(1)
+			T.expect(raidAndCount()).toBe(0)
+			T.expect(m.buildings.byCell[target].level).toBe(1)
+			-- Заряд восстанавливается через RechargeSec.
+			m.simTime += Config.Defense.RechargeSec + 1
+			T.expect((MatchSim.batteryCharges(m, battery)) >= 1).toBe(true)
+		end
+	)
+
+	T.it(
+		"захват (§15д ч.3): здание перешло врагу — −1 уровень, ур. 1 — выключено",
+		function()
+			local m = duo()
+			local far = 40 * W + 30
+			T.expect((build(m, "Factory", far))).toBe(true)
+			T.expect((build(m, "Factory", far))).toBe(true)
+			local market = 40 * W + 40
+			T.expect((build(m, "Market", market))).toBe(true)
+			MatchSim.step(m, DT)
+			Grid.setOwner(m.grid, far, 2)
+			Grid.setOwner(m.grid, market, 2)
+			MatchSim.step(m, DT)
+			T.expect(m.buildings.byCell[far].level).toBe(1)
+			T.expect(MatchSim.isDisabled(m, market)).toBe(true)
+			T.expect(MatchSim.ownedOf(m, 2).factories).toBe(1)
+		end
+	)
 end)

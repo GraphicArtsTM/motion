@@ -8,8 +8,8 @@
 	- Провинция взята у другой державы — стабильность сразу не выше CaptureStart и поправка «недавний захват»;
 	  новая провинция с ничьей земли начинает с SettleStart.
 	- Ниже LowBelow — доход провинции меньше (summary: lowCells, lowCityLevels).
-	- Ниже RevoltBelow — раз в RevoltCheckSec шанс восстания (update возвращает список); провинция столицы
-	  не восстаёт. Само восстание (клетки ничьи, город повстанцев) делает MatchSim, а модуль помечает провинцию
+	- Ниже RevoltBelow RevoltDelaySec секунд подряд — восстание (§15д: таймер, а не шанс; update возвращает
+	  список, начало отсчёта — в st.warnings); провинция столицы не восстаёт. Само восстание (клетки ничьи, город повстанцев) делает MatchSim, а модуль помечает провинцию
 	  «Повстанцы» на RebelSec.
 ]]
 
@@ -26,6 +26,7 @@ export type ProvinceState = {
 	value: number, -- текущая стабильность 0..100
 	target: number, -- целевая (последний пересчёт)
 	capturedAt: number?, -- когда взята у другой державы (поправка «недавний захват»)
+	lowSince: number?, -- с какого момента ниже RevoltBelow (отсчёт до восстания, §15д)
 }
 
 export type Rebels = { province: number, from: number, untilTime: number }
@@ -45,6 +46,7 @@ export type State = {
 	nextUpdateAt: number,
 	nextRevoltAt: number,
 	version: number, -- растёт при изменении повстанцев (рассылка)
+	warnings: { { province: number, owner: number } }, -- начался отсчёт до восстания (MatchSim забирает в события)
 }
 
 -- Что модуль знает о матче.
@@ -68,7 +70,15 @@ export type Revolt = { province: number, owner: number }
 local Stability = {}
 
 function Stability.new(): State
-	return { provinces = {}, rebels = {}, summary = {}, nextUpdateAt = 0, nextRevoltAt = 0, version = 0 }
+	return {
+		provinces = {},
+		rebels = {},
+		summary = {},
+		nextUpdateAt = 0,
+		nextRevoltAt = 0,
+		version = 0,
+		warnings = {},
+	}
 end
 
 -- Хозяин провинции p по сетке: владелец города, иначе держава с больше чем половиной клеток (или 0).
@@ -228,23 +238,24 @@ function Stability.update(st: State, ctx: Context): { Revolt }
 	end
 	st.summary = summary
 
-	-- Восстания: раз в RevoltCheckSec, провинция ниже RevoltBelow (не столица, не уже повстанцы).
-	if ctx.now >= st.nextRevoltAt then
-		st.nextRevoltAt = ctx.now + cfg.RevoltCheckSec
-		for _, province in ctx.provinces.list do
-			local p = province.id
-			local s = st.provinces[p]
-			if
-				s ~= nil
-				and s.owner ~= 0
+	-- Восстания (§15д): провинция ниже RevoltBelow RevoltDelaySec секунд подряд (не столица, не уже повстанцы).
+	-- Без случайности: начало отсчёта — предупреждение хозяину (st.warnings), поднял стабильность — отсчёт сброшен.
+	for _, province in ctx.provinces.list do
+		local p = province.id
+		local s = st.provinces[p]
+		if s ~= nil then
+			local low = s.owner ~= 0
 				and s.value < cfg.RevoltBelow
 				and st.rebels[p] == nil
 				and capitalProvince(ctx, s.owner) ~= p
-			then
-				local chance = cfg.RevoltChance * (1 - s.value / cfg.RevoltBelow)
-				if Rng.nextFloat(ctx.rng) < chance then
-					table.insert(revolts, { province = p, owner = s.owner })
-				end
+			if not low then
+				s.lowSince = nil
+			elseif s.lowSince == nil then
+				s.lowSince = ctx.now
+				table.insert(st.warnings, { province = p, owner = s.owner })
+			elseif ctx.now - (s.lowSince :: number) >= cfg.RevoltDelaySec then
+				s.lowSince = nil
+				table.insert(revolts, { province = p, owner = s.owner })
 			end
 		end
 	end

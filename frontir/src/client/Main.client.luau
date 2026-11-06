@@ -565,6 +565,7 @@ local function runSession(mapId: string, resync: boolean)
 				buildingLayer.refresh()
 			end
 			markerLayer.refresh()
+			buildingLayer.charges() -- заряды ПВО (§15д ч.3)
 			worldPanel.refresh()
 			commanderPanel.update(os.clock())
 		end,

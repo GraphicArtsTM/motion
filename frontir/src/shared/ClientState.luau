@@ -167,6 +167,7 @@ export type WorldMessage = {
 	oilExtra: { number },
 	silo: boolean, -- у меня есть работающая шахта
 	missileLeft: number, -- до готовности пуска
+	batteries: { { cell: number, ready: number, max: number } }?, -- заряды батарей ПВО (§15д ч.3, видны всем)
 }
 
 export type ApplyResult = "snapshot" | "delta" | "stats" | "forces" | "wars" | "ships" | "air" | "partial" | "ignored"
@@ -353,6 +354,14 @@ function ClientState.applyWorld(cs: ClientState, msg: any, now: number): { numbe
 			table.insert(missiles, { cell = num(mi.cell), owner = num(mi.owner), left = num(mi.left) })
 		end
 	end
+	local batteries: { { cell: number, ready: number, max: number } } = {}
+	if type(msg.batteries) == "table" then
+		for _, b in msg.batteries do
+			if type(b) == "table" then
+				table.insert(batteries, { cell = num(b.cell), ready = num(b.ready), max = num(b.max) })
+			end
+		end
+	end
 	local known: { [number]: boolean } = {}
 	for _, p in cs.world.oilExtra do
 		known[p] = true
@@ -374,6 +383,7 @@ function ClientState.applyWorld(cs: ClientState, msg: any, now: number): { numbe
 		oilExtra = oil,
 		silo = msg.silo == true,
 		missileLeft = num(msg.missileLeft),
+		batteries = batteries,
 	}
 	cs.worldAt = now
 	return fresh

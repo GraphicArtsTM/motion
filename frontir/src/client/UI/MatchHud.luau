@@ -1017,6 +1017,20 @@ function MatchHud.new(
 				else
 					toast(string.format(Strings.get("event.raid", lang), b, lost, count))
 				end
+			elseif e.kind == "revoltSoon" and e.nation == cs.myNation then
+				-- Отсчёт до восстания (§15д): красной строкой, с секундами.
+				local province = provinces.list[tonumber(e.province) or 0]
+				local where = if province ~= nil then (if lang == "en" then province.nameEn else province.name) else "?"
+				alertLine(string.format(Strings.get("event.revoltSoon", lang), where, tonumber(e.sec) or 0))
+			elseif e.kind == "raidIntercepted" then
+				-- Заряд ПВО перехватил налёт (§15д): по нам — золотом, наш налёт сбит — красным.
+				local text =
+					string.format(Strings.get("event.raidIntercepted", lang), nationName(tonumber(e.by) or 0), a)
+				if e.nation == cs.myNation then
+					alertLine(text)
+				elseif e.by == cs.myNation then
+					toast(text)
+				end
 			elseif e.kind == "revolt" then
 				-- Восстание (§6.10): у нас — красной строкой.
 				local province = provinces.list[tonumber(e.province) or 0]

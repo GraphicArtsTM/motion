@@ -339,6 +339,12 @@ function MatchStats.world(m: MatchSim.Match, viewer: number?): WorldMessage
 	for _, mi in m.missiles do
 		table.insert(missiles, { cell = mi.cell, owner = mi.owner, left = math.max(0, mi.impactAt - now) })
 	end
+	-- Заряды батарей ПВО (§15д ч.3): видны всем — атакующий знает, сколько ударов нужно.
+	local batteries: { { cell: number, ready: number, max: number } } = {}
+	for _, b in MatchSim.buildingsOf(m, "AirDefense") do
+		local ready, max = MatchSim.batteryCharges(m, b.cell)
+		table.insert(batteries, { cell = b.cell, ready = ready, max = max })
+	end
 	local silo = false
 	if viewer ~= nil then
 		for _, s in MatchSim.buildingsOf(m, "MissileSilo") do
@@ -364,6 +370,7 @@ function MatchStats.world(m: MatchSim.Match, viewer: number?): WorldMessage
 		oilExtra = table.clone(st.oilExtra),
 		silo = silo,
 		missileLeft = if viewer ~= nil then math.max(0, (m.missileReady[viewer] or 0) - now) else 0,
+		batteries = batteries,
 	}
 end
 
