@@ -40,6 +40,7 @@ function AudioCues.cueOf(e: { [string]: any }, me: number?): string?
 		return "Siren"
 	elseif
 		kind == "missileHit"
+		or kind == "nukeHit"
 		or (kind == "raid" and onMe)
 		or (kind == "ability" and e.ability == "Airstrike" and (mine or onMe))
 	then

@@ -416,6 +416,7 @@ local TABLE: { [string]: Entry } = {
 	["reject.needFactory"] = { ru = "Нужен свой завод", en = "You need a factory" },
 	["reject.noMoney"] = { ru = "Не хватает денег", en = "Not enough money" },
 	["reject.noOil"] = { ru = "Не хватает нефти", en = "Not enough oil" },
+	["reject.tooSoon"] = { ru = "Слишком часто — подождите", en = "Too often — wait a bit" },
 	["reject.needCity"] = { ru = "Нажмите на свой город", en = "Tap your own city" },
 	["reject.maxLevel"] = {
 		ru = "Это уже самый высокий уровень",
@@ -903,6 +904,28 @@ local TABLE: { [string]: Entry } = {
 		ru = "Ракета: нажмите цель — землю врага (Esc — отмена)",
 		en = "Missile: tap an enemy target (Esc — cancel)",
 	},
+	-- §15ж: боеголовки и ядерные удары.
+	["missile.targetWarhead"] = {
+		ru = "%s: нажмите цель — землю врага (R — сменить боеголовку, Esc — отмена)",
+		en = "%s: tap an enemy target (R — change warhead, Esc — cancel)",
+	},
+	["missile.targetNuke"] = {
+		ru = "☢ %s ($%s, нефть %s): нажмите цель (R — сменить, Esc — отмена)",
+		en = "☢ %s ($%s, oil %s): tap a target (R — change, Esc — cancel)",
+	},
+	["warhead.missile"] = { ru = "Ракета", en = "Missile" },
+	["warhead.atom"] = { ru = "Атомная бомба", en = "Atom bomb" },
+	["warhead.hydrogen"] = { ru = "Водородная бомба", en = "Hydrogen bomb" },
+	["event.nukeLaunched"] = { ru = "☢ %s: %s → %s (%d с)", en = "☢ %s: %s → %s (%d s)" },
+	["event.nukeOnYou"] = {
+		ru = "☢ %s летит на вас (%s)! Батареи ПВО: нужно %d заряда",
+		en = "☢ %s incoming from %s! AA needs %d charges",
+	},
+	["event.nukeHit"] = {
+		ru = "☢ %s: %s ударил по %s — %s клеток",
+		en = "☢ %s: %s hit %s — %s cells",
+	},
+	["ring.emoji"] = { ru = "Эмодзи", en = "Emoji" },
 	["event.missileLaunched"] = {
 		ru = "Ракета летит: %s → %s (%d с)",
 		en = "Missile incoming: %s → %s (%d s)",
@@ -935,6 +958,7 @@ local TABLE: { [string]: Entry } = {
 	["dev.silo"] = { ru = "Ракетная шахта", en = "Missile silo" },
 	["dev.tradeNow"] = { ru = "Торговое судно сейчас", en = "Trade ship now" },
 	["dev.botMissile"] = { ru = "Бот: ракета по вам", en = "Bot: missile on you" },
+	["dev.botNuke"] = { ru = "Бот: атомная бомба по вам", en = "Bot: atom bomb on you" },
 	-- Звук и музыка (§13, этап 10б)
 	["sound.title"] = { ru = "Звук", en = "Sound" },
 	["sound.sfx"] = { ru = "Звуки: %d%%", en = "Effects: %d%%" },

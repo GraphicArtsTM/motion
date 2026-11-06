@@ -102,7 +102,28 @@ export type MatchEvent =
 	| { kind: "worldEvent", event: string, cell: number?, radius: number?, province: number?, nation: number? }
 	| { kind: "mercs", nation: number, amount: number }
 	-- Ракеты (§6.9, этап 7г): пуск (target — держава в клетке цели), удар, перехват сетью ПВО
-	| { kind: "missileLaunched", nation: number, target: number, cell: number, impactIn: number }
+	| {
+		kind: "missileLaunched",
+		nation: number,
+		target: number,
+		cell: number,
+		impactIn: number,
+		warhead: Types.Warhead, -- §15ж: ракета, атомная, водородная
+		from: number, -- клетка шахты (ракета летит от неё)
+		radius: number,
+	}
+	-- §15ж: ядерный взрыв (cells — сколько земли стало ничьей)
+	| {
+		kind: "nukeHit",
+		nation: number,
+		target: number,
+		cell: number,
+		radius: number,
+		warhead: Types.Warhead,
+		cells: number,
+	}
+	-- §15ж: эмодзи над столицей державы target
+	| { kind: "emoji", nation: number, target: number, emoji: number }
 	| { kind: "missileHit", nation: number, cell: number, cells: number }
 	| { kind: "missileShot", nation: number, by: number, cell: number }
 	| { kind: "raidIntercepted", nation: number, by: number, cell: number } -- заряд ПВО перехватил налёт (§15д)
@@ -129,7 +150,9 @@ export type MatchEvent =
 	| { kind: "raid", nation: number, target: number, cell: number, lost: number, buildings: number }
 
 -- Потоки случайных чисел бота: когда думать, главные решения, флот, авиация, дипломатия.
-export type Missile = { owner: number, cell: number, impactAt: number }
+export type Missile = { owner: number, cell: number, impactAt: number, warhead: Types.Warhead }
+-- Заражённая зона (§15ж): её ничья земля не берётся до untilTime.
+export type Fallout = { cell: number, radius: number, untilTime: number }
 
 export type BotRngs = {
 	think: Rng,
@@ -195,6 +218,8 @@ export type Match = {
 	tradeAt: { [number]: number }, -- клетка порта → simTime следующего торгового судна
 	tradeCheckAt: number, -- торговля проверяется раз в секунду (не каждый тик)
 	missiles: { Missile }, -- ракеты в полёте (§6.9)
+	fallout: { Fallout }, -- заражённые зоны после ядерных ударов (§15ж)
+	emojiAt: { [number]: number }, -- держава → simTime последнего эмодзи (§15ж)
 	missileReady: { [number]: number }, -- держава → когда снова можно пускать
 	fleet: Fleet.FleetState, -- корабли
 	air: Air.AirState, -- самолёты и выведенные из строя здания (§6.13)
@@ -319,6 +344,8 @@ function MatchSim.new(map: MapData, seed: number): Match
 		tradeAt = {},
 		tradeCheckAt = 0,
 		missiles = {},
+		fallout = {},
+		emojiAt = {},
 		missileReady = {},
 		air = Air.new(),
 		bombedAt = {},
@@ -1386,7 +1413,25 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 		return MatchSim.bid(m, n, intent.amount)
 	end
 	if intent.kind == "missile" then
-		return MatchSim.launch(m, n, intent.cell)
+		return MatchSim.launch(m, n, intent.cell, intent.warhead)
+	end
+
+	-- §15ж: эмодзи над столицей державы (картинка из списка, не чаще Emoji.MinGapSec).
+	if intent.kind == "emoji" then
+		local target = m.nations[intent.target]
+		if target == nil or not target.alive then
+			return false, "target"
+		end
+		if intent.emoji < 1 or intent.emoji > #Config.Emoji.List then
+			return false, "target"
+		end
+		local last = m.emojiAt[n.id]
+		if last ~= nil and m.simTime - last < Config.Emoji.MinGapSec then
+			return false, "tooSoon"
+		end
+		m.emojiAt[n.id] = m.simTime
+		table.insert(m.events, { kind = "emoji", nation = n.id, target = target.id, emoji = intent.emoji })
+		return true, nil
 	end
 
 	if intent.kind == "ability" then
@@ -2407,9 +2452,14 @@ local function stepAttacks(m: Match, simDt: number): number
 
 	-- Ничья земля повстанцев дороже для границы людей (§6.10).
 	local rebelCost: ((cell: number) -> number)? = nil
-	if next(m.stability.rebels) ~= nil then
+	local rebels = next(m.stability.rebels) ~= nil
+	if rebels or #m.fallout > 0 then
 		rebelCost = function(cell: number): number
-			return if Stability.isRebel(m.stability, MapData.getProvince(m.map, cell))
+			-- Заражённая зона (§15ж) не берётся никем.
+			if #m.fallout > 0 and MatchSim.inFallout(m, cell) then
+				return math.huge
+			end
+			return if rebels and Stability.isRebel(m.stability, MapData.getProvince(m.map, cell))
 				then Config.Stability.RebelCellCostMul
 				else 1
 		end
@@ -3399,19 +3449,49 @@ function MatchSim.worldEvent(m: Match, kind: string): boolean
 	return true
 end
 
--- Пуск ракеты из своей шахты по клетке врага (§6.9).
-function MatchSim.launch(m: Match, n: Nation, cell: number): (boolean, string?)
+-- Боеголовка (§15ж): числа ядерной бомбы или nil — обычная ракета.
+function MatchSim.nukeConfig(warhead: Types.Warhead): any
+	return if warhead == "atom" then Config.Nukes.Atom elseif warhead == "hydrogen" then Config.Nukes.Hydrogen else nil
+end
+
+-- Радиус удара боеголовки в клетках этой карты.
+function MatchSim.warheadRadius(m: Match, warhead: Types.Warhead): number
+	local nuke = MatchSim.nukeConfig(warhead)
+	if nuke == nil then
+		return Config.Buildings.MissileSilo.strikeRadius
+	end
+	return math.max(1, math.round(nuke.radius * m.grid.width / Config.UnitsReferenceMapWidth))
+end
+
+-- В заражённой зоне ли клетка (§15ж).
+function MatchSim.inFallout(m: Match, cell: number): boolean
+	local w = m.grid.width
+	local x, y = cell % w, cell // w
+	for _, f in m.fallout do
+		if m.simTime < f.untilTime then
+			local dx, dy = x - f.cell % w, y - f.cell // w
+			if dx * dx + dy * dy <= f.radius * f.radius then
+				return true
+			end
+		end
+	end
+	return false
+end
+
+-- Пуск ракеты (или ядерной бомбы, §15ж) из своей шахты по клетке врага (§6.9).
+function MatchSim.launch(m: Match, n: Nation, cell: number, warhead: Types.Warhead?): (boolean, string?)
 	local g = m.grid
 	if cell < 0 or cell >= g.size then
 		return false, "focus"
 	end
-	local hasSilo = false
+	local kind: Types.Warhead = warhead or "missile"
+	local silo: number? = nil
 	for _, s in MatchSim.buildingsOf(m, "MissileSilo") do
-		if s.owner == n.id then
-			hasSilo = true
+		if s.owner == n.id and (silo == nil or s.cell < silo) then
+			silo = s.cell
 		end
 	end
-	if not hasSilo then
+	if silo == nil then
 		return false, "needSilo"
 	end
 	if (m.missileReady[n.id] or 0) > m.simTime then
@@ -3425,12 +3505,34 @@ function MatchSim.launch(m: Match, n: Nation, cell: number): (boolean, string?)
 		return false, "notAtWar"
 	end
 	local cfg = Config.Buildings.MissileSilo
+	local nuke = MatchSim.nukeConfig(kind)
+	local warning = cfg.warningSec
+	if nuke ~= nil then
+		if nuke.techLevel ~= nil and Tech.level(m.tech, n.id, "Army") < nuke.techLevel then
+			return false, "needTech"
+		end
+		if n.money < nuke.cost then
+			return false, "noMoney"
+		end
+		if n.oil < nuke.oil then
+			return false, "noOil"
+		end
+		n.money -= nuke.cost
+		n.oil -= nuke.oil
+		warning = nuke.warningSec
+	end
 	m.missileReady[n.id] = m.simTime + cfg.cooldownSec
-	table.insert(m.missiles, { owner = n.id, cell = cell, impactAt = m.simTime + cfg.warningSec })
-	table.insert(
-		m.events,
-		{ kind = "missileLaunched", nation = n.id, target = target, cell = cell, impactIn = cfg.warningSec }
-	)
+	table.insert(m.missiles, { owner = n.id, cell = cell, impactAt = m.simTime + warning, warhead = kind })
+	table.insert(m.events, {
+		kind = "missileLaunched",
+		nation = n.id,
+		target = target,
+		cell = cell,
+		impactIn = warning,
+		warhead = kind,
+		from = silo :: number,
+		radius = MatchSim.warheadRadius(m, kind),
+	})
 	return true, nil
 end
 
@@ -3579,7 +3681,145 @@ local function stepCaptures(m: Match)
 end
 MatchSim.stepCaptures = stepCaptures
 
+-- Ядерную бомбу (§15ж) сбивают need зарядов батарей victim и её друзей, накрывающих клетку. Хватает — заряды
+-- тратятся (сначала ближайшие), возвращается хозяин ближайшей батареи; не хватает — ничего не тратится, nil.
+function MatchSim.interceptCharges(m: Match, victim: number, cell: number, need: number): number?
+	if victim == 0 then
+		return nil
+	end
+	local friends = Diplomacy.friends(m.diplo, victim)
+	local w = m.grid.width
+	local cx, cy = cell % w, cell // w
+	local reach2 = Config.Buildings.AirDefense.radius ^ 2
+	type Near = { cell: number, owner: number, d: number, charges: number }
+	local near: { Near } = {}
+	local total = 0
+	for _, b in MatchSim.buildingsOf(m, "AirDefense") do
+		if b.owner == victim or friends[b.owner] then
+			local dx, dy = b.cell % w - cx, b.cell // w - cy
+			local d = dx * dx + dy * dy
+			local charges = MatchSim.batteryCharges(m, b.cell)
+			if d <= reach2 and charges > 0 then
+				table.insert(near, { cell = b.cell, owner = b.owner, d = d, charges = charges })
+				total += charges
+			end
+		end
+	end
+	if total < need then
+		return nil
+	end
+	table.sort(near, function(a: Near, b: Near): boolean
+		return if a.d ~= b.d then a.d < b.d else a.cell < b.cell
+	end)
+	local left = need
+	for _, b in near do
+		local spent = m.aaSpent[b.cell] or {}
+		for _ = 1, math.min(left, b.charges) do
+			table.insert(spent, m.simTime + Config.Defense.RechargeSec)
+			left -= 1
+		end
+		m.aaSpent[b.cell] = spent
+		if left <= 0 then
+			break
+		end
+	end
+	return near[1].owner
+end
+
+-- Ядерный взрыв (§15ж): гибнет только враг (держава, с которой у запустившего идёт война). Его земля в круге —
+-- ничья, здания разрушены, города — до ур. 1, гарнизон теряет долю, фронты у круга — почти всё; круг заражён.
+local function nukeImpact(m: Match, missile: Missile)
+	local g = m.grid
+	local w = g.width
+	local cell = missile.cell
+	local nuke = MatchSim.nukeConfig(missile.warhead)
+	local r = MatchSim.warheadRadius(m, missile.warhead)
+	local victim = Grid.getOwner(g, cell)
+	local by = MatchSim.interceptCharges(m, victim, cell, nuke.charges)
+	if by ~= nil then
+		table.insert(m.events, { kind = "missileShot", nation = missile.owner, by = by, cell = cell })
+		return
+	end
+	local function hostile(owner: number): boolean
+		return owner ~= 0 and owner ~= missile.owner and Wars.isActive(m.wars, missile.owner, owner)
+	end
+	local cx, cy = cell % w, cell // w
+	-- Здания и города в круге (до того, как земля станет ничьей).
+	local changedBuildings = false
+	local inCircle: { number } = {}
+	for bcell in m.buildings.byCell do
+		local dx, dy = bcell % w - cx, bcell // w - cy
+		if dx * dx + dy * dy <= r * r and hostile(Grid.getOwner(g, bcell)) then
+			table.insert(inCircle, bcell)
+		end
+	end
+	table.sort(inCircle)
+	for _, bcell in inCircle do
+		local b = m.buildings.byCell[bcell]
+		local province = MapData.getProvince(m.map, bcell)
+		if b ~= nil and b.kind == "City" then
+			if b.level > 1 then
+				Buildings.setLevel(m.buildings, bcell, 1, province)
+				changedBuildings = true
+			end
+		elseif b ~= nil then
+			Buildings.remove(m.buildings, bcell, province)
+			changedBuildings = true
+		end
+	end
+	-- Земля врага в круге — ничья; гарнизон теряет долю, пропорциональную потерянной земле.
+	local lost: { [number]: number } = {}
+	local before: { [number]: number } = {}
+	local taken = 0
+	for dy = -r, r do
+		for dx = -r, r do
+			local x, y = cx + dx, cy + dy
+			if x >= 0 and y >= 0 and x < w and y < g.height and dx * dx + dy * dy <= r * r then
+				local i = y * w + x
+				local owner = Grid.getOwner(g, i)
+				if Grid.isCapturable(g, i) and hostile(owner) then
+					if before[owner] == nil then
+						before[owner] = Grid.cellsOf(g, owner)
+					end
+					Grid.setOwner(g, i, 0)
+					lost[owner] = (lost[owner] or 0) + 1
+					taken += 1
+				end
+			end
+		end
+	end
+	for owner, n in lost do
+		local nation = m.nations[owner]
+		if nation ~= nil then
+			local share = math.min(nuke.maxGarrisonLoss, n / math.max(1, before[owner]) * nuke.garrisonLossMul)
+			Forces.applyDamage(nation.home, Forces.total(nation.home) * share)
+		end
+	end
+	for _, a in m.attacks do
+		if (hostile(a.attacker) or hostile(a.target)) and lineTouches(m, a, cell, r) then
+			Forces.applyDamage(a.forces, Forces.total(a.forces) * nuke.frontLoss)
+		end
+	end
+	if changedBuildings then
+		MatchSim.refreshOwned(m)
+	end
+	table.insert(m.fallout, { cell = cell, radius = r, untilTime = m.simTime + nuke.falloutSec })
+	table.insert(m.events, {
+		kind = "nukeHit",
+		nation = missile.owner,
+		target = victim,
+		cell = cell,
+		radius = r,
+		warhead = missile.warhead,
+		cells = taken,
+	})
+end
+
 local function missileImpact(m: Match, missile: Missile)
+	if missile.warhead ~= "missile" then
+		nukeImpact(m, missile)
+		return
+	end
 	local g = m.grid
 	local w = g.width
 	local cell = missile.cell
@@ -3646,6 +3886,12 @@ local function stepWorld(m: Match)
 			if kind == nil or MatchSim.worldEvent(m, kind) then
 				break
 			end
+		end
+	end
+	-- Заражённые зоны остывают (§15ж).
+	for i = #m.fallout, 1, -1 do
+		if m.simTime >= m.fallout[i].untilTime then
+			table.remove(m.fallout, i)
 		end
 	end
 	local k = 1
@@ -3725,7 +3971,17 @@ local function botMissile(m: Match, n: Nation, rng: Rng)
 		end
 	end
 	if target ~= nil then
-		MatchSim.launch(m, n, target)
+		-- §15ж: есть деньги и нефть на бомбу — иногда бьёт бомбой (водородной, если можно).
+		local warhead: Types.Warhead = "missile"
+		if Rng.nextFloat(rng) < Config.Nukes.BotChance then
+			local h, a = Config.Nukes.Hydrogen, Config.Nukes.Atom
+			if Tech.level(m.tech, n.id, "Army") >= h.techLevel and n.money >= h.cost * 1.5 and n.oil >= h.oil then
+				warhead = "hydrogen"
+			elseif n.money >= a.cost * 1.5 and n.oil >= a.oil then
+				warhead = "atom"
+			end
+		end
+		MatchSim.launch(m, n, target, warhead)
 	end
 end
 

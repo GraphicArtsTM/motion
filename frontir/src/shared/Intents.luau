@@ -237,7 +237,17 @@ function Intents.parse(kind: any, payload: any): (Types.Intent?, string?)
 		if not isInt(cell) or cell < 0 then
 			return nil, "bad cell"
 		end
-		return { kind = "missile", cell = cell }, nil
+		local warhead = payload.warhead or "missile"
+		if warhead ~= "missile" and warhead ~= "atom" and warhead ~= "hydrogen" then
+			return nil, "bad warhead"
+		end
+		return { kind = "missile", cell = cell, warhead = warhead :: Types.Warhead }, nil
+	elseif kind == "emoji" then
+		local target, emoji = payload.target, payload.emoji
+		if not isInt(target) or target <= 0 or not isInt(emoji) or emoji < 1 or emoji > #Config.Emoji.List then
+			return nil, "bad emoji"
+		end
+		return { kind = "emoji", target = target, emoji = emoji }, nil
 	elseif kind == "intel" then
 		local target = payload.target
 		if not isInt(target) or target <= 0 then

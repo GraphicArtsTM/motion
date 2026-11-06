@@ -957,6 +957,27 @@ function MatchHud.new(
 			elseif e.kind == "intel" and e.nation == cs.myNation then
 				toast(string.format(Strings.get("event.intelDone", lang), b, Config.Intel.DurationSec))
 			-- Ракеты (§6.9): видят все; по вам — красной строкой.
+			elseif e.kind == "missileLaunched" and (e.warhead == "atom" or e.warhead == "hydrogen") then
+				-- §15ж: ядерный пуск — крупно и всем.
+				local name = Strings.get("warhead." .. tostring(e.warhead), lang)
+				local nuke = if e.warhead == "atom" then Config.Nukes.Atom else Config.Nukes.Hydrogen
+				if e.target == cs.myNation then
+					alertLine(string.format(Strings.get("event.nukeOnYou", lang), name, a, nuke.charges))
+				else
+					alertLine(
+						string.format(Strings.get("event.nukeLaunched", lang), name, a, b, tonumber(e.impactIn) or 0)
+					)
+				end
+			elseif e.kind == "nukeHit" then
+				alertLine(
+					string.format(
+						Strings.get("event.nukeHit", lang),
+						Strings.get("warhead." .. tostring(e.warhead), lang),
+						a,
+						b,
+						Strings.formatInt(tonumber(e.cells) or 0)
+					)
+				)
 			elseif e.kind == "missileLaunched" then
 				if e.target == cs.myNation then
 					alertLine(string.format(Strings.get("event.missileOnYou", lang), a))

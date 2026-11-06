@@ -223,6 +223,7 @@ local function run()
 			f4("бот: налёт на вас", "botRaid", bot, { "target", "occupied" })
 			f4("бот: способности по вам", "botAbility", bot, { "target" })
 			f4("бот: ракета по вам", "botMissile", bot, { "target", "occupied" })
+			f4("бот: атомная бомба по вам", "botNuke", bot, { "target", "occupied", "cooldown" }) -- §15ж
 			f4("белый мир", "peace", bot, { "notAtWar", "target" })
 		else
 			report("F4: действия с ботом", nil, "нет живого бота")

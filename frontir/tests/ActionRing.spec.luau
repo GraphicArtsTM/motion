@@ -49,7 +49,8 @@ T.describe("Кольцо действий (§15е)", function()
 	end)
 
 	T.it("не больше MaxActions кнопок; у каждой есть строка RU/EN", function()
-		local all = { "expand", "attack", "declare", "alliance", "trade", "intel", "target", "help", "build", "mark" }
+		local all =
+			{ "expand", "attack", "declare", "alliance", "trade", "intel", "target", "help", "build", "mark", "emoji" }
 		for _, a in all do
 			T.expect(Strings.get("ring." .. a, "ru") ~= "ring." .. a).toBe(true)
 			T.expect(Strings.get("ring." .. a, "en") ~= "ring." .. a).toBe(true)

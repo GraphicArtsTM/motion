@@ -600,7 +600,7 @@ function DevTools.silo(m: Match, id: number): (boolean, string?)
 end
 
 -- Бот bot пускает ракету по клетке у ближайшего к нему города игрока player.
-function DevTools.botMissile(m: Match, bot: number, player: number): (boolean, string?)
+function DevTools.botMissile(m: Match, bot: number, player: number, warhead: Types.Warhead?): (boolean, string?)
 	local ok, reason = DevTools.warNow(m, bot, player)
 	if not ok then
 		return false, reason
@@ -625,7 +625,18 @@ function DevTools.botMissile(m: Match, bot: number, player: number): (boolean, s
 	if target == nil then
 		return false, "target"
 	end
-	return MatchSim.launch(m, m.nations[bot], target)
+	return MatchSim.launch(m, m.nations[bot], target, warhead)
+end
+
+-- §15ж: бот бьёт по вам атомной бомбой (деньги и нефть — сразу).
+function DevTools.botNuke(m: Match, bot: number, player: number): (boolean, string?)
+	local n = m.nations[bot]
+	if n == nil or not n.alive then
+		return false, "dead"
+	end
+	n.money += Config.Nukes.Atom.cost
+	n.oil += Config.Nukes.Atom.oil
+	return DevTools.botMissile(m, bot, player, "atom")
 end
 
 function DevTools.researchAll(m: Match, id: number): (boolean, string?)

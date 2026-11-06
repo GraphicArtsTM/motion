@@ -81,13 +81,20 @@ function MarkerLayer.new(canvas: Frame, cs: ClientState): MarkerLayer
 			set("storm", Theme.Colors.Sky, storm.cell, storm.radius, now + storm.left / speed, false)
 			live.storm = true
 		end
+		-- Заражённые зоны (§15ж): зелёный круг с отсчётом.
+		local fallout: { { cell: number, radius: number, left: number } } = cs.world.fallout or {}
+		for _, f in fallout do
+			local key = "fallout_" .. f.cell
+			set(key, Theme.color("Lime"), f.cell, f.radius, now + f.left / speed, true)
+			live[key] = true
+		end
 		for _, mi in cs.world.missiles do
 			local key = "missile_" .. mi.cell
 			set(
 				key,
 				Theme.Colors.Alert,
 				mi.cell,
-				Config.Buildings.MissileSilo.strikeRadius,
+				mi.radius or Config.Buildings.MissileSilo.strikeRadius,
 				now + mi.left / speed,
 				true
 			)
@@ -110,13 +117,13 @@ function MarkerLayer.new(canvas: Frame, cs: ClientState): MarkerLayer
 					"missile_" .. e.cell,
 					Theme.Colors.Alert,
 					e.cell,
-					Config.Buildings.MissileSilo.strikeRadius,
+					if type(e.radius) == "number" then e.radius else Config.Buildings.MissileSilo.strikeRadius,
 					now + left,
 					true
 				)
 			elseif
 				type(e) == "table"
-				and (e.kind == "missileHit" or e.kind == "missileShot")
+				and (e.kind == "missileHit" or e.kind == "missileShot" or e.kind == "nukeHit")
 				and type(e.cell) == "number"
 			then
 				local m = markers["missile_" .. e.cell]

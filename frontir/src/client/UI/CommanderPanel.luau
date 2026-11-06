@@ -212,6 +212,26 @@ function CommanderPanel.new(
 	modeLine.Parent = gui
 
 	local pending: number? = nil -- слот, ждущий цели
+	-- §15ж: боеголовка шахты — повторное R переключает «Ракета → Атомная → Водородная → отмена».
+	local WARHEADS: { Types.Warhead } = { "missile", "atom", "hydrogen" }
+	local warhead = 1
+	local function warheadLine(): string
+		local kind = WARHEADS[warhead]
+		local name = Strings.get("warhead." .. kind, lang)
+		local nuke = if kind == "atom"
+			then Config.Nukes.Atom
+			elseif kind == "hydrogen" then Config.Nukes.Hydrogen
+			else nil
+		if nuke == nil then
+			return string.format(Strings.get("missile.targetWarhead", lang), name)
+		end
+		return string.format(
+			Strings.get("missile.targetNuke", lang),
+			name,
+			Strings.formatInt(nuke.cost),
+			Strings.formatInt(nuke.oil)
+		)
+	end
 	local function abilityName(slot: number): string
 		return Strings.get("ability." .. Commanders.ability(ClientState.myCommander(cs), slot), lang)
 	end
@@ -229,17 +249,27 @@ function CommanderPanel.new(
 		if not playing() then
 			return
 		end
-		if pending == slot then
-			cancel()
-			return
-		end
 		if slot == MISSILE then
 			if not cs.world.silo then
 				return
 			end
+			if pending == slot then
+				warhead += 1
+				if warhead > #WARHEADS then
+					warhead = 1
+					cancel()
+					return
+				end
+			else
+				warhead = 1
+			end
 			pending = slot
-			modeLine.Text = Strings.get("missile.target", lang)
+			modeLine.Text = warheadLine()
 			modeLine.Visible = true
+			return
+		end
+		if pending == slot then
+			cancel()
 			return
 		end
 		local ability = Commanders.ability(ClientState.myCommander(cs), slot)
@@ -366,7 +396,7 @@ function CommanderPanel.new(
 		end
 		cancel()
 		if slot == MISSILE then
-			send("missile", { cell = cell })
+			send("missile", { cell = cell, warhead = WARHEADS[warhead] })
 		else
 			send("ability", { slot = slot, cell = cell, percent = percent() })
 		end

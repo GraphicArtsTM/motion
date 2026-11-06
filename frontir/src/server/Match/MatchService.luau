@@ -722,6 +722,8 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				ok, reason = DevTools.tradeNow(m, id)
 			elseif action == "botMissile" and target ~= nil then
 				ok, reason = DevTools.botMissile(m, target, id)
+			elseif action == "botNuke" and target ~= nil then
+				ok, reason = DevTools.botNuke(m, target, id)
 			elseif action == "resetCooldowns" then
 				ok, reason = DevTools.resetCooldowns(m, id)
 			elseif action == "nextCommander" then

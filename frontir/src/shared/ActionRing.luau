@@ -18,6 +18,7 @@ export type Action =
 	| "help"
 	| "build"
 	| "mark"
+	| "emoji" -- §15ж: эмодзи над столицей державы
 
 export type Facts = {
 	playing: boolean, -- идёт матч и у игрока есть держава
@@ -44,11 +45,13 @@ function ActionRing.actions(f: Facts): { Action }
 	elseif f.owner == f.me then
 		table.insert(out, "build")
 		table.insert(out, "help")
+		table.insert(out, "emoji")
 	elseif f.allied then
 		if not f.trade then
 			table.insert(out, "trade")
 		end
 		table.insert(out, "help")
+		table.insert(out, "emoji")
 	elseif f.war ~= "none" then
 		-- Мобилизация: атаковать ещё нельзя, но разведка и метка для союзников уже нужны.
 		if f.war == "active" then
@@ -56,6 +59,7 @@ function ActionRing.actions(f: Facts): { Action }
 		end
 		table.insert(out, "intel")
 		table.insert(out, "target")
+		table.insert(out, "emoji")
 	else
 		table.insert(out, "declare")
 		table.insert(out, "alliance")
@@ -63,6 +67,7 @@ function ActionRing.actions(f: Facts): { Action }
 			table.insert(out, "trade")
 		end
 		table.insert(out, "intel")
+		table.insert(out, "emoji")
 	end
 	while #out > ActionRing.MaxActions do
 		table.remove(out)

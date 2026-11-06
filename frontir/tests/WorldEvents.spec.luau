@@ -383,3 +383,97 @@ T.describe("Ракетная шахта", function()
 		end
 	)
 end)
+
+T.describe("Ядерные удары (§15ж)", function()
+	T.it(
+		"атомная: цена, удар только по врагу, своя земля цела, заражение не даёт брать землю",
+		function()
+			local m = duo()
+			DevTools.silo(m, 1)
+			DevTools.warNow(m, 1, 2)
+			local atom = Config.Nukes.Atom
+			local r = MatchSim.warheadRadius(m, "atom")
+			T.expect(r >= 3).toBe(true)
+			-- Цель у самой границы: часть круга — своя земля (x ≤ 60), она не задевается.
+			local target = 16 * W + 62
+			m.nations[1].money = 0
+			T.expect(select(2, MatchSim.applyIntent(m, 1, { kind = "missile", cell = target, warhead = "atom" })))
+				.toBe("noMoney")
+			m.nations[1].money = 100000
+			local garrison = Forces.total(m.nations[2].home)
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "missile", cell = target, warhead = "atom" }))).toBe(true)
+			T.expect(m.nations[1].money).toBe(100000 - atom.cost)
+			local launched = events(m, "missileLaunched")
+			T.expect(launched[1].warhead).toBe("atom")
+			T.expect(launched[1].impactIn).toBe(atom.warningSec)
+			runFor(m, atom.warningSec + 0.5)
+			T.expect(Grid.getOwner(m.grid, target)).toBe(0)
+			T.expect(Grid.getOwner(m.grid, 16 * W + 60)).toBe(1) -- своя клетка в круге цела
+			T.expect(Forces.total(m.nations[2].home) < garrison).toBe(true)
+			T.expect(MatchSim.inFallout(m, target)).toBe(true)
+			T.expect(#(MatchStats.world(m, 1).fallout or {})).toBe(1)
+			-- Заражённую ничью землю нельзя взять: цена клетки — бесконечность, расширение её пропускает.
+			runFor(m, atom.falloutSec + 1)
+			T.expect(MatchSim.inFallout(m, target)).toBe(false)
+		end
+	)
+
+	T.it(
+		"водородная — только с Войска-4; ПВО сбивает бомбу, если хватает зарядов, иначе заряды целы",
+		function()
+			local m = duo()
+			DevTools.silo(m, 1)
+			DevTools.warNow(m, 1, 2)
+			local target = 16 * W + 100
+			Tech.removeNation(m.tech, 1) -- F4 «шахта» даёт всё; оставим Войска-3
+			Tech.grant(m.tech, 1, "Army", 3)
+			T.expect(select(2, MatchSim.applyIntent(m, 1, { kind = "missile", cell = target, warhead = "hydrogen" })))
+				.toBe("needTech")
+			-- Батарея ур. 1 у цели: 1 заряд — на атомную (нужно 2) не хватает, заряд не тратится, бомба падает.
+			local p = m.provinces.list[11]
+			Buildings.place(m.buildings, "AirDefense", p.center, 11)
+			MatchSim.refreshOwned(m)
+			T.expect((MatchSim.batteryCharges(m, p.center))).toBe(1)
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "missile", cell = p.center + 1, warhead = "atom" })))
+				.toBe(true)
+			runFor(m, Config.Nukes.Atom.warningSec + 0.5)
+			T.expect(#events(m, "nukeHit")).toBe(1)
+			-- «Сеть ПВО» (+1 заряд) и новая батарея: 2 заряда — атомная сбита, оба заряда потрачены.
+			Tech.grant(m.tech, 2, "Fleet", 4)
+			local q = m.provinces.list[10]
+			Buildings.place(m.buildings, "AirDefense", q.center, 10)
+			MatchSim.refreshOwned(m)
+			Grid.setOwner(m.grid, q.center + 1, 2)
+			m.missileReady[1] = nil
+			local before = (MatchSim.batteryCharges(m, q.center))
+			T.expect(before >= 2).toBe(true)
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "missile", cell = q.center + 1, warhead = "atom" })))
+				.toBe(true)
+			runFor(m, Config.Nukes.Atom.warningSec + 0.5)
+			T.expect(#events(m, "missileShot")).toBe(1)
+			T.expect((MatchSim.batteryCharges(m, q.center))).toBe(before - 2)
+			-- С Войска-4 водородная разрешена.
+			Tech.grant(m.tech, 1, "Army", 4)
+			m.missileReady[1] = nil
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "missile", cell = 16 * W + 110, warhead = "hydrogen" })))
+				.toBe(true)
+			T.expect(MatchSim.warheadRadius(m, "hydrogen") > MatchSim.warheadRadius(m, "atom")).toBe(true)
+		end
+	)
+
+	T.it(
+		"эмодзи: картинка из списка, не чаще Emoji.MinGapSec; разбор намерения",
+		function()
+			local m = duo()
+			T.expect((Intents.parse("emoji", { target = 2, emoji = 1 }))).toBeTruthy()
+			T.expect((Intents.parse("emoji", { target = 2, emoji = #Config.Emoji.List + 1 }))).toBe(nil)
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "emoji", target = 2, emoji = 3 }))).toBe(true)
+			local got = events(m, "emoji")
+			T.expect(#got).toBe(1)
+			T.expect(got[1].emoji).toBe(3)
+			T.expect(select(2, MatchSim.applyIntent(m, 1, { kind = "emoji", target = 2, emoji = 1 }))).toBe("tooSoon")
+			runFor(m, Config.Emoji.MinGapSec + 0.1)
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "emoji", target = 2, emoji = 1 }))).toBe(true)
+		end
+	)
+end)

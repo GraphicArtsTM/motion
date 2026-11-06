@@ -163,11 +163,12 @@ export type WorldMessage = {
 	kind: "world",
 	storm: { cell: number, radius: number, left: number }?,
 	auction: { left: number, top: number, topId: number, minBid: number }?,
-	missiles: { { cell: number, owner: number, left: number } },
+	missiles: { { cell: number, owner: number, left: number, radius: number? } }, -- radius — по боеголовке (§15ж)
 	oilExtra: { number },
 	silo: boolean, -- у меня есть работающая шахта
 	missileLeft: number, -- до готовности пуска
 	batteries: { { cell: number, ready: number, max: number } }?, -- заряды батарей ПВО (§15д ч.3, видны всем)
+	fallout: { { cell: number, radius: number, left: number } }?, -- заражённые зоны (§15ж)
 }
 
 export type ApplyResult = "snapshot" | "delta" | "stats" | "forces" | "wars" | "ships" | "air" | "partial" | "ignored"
@@ -348,10 +349,15 @@ function ClientState.applyWorld(cs: ClientState, msg: any, now: number): { numbe
 		local a = msg.auction
 		auction = { left = num(a.left), top = num(a.top), topId = num(a.topId), minBid = num(a.minBid) }
 	end
-	local missiles: { { cell: number, owner: number, left: number } } = {}
+	local missiles: { { cell: number, owner: number, left: number, radius: number? } } = {}
 	for _, mi in msg.missiles do
 		if type(mi) == "table" then
-			table.insert(missiles, { cell = num(mi.cell), owner = num(mi.owner), left = num(mi.left) })
+			table.insert(missiles, {
+				cell = num(mi.cell),
+				owner = num(mi.owner),
+				left = num(mi.left),
+				radius = if type(mi.radius) == "number" then mi.radius else nil,
+			})
 		end
 	end
 	local batteries: { { cell: number, ready: number, max: number } } = {}
@@ -375,6 +381,14 @@ function ClientState.applyWorld(cs: ClientState, msg: any, now: number): { numbe
 			end
 		end
 	end
+	local fallout: { { cell: number, radius: number, left: number } } = {}
+	if type(msg.fallout) == "table" then
+		for _, f in msg.fallout :: { any } do
+			if type(f) == "table" then
+				table.insert(fallout, { cell = num(f.cell), radius = num(f.radius), left = num(f.left) })
+			end
+		end
+	end
 	cs.world = {
 		kind = "world",
 		storm = storm,
@@ -384,6 +398,7 @@ function ClientState.applyWorld(cs: ClientState, msg: any, now: number): { numbe
 		silo = msg.silo == true,
 		missileLeft = num(msg.missileLeft),
 		batteries = batteries,
+		fallout = fallout,
 	}
 	cs.worldAt = now
 	return fresh

@@ -679,7 +679,11 @@ local function runSession(mapId: string, resync: boolean)
 	end
 
 	-- Кольцо действий (§15е): ПКМ или долгое касание — «что можно сделать здесь».
-	local ring = ActionRingUI.new(hudGui, viewport, lang, function(action, cell: number, owner: number)
+	-- Последняя точка кольца: «Эмодзи» открывает второе кольцо там же.
+	local ringAt: { x: number, y: number, reopen: boolean, pick: ((index: number) -> ())? } =
+		{ x = 0, y = 0, reopen = false, pick = nil }
+	local ring
+	ring = ActionRingUI.new(hudGui, viewport, lang, function(action, cell: number, owner: number)
 		if action == "expand" or action == "attack" then
 			hud.tapCell(cell)
 		elseif action == "declare" then
@@ -694,9 +698,27 @@ local function runSession(mapId: string, resync: boolean)
 			send("ping", { cell = cell, phrase = "help" })
 		elseif action == "build" then
 			build.open()
+		elseif action == "emoji" then
+			-- Второе кольцо: 8 эмодзи (§15ж); державу берём по клетке (своя — своя столица).
+			local target = if owner ~= 0 then owner else cs.myNation
+			if target ~= nil then
+				ringAt.pick = function(index: number)
+					send("emoji", { target = target, emoji = index })
+				end
+				ringAt.reopen = true
+			end
+		end
+	end)
+	-- Второе кольцо открывается после того, как первое закрылось (нажатие уже обработано).
+	Session.connect(RunService.Heartbeat, function()
+		local pick = ringAt.pick
+		if ringAt.reopen and pick ~= nil then
+			ringAt.reopen = false
+			ring.choose(ringAt.x, ringAt.y, table.clone(Config.Emoji.List) :: { string }, pick)
 		end
 	end)
 	local function openRing(sx: number, sy: number)
+		ringAt.x, ringAt.y = sx, sy
 		local cx, cy = CameraMath.cellAt(camera.state, sx, sy)
 		local me = cs.myNation
 		if cx == nil or cy == nil or me == nil then
