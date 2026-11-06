@@ -134,6 +134,12 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
 - Клиент: `UI/BuildPanel` (B, меню, режим стройки забирает нажатие на карту), `Render/BuildingLayer`
   (значки из `BuildingSprites`, общие с превью).
 - Нагрузку проверять `lune run tools/bench Europe 12 300` и `tools/bench World 60 180`: тик в среднем ≤ 10 мс.
+- **Экономика 2.0 (§15д ч.2):** роли — Завод (деньги `factoryIncome`), Казармы (`recruitLines`, `barracksLevel`
+  открывает технику — `Units.*.requiresLevel`), Жилой квартал (`housingPeople`); без лимита зданий, цена
+  `MatchSim.buildPrice` (`Buildings.levelsOf` + `Build.CostStep`), уровни (`Buildings.maxLevel`, своё здание того же
+  типа ±1 клетка — улучшение), районы и содержание — в `Buildings.owned`, укрепления по провинциям —
+  `set.forts` / `Buildings.fortMul`, снос — `MatchSim.demolish` (намерение `demolish`). Клиент: `UI/BuildingInfo`
+  (нажатие на своё здание), уровни на значках — `Render/BuildingLayer`.
 
 ## Цикл матча и HUD (этап 4в)
 - Фазы `Waiting → Lobby → Pick → Play → Over` в `MatchSim`; победа (`checkVictory`): доля суши, последняя держава,
