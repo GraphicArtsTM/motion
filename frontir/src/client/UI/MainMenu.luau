@@ -24,6 +24,7 @@ local Strings = require(Shared:WaitForChild("Strings"))
 
 local Logo = require(script.Parent:WaitForChild("Logo"))
 local MapThumb = require(script.Parent:WaitForChild("MapThumb"))
+local SceneBanner = require(script.Parent:WaitForChild("SceneBanner"))
 local MenuKit = require(script.Parent:WaitForChild("MenuKit"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
@@ -232,6 +233,7 @@ function MainMenu.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, mapNa
 
 	-- «Задания дня».
 	local quests = MenuKit.card(cards, "Quests", t("menu.quests"), cfg.SideCardPx, 1)
+	SceneBanner.image(quests.frame, "quests", Config.Render.Banner.SideCardPx) -- §15л ч.8: картинка карточки
 	type QuestRow = { frame: Frame, name: TextLabel, reward: TextLabel, bar: MenuKit.Bar, count: TextLabel }
 	local questRows: { QuestRow } = {}
 	for k = 1, Config.Quests.PerDay do
@@ -263,6 +265,7 @@ function MainMenu.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, mapNa
 
 	-- «Сейчас на сервере».
 	local server = MenuKit.card(cards, "Server", t("menu.server"), cfg.CenterCardPx, 2)
+	SceneBanner.image(server.frame, "battle", Config.Render.Banner.CardPx)
 	server.accent.TextColor3 = Theme.Colors.Alert
 	local mapLabel = MenuKit.label(server.body, Strings.get("map." .. mapName, lang), 30, Theme.Colors.Text, true, 1)
 	local modeLabel = MenuKit.label(server.body, "", 15, Theme.Colors.Sky, false, 2)
@@ -377,6 +380,7 @@ function MainMenu.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, mapNa
 
 	-- «Магазин».
 	local shop = MenuKit.card(cards, "Shop", t("menu.shop"), cfg.SideCardPx, 3)
+	SceneBanner.image(shop.frame, "shop", Config.Render.Banner.SideCardPx)
 	shop.accent.TextColor3 = Theme.Colors.Sky
 	local weekly = MenuKit.row(shop.body, "Weekly", 1)
 	MenuKit.label(weekly, t("menu.weekly"), 14, Theme.Colors.Gold, true, 1)

@@ -93,6 +93,7 @@ local ServerPanel = require(UI:WaitForChild("ServerPanel"))
 local ShopPanel = require(UI:WaitForChild("ShopPanel"))
 local WardrobePanel = require(UI:WaitForChild("WardrobePanel"))
 local ArsenalPanel = require(UI:WaitForChild("ArsenalPanel"))
+local SceneBanner = require(UI:WaitForChild("SceneBanner"))
 local QuestsPanel = require(UI:WaitForChild("QuestsPanel"))
 local TutorialPanel = require(UI:WaitForChild("TutorialPanel"))
 local WorldPanel = require(UI:WaitForChild("WorldPanel"))
@@ -631,6 +632,33 @@ local function runSession(mapId: string, resync: boolean)
 			g.Parent = stash
 		end
 	end
+	-- §15л ч.8: картинки-шапки окон (сцены SceneArt над окном, следуют за ним).
+	local banners: { [string]: SceneBanner.Banner } = {}
+	for name, key in
+		{
+			Shop = "shop",
+			Wardrobe = "wardrobe",
+			Quests = "quests",
+			Sound = "sound",
+			ServerSettings = "server",
+			HowToPlay = "help",
+			ArsenalWindow = "arsenal",
+			RanksWindow = "ranks",
+			GameMenuWindow = "gamemenu",
+			Tech = "tech",
+			Diplomacy = "diplomacy",
+			Council = "council",
+			Results = "victory",
+		} :: { [string]: string }
+	do
+		local w = windowsGui:FindFirstChild(name) or hudGui:FindFirstChild(name)
+		if w ~= nil and w:IsA("GuiObject") then
+			local b = SceneBanner.attach(w, key)
+			if b ~= nil then
+				banners[name] = b
+			end
+		end
+	end
 	local commandBar = CommandBar.new(hudGui, cs, lang, {
 		values = hud.values,
 		percent = hud.percent,
@@ -907,6 +935,14 @@ local function runSession(mapId: string, resync: boolean)
 				if name ~= nil and cs.place ~= "hub" and not cs.demo then
 					Audio.play(name)
 				end
+			end
+			-- §15л ч.8: шапка итогов — салют за победу, дым над развалинами за поражение.
+			local rb = banners.Results
+			if rb ~= nil and cs.phase == "Over" and result ~= nil then
+				local me = cs.myNation
+				local won = me ~= nil
+					and (result.winner == me or (result.coWinners ~= nil and table.find(result.coWinners, me) ~= nil))
+				rb.setKey(if won then "victory" else "defeat")
 			end
 			-- Новый матч тоже приходит как смена цветов: ClientState уже сбросил сетку, перерисовываем всё.
 			if colorsChanged then

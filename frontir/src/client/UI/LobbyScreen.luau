@@ -23,6 +23,7 @@ local Strings = require(Shared:WaitForChild("Strings"))
 
 local FlagView = require(script.Parent:WaitForChild("FlagView"))
 local Logo = require(script.Parent:WaitForChild("Logo"))
+local SceneBanner = require(script.Parent:WaitForChild("SceneBanner"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
@@ -187,6 +188,7 @@ function LobbyScreen.new(
 	cardList.SortOrder = Enum.SortOrder.LayoutOrder
 	cardList.Padding = UDim.new(0, 6)
 	cardList.Parent = card
+	SceneBanner.image(card, "lobby", Config.Render.Banner.CardPx, 0) -- §15л ч.8: колонна войск
 	local head = label(card, 13, true, 1)
 	head.Text = Strings.get("lobby.next", lang)
 	head.TextColor3 = Theme.Colors.Sky
