@@ -98,7 +98,7 @@ function GameMenu.new(
 	line2.LayoutOrder = 8
 	line2.Parent = window
 	local main = MenuKit.button(window, "⌂  " .. t("gamemenu.main"), "danger", nil, 9)
-	MenuKit.wrapLabel(window, t("gamemenu.note"), 12, Theme.Colors.Muted, 10)
+	local note = MenuKit.wrapLabel(window, t("gamemenu.note"), 12, Theme.Colors.Muted, 10)
 
 	local function close()
 		window.Visible = false
@@ -106,6 +106,8 @@ function GameMenu.new(
 	local function toggle()
 		window.Visible = not window.Visible
 		if window.Visible then
+			-- §15л ч.3: на сервере матча «Главное меню» — переход в хаб, держава уходит из матча.
+			note.Text = t(if cs.place == "match" then "gamemenu.noteLeave" else "gamemenu.note")
 			sub.Text = Strings.get("map." .. mapName, lang)
 				.. "  ·  "
 				.. Strings.get("mode." .. cs.mode.mode, lang)

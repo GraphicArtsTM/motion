@@ -139,6 +139,8 @@ while type(mapId) ~= "string" do
 end
 -- Главное меню (§15л) открыто при входе; смена карты (новая сессия) сохраняет, было ли оно открыто.
 local menuWasOpen = true
+-- §15л ч.3: роль сервера узнаём из первого info; на сервере матча игрок пришёл играть — меню при входе не открываем.
+local placeSeen = false
 -- Сессия на одну карту (этап 8б, §5.2): при смене карты всё снимается и строится заново.
 local function runSession(mapId: string, resync: boolean)
 	local teardown: () -> ()
@@ -509,6 +511,12 @@ local function runSession(mapId: string, resync: boolean)
 		timeLeft = function(sec: number): string
 			return ShopPanel.daysHours(sec, lang)
 		end,
+		play = function(serverId: string?)
+			-- Хаб (§15л ч.3): переход на сервер матча; «Подключение…» — сразу, сервер подтвердит или откажет.
+			cs.travel = "going"
+			cs.travelAt = os.clock()
+			send("play", { server = serverId })
+		end,
 		onOpenChanged = function(open: boolean)
 			menuWasOpen = open
 			-- Под меню интерфейс матча скрыт целиком (карта видна через затемнение).
@@ -518,12 +526,23 @@ local function runSession(mapId: string, resync: boolean)
 			end
 		end,
 	})
-	openMainMenu = mainMenu.open
+	-- Сервер матча (§15л ч.3): главное меню — в хабе, переход туда; иначе — меню поверх матча.
+	local function toMainMenu()
+		if cs.place == "match" then
+			cs.travel = "going"
+			cs.travelAt = os.clock()
+			hud.toast(Strings.get("menu.toHub", lang))
+			send("toHub", {})
+		else
+			mainMenu.open()
+		end
+	end
+	openMainMenu = toMainMenu -- «В меню» на экране итогов
 	gameMenu = GameMenu.new(hudGui, windowsGui, cs, lang, map.name, {
 		help = openHelp,
 		sound = openSound,
 		shop = openShop,
-		mainMenu = mainMenu.open,
+		mainMenu = toMainMenu,
 		blocked = mainMenu.isOpen,
 	})
 	-- §15л ч.2: командная полоса снизу по центру. Прежние полоса ресурсов и карточки найма — в выключенный
@@ -590,8 +609,27 @@ local function runSession(mapId: string, resync: boolean)
 	Session.connect(commandBar.frame:GetPropertyChangedSignal("AbsoluteSize"), aboveBar)
 	Session.connect(commandBar.frame:GetPropertyChangedSignal("Visible"), aboveBar)
 	aboveBar()
+	-- Меню открываем с первым info (роль сервера — в нём); до него интерфейс матча не показываем.
+	local menuPending = true
 	if menuWasOpen then
-		mainMenu.open()
+		hudGui.Enabled = false
+	end
+	local function decideMenu()
+		if not menuPending then
+			return
+		end
+		menuPending = false
+		if not placeSeen then
+			placeSeen = true
+			if cs.place == "match" then
+				menuWasOpen = false
+			end
+		end
+		if menuWasOpen or cs.place == "hub" then
+			mainMenu.open()
+		else
+			hudGui.Enabled = true
+		end
 	end
 
 	-- §15л: без наложений — всё, что появляется сверху по центру, идёт одним столбиком; справа сверху — тоже.
@@ -770,6 +808,7 @@ local function runSession(mapId: string, resync: boolean)
 			commanderPanel.refresh()
 		end,
 		onInfo = function(colorsChanged: boolean)
+			decideMenu()
 			-- Звук (§13): города — для «Province»; итог матча — победа или поражение один раз.
 			table.clear(citySet)
 			for _, c in cs.cities do
@@ -1111,6 +1150,7 @@ local function runSession(mapId: string, resync: boolean)
 	end)
 
 	local musicAt = 0
+	local travelToastAt = -1
 	local cloudsAt = os.clock()
 	local frameConn = Session.connect(RunService.RenderStepped, function()
 		local now = os.clock()
@@ -1147,6 +1187,11 @@ local function runSession(mapId: string, resync: boolean)
 		dock.update(now)
 		lobby.update(now)
 		mainMenu.update(now)
+		-- Переход в хаб не удался (§15л ч.3) — сказать один раз.
+		if cs.travel == "failed" and cs.place ~= "hub" and travelToastAt ~= cs.travelAt then
+			travelToastAt = cs.travelAt
+			hud.toast(Strings.get("menu.travelFailed", lang))
+		end
 		commandBar.update(now)
 		worldPanel.update(now)
 		hud.update(now)

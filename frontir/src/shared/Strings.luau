@@ -1044,6 +1044,34 @@ local TABLE: { [string]: Entry } = {
 	},
 	["menu.questsEmpty"] = { ru = "Задания загружаются…", en = "Loading quests…" },
 	["menu.server"] = { ru = "СЕЙЧАС НА СЕРВЕРЕ", en = "ON THIS SERVER" },
+	-- §15л ч.3 хаб: список матчей и переходы
+	["menu.matches"] = { ru = "МАТЧИ", en = "MATCHES" },
+	["menu.matchesCount"] = { ru = "серверов: %d", en = "servers: %d" },
+	["menu.row.join"] = { ru = "Войти", en = "Join" },
+	["menu.row.watch"] = { ru = "Смотреть", en = "Watch" },
+	["menu.row.full"] = { ru = "Полон", en = "Full" },
+	["menu.matchesEmpty"] = {
+		ru = "Открытых матчей пока нет — «В БОЙ» создаст новый.",
+		en = "No open matches yet — «TO BATTLE» starts a new one.",
+	},
+	["menu.quickHint"] = {
+		ru = "Быстрый вход: лобби с игроками, а если его нет — новый матч.",
+		en = "Quick join: a lobby with players, or a new match if there is none.",
+	},
+	["menu.connecting"] = { ru = "Подключение…", en = "Connecting…" },
+	["menu.connectingHint"] = {
+		ru = "Переносим на сервер матча…",
+		en = "Moving you to the match server…",
+	},
+	["menu.travelFailed"] = {
+		ru = "Не удалось подключиться — попробуйте ещё раз.",
+		en = "Could not connect — please try again.",
+	},
+	["menu.toHub"] = { ru = "Переход в главное меню…", en = "Going to the main menu…" },
+	["gamemenu.noteLeave"] = {
+		ru = "«Главное меню» — выход из матча: ваша держава останется без вас.",
+		en = "«Main menu» leaves the match: your nation stays without you.",
+	},
 	["menu.mode"] = { ru = "Режим: %s", en = "Mode: %s" },
 	["menu.players"] = { ru = "Игроков %d из %d", en = "Players %d of %d" },
 	["menu.status.Waiting"] = { ru = "Ждём игроков", en = "Waiting for players" },

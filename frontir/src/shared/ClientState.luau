@@ -60,6 +60,7 @@ export type Info = {
 	result: Types.MatchResult?, -- итог (фаза Over)
 	mode: ModeInfo?,
 	mapId: string?, -- карта матча (§5.2): другая — клиент загружает её заново
+	place: string?, -- §15л ч.3: роль сервера — "hub", "match" или "combined" (как раньше)
 	mapVote: MapVoteInfo?, -- голосование за карту на экране итогов
 	flood: { step: number, nextIn: number }?, -- «Потоп» (§5.3): ступень воды и секунд (часы матча) до следующей
 	server: ServerInfo?, -- частный сервер (§5.4)
@@ -105,6 +106,18 @@ export type ProfileInfo = {
 -- Таблицы лидеров (§11.5).
 export type LeaderEntry = { userId: number, name: string, value: number }
 export type LeadersInfo = { weekly: { LeaderEntry }, duel: { LeaderEntry } }
+
+-- §15л ч.3: строка «Матчи» в хабе (сервер матча; action — "join", "watch" или "full").
+export type ServerRow = {
+	id: string,
+	map: string,
+	mode: string,
+	phase: string,
+	players: number,
+	max: number,
+	left: number,
+	action: string,
+}
 
 export type MapVoteInfo = { options: { string }, counts: { number }, myVote: string? }
 
@@ -230,6 +243,11 @@ export type ClientState = {
 	flood: { step: number, nextIn: number }?, -- «Потоп» (§5.3)
 	floodAt: number, -- когда пришла ступень (часы клиента)
 	server: ServerInfo?, -- частный сервер (§5.4): настройки и владелец ли я
+	place: string, -- §15л ч.3: роль сервера ("hub", "match", "combined")
+	servers: { ServerRow }, -- хаб: серверы матча
+	serversAt: number, -- когда пришёл список (часы клиента; для отсчётов)
+	travel: string?, -- переход в другое место: "going", "failed" или nil
+	travelAt: number,
 	profile: ProfileInfo?, -- профиль (§11.2)
 	tutorialStep: number?, -- «Обучение» (§5.5)
 	leaders: LeadersInfo?, -- таблицы лидеров (§11.5)
@@ -238,6 +256,39 @@ export type ClientState = {
 }
 
 local ClientState = {}
+
+-- §15л ч.3: список матчей из хаба (что угодно → строки; кривые строки отбрасываем).
+function ClientState.applyServers(cs: ClientState, list: any, now: number)
+	local out: { ServerRow } = {}
+	if type(list) == "table" then
+		for _, r in list do
+			if
+				type(r) == "table"
+				and type(r.id) == "string"
+				and type(r.map) == "string"
+				and type(r.mode) == "string"
+				and type(r.phase) == "string"
+				and type(r.players) == "number"
+				and type(r.max) == "number"
+				and type(r.left) == "number"
+				and type(r.action) == "string"
+			then
+				table.insert(out, {
+					id = r.id,
+					map = r.map,
+					mode = r.mode,
+					phase = r.phase,
+					players = r.players,
+					max = r.max,
+					left = r.left,
+					action = r.action,
+				})
+			end
+		end
+	end
+	cs.servers = out
+	cs.serversAt = now
+end
 
 function ClientState.emptyMode(): ModeInfo
 	return {
@@ -320,6 +371,11 @@ function ClientState.new(width: number, height: number): ClientState
 		flood = nil,
 		floodAt = 0,
 		server = nil,
+		place = "combined",
+		servers = {},
+		serversAt = 0,
+		travel = nil,
+		travelAt = 0,
 		profile = nil,
 		leaders = nil,
 		rules = Modes.rules("Ffa"),
@@ -529,6 +585,7 @@ function ClientState.applyInfo(cs: ClientState, info: Info, now: number): boolea
 	cs.targetNations = info.targetNations or cs.targetNations
 	cs.timeLimit = info.timeLimit or cs.timeLimit
 	cs.mapVote = info.mapVote
+	cs.place = info.place or cs.place
 	cs.flood = info.flood
 	cs.server = info.server
 	cs.tutorialStep = info.tutorialStep

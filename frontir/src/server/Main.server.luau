@@ -3,17 +3,20 @@
 	Точка входа сервера. Сервер решает всё: принимает намерения клиентов,
 	считает симуляцию и рассылает изменения (docs/GDD.md §12).
 	Выбирает карту, распаковывает её, сообщает клиентам её id и запускает матч (Match/MatchService).
+	§15л ч.3: роль сервера (Places.role) — хаб, матч или «как раньше»; в хабе карта — только фон меню.
 	Все карты лежат в ServerStorage.Maps (клиенты их не скачивают); выбранная копируется в
 	ReplicatedStorage.Maps — только её получают игроки.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local ServerStorage = game:GetService("ServerStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
 local MapData = require(Shared:WaitForChild("MapData"))
 local MapFormat = require(Shared:WaitForChild("MapFormat"))
+local Places = require(Shared:WaitForChild("Places"))
 local Types = require(Shared:WaitForChild("Types"))
 
 local MatchService = require(script.Parent:WaitForChild("Match"):WaitForChild("MatchService"))
@@ -63,5 +66,8 @@ local function loadMap(mapId: string): MapData.MapData
 	return map
 end
 
+-- §15л ч.3: роль сервера — хаб (меню без матча), матч или как раньше (меню поверх матча).
+local role: Places.Role = Places.role(game.PlaceId, RunService:IsStudio(), game.PrivateServerOwnerId, Config.Dev.Role)
+print("[Frontir] server: роль " .. role .. ", место " .. tostring(game.PlaceId))
 local firstMap = if Config.Dev.Map ~= "" then Config.Dev.Map else Config.Match.DefaultMap
-MatchService.start(loadMap(firstMap), loadMap)
+MatchService.start(loadMap(firstMap), loadMap, role)

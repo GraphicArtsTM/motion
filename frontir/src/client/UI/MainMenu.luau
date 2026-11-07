@@ -7,6 +7,8 @@
 	- карточки: «Задания дня» (слева), «Сейчас на сервере» с кнопкой «В БОЙ» (по центру), «Магазин» (справа);
 	- снизу плитки: Магазин, Гардероб, Лидеры, Звания, Как играть, Сервер (только владельцу частного сервера).
 	Окна (магазин, гардероб…) открываются в слое окон над меню. Узкий экран — всё ужимается UIScale.
+	§15л ч.3: в хабе (cs.place == "hub") меню не закрывается, вместо «Сейчас на сервере» — «Матчи»: строки серверов
+	матча с «Войти» / «Смотреть»; «В БОЙ» — быстрый вход (act.play), пока идёт переход — «Подключение…».
 ]]
 
 local GuiService = game:GetService("GuiService")
@@ -37,6 +39,7 @@ export type Actions = {
 	rewardText: (reward: any) -> string, -- что в наборе (как в магазине)
 	timeLeft: (sec: number) -> string, -- «N дн. N ч»
 	onOpenChanged: (open: boolean) -> (),
+	play: (serverId: string?) -> (), -- §15л ч.3: хаб — переход на сервер матча (nil — быстрый вход)
 }
 
 export type MainMenu = {
@@ -223,6 +226,44 @@ function MainMenu.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, mapNa
 	local roster = MenuKit.wrapLabel(server.body, "", 12, Theme.Colors.Muted, 8)
 	mapLabel.TextStrokeTransparency = 0.6
 
+	-- §15л ч.3 Хаб: строки «Матчи» (карта, режим, игроки, что идёт; справа — «Войти» / «Смотреть»).
+	local matchList = MenuKit.box(server.body, "Matches", 0)
+	matchList.Size = UDim2.fromScale(1, 0)
+	matchList.AutomaticSize = Enum.AutomaticSize.Y
+	MenuKit.list(matchList, 6)
+	matchList.Visible = false
+	type MatchRow = { frame: Frame, title: TextLabel, info: TextLabel, go: TextButton, id: string }
+	local matchRows: { MatchRow } = {}
+	for k = 1, Config.Places.ListMax do
+		local row = MenuKit.row(matchList, "Match" .. k, k)
+		local text = MenuKit.box(row, "Text", 1)
+		text.Size = UDim2.new(1, -120, 0, 0)
+		text.AutomaticSize = Enum.AutomaticSize.Y
+		MenuKit.list(text, 2)
+		local title = MenuKit.label(text, "", 15, Theme.Colors.Text, true, 1)
+		local info = MenuKit.label(text, "", 12, Theme.Colors.Muted, false, 2)
+		local go = MenuKit.button(row, "", "good", nil, 2)
+		go.Size = UDim2.fromOffset(110, MenuKit.Touch)
+		go.AnchorPoint = Vector2.new(1, 0.5)
+		go.Position = UDim2.fromScale(1, 0.5)
+		-- В строке список выключен: текст слева, кнопка справа.
+		local layout = row:FindFirstChildOfClass("UIListLayout")
+		if layout ~= nil then
+			layout.FillDirection = Enum.FillDirection.Horizontal
+			layout.VerticalAlignment = Enum.VerticalAlignment.Center
+			layout.Padding = UDim.new(0, 10)
+		end
+		local r: MatchRow = { frame = row, title = title, info = info, go = go, id = "" }
+		Session.connect(go.Activated, function()
+			if r.id ~= "" then
+				act.play(r.id)
+			end
+		end)
+		row.Visible = false
+		table.insert(matchRows, r)
+	end
+	local matchesEmpty = MenuKit.wrapLabel(matchList, "", 13, Theme.Colors.Muted, 99)
+
 	-- «Магазин».
 	local shop = MenuKit.card(cards, "Shop", t("menu.shop"), cfg.SideCardPx, 3)
 	shop.accent.TextColor3 = Theme.Colors.Sky
@@ -287,8 +328,55 @@ function MainMenu.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, mapNa
 		act.onOpenChanged(on)
 	end
 	Session.connect(playButton.Activated, function()
-		setOpen(false)
+		if cs.place == "hub" then
+			act.play(nil) -- хаб: быстрый вход на сервер матча
+		else
+			setOpen(false)
+		end
 	end)
+	-- Идёт переход в другое место (не дольше Places.RetrySec — потом кнопка снова доступна).
+	local function travelling(now: number): boolean
+		return cs.travel == "going" and now - cs.travelAt < Config.Places.RetrySec
+	end
+	local function hubCard(now: number)
+		server.title.Text = t("menu.matches")
+		server.accent.Text = if #cs.servers > 0 then string.format(t("menu.matchesCount"), #cs.servers) else ""
+		for k, r in matchRows do
+			local e = cs.servers[k]
+			r.frame.Visible = e ~= nil
+			if e ~= nil then
+				r.id = e.id
+				r.title.Text = Strings.get("map." .. e.map, lang) .. "  ·  " .. Strings.get("mode." .. e.mode, lang)
+				local left = e.left
+				if e.phase ~= "Play" then
+					left = math.max(0, e.left - (now - cs.serversAt))
+				else
+					left = e.left + (now - cs.serversAt)
+				end
+				local status = if e.phase == "Play"
+					then string.format(t("menu.status.Play"), MenuKit.clock(left))
+					elseif e.phase == "Waiting" then t("menu.status.Waiting")
+					else string.format(Strings.get("menu.status." .. e.phase, lang), math.ceil(left))
+				r.info.Text = string.format(t("menu.players"), e.players, e.max) .. "  ·  " .. status
+				r.go.Text = t("menu.row." .. e.action)
+				r.go.Active = e.action ~= "full" and not travelling(now)
+				r.go.AutoButtonColor = r.go.Active
+				r.go.BackgroundTransparency = if r.go.Active then 0 else 0.5
+			end
+		end
+		matchesEmpty.Text = if #cs.servers == 0 then t("menu.matchesEmpty") else ""
+		matchesEmpty.Visible = #cs.servers == 0
+		local going = travelling(now)
+		playButton.Text = if going then t("menu.connecting") else "▶  " .. t("menu.play")
+		playButton.Active = not going
+		playButton.AutoButtonColor = not going
+		playHint.Text = if cs.travel == "failed"
+			then t("menu.travelFailed")
+			elseif going then t("menu.connectingHint")
+			else t("menu.quickHint")
+		playHint.TextColor3 = if cs.travel == "failed" then Theme.Colors.Alert else Theme.Colors.Muted
+		playHint.Visible = true
+	end
 
 	-- Режим: в лобби — лидер голосования.
 	local function modeName(): string
@@ -357,43 +445,54 @@ function MainMenu.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, mapNa
 			quests.accent.Text = string.format(t("menu.questsNew"), math.max(0, p.dayLeft) // 3600)
 		end
 
-		-- Сервер: что идёт сейчас.
-		local phase = cs.phase
-		modeLabel.Text = string.format(t("menu.mode"), modeName())
-		local humans: { string } = {}
-		for _, n in cs.nations do
-			if not n.isBot then
-				table.insert(humans, if lang == "en" then n.nameEn else n.name)
+		-- Хаб (§15л ч.3): список матчей вместо «Сейчас на сервере».
+		local hub = cs.place == "hub"
+		matchList.Visible = hub
+		for _, g in { mapLabel, modeLabel, playersLabel, statusLabel, roster } :: { GuiObject } do
+			g.Visible = not hub
+		end
+		if hub then
+			phaseBar.frame.Visible = false
+			hubCard(now)
+		else
+			-- Сервер: что идёт сейчас.
+			local phase = cs.phase
+			modeLabel.Text = string.format(t("menu.mode"), modeName())
+			local humans: { string } = {}
+			for _, n in cs.nations do
+				if not n.isBot then
+					table.insert(humans, if lang == "en" then n.nameEn else n.name)
+				end
 			end
+			playersLabel.Text = string.format(t("menu.players"), #humans, math.max(cs.targetNations, #humans))
+			roster.Text = table.concat(humans, " · ")
+			roster.Visible = #humans > 0
+			local left = math.max(0, math.ceil(cs.phaseEndsAt - now))
+			if phase == "Play" then
+				statusLabel.Text = string.format(t("menu.status.Play"), MenuKit.clock(ClientState.matchTime(cs, now)))
+			elseif phase == "Waiting" then
+				statusLabel.Text = t("menu.status.Waiting")
+			else
+				statusLabel.Text = string.format(Strings.get("menu.status." .. phase, lang), left)
+			end
+			server.accent.Text = if phase == "Play" then "● " .. t("menu.live") else ""
+			phaseBar.frame.Visible = phase == "Lobby" or phase == "Pick" or phase == "Over"
+			if phase == "Lobby" then
+				phaseBar.set(1 - left / math.max(1, Config.Match.LobbySec))
+			elseif phase == "Pick" then
+				phaseBar.set(1 - left / math.max(1, Config.Match.StartPickSec))
+			else
+				phaseBar.set(0)
+			end
+			local me = if cs.myNation ~= nil then cs.nations[cs.myNation] else nil
+			local watching = (phase == "Play" or phase == "Over") and (me == nil or not me.alive)
+			playButton.Text = "▶  " .. t(if watching then "menu.watch" else "menu.play")
+			playHint.Text = if watching
+				then t("menu.watchHint")
+				elseif phase == "Lobby" or phase == "Waiting" then t("menu.playHint")
+				else ""
+			playHint.Visible = playHint.Text ~= ""
 		end
-		playersLabel.Text = string.format(t("menu.players"), #humans, math.max(cs.targetNations, #humans))
-		roster.Text = table.concat(humans, " · ")
-		roster.Visible = #humans > 0
-		local left = math.max(0, math.ceil(cs.phaseEndsAt - now))
-		if phase == "Play" then
-			statusLabel.Text = string.format(t("menu.status.Play"), MenuKit.clock(ClientState.matchTime(cs, now)))
-		elseif phase == "Waiting" then
-			statusLabel.Text = t("menu.status.Waiting")
-		else
-			statusLabel.Text = string.format(Strings.get("menu.status." .. phase, lang), left)
-		end
-		server.accent.Text = if phase == "Play" then "● " .. t("menu.live") else ""
-		phaseBar.frame.Visible = phase == "Lobby" or phase == "Pick" or phase == "Over"
-		if phase == "Lobby" then
-			phaseBar.set(1 - left / math.max(1, Config.Match.LobbySec))
-		elseif phase == "Pick" then
-			phaseBar.set(1 - left / math.max(1, Config.Match.StartPickSec))
-		else
-			phaseBar.set(0)
-		end
-		local me = if cs.myNation ~= nil then cs.nations[cs.myNation] else nil
-		local watching = (phase == "Play" or phase == "Over") and (me == nil or not me.alive)
-		playButton.Text = "▶  " .. t(if watching then "menu.watch" else "menu.play")
-		playHint.Text = if watching
-			then t("menu.watchHint")
-			elseif phase == "Lobby" or phase == "Waiting" then t("menu.playHint")
-			else ""
-		playHint.Visible = playHint.Text ~= ""
 
 		-- Магазин.
 		if p ~= nil then
@@ -417,7 +516,9 @@ function MainMenu.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, mapNa
 			update(os.clock())
 		end,
 		close = function()
-			setOpen(false)
+			if cs.place ~= "hub" then -- в хабе меню не закрывается: матча за ним нет
+				setOpen(false)
+			end
 		end,
 		isOpen = function(): boolean
 			return opened

@@ -14,6 +14,17 @@ Studio → **File → Experience Settings** (или Creator Hub → игра →
 | Monetization / Avatar | ничего | персонажи выключены (`Players.CharacterAutoLoads = false`), игра 2D |
 | Places → Server Size (Max Players) | 60 | больше держав в матче не бывает (`Config.Match.MaxPlayers`) |
 
+**Два места (§15л ч.3).** Игра — из двух мест: **хаб** (главное меню, стартовое место, id 4316252648) и **матч**
+(id 135440328929805); id — в `Config.Places`. В оба места публикуется **один и тот же файл** (сервер сам узнаёт
+роль по id места): откройте место в Studio (Creator Hub → игра → Places → место → Edit in Studio), `rojo serve`
+и подключение, затем **File → Publish to Roblox** — и так для каждого места. Настройки:
+- хаб: Places → хаб → Settings → **Server Size** — сколько угодно (например 50), матчей там нет;
+- матч: Server Size — 60, как выше;
+- игра: **Security → Allow Third Party Teleports** не нужен (переходы внутри одной игры);
+- переход между местами в Studio не работает (ограничение Roblox) — проверять в опубликованной игре; вид хаба в
+  Studio — `Config.Dev.Role = "hub"`.
+Список матчей хранится в MemoryStore (`FrontirMatches_v1`, `FrontirCodes_v1`), создаётся сам.
+
 DataStore создаются сами при первой записи, руками ничего заводить не нужно. Имена (менять только вместе с кодом):
 `FrontirProfile_v1` — профили (`Config.Profile.StoreName`), `FrontirWeeklyWins_<неделя>` и `FrontirDuelElo` —
 таблицы лидеров (`Config.Leaders`).

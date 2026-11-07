@@ -9,12 +9,16 @@
 	  дельты изменений каждый тик (только изменённые клетки), Config.Net.StatsHz раз в секунду — статистика
 	  (державы, фронты), войны и запреты после мира всем, войска с очередью найма — каждому игроку.
 	Всё идёт по одному RemoteEvent ReplicatedStorage.Remotes.Match, поэтому порядок сообщений сохраняется.
+	§15л ч.3 — роль сервера (Places.role): «hub» — главное меню без матча (игроки не получают держав, лобби не
+	начинается; список матчей из ServerList и переход «В БОЙ»), «match» — сервер матча (пишет о себе в ServerList,
+	«Главное меню» — переход в хаб), «combined» — как раньше (меню поверх матча).
 ]]
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local ScriptContext = game:GetService("ScriptContext")
+local TeleportService = game:GetService("TeleportService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Analytics = require(Shared:WaitForChild("Analytics"))
@@ -33,6 +37,7 @@ local Protocol = require(Shared:WaitForChild("Net"):WaitForChild("Protocol"))
 local RateLimiter = require(Shared:WaitForChild("RateLimiter"))
 local ServerSettings = require(Shared:WaitForChild("ServerSettings"))
 local Cosmetics = require(Shared:WaitForChild("Cosmetics"))
+local Places = require(Shared:WaitForChild("Places"))
 local Profile = require(Shared:WaitForChild("Profile"))
 local Quests = require(Shared:WaitForChild("Quests"))
 local Shop = require(Shared:WaitForChild("Shop"))
@@ -41,6 +46,7 @@ local Services = script.Parent.Parent:WaitForChild("Services")
 local ProfileStore = require(Services:WaitForChild("ProfileStore"))
 local ShopService = require(Services:WaitForChild("ShopService"))
 local Leaders = require(Services:WaitForChild("Leaders"))
+local ServerList = require(Services:WaitForChild("ServerList"))
 local Telemetry = require(Services:WaitForChild("Telemetry"))
 local Types = require(Shared:WaitForChild("Types"))
 
@@ -48,8 +54,10 @@ type MapData = MapDataModule.MapData
 
 local MatchService = {}
 
-function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapData)
+function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapData, role: Places.Role)
 	local map = firstMap
+	local isHub = role == "hub"
+	local serverList: ServerList.ServerList? = if role ~= "combined" then ServerList.new() else nil
 	local remotes = Instance.new("Folder")
 	remotes.Name = "Remotes"
 	local matchEvent = Instance.new("RemoteEvent")
@@ -91,6 +99,8 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 	local m = newMatch()
 	local seed = m.seed
 	local startNewMatch: (mapId: string) -> ()
+	local travel: (players: { Player }, placeId: number, options: TeleportOptions?) -> TeleportAsyncResult?
+	local travelToMatch: (player: Player, serverId: string?) -> ()
 	local nationOf: { [Player]: number } = {}
 	local limiters: { [Player]: RateLimiter.RateLimiter } = {}
 
@@ -132,6 +142,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			timeLimit = m.rules.timeLimitSec,
 			result = m.result,
 			mapId = map.name,
+			place = role, -- §15л ч.3: хаб, матч или «как раньше»
 			tutorialStep = if m.rules.tutorial then m.tutorialStep else nil, -- «Обучение» (§5.5)
 			server = if settings ~= nil
 				then { settings = settings, isOwner = ownerId ~= nil and player.UserId == ownerId }
@@ -445,6 +456,171 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		end
 	end
 
+	-- §15л ч.3 Переходы между местами. Профиль сохраняем до перехода (сервер-получатель ждёт блокировку).
+	local travelling: { [Player]: number } = {} -- кто уже в пути (os.clock) — повторные нажатия не шлём
+	local function travelFailed(player: Player)
+		travelling[player] = nil
+		if player.Parent ~= nil then
+			matchEvent:FireClient(player, { kind = "travel", state = "failed" })
+		end
+	end
+	-- Перенести players в placeId; options nil — Roblox сам выберет сервер. Вернёт результат или nil.
+	function travel(players: { Player }, placeId: number, options: TeleportOptions?): TeleportAsyncResult?
+		local going: { Player } = {}
+		for _, player in players do
+			if player.Parent ~= nil then
+				table.insert(going, player)
+				travelling[player] = os.clock()
+				matchEvent:FireClient(player, { kind = "travel", state = "going" })
+			end
+		end
+		if #going == 0 then
+			return nil
+		end
+		for _, player in going do
+			profiles.save(player.UserId)
+		end
+		local ok, result = pcall(function(): TeleportAsyncResult
+			return TeleportService:TeleportAsync(placeId, going, options)
+		end)
+		if not ok then
+			warn("[Frontir] переход не удался:", result)
+			for _, player in going do
+				travelFailed(player)
+			end
+			return nil
+		end
+		return result
+	end
+	TeleportService.TeleportInitFailed:Connect(function(player: Player, _result: Enum.TeleportResult, message: string)
+		warn("[Frontir] переход не удался:", message)
+		travelFailed(player)
+	end)
+
+	-- Хаб: список матчей (раз в ListRefreshSec всем) и быстрый вход.
+	local matches: { Places.Entry } = {}
+	local batch: { Player } = {} -- «В БОЙ» без свободного матча: вместе на один новый сервер
+	local function sendServers(player: Player?)
+		local rows: { { [string]: any } } = {}
+		for k, e in Places.sorted(matches) do
+			if k > Config.Places.ListMax then
+				break
+			end
+			table.insert(rows, {
+				id = e.id,
+				map = e.map,
+				mode = e.mode,
+				phase = e.phase,
+				players = e.players,
+				max = e.max,
+				left = e.left,
+				action = Places.action(e),
+			})
+		end
+		local msg = { kind = "servers", list = rows }
+		if player ~= nil then
+			matchEvent:FireClient(player, msg)
+		else
+			for _, p in Players:GetPlayers() do
+				matchEvent:FireClient(p, msg)
+			end
+		end
+	end
+	function travelToMatch(player: Player, serverId: string?)
+		local since = travelling[player]
+		if since ~= nil and os.clock() - since < Config.Places.RetrySec then
+			return
+		end
+		travelling[player] = os.clock()
+		local list = serverList
+		local e: Places.Entry? = nil
+		if serverId ~= nil then
+			for _, x in matches do
+				if x.id == serverId and Places.action(x) ~= "full" then
+					e = x
+				end
+			end
+			if e == nil then
+				travelFailed(player)
+				return
+			end
+		else
+			e = Places.pick(matches)
+		end
+		task.spawn(function()
+			if e ~= nil and list ~= nil then
+				local options = Instance.new("TeleportOptions")
+				if e.psid ~= "" then
+					local code = list.codeOf(e.psid)
+					if code == nil then
+						travelFailed(player)
+						return
+					end
+					options.ReservedServerAccessCode = code
+				else
+					options.ServerInstanceId = e.id
+				end
+				travel({ player }, Config.Places.Match, options)
+				return
+			end
+			-- Свободного матча нет — новый резервный сервер; кто нажал за BatchSec, едут вместе.
+			table.insert(batch, player)
+			matchEvent:FireClient(player, { kind = "travel", state = "going" })
+			if #batch > 1 then
+				return
+			end
+			task.wait(Config.Places.BatchSec)
+			local group = batch
+			batch = {}
+			local options = Instance.new("TeleportOptions")
+			options.ShouldReserveServer = true
+			local result = travel(group, Config.Places.Match, options)
+			if result ~= nil and list ~= nil then
+				list.remember(result.PrivateServerId, result.ReservedServerAccessCode)
+			end
+		end)
+	end
+	if isHub and serverList ~= nil then
+		local list = serverList
+		task.spawn(function()
+			while true do
+				matches = list.read()
+				sendServers(nil)
+				task.wait(Config.Places.ListRefreshSec)
+			end
+		end)
+	end
+
+	-- Сервер матча: раз в PublishSec — о себе в список (режим в лобби — лидер голосования).
+	if role == "match" and serverList ~= nil then
+		local list = serverList
+		task.spawn(function()
+			while true do
+				local mode: string = m.mode
+				if m.phase == "Lobby" or m.phase == "Waiting" then
+					mode = Modes.tally(m.modeOptions, m.modeVotes)
+				end
+				list.publish({
+					id = game.JobId,
+					psid = game.PrivateServerId,
+					map = map.name,
+					mode = mode,
+					phase = m.phase,
+					players = #Players:GetPlayers(),
+					max = Players.MaxPlayers,
+					left = if m.phase == "Play"
+						then math.max(0, math.floor(m.time))
+						else math.max(0, math.ceil(m.phaseLeft)),
+					at = os.time(),
+				})
+				task.wait(Config.Places.PublishSec)
+			end
+		end)
+		game:BindToClose(function()
+			list.remove()
+		end)
+	end
+
 	local function onPlayerAdded(player: Player)
 		if nationOf[player] ~= nil then
 			return
@@ -452,10 +628,11 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		if isPrivate and ownerId == nil then
 			ownerId = player.UserId -- Studio (Dev.PrivateServer): владелец — первый вошедший
 		end
-		if m.phase == "Waiting" then
+		-- Хаб (§15л ч.3): матча нет — игрок только в меню, державы не получает.
+		if m.phase == "Waiting" and not isHub then
 			MatchSim.startLobby(m)
 		end
-		local id = MatchSim.addPlayer(m, player.UserId, player.DisplayName)
+		local id = if isHub then nil else MatchSim.addPlayer(m, player.UserId, player.DisplayName)
 		if id ~= nil then
 			nationOf[player] = id
 		end
@@ -469,6 +646,9 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		sendDiplo(player)
 		if m.phase == "Play" then
 			sendSnapshot(player) -- опоздавший — зритель: видит всю карту
+		end
+		if isHub then
+			sendServers(player)
 		end
 		-- Профиль грузится в фоне (DataStore может ждать блокировку сессии).
 		task.spawn(function()
@@ -516,6 +696,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		end
 		nationOf[player] = nil
 		limiters[player] = nil
+		travelling[player] = nil
 		rewards[player] = nil
 		shop.forget(player)
 		task.spawn(profiles.release, player.UserId)
@@ -627,6 +808,23 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			sendDiplo(player)
 			if m.phase == "Play" then
 				sendSnapshot(player)
+			end
+			return
+		end
+		-- §15л ч.3: «В БОЙ» в хабе и «Главное меню» на сервере матча — переходы между местами.
+		if kind == "play" then
+			if isHub then
+				local server = if type(payload) == "table" and type(payload.server) == "string"
+					then payload.server
+					else nil
+				travelToMatch(player, server)
+			end
+			return
+		end
+		if kind == "toHub" then
+			local since = travelling[player]
+			if role == "match" and (since == nil or os.clock() - since >= Config.Places.RetrySec) then
+				task.spawn(travel, { player }, Config.Places.Hub, nil)
 			end
 			return
 		end
