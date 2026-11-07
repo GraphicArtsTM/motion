@@ -122,4 +122,14 @@ T.describe("Хаб и матч (§15л ч.3)", function()
 			T.expect(Places.privateRecord("x")).toBe(nil)
 		end
 	)
+
+	T.it(
+		"хаб: карты показательного матча — настоящие карты игры",
+		function()
+			for _, id in Config.Hub.DemoMaps do
+				T.expect((Config.RealMaps :: any)[id] ~= nil).toBe(true)
+			end
+			T.expect(Config.Hub.DemoNations >= 2).toBe(true)
+		end
+	)
 end)

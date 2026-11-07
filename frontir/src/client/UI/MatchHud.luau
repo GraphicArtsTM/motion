@@ -177,34 +177,97 @@ function MatchHud.new(
 	local bannerText = richLabel(banner, 18)
 	bannerText.TextXAlignment = Enum.TextXAlignment.Center
 	bannerText.LayoutOrder = 1
-	-- Полоска лидера к победе (60% суши) в его цвете (HUD v1, §10).
+	-- §15л ч.5 Верх матча как в похожих играх: одна панель — слева «Время матча», справа «Контроль суши» (полоса до
+	-- цели победы, белая черта — ваша доля, подпись «Вы N%» и лидер). Остальное (режим, потоп, пауза) — строками ниже.
+	local top = Instance.new("Frame")
+	top.Name = "MatchTop"
+	top.BackgroundTransparency = 1
+	top.AutomaticSize = Enum.AutomaticSize.XY
+	top.Size = UDim2.fromOffset(0, 0)
+	top.LayoutOrder = 0
+	top.Visible = false
+	top.Parent = banner
+	local topList = Instance.new("UIListLayout")
+	topList.FillDirection = Enum.FillDirection.Horizontal
+	topList.VerticalAlignment = Enum.VerticalAlignment.Center
+	topList.SortOrder = Enum.SortOrder.LayoutOrder
+	topList.Padding = UDim.new(0, 16)
+	topList.Parent = top
+	local function column(order: number): Frame
+		local c = Instance.new("Frame")
+		c.BackgroundTransparency = 1
+		c.AutomaticSize = Enum.AutomaticSize.XY
+		c.Size = UDim2.fromOffset(0, 0)
+		c.LayoutOrder = order
+		c.Parent = top
+		local l = Instance.new("UIListLayout")
+		l.SortOrder = Enum.SortOrder.LayoutOrder
+		l.Padding = UDim.new(0, 2)
+		l.Parent = c
+		return c
+	end
+	local timeCol = column(1)
+	local timeHead = richLabel(timeCol, 12)
+	timeHead.TextColor3 = Theme.Colors.Muted
+	timeHead.Text = Strings.get("hud.matchTime", lang)
+	timeHead.LayoutOrder = 1
+	local timeBig = richLabel(timeCol, 26)
+	timeBig.FontFace = Font.fromEnum(Enum.Font.Arcade)
+	timeBig.LayoutOrder = 2
+	local timeSub = richLabel(timeCol, 12)
+	timeSub.TextColor3 = Theme.Colors.Sky
+	timeSub.LayoutOrder = 3
+	local divider = Instance.new("Frame")
+	divider.BorderSizePixel = 0
+	divider.BackgroundColor3 = Theme.Colors.PanelBorder
+	divider.Size = UDim2.fromOffset(2, 44)
+	divider.LayoutOrder = 2
+	divider.Parent = top
+	local controlCol = column(3)
+	local controlHead = Instance.new("Frame")
+	controlHead.BackgroundTransparency = 1
+	controlHead.Size = UDim2.fromOffset(320, 16)
+	controlHead.LayoutOrder = 1
+	controlHead.Parent = controlCol
+	local controlTitle = richLabel(controlHead, 12)
+	controlTitle.TextColor3 = Theme.Colors.Muted
+	controlTitle.Text = Strings.get("hud.controlTitle", lang)
+	local goalText = richLabel(controlHead, 12)
+	goalText.AnchorPoint = Vector2.new(1, 0)
+	goalText.Position = UDim2.fromScale(1, 0)
+	goalText.TextXAlignment = Enum.TextXAlignment.Right
+	goalText.TextColor3 = Theme.Colors.Gold
+	goalText.FontFace = Theme.FontBold
 	local leaderBar = Instance.new("Frame")
 	leaderBar.Name = "LeaderBar"
 	leaderBar.BackgroundColor3 = Theme.Colors.Backdrop
 	leaderBar.BorderSizePixel = 0
-	leaderBar.Size = UDim2.fromOffset(240, 6)
+	leaderBar.Size = UDim2.fromOffset(320, 10)
 	leaderBar.LayoutOrder = 2
-	leaderBar.Visible = false
-	leaderBar.Parent = banner
+	leaderBar.Parent = controlCol
 	local leaderFill = Instance.new("Frame")
 	leaderFill.BorderSizePixel = 0
 	leaderFill.Size = UDim2.fromScale(0, 1)
 	leaderFill.Parent = leaderBar
-	-- §15к «Контроль суши»: полоска шире, своя доля — белой чертой, подпись «вы · лидер · цель».
-	leaderBar.Size = UDim2.fromOffset(320, 8)
 	local myMark = Instance.new("Frame")
 	myMark.Name = "Me"
 	myMark.AnchorPoint = Vector2.new(0.5, 0.5)
-	myMark.Size = UDim2.fromOffset(3, 14)
+	myMark.Size = UDim2.fromOffset(3, 16)
 	myMark.Position = UDim2.fromScale(0, 0.5)
 	myMark.BackgroundColor3 = Theme.color("White")
 	myMark.BorderSizePixel = 0
 	myMark.ZIndex = 3
 	myMark.Parent = leaderBar
-	local controlText = richLabel(banner, 13)
-	controlText.TextXAlignment = Enum.TextXAlignment.Center
+	local controlText = richLabel(controlCol, 13)
 	controlText.LayoutOrder = 3
-	controlText.Visible = false
+	-- Справа сверху — место по суше «#N · M%» (стоит первым в столбике TopRight, Main.client).
+	local placeChip = panel(gui, "PlaceChip")
+	placeChip.AnchorPoint = Vector2.new(1, 0)
+	placeChip.Position = UDim2.new(1, -12, 0, GAP)
+	placeChip.Visible = false
+	local placeText = richLabel(placeChip, 20)
+	placeText.FontFace = Theme.FontBold
+	placeText.TextColor3 = Theme.Colors.Gold
 
 	-- Слева сверху: полоса ресурсов «как в игре» (§15д ч.5), под ней — держава.
 	local resources = ResourceBar.new(gui, lang)
@@ -685,17 +748,17 @@ function MatchHud.new(
 					alive += 1
 				end
 			end
-			text = string.format(
-				'<font face="Arcade" size="22">%s</font>  <font color="%s" size="14">%s</font>',
-				string.format(Strings.get("hud.timeLimit", lang), t // 60, t % 60, limit // 60, limit % 60),
-				sky,
-				string.format(Strings.get("hud.nations", lang), alive, total)
-			)
+			-- §15л ч.5: время — в левой колонке панели, здесь — только строки под ней.
+			timeBig.Text = string.format(Strings.get("hud.time", lang), t // 60, t % 60)
+			timeSub.Text = string.format(Strings.get("hud.timeOf", lang), limit // 60, limit % 60)
+				.. "  ·  "
+				.. string.format(Strings.get("hud.nations", lang), alive, total)
+			text = ""
 			local me = if cs.myNation ~= nil then cs.nations[cs.myNation] else nil
 			if me == nil then
-				text ..= "\n" .. Strings.get("hud.spectator", lang)
+				text = Strings.get("hud.spectator", lang) .. "\n"
 			elseif not me.alive then
-				text ..= "\n" .. Strings.get("hud.defeated", lang)
+				text = Strings.get("hud.defeated", lang) .. "\n"
 			end
 			-- Режим (§5.1): название, своя команда, охота на столицы, пауза «Против ботов».
 			local line = string.format(Strings.get("hud.mode", lang), Strings.get("mode." .. cs.mode.mode, lang))
@@ -719,7 +782,7 @@ function MatchHud.new(
 					end
 				end
 			end
-			text ..= string.format('\n<font color="%s" size="14">%s</font>', sky, line)
+			text ..= string.format('<font color="%s" size="14">%s</font>', sky, line)
 			-- «Потоп» (§5.3): отсчёт до следующей ступени.
 			local flood = cs.flood
 			if flood ~= nil and flood.step < Config.Flood.MaxSteps then
@@ -737,8 +800,10 @@ function MatchHud.new(
 		-- Лидер к победе: доля суши / порог победы.
 		local stats = cs.stats
 		local showBar = cs.phase == "Play" and stats ~= nil
-		leaderBar.Visible = showBar
-		controlText.Visible = showBar
+		top.Visible = showBar
+		if not showBar then
+			placeChip.Visible = false
+		end
 		if showBar and stats ~= nil then
 			local best, bestCells = 0, -1
 			for _, s in stats.nations do
@@ -750,15 +815,42 @@ function MatchHud.new(
 			leaderFill.Size = UDim2.fromScale(math.clamp(share / cs.rules.victoryShare, 0, 1), 1)
 			local mine = if cs.myNation ~= nil then ClientState.statsOf(cs, cs.myNation) else nil
 			local myShare = if mine ~= nil then mine.cells / math.max(1, totalLand) else 0
+			placeChip.Visible = mine ~= nil
+			if mine ~= nil then
+				local place = 1
+				for _, s in stats.nations do
+					if s.cells > mine.cells then
+						place += 1
+					end
+				end
+				placeText.Text = string.format(Strings.get("hud.place", lang), place, myShare * 100)
+			end
 			myMark.Visible = mine ~= nil
 			myMark.Position = UDim2.fromScale(math.clamp(myShare / cs.rules.victoryShare, 0, 1), 0.5)
-			controlText.Text = string.format(
-				Strings.get("hud.control", lang),
-				myShare * 100,
-				escape(nationName(best)),
-				share * 100,
-				math.round(cs.rules.victoryShare * 100)
-			)
+			goalText.Text = string.format(Strings.get("hud.goal", lang), math.round(cs.rules.victoryShare * 100))
+			local function nationHex(id: number?): string
+				local nn = if id ~= nil then cs.nations[id] else nil
+				if nn == nil or nn.colorIndex < 1 then
+					return gold
+				end
+				local c = NationColors.Colors[nn.colorIndex]
+				return string.format("#%02x%02x%02x", c.r, c.g, c.b)
+			end
+			local you = if mine ~= nil
+				then string.format(
+					'<font color="%s">■</font> %s  ',
+					nationHex(cs.myNation),
+					string.format(Strings.get("hud.youShare", lang), myShare * 100)
+				)
+				else ""
+			controlText.Text = you
+				.. string.format(
+					'<font color="%s">♛</font> <font color="%s">■</font> %s %.1f%%',
+					gold,
+					nationHex(best),
+					escape(nationName(best)),
+					share * 100
+				)
 			local n = cs.nations[best]
 			leaderFill.BackgroundColor3 = if n ~= nil and n.colorIndex >= 1
 				then Color3.fromRGB(

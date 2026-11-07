@@ -228,6 +228,10 @@ local function runSession(mapId: string, resync: boolean)
 	local client: MatchClient.MatchClient? = nil
 	local throttle = AudioCues.newThrottle()
 	local function sound(name: string)
+		-- Хаб (§15л ч.5): за меню идёт показательный матч ботов — его события не звучат.
+		if cs.place == "hub" then
+			return
+		end
 		if AudioCues.allow(throttle, name, os.clock()) then
 			Audio.play(name)
 		end
@@ -678,7 +682,7 @@ local function runSession(mapId: string, resync: boolean)
 	)
 	stackInto(
 		column("TopRight", 1, UDim.new(1, -12), Enum.HorizontalAlignment.Right),
-		{ "Leaders", "Auction", "Forces" }
+		{ "PlaceChip", "Leaders", "Auction", "Forces" }
 	)
 	-- Панель разработчика (F4) — только в Studio; создаётся в фоне (ждёт канал Remotes.Dev от сервера).
 	local devPanel: DevPanel.DevPanel? = nil
@@ -831,7 +835,7 @@ local function runSession(mapId: string, resync: boolean)
 			if cs.phase == "Over" and result ~= nil and resultFor ~= cs.matchId then
 				resultFor = cs.matchId
 				local name = AudioCues.result(result.winner, result.coWinners, cs.myNation)
-				if name ~= nil then
+				if name ~= nil and cs.place ~= "hub" then
 					Audio.play(name)
 				end
 			end
@@ -1164,9 +1168,72 @@ local function runSession(mapId: string, resync: boolean)
 
 	local musicAt = 0
 	local travelToastAt = -1
+	-- §15л ч.5 Хаб: камера сама облетает показательный матч — от войны к войне (нет войн — крупные державы).
+	local tourAt, tourPick, tourLast = 0, 0, os.clock()
+	local tourX: number?, tourY: number? = nil, nil
+	local function cellXY(cell: number): (number, number)
+		return cell % map.width + 0.5, cell // map.width + 0.5
+	end
+	local function tourTarget(): (number?, number?)
+		local spots: { { number } } = {}
+		for _, w in cs.wars.wars do
+			local a, b = cs.nations[w.a], cs.nations[w.b]
+			if w.active and a ~= nil and b ~= nil and a.capital ~= nil and b.capital ~= nil then
+				local ax, ay = cellXY(a.capital)
+				local bx, by = cellXY(b.capital)
+				table.insert(spots, { (ax + bx) / 2, (ay + by) / 2 })
+			end
+		end
+		if #spots == 0 then
+			local list: { { id: number, cells: number } } = {}
+			for id, n in cs.nations do
+				local st = ClientState.statsOf(cs, id)
+				if n.alive and n.capital ~= nil and st ~= nil then
+					table.insert(list, { id = id, cells = st.cells })
+				end
+			end
+			table.sort(list, function(p: { id: number, cells: number }, q: { id: number, cells: number }): boolean
+				return p.cells > q.cells
+			end)
+			for k = 1, math.min(5, #list) do
+				local capital = cs.nations[list[k].id].capital :: number
+				local x, y = cellXY(capital)
+				table.insert(spots, { x, y })
+			end
+		end
+		if #spots == 0 then
+			return nil, nil
+		end
+		tourPick += 1
+		local spot = spots[(tourPick - 1) % #spots + 1]
+		return spot[1], spot[2]
+	end
+	local function tour(now: number)
+		local dt = math.min(0.1, now - tourLast)
+		tourLast = now
+		if cs.place ~= "hub" or (cs.phase ~= "Play" and cs.phase ~= "Over") then
+			return
+		end
+		local s = camera.state
+		if now >= tourAt then
+			tourAt = now + Config.Hub.TourSec
+			tourX, tourY = tourTarget()
+			s.zoom = CameraMath.snapZoom(s, CameraMath.minZoom(s) * Config.Hub.TourZoom)
+		end
+		local tx, ty = tourX, tourY
+		if tx == nil or ty == nil then
+			return
+		end
+		local cx = s.x + s.viewW / s.zoom / 2
+		local cy = s.y + s.viewH / s.zoom / 2
+		local k = math.min(1, dt * Config.Hub.TourEase)
+		CameraMath.centerOn(s, cx + (tx - cx) * k, cy + (ty - cy) * k)
+		camera.refresh()
+	end
 	local cloudsAt = os.clock()
 	local frameConn = Session.connect(RunService.RenderStepped, function()
 		local now = os.clock()
+		tour(now)
 		-- Музыка (§13): лобби, игра или финал — раз в полсекунды.
 		if now - musicAt >= 0.5 then
 			musicAt = now

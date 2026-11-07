@@ -103,6 +103,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 	local m = newMatch()
 	local seed = m.seed
 	local startNewMatch: (mapId: string) -> ()
+	local startDemo: () -> ()
 	local travel: (players: { Player }, placeId: number, options: TeleportOptions?) -> TeleportAsyncResult?
 	local travelToMatch: (player: Player, serverId: string?) -> ()
 	local nationOf: { [Player]: number } = {}
@@ -1141,7 +1142,26 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		print(string.format("[Frontir] новый матч, сид %d, карта %s", m.seed, map.name))
 	end
 
+	-- §15л ч.5 Хаб: показательный матч только из ботов (игроки — зрители), карты по кругу.
+	local demoIndex = 0
+	function startDemo()
+		local pool = Config.Hub.DemoMaps
+		demoIndex = demoIndex % #pool + 1
+		local mapId = pool[demoIndex]
+		if mapId ~= map.name and (Config.RealMaps :: any)[mapId] ~= nil then
+			map = loadMap(mapId)
+		end
+		m = newMatch()
+		m.targetNations = Config.Hub.DemoNations
+		m.forcedMode = "Ffa"
+		table.clear(nationOf)
+		MatchSim.startPick(m)
+		sendInfoAll()
+		print(string.format("[Frontir] хаб: показательный матч, карта %s", map.name))
+	end
+
 	local step = 1 / Config.Sim.TickRate
+	local hubSpeed = if isHub then Config.Hub.DemoSpeed else 1
 	local acc = 0
 	local statsAcc = 0
 	local stabilityAcc = 0
@@ -1211,11 +1231,11 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				sendInfoAll()
 			end
 		else
-			acc += dt * devSpeed * soloSpeed -- «Время ×5» панели разработчика: больше шагов симуляции за кадр
+			acc += dt * devSpeed * soloSpeed * hubSpeed -- «Время ×5» панели разработчика: больше шагов симуляции за кадр
 		end
 		statsAcc += dt
 		local steps = 0
-		while acc >= step and steps < Config.Net.MaxStepsPerFrame * devSpeed * soloSpeed do
+		while acc >= step and steps < Config.Net.MaxStepsPerFrame * devSpeed * soloSpeed * hubSpeed do
 			acc -= step
 			steps += 1
 			local wasPlaying = m.phase == "Play"
@@ -1329,15 +1349,19 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				end
 			end
 		end
-		if acc > step * Config.Net.MaxStepsPerFrame * devSpeed * soloSpeed then
+		if acc > step * Config.Net.MaxStepsPerFrame * devSpeed * soloSpeed * hubSpeed then
 			acc = 0 -- сервер не успевает: лучше пропустить время, чем копить отставание
 		end
 		-- Результаты показаны — новый матч на той же карте (её меняет голосование в лобби, §15к), из F4 или
 		-- настроек частного сервера (§5.4): все игроки снова в лобби.
 		if m.phase == "Over" and m.phaseLeft <= 0 then
-			local nextMap = devMap or (if settings ~= nil then settings.map else nil) or map.name
-			devMap = nil
-			startNewMatch(nextMap)
+			if isHub then
+				startDemo() -- хаб (§15л ч.5): следующий показательный матч на следующей карте
+			else
+				local nextMap = devMap or (if settings ~= nil then settings.map else nil) or map.name
+				devMap = nil
+				startNewMatch(nextMap)
+			end
 		end
 		if m.phase == "Play" and statsAcc >= 1 / Config.Net.StatsHz then
 			statsAcc = 0
@@ -1350,6 +1374,9 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		end
 	end)
 
+	if isHub then
+		startDemo()
+	end
 	print(
 		string.format(
 			"[Frontir] матч запущен, сид %d, держав по плану %d",

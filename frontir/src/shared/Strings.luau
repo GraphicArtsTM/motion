@@ -932,7 +932,7 @@ local TABLE: { [string]: Entry } = {
 	},
 	["ring.emoji"] = { ru = "Эмодзи", en = "Emoji" },
 	-- Экран лобби и «Как играть» (§15и).
-	["lobby.title"] = { ru = "ФРОНТИР", en = "FRONTIR" },
+	["lobby.title"] = { ru = "WORLD CONQUER", en = "WORLD CONQUER" }, -- §15л ч.5: название с логотипа
 	["lobby.subtitle"] = {
 		ru = "Захватите больше суши, чем соседи, — союзом, торговлей или войной",
 		en = "Hold more land than your neighbours — by alliance, trade or war",
@@ -940,10 +940,13 @@ local TABLE: { [string]: Entry } = {
 	["lobby.next"] = { ru = "СЛЕДУЮЩИЙ МАТЧ", en = "NEXT MATCH" },
 	["lobby.info"] = { ru = "Режим: %s  ·  игроков %d из %d", en = "Mode: %s  ·  players %d of %d" },
 	["lobby.players"] = { ru = "В лобби:", en = "In lobby:" },
-	["hud.control"] = {
-		ru = "Контроль суши: вы %.1f%% · лидер %s %.1f%% · цель %d%%",
-		en = "Land control: you %.1f%% · leader %s %.1f%% · goal %d%%",
-	},
+	-- §15л ч.5 верхняя панель матча
+	["hud.matchTime"] = { ru = "ВРЕМЯ МАТЧА", en = "MATCH TIME" },
+	["hud.timeOf"] = { ru = "из %d:%02d", en = "of %d:%02d" },
+	["hud.controlTitle"] = { ru = "КОНТРОЛЬ СУШИ", en = "LAND CONTROL" },
+	["hud.goal"] = { ru = "ЦЕЛЬ %d%%", en = "GOAL %d%%" },
+	["hud.youShare"] = { ru = "Вы %.1f%%", en = "You %.1f%%" },
+	["hud.place"] = { ru = "#%d · %.1f%%", en = "#%d · %.1f%%" },
 	-- §15к подсказка при наведении на карту
 	["tip.neutral"] = { ru = "Ничья земля", en = "Unclaimed land" },
 	["tip.yours"] = { ru = "Ваша земля", en = "Your land" },

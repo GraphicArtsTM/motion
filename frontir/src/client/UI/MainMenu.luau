@@ -21,6 +21,7 @@ local Config = require(Shared:WaitForChild("Config"))
 local Ranks = require(Shared:WaitForChild("Ranks"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
+local Logo = require(script.Parent:WaitForChild("Logo"))
 local MenuKit = require(script.Parent:WaitForChild("MenuKit"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
@@ -131,6 +132,16 @@ function MainMenu.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, mapNa
 		logo.TextTransparency = 1
 		logo.TextStrokeTransparency = 1
 		logoImage = img
+	else
+		-- §15л ч.5: логотип «WORLD CONQUER» пикселями из кода (Shared.LogoArt).
+		local img = Logo.new(top, art.LogoScale)
+		if img ~= nil then
+			img.AnchorPoint = Vector2.new(0.5, 0.5)
+			img.Position = UDim2.fromScale(0.5, 0.5)
+			logo.TextTransparency = 1
+			logo.TextStrokeTransparency = 1
+			logoImage = img
+		end
 	end
 	if art.MenuBackground ~= "" then
 		local bg = Instance.new("ImageLabel")
@@ -532,6 +543,10 @@ function MainMenu.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, mapNa
 
 		-- Хаб (§15л ч.3): список матчей вместо «Сейчас на сервере».
 		local hub = cs.place == "hub"
+		-- §15л ч.5: в хабе за меню — показательная война, затемнение светлее.
+		root.BackgroundTransparency = if hub then Config.Hub.ShadeAlpha else cfg.ShadeAlpha
+		-- §15л ч.5: в хабе за меню — показательная война, затемнение светлее.
+		root.BackgroundTransparency = if hub then Config.Hub.ShadeAlpha else cfg.ShadeAlpha
 		matchList.Visible = hub
 		for _, g in { mapLabel, modeLabel, playersLabel, statusLabel, roster } :: { GuiObject } do
 			g.Visible = not hub

@@ -22,6 +22,7 @@ local PixelIcons = require(Shared:WaitForChild("PixelIcons"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
 local FlagView = require(script.Parent:WaitForChild("FlagView"))
+local Logo = require(script.Parent:WaitForChild("Logo"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
@@ -155,6 +156,14 @@ function LobbyScreen.new(
 	title.Text = Strings.get("lobby.title", lang)
 	title.TextColor3 = Theme.Colors.Gold
 	title.TextStrokeTransparency = 0.4
+	-- §15л ч.5: логотип пикселями вместо надписи (нет памяти под картинку — надпись остаётся).
+	do
+		local img = Logo.new(content, Config.Art.LobbyLogoScale)
+		if img ~= nil then
+			img.LayoutOrder = 1
+			title.Visible = false
+		end
+	end
 	local subtitle = label(content, 15, false, 2)
 	subtitle.Text = Strings.get("lobby.subtitle", lang)
 	subtitle.TextColor3 = Theme.Colors.Muted
