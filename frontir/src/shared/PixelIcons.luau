@@ -138,6 +138,52 @@ PixelIcons.Icons = table.freeze({
 		p(5, 0, 3, 1, "White"),
 		p(2, 5, 4, 3, "White"),
 	},
+	-- §15л ч.6 Арсенал.
+	arsenal = { -- ящик с оружием
+		p(0, 2, 8, 6, "Ochre"),
+		p(0, 2, 8, 1, "Hills"),
+		p(3, 3, 2, 2, "Gold"),
+		p(1, 0, 6, 2, "Rock"),
+		p(0, 7, 8, 1, "Basalt"),
+	},
+	reinforce = { -- каска
+		p(1, 2, 6, 3, "Grass"),
+		p(2, 1, 4, 1, "Meadow"),
+		p(0, 5, 8, 1, "Forest"),
+		p(2, 6, 4, 2, "Sand"),
+	},
+	convoy = { -- грузовик
+		p(0, 1, 5, 4, "Sand"),
+		p(5, 2, 3, 3, "Ochre"),
+		p(6, 2, 1, 1, "Sky"),
+		p(1, 5, 2, 2, "Ink"),
+		p(5, 5, 2, 2, "Ink"),
+	},
+	hqReserve = { -- песочные часы
+		p(1, 0, 6, 1, "Gold"),
+		p(2, 1, 4, 2, "Sand"),
+		p(3, 3, 2, 2, "Sand"),
+		p(2, 5, 4, 2, "Dune"),
+		p(1, 7, 6, 1, "Gold"),
+	},
+	barrage = { -- три снаряда
+		p(0, 2, 2, 5, "Steel"),
+		p(3, 1, 2, 6, "Steel"),
+		p(6, 2, 2, 5, "Steel"),
+		p(0, 1, 2, 1, "Orange"),
+		p(3, 0, 2, 1, "Orange"),
+		p(6, 1, 2, 1, "Orange"),
+		p(0, 7, 8, 1, "Red"),
+	},
+	jammer = { -- антенна с волнами
+		p(3, 3, 2, 5, "Mist"),
+		p(2, 2, 4, 1, "White"),
+		p(0, 0, 1, 3, "Sky"),
+		p(7, 0, 1, 3, "Sky"),
+		p(1, 1, 1, 1, "Sky"),
+		p(6, 1, 1, 1, "Sky"),
+		p(1, 7, 6, 1, "Steel"),
+	},
 } :: { [string]: { Part } })
 
 return table.freeze(PixelIcons)

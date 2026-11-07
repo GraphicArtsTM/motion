@@ -134,6 +134,7 @@ export type MatchEvent =
 	-- Разведка (§6.11а): nation разведал target
 	| { kind: "flood", step: number, cells: number } -- «Потоп» (§5.3): вода поднялась
 	| { kind: "boost", nation: number, boost: string } -- буст магазина (§11.1)
+	| { kind: "arsenal", nation: number, item: string, cell: number? } -- предмет Арсенала (§15л ч.6)
 	| { kind: "tutorial", nation: number, step: number } -- «Обучение» (§5.5): шаг пройден
 	| { kind: "tutorialDone", nation: number }
 	| { kind: "intel", nation: number, target: number }
@@ -265,6 +266,8 @@ export type Match = {
 	-- Магазин и профиль (§11.1, §11.2, этап 9а): перки геймпассов, бусты за матч, открытые генералы.
 	perks: { [number]: Shop.Perks },
 	boostsUsed: { [number]: { [string]: boolean } },
+	arsenal: { [number]: string }, -- §15л ч.6: предмет Арсенала, взятый державой в бой
+	arsenalUsed: { [number]: boolean }, -- …и применён ли он в этом матче
 	unlocked: { [number]: { [string]: boolean } }, -- держава игрока → открытые генералы (нет записи — все)
 	intel: { [number]: { [number]: number } }, -- разведчик → цель → до какого simTime
 	radarIntel: { [number]: { [number]: boolean } }, -- держава → державы в радиусе её радаров
@@ -389,6 +392,8 @@ function MatchSim.new(map: MapData, seed: number): Match
 		settings = nil,
 		perks = {},
 		boostsUsed = {},
+		arsenal = {},
+		arsenalUsed = {},
 		unlocked = {},
 		intel = {},
 		radarIntel = {},
@@ -548,6 +553,90 @@ function MatchSim.useBoost(m: Match, id: number, key: string, cell: number?): (b
 	end
 	used[key] = true
 	table.insert(m.events, { kind = "boost", nation = id, boost = key })
+	return true, nil
+end
+
+-- Арсенал (§15л ч.6) ----------------------------------------------------------------------------
+
+-- Предмет, взятый игроком в бой (сервер ставит из профиля; nil — ничего).
+function MatchSim.setArsenal(m: Match, id: number, key: string?)
+	if key ~= nil and Config.Arsenal.Items[key] == nil then
+		key = nil
+	end
+	m.arsenal[id] = key :: any
+end
+
+function MatchSim.canArsenal(m: Match, id: number): (boolean, string?)
+	local n = m.nations[id]
+	if n == nil or not n.alive or n.isBot then
+		return false, "dead"
+	end
+	if m.phase ~= "Play" then
+		return false, "phase"
+	end
+	if not m.rules.boosts then -- «Дуэль», «Обучение»: без бустов и Арсенала
+		return false, "noBoosts"
+	end
+	local key = m.arsenal[id]
+	if key == nil then
+		return false, "noArsenal"
+	end
+	if m.arsenalUsed[id] then
+		return false, "arsenalUsed"
+	end
+	return true, nil
+end
+
+-- Применить предмет Арсенала; по клетке — Артналёт и Глушилка.
+function MatchSim.useArsenal(m: Match, id: number, cell: number?): (boolean, string?)
+	local ok, why = MatchSim.canArsenal(m, id)
+	if not ok then
+		return false, why
+	end
+	local n = m.nations[id]
+	local key = m.arsenal[id]
+	local it = Config.Arsenal.Items[key]
+	if key == "Reinforce" then
+		local power = Forces.total(n.home) + Forces.total(MatchSim.frontForces(m, id))
+		local infantry = Forces.kindIndex("Infantry") :: number
+		Forces.add(n.home, infantry, math.max(it.minStrength, power * it.powerShare), it.xp)
+	elseif key == "Convoy" then
+		n.money += it.money
+		n.oil += it.oil
+	elseif key == "HqReserve" then
+		Commanders.resetCooldowns(m.commanders, id)
+	elseif key == "Barrage" then
+		local ok2, why2 = MatchSim.strikeAt(m, n, cell or -1, it.frontLoss)
+		if not ok2 then
+			return false, why2
+		end
+	elseif key == "Jammer" then
+		local at = cell or -1
+		local g = m.grid
+		if at < 0 or at >= g.size then
+			return false, "focus"
+		end
+		local w = g.width
+		local ax, ay = at % w, at // w
+		local r2 = it.radius * it.radius
+		local hit = 0
+		local function jam(list: { { cell: number, owner: number } })
+			for _, b in list do
+				local dx, dy = b.cell % w - ax, b.cell // w - ay
+				if dx * dx + dy * dy <= r2 and b.owner ~= id and Wars.isActive(m.wars, id, b.owner) then
+					m.air.disabled[b.cell] = m.simTime + it.sec
+					hit += 1
+				end
+			end
+		end
+		jam(MatchSim.buildingsOf(m, "AirDefense"))
+		jam(MatchSim.buildingsOf(m, "Sam"))
+		if hit == 0 then
+			return false, "noTarget"
+		end
+	end
+	m.arsenalUsed[id] = true
+	table.insert(m.events, { kind = "arsenal", nation = id, item = key, cell = cell })
 	return true, nil
 end
 

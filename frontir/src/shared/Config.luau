@@ -162,6 +162,19 @@ Config.Shop = {
 	} :: { { stock: { [string]: number }, crates: number, tokens: number } },
 }
 
+-- §15л ч.6 Арсенал: особое оружие навсегда за медали (и от уровня), в бой — одно, раз за матч, без «Дуэли».
+-- Сила — в потолке Shop.MaxEdge (тест Arsenal.spec). Порядок — как в окне.
+Config.Arsenal = {
+	Order = { "Reinforce", "Convoy", "HqReserve", "Barrage", "Jammer" },
+	Items = {
+		Reinforce = { price = 1500, level = 3, target = false, powerShare = 0.10, minStrength = 300, xp = 1 },
+		Convoy = { price = 2500, level = 6, target = false, money = 2500, oil = 150 },
+		HqReserve = { price = 4000, level = 10, target = false },
+		Barrage = { price = 6000, level = 15, target = true, frontLoss = 0.12 }, -- радиус — Commanders.StrikeRadius
+		Jammer = { price = 9000, level = 20, target = true, radius = 12, sec = 20 }, -- ПВО и ЗРК врага не работают
+	} :: { [string]: { [string]: any } },
+}
+
 -- §11.4 Косметика и флаг (этап 9в): только вид, за медали, уровень или пропуск. Порядок — как в гардеробе.
 Config.Cosmetics = {
 	PatternMix = 0.28, -- узор: доля цвета границы державы на внутренних клетках

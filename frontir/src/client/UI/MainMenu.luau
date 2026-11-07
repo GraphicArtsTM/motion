@@ -18,10 +18,12 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local ClientState = require(Shared:WaitForChild("ClientState"))
 local Config = require(Shared:WaitForChild("Config"))
+local MapThumbs = require(Shared:WaitForChild("MapThumbs"))
 local Ranks = require(Shared:WaitForChild("Ranks"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
 local Logo = require(script.Parent:WaitForChild("Logo"))
+local MapThumb = require(script.Parent:WaitForChild("MapThumb"))
 local MenuKit = require(script.Parent:WaitForChild("MenuKit"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
@@ -33,6 +35,7 @@ export type Actions = {
 	wardrobe: () -> (),
 	quests: () -> (),
 	ranks: () -> (),
+	arsenal: () -> (), -- §15л ч.6
 	help: () -> (),
 	sound: () -> (),
 	server: () -> (),
@@ -275,12 +278,30 @@ function MainMenu.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, mapNa
 	matchList.AutomaticSize = Enum.AutomaticSize.Y
 	MenuKit.list(matchList, 6)
 	matchList.Visible = false
-	type MatchRow = { frame: Frame, title: TextLabel, info: TextLabel, go: TextButton, id: string }
+	type MatchRow = {
+		frame: Frame,
+		title: TextLabel,
+		info: TextLabel,
+		go: TextButton,
+		id: string,
+		thumb: ImageLabel,
+		map: string,
+	}
+	local thumbOf = MapThumb.new() -- §15л ч.6: миниатюры карт
 	local matchRows: { MatchRow } = {}
 	for k = 1, Config.Places.ListMax do
 		local row = MenuKit.row(matchList, "Match" .. k, k)
+		local thumb = Instance.new("ImageLabel")
+		thumb.Name = "Thumb"
+		thumb.LayoutOrder = 0
+		thumb.Size = UDim2.fromOffset(MapThumbs.W * 2, MapThumbs.H * 2)
+		thumb.BackgroundColor3 = Theme.Colors.Backdrop
+		thumb.BorderSizePixel = 0
+		thumb.ResampleMode = Enum.ResamplerMode.Pixelated
+		thumb.Parent = row
+		MenuKit.stroke(thumb, Theme.Colors.Slate, 2)
 		local text = MenuKit.box(row, "Text", 1)
-		text.Size = UDim2.new(1, -120, 0, 0)
+		text.Size = UDim2.new(1, -(120 + MapThumbs.W * 2 + 10), 0, 0)
 		text.AutomaticSize = Enum.AutomaticSize.Y
 		MenuKit.list(text, 2)
 		local title = MenuKit.label(text, "", 15, Theme.Colors.Text, true, 1)
@@ -296,7 +317,7 @@ function MainMenu.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, mapNa
 			layout.VerticalAlignment = Enum.VerticalAlignment.Center
 			layout.Padding = UDim.new(0, 10)
 		end
-		local r: MatchRow = { frame = row, title = title, info = info, go = go, id = "" }
+		local r: MatchRow = { frame = row, title = title, info = info, go = go, id = "", thumb = thumb, map = "" }
 		Session.connect(go.Activated, function()
 			if r.id ~= "" then
 				act.play(r.id)
@@ -377,6 +398,7 @@ function MainMenu.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, mapNa
 	local tileDefs: { { key: string, icon: string, action: () -> () } } = {
 		{ key = "shop", icon = "shop", action = act.shop },
 		{ key = "wardrobe", icon = "wardrobe", action = act.wardrobe },
+		{ key = "arsenal", icon = "arsenal", action = act.arsenal },
 		{ key = "quests", icon = "quests", action = act.quests },
 		{ key = "ranks", icon = "", action = act.ranks },
 		{ key = "help", icon = "help", action = act.help },
@@ -437,6 +459,13 @@ function MainMenu.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, mapNa
 			r.frame.Visible = e ~= nil
 			if e ~= nil then
 				r.id = e.id
+				if r.map ~= e.map then
+					r.map = e.map
+					local content = thumbOf(e.map)
+					if content ~= nil then
+						r.thumb.ImageContent = content
+					end
+				end
 				r.title.Text = Strings.get("map." .. e.map, lang) .. "  ·  " .. Strings.get("mode." .. e.mode, lang)
 				local left = e.left
 				if e.phase ~= "Play" then

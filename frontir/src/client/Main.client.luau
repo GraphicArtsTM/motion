@@ -91,6 +91,7 @@ local ModePanel = require(UI:WaitForChild("ModePanel"))
 local ServerPanel = require(UI:WaitForChild("ServerPanel"))
 local ShopPanel = require(UI:WaitForChild("ShopPanel"))
 local WardrobePanel = require(UI:WaitForChild("WardrobePanel"))
+local ArsenalPanel = require(UI:WaitForChild("ArsenalPanel"))
 local QuestsPanel = require(UI:WaitForChild("QuestsPanel"))
 local TutorialPanel = require(UI:WaitForChild("TutorialPanel"))
 local WorldPanel = require(UI:WaitForChild("WorldPanel"))
@@ -327,6 +328,31 @@ local function runSession(mapId: string, resync: boolean)
 	local serverPanel = ServerPanel.new(hudGui, cs, lang, send) -- частный сервер (§5.4)
 	local shopPanel = ShopPanel.new(hudGui, cs, lang, send, hud.toast) -- профиль и магазин (§11.1)
 	local wardrobe = WardrobePanel.new(hudGui, cs, lang, send) -- косметика и флаг (§11.4)
+	local arsenalPanel = ArsenalPanel.new(hudGui, cs, lang, send) -- §15л ч.6 (окно переедет в слой окон)
+	-- Применить предмет Арсенала: по клетке — следующим нажатием на карту.
+	local arsenalTarget = false
+	local function useArsenal()
+		local p = cs.profile
+		local a = if p ~= nil then p.arsenal else nil
+		if a == nil or a.loadout == nil or a.used then
+			return
+		end
+		local it = Config.Arsenal.Items[a.loadout]
+		if it ~= nil and it.target then
+			arsenalTarget = true
+			hud.toast(Strings.get("arsenal.pickTarget", lang))
+		else
+			send("arsenalUse", {})
+		end
+	end
+	local function arsenalTap(cell: number): boolean
+		if not arsenalTarget then
+			return false
+		end
+		arsenalTarget = false
+		send("arsenalUse", { cell = cell })
+		return true
+	end
 	local questsPanel = QuestsPanel.new(hudGui, cs, lang, hud.toast) -- задания и лидеры (§11.5)
 	local tutorial = TutorialPanel.new(hudGui, cs, lang, hud.toast) -- обучение (§5.5)
 	local soundPanel = SoundPanel.new(hudGui, cs, lang, send) -- громкости (§13)
@@ -402,6 +428,13 @@ local function runSession(mapId: string, resync: boolean)
 			isOpen = wardrobe.isOpen,
 		},
 		{
+			icon = "arsenal",
+			name = "dock.arsenal",
+			key = "U",
+			toggle = arsenalPanel.toggle,
+			isOpen = arsenalPanel.isOpen,
+		},
+		{
 			icon = "server",
 			name = "dock.server",
 			key = "O",
@@ -473,7 +506,7 @@ local function runSession(mapId: string, resync: boolean)
 	end
 	local menuGui = layer("FrontirMenu", 2, true)
 	local windowsGui = layer("FrontirWindows", 3, false)
-	for _, name in { "Shop", "Wardrobe", "Quests", "Sound", "ServerSettings", "HowToPlay" } do
+	for _, name in { "Shop", "Wardrobe", "Quests", "Sound", "ServerSettings", "HowToPlay", "ArsenalWindow" } do
 		local w = hudGui:FindFirstChild(name)
 		if w ~= nil and w:IsA("GuiObject") then
 			w.Parent = windowsGui
@@ -502,6 +535,7 @@ local function runSession(mapId: string, resync: boolean)
 		wardrobe = opener(wardrobe.isOpen, wardrobe.toggle),
 		quests = opener(questsPanel.isOpen, questsPanel.toggle),
 		ranks = opener(ranksPanel.isOpen, ranksPanel.toggle),
+		arsenal = opener(arsenalPanel.isOpen, arsenalPanel.toggle),
 		help = openHelp,
 		sound = openSound,
 		server = opener(serverPanel.isOpen, serverPanel.toggle),
@@ -585,6 +619,18 @@ local function runSession(mapId: string, resync: boolean)
 		build = build,
 		buildIcon = BuildPanel.icon,
 		shop = openShop,
+		arsenal = {
+			info = function(): (string?, boolean)
+				local p = cs.profile
+				local a = if p ~= nil then p.arsenal else nil
+				if a == nil or not cs.rules.boosts then
+					return nil, false
+				end
+				return a.loadout, a.used
+			end,
+			use = useArsenal,
+			icons = ArsenalPanel.Icons,
+		},
 	})
 	-- Меню фраз меток (G) лежало внутри кнопки, которую док прячет, — переносим в HUD (меню стройки — так же,
 	-- в BuildPanel).
@@ -700,6 +746,7 @@ local function runSession(mapId: string, resync: boolean)
 			{ name = "гардероб", toggle = wardrobe.toggle, isOpen = wardrobe.isOpen },
 			{ name = "задания", toggle = questsPanel.toggle, isOpen = questsPanel.isOpen },
 			{ name = "звания", toggle = ranksPanel.toggle, isOpen = ranksPanel.isOpen },
+			{ name = "арсенал", toggle = arsenalPanel.toggle, isOpen = arsenalPanel.isOpen },
 			{
 				name = "главное меню",
 				toggle = function()
@@ -821,6 +868,7 @@ local function runSession(mapId: string, resync: boolean)
 			lastReward = reward
 			shopPanel.refresh()
 			wardrobe.refresh()
+			arsenalPanel.refresh()
 			questsPanel.refresh()
 			commanderPanel.refresh()
 		end,
@@ -1112,7 +1160,8 @@ local function runSession(mapId: string, resync: boolean)
 			if cx ~= nil and cy ~= nil then
 				local cell = cy * map.width + cx
 				-- Режим стройки забирает нажатие; иначе — старт, атака, война.
-				local handled = shopPanel.tap(cell) -- цель «Авиаудара» (§11.3)
+				local handled = arsenalTap(cell) -- цель Арсенала (§15л ч.6)
+					or shopPanel.tap(cell) -- цель «Авиаудара» (§11.3)
 					or commanderPanel.tap(cell)
 					or build.tap(cell)
 					or diplomacy.tap(cell)

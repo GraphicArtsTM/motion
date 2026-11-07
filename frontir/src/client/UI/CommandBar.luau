@@ -53,6 +53,8 @@ export type Deps = {
 	},
 	buildIcon: (parent: Instance, kind: string, color: Color3) -> Frame,
 	shop: () -> (),
+	-- §15л ч.6 Арсенал: взятый в бой предмет (nil — нет), применён ли; применить.
+	arsenal: { info: () -> (string?, boolean), use: () -> (), icons: { [string]: string } },
 }
 
 export type CommandBar = {
@@ -393,8 +395,21 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 	end
 	divider(12)
 
-	-- 7. Магазин.
-	local shopButton, shopSlot = MenuKit.tile(root, "Shop", t("bar.shop"), contentH, 13)
+	-- 7. Арсенал (§15л ч.6): значок взятого в бой предмета; применён — притушен.
+	local arsenalButton, arsenalSlot = MenuKit.tile(root, "Arsenal", t("bar.arsenal"), contentH, 13)
+	arsenalButton.Size = UDim2.fromOffset(SHOP_W, contentH)
+	arsenalButton.Visible = false
+	local arsenalIcons: { [string]: Frame } = {}
+	for key, icon in deps.arsenal.icons do
+		local f = MenuKit.icon(arsenalSlot, icon, 3)
+		MenuKit.center(f)
+		f.Visible = false
+		arsenalIcons[key] = f
+	end
+	Session.connect(arsenalButton.Activated, deps.arsenal.use)
+
+	-- 8. Магазин.
+	local shopButton, shopSlot = MenuKit.tile(root, "Shop", t("bar.shop"), contentH, 14)
 	shopButton.Size = UDim2.fromOffset(SHOP_W, contentH)
 	local shopIcon = MenuKit.icon(shopSlot, "shop", 3)
 	MenuKit.center(shopIcon)
@@ -407,7 +422,8 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 		+ MONEY_W
 		+ (4 * slot + 12)
 		+ (#buildKinds * slot + (#buildKinds - 1) * 4)
-		+ SHOP_W
+		+ 2 * SHOP_W -- арсенал и магазин
+		+ GAP
 		+ 6 -- шесть разделителей по 1 px
 		+ 12 * GAP
 		+ 2 * PAD
@@ -440,6 +456,13 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 		local v = deps.values()
 		local on = v ~= nil and deps.build.canBuild()
 		root.Visible = on
+		local item, used = deps.arsenal.info()
+		arsenalButton.Visible = item ~= nil
+		for key, f in arsenalIcons do
+			f.Visible = key == item
+		end
+		arsenalButton.BackgroundTransparency = if used then 0.6 else 0
+		arsenalButton.AutoButtonColor = not used
 		if not on then
 			tip.Visible = false
 			return

@@ -6,6 +6,7 @@
 ]]
 
 local Config = require("./Config")
+local Arsenal = require("./Arsenal")
 local Shop = require("./Shop")
 local Types = require("./Types")
 
@@ -48,6 +49,9 @@ export type Data = {
 	-- сервер ставит при каждом входе; пока стоит, ящики за Robux (наборы, неделя, премиум-пропуск) заменяются
 	-- фиксированной наградой Config.Crates.Restricted, а наборы ящиков не продаются.
 	noPaidRandom: boolean,
+	-- §15л ч.6 Арсенал: открытое навсегда и взятое в бой.
+	arsenal: { [string]: boolean },
+	loadout: string?,
 }
 
 -- Награда (пропуск, ящик, ежедневная, набор).
@@ -88,6 +92,8 @@ function Profile.new(): Data
 		sfx = Config.Audio.DefaultSfx,
 		music = Config.Audio.DefaultMusic,
 		noPaidRandom = false,
+		arsenal = {},
+		loadout = nil,
 	}
 end
 
@@ -198,6 +204,7 @@ function Profile.migrate(raw: any): Data
 			emblemColor = f.emblemColor,
 		}
 	end
+	d.arsenal, d.loadout = Arsenal.migrate(raw.arsenal, raw.loadout)
 	Profile.syncSeason(d)
 	return d
 end

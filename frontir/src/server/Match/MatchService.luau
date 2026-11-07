@@ -22,6 +22,7 @@ local TeleportService = game:GetService("TeleportService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Analytics = require(Shared:WaitForChild("Analytics"))
+local Arsenal = require(Shared:WaitForChild("Arsenal"))
 local Buildings = require(Shared:WaitForChild("Buildings"))
 local ClientState = require(Shared:WaitForChild("ClientState"))
 local Commanders = require(Shared:WaitForChild("Commanders"))
@@ -293,6 +294,12 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			questsBonus = d.questsBonus,
 			dayLeft = 86400 - now % 86400,
 			elo = d.elo,
+			-- §15л ч.6 Арсенал: открытое, взятое в бой, применено ли в этом матче.
+			arsenal = {
+				owned = d.arsenal,
+				loadout = d.loadout,
+				used = id ~= nil and m.arsenalUsed[id] == true,
+			},
 			volume = { sfx = d.sfx, music = d.music }, -- громкости (§13)
 			-- Гардероб (§11.4): что открыто, что надето, флаг.
 			wardrobe = (function(): { [string]: any }
@@ -329,6 +336,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		end
 		local passes = shop.passes(player)
 		MatchSim.setPerks(m, id, Shop.perks(passes))
+		MatchSim.setArsenal(m, id, session.data.loadout) -- §15л ч.6: предмет Арсенала в этот матч
 		local open = Profile.unlockedCommanders(session.data, passes.AllCommanders == true)
 		MatchSim.setUnlocked(m, id, open)
 		local chosen = Commanders.of(m.commanders, id)
@@ -861,6 +869,43 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			if not ok then
 				matchEvent:FireClient(player, { kind = "rejected", reason = why or "?", intent = "boost" })
 			end
+			return
+		end
+		-- §15л ч.6 Арсенал: купить за медали, взять в бой (профиль), применить (матч).
+		if kind == "arsenalBuy" or kind == "arsenalEquip" then
+			local session = profiles.get(player.UserId)
+			if session == nil or type(payload) ~= "table" then
+				return
+			end
+			local d = session.data
+			local ok, why
+			if kind == "arsenalBuy" then
+				ok, why = Arsenal.buy(d, payload.key, (Profile.levelOf(d.xp)))
+			else
+				ok, why = Arsenal.equip(d, payload.key)
+			end
+			if not ok then
+				matchEvent:FireClient(player, { kind = "rejected", reason = why or "?", intent = kind })
+				return
+			end
+			applyProfile(player)
+			sendProfile(player)
+			return
+		end
+		if kind == "arsenalUse" then
+			local cell = if type(payload) == "table" then payload.cell else nil
+			if cell ~= nil and (type(cell) ~= "number" or cell ~= math.floor(cell) or cell < 0) then
+				return
+			end
+			if id == nil then
+				return
+			end
+			local ok, why = MatchSim.useArsenal(m, id, cell)
+			if not ok then
+				matchEvent:FireClient(player, { kind = "rejected", reason = why or "?", intent = kind })
+				return
+			end
+			sendProfile(player)
 			return
 		end
 		-- Гардероб (§11.4): купить за медали, надеть, флаг из готовых частей.

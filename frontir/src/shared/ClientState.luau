@@ -83,6 +83,7 @@ export type ProfileInfo = {
 	passes: { [string]: boolean },
 	premium: boolean,
 	unlocked: { [string]: boolean }, -- открытые генералы
+	arsenal: { owned: { [string]: boolean }, loadout: string?, used: boolean }?, -- §15л ч.6
 	used: { [string]: boolean }, -- бусты, взятые в этом матче
 	boosts: boolean, -- бусты в этом матче разрешены
 	packs: { [string]: boolean }, -- какие наборы можно купить
