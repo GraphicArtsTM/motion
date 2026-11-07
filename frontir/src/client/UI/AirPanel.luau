@@ -31,6 +31,9 @@ export type AirPanel = {
 	-- Самопроверка (сводная правка, часть 1): закрыть меню и узнать, открыто ли.
 	close: () -> (),
 	isOpen: () -> boolean,
+	-- Окна снизу не накладываются (Main.client → closeSheets): занято ли меню или режим выбора, и сброс всего.
+	busy: () -> boolean,
+	cancel: () -> (),
 }
 
 export type PlanePicker = (x: number, y: number, owner: number, reach: number) -> Protocol.PlaneInfo?
@@ -229,6 +232,13 @@ function AirPanel.new(
 		close = close,
 		isOpen = function(): boolean
 			return panel.Visible
+		end,
+		busy = function(): boolean
+			return panel.Visible or mode ~= nil
+		end,
+		cancel = function()
+			setMode(nil)
+			close()
 		end,
 		refresh = function()
 			if not playing() then

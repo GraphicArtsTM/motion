@@ -34,6 +34,9 @@ export type WarPanel = {
 	update: (now: number) -> (),
 	offerDeclare: (target: number) -> (),
 	onEvents: (events: { any }) -> (),
+	-- Окно «Объявить войну» стоит там же, где меню порта и здания (Main.client → closeSheets).
+	declareOpen: () -> boolean,
+	closeDeclare: () -> (),
 }
 
 local WarPanel = {}
@@ -701,6 +704,13 @@ function WarPanel.new(
 		update = update,
 		offerDeclare = offerDeclare,
 		onEvents = onEvents,
+		declareOpen = function(): boolean
+			return declarePanel.Visible
+		end,
+		closeDeclare = function()
+			declareTarget = nil
+			declarePanel.Visible = false
+		end,
 	}
 end
 

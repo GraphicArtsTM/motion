@@ -482,6 +482,38 @@ local function runSession(mapId: string, resync: boolean)
 	end)
 	local naval = NavalPanel.new(hudGui, cs, lang, map, provinces, send, hud.percent, shipLayer.pick, shipLayer.select)
 	local airPanel = AirPanel.new(hudGui, cs, lang, map, provinces, send, airLayer.pick, airLayer.select)
+	-- Окна снизу по центру (меню стройки, здание, порт, аэродром, «Объявить войну») стоят в одном месте и не
+	-- накладываются: открылось новое (нажатием, клавишей, кольцом, доком) — прежние закрываются.
+	local sheets: { { busy: () -> boolean, cancel: () -> () } } = {
+		{
+			busy = build.isOpen,
+			cancel = function()
+				if build.isOpen() then
+					build.toggle()
+				end
+			end,
+		},
+		{ busy = buildingInfo.isOpen, cancel = buildingInfo.close },
+		{ busy = naval.busy, cancel = naval.cancel },
+		{ busy = airPanel.busy, cancel = airPanel.cancel },
+		{ busy = wars.declareOpen, cancel = wars.closeDeclare },
+	}
+	local sheetWas: { boolean } = {}
+	Session.connect(RunService.Heartbeat, function()
+		for k, sheet in sheets do
+			local now = sheet.busy()
+			if now and not sheetWas[k] then
+				for j, other in sheets do
+					if j ~= k and other.busy() then
+						other.cancel()
+					end
+				end
+			end
+		end
+		for k, sheet in sheets do
+			sheetWas[k] = sheet.busy()
+		end
+	end)
 
 	-- §15л: слои над HUD — главное меню (2) и окна (3). Магазин, гардероб, задания, звук, настройки сервера,
 	-- «Как играть», «Звания» и меню игры открываются и поверх главного меню, и поверх матча.
@@ -689,7 +721,7 @@ local function runSession(mapId: string, resync: boolean)
 		phrases.Parent = hudGui
 	end
 	-- Над полосой: слева атаки и лента, справа мини-карта, по центру окна стройки, меток, здания, порта,
-	-- аэродрома. Полоса скрыта (лобби, выбор, итоги) — всё на прежней высоте от края.
+	-- аэродрома, «Объявить войну». Полоса скрыта (лобби, выбор, итоги) — всё на прежней высоте от края.
 	local function aboveBar()
 		local bar = commandBar.frame
 		local off = if bar.Visible then bar.AbsoluteSize.Y + Config.Render.CommandBar.BottomPx + 10 else 12
@@ -707,6 +739,7 @@ local function runSession(mapId: string, resync: boolean)
 		at("BuildingInfoPanel", Vector2.new(0.5, 1), UDim.new(0.5, 0), 0)
 		at("AirPanel", Vector2.new(0.5, 1), UDim.new(0.5, 0), 0)
 		at("NavalPanel", Vector2.new(0.5, 1), UDim.new(0.5, 0), 0)
+		at("DeclareWar", Vector2.new(0.5, 1), UDim.new(0.5, 0), 0)
 		local mapH = if minimap ~= nil then minimap.height else 0
 		at("HomeButton", Vector2.new(1, 1), UDim.new(1, -12), mapH + 8)
 	end

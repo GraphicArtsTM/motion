@@ -30,6 +30,7 @@ export type BuildingInfo = {
 	refresh: () -> (),
 	toggle: () -> (),
 	isOpen: () -> boolean,
+	close: () -> (),
 }
 
 local BuildingInfo = {}
@@ -273,6 +274,7 @@ function BuildingInfo.new(
 	return {
 		tap = tap,
 		refresh = refresh,
+		close = hide,
 		toggle = function()
 			if card.Visible then
 				hide()

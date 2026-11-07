@@ -425,6 +425,8 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   предметов — чистый `ItemArt` (ключи `shop.*`, `pattern.*`, `capture.*`, `title.*`, `quest.*`, `tech.*`,
   `arsenal.*`, `council.*`; динамически `building.<вид>`, `nation.<цвет>`; рисование — `PixelCanvas`, общее с
   `SceneArt`). Новый предмет — картинка в `ItemArt` (тест требует). Дипломатия, Совет, меню стройки — тоже карточками.
+- Снизу по центру — одно окно за раз: список `sheets` в `Main.client` (`busy` / `cancel`; новое нижнее окно —
+  добавить туда и в `aboveBar`).
 - Сверху по центру и справа — столбики `TopCenter` / `TopRight` (`stackInto` в `Main.client` по именам рамок):
   новое окно-баннер сверху — добавить имя в список, а не ставить Position числами.
 
