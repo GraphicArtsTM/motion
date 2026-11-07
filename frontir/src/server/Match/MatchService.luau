@@ -76,6 +76,10 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		or (RunService:IsStudio() and Config.Dev.PrivateServer)
 	local ownerId: number? = if game.PrivateServerOwnerId ~= 0 then game.PrivateServerOwnerId else nil
 	local settings: ServerSettings.Settings? = if isPrivate then ServerSettings.defaults(map.name) else nil
+	-- §15л ч.4 Свой матч по коду: резервный сервер узнаёт, что он «свой», по коду первого игрока (проверка — по
+	-- записи в MemoryStore). До проверки о себе в общий список не пишет.
+	local privateCode: string? = nil
+	local privateState: string = if role == "match" and game.PrivateServerId ~= "" then "pending" else "public"
 	local function newMatch(): MatchSim.Match
 		local realMap = (Config.RealMaps :: any)[map.name] :: Types.RealMapParams?
 		local match = MatchSim.new(map, seedRng:NextInteger(1, 2 ^ 31 - 1))
@@ -145,7 +149,11 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			place = role, -- §15л ч.3: хаб, матч или «как раньше»
 			tutorialStep = if m.rules.tutorial then m.tutorialStep else nil, -- «Обучение» (§5.5)
 			server = if settings ~= nil
-				then { settings = settings, isOwner = ownerId ~= nil and player.UserId == ownerId }
+				then {
+					settings = settings,
+					isOwner = ownerId ~= nil and player.UserId == ownerId,
+					code = privateCode,
+				}
 				else nil,
 			flood = if m.rules.flood
 				then { step = m.flood.step, nextIn = math.max(0, m.flood.nextAt - m.time) }
@@ -458,10 +466,10 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 
 	-- §15л ч.3 Переходы между местами. Профиль сохраняем до перехода (сервер-получатель ждёт блокировку).
 	local travelling: { [Player]: number } = {} -- кто уже в пути (os.clock) — повторные нажатия не шлём
-	local function travelFailed(player: Player)
+	local function travelFailed(player: Player, reason: string?)
 		travelling[player] = nil
 		if player.Parent ~= nil then
-			matchEvent:FireClient(player, { kind = "travel", state = "failed" })
+			matchEvent:FireClient(player, { kind = "travel", state = "failed", reason = reason })
 		end
 	end
 	-- Перенести players в placeId; options nil — Roblox сам выберет сервер. Вернёт результат или nil.
@@ -580,6 +588,108 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			end
 		end)
 	end
+	-- §15л ч.4 Свой матч: новый резервный сервер, код — в MemoryStore (код → сервер и владелец).
+	local codeRng = Random.new()
+	local function busy(player: Player): boolean
+		local since = travelling[player]
+		return since ~= nil and os.clock() - since < Config.Places.RetrySec
+	end
+	local function privateCreate(player: Player)
+		local list = serverList
+		if list == nil or busy(player) then
+			return
+		end
+		travelling[player] = os.clock()
+		task.spawn(function()
+			local code = Places.newCode(function(n: number): number
+				return codeRng:NextInteger(1, n)
+			end)
+			if list.findPrivate(code) ~= nil then -- редкое совпадение — ещё раз
+				code = Places.newCode(function(n: number): number
+					return codeRng:NextInteger(1, n)
+				end)
+			end
+			local options = Instance.new("TeleportOptions")
+			options.ShouldReserveServer = true
+			options:SetTeleportData({ code = code })
+			local result = travel({ player }, Config.Places.Match, options)
+			if result ~= nil then
+				list.savePrivate(code, {
+					access = result.ReservedServerAccessCode,
+					psid = result.PrivateServerId,
+					owner = player.UserId,
+				})
+			end
+		end)
+	end
+	local function privateJoin(player: Player, raw: any)
+		local list = serverList
+		if list == nil or busy(player) then
+			return
+		end
+		local code = Places.normalizeCode(raw)
+		if code == nil then
+			travelFailed(player, "badCode")
+			return
+		end
+		travelling[player] = os.clock()
+		task.spawn(function()
+			local rec = list.findPrivate(code)
+			if rec == nil then
+				travelFailed(player, "badCode")
+				return
+			end
+			local options = Instance.new("TeleportOptions")
+			options.ReservedServerAccessCode = rec.access
+			options:SetTeleportData({ code = code })
+			travel({ player }, Config.Places.Match, options)
+		end)
+	end
+	-- Сервер матча: пришёл игрок с кодом — проверить код и стать «своим матчем» (владелец — создатель кода).
+	local function checkPrivate(player: Player)
+		if privateState ~= "pending" or serverList == nil then
+			return
+		end
+		local list = serverList
+		local okJoin, join = pcall(function(): any
+			return player:GetJoinData()
+		end)
+		local data = if okJoin and type(join) == "table" then join.TeleportData else nil
+		local code = if type(data) == "table" then Places.normalizeCode(data.code) else nil
+		if code == nil then
+			privateState = "public" -- обычный резервный сервер (быстрый вход)
+			return
+		end
+		privateState = "checking"
+		task.spawn(function()
+			for _ = 1, Config.Places.VerifyTries do
+				local rec = list.findPrivate(code)
+				if rec ~= nil and rec.psid == game.PrivateServerId then
+					privateState = "private"
+					privateCode = code
+					isPrivate = true
+					ownerId = rec.owner
+					local s0 = ServerSettings.defaults(map.name)
+					settings = s0
+					if m.phase == "Waiting" or m.phase == "Lobby" then
+						m.settings = s0
+						m.targetNations = math.min(s0.nations, ServerSettings.maxNations(map.name))
+						if s0.mode ~= nil then
+							m.forcedMode = s0.mode
+						end
+					end
+					m.infoDirty = true
+					print(
+						"[Frontir] свой матч, код " .. code .. ", владелец " .. tostring(rec.owner)
+					)
+					return
+				end
+				task.wait(Config.Places.VerifyWaitSec)
+			end
+			privateState = "public"
+		end)
+	end
+
 	if isHub and serverList ~= nil then
 		local list = serverList
 		task.spawn(function()
@@ -596,6 +706,11 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		local list = serverList
 		task.spawn(function()
 			while true do
+				-- Свой матч (§15л ч.4) и сервер, который ещё проверяет код, в общий список не пишут.
+				if privateState ~= "public" then
+					task.wait(Config.Places.PublishSec)
+					continue
+				end
 				local mode: string = m.mode
 				if m.phase == "Lobby" or m.phase == "Waiting" then
 					mode = Modes.tally(m.modeOptions, m.modeVotes)
@@ -650,6 +765,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		if isHub then
 			sendServers(player)
 		end
+		checkPrivate(player)
 		-- Профиль грузится в фоне (DataStore может ждать блокировку сессии).
 		task.spawn(function()
 			local session = profiles.load(player.UserId)
@@ -818,6 +934,16 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 					then payload.server
 					else nil
 				travelToMatch(player, server)
+			end
+			return
+		end
+		if kind == "privateCreate" or kind == "privateJoin" then
+			if isHub then
+				if kind == "privateCreate" then
+					privateCreate(player)
+				else
+					privateJoin(player, if type(payload) == "table" then payload.code else nil)
+				end
 			end
 			return
 		end

@@ -133,4 +133,51 @@ function Places.pick(list: { Entry }): Entry?
 	return nil
 end
 
+-- §15л ч.4 Свой матч по коду: запись «код → сервер» (MemoryStore, только сервер).
+export type PrivateRecord = { access: string, psid: string, owner: number }
+
+-- Новый код из CodeAlphabet; roll(n) — случайное целое 1..n.
+function Places.newCode(roll: (n: number) -> number): string
+	local abc = Config.Places.CodeAlphabet
+	local out = table.create(Config.Places.CodeLength)
+	for k = 1, Config.Places.CodeLength do
+		local i = roll(#abc)
+		out[k] = string.sub(abc, i, i)
+	end
+	return table.concat(out)
+end
+
+-- Что ввёл игрок → код или nil: заглавные, без пробелов и дефисов, длина и буквы — как у newCode.
+function Places.normalizeCode(raw: any): string?
+	if type(raw) ~= "string" or #raw > 32 then
+		return nil
+	end
+	local code = string.upper((string.gsub(raw, "[%s%-]", "")))
+	if #code ~= Config.Places.CodeLength then
+		return nil
+	end
+	local abc = Config.Places.CodeAlphabet
+	for k = 1, #code do
+		if string.find(abc, string.sub(code, k, k), 1, true) == nil then
+			return nil
+		end
+	end
+	return code
+end
+
+-- Запись кода из MemoryStore → PrivateRecord или nil.
+function Places.privateRecord(raw: any): PrivateRecord?
+	if type(raw) ~= "table" then
+		return nil
+	end
+	local r = raw :: { [string]: any }
+	if type(r.access) ~= "string" or #r.access == 0 or type(r.psid) ~= "string" or #r.psid == 0 then
+		return nil
+	end
+	if not isInt(r.owner) or r.owner <= 0 then
+		return nil
+	end
+	return { access = r.access, psid = r.psid, owner = r.owner }
+end
+
 return table.freeze(Places)

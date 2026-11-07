@@ -67,7 +67,7 @@ export type Info = {
 	tutorialStep: number?, -- «Обучение» (§5.5): текущий шаг
 }
 
-export type ServerInfo = { settings: ServerSettings.Settings, isOwner: boolean }
+export type ServerInfo = { settings: ServerSettings.Settings, isOwner: boolean, code: string? } -- code — свой матч (§15л ч.4)
 
 -- Профиль игрока (§11.2, этап 9а): сообщение profile от сервера.
 export type ProfileInfo = {
@@ -247,6 +247,7 @@ export type ClientState = {
 	servers: { ServerRow }, -- хаб: серверы матча
 	serversAt: number, -- когда пришёл список (часы клиента; для отсчётов)
 	travel: string?, -- переход в другое место: "going", "failed" или nil
+	travelReason: string?, -- почему не вышло ("badCode" — нет такого кода)
 	travelAt: number,
 	profile: ProfileInfo?, -- профиль (§11.2)
 	tutorialStep: number?, -- «Обучение» (§5.5)
@@ -375,6 +376,7 @@ function ClientState.new(width: number, height: number): ClientState
 		servers = {},
 		serversAt = 0,
 		travel = nil,
+		travelReason = nil,
 		travelAt = 0,
 		profile = nil,
 		leaders = nil,

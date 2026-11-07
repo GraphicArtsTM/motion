@@ -21,6 +21,9 @@ export type ServerList = {
 	read: () -> { Places.Entry },
 	remember: (psid: string, code: string) -> (),
 	codeOf: (psid: string) -> string?,
+	-- §15л ч.4 Свой матч по коду: код → сервер и владелец.
+	savePrivate: (code: string, rec: Places.PrivateRecord) -> boolean,
+	findPrivate: (code: string) -> Places.PrivateRecord?,
 }
 
 local ServerList = {}
@@ -33,6 +36,10 @@ function ServerList.new(): ServerList
 	local okCodes, codes = pcall(function(): MemoryStoreSortedMap
 		return MemoryStoreService:GetSortedMap(cfg.CodesName)
 	end)
+	local okPrivate, private = pcall(function(): MemoryStoreSortedMap
+		return MemoryStoreService:GetSortedMap(cfg.PrivateCodesName)
+	end)
+	local privateMap: MemoryStoreSortedMap? = if okPrivate then private else nil
 	local listMap: MemoryStoreSortedMap? = if okList then list else nil
 	local codesMap: MemoryStoreSortedMap? = if okCodes then codes else nil
 	local known: { [string]: string } = {} -- коды, созданные этим хабом (без лишних чтений)
@@ -120,7 +127,40 @@ function ServerList.new(): ServerList
 		return nil
 	end
 
-	return { publish = publish, remove = remove, read = read, remember = remember, codeOf = codeOf }
+	local function savePrivate(code: string, rec: Places.PrivateRecord): boolean
+		local store = privateMap
+		if store == nil then
+			return false
+		end
+		local ok, err = pcall(function()
+			store:SetAsync(code, rec, cfg.PrivateCodeSec)
+		end)
+		if not ok then
+			fail(err)
+		end
+		return ok
+	end
+
+	local function findPrivate(code: string): Places.PrivateRecord?
+		local store = privateMap
+		if store == nil then
+			return nil
+		end
+		local ok, raw = pcall(function(): any
+			return store:GetAsync(code)
+		end)
+		return if ok then Places.privateRecord(raw) else nil
+	end
+
+	return {
+		publish = publish,
+		remove = remove,
+		read = read,
+		remember = remember,
+		codeOf = codeOf,
+		savePrivate = savePrivate,
+		findPrivate = findPrivate,
+	}
 end
 
 return table.freeze(ServerList)

@@ -164,10 +164,11 @@ function MenuKit.row(parent: Instance, name: string, order: number): Frame
 end
 
 local STYLES: { [string]: { bg: string, text: string, edge: string } } = {
-	primary = { bg = "Gold", text = "Ink", edge = "Orange" },
-	normal = { bg = "Slate", text = "White", edge = "Steel" },
-	danger = { bg = "Plum", text = "White", edge = "Red" },
-	good = { bg = "Forest", text = "White", edge = "Meadow" },
+	-- §15л ч.4: рамка у всех кнопок тёмная (пиксельный вид), объём даёт фаска Theme.decorate.
+	primary = { bg = "Gold", text = "Ink", edge = "Ink" },
+	normal = { bg = "Slate", text = "White", edge = "Ink" },
+	danger = { bg = "Plum", text = "White", edge = "Ink" },
+	good = { bg = "Forest", text = "White", edge = "Ink" },
 }
 
 function MenuKit.button(parent: Instance, text: string, style: ButtonStyle, height: number?, order: number?): TextButton

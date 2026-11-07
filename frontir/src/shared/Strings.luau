@@ -1068,6 +1068,19 @@ local TABLE: { [string]: Entry } = {
 		en = "Could not connect — please try again.",
 	},
 	["menu.toHub"] = { ru = "Переход в главное меню…", en = "Going to the main menu…" },
+	-- §15л ч.4 свой матч по коду
+	["menu.friends"] = { ru = "С ДРУЗЬЯМИ", en = "WITH FRIENDS" },
+	["menu.privateCreate"] = { ru = "Свой матч", en = "Own match" },
+	["menu.codePlaceholder"] = { ru = "КОД", en = "CODE" },
+	["menu.codeJoin"] = { ru = "Войти", en = "Join" },
+	["menu.badCode"] = {
+		ru = "Матч с таким кодом не найден — проверьте код.",
+		en = "No match with this code — check the code.",
+	},
+	["lobby.code"] = {
+		ru = "Код матча: %s — скажите друзьям: «Войти по коду» в главном меню",
+		en = "Match code: %s — tell friends: «Join» with the code in the main menu",
+	},
 	["gamemenu.noteLeave"] = {
 		ru = "«Главное меню» — выход из матча: ваша держава останется без вас.",
 		en = "«Main menu» leaves the match: your nation stays without you.",

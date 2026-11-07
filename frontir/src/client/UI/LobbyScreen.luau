@@ -218,7 +218,11 @@ function LobbyScreen.new(
 	countdown.TextColor3 = Theme.Colors.Gold
 	countdown.TextXAlignment = Enum.TextXAlignment.Right
 	countdown.Parent = timeRow
-	local players = label(card, 13, false, 5)
+	-- §15л ч.4: код своего матча — крупно, золотом (друзья входят по нему из главного меню).
+	local codeLine = label(card, 18, true, 5)
+	codeLine.TextColor3 = Theme.Colors.Gold
+	codeLine.Visible = false
+	local players = label(card, 13, false, 6)
 	players.TextColor3 = Theme.Colors.Muted
 	players.TextWrapped = true
 	players.AutomaticSize = Enum.AutomaticSize.Y
@@ -232,7 +236,7 @@ function LobbyScreen.new(
 	plate.BackgroundColor3 = Theme.Colors.Backdrop
 	plate.BackgroundTransparency = 0.4
 	plate.BorderSizePixel = 0
-	plate.LayoutOrder = 6
+	plate.LayoutOrder = 7
 	plate.Size = UDim2.new(1, 0, 0, 56)
 	plate.Parent = card
 	local plateCorner = Instance.new("UICorner")
@@ -270,7 +274,7 @@ function LobbyScreen.new(
 	local editor = Instance.new("Frame")
 	editor.Name = "FlagEditor"
 	editor.BackgroundTransparency = 1
-	editor.LayoutOrder = 7
+	editor.LayoutOrder = 8
 	editor.Size = UDim2.fromScale(1, 0)
 	editor.AutomaticSize = Enum.AutomaticSize.Y
 	editor.Visible = false
@@ -577,6 +581,11 @@ function LobbyScreen.new(
 			#humans,
 			cs.targetNations
 		)
+		local code = if cs.server ~= nil then cs.server.code else nil
+		codeLine.Visible = code ~= nil
+		if code ~= nil then
+			codeLine.Text = string.format(Strings.get("lobby.code", lang), code)
+		end
 		players.Text = if #humans > 0
 			then Strings.get("lobby.players", lang) .. " " .. table.concat(humans, " · ")
 			else ""

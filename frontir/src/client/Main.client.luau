@@ -514,8 +514,21 @@ local function runSession(mapId: string, resync: boolean)
 		play = function(serverId: string?)
 			-- Хаб (§15л ч.3): переход на сервер матча; «Подключение…» — сразу, сервер подтвердит или откажет.
 			cs.travel = "going"
+			cs.travelReason = nil
 			cs.travelAt = os.clock()
 			send("play", { server = serverId })
+		end,
+		privateCreate = function()
+			cs.travel = "going"
+			cs.travelReason = nil
+			cs.travelAt = os.clock()
+			send("privateCreate", {})
+		end,
+		privateJoin = function(code: string)
+			cs.travel = "going"
+			cs.travelReason = nil
+			cs.travelAt = os.clock()
+			send("privateJoin", { code = code })
 		end,
 		onOpenChanged = function(open: boolean)
 			menuWasOpen = open

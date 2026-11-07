@@ -152,3 +152,33 @@
 | Шеврон стрелки наступления | 8×8 (×2–×3 по зуму), 2–3 кадра | две повёрнутые планки цвета державы (`WarFxLayer`) |
 | Скрещённые мечи / герб войны для баннера | 32×32 | символ ⚔ в тексте |
 | Искра на границе, вспышка захвата | 3×3, 3 кадра | квадраты (красный / цвет нападающего / белый) |
+
+## Интерфейс: пиксельный вид, логотип, фон меню (§15л ч.4)
+Кнопки и окна рисуются **кодом** (`Shared/PixelSkin`, `UI/Theme.decorate`): рамка, фаска, «полка», нажатие —
+превью `docs/previews/ui-pixel.png` (`lune run tools/ui_preview docs/previews/ui-pixel.png`). Картинки для кнопок не
+нужны. Картинками можно заменить **логотип** и **фон главного меню**: загрузить PNG в Creator Hub → Development
+Items → Images (или Decals), скопировать id и вписать в `Config.Art.Logo` / `Config.Art.MenuBackground`
+(`"rbxassetid://123…"`). Пиксели не размываются (`ResampleMode = Pixelated`).
+
+| Что | Размер | Сейчас |
+|---|---|---|
+| Логотип «ФРОНТИР» | 360×72 (рисовать 180×36 и увеличить ×2 без сглаживания), прозрачный фон | текст золотом |
+| Фон главного меню | 1920×1080 (рисовать 480×270, ×4), без надписей | затемнённая карта |
+
+**Промпт для ChatGPT (логотип):**
+> Pixel art game logo, text "ФРОНТИР" in bold chunky Cyrillic pixel letters, 180×36 pixels, upscaled 2× with
+> nearest-neighbour (no smoothing, no anti-aliasing). Gold letters (#f0c440) with an orange (#e27b30) 2-pixel
+> bottom shade and a dark navy (#0b0e1a) 1-pixel outline. Small crossed swords pixel icon on the left. Transparent
+> background, PNG. Flat colours only from this list: #0b0e1a, #141a2e, #f0c440, #e27b30, #c93c3c, #eef1f8.
+> No gradients, no blur, no text other than "ФРОНТИР". Original design, not a copy of any existing game logo.
+
+**Промпт для ChatGPT (фон меню):**
+> Pixel art background for a strategy game main menu, 480×270 pixels, upscaled 4× with nearest-neighbour (no
+> smoothing). Top-down stylised world map at dusk: dark navy sea (#0d2240, #143a6b), continents in muted greens
+> (#2f6e35, #1f4e2b, #5c9a3c) and sand (#c29a52), thin glowing gold (#f0c440) borders between a few territories,
+> tiny pixel cities as gold dots, a couple of small pixel ships and planes. Darker towards the edges (vignette made of
+> darker palette colours, not blur) so menu cards stay readable in the centre. No text, no logos, no real country
+> shapes or flags, no UI. Flat colours only, limited palette, crisp pixels.
+
+После генерации: проверить, что пиксели ровные (без размытых краёв); если размыто — уменьшить в 2 или 4 раза
+«ближайшим соседом» и снова увеличить.

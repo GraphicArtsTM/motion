@@ -98,4 +98,28 @@ T.describe("Хаб и матч (§15л ч.3)", function()
 			T.expect(table.concat(order, ",")).toBe("lobby4,lobby2,pick,over,play,lobbyFull")
 		end
 	)
+
+	T.it(
+		"свой матч: код из 6 знаков без похожих букв, ввод игрока, запись кода",
+		function()
+			local n = 0
+			local code = Places.newCode(function(max: number): number
+				n += 1
+				return (n * 7) % max + 1
+			end)
+			T.expect(#code).toBe(Config.Places.CodeLength)
+			T.expect((string.find(code, "[01OI]"))).toBe(nil)
+			T.expect(Places.normalizeCode(code)).toBe(code)
+			T.expect(Places.normalizeCode(" k7q-2md ")).toBe("K7Q2MD")
+			T.expect(Places.normalizeCode("K7Q2M")).toBe(nil) -- коротко
+			T.expect(Places.normalizeCode("K7Q2M0")).toBe(nil) -- ноля нет в алфавите
+			T.expect(Places.normalizeCode(123456)).toBe(nil)
+			T.expect(Places.normalizeCode(string.rep("A", 40))).toBe(nil)
+			local rec = Places.privateRecord({ access = "code", psid = "ps", owner = 42 })
+			T.expect(rec ~= nil and rec.owner == 42).toBe(true)
+			T.expect(Places.privateRecord({ access = "code", psid = "", owner = 42 })).toBe(nil)
+			T.expect(Places.privateRecord({ access = "code", psid = "ps", owner = 0 })).toBe(nil)
+			T.expect(Places.privateRecord("x")).toBe(nil)
+		end
+	)
 end)

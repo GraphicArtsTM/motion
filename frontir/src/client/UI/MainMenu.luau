@@ -40,6 +40,8 @@ export type Actions = {
 	timeLeft: (sec: number) -> string, -- «N дн. N ч»
 	onOpenChanged: (open: boolean) -> (),
 	play: (serverId: string?) -> (), -- §15л ч.3: хаб — переход на сервер матча (nil — быстрый вход)
+	privateCreate: () -> (), -- §15л ч.4: свой матч — новый сервер для друзей
+	privateJoin: (code: string) -> (), -- §15л ч.4: войти в свой матч по коду
 }
 
 export type MainMenu = {
@@ -112,6 +114,36 @@ function MainMenu.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, mapNa
 	logo.Position = UDim2.fromScale(0.5, 0.5)
 	logo.TextStrokeTransparency = 0.3
 	logo.TextStrokeColor3 = Theme.color("Orange")
+	-- §15л ч.4: свой арт (docs/ART_LIST.md) — логотип и фон меню картинками, если их id вписаны в Config.Art.
+	local art = Config.Art
+	local logoImage: ImageLabel? = nil
+	if art.Logo ~= "" then
+		local img = Instance.new("ImageLabel")
+		img.Name = "LogoImage"
+		img.BackgroundTransparency = 1
+		img.AnchorPoint = Vector2.new(0.5, 0.5)
+		img.Position = UDim2.fromScale(0.5, 0.5)
+		img.Size = UDim2.fromOffset(art.LogoW, art.LogoH)
+		img.Image = art.Logo
+		img.ScaleType = Enum.ScaleType.Fit
+		img.ResampleMode = Enum.ResamplerMode.Pixelated
+		img.Parent = top
+		logo.TextTransparency = 1
+		logo.TextStrokeTransparency = 1
+		logoImage = img
+	end
+	if art.MenuBackground ~= "" then
+		local bg = Instance.new("ImageLabel")
+		bg.Name = "Background"
+		bg.BackgroundTransparency = 1
+		bg.Size = UDim2.fromScale(1, 1)
+		bg.ZIndex = 0 -- под карточками и плитками
+		bg.Image = art.MenuBackground
+		bg.ImageTransparency = art.BackgroundAlpha
+		bg.ScaleType = Enum.ScaleType.Crop
+		bg.ResampleMode = Enum.ResamplerMode.Pixelated
+		bg.Parent = root
+	end
 
 	-- Профиль справа: звание, имя, уровень, полоса опыта; медали и жетоны.
 	local right = MenuKit.box(top, "Right")
@@ -264,6 +296,51 @@ function MainMenu.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, mapNa
 	end
 	local matchesEmpty = MenuKit.wrapLabel(matchList, "", 13, Theme.Colors.Muted, 99)
 
+	-- §15л ч.4 Хаб: «Свой матч» и «Войти по коду» (как приватное лобби в похожих играх).
+	local friends = MenuKit.box(server.body, "Friends", 9)
+	friends.Size = UDim2.fromScale(1, 0)
+	friends.AutomaticSize = Enum.AutomaticSize.Y
+	MenuKit.list(friends, 6)
+	friends.Visible = false
+	MenuKit.label(friends, t("menu.friends"), 13, Theme.Colors.Sky, true, 1)
+	local friendsRow = MenuKit.box(friends, "Row", 2)
+	MenuKit.list(friendsRow, 8, true)
+	local createButton = MenuKit.button(friendsRow, t("menu.privateCreate"), "normal", nil, 1)
+	createButton.Size = UDim2.fromOffset(150, MenuKit.Touch)
+	local codeBox = Instance.new("TextBox")
+	codeBox.Name = "CodeBox"
+	codeBox.LayoutOrder = 2
+	codeBox.Size = UDim2.fromOffset(130, MenuKit.Touch)
+	codeBox.BackgroundColor3 = Theme.Colors.Backdrop
+	codeBox.BorderSizePixel = 0
+	codeBox.ClearTextOnFocus = false
+	codeBox.FontFace = Theme.FontBold
+	codeBox.TextSize = 18
+	codeBox.TextColor3 = Theme.Colors.Gold
+	codeBox.PlaceholderText = t("menu.codePlaceholder")
+	codeBox.PlaceholderColor3 = Theme.Colors.Muted
+	codeBox.Text = ""
+	codeBox.Parent = friendsRow
+	MenuKit.stroke(codeBox, Theme.Colors.Slate, 2)
+	local joinButton = MenuKit.button(friendsRow, t("menu.codeJoin"), "good", nil, 3)
+	joinButton.Size = UDim2.fromOffset(110, MenuKit.Touch)
+	Session.connect(codeBox:GetPropertyChangedSignal("Text"), function()
+		-- Только буквы и цифры кода, заглавными, не длиннее кода.
+		local clean = string.sub(string.upper((string.gsub(codeBox.Text, "[^%w]", ""))), 1, Config.Places.CodeLength)
+		if clean ~= codeBox.Text then
+			codeBox.Text = clean
+		end
+	end)
+	Session.connect(createButton.Activated, act.privateCreate)
+	Session.connect(joinButton.Activated, function()
+		act.privateJoin(codeBox.Text)
+	end)
+	Session.connect(codeBox.FocusLost, function(enter: boolean)
+		if enter then
+			act.privateJoin(codeBox.Text)
+		end
+	end)
+
 	-- «Магазин».
 	local shop = MenuKit.card(cards, "Shop", t("menu.shop"), cfg.SideCardPx, 3)
 	shop.accent.TextColor3 = Theme.Colors.Sky
@@ -314,6 +391,9 @@ function MainMenu.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, mapNa
 		tilesScale.Scale = scale
 		-- На узком экране профиль справа налезет на логотип — логотип прячем.
 		logo.Visible = s.X >= 900
+		if logoImage ~= nil then
+			logoImage.Visible = logo.Visible
+		end
 	end
 	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fit)
 	fit()
@@ -370,8 +450,13 @@ function MainMenu.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, mapNa
 		playButton.Text = if going then t("menu.connecting") else "▶  " .. t("menu.play")
 		playButton.Active = not going
 		playButton.AutoButtonColor = not going
-		playHint.Text = if cs.travel == "failed"
-			then t("menu.travelFailed")
+		friends.Visible = true
+		createButton.Active = not going
+		joinButton.Active = not going and #codeBox.Text == Config.Places.CodeLength
+		joinButton.BackgroundTransparency = if joinButton.Active then 0 else 0.5
+		playHint.Text = if cs.travel == "failed" and cs.travelReason == "badCode"
+			then t("menu.badCode")
+			elseif cs.travel == "failed" then t("menu.travelFailed")
 			elseif going then t("menu.connectingHint")
 			else t("menu.quickHint")
 		playHint.TextColor3 = if cs.travel == "failed" then Theme.Colors.Alert else Theme.Colors.Muted

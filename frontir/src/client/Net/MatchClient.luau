@@ -140,6 +140,7 @@ function MatchClient.connect(cs: ClientState, handlers: Handlers, mapId: string?
 				ClientState.applyServers(cs, msg.list, os.clock()) -- §15л ч.3: список матчей в хабе
 			elseif msg.kind == "travel" then
 				cs.travel = if msg.state == "going" or msg.state == "failed" then msg.state else nil
+				cs.travelReason = if type(msg.reason) == "string" then msg.reason else nil
 				cs.travelAt = os.clock()
 			elseif msg.kind == "rejected" then
 				handlers.onRejected(tostring(msg.reason))
