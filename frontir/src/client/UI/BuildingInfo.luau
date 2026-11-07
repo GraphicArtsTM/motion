@@ -1,7 +1,8 @@
 --!strict
 --[[
-	BuildingInfo — окно своего здания (§15д): нажатие на своё здание (±1 клетка) — карточка над кнопкой
-	«Построить»: название и уровень, что даёт, район города, содержание; кнопки «Улучшить ($…)» и «Снести (+$…)».
+	BuildingInfo — окно своего здания (§15д; вид — §15л ч.11): нажатие на своё здание (±1 клетка) — карточка над
+	кнопкой «Построить»: картинка здания, название, уровень квадратиками, что даёт, район города, содержание;
+	кнопки «Улучшить ($…)» и «Снести (+$…)».
 	Порт и аэродром открывают свои меню (NavalPanel, AirPanel) — сюда не попадают. Решает сервер (build / demolish).
 ]]
 
@@ -17,6 +18,8 @@ local MapDataModule = require(Shared:WaitForChild("MapData"))
 local Strings = require(Shared:WaitForChild("Strings"))
 local Types = require(Shared:WaitForChild("Types"))
 
+local CardKit = require(script.Parent:WaitForChild("CardKit"))
+local MenuKit = require(script.Parent:WaitForChild("MenuKit"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
@@ -44,76 +47,89 @@ function BuildingInfo.new(
 	local w = map.width
 	local open: number? = nil
 
+	-- Карточка здания (§15л ч.11): картинка, название, уровень квадратиками, что даёт, район и содержание, кнопки.
+	local WIDTH, ART_W, ART_H = 420, 120, 80
 	local card = Instance.new("Frame")
 	card.Name = "BuildingInfoPanel"
 	card.AnchorPoint = Vector2.new(0.5, 1)
 	card.Position = UDim2.new(0.5, 0, 1, -12 - 56 - 6 - BUTTON - 10)
-	card.Size = UDim2.fromOffset(340, 0)
+	card.Size = UDim2.fromOffset(WIDTH, 0)
 	card.AutomaticSize = Enum.AutomaticSize.Y
 	card.BackgroundColor3 = Theme.Colors.PanelBg
-	card.BackgroundTransparency = 0.08
 	card.BorderSizePixel = 0
+	card.Active = true
 	card.Visible = false
 	card.Parent = gui
-	local pad = Instance.new("UIPadding")
-	for _, side in { "PaddingLeft", "PaddingRight", "PaddingTop", "PaddingBottom" } do
-		(pad :: any)[side] = UDim.new(0, 10)
+	MenuKit.stroke(card, Theme.Colors.PanelBorder, 2)
+	MenuKit.pad(card, 10, 10)
+	MenuKit.list(card, 8)
+	local scale = Instance.new("UIScale")
+	scale.Parent = card
+	local function fit()
+		scale.Scale = math.clamp((gui.AbsoluteSize.X - 16) / WIDTH, 0.5, 1)
 	end
-	pad.Parent = card
-	local list = Instance.new("UIListLayout")
-	list.Padding = UDim.new(0, 6)
-	list.SortOrder = Enum.SortOrder.LayoutOrder
-	list.Parent = card
+	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fit)
+	fit()
 
-	local function label(order: number, size: number, bold: boolean): TextLabel
-		local t = Instance.new("TextLabel")
-		t.LayoutOrder = order
-		t.BackgroundTransparency = 1
-		t.Size = UDim2.fromScale(1, 0)
-		t.AutomaticSize = Enum.AutomaticSize.Y
-		t.TextWrapped = true
-		t.RichText = true
-		t.FontFace = if bold then Theme.FontBold else Theme.Font
-		t.TextSize = size
-		t.TextColor3 = Theme.Colors.Text
-		t.TextXAlignment = Enum.TextXAlignment.Left
-		t.Parent = card
-		return t
-	end
-	local title = label(1, 18, true)
-	title.TextColor3 = Theme.Colors.Gold
-	local effect = label(2, 14, false)
-	local district = label(3, 13, false)
-	district.TextColor3 = Theme.Colors.Sky
-	local upkeep = label(4, 13, false)
-	upkeep.TextColor3 = Theme.Colors.Muted
+	local head = MenuKit.box(card, "Head", 1)
+	head.AutomaticSize = Enum.AutomaticSize.None
+	head.Size = UDim2.new(1, 0, 0, ART_H)
+	local art = CardKit.art(head, "building.Factory", ART_W, ART_H)
+	local textX = ART_W + 12
+	local title = MenuKit.label(head, "", 19, Theme.Colors.Gold, true)
+	title.Position = UDim2.fromOffset(textX, 0)
+	-- Уровень: квадратики (золотые — достигнутые).
+	local pips = MenuKit.box(head, "Level")
+	pips.Position = UDim2.fromOffset(textX, 26)
+	MenuKit.list(pips, 4, true)
+	local levelText = MenuKit.label(pips, "", 12, Theme.Colors.Muted, true, 99)
+	local pipFrames: { Frame } = {}
+	local effect = MenuKit.label(head, "", 13, Theme.Colors.Text)
+	effect.AutomaticSize = Enum.AutomaticSize.None
+	effect.Position = UDim2.fromOffset(textX, 46)
+	effect.Size = UDim2.new(1, -textX, 0, 34)
+	effect.TextWrapped = true
+	effect.TextYAlignment = Enum.TextYAlignment.Top
+	local close = MenuKit.button(head, "×", "normal")
+	close.AnchorPoint = Vector2.new(1, 0)
+	close.Position = UDim2.fromScale(1, 0)
+	close.Size = UDim2.fromOffset(BUTTON, BUTTON)
+	close.TextSize = 24
 
-	local row = Instance.new("Frame")
-	row.LayoutOrder = 5
-	row.BackgroundTransparency = 1
+	local infoRow = MenuKit.box(card, "Info", 2)
+	MenuKit.list(infoRow, 14, true)
+	local district = MenuKit.label(infoRow, "", 13, Theme.Colors.Sky, true, 1)
+	local upkeep = MenuKit.label(infoRow, "", 13, Theme.Colors.Muted, false, 2)
+
+	local row = MenuKit.box(card, "Buttons", 3)
+	row.AutomaticSize = Enum.AutomaticSize.None
 	row.Size = UDim2.new(1, 0, 0, BUTTON)
-	row.Parent = card
-	local rowList = Instance.new("UIListLayout")
-	rowList.FillDirection = Enum.FillDirection.Horizontal
-	rowList.Padding = UDim.new(0, 6)
-	rowList.Parent = row
-	local function button(text: string, width: number): TextButton
-		local b = Instance.new("TextButton")
-		b.Size = UDim2.fromOffset(width, BUTTON)
-		b.BackgroundColor3 = Theme.Colors.Slate
-		b.BorderSizePixel = 0
-		b.FontFace = Theme.FontBold
-		b.TextSize = 14
-		b.TextColor3 = Theme.Colors.Text
-		b.Text = text
-		b.Parent = row
-		Theme.decorate(b)
-		return b
+	local rowList = MenuKit.list(row, 8, true)
+	rowList.HorizontalFlex = Enum.UIFlexAlignment.Fill
+	local upgrade = MenuKit.button(row, "", "primary", BUTTON, 1)
+	upgrade.Size = UDim2.new(0, 220, 1, 0)
+	upgrade.TextSize = 15
+	local demolish = MenuKit.button(row, "", "danger", BUTTON, 2)
+	demolish.Size = UDim2.new(0, 150, 1, 0)
+	demolish.TextSize = 15
+
+	local function setLevel(level: number, max: number)
+		for k = #pipFrames + 1, max do
+			local f = Instance.new("Frame")
+			f.Name = "Pip"
+			f.LayoutOrder = k
+			f.Size = UDim2.fromOffset(14, 14)
+			f.BorderSizePixel = 0
+			f.Parent = pips
+			MenuKit.stroke(f, Theme.color("Ink"), 2)
+			pipFrames[k] = f
+		end
+		for k, f in pipFrames do
+			f.Visible = k <= max
+			f.BackgroundColor3 = if k <= level then Theme.Colors.Gold else Theme.Colors.Backdrop
+		end
+		levelText.Text = string.format(Strings.get("info.level", lang), level, max)
 	end
-	local upgrade = button("", 150)
-	upgrade.TextColor3 = Theme.Colors.Gold
-	local demolish = button("", 120)
-	local close = button("×", BUTTON)
 
 	local citySet: { [number]: boolean } = {}
 	local cityCount = -1
@@ -188,8 +204,9 @@ function BuildingInfo.new(
 			return
 		end
 		local max = Buildings.maxLevel(b.kind)
-		local name = Strings.get("building." .. b.kind, lang)
-		title.Text = string.format(Strings.get("build.levelOf", lang), name, b.level, max)
+		title.Text = Strings.get("building." .. b.kind, lang)
+		CardKit.repaint(art, "building." .. b.kind)
+		setLevel(b.level, max)
 		effect.Text = Strings.get("building." .. b.kind .. ".hint", lang)
 		local bonus = if b.kind == "City" then 0 else districtBonus(cell)
 		district.Visible = bonus > 0
@@ -197,6 +214,7 @@ function BuildingInfo.new(
 		upkeep.Visible = b.kind ~= "City"
 		upkeep.Text =
 			string.format(Strings.get("build.upkeep", lang), string.format("%.1f", Buildings.upkeepOf(b.kind, b.level)))
+		infoRow.Visible = district.Visible or upkeep.Visible
 		local cost = myPrice(b.kind, cell)
 		if cost == nil then
 			upgrade.Text = Strings.get("build.maxed", lang)

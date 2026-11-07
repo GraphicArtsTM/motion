@@ -6,8 +6,9 @@
 	  несколько войн — стрелки ◀ ▶;
 	- на вас напали — баннер мигает красным, сирена (AudioCues → Audio), строка в ленте (MatchHud);
 	- нажатие на страну без войны (MatchHud → offerDeclare) — окно «Объявить войну» (после мира — «Мир: ещё N с»);
-	- «Мир» — окно условий: белый мир, забрать захваченное, капитуляция (неактивна до этапа 6);
-	- предложение мира от врага — окно «X предлагает мир: … · N с» с «Принять» / «Отклонить».
+	- «Мир» — окно условий: три карточки с картинками — белый мир, забрать захваченное, капитуляция (§15л ч.11);
+	- «Объявить войну» — два портрета держав «VS» и их сила;
+	- предложение мира от врага — портрет, условия картинкой, «X предлагает мир: … · N с», «Принять» / «Отклонить».
 	Все кнопки от 44 px (телефоны). Esc закрывает окна.
 ]]
 
@@ -21,6 +22,8 @@ local NationColors = require(Shared:WaitForChild("NationColors"))
 local Protocol = require(Shared:WaitForChild("Net"):WaitForChild("Protocol"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
+local CardKit = require(script.Parent:WaitForChild("CardKit"))
+local MenuKit = require(script.Parent:WaitForChild("MenuKit"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
@@ -138,7 +141,7 @@ function WarPanel.new(
 	toast: (text: string) -> (),
 	toFront: (x: number, y: number) -> ()
 ): WarPanel
-	local gold, muted = hex(Theme.Colors.Gold), hex(Theme.Colors.Muted)
+	local gold = hex(Theme.Colors.Gold)
 	local selectedKey: number? = nil
 	local flashUntil = 0
 	local declareTarget: number? = nil
@@ -218,54 +221,169 @@ function WarPanel.new(
 	local peaceButton = button(buttons, Strings.get("war.peace", lang), 140)
 	peaceButton.TextColor3 = Theme.Colors.Sky
 
-	-- Окно объявления войны.
-	local declarePanel = panel(gui, "DeclareWar")
-	declarePanel.AnchorPoint = Vector2.new(0.5, 1)
-	declarePanel.Position = UDim2.new(0.5, 0, 1, -150)
-	declarePanel.Size = UDim2.fromOffset(300, 0)
-	declarePanel.AutomaticSize = Enum.AutomaticSize.Y
-	local declareTitle = label(declarePanel, 16, 1)
-	local declareRow = row(declarePanel, 2)
-	local declareButton = button(declareRow, Strings.get("war.declare", lang), 170)
-	declareButton.TextColor3 = Theme.Colors.Alert
-	local declareCancel = button(declareRow, Strings.get("war.cancel", lang), 100)
-
-	-- Окно условий мира.
-	local peacePanel = panel(gui, "PeaceTerms")
-	peacePanel.AnchorPoint = Vector2.new(0.5, 0.5)
-	peacePanel.Position = UDim2.fromScale(0.5, 0.5)
-	peacePanel.Size = UDim2.fromOffset(320, 0)
-	peacePanel.AutomaticSize = Enum.AutomaticSize.Y
-	peacePanel.ZIndex = 5
-	local peaceTitle = label(peacePanel, 16, 1)
-	local function termButton(key: string, order: number): TextButton
-		local b = button(peacePanel, "", 300, 52)
-		b.LayoutOrder = order
-		b.Text = string.format(
-			'%s\n<font size="12" color="%s">%s</font>',
-			Strings.get("peace." .. key, lang),
-			muted,
-			Strings.get("peace." .. key .. ".hint", lang)
-		)
+	-- Окна войны и мира (§15л ч.11): рамка с картинками, кнопки во всю ширину.
+	local function window(name: string, width: number, edge: Color3): Frame
+		local f = Instance.new("Frame")
+		f.Name = name
+		f.Size = UDim2.fromOffset(width, 0)
+		f.AutomaticSize = Enum.AutomaticSize.Y
+		f.BackgroundColor3 = Theme.Colors.PanelBg
+		f.BorderSizePixel = 0
+		f.Active = true
+		f.Visible = false
+		f.Parent = gui
+		MenuKit.stroke(f, edge, 2)
+		MenuKit.pad(f, 12, 10)
+		MenuKit.list(f, 10)
+		local scale = Instance.new("UIScale")
+		scale.Parent = f
+		local function fit()
+			scale.Scale = math.clamp((gui.AbsoluteSize.X - 16) / width, 0.45, 1)
+		end
+		Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fit)
+		fit()
+		return f
+	end
+	local function buttonRow(parent: Instance, order: number): Frame
+		local r = MenuKit.box(parent, "Buttons", order)
+		r.AutomaticSize = Enum.AutomaticSize.None
+		r.Size = UDim2.new(1, 0, 0, BUTTON)
+		local l = MenuKit.list(r, 8, true)
+		l.HorizontalFlex = Enum.UIFlexAlignment.Fill
+		return r
+	end
+	local function wideButton(parent: Instance, text: string, style: MenuKit.ButtonStyle, order: number): TextButton
+		local b = MenuKit.button(parent, text, style, BUTTON, order)
+		b.Size = UDim2.new(0, 120, 1, 0)
+		b.TextSize = 15
 		return b
 	end
-	local whiteButton = termButton("white", 2)
-	local keepButton = termButton("keep", 3)
-	local capitulateButton = termButton("capitulate", 4)
-	local peaceCancel = button(peacePanel, Strings.get("war.cancel", lang), 140)
-	peaceCancel.LayoutOrder = 5
+	local function portraitKey(id: number?): string
+		local n = if id ~= nil then cs.nations[id] else nil
+		return "nation." .. (if n ~= nil and n.colorIndex >= 1 then n.colorIndex else 1)
+	end
+	local function powerText(id: number): string
+		local s = ClientState.statsOf(cs, id)
+		if s == nil then
+			return ""
+		end
+		if s.power < 0 or s.frontPower < 0 then
+			return string.format(Strings.get("diplo.power", lang), "?") -- скрытая мощь (§6.11а)
+		end
+		local v = s.power + s.frontPower
+		return string.format(
+			Strings.get("diplo.power", lang),
+			if v >= 1000 then string.format("%.1fk", v / 1000) else tostring(math.floor(v + 0.5))
+		)
+	end
 
-	-- Входящее предложение мира.
-	local offerPanel = panel(gui, "PeaceOffer")
+	-- Окно объявления войны: два портрета держав «против», сила, кнопки.
+	local declarePanel = window("DeclareWar", 460, Theme.Colors.Alert)
+	declarePanel.AnchorPoint = Vector2.new(0.5, 1)
+	declarePanel.Position = UDim2.new(0.5, 0, 1, -150)
+	local declareHead = MenuKit.label(declarePanel, Strings.get("war.declare", lang), 20, Theme.Colors.Alert, true, 1)
+	declareHead.Size = UDim2.fromScale(1, 0)
+	declareHead.AutomaticSize = Enum.AutomaticSize.Y
+	declareHead.TextXAlignment = Enum.TextXAlignment.Center
+	local versus = MenuKit.box(declarePanel, "Versus", 2)
+	versus.AutomaticSize = Enum.AutomaticSize.None
+	versus.Size = UDim2.new(1, 0, 0, 136)
+	local function side(x: number, anchor: number): (ImageLabel, TextLabel, TextLabel)
+		local col = MenuKit.box(versus, "Side")
+		col.AutomaticSize = Enum.AutomaticSize.None
+		col.AnchorPoint = Vector2.new(anchor, 0)
+		col.Position = UDim2.fromScale(x, 0)
+		col.Size = UDim2.fromOffset(170, 136)
+		local art = CardKit.art(col, "nation.1", 120, 80)
+		art.AnchorPoint = Vector2.new(0.5, 0)
+		art.Position = UDim2.fromScale(0.5, 0)
+		local name = MenuKit.label(col, "", 14, Theme.Colors.Text, true)
+		name.AutomaticSize = Enum.AutomaticSize.None
+		name.Position = UDim2.fromOffset(0, 84)
+		name.Size = UDim2.new(1, 0, 0, 32)
+		name.TextWrapped = true
+		name.TextXAlignment = Enum.TextXAlignment.Center
+		name.TextYAlignment = Enum.TextYAlignment.Top
+		local power = MenuKit.label(col, "", 12, Theme.Colors.Muted, true)
+		power.AutomaticSize = Enum.AutomaticSize.None
+		power.Position = UDim2.fromOffset(0, 118)
+		power.Size = UDim2.new(1, 0, 0, 16)
+		power.TextXAlignment = Enum.TextXAlignment.Center
+		return art, name, power
+	end
+	local meArt, meName, mePower = side(0, 0)
+	local foeArt, declareTitle, foePower = side(1, 1)
+	local vs = MenuKit.label(versus, Strings.get("war.vs", lang), 30, Theme.Colors.Alert, true)
+	vs.AnchorPoint = Vector2.new(0.5, 0.5)
+	vs.Position = UDim2.new(0.5, 0, 0, 40)
+	vs.TextStrokeTransparency = 0.3
+	local declareRow = buttonRow(declarePanel, 3)
+	local declareButton = wideButton(declareRow, Strings.get("war.declare", lang), "danger", 1)
+	local declareCancel = wideButton(declareRow, Strings.get("war.cancel", lang), "normal", 2)
+
+	-- Окно условий мира: три карточки с картинками.
+	local peacePanel = window("PeaceTerms", 3 * CardKit.CardW + 2 * CardKit.Gap + 24, Theme.Colors.Sky)
+	peacePanel.AnchorPoint = Vector2.new(0.5, 0.5)
+	peacePanel.Position = UDim2.fromScale(0.5, 0.5)
+	peacePanel.ZIndex = 5
+	local peaceHead = MenuKit.box(peacePanel, "Head", 1)
+	peaceHead.AutomaticSize = Enum.AutomaticSize.None
+	peaceHead.Size = UDim2.new(1, 0, 0, 48)
+	local peaceArt = CardKit.art(peaceHead, "peace.offer", 72, 48)
+	peaceArt.Name = "HeadArt"
+	local peaceTitle = MenuKit.label(peaceHead, "", 20, Theme.Colors.Text, true)
+	peaceTitle.Position = UDim2.fromOffset(84, 0)
+	local peaceSub = MenuKit.label(peaceHead, Strings.get("peace.pick", lang), 13, Theme.Colors.Muted)
+	peaceSub.Position = UDim2.fromOffset(84, 26)
+	local peaceCancel = MenuKit.button(peaceHead, "×", "normal")
+	peaceCancel.AnchorPoint = Vector2.new(1, 0)
+	peaceCancel.Position = UDim2.fromScale(1, 0)
+	peaceCancel.Size = UDim2.fromOffset(BUTTON, BUTTON)
+	peaceCancel.TextSize = 24
+	local terms = MenuKit.box(peacePanel, "Terms", 2)
+	terms.AutomaticSize = Enum.AutomaticSize.None
+	terms.Size = UDim2.new(1, 0, 0, CardKit.CardH)
+	MenuKit.list(terms, CardKit.Gap, true)
+	local function termButton(key: string, order: number): TextButton
+		local c = CardKit.card(
+			terms,
+			"peace." .. key,
+			Strings.get("peace." .. key, lang),
+			Strings.get("peace." .. key .. ".hint", lang),
+			order
+		)
+		c.frame.Size = UDim2.fromOffset(CardKit.CardW, CardKit.CardH)
+		return CardKit.button(
+			c.actions,
+			Strings.get("peace.propose", lang),
+			if key == "capitulate" then "danger" else "good",
+			1
+		)
+	end
+	local whiteButton = termButton("white", 1)
+	local keepButton = termButton("keep", 2)
+	local capitulateButton = termButton("capitulate", 3)
+
+	-- Входящее предложение мира: портрет державы, условия картинкой, «Принять» / «Отклонить».
+	local offerPanel = window("PeaceOffer", 460, Theme.Colors.Sky)
 	offerPanel.AnchorPoint = Vector2.new(0.5, 0)
 	offerPanel.Position = UDim2.new(0.5, 0, 0, 230)
-	offerPanel.Size = UDim2.fromOffset(340, 0)
-	offerPanel.AutomaticSize = Enum.AutomaticSize.Y
-	local offerText = label(offerPanel, 15, 1)
-	local offerRow = row(offerPanel, 2)
-	local acceptButton = button(offerRow, Strings.get("peace.accept", lang), 140)
-	acceptButton.TextColor3 = Theme.Colors.Sky
-	local declineButton = button(offerRow, Strings.get("peace.decline", lang), 140)
+	local offerBody = MenuKit.box(offerPanel, "Body", 1)
+	offerBody.AutomaticSize = Enum.AutomaticSize.None
+	offerBody.Size = UDim2.new(1, 0, 0, 64)
+	local offerArt = CardKit.art(offerBody, "nation.1", 96, 64)
+	local termsArt = CardKit.art(offerBody, "peace.white", 96, 64)
+	termsArt.AnchorPoint = Vector2.new(1, 0)
+	termsArt.Position = UDim2.fromScale(1, 0)
+	local offerText = MenuKit.label(offerBody, "", 15, Theme.Colors.Text, true)
+	offerText.AutomaticSize = Enum.AutomaticSize.None
+	offerText.Position = UDim2.fromOffset(106, 0)
+	offerText.Size = UDim2.new(1, -212, 1, 0)
+	offerText.TextWrapped = true
+	offerText.TextYAlignment = Enum.TextYAlignment.Center
+	local offerRow = buttonRow(offerPanel, 2)
+	local acceptButton = wideButton(offerRow, Strings.get("peace.accept", lang), "good", 1)
+	local declineButton = wideButton(offerRow, Strings.get("peace.decline", lang), "danger", 2)
 	local offerFrom: number? = nil
 
 	local function myWars(): { Protocol.WarStats }
@@ -335,6 +453,8 @@ function WarPanel.new(
 			for _, war in myWars() do
 				if war.proposalFrom ~= 0 and war.proposalFrom ~= me then
 					offerFrom = war.proposalFrom
+					CardKit.repaint(offerArt, portraitKey(war.proposalFrom))
+					CardKit.repaint(termsArt, "peace." .. war.proposalTerms)
 					local left = math.max(0, math.ceil(war.proposalLeft - (now - cs.warsAt)))
 					offerText.Text = string.format(
 						Strings.get("peace.offer", lang),
@@ -378,13 +498,18 @@ function WarPanel.new(
 					Strings.get("bot.personality." .. tn.personality, lang)
 				)
 				else ""
+		CardKit.repaint(foeArt, portraitKey(target))
+		CardKit.repaint(meArt, portraitKey(me))
+		meName.Text = if me ~= nil then coloredName(me) else ""
+		mePower.Text = if me ~= nil then powerText(me) else ""
+		foePower.Text = powerText(target)
 		if cooldown > 0 then
 			declareButton.Text = string.format(Strings.get("war.declare.cooldown", lang), cooldown)
-			declareButton.TextColor3 = Theme.Colors.Muted
+			declareButton.TextTransparency = 0.4
 			declareButton.AutoButtonColor = false
 		else
 			declareButton.Text = Strings.get("war.declare", lang)
-			declareButton.TextColor3 = Theme.Colors.Alert
+			declareButton.TextTransparency = 0
 			declareButton.AutoButtonColor = true
 		end
 		declarePanel.Visible = true

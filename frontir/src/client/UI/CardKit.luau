@@ -46,6 +46,9 @@ CardKit.CardW = 184
 CardKit.CardH = 280
 CardKit.Gap = 10
 
+-- Картинки, которые можно перерисовать (repaint): ImageLabel → EditableImage.
+local editables: { [ImageLabel]: EditableImage } = setmetatable({}, { __mode = "k" }) :: any
+
 -- Картинка предмета: EditableImage на сессию.
 function CardKit.art(parent: Instance, key: string, w: number, h: number): ImageLabel
 	local img = Instance.new("ImageLabel")
@@ -64,9 +67,23 @@ function CardKit.art(parent: Instance, key: string, w: number, h: number): Image
 		Session.track(editable)
 		editable:WritePixelsBuffer(Vector2.zero, Vector2.new(ItemArt.W, ItemArt.H), ItemArt.paint(key))
 		img.ImageContent = Content.fromObject(editable)
+		editables[img] = editable
 	end
+	img:SetAttribute("ArtKey", key)
 	MenuKit.stroke(img, Theme.color("Ink"), 2)
 	return img
+end
+
+-- Перерисовать картинку другим ключом (здание сменилось, держава другая); тот же ключ — ничего не делает.
+function CardKit.repaint(img: ImageLabel, key: string)
+	if img:GetAttribute("ArtKey") == key then
+		return
+	end
+	img:SetAttribute("ArtKey", key)
+	local editable: EditableImage? = editables[img]
+	if editable then
+		editable:WritePixelsBuffer(Vector2.zero, Vector2.new(ItemArt.W, ItemArt.H), ItemArt.paint(key))
+	end
 end
 
 function CardKit.button(parent: Instance, text: string, style: MenuKit.ButtonStyle, order: number?): TextButton
@@ -336,6 +353,119 @@ function CardKit.row(
 	body.Size = UDim2.new(1, -(aw + 26), 1, -16)
 	body.Parent = f
 	return f, body, edge
+end
+
+-- Меню у здания на карте (§15л ч.11): порт, аэродром — шапка с картинкой, плитки найма, кнопка приказа.
+export type HireTile = {
+	button: TextButton,
+	name: TextLabel,
+	price: TextLabel,
+	badge: TextLabel,
+}
+export type Dock = {
+	frame: Frame,
+	art: ImageLabel,
+	title: TextLabel,
+	status: TextLabel,
+	close: TextButton,
+	hires: { HireTile },
+	action: TextButton,
+}
+
+CardKit.DockW = 460
+
+function CardKit.dock(gui: ScreenGui, name: string, artKey: string, hireKeys: { string }, hireLabel: string): Dock
+	local width = CardKit.DockW
+	local frame = Instance.new("Frame")
+	frame.Name = name
+	frame.AnchorPoint = Vector2.new(0.5, 1)
+	frame.Position = UDim2.new(0.5, 0, 1, -150)
+	frame.Size = UDim2.fromOffset(width, 0)
+	frame.AutomaticSize = Enum.AutomaticSize.Y
+	frame.BackgroundColor3 = Theme.Colors.PanelBg
+	frame.BorderSizePixel = 0
+	frame.Active = true
+	frame.Visible = false
+	frame.ZIndex = 15
+	frame.Parent = gui
+	MenuKit.stroke(frame, Theme.Colors.PanelBorder, 2)
+	MenuKit.pad(frame, 10, 10)
+	MenuKit.list(frame, 8)
+	local scale = Instance.new("UIScale")
+	scale.Parent = frame
+	local function fit()
+		scale.Scale = math.clamp((gui.AbsoluteSize.X - 16) / width, 0.5, 1)
+	end
+	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fit)
+	fit()
+
+	local head = MenuKit.box(frame, "Head", 1)
+	head.AutomaticSize = Enum.AutomaticSize.None
+	head.Size = UDim2.new(1, 0, 0, 64)
+	local art = CardKit.art(head, artKey, 96, 64)
+	local title = MenuKit.label(head, "", 20, Theme.Colors.Gold, true)
+	title.Position = UDim2.fromOffset(108, 2)
+	local status = MenuKit.label(head, "", 13, Theme.Colors.Muted)
+	status.AutomaticSize = Enum.AutomaticSize.None
+	status.Position = UDim2.fromOffset(108, 28)
+	status.Size = UDim2.new(1, -(108 + MenuKit.Touch + 6), 0, 34)
+	status.TextWrapped = true
+	status.TextYAlignment = Enum.TextYAlignment.Top
+	local close = MenuKit.button(head, "×", "normal")
+	close.AnchorPoint = Vector2.new(1, 0)
+	close.Position = UDim2.fromScale(1, 0)
+	close.Size = UDim2.fromOffset(MenuKit.Touch, MenuKit.Touch)
+	close.TextSize = 24
+
+	local row = MenuKit.box(frame, "Hires", 2)
+	row.AutomaticSize = Enum.AutomaticSize.None
+	row.Size = UDim2.new(1, 0, 0, 84)
+	local rowList = MenuKit.list(row, 8, true)
+	rowList.HorizontalFlex = Enum.UIFlexAlignment.Fill
+	local hires: { HireTile } = {}
+	for k, key in hireKeys do
+		local b = Instance.new("TextButton")
+		b.Name = "Hire_" .. key
+		b.LayoutOrder = k
+		b.Text = ""
+		b.AutoButtonColor = true
+		b.BackgroundColor3 = Theme.Colors.Backdrop
+		b.BorderSizePixel = 0
+		b.Size = UDim2.new(0, 100, 1, 0)
+		b.Parent = row
+		MenuKit.stroke(b, Theme.Colors.PanelBorder, 2)
+		local a = CardKit.art(b, key, 84, 56)
+		a.Position = UDim2.fromOffset(6, 6)
+		local n = MenuKit.label(b, "", 15, Theme.Colors.Text, true)
+		n.Position = UDim2.fromOffset(98, 6)
+		local price = MenuKit.label(b, "", 12, Theme.Colors.Gold, true)
+		price.AutomaticSize = Enum.AutomaticSize.None
+		price.Position = UDim2.fromOffset(98, 26)
+		price.Size = UDim2.new(1, -104, 0, 30)
+		price.TextWrapped = true
+		price.TextYAlignment = Enum.TextYAlignment.Top
+		local badge = MenuKit.label(b, "+ " .. hireLabel, 12, Theme.color("Ink"), true)
+		badge.AnchorPoint = Vector2.new(1, 1)
+		badge.Position = UDim2.new(1, -6, 1, -6)
+		badge.BackgroundTransparency = 0
+		badge.BackgroundColor3 = Theme.Colors.Gold
+		MenuKit.pad(badge, 6, 2)
+		table.insert(hires, { button = b, name = n, price = price, badge = badge })
+	end
+
+	local action = MenuKit.button(frame, "", "primary", MenuKit.Touch, 3)
+	action.Size = UDim2.new(1, 0, 0, MenuKit.Touch)
+	action.TextSize = 15
+	action.TextScaled = false
+	return {
+		frame = frame,
+		art = art,
+		title = title,
+		status = status,
+		close = close,
+		hires = hires,
+		action = action,
+	}
 end
 
 return table.freeze(CardKit)

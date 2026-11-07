@@ -18,6 +18,7 @@ local Protocol = require(Shared:WaitForChild("Net"):WaitForChild("Protocol"))
 local Provinces = require(Shared:WaitForChild("Provinces"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
+local CardKit = require(script.Parent:WaitForChild("CardKit"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
@@ -58,71 +59,14 @@ function AirPanel.new(
 		return cs.phase == "Play" and me ~= nil and me.alive
 	end
 
-	local function makeButton(parent: Instance): TextButton
-		local b = Instance.new("TextButton")
-		b.Size = UDim2.new(1, 0, 0, BUTTON)
-		b.BackgroundColor3 = Theme.Colors.Backdrop
-		b.BorderSizePixel = 0
-		b.AutoButtonColor = true
-		b.FontFace = Theme.FontBold
-		b.TextSize = 14
-		b.TextColor3 = Theme.Colors.Text
-		b.Parent = parent
-		return b
-	end
-
-	local panel = Instance.new("Frame")
-	panel.Name = "AirPanel"
-	panel.AnchorPoint = Vector2.new(0.5, 1)
-	panel.Position = UDim2.new(0.5, 0, 1, -150)
-	panel.Size = UDim2.fromOffset(300, 0)
-	panel.AutomaticSize = Enum.AutomaticSize.Y
-	panel.BackgroundColor3 = Theme.Colors.PanelBg
-	panel.BackgroundTransparency = 0.05
-	panel.BorderSizePixel = 0
-	panel.Visible = false
-	panel.ZIndex = 15
-	panel.Parent = gui
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = Theme.Colors.PanelBorder
-	stroke.Thickness = Theme.BorderPx
-	stroke.Parent = panel
-	local pad = Instance.new("UIPadding")
-	pad.PaddingLeft, pad.PaddingRight = UDim.new(0, 8), UDim.new(0, 8)
-	pad.PaddingTop, pad.PaddingBottom = UDim.new(0, 6), UDim.new(0, 8)
-	pad.Parent = panel
-	local layout = Instance.new("UIListLayout")
-	layout.Padding = UDim.new(0, 4)
-	layout.SortOrder = Enum.SortOrder.LayoutOrder
-	layout.Parent = panel
-
-	local title = Instance.new("TextLabel")
-	title.BackgroundTransparency = 1
-	title.Size = UDim2.new(1, 0, 0, 22)
-	title.FontFace = Theme.FontBold
-	title.TextSize = 15
-	title.TextColor3 = Theme.Colors.Gold
-	title.TextXAlignment = Enum.TextXAlignment.Left
-	title.LayoutOrder = 1
-	title.Parent = panel
-	local status = Instance.new("TextLabel")
-	status.BackgroundTransparency = 1
-	status.Size = UDim2.new(1, 0, 0, 18)
-	status.FontFace = Theme.Font
-	status.TextSize = 13
-	status.TextColor3 = Theme.Colors.Muted
-	status.TextXAlignment = Enum.TextXAlignment.Left
-	status.TextWrapped = true
-	status.LayoutOrder = 2
-	status.Parent = panel
-	local hireFighter = makeButton(panel)
-	hireFighter.LayoutOrder = 3
-	local hireBomber = makeButton(panel)
-	hireBomber.LayoutOrder = 4
-	local raidButton = makeButton(panel)
-	raidButton.LayoutOrder = 5
-	local closeButton = makeButton(panel)
-	closeButton.LayoutOrder = 6
+	-- Меню аэродрома (§15л ч.11): шапка с картинкой, плитки найма самолётов, кнопка «Налёт».
+	local dock =
+		CardKit.dock(gui, "AirPanel", "air.airfield", { "air.Fighter", "air.Bomber" }, Strings.get("dock.hire", lang))
+	local panel = dock.frame
+	local title, status = dock.title, dock.status
+	local hireFighter, hireBomber = dock.hires[1].button, dock.hires[2].button
+	local raidButton = dock.action
+	local closeButton = dock.close
 
 	local modeLine = Instance.new("TextButton")
 	modeLine.Name = "AirMode"
@@ -181,16 +125,23 @@ function AirPanel.new(
 		local function hireText(kind: string): string
 			local stats = (Config.Units :: any)[kind]
 			return string.format(
-				Strings.get("naval.hire", lang),
-				Strings.get("plane." .. kind, lang),
+				Strings.get("dock.price", lang),
 				Strings.formatInt(stats.cost),
 				Strings.formatInt(stats.oil)
 			)
 		end
-		hireFighter.Text = hireText("Fighter")
-		hireBomber.Text = hireText("Bomber")
+		for k, kind in { "Fighter", "Bomber" } do
+			local tile = dock.hires[k]
+			tile.name.Text = string.format(
+				'%s  <font color="#%s">×%d</font>',
+				Strings.get("plane." .. kind, lang),
+				Theme.Colors.Muted:ToHex(),
+				if kind == "Fighter" then fighters else bombers
+			)
+			tile.price.Text = hireText(kind)
+		end
 		raidButton.Text = string.format(Strings.get("air.raid", lang), ready)
-		closeButton.Text = Strings.get("naval.close", lang)
+		raidButton.TextTransparency = if ready > 0 then 0 else 0.4
 		panel.Visible = true
 	end
 

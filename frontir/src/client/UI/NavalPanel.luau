@@ -20,6 +20,7 @@ local Protocol = require(Shared:WaitForChild("Net"):WaitForChild("Protocol"))
 local Provinces = require(Shared:WaitForChild("Provinces"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
+local CardKit = require(script.Parent:WaitForChild("CardKit"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
@@ -69,71 +70,19 @@ function NavalPanel.new(
 		return cs.phase == "Play" and me ~= nil and me.alive
 	end
 
-	local function makeButton(parent: Instance, height: number): TextButton
-		local b = Instance.new("TextButton")
-		b.Size = UDim2.new(1, 0, 0, height)
-		b.BackgroundColor3 = Theme.Colors.Backdrop
-		b.BorderSizePixel = 0
-		b.AutoButtonColor = true
-		b.FontFace = Theme.FontBold
-		b.TextSize = 14
-		b.TextColor3 = Theme.Colors.Text
-		b.Parent = parent
-		return b
-	end
-
-	local panel = Instance.new("Frame")
-	panel.Name = "NavalPanel"
-	panel.AnchorPoint = Vector2.new(0.5, 1)
-	panel.Position = UDim2.new(0.5, 0, 1, -150)
-	panel.Size = UDim2.fromOffset(300, 0)
-	panel.AutomaticSize = Enum.AutomaticSize.Y
-	panel.BackgroundColor3 = Theme.Colors.PanelBg
-	panel.BackgroundTransparency = 0.05
-	panel.BorderSizePixel = 0
-	panel.Visible = false
-	panel.ZIndex = 15
-	panel.Parent = gui
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = Theme.Colors.PanelBorder
-	stroke.Thickness = Theme.BorderPx
-	stroke.Parent = panel
-	local pad = Instance.new("UIPadding")
-	pad.PaddingLeft, pad.PaddingRight = UDim.new(0, 8), UDim.new(0, 8)
-	pad.PaddingTop, pad.PaddingBottom = UDim.new(0, 6), UDim.new(0, 8)
-	pad.Parent = panel
-	local layout = Instance.new("UIListLayout")
-	layout.Padding = UDim.new(0, 4)
-	layout.SortOrder = Enum.SortOrder.LayoutOrder
-	layout.Parent = panel
-
-	local title = Instance.new("TextLabel")
-	title.BackgroundTransparency = 1
-	title.Size = UDim2.new(1, 0, 0, 22)
-	title.FontFace = Theme.FontBold
-	title.TextSize = 15
-	title.TextColor3 = Theme.Colors.Gold
-	title.TextXAlignment = Enum.TextXAlignment.Left
-	title.LayoutOrder = 1
-	title.Parent = panel
-	local status = Instance.new("TextLabel")
-	status.BackgroundTransparency = 1
-	status.Size = UDim2.new(1, 0, 0, 18)
-	status.FontFace = Theme.Font
-	status.TextSize = 13
-	status.TextColor3 = Theme.Colors.Muted
-	status.TextXAlignment = Enum.TextXAlignment.Left
-	status.TextWrapped = true
-	status.LayoutOrder = 2
-	status.Parent = panel
-	local hireTransport = makeButton(panel, BUTTON)
-	hireTransport.LayoutOrder = 3
-	local hireDestroyer = makeButton(panel, BUTTON)
-	hireDestroyer.LayoutOrder = 4
-	local landButton = makeButton(panel, BUTTON)
-	landButton.LayoutOrder = 5
-	local closeButton = makeButton(panel, BUTTON)
-	closeButton.LayoutOrder = 6
+	-- Меню порта (§15л ч.11): шапка с картинкой порта, плитки найма кораблей, кнопка «Высадка».
+	local dock = CardKit.dock(
+		gui,
+		"NavalPanel",
+		"naval.port",
+		{ "naval.Transport", "naval.Destroyer" },
+		Strings.get("dock.hire", lang)
+	)
+	local panel = dock.frame
+	local title, status = dock.title, dock.status
+	local hireTransport, hireDestroyer = dock.hires[1].button, dock.hires[2].button
+	local landButton = dock.action
+	local closeButton = dock.close
 
 	-- Строка режима (выбор берега или моря) сверху по центру.
 	local modeLine = Instance.new("TextButton")
@@ -210,17 +159,21 @@ function NavalPanel.new(
 			local cost = stats.cost
 				* (if cs.tech.levels.Fleet >= 1 then 1 - Config.Tech.ShipyardDiscount else 1)
 				* Commanders.shipCostMul(ClientState.myCommander(cs)) -- Адмирал (§6.15)
-			return string.format(
-				Strings.get("naval.hire", lang),
-				Strings.get("ship." .. kind, lang),
-				Strings.formatInt(cost),
-				Strings.formatInt(stats.oil)
-			)
+			return string.format(Strings.get("dock.price", lang), Strings.formatInt(cost), Strings.formatInt(stats.oil))
 		end
-		hireTransport.Text = hireText("Transport")
-		hireDestroyer.Text = hireText("Destroyer")
-		landButton.Text = string.format(Strings.get("naval.land", lang), readyTransports(at))
-		closeButton.Text = Strings.get("naval.close", lang)
+		for k, kind in { "Transport", "Destroyer" } do
+			local tile = dock.hires[k]
+			tile.name.Text = string.format(
+				'%s  <font color="#%s">×%d</font>',
+				Strings.get("ship." .. kind, lang),
+				Theme.Colors.Muted:ToHex(),
+				if kind == "Transport" then transports else destroyers
+			)
+			tile.price.Text = hireText(kind)
+		end
+		local ready = readyTransports(at)
+		landButton.Text = string.format(Strings.get("naval.land", lang), ready)
+		landButton.TextTransparency = if ready > 0 then 0 else 0.4
 		panel.Visible = true
 	end
 

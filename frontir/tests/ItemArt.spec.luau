@@ -35,6 +35,34 @@ T.describe("Картинки предметов (§15л ч.9)", function()
 			for _, key in Config.Arsenal.Order do
 				table.insert(need, "arsenal." .. key)
 			end
+			-- Порт, аэродром, война и мир, итоги (§15л ч.11).
+			for _, key in
+				{
+					"naval.port",
+					"naval.Transport",
+					"naval.Destroyer",
+					"naval.land",
+					"air.airfield",
+					"air.Fighter",
+					"air.Bomber",
+					"air.raid",
+					"war.declare",
+					"peace.white",
+					"peace.keep",
+					"peace.capitulate",
+					"peace.offer",
+					"results.place",
+					"results.peak",
+					"results.time",
+					"results.out",
+					"results.reward",
+					"results.medal1",
+					"results.medal2",
+					"results.medal3",
+				}
+			do
+				table.insert(need, key)
+			end
 			for _, key in need do
 				if not ItemArt.has(key) then
 					error("нет картинки: " .. key)

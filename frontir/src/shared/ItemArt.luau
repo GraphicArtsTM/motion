@@ -2,7 +2,7 @@
 --[[
 	ItemArt — картинки предметов в карточках окон (GDD §15л ч.9): W×H (RGBA) из палитры и спрайтов игры (PixelCanvas).
 	Ключи: "shop.<товар>", "pattern.<узор>", "capture.<цвет>", "title.<титул>", "quest.<вид>", "tech.<ветка><уровень>",
-	"arsenal.<предмет>". Неизвестный ключ — запасная картинка (не ошибка). Клиент — UI/CardKit, превью — tools/item_preview.
+	"arsenal.<предмет>", "council.*", "naval.*", "air.*", "war.declare", "peace.*", "results.*". Неизвестный ключ — запасная картинка (не ошибка). Клиент — UI/CardKit, превью — tools/item_preview.
 ]]
 
 local Palette = require("./Palette")
@@ -416,6 +416,138 @@ ITEMS["council.superweaponBan"] = function(c)
 	stage(c, { "Ink", "Night" }, "Basalt")
 	building(c, "MissileSilo", 12, 3, 2, nation(4))
 	cross(c, 8, 2, 30)
+end
+
+-- Порт, аэродром, война и мир, итоги (§15л ч.11).
+ITEMS["naval.port"] = function(c)
+	sky(c, { "Night", "Sea", "Sky" }, 20)
+	water(c, 0, 21, c.w, 11)
+	rect(c, 0, 19, 22, 3, rgb("Rock"))
+	building(c, "Port", 2, 1, 2, nation(4))
+	ship(c, "Transport", 26, 16, 2, nation(4))
+	ship(c, "Destroyer", 36, 22, 1, nation(4))
+end
+ITEMS["naval.Transport"] = function(c)
+	sky(c, { "Sea", "Sky" }, 22)
+	water(c, 0, 23, c.w, 5)
+	ship(c, "Transport", 8, 6, 4, nation(4))
+	icon(c, "people", 38, 2, 1)
+end
+ITEMS["naval.Destroyer"] = function(c)
+	sky(c, { "Night", "Sea", "Sky" }, 22)
+	water(c, 0, 23, c.w, 9)
+	ship(c, "Destroyer", 8, 6, 4, nation(4))
+	burst(c, 42, 8, 3, "Orange", "Gold")
+end
+ITEMS["naval.land"] = function(c)
+	sky(c, { "Sea", "Sky" }, 20)
+	water(c, 0, 21, 26, 3)
+	rect(c, 26, 21, 22, 11, rgb("Dune"))
+	rect(c, 26, 21, 22, 1, rgb("Mist"))
+	ship(c, "Transport", 2, 10, 2, nation(4))
+	unit(c, "Infantry", 30, 11, 1, nation(4))
+	flag(c, 43, 5, nation(4), rgb("White"))
+end
+ITEMS["air.airfield"] = function(c)
+	stage(c, { "Sea", "Sky" }, "Grass")
+	building(c, "Airfield", 2, 3, 2, nation(6))
+	plane(c, "Fighter", 30, 2, 2, nation(6))
+end
+ITEMS["air.Fighter"] = function(c)
+	sky(c, { "Sea", "Sky" }, c.h)
+	rect(c, 2, 24, 12, 3, rgb("White"))
+	rect(c, 34, 6, 10, 2, rgb("White"))
+	plane(c, "Fighter", 8, 4, 4, nation(6))
+end
+ITEMS["air.Bomber"] = function(c)
+	sky(c, { "Night", "Sea", "Sky" }, c.h)
+	rect(c, 36, 24, 10, 2, rgb("White"))
+	plane(c, "Bomber", 6, 2, 4, nation(6))
+	rect(c, 18, 28, 2, 3, rgb("Ink"))
+end
+ITEMS["air.raid"] = function(c)
+	stage(c, { "Night", "Plum", "Orange" }, "Basalt")
+	plane(c, "Bomber", 2, 2, 2, nation(6))
+	rect(c, 22, 18, 2, 3, rgb("Ink"))
+	building(c, "Factory", 28, 9, 1, rgb("Steel"))
+	burst(c, 36, 20, 6, "Orange", "Gold")
+end
+ITEMS["war.declare"] = function(c)
+	stage(c, { "Night", "Plum", "Red" }, "Basalt")
+	icon(c, "army", 12, 2, 3)
+	burst(c, 6, 8, 3, "Orange", "Gold")
+	burst(c, 42, 10, 3, "Orange", "Gold")
+end
+ITEMS["peace.white"] = function(c)
+	stage(c, { "Sea", "Sky" }, "Grass")
+	unit(c, "Infantry", 2, 17, 1, nation(2))
+	unit(c, "Infantry", 34, 17, 1, nation(9), true)
+	rect(c, 23, 2, 2, 25, rgb("Mist"))
+	rect(c, 25, 3, 12, 8, rgb("White"))
+	rect(c, 25, 10, 12, 1, rgb("Snow"))
+end
+ITEMS["peace.keep"] = function(c)
+	stage(c, { "Sea", "River" }, "Grass")
+	rect(c, 4, 20, 40, 7, nation(2))
+	rect(c, 4, 20, 40, 1, rgb("White"))
+	flag(c, 10, 4, nation(2), rgb("Gold"))
+	flag(c, 30, 6, nation(2), rgb("Gold"))
+	icon(c, "land", 18, 8, 1)
+end
+ITEMS["peace.capitulate"] = function(c)
+	stage(c, { "Slate", "Steel" }, "Basalt")
+	building(c, "Fort", 4, 4, 2, rgb("Steel"))
+	rect(c, 34, 2, 2, 25, rgb("Mist"))
+	rect(c, 36, 3, 10, 7, rgb("White"))
+	rect(c, 36, 9, 10, 1, rgb("Snow"))
+end
+ITEMS["peace.offer"] = function(c)
+	stage(c, { "Teal", "Sky" }, nil)
+	icon(c, "diplomacy", 12, 4, 3)
+	spark(c, 8, 8, "White")
+	spark(c, 40, 22, "White")
+end
+ITEMS["results.place"] = function(c)
+	stage(c, { "Night", "Slate" }, nil)
+	podium(c, 6, 12)
+	spark(c, 24, 6, "Gold")
+end
+ITEMS["results.peak"] = function(c)
+	stage(c, { "Sea", "River" }, "Grass")
+	for k = 0, 4 do
+		rect(c, 6 + k * 8, 24 - k * 4, 6, 3 + k * 4, nation(3))
+	end
+	flag(c, 40, 3, nation(3), rgb("Gold"))
+end
+ITEMS["results.time"] = function(c)
+	stage(c, { "Night", "Violet" }, nil)
+	sun(c, 24, 16, 12, "Orange")
+	sun(c, 24, 16, 10, "Snow")
+	for k = 0, 11 do
+		local a = k * math.pi / 6
+		local col = rgb(if k % 3 == 0 then "Ink" else "Mist")
+		put(c, math.floor(24 + math.cos(a) * 8 + 0.5), math.floor(16 + math.sin(a) * 8 + 0.5), col.r, col.g, col.b)
+	end
+	rect(c, 23, 9, 2, 8, rgb("Ink"))
+	rect(c, 24, 15, 6, 2, rgb("Red"))
+	rect(c, 21, 2, 6, 2, rgb("Orange"))
+end
+ITEMS["results.out"] = function(c)
+	stage(c, { "Ink", "Night" }, "Basalt")
+	city(c, 2, 12, 6, 1, rgb("Steel"))
+	cross(c, 12, 4, 24)
+end
+ITEMS["results.reward"] = function(c)
+	stage(c, { "Plum", "Violet" }, nil)
+	crate(c, 2, 8, 2)
+	medal(c, 32, 4, "Red", "Gold")
+	spark(c, 26, 6, "White")
+end
+for place, disk in { "Gold", "Mist", "Orange" } do
+	ITEMS["results.medal" .. place] = function(c)
+		stage(c, { "Night", "Slate" }, nil)
+		medal(c, 20, 4, if place == 1 then "Red" elseif place == 2 then "Sea" else "Forest", disk)
+	end
 end
 
 -- Вспышки захвата и титулы — по цвету / по списку.

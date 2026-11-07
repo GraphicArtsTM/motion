@@ -18,6 +18,7 @@ local Ranks = require(Shared:WaitForChild("Ranks"))
 local Strings = require(Shared:WaitForChild("Strings"))
 local Types = require(Shared:WaitForChild("Types"))
 
+local CardKit = require(script.Parent:WaitForChild("CardKit"))
 local MenuKit = require(script.Parent:WaitForChild("MenuKit"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
@@ -31,7 +32,8 @@ export type ResultsPanel = {
 
 local ResultsPanel = {}
 
-local TILE_W, TILE_H, TILE_GAP = 130, 64, 8
+local TILE_W, TILE_H, TILE_GAP = 150, 60, 8
+local PLACE_H = 40
 local TILES_W = 4 * TILE_W + 3 * TILE_GAP
 local CHART_W, CHART_H = TILES_W, 150
 local BUTTON = Config.Render.MinTouchTargetPx
@@ -107,7 +109,7 @@ local function button(parent: Instance, text: string): TextButton
 end
 
 function ResultsPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, onMenu: () -> ()): ResultsPanel
-	local muted, gold = hex(Theme.Colors.Muted), hex(Theme.Colors.Gold)
+	local muted = hex(Theme.Colors.Muted)
 
 	local panel = Instance.new("Frame")
 	panel.Name = "Results"
@@ -140,7 +142,7 @@ function ResultsPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, o
 	scale.Parent = panel
 	local function fit()
 		local s = gui.AbsoluteSize
-		scale.Scale = math.clamp(math.min(s.X / (TILES_W + 60), s.Y / (CHART_H + 470)), 0.45, 1)
+		scale.Scale = math.clamp(math.min(s.X / (TILES_W + 60), s.Y / (CHART_H + 560)), 0.45, 1)
 	end
 	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fit)
 	fit()
@@ -158,32 +160,52 @@ function ResultsPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, o
 	tilesRow.LayoutOrder = 3
 	tilesRow.Parent = panel
 	MenuKit.list(tilesRow, TILE_GAP, true)
-	local function tile(order: number, caption: string): TextLabel
+	-- Плитка: картинка слева, подпись и число справа (§15л ч.11).
+	local function tile(order: number, artKey: string, caption: string): TextLabel
 		local f = Instance.new("Frame")
+		f.Name = "Tile"
 		f.LayoutOrder = order
 		f.Size = UDim2.fromOffset(TILE_W, TILE_H)
 		f.BackgroundColor3 = Theme.Colors.Backdrop
-		f.BackgroundTransparency = 0.2
 		f.BorderSizePixel = 0
 		f.Parent = tilesRow
-		MenuKit.corner(f, 6)
-		MenuKit.stroke(f, Theme.Colors.Slate)
-		MenuKit.pad(f, 10, 8)
-		MenuKit.list(f, 2)
-		MenuKit.label(f, caption, 11, Theme.Colors.Muted, true, 1)
-		return MenuKit.label(f, "—", 22, Theme.Colors.Text, true, 2)
+		MenuKit.stroke(f, Theme.Colors.PanelBorder, 2)
+		local art = CardKit.art(f, artKey, 66, 44)
+		art.Position = UDim2.fromOffset(6, 8)
+		local cap = MenuKit.label(f, caption, 10, Theme.Colors.Muted, true)
+		cap.AutomaticSize = Enum.AutomaticSize.None
+		cap.Position = UDim2.fromOffset(78, 8)
+		cap.Size = UDim2.fromOffset(TILE_W - 82, 22)
+		cap.TextWrapped = true
+		cap.TextYAlignment = Enum.TextYAlignment.Top
+		local value = MenuKit.label(f, "—", 18, Theme.Colors.Text, true)
+		value.Position = UDim2.fromOffset(78, 32)
+		return value
 	end
-	local placeValue = tile(1, Strings.get("result.tile.place", lang))
-	local peakValue = tile(2, Strings.get("result.tile.peak", lang))
-	local timeValue = tile(3, Strings.get("result.tile.time", lang))
-	local outValue = tile(4, Strings.get("result.tile.out", lang))
-	-- Награда за матч и уровень.
-	local rewardRow = MenuKit.box(panel, "Reward", 4)
-	MenuKit.list(rewardRow, 12, true)
-	local rewardText = MenuKit.label(rewardRow, "", 15, Theme.Colors.Sky, true, 1)
-	local levelUp = MenuKit.label(rewardRow, "", 14, Theme.color("Ink"), true, 2)
+	local placeValue = tile(1, "results.place", Strings.get("result.tile.place", lang))
+	local peakValue = tile(2, "results.peak", Strings.get("result.tile.peak", lang))
+	local timeValue = tile(3, "results.time", Strings.get("result.tile.time", lang))
+	local outValue = tile(4, "results.out", Strings.get("result.tile.out", lang))
+	-- Награда за матч: картинка, опыт и медали, плашка «новый уровень».
+	local rewardRow = Instance.new("Frame")
+	rewardRow.Name = "Reward"
+	rewardRow.LayoutOrder = 4
+	rewardRow.Size = UDim2.fromOffset(TILES_W, 60)
+	rewardRow.BackgroundColor3 = Theme.Colors.Backdrop
+	rewardRow.BorderSizePixel = 0
+	rewardRow.Parent = panel
+	MenuKit.stroke(rewardRow, Theme.Colors.Gold, 2)
+	local rewardArt = CardKit.art(rewardRow, "results.reward", 72, 48)
+	rewardArt.Position = UDim2.fromOffset(6, 6)
+	local rewardInfo = MenuKit.box(rewardRow, "Info")
+	rewardInfo.Position = UDim2.fromOffset(90, 0)
+	rewardInfo.Size = UDim2.fromScale(0, 1)
+	rewardInfo.AutomaticSize = Enum.AutomaticSize.X
+	MenuKit.list(rewardInfo, 12, true)
+	local rewardText = MenuKit.label(rewardInfo, "", 17, Theme.Colors.Sky, true, 1)
+	local levelUp = MenuKit.label(rewardInfo, "", 14, Theme.color("Ink"), true, 2)
+	levelUp.BackgroundTransparency = 0
 	levelUp.BackgroundColor3 = Theme.Colors.Gold
-	MenuKit.corner(levelUp, 4)
 	MenuKit.pad(levelUp, 8, 2)
 	local levelRow = MenuKit.box(panel, "Level", 5)
 	MenuKit.list(levelRow, 10, true)
@@ -196,7 +218,16 @@ function ResultsPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, o
 	levelBarHost.Parent = levelRow
 	local levelBar = MenuKit.bar(levelBarHost, 6, Theme.Colors.Sky)
 	local levelXp = MenuKit.label(levelRow, "", 11, Theme.Colors.Muted, false, 4)
-	local placesText = label(panel, 14, 6)
+	-- Места держав: строки с медалью (1–3) или номером, цветом державы, долей суши.
+	local placesList = MenuKit.box(panel, "Places", 6)
+	placesList.Size = UDim2.fromOffset(TILES_W, 0)
+	local placesGrid = Instance.new("UIGridLayout")
+	placesGrid.CellSize = UDim2.fromOffset((TILES_W - TILE_GAP) / 2, PLACE_H)
+	placesGrid.CellPadding = UDim2.fromOffset(TILE_GAP, 4)
+	placesGrid.FillDirection = Enum.FillDirection.Vertical
+	placesGrid.FillDirectionMaxCells = math.ceil(Config.Render.ResultsPlaces / 2)
+	placesGrid.SortOrder = Enum.SortOrder.LayoutOrder
+	placesGrid.Parent = placesList
 	local chartTitle = label(panel, 13, 5)
 	chartTitle.TextColor3 = Theme.Colors.Muted
 	chartTitle.LayoutOrder = 7
@@ -335,25 +366,59 @@ function ResultsPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, o
 		end
 		outValue.Text = tostring(out)
 
-		local lines: { string } = {}
+		for _, child in placesList:GetChildren() do
+			if child:IsA("Frame") then
+				child:Destroy()
+			end
+		end
 		for place = 1, math.min(#result.places, Config.Render.ResultsPlaces) do
 			local id = result.places[place]
 			local n = cs.nations[id]
-			local line = string.format(
-				Strings.get("result.place", lang),
-				place,
-				string.format('<font color="%s">%s</font>', hex(nationColor(cs, id)), nameOf(id)),
-				lastShare(result, id)
-			)
+			local mineRow = id == cs.myNation
+			local f = Instance.new("Frame")
+			f.Name = "Place"
+			f.LayoutOrder = place
+			f.BackgroundColor3 = Theme.Colors.Backdrop
+			f.BorderSizePixel = 0
+			f.Parent = placesList
+			MenuKit.stroke(f, if mineRow then Theme.Colors.Gold else Theme.Colors.PanelBorder, 2)
+			if place <= 3 then
+				local medal = CardKit.art(f, "results.medal" .. place, 48, 32)
+				medal.Position = UDim2.fromOffset(4, 4)
+			else
+				local num = MenuKit.label(f, tostring(place), 18, Theme.Colors.Muted, true)
+				num.AutomaticSize = Enum.AutomaticSize.None
+				num.Position = UDim2.fromOffset(4, 4)
+				num.Size = UDim2.fromOffset(48, 32)
+				num.TextXAlignment = Enum.TextXAlignment.Center
+			end
+			local swatch = Instance.new("Frame")
+			swatch.Name = "Swatch"
+			swatch.BorderSizePixel = 0
+			swatch.BackgroundColor3 = nationColor(cs, id)
+			swatch.Position = UDim2.fromOffset(60, 10)
+			swatch.Size = UDim2.fromOffset(20, 20)
+			swatch.Parent = f
+			MenuKit.stroke(swatch, Theme.color("Ink"), 2)
+			local name = nameOf(id)
 			if n ~= nil and not n.alive then
-				line ..= string.format(' <font color="%s">· %s</font>', muted, Strings.get("result.out", lang))
+				name ..= string.format(' <font color="%s">· %s</font>', muted, Strings.get("result.out", lang))
 			end
-			if id == cs.myNation then
-				line = string.format('<font color="%s">▶</font> %s', gold, line)
-			end
-			table.insert(lines, line)
+			local nameLabel = MenuKit.label(f, name, 15, if mineRow then Theme.Colors.Gold else Theme.Colors.Text, true)
+			nameLabel.AutomaticSize = Enum.AutomaticSize.None
+			nameLabel.Position = UDim2.fromOffset(88, 11)
+			nameLabel.Size = UDim2.new(1, -88 - 84, 0, 18)
+			nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+			local share = MenuKit.label(
+				f,
+				string.format(Strings.get("result.share", lang), lastShare(result, id)),
+				14,
+				Theme.Colors.Sky,
+				true
+			)
+			share.AnchorPoint = Vector2.new(1, 0)
+			share.Position = UDim2.new(1, -12, 0, 11)
 		end
-		placesText.Text = table.concat(lines, "\n")
 
 		-- График: ось — 0…максимум доли, линии лучших держав (своя тоже, если не в списке).
 		for _, child in chart:GetChildren() do
