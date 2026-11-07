@@ -105,6 +105,10 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 	local seed = m.seed
 	local startNewMatch: (mapId: string) -> ()
 	local startDemo: () -> ()
+	local addToMatch: (player: Player) -> ()
+	local joined: { [Player]: boolean } = {} -- §15л ч.7: кто нажал «В БОЙ» (или пришёл на сервер матча)
+	local demoRunning = false -- идёт показательный бой ботов (хаб; «как раньше», пока все в меню)
+	local demoSpeed = 1 -- показательный бой идёт быстрее (Hub.DemoSpeed)
 	local travel: (players: { Player }, placeId: number, options: TeleportOptions?) -> TeleportAsyncResult?
 	local travelToMatch: (player: Player, serverId: string?) -> ()
 	local nationOf: { [Player]: number } = {}
@@ -149,6 +153,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			result = m.result,
 			mapId = map.name,
 			place = role, -- §15л ч.3: хаб, матч или «как раньше»
+			demo = demoRunning, -- §15л ч.7: за меню — показательный бой (матча ещё нет)
 			tutorialStep = if m.rules.tutorial then m.tutorialStep else nil, -- «Обучение» (§5.5)
 			server = if settings ~= nil
 				then {
@@ -745,6 +750,57 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		end)
 	end
 
+	-- §15л ч.7: игрок вступает в текущий матч (лобби начинается с первым; опоздавший в игре — зритель).
+	function addToMatch(player: Player)
+		if nationOf[player] ~= nil then
+			return
+		end
+		if m.phase == "Waiting" then
+			MatchSim.startLobby(m)
+		end
+		local id = MatchSim.addPlayer(m, player.UserId, player.DisplayName)
+		if id ~= nil then
+			nationOf[player] = id
+		end
+		-- Против ботов (§5.1): пришёл ещё кто-то — паузы и ×2 больше нет.
+		if m.solo then
+			m.solo, m.paused, m.fast = false, false, false
+		end
+		m.infoDirty = true
+	end
+	-- «В БОЙ» на сервере «как раньше»: идёт показательный бой — настоящий матч с лобби; иначе — в текущий.
+	local function joinMatch(player: Player)
+		if nationOf[player] ~= nil then
+			return
+		end
+		joined[player] = true
+		if demoRunning then
+			startNewMatch(map.name) -- держав получают все вступившие (joined)
+		else
+			addToMatch(player)
+			applyProfile(player)
+			matchEvent:FireClient(player, infoFor(player))
+			sendDiplo(player)
+			if m.phase == "Play" then
+				sendSnapshot(player)
+			end
+		end
+		-- Новичок один в лобби — голос за «Обучение» стоит сам (§5.5), можно сменить.
+		local session = profiles.get(player.UserId)
+		local id = nationOf[player]
+		if
+			session ~= nil
+			and id ~= nil
+			and not session.data.tutorialDone
+			and m.phase == "Lobby"
+			and table.find(m.modeOptions, "Tutorial") ~= nil
+		then
+			m.modeVotes[id] = "Tutorial"
+			m.infoDirty = true
+		end
+		sendProfile(player)
+	end
+
 	local function onPlayerAdded(player: Player)
 		if nationOf[player] ~= nil then
 			return
@@ -752,20 +808,13 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		if isPrivate and ownerId == nil then
 			ownerId = player.UserId -- Studio (Dev.PrivateServer): владелец — первый вошедший
 		end
-		-- Хаб (§15л ч.3): матча нет — игрок только в меню, державы не получает.
-		if m.phase == "Waiting" and not isHub then
-			MatchSim.startLobby(m)
-		end
-		local id = if isHub then nil else MatchSim.addPlayer(m, player.UserId, player.DisplayName)
-		if id ~= nil then
-			nationOf[player] = id
-		end
-		-- Против ботов (§5.1): пришёл ещё кто-то — паузы и ×2 больше нет.
-		if m.solo then
-			m.solo, m.paused, m.fast = false, false, false
-			m.infoDirty = true
-		end
 		limiters[player] = RateLimiter.new(Config.Sim.MaxIntentsPerSecond, Config.Sim.MaxIntentsPerSecond, os.clock())
+		-- §15л ч.7: на сервере матча (пришли из хаба «В БОЙ») — сразу в матч; в хабе и «как раньше» — в меню,
+		-- держава — только по «В БОЙ» (намерение joinMatch).
+		if role == "match" then
+			joined[player] = true
+			addToMatch(player)
+		end
 		matchEvent:FireClient(player, infoFor(player))
 		sendDiplo(player)
 		if m.phase == "Play" then
@@ -820,6 +869,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			MatchSim.removePlayer(m, id)
 		end
 		nationOf[player] = nil
+		joined[player] = nil
 		limiters[player] = nil
 		travelling[player] = nil
 		rewards[player] = nil
@@ -980,6 +1030,12 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 					then payload.server
 					else nil
 				travelToMatch(player, server)
+			end
+			return
+		end
+		if kind == "joinMatch" then
+			if role == "combined" then
+				joinMatch(player)
 			end
 			return
 		end
@@ -1169,8 +1225,13 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			map = loadMap(mapId)
 		end
 		m = newMatch()
+		demoRunning = false
+		demoSpeed = 1
 		table.clear(nationOf)
 		for _, player in Players:GetPlayers() do
+			if not joined[player] then
+				continue -- §15л ч.7: в меню — зритель
+			end
 			local id = MatchSim.addPlayer(m, player.UserId, player.DisplayName)
 			if id ~= nil then
 				nationOf[player] = id
@@ -1190,12 +1251,17 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 	-- §15л ч.5 Хаб: показательный матч только из ботов (игроки — зрители), карты по кругу.
 	local demoIndex = 0
 	function startDemo()
-		local pool = Config.Hub.DemoMaps
-		demoIndex = demoIndex % #pool + 1
-		local mapId = pool[demoIndex]
-		if mapId ~= map.name and (Config.RealMaps :: any)[mapId] ~= nil then
-			map = loadMap(mapId)
+		-- Хаб — карты по кругу; «как раньше» (§15л ч.7) — на текущей карте (без перезагрузки у игроков).
+		if isHub then
+			local pool = Config.Hub.DemoMaps
+			demoIndex = demoIndex % #pool + 1
+			local mapId = pool[demoIndex]
+			if mapId ~= map.name and (Config.RealMaps :: any)[mapId] ~= nil then
+				map = loadMap(mapId)
+			end
 		end
+		demoRunning = true
+		demoSpeed = Config.Hub.DemoSpeed
 		m = newMatch()
 		m.targetNations = Config.Hub.DemoNations
 		m.forcedMode = "Ffa"
@@ -1206,7 +1272,6 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 	end
 
 	local step = 1 / Config.Sim.TickRate
-	local hubSpeed = if isHub then Config.Hub.DemoSpeed else 1
 	local acc = 0
 	local statsAcc = 0
 	local stabilityAcc = 0
@@ -1276,11 +1341,11 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				sendInfoAll()
 			end
 		else
-			acc += dt * devSpeed * soloSpeed * hubSpeed -- «Время ×5» панели разработчика: больше шагов симуляции за кадр
+			acc += dt * devSpeed * soloSpeed * demoSpeed -- «Время ×5» панели разработчика: больше шагов симуляции за кадр
 		end
 		statsAcc += dt
 		local steps = 0
-		while acc >= step and steps < Config.Net.MaxStepsPerFrame * devSpeed * soloSpeed * hubSpeed do
+		while acc >= step and steps < Config.Net.MaxStepsPerFrame * devSpeed * soloSpeed * demoSpeed do
 			acc -= step
 			steps += 1
 			local wasPlaying = m.phase == "Play"
@@ -1394,14 +1459,20 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				end
 			end
 		end
-		if acc > step * Config.Net.MaxStepsPerFrame * devSpeed * soloSpeed * hubSpeed then
+		if acc > step * Config.Net.MaxStepsPerFrame * devSpeed * soloSpeed * demoSpeed then
 			acc = 0 -- сервер не успевает: лучше пропустить время, чем копить отставание
 		end
 		-- Результаты показаны — новый матч на той же карте (её меняет голосование в лобби, §15к), из F4 или
 		-- настроек частного сервера (§5.4): все игроки снова в лобби.
 		if m.phase == "Over" and m.phaseLeft <= 0 then
-			if isHub then
-				startDemo() -- хаб (§15л ч.5): следующий показательный матч на следующей карте
+			local anyone = false
+			for player in joined do
+				if player.Parent ~= nil then
+					anyone = true
+				end
+			end
+			if isHub or (role == "combined" and not anyone) then
+				startDemo() -- показательный бой: хаб — следующая карта; «как раньше» — все в меню (§15л ч.7)
 			else
 				local nextMap = devMap or (if settings ~= nil then settings.map else nil) or map.name
 				devMap = nil
@@ -1419,7 +1490,8 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		end
 	end)
 
-	if isHub then
+	-- Хаб и «как раньше» (§15л ч.7): пока никто не нажал «В БОЙ» — показательный бой ботов за меню.
+	if isHub or role == "combined" then
 		startDemo()
 	end
 	print(

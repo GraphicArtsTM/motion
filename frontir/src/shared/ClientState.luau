@@ -61,6 +61,7 @@ export type Info = {
 	mode: ModeInfo?,
 	mapId: string?, -- карта матча (§5.2): другая — клиент загружает её заново
 	place: string?, -- §15л ч.3: роль сервера — "hub", "match" или "combined" (как раньше)
+	demo: boolean?, -- §15л ч.7: идёт показательный бой ботов (матча ещё нет)
 	mapVote: MapVoteInfo?, -- голосование за карту на экране итогов
 	flood: { step: number, nextIn: number }?, -- «Потоп» (§5.3): ступень воды и секунд (часы матча) до следующей
 	server: ServerInfo?, -- частный сервер (§5.4)
@@ -245,6 +246,7 @@ export type ClientState = {
 	floodAt: number, -- когда пришла ступень (часы клиента)
 	server: ServerInfo?, -- частный сервер (§5.4): настройки и владелец ли я
 	place: string, -- §15л ч.3: роль сервера ("hub", "match", "combined")
+	demo: boolean, -- §15л ч.7: за меню — показательный бой
 	servers: { ServerRow }, -- хаб: серверы матча
 	serversAt: number, -- когда пришёл список (часы клиента; для отсчётов)
 	travel: string?, -- переход в другое место: "going", "failed" или nil
@@ -374,6 +376,7 @@ function ClientState.new(width: number, height: number): ClientState
 		floodAt = 0,
 		server = nil,
 		place = "combined",
+		demo = false,
 		servers = {},
 		serversAt = 0,
 		travel = nil,
@@ -589,6 +592,7 @@ function ClientState.applyInfo(cs: ClientState, info: Info, now: number): boolea
 	cs.timeLimit = info.timeLimit or cs.timeLimit
 	cs.mapVote = info.mapVote
 	cs.place = info.place or cs.place
+	cs.demo = info.demo == true
 	cs.flood = info.flood
 	cs.server = info.server
 	cs.tutorialStep = info.tutorialStep

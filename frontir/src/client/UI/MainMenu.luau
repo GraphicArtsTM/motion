@@ -44,6 +44,8 @@ export type Actions = {
 	timeLeft: (sec: number) -> string, -- «N дн. N ч»
 	onOpenChanged: (open: boolean) -> (),
 	play: (serverId: string?) -> (), -- §15л ч.3: хаб — переход на сервер матча (nil — быстрый вход)
+	join: () -> (), -- §15л ч.7: «как раньше» — вступить в матч (держава — только по «В БОЙ»)
+	invite: () -> (), -- §15л ч.7: пригласить друзей (окно Roblox)
 	privateCreate: () -> (), -- §15л ч.4: свой матч — новый сервер для друзей
 	privateJoin: (code: string) -> (), -- §15л ч.4: войти в свой матч по коду
 }
@@ -399,6 +401,7 @@ function MainMenu.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, mapNa
 		{ key = "shop", icon = "shop", action = act.shop },
 		{ key = "wardrobe", icon = "wardrobe", action = act.wardrobe },
 		{ key = "arsenal", icon = "arsenal", action = act.arsenal },
+		{ key = "invite", icon = "people", action = act.invite },
 		{ key = "quests", icon = "quests", action = act.quests },
 		{ key = "ranks", icon = "", action = act.ranks },
 		{ key = "help", icon = "help", action = act.help },
@@ -444,6 +447,7 @@ function MainMenu.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, mapNa
 		if cs.place == "hub" then
 			act.play(nil) -- хаб: быстрый вход на сервер матча
 		else
+			act.join() -- §15л ч.7: матч начинается только по «В БОЙ»
 			setOpen(false)
 		end
 	end)
@@ -573,9 +577,7 @@ function MainMenu.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, mapNa
 		-- Хаб (§15л ч.3): список матчей вместо «Сейчас на сервере».
 		local hub = cs.place == "hub"
 		-- §15л ч.5: в хабе за меню — показательная война, затемнение светлее.
-		root.BackgroundTransparency = if hub then Config.Hub.ShadeAlpha else cfg.ShadeAlpha
-		-- §15л ч.5: в хабе за меню — показательная война, затемнение светлее.
-		root.BackgroundTransparency = if hub then Config.Hub.ShadeAlpha else cfg.ShadeAlpha
+		root.BackgroundTransparency = if hub or cs.demo then Config.Hub.ShadeAlpha else cfg.ShadeAlpha
 		matchList.Visible = hub
 		for _, g in { mapLabel, modeLabel, playersLabel, statusLabel, roster } :: { GuiObject } do
 			g.Visible = not hub
@@ -615,9 +617,20 @@ function MainMenu.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, mapNa
 			end
 			local me = if cs.myNation ~= nil then cs.nations[cs.myNation] else nil
 			local watching = (phase == "Play" or phase == "Over") and (me == nil or not me.alive)
+			-- §15л ч.7: за меню — показательный бой; матч начнётся по «В БОЙ».
+			if cs.demo then
+				watching = false
+				statusLabel.Text = t("menu.status.demo")
+				server.accent.Text = "● " .. t("menu.demo")
+				modeLabel.Text = string.format(t("menu.mode"), Strings.get("mode.Ffa", lang))
+				playersLabel.Text = t("menu.demoPlayers")
+				roster.Visible = false
+				phaseBar.frame.Visible = false
+			end
 			playButton.Text = "▶  " .. t(if watching then "menu.watch" else "menu.play")
-			playHint.Text = if watching
-				then t("menu.watchHint")
+			playHint.Text = if cs.demo
+				then t("menu.demoHint")
+				elseif watching then t("menu.watchHint")
 				elseif phase == "Lobby" or phase == "Waiting" then t("menu.playHint")
 				else ""
 			playHint.Visible = playHint.Text ~= ""

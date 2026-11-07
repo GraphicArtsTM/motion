@@ -21,6 +21,7 @@ local LocalizationService = game:GetService("LocalizationService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local SocialService = game:GetService("SocialService")
 local StarterGui = game:GetService("StarterGui")
 local TextChatService = game:GetService("TextChatService")
 local UserInputService = game:GetService("UserInputService")
@@ -229,8 +230,8 @@ local function runSession(mapId: string, resync: boolean)
 	local client: MatchClient.MatchClient? = nil
 	local throttle = AudioCues.newThrottle()
 	local function sound(name: string)
-		-- Хаб (§15л ч.5): за меню идёт показательный матч ботов — его события не звучат.
-		if cs.place == "hub" then
+		-- Хаб и показательный бой (§15л ч.5, ч.7): события матча ботов за меню не звучат.
+		if cs.place == "hub" or cs.demo then
 			return
 		end
 		if AudioCues.allow(throttle, name, os.clock()) then
@@ -556,6 +557,26 @@ local function runSession(mapId: string, resync: boolean)
 			cs.travelAt = os.clock()
 			send("play", { server = serverId })
 		end,
+		join = function()
+			if cs.place == "combined" and cs.myNation == nil then
+				send("joinMatch", {})
+			end
+		end,
+		invite = function()
+			-- §15л ч.7: окно приглашения Roblox (если игроку можно приглашать).
+			task.spawn(function()
+				local okCan, can = pcall(function(): boolean
+					return SocialService:CanSendGameInviteAsync(player)
+				end)
+				if okCan and can then
+					pcall(function()
+						SocialService:PromptGameInvite(player)
+					end)
+				else
+					hud.toast(Strings.get("menu.inviteNo", lang))
+				end
+			end)
+		end,
 		privateCreate = function()
 			cs.travel = "going"
 			cs.travelReason = nil
@@ -728,7 +749,7 @@ local function runSession(mapId: string, resync: boolean)
 	)
 	stackInto(
 		column("TopRight", 1, UDim.new(1, -12), Enum.HorizontalAlignment.Right),
-		{ "PlaceChip", "Leaders", "Auction", "Forces" }
+		{ "PlaceChip", "Incoming", "Leaders", "Auction", "Forces" }
 	)
 	-- Панель разработчика (F4) — только в Studio; создаётся в фоне (ждёт канал Remotes.Dev от сервера).
 	local devPanel: DevPanel.DevPanel? = nil
@@ -883,7 +904,7 @@ local function runSession(mapId: string, resync: boolean)
 			if cs.phase == "Over" and result ~= nil and resultFor ~= cs.matchId then
 				resultFor = cs.matchId
 				local name = AudioCues.result(result.winner, result.coWinners, cs.myNation)
-				if name ~= nil and cs.place ~= "hub" then
+				if name ~= nil and cs.place ~= "hub" and not cs.demo then
 					Audio.play(name)
 				end
 			end
@@ -1260,7 +1281,7 @@ local function runSession(mapId: string, resync: boolean)
 	local function tour(now: number)
 		local dt = math.min(0.1, now - tourLast)
 		tourLast = now
-		if cs.place ~= "hub" or (cs.phase ~= "Play" and cs.phase ~= "Over") then
+		if (cs.place ~= "hub" and not cs.demo) or (cs.phase ~= "Play" and cs.phase ~= "Over") then
 			return
 		end
 		local s = camera.state

@@ -942,6 +942,7 @@ local TABLE: { [string]: Entry } = {
 	["lobby.players"] = { ru = "В лобби:", en = "In lobby:" },
 	-- §15л ч.5 верхняя панель матча
 	["hud.matchTime"] = { ru = "ВРЕМЯ МАТЧА", en = "MATCH TIME" },
+	["hud.incoming"] = { ru = "НА ВАС НАПАДАЮТ", en = "UNDER ATTACK" },
 	["hud.timeOf"] = { ru = "из %d:%02d", en = "of %d:%02d" },
 	["hud.controlTitle"] = { ru = "КОНТРОЛЬ СУШИ", en = "LAND CONTROL" },
 	["hud.goal"] = { ru = "ЦЕЛЬ %d%%", en = "GOAL %d%%" },
@@ -1071,6 +1072,22 @@ local TABLE: { [string]: Entry } = {
 		en = "Could not connect — please try again.",
 	},
 	["menu.toHub"] = { ru = "Переход в главное меню…", en = "Going to the main menu…" },
+	-- §15л ч.7 матч по «В БОЙ», приглашение
+	["menu.demo"] = { ru = "ПОКАЗ", en = "SHOWCASE" },
+	["menu.status.demo"] = { ru = "Показательный бой ботов", en = "Bot showcase battle" },
+	["menu.demoPlayers"] = {
+		ru = "Матч начнётся, когда вы нажмёте «В БОЙ»",
+		en = "The match starts when you press «TO BATTLE»",
+	},
+	["menu.demoHint"] = {
+		ru = "Сначала лобби: голосование за режим и карту, выбор генерала — потом выбор старта.",
+		en = "Lobby first: vote for mode and map, pick a general — then choose your start.",
+	},
+	["menu.tile.invite"] = { ru = "ПРИГЛАСИТЬ", en = "INVITE" },
+	["menu.inviteNo"] = {
+		ru = "Приглашения сейчас недоступны",
+		en = "Invites are not available right now",
+	},
 	-- §15л ч.4 свой матч по коду
 	["menu.friends"] = { ru = "С ДРУЗЬЯМИ", en = "WITH FRIENDS" },
 	["menu.privateCreate"] = { ru = "Свой матч", en = "Own match" },

@@ -265,6 +265,12 @@ function MatchHud.new(
 	placeChip.AnchorPoint = Vector2.new(1, 0)
 	placeChip.Position = UDim2.new(1, -12, 0, GAP)
 	placeChip.Visible = false
+	-- §15л ч.7: «НА ВАС НАПАДАЮТ» — под местом справа: кто атакует и его сила.
+	local incoming = panel(gui, "Incoming")
+	incoming.AnchorPoint = Vector2.new(1, 0)
+	incoming.Position = UDim2.new(1, -12, 0, GAP)
+	incoming.Visible = false
+	local incomingText = richLabel(incoming, 14)
 	local placeText = richLabel(placeChip, 20)
 	placeText.FontFace = Theme.FontBold
 	placeText.TextColor3 = Theme.Colors.Gold
@@ -696,6 +702,32 @@ function MatchHud.new(
 		for j = k + 1, #rows do
 			rows[j].frame.Visible = false
 			rows[j].target = -1
+		end
+		-- Кто нападает на нас (§15л ч.7).
+		local lines: { string } = {}
+		if playing and stats ~= nil and me ~= nil and me.alive then
+			for _, a in stats.attacks do
+				if a.target == me.id and #lines < cfg.MaxAttacks then
+					table.insert(
+						lines,
+						string.format(
+							'<font color="%s">⚔</font> %s  <font color="%s">%s</font>',
+							alert,
+							escape(nationName(a.attacker)),
+							gold,
+							if a.power < 0 then "?" else Strings.formatInt(a.power)
+						)
+					)
+				end
+			end
+		end
+		incoming.Visible = #lines > 0
+		if #lines > 0 then
+			incomingText.Text = string.format(
+				'<font color="%s"><b>%s</b></font>\n',
+				alert,
+				Strings.get("hud.incoming", lang)
+			) .. table.concat(lines, "\n")
 		end
 	end
 
