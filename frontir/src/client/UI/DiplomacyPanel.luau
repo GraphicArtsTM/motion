@@ -7,6 +7,7 @@
 	  объявить войну (окно WarPanel), независимость (если вы вассал). Внизу — история договоров матча.
 	- Входящее предложение или требование — окно с таймером: принять / отказать (у требования — «Отдать»).
 	Все решения — на сервере; клиент шлёт намерения offer / offerReply / breakTreaty / rebel.
+	§15л ч.10: витрина CardKit — державы карточками, выбранная — портрет её цветом и кнопки по группам.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -20,6 +21,8 @@ local NationColors = require(Shared:WaitForChild("NationColors"))
 local Provinces = require(Shared:WaitForChild("Provinces"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
+local CardKit = require(script.Parent:WaitForChild("CardKit"))
+local MenuKit = require(script.Parent:WaitForChild("MenuKit"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
@@ -37,8 +40,6 @@ export type DiplomacyPanel = {
 local DiplomacyPanel = {}
 
 local BUTTON = Config.Render.MinTouchTargetPx
-local WIDTH = 560
-local ROW_H = 30
 
 local function hex(c: Color3): string
 	return string.format("#%02x%02x%02x", math.round(c.R * 255), math.round(c.G * 255), math.round(c.B * 255))
@@ -191,58 +192,95 @@ function DiplomacyPanel.new(
 	placeMain()
 
 	-- Окно.
-	local window = frame(gui, "Diplomacy")
-	window.AnchorPoint = Vector2.new(0.5, 0.5)
-	window.Position = UDim2.fromScale(0.5, 0.5)
-	window.Size = UDim2.fromOffset(WIDTH, 0)
-	window.AutomaticSize = Enum.AutomaticSize.Y
-	window.ZIndex = 5
-	local scale = Instance.new("UIScale")
-	scale.Parent = window
-	local function fit()
-		local s = gui.AbsoluteSize
-		scale.Scale = math.clamp(math.min(s.X / (WIDTH + 40), s.Y / 560), 0.55, 1)
+	-- §15л ч.10: витрина CardKit — слева державы карточками (цвет, имя, отношение, сила), справа выбранная:
+	-- «портрет» её цветом (ItemArt nation.<цвет>), генерал, кнопки по группам «Договоры», «Помощь», «Война».
+	local function t(key: string): string
+		return Strings.get(key, lang)
 	end
-	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fit)
-	fit()
-
-	local header = row(window, 1)
-	local title = label(header, 18, 1)
-	title.Size = UDim2.new(1, -BUTTON - 6, 0, BUTTON)
-	title.AutomaticSize = Enum.AutomaticSize.None
-	title.FontFace = Theme.FontBold
-	title.TextColor3 = Theme.Colors.Gold
-	title.Text = Strings.get("diplo.title", lang)
-	local closeButton = button(header, "×", BUTTON)
-	closeButton.LayoutOrder = 2
-
+	local win = CardKit.window(
+		gui,
+		"Diplomacy",
+		t("diplo.titleBig"),
+		t("diplo.subtitle"),
+		960,
+		660,
+		{},
+		{ main = "list" }
+	)
+	local window = win.frame
+	window.ZIndex = 5
+	local closeButton = win.close
+	local page = win.page("main")
+	local cols = Instance.new("Frame")
+	cols.BackgroundTransparency = 1
+	cols.Size = UDim2.new(1, 0, 0, 560)
+	cols.Parent = page
 	local list = Instance.new("ScrollingFrame")
 	list.Name = "Nations"
-	list.BackgroundColor3 = Theme.Colors.Backdrop
-	list.BackgroundTransparency = 0.3
+	list.BackgroundTransparency = 1
 	list.BorderSizePixel = 0
-	list.Size = UDim2.new(1, 0, 0, 7 * ROW_H)
-	list.CanvasSize = UDim2.fromOffset(0, 0)
+	list.Size = UDim2.new(0.4, -8, 1, 0)
+	list.CanvasSize = UDim2.new()
 	list.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	list.ScrollBarThickness = 6
-	list.LayoutOrder = 2
-	list.Parent = window
-	local listLayout = Instance.new("UIListLayout")
-	listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	listLayout.Parent = list
-
-	local selectedText = label(window, 15, 3)
-	local actions = row(window, 4, true)
-	local hint = label(window, 12, 5)
-	hint.TextColor3 = Theme.Colors.Muted
-	hint.Text = Strings.get("diplo.act.hint", lang) .. "\n" .. Strings.get("diplo.taxHint", lang)
-	local historyText = label(window, 12, 6)
+	list.ScrollBarImageColor3 = Theme.Colors.PanelBorder
+	list.Parent = cols
+	MenuKit.list(list, 6)
+	MenuKit.pad(list, 2, 2)
+	local detail = Instance.new("Frame")
+	detail.Name = "Detail"
+	detail.AnchorPoint = Vector2.new(1, 0)
+	detail.Position = UDim2.fromScale(1, 0)
+	detail.Size = UDim2.new(0.6, -8, 1, 0)
+	detail.BackgroundColor3 = Theme.Colors.Backdrop
+	detail.BorderSizePixel = 0
+	detail.Parent = cols
+	MenuKit.stroke(detail, Theme.Colors.PanelBorder, 2)
+	local portraitHost = Instance.new("Frame")
+	portraitHost.BackgroundTransparency = 1
+	portraitHost.Position = UDim2.fromOffset(12, 12)
+	portraitHost.Size = UDim2.fromOffset(210, 140)
+	portraitHost.Parent = detail
+	local portrait: ImageLabel? = nil
+	local portraitColor = -1
+	local info = MenuKit.box(detail, "Info")
+	info.Position = UDim2.fromOffset(234, 12)
+	info.AutomaticSize = Enum.AutomaticSize.Y
+	info.Size = UDim2.new(1, -246, 0, 0)
+	MenuKit.list(info, 4)
+	local selName = MenuKit.label(info, "", 22, Theme.Colors.Gold, true, 1)
+	selName.RichText = true
+	local selectedText = MenuKit.wrapLabel(info, "", 14, Theme.Colors.Text, 2)
+	local selPower = MenuKit.label(info, "", 13, Theme.Colors.Muted, false, 3)
+	local actionsBox = MenuKit.box(detail, "Actions")
+	actionsBox.Position = UDim2.fromOffset(12, 164)
+	actionsBox.Size = UDim2.new(1, -24, 0, 0)
+	actionsBox.AutomaticSize = Enum.AutomaticSize.Y
+	MenuKit.list(actionsBox, 6)
+	local function group(key: string, order: number): Frame
+		MenuKit.label(actionsBox, t(key), 12, Theme.Colors.Sky, true, order)
+		local g = MenuKit.box(actionsBox, "Group", order + 1)
+		g.Size = UDim2.fromScale(1, 0)
+		g.AutomaticSize = Enum.AutomaticSize.Y
+		local l = MenuKit.list(g, 6, true)
+		l.Wraps = true
+		return g
+	end
+	local treaties = group("diplo.groupTreaty", 1)
+	local helpGroup = group("diplo.groupHelp", 3)
+	local warGroup = group("diplo.groupWar", 5)
+	MenuKit.wrapLabel(actionsBox, t("diplo.act.hint") .. "\n" .. t("diplo.taxHint"), 11, Theme.Colors.Muted, 8)
+	local historyText = MenuKit.wrapLabel(actionsBox, "", 12, Theme.Colors.Text, 9)
 
 	local selected: number? = nil
 	local demandTarget: number? = nil
+	local drawWindow: () -> ()
 
-	local function act(key: string, handler: () -> ()): TextButton
-		local b = button(actions, Strings.get("diplo.act." .. key, lang), 128)
+	local function act(key: string, handler: () -> (), parent: Frame, style: MenuKit.ButtonStyle?): TextButton
+		local b = CardKit.button(parent, t("diplo.act." .. key), style or "normal")
+		b.Size = UDim2.fromOffset(172, MenuKit.Touch)
+		b.TextSize = 13
+		b.RichText = true
 		Session.connect(b.Activated, handler)
 		return b
 	end
@@ -253,52 +291,27 @@ function DiplomacyPanel.new(
 	end
 	local pact3Button = act("pact3", function()
 		offer("pact3")
-	end)
+	end, treaties, "good")
 	local pact5Button = act("pact5", function()
 		offer("pact5")
-	end)
+	end, treaties, "good")
 	local allianceButton = act("alliance", function()
 		offer("alliance")
-	end)
-	local breakButton = act("break", function()
-		if selected ~= nil and playing() then
-			send("breakTreaty", { target = selected })
-		end
-	end)
-	local demandButton = act("demand", function()
-		if selected ~= nil and playing() then
-			demandTarget = selected
-			window.Visible = false
-			toast(string.format(Strings.get("diplo.demandHint", lang), nameOf(selected)))
-		end
-	end)
-	local warButton = act("war", function()
-		if selected ~= nil and playing() then
-			window.Visible = false
-			declareWar(selected)
-		end
-	end)
-	warButton.TextColor3 = Theme.Colors.Alert
-	-- Разведка (§6.11а): мощь цели видна Intel.DurationSec; цена и проверки — на сервере.
-	local intelButton = act("intel", function()
-		if selected ~= nil and playing() then
-			send("intel", { target = selected })
-		end
-	end)
-	intelButton.Text = string.format(
-		Strings.get("diplo.act.intel", lang),
-		Strings.formatInt(Config.Intel.Cost),
-		Config.Intel.DurationSec
-	)
+	end, treaties, "primary")
 	local tradeButton = act("trade", function()
 		offer("trade")
-	end)
+	end, treaties)
 	local embargoButton = act("embargo", function()
 		local me = cs.myNation
 		if selected ~= nil and me ~= nil and playing() then
 			send("embargo", { target = selected, on = not ClientState.embargoBy(cs, me, selected) })
 		end
-	end)
+	end, treaties)
+	local breakButton = act("break", function()
+		if selected ~= nil and playing() then
+			send("breakTreaty", { target = selected })
+		end
+	end, treaties, "danger")
 	-- Быстрые переводы (§8.2): налог и лимит проверяет сервер.
 	local quick = Config.Trade.QuickAmounts
 	local function give(money: number, oil: number, people: number)
@@ -308,52 +321,95 @@ function DiplomacyPanel.new(
 	end
 	local moneyButton = act("giveMoney", function()
 		give(quick.money, 0, 0)
-	end)
-	moneyButton.Text = string.format(Strings.get("diplo.act.giveMoney", lang), Strings.formatInt(quick.money))
+	end, helpGroup)
+	moneyButton.Text = string.format(t("diplo.act.giveMoney"), Strings.formatInt(quick.money))
 	local oilButton = act("giveOil", function()
 		give(0, quick.oil, 0)
-	end)
-	oilButton.Text = string.format(Strings.get("diplo.act.giveOil", lang), Strings.formatInt(quick.oil))
+	end, helpGroup)
+	oilButton.Text = string.format(t("diplo.act.giveOil"), Strings.formatInt(quick.oil))
 	local peopleButton = act("givePeople", function()
 		give(0, 0, quick.people)
-	end)
-	peopleButton.Text = string.format(Strings.get("diplo.act.givePeople", lang), Strings.formatInt(quick.people))
+	end, helpGroup)
+	peopleButton.Text = string.format(t("diplo.act.givePeople"), Strings.formatInt(quick.people))
+	local demandButton = act("demand", function()
+		if selected ~= nil and playing() then
+			demandTarget = selected
+			window.Visible = false
+			toast(string.format(t("diplo.demandHint"), nameOf(selected)))
+		end
+	end, warGroup)
+	-- Разведка (§6.11а): мощь цели видна Intel.DurationSec; цена и проверки — на сервере.
+	local intelButton = act("intel", function()
+		if selected ~= nil and playing() then
+			send("intel", { target = selected })
+		end
+	end, warGroup)
+	intelButton.Text =
+		string.format(t("diplo.act.intel"), Strings.formatInt(Config.Intel.Cost), Config.Intel.DurationSec)
+	local warButton = act("war", function()
+		if selected ~= nil and playing() then
+			window.Visible = false
+			declareWar(selected)
+		end
+	end, warGroup, "danger")
 	local rebelButton = act("rebel", function()
 		if playing() then
 			send("rebel", {})
 		end
-	end)
-	rebelButton.TextColor3 = Theme.Colors.Gold
+	end, warGroup, "primary")
 
-	-- Строки списка держав (по одной на державу, переиспользуются).
-	local rows: { [number]: TextButton } = {}
-	local function rowFor(id: number): TextButton
-		local existing: TextButton? = rows[id]
+	-- Карточки держав в списке (по одной на державу, переиспользуются).
+	type NationRow = {
+		button: TextButton,
+		edge: UIStroke,
+		swatch: Frame,
+		name: TextLabel,
+		rel: TextLabel,
+		power: TextLabel,
+	}
+	local rows: { [number]: NationRow } = {}
+	local function rowFor(id: number): NationRow
+		local existing = rows[id]
 		if existing ~= nil then
 			return existing
 		end
-		do
-			local nb = Instance.new("TextButton")
-			nb.Size = UDim2.new(1, -8, 0, ROW_H)
-			nb.BackgroundColor3 = Theme.Colors.PanelBg
-			nb.BackgroundTransparency = 1
-			nb.BorderSizePixel = 0
-			nb.AutoButtonColor = true
-			nb.RichText = true
-			nb.FontFace = Theme.Font
-			nb.TextSize = 14
-			nb.TextColor3 = Theme.Colors.Text
-			nb.TextXAlignment = Enum.TextXAlignment.Left
-			local pad = Instance.new("UIPadding")
-			pad.PaddingLeft = UDim.new(0, 6)
-			pad.Parent = nb
-			Session.connect(nb.Activated, function()
-				selected = id
-			end)
-			nb.Parent = list
-			rows[id] = nb
-			return nb
-		end
+		local nb = Instance.new("TextButton")
+		nb.Text = ""
+		nb.Size = UDim2.new(1, -10, 0, 58)
+		nb.BackgroundColor3 = Theme.Colors.Backdrop
+		nb.BorderSizePixel = 0
+		nb.AutoButtonColor = true
+		nb.Parent = list
+		local edge = MenuKit.stroke(nb, Theme.Colors.PanelBorder, 2)
+		local swatch = Instance.new("Frame")
+		swatch.Position = UDim2.fromOffset(10, 11)
+		swatch.Size = UDim2.fromOffset(36, 36)
+		swatch.BorderSizePixel = 0
+		swatch.Parent = nb
+		MenuKit.stroke(swatch, Theme.color("Ink"), 2)
+		local name = MenuKit.label(nb, "", 15, Theme.Colors.Text, true)
+		name.AutomaticSize = Enum.AutomaticSize.None
+		name.Position = UDim2.fromOffset(56, 8)
+		name.Size = UDim2.new(1, -150, 0, 18)
+		name.TextTruncate = Enum.TextTruncate.AtEnd
+		local rel = MenuKit.label(nb, "", 12, Theme.Colors.Text)
+		rel.AutomaticSize = Enum.AutomaticSize.None
+		rel.Position = UDim2.fromOffset(56, 30)
+		rel.Size = UDim2.new(1, -64, 0, 18)
+		rel.TextTruncate = Enum.TextTruncate.AtEnd
+		local power = MenuKit.label(nb, "", 12, Theme.Colors.Muted, true)
+		power.AutomaticSize = Enum.AutomaticSize.None
+		power.AnchorPoint = Vector2.new(1, 0)
+		power.Position = UDim2.new(1, -10, 0, 9)
+		power.Size = UDim2.fromOffset(84, 16)
+		power.TextXAlignment = Enum.TextXAlignment.Right
+		local row: NationRow = { button = nb, edge = edge, swatch = swatch, name = name, rel = rel, power = power }
+		Session.connect(nb.Activated, function()
+			selected = id
+			drawWindow()
+		end)
+		rows[id] = row
+		return row
 	end
 
 	-- Отношение державы id к нам (текст).
@@ -432,7 +488,7 @@ function DiplomacyPanel.new(
 		return string.format(Strings.get(key, lang), nameOf(e.a), nameOf(e.b))
 	end
 
-	local function drawWindow()
+	drawWindow = function()
 		local me = cs.myNation
 		-- Список: живые державы по суше.
 		local order: { { id: number, cells: number } } = {}
@@ -452,39 +508,28 @@ function DiplomacyPanel.new(
 		for k, entry in order do
 			local id = entry.id
 			shown[id] = true
-			local b = rowFor(id)
-			b.LayoutOrder = k
-			b.Visible = true
-			b.BackgroundTransparency = if id == selected then 0.4 else 1
+			local r = rowFor(id)
+			r.button.LayoutOrder = k
+			r.button.Visible = true
+			local n = cs.nations[id]
+			local c = if n.colorIndex >= 1 then NationColors.Colors[n.colorIndex] else nil
+			r.swatch.BackgroundColor3 = if c ~= nil then Color3.fromRGB(c.r, c.g, c.b) else Theme.Colors.Gold
+			r.edge.Color = if id == selected then Theme.Colors.Gold else Theme.Colors.PanelBorder
 			local traitor = if ClientState.isTraitor(cs, id, now, ClientState.simRate(cs))
-				then string.format(' <font color="%s">⚠ %s</font>', alert, Strings.get("diplo.traitor", lang))
+				then string.format(' <font color="%s">⚠</font>', alert)
 				else ""
-			b.Text = if id == me
-				then string.format(
-					'<font color="%s">■</font> %s <font color="%s">(%s)</font>%s',
-					nationColor(id),
-					nameOf(id),
-					gold,
-					Strings.get("diplo.you", lang),
-					traitor
-				)
-				else string.format(
-					'<font color="%s">■</font> %s%s  ·  %s%s  <font size="12" color="%s">%s</font>',
-					nationColor(id),
-					nameOf(id),
-					traitor,
-					relation(id),
-					tradeTags(id),
-					muted,
-					string.format(
-						Strings.get("diplo.power", lang),
-						if powerOf(id) < 0 then "?" else approx(powerOf(id))
-					)
-				)
+			r.name.Text = escape(nameOf(id)) .. traitor
+			if id == me then
+				r.rel.Text = string.format('<font color="%s">%s</font>', gold, t("diplo.you"))
+				r.power.Text = ""
+			else
+				r.rel.Text = relation(id) .. tradeTags(id)
+				r.power.Text = string.format(t("diplo.power"), if powerOf(id) < 0 then "?" else approx(powerOf(id)))
+			end
 		end
-		for id, b in rows do
+		for id, r in rows do
 			if not shown[id] then
-				b.Visible = false
+				r.button.Visible = false
 			end
 		end
 		-- Генерал державы (§6.15) — виден всем.
@@ -504,9 +549,31 @@ function DiplomacyPanel.new(
 		local valid = target ~= nil and target ~= me and cs.nations[target] ~= nil and cs.nations[target].alive
 		local t = if valid and me ~= nil and target ~= nil then ClientState.treatyBetween(cs, me, target) else nil
 		local lord = if me ~= nil then ClientState.overlordOf(cs, me) else nil
+		-- Портрет выбранной державы её цветом (картинка пересоздаётся, когда сменился цвет).
+		local ci = if valid and target ~= nil then cs.nations[target].colorIndex else 0
+		if ci ~= portraitColor then
+			portraitColor = ci
+			local old = portrait
+			if old ~= nil then
+				old:Destroy()
+				portrait = nil
+			end
+			if ci >= 1 then
+				local art = CardKit.art(portraitHost, "nation." .. ci, 210, 140)
+				portrait = art
+			end
+		end
+		selName.Text = if valid and target ~= nil then escape(nameOf(target)) else ""
 		selectedText.Text = if valid and target ~= nil
-			then nameOf(target) .. "  ·  " .. relation(target) .. commanderOf(target)
+			then relation(target) .. tradeTags(target) .. commanderOf(target)
 			else string.format('<font color="%s">%s</font>', muted, Strings.get("diplo.pick", lang))
+		selPower.Text = if valid and target ~= nil
+			then string.format(
+				Strings.get("diplo.power", lang),
+				if powerOf(target) < 0 then "?" else approx(powerOf(target))
+			)
+			else ""
+		actionsBox.Visible = valid or (me ~= nil and ClientState.overlordOf(cs, me) ~= nil)
 		for _, b in { pact3Button, pact5Button, allianceButton, demandButton, warButton, tradeButton } do
 			b.Visible = valid
 		end

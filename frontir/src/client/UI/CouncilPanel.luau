@@ -5,6 +5,7 @@
 	  голос (можно переголосовать, пока идёт голосование).
 	- Действуют резолюции — строка под баннером: «Действует: Перемирие (0:42)».
 	Все решения — на сервере: клиент шлёт намерение vote.
+	§15л ч.10: резолюции — карточки с картинками ItemArt, полосой доли голосов и кнопкой «Голосовать».
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -15,6 +16,8 @@ local Config = require(Shared:WaitForChild("Config"))
 local NationColors = require(Shared:WaitForChild("NationColors"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
+local CardKit = require(script.Parent:WaitForChild("CardKit"))
+local MenuKit = require(script.Parent:WaitForChild("MenuKit"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
@@ -26,8 +29,6 @@ export type CouncilPanel = {
 }
 
 local CouncilPanel = {}
-
-local BUTTON = Config.Render.MinTouchTargetPx
 
 local function hex(c: Color3): string
 	return string.format("#%02x%02x%02x", math.round(c.R * 255), math.round(c.G * 255), math.round(c.B * 255))
@@ -41,94 +42,100 @@ function CouncilPanel.new(
 ): CouncilPanel
 	local muted, gold = hex(Theme.Colors.Muted), hex(Theme.Colors.Gold)
 
+	-- §15л ч.10: голосование — карточки резолюций (картинка ItemArt, что делает, полоса голосов, «Голосовать»).
+	local CARD_W = 196
+	local WIDTH = Config.Council.Options * CARD_W + (Config.Council.Options - 1) * 10 + 28
 	local window = Instance.new("Frame")
 	window.Name = "Council"
 	window.AnchorPoint = Vector2.new(0.5, 0)
-	window.Position = UDim2.new(0.5, 0, 0, 120)
-	window.Size = UDim2.fromOffset(420, 0)
+	window.Position = UDim2.new(0.5, 0, 0, 150)
+	window.Size = UDim2.fromOffset(WIDTH, 0)
 	window.AutomaticSize = Enum.AutomaticSize.Y
 	window.BackgroundColor3 = Theme.Colors.PanelBg
-	window.BackgroundTransparency = 0.05
 	window.BorderSizePixel = 0
 	window.Visible = false
 	window.ZIndex = 4
 	window.Parent = gui
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = Theme.Colors.Gold
-	stroke.Thickness = 2
-	stroke.Parent = window
-	local pad = Instance.new("UIPadding")
-	pad.PaddingLeft = UDim.new(0, 10)
-	pad.PaddingRight = UDim.new(0, 10)
-	pad.PaddingTop = UDim.new(0, 8)
-	pad.PaddingBottom = UDim.new(0, 10)
-	pad.Parent = window
-	local layout = Instance.new("UIListLayout")
-	layout.SortOrder = Enum.SortOrder.LayoutOrder
-	layout.Padding = UDim.new(0, 6)
-	layout.Parent = window
+	MenuKit.stroke(window, Theme.Colors.Gold, 2)
+	MenuKit.pad(window, 14, 10)
+	MenuKit.list(window, 8)
 	local scale = Instance.new("UIScale")
 	scale.Parent = window
 	local function fit()
-		scale.Scale = math.clamp(gui.AbsoluteSize.X / 460, 0.6, 1)
+		scale.Scale = math.clamp((gui.AbsoluteSize.X - 24) / WIDTH, 0.5, 1)
 	end
 	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fit)
 	fit()
-
-	local title = Instance.new("TextLabel")
-	title.BackgroundTransparency = 1
-	title.RichText = true
-	title.Size = UDim2.new(1, 0, 0, 22)
-	title.FontFace = Theme.FontBold
-	title.TextSize = 17
-	title.TextColor3 = Theme.Colors.Gold
-	title.TextXAlignment = Enum.TextXAlignment.Left
-	title.LayoutOrder = 1
-	title.Parent = window
-
+	local title = MenuKit.label(window, "", 18, Theme.Colors.Gold, true, 1)
+	local timerBar = MenuKit.bar(window, 6, Theme.Colors.Gold, 2)
+	local cardsRow = MenuKit.box(window, "Options", 3)
+	MenuKit.list(cardsRow, 10, true)
 	local myVote = 0
-	local options: { TextButton } = {}
+	type Option = {
+		frame: Frame,
+		edge: UIStroke,
+		art: ImageLabel?,
+		kind: string,
+		name: TextLabel,
+		hint: TextLabel,
+		bar: MenuKit.Bar,
+		votes: TextLabel,
+		vote: TextButton,
+	}
+	local options: { Option } = {}
 	for k = 1, Config.Council.Options do
-		local b = Instance.new("TextButton")
-		b.Size = UDim2.new(1, 0, 0, BUTTON + 6)
-		b.BackgroundColor3 = Theme.Colors.PanelBg
-		b.BorderSizePixel = 0
-		b.AutoButtonColor = true
-		b.RichText = true
-		b.TextWrapped = true
-		b.FontFace = Theme.FontBold
-		b.TextSize = 15
-		b.TextColor3 = Theme.Colors.Text
-		b.TextXAlignment = Enum.TextXAlignment.Left
-		b.LayoutOrder = 1 + k
-		local bpad = Instance.new("UIPadding")
-		bpad.PaddingLeft = UDim.new(0, 8)
-		bpad.Parent = b
-		local bstroke = Instance.new("UIStroke")
-		bstroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-		bstroke.Color = Theme.Colors.PanelBorder
-		bstroke.Thickness = Theme.BorderPx
-		bstroke.Parent = b
-		Session.connect(b.Activated, function()
+		local f = Instance.new("Frame")
+		f.LayoutOrder = k
+		f.Size = UDim2.fromOffset(CARD_W, 252)
+		f.BackgroundColor3 = Theme.Colors.Backdrop
+		f.BorderSizePixel = 0
+		f.Parent = cardsRow
+		local edge = MenuKit.stroke(f, Theme.Colors.PanelBorder, 2)
+		local name = MenuKit.label(f, "", 15, Theme.Colors.Text, true)
+		name.AutomaticSize = Enum.AutomaticSize.None
+		name.Position = UDim2.fromOffset(8, 104)
+		name.Size = UDim2.fromOffset(CARD_W - 16, 18)
+		name.TextTruncate = Enum.TextTruncate.AtEnd
+		local hint = MenuKit.label(f, "", 11, Theme.Colors.Muted)
+		hint.AutomaticSize = Enum.AutomaticSize.None
+		hint.Position = UDim2.fromOffset(8, 124)
+		hint.Size = UDim2.fromOffset(CARD_W - 16, 44)
+		hint.TextWrapped = true
+		hint.TextYAlignment = Enum.TextYAlignment.Top
+		local barHost = Instance.new("Frame")
+		barHost.BackgroundTransparency = 1
+		barHost.Position = UDim2.fromOffset(8, 172)
+		barHost.Size = UDim2.fromOffset(CARD_W - 16, 8)
+		barHost.Parent = f
+		local bar = MenuKit.bar(barHost, 8, Theme.Colors.Sky)
+		local votes = MenuKit.label(f, "", 12, Theme.Colors.Sky, true)
+		votes.Position = UDim2.fromOffset(8, 182)
+		local vote = MenuKit.button(f, "", "good", MenuKit.Touch)
+		vote.AnchorPoint = Vector2.new(0, 1)
+		vote.Position = UDim2.new(0, 8, 1, -8)
+		vote.Size = UDim2.new(1, -16, 0, MenuKit.Touch)
+		vote.TextSize = 15
+		local opt: Option = {
+			frame = f,
+			edge = edge,
+			art = nil,
+			kind = "",
+			name = name,
+			hint = hint,
+			bar = bar,
+			votes = votes,
+			vote = vote,
+		}
+		Session.connect(vote.Activated, function()
 			local me = if cs.myNation ~= nil then cs.nations[cs.myNation] else nil
 			if cs.diplo.council.vote ~= nil and cs.phase == "Play" and me ~= nil and me.alive then
 				myVote = k
 				send("vote", { option = k })
 			end
 		end)
-		b.Parent = window
-		table.insert(options, b)
+		table.insert(options, opt)
 	end
-	local footer = Instance.new("TextLabel")
-	footer.BackgroundTransparency = 1
-	footer.RichText = true
-	footer.Size = UDim2.new(1, 0, 0, 16)
-	footer.FontFace = Theme.Font
-	footer.TextSize = 12
-	footer.TextColor3 = Theme.Colors.Muted
-	footer.TextXAlignment = Enum.TextXAlignment.Left
-	footer.LayoutOrder = 9
-	footer.Parent = window
+	local footer = MenuKit.label(window, "", 12, Theme.Colors.Muted, false, 9)
 
 	-- Действующие резолюции — строка под баннером.
 	local activeLine = Instance.new("TextLabel")
@@ -181,21 +188,35 @@ function CouncilPanel.new(
 					muted,
 					string.format(Strings.get("council.vote", lang), math.ceil(left))
 				)
-			for k, b in options do
+			local total = 0
+			for k = 1, #options do
+				total += vote.tallies[k] or 0
+			end
+			timerBar.set(math.clamp(left / math.max(1, Config.Council.VoteSec / cs.speed), 0, 1))
+			for k, o in options do
 				local option = vote.options[k]
-				b.Visible = option ~= nil
+				o.frame.Visible = option ~= nil
 				if option ~= nil then
+					if o.kind ~= option then
+						o.kind = option
+						local old = o.art
+						if old ~= nil then
+							old:Destroy()
+						end
+						local art = CardKit.art(o.frame, "council." .. option, CARD_W - 12, 92)
+						art.Position = UDim2.fromOffset(6, 6)
+						o.art = art
+					end
 					local count = vote.tallies[k] or 0
-					b.Text = string.format(
-						'%s%s <font size="12" color="%s">· %s</font>\n<font size="12" color="%s">%s</font>',
-						if myVote == k then "▶ " else "",
-						Strings.get("council.res." .. option, lang),
-						gold,
-						string.format(Strings.get("council.votes", lang), count),
-						muted,
-						Strings.get("council.res." .. option .. ".hint", lang)
-					)
-					b.BackgroundTransparency = if myVote == k then 0.3 else 0
+					o.name.Text = Strings.get("council.res." .. option, lang)
+					o.hint.Text = Strings.get("council.res." .. option .. ".hint", lang)
+					o.bar.set(count / math.max(1, total))
+					o.votes.Text = string.format(Strings.get("council.votes", lang), count)
+					local mine = myVote == k
+					o.vote.Text = Strings.get(if mine then "council.myVote" else "council.voteBtn", lang)
+					o.vote.BackgroundColor3 = Theme.color(if mine then "Gold" else "Forest")
+					o.vote.TextColor3 = Theme.color(if mine then "Ink" else "White")
+					o.edge.Color = if mine then Theme.Colors.Gold else Theme.Colors.PanelBorder
 				end
 			end
 			footer.Text = if myVote > 0 then Strings.get("council.voted", lang) else ""

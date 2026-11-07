@@ -25,6 +25,8 @@ local Provinces = require(Shared:WaitForChild("Provinces"))
 local Strings = require(Shared:WaitForChild("Strings"))
 local Types = require(Shared:WaitForChild("Types"))
 
+local CardKit = require(script.Parent:WaitForChild("CardKit"))
+local MenuKit = require(script.Parent:WaitForChild("MenuKit"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
 local BuildGhost = require(script.Parent.Parent:WaitForChild("Render"):WaitForChild("BuildGhost"))
@@ -54,7 +56,7 @@ export type BuildPanel = {
 local BuildPanel = {}
 
 local BUTTON = Config.Render.MinTouchTargetPx
-local CARD_W, CARD_H = 236, 56
+local ITEM_W, ITEM_H = 120, 152 -- §15л ч.10: карточка здания в меню стройки
 local ICON_SCALE = 3 -- значок 12×12 → 36 px (§15д ч.4)
 local KEYS = {
 	Enum.KeyCode.One,
@@ -68,10 +70,6 @@ local KEYS = {
 	Enum.KeyCode.Nine,
 	Enum.KeyCode.Zero,
 }
-
-local function hex(c: Color3): string
-	return string.format("#%02x%02x%02x", math.round(c.R * 255), math.round(c.G * 255), math.round(c.B * 255))
-end
 
 local function button(parent: Instance, width: number, height: number): TextButton
 	local b = Instance.new("TextButton")
@@ -139,7 +137,6 @@ function BuildPanel.new(
 	provinces: Provinces.ProvinceSet,
 	ghost: BuildGhost.BuildGhost
 ): BuildPanel
-	local gold, muted = hex(Theme.Colors.Gold), hex(Theme.Colors.Muted)
 	local selected: Types.BuildingKind? = nil
 	local pending: number? = nil -- телефон: клетка, где стоит призрак (второе нажатие туда — стройка)
 	local lastHover: number? = nil
@@ -306,47 +303,52 @@ function BuildPanel.new(
 	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), placeMain)
 	placeMain()
 
+	-- §15л ч.10: меню стройки — карточки зданий (картинка ItemArt, название, цена, подсказка, клавиша).
+	local COLS = 7
+	local MENU_W = COLS * ITEM_W + (COLS - 1) * 6 + 24
 	local menu = Instance.new("Frame")
 	menu.Name = "BuildMenu"
 	menu.BackgroundColor3 = Theme.Colors.PanelBg
-	menu.BackgroundTransparency = 0.15
 	menu.BorderSizePixel = 0
-	-- Две колонки: меню не выше экрана телефона. §15л ч.2: меню — прямо в HUD снизу по центру (раньше лежало
-	-- внутри кнопки, а кнопку док прячет — меню не было видно); над командной полосой его ставит Main.client.
+	-- §15л ч.2: меню — прямо в HUD снизу по центру; над командной полосой его ставит Main.client.
 	menu.AnchorPoint = Vector2.new(0.5, 1)
 	menu.Position = UDim2.new(0.5, 0, 1, -110)
-	menu.Size = UDim2.fromOffset(2 * CARD_W + 4 + 16, 0)
+	menu.Size = UDim2.fromOffset(MENU_W, 0)
 	menu.AutomaticSize = Enum.AutomaticSize.Y
 	menu.Visible = false
 	menu.Parent = gui
-	Theme.decorate(menu)
-	local menuPad = Instance.new("UIPadding")
-	for _, side in { "PaddingLeft", "PaddingRight", "PaddingTop", "PaddingBottom" } do
-		(menuPad :: any)[side] = UDim.new(0, 8)
+	MenuKit.stroke(menu, Theme.Colors.PanelBorder, 2)
+	MenuKit.pad(menu, 12, 10)
+	MenuKit.list(menu, 8)
+	local menuScale = Instance.new("UIScale")
+	menuScale.Parent = menu
+	local function fitMenu()
+		menuScale.Scale = math.clamp((gui.AbsoluteSize.X - 24) / MENU_W, 0.45, 1)
 	end
-	menuPad.Parent = menu
-	local layout = Instance.new("UIGridLayout")
-	layout.CellSize = UDim2.fromOffset(CARD_W, CARD_H)
-	layout.CellPadding = UDim2.fromOffset(4, 4)
-	layout.FillDirectionMaxCells = 2
-	layout.SortOrder = Enum.SortOrder.LayoutOrder
-	layout.Parent = menu
-	local keysHint = Instance.new("TextLabel")
-	keysHint.Name = "Keys"
-	keysHint.LayoutOrder = 100
-	keysHint.BackgroundTransparency = 1
-	keysHint.FontFace = Theme.Font
-	keysHint.TextSize = 12
-	keysHint.TextColor3 = Theme.Colors.Muted
-	keysHint.TextWrapped = true
-	keysHint.Text = Strings.get("build.keys", lang)
-	keysHint.Parent = menu
-
-	local items: { [string]: TextButton } = {}
-	local icons: { [string]: Frame } = {}
-	local iconColor: { [string]: Color3 } = {}
-	local iconPos =
-		UDim2.new(0, -(BuildingSprites.Size * ICON_SCALE + 8), 0.5, -(BuildingSprites.Size * ICON_SCALE) // 2)
+	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fitMenu)
+	fitMenu()
+	local menuHead = Instance.new("Frame")
+	menuHead.BackgroundTransparency = 1
+	menuHead.Size = UDim2.new(1, 0, 0, 24)
+	menuHead.LayoutOrder = 1
+	menuHead.Parent = menu
+	MenuKit.label(menuHead, Strings.get("build.title", lang), 18, Theme.Colors.Gold, true)
+	local keysHint = MenuKit.label(menuHead, Strings.get("build.keys", lang), 12, Theme.Colors.Muted)
+	keysHint.AnchorPoint = Vector2.new(1, 0)
+	keysHint.Position = UDim2.new(1, 0, 0, 4)
+	local grid = Instance.new("Frame")
+	grid.Name = "Grid"
+	grid.BackgroundTransparency = 1
+	grid.Size = UDim2.fromScale(1, 0)
+	grid.AutomaticSize = Enum.AutomaticSize.Y
+	grid.LayoutOrder = 2
+	grid.Parent = menu
+	local gridLayout = Instance.new("UIGridLayout")
+	gridLayout.CellSize = UDim2.fromOffset(ITEM_W, ITEM_H)
+	gridLayout.CellPadding = UDim2.fromOffset(6, 6)
+	gridLayout.FillDirectionMaxCells = COLS
+	gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	gridLayout.Parent = grid
 
 	local function cancel()
 		selected = nil
@@ -378,35 +380,54 @@ function BuildPanel.new(
 		end
 	end
 
+	type Item = { name: TextLabel, price: TextLabel, hint: TextLabel, dim: Frame }
+	local cards: { [string]: Item } = {}
 	for k, kind in Config.Buildable do
-		local b = button(menu, CARD_W, CARD_H)
+		local b = Instance.new("TextButton")
 		b.Name = kind
 		b.LayoutOrder = k
-		b.TextXAlignment = Enum.TextXAlignment.Left
-		local pad = Instance.new("UIPadding")
-		pad.PaddingLeft = UDim.new(0, 8 + BuildingSprites.Size * ICON_SCALE + 8)
-		pad.PaddingRight = UDim.new(0, 22)
-		pad.Parent = b
-		icons[kind] = icon(b, kind, Theme.Colors.Sky)
-		icons[kind].Position = iconPos
+		b.Text = ""
+		b.AutoButtonColor = true
+		b.BackgroundColor3 = Theme.Colors.Backdrop
+		b.BorderSizePixel = 0
+		b.Parent = grid
+		MenuKit.stroke(b, Theme.Colors.PanelBorder, 2)
+		local art = CardKit.art(b, "building." .. kind, ITEM_W - 12, 72)
+		art.Position = UDim2.fromOffset(6, 6)
+		local dim = Instance.new("Frame")
+		dim.BackgroundColor3 = Theme.color("Ink")
+		dim.BackgroundTransparency = 0.6
+		dim.BorderSizePixel = 0
+		dim.Position = UDim2.fromOffset(6, 6)
+		dim.Size = UDim2.fromOffset(ITEM_W - 12, 72)
+		dim.Visible = false
+		dim.Parent = b
 		if k <= #KEYS then
-			local badge = Instance.new("TextLabel")
-			badge.Name = "Key"
-			badge.AnchorPoint = Vector2.new(1, 0)
-			badge.Position = UDim2.new(1, 18, 0, 4)
-			badge.Size = UDim2.fromOffset(16, 16)
-			badge.BackgroundColor3 = Theme.Colors.Slate
-			badge.BorderSizePixel = 0
-			badge.FontFace = Theme.FontBold
-			badge.TextSize = 11
-			badge.TextColor3 = Theme.Colors.Gold
-			badge.Text = if k == 10 then "0" else tostring(k)
-			badge.Parent = b
-			local bc = Instance.new("UICorner")
-			bc.CornerRadius = UDim.new(0, 4)
-			bc.Parent = badge
+			local badge = MenuKit.label(b, if k == 10 then "0" else tostring(k), 12, Theme.Colors.Gold, true)
+			badge.AutomaticSize = Enum.AutomaticSize.None
+			badge.Position = UDim2.fromOffset(8, 8)
+			badge.Size = UDim2.fromOffset(18, 18)
+			badge.TextXAlignment = Enum.TextXAlignment.Center
+			badge.BackgroundTransparency = 0
+			badge.BackgroundColor3 = Theme.color("Ink")
+			badge.ZIndex = 3
 		end
-		items[kind] = b
+		local name = MenuKit.label(b, Strings.get("building." .. kind, lang), 13, Theme.Colors.Text, true)
+		name.AutomaticSize = Enum.AutomaticSize.None
+		name.Position = UDim2.fromOffset(6, 82)
+		name.Size = UDim2.fromOffset(ITEM_W - 12, 16)
+		name.TextTruncate = Enum.TextTruncate.AtEnd
+		local priceLabel = MenuKit.label(b, "", 13, Theme.Colors.Gold, true)
+		priceLabel.AutomaticSize = Enum.AutomaticSize.None
+		priceLabel.Position = UDim2.fromOffset(6, 100)
+		priceLabel.Size = UDim2.fromOffset(ITEM_W - 12, 16)
+		local hint = MenuKit.label(b, "", 10, Theme.Colors.Muted)
+		hint.AutomaticSize = Enum.AutomaticSize.None
+		hint.Position = UDim2.fromOffset(6, 118)
+		hint.Size = UDim2.fromOffset(ITEM_W - 12, 28)
+		hint.TextWrapped = true
+		hint.TextYAlignment = Enum.TextYAlignment.Top
+		cards[kind] = { name = name, price = priceLabel, hint = hint, dim = dim }
 		Session.connect(b.Activated, function()
 			pick(kind :: Types.BuildingKind)
 		end)
@@ -448,39 +469,24 @@ function BuildPanel.new(
 			return
 		end
 		local money = if cs.myForces ~= nil then cs.myForces.economy.money else 0
-		local color = myColor()
-		for kind, b in items do
+		for kind, c in cards do
 			local cost = price(kind :: Types.BuildingKind, nil) or 0
 			-- Радар и аэродром открывает технология (§6.14): без неё — какая нужна.
 			local open, need = techOpen(kind)
-			local hint = if open
+			c.hint.Text = if open
 				then Strings.get("building." .. kind .. ".hint", lang)
 				else string.format(
 					Strings.get("build.needTech", lang),
 					Strings.get("tech." .. need.branch .. "." .. need.level, lang)
 				)
-			b.Text = string.format(
-				'%s  <font color="%s">$%s</font>\n<font size="12" color="%s">%s</font>',
-				Strings.get("building." .. kind, lang),
-				gold,
-				Strings.formatInt(cost),
-				muted,
-				hint
-			)
+			c.price.Text = "$" .. Strings.formatInt(cost)
 			local can = money >= cost and open
-			b.TextTransparency = if can then 0 else 0.5
-			-- Значок — цветом своей державы (перерисовать, если цвет сменился).
-			if iconColor[kind] ~= color then
-				iconColor[kind] = color
-				icons[kind]:Destroy()
-				icons[kind] = icon(b, kind, color)
-				icons[kind].Position = iconPos
-			end
-			for _, f in icons[kind]:GetChildren() do
-				if f:IsA("Frame") then
-					f.BackgroundTransparency = if can then 0 else 0.55
-				end
-			end
+			c.price.TextColor3 = if can
+				then Theme.Colors.Gold
+				elseif open then Theme.Colors.Alert
+				else Theme.Colors.Muted
+			c.name.TextColor3 = if can then Theme.Colors.Text else Theme.Colors.Muted
+			c.dim.Visible = not can
 		end
 		if selected ~= nil and lastHover ~= nil and not touch then
 			showGhost(lastHover)

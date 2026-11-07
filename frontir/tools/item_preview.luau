@@ -13,7 +13,15 @@ local Png = require("./lib/Png")
 
 local S, GAP, COLS = 3, 6, 8
 local cw, ch = ItemArt.W * S, ItemArt.H * S
-local rows = math.ceil(#ItemArt.Keys / COLS)
+local Config = require("../src/shared/Config")
+local keys = table.clone(ItemArt.Keys)
+for _, kind in Config.Buildable do
+	table.insert(keys, "building." .. kind)
+end
+for i = 1, 4 do
+	table.insert(keys, "nation." .. (i * 5))
+end
+local rows = math.ceil(#keys / COLS)
 local W, H = COLS * (cw + GAP) + GAP, rows * (ch + GAP) + GAP
 local out = buffer.create(W * H * 3)
 local bg = Palette.rgb("Ink")
@@ -22,7 +30,7 @@ for i = 0, W * H - 1 do
 	buffer.writeu8(out, i * 3 + 1, bg.g)
 	buffer.writeu8(out, i * 3 + 2, bg.b)
 end
-for k, key in ItemArt.Keys do
+for k, key in keys do
 	local px = ItemArt.paint(key)
 	local ox = GAP + ((k - 1) % COLS) * (cw + GAP)
 	local oy = GAP + ((k - 1) // COLS) * (ch + GAP)
@@ -38,4 +46,4 @@ for k, key in ItemArt.Keys do
 end
 local file = process.args[1] or "build/ui-items.png"
 fs.writeFile(file, Png.encodeRgb(W, H, out))
-print(string.format("→ %s (%d×%d, картинок %d)", file, W, H, #ItemArt.Keys))
+print(string.format("→ %s (%d×%d, картинок %d)", file, W, H, #keys))

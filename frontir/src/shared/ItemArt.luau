@@ -379,6 +379,45 @@ ITEMS["arsenal.Jammer"] = function(c)
 	icon(c, "jammer", 12, 3, 3)
 end
 
+-- Совет (§15л ч.10): резолюции.
+local function cross(c: Canvas, x: number, y: number, size: number)
+	local red = rgb("Red")
+	for k = 0, size - 1 do
+		rect(c, x + k, y + k, 2, 2, red)
+		rect(c, x + size - 1 - k, y + k, 2, 2, red)
+	end
+end
+ITEMS["council.sanctions"] = function(c)
+	stage(c, { "Night", "Plum" }, nil)
+	icon(c, "money", 12, 4, 3)
+	cross(c, 10, 4, 26)
+end
+ITEMS["council.truce"] = function(c)
+	stage(c, { "Sea", "Sky" }, "Grass")
+	rect(c, 14, 2, 2, 25, rgb("Mist"))
+	rect(c, 16, 3, 18, 11, rgb("White"))
+	rect(c, 16, 13, 18, 1, rgb("Snow"))
+	unit(c, "Infantry", 34, 15, 1, nation(3), true)
+end
+ITEMS["council.aid"] = function(c)
+	stage(c, { "Sea", "River" }, "Dune")
+	crate(c, 2, 8, 2)
+	icon(c, "people", 26, 6, 2)
+	icon(c, "money", 34, 20, 1)
+end
+ITEMS["council.freeTrade"] = function(c)
+	sky(c, { "Sea", "Sky" }, 18)
+	water(c, 0, 20, c.w, 5)
+	ship(c, "Merchant", 4, 6, 3, nation(5))
+	icon(c, "money", 34, 4, 1)
+	icon(c, "money", 40, 12, 1)
+end
+ITEMS["council.superweaponBan"] = function(c)
+	stage(c, { "Ink", "Night" }, "Basalt")
+	building(c, "MissileSilo", 12, 3, 2, nation(4))
+	cross(c, 8, 2, 30)
+end
+
 -- Вспышки захвата и титулы — по цвету / по списку.
 local CAPTURE = { "Gold", "Sky", "Red", "Lime", "Violet" }
 for _, name in CAPTURE do
@@ -422,13 +461,37 @@ function ItemArt.has(key: string): boolean
 	return ITEMS[key] ~= nil
 end
 
+-- Динамические ключи (§15л ч.10): "building.<вид>" — здание на площадке, "nation.<цвет>" — город державы её цветом.
+local function dynamic(c: Canvas, key: string): boolean
+	local kind = string.match(key, "^building%.(%a+)$")
+	if kind ~= nil then
+		local BUILD_COLOR = rgb("River") -- нейтральный цвет зданий в меню стройки
+		stage(c, { "Night", "Slate" }, "Grass")
+		if kind == "City" then
+			PixelCanvas.city(c, 3, 13, 3, 1, BUILD_COLOR, true)
+		else
+			building(c, kind, 12, 3, 2, BUILD_COLOR)
+		end
+		return true
+	end
+	local index = tonumber(string.match(key, "^nation%.(%d+)$"))
+	if index ~= nil then
+		local col = nation(math.clamp(math.floor(index), 1, 24))
+		stage(c, { "Sea", "River", "Sky" }, "Grass")
+		PixelCanvas.city(c, 4, 13, 1, 1, col, true)
+		flag(c, 38, 6, col, rgb("White"))
+		return true
+	end
+	return false
+end
+
 -- Картинка предмета key: RGBA W×H. Неизвестный — тёмная плашка со значком «?».
 function ItemArt.paint(key: string): buffer
 	local c = PixelCanvas.new(ItemArt.W, ItemArt.H)
 	local draw = ITEMS[key]
 	if draw ~= nil then
 		draw(c)
-	else
+	elseif not dynamic(c, key) then
 		stage(c, { "Night", "Slate" }, nil)
 		icon(c, "help", 16, 8, 2)
 	end
