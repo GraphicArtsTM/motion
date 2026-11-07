@@ -5,6 +5,7 @@
 	Изученный уровень — золотой, доступный — кнопка, следующий за ним и закрытые до этапа 7г — серые.
 	Идёт исследование — полоска в его клетке и строка на кнопке («Учебка: 23 с»).
 	Решения на сервере: клиент шлёт намерение research, отказ показывает лента (rejected).
+	§15л ч.9: витрина CardKit — карточки уровней с картинками ItemArt, «ИЗУЧЕНО» / «ЗАКРЫТО», стрелки, полоса исследования.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -16,6 +17,8 @@ local Config = require(Shared:WaitForChild("Config"))
 local Strings = require(Shared:WaitForChild("Strings"))
 local Types = require(Shared:WaitForChild("Types"))
 
+local CardKit = require(script.Parent:WaitForChild("CardKit"))
+local MenuKit = require(script.Parent:WaitForChild("MenuKit"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
@@ -32,9 +35,8 @@ export type TechPanel = {
 local TechPanel = {}
 
 local BUTTON = Config.Render.MinTouchTargetPx
-local COLUMN = 200
-local CELL_H = 74
-local WIDTH = 3 * COLUMN + 2 * 8 + 20
+local COLUMN = 280
+local CELL_H = 90
 local BRANCHES: { Types.TechBranch } = { "Army", "Economy", "Fleet" }
 
 local function stroke(parent: Instance, color: Color3)
@@ -43,17 +45,6 @@ local function stroke(parent: Instance, color: Color3)
 	s.Color = color
 	s.Thickness = Theme.BorderPx
 	s.Parent = parent
-end
-
-local function text(parent: Instance, size: number, bold: boolean?): TextLabel
-	local t = Instance.new("TextLabel")
-	t.BackgroundTransparency = 1
-	t.TextWrapped = true
-	t.FontFace = if bold then Theme.FontBold else Theme.Font
-	t.TextSize = size
-	t.TextColor3 = Theme.Colors.Text
-	t.Parent = parent
-	return t
 end
 
 -- Что даёт уровень: подстановка чисел из Config.Tech.
@@ -122,113 +113,79 @@ function TechPanel.new(
 	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), place)
 	place()
 
-	-- Окно.
-	local window = Instance.new("Frame")
-	window.Name = "Tech"
-	window.AnchorPoint = Vector2.new(0.5, 0.5)
-	window.Position = UDim2.fromScale(0.5, 0.5)
-	window.Size = UDim2.fromOffset(WIDTH, 0)
-	window.AutomaticSize = Enum.AutomaticSize.Y
-	window.BackgroundColor3 = Theme.Colors.PanelBg
-	window.BackgroundTransparency = 0.05
-	window.BorderSizePixel = 0
-	window.Visible = false
-	window.ZIndex = 5
-	stroke(window, Theme.Colors.PanelBorder)
-	local pad = Instance.new("UIPadding")
-	pad.PaddingLeft = UDim.new(0, 10)
-	pad.PaddingRight = UDim.new(0, 10)
-	pad.PaddingTop = UDim.new(0, 8)
-	pad.PaddingBottom = UDim.new(0, 10)
-	pad.Parent = window
-	local layout = Instance.new("UIListLayout")
-	layout.SortOrder = Enum.SortOrder.LayoutOrder
-	layout.Padding = UDim.new(0, 6)
-	layout.Parent = window
-	window.Parent = gui
-	local scale = Instance.new("UIScale")
-	scale.Parent = window
-	local function fit()
-		local s = gui.AbsoluteSize
-		scale.Scale = math.clamp(math.min(s.X / (WIDTH + 40), s.Y / (5 * CELL_H + 160)), 0.5, 1)
+	-- Окно (§15л ч.9): витрина CardKit — три ветки столбцами, уровень — карточка с картинкой ItemArt, между — стрелки.
+	local function t(key: string): string
+		return Strings.get(key, lang)
 	end
-	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fit)
-	fit()
-
-	local header = Instance.new("Frame")
-	header.BackgroundTransparency = 1
-	header.Size = UDim2.new(1, 0, 0, BUTTON)
-	header.LayoutOrder = 1
-	header.Parent = window
-	local title = text(header, 18, true)
-	title.Size = UDim2.new(1, -BUTTON - 6, 1, 0)
-	title.TextXAlignment = Enum.TextXAlignment.Left
-	title.TextColor3 = Theme.Colors.Gold
-	title.Text = Strings.get("tech.title", lang)
-	local closeButton = Instance.new("TextButton")
-	closeButton.AnchorPoint = Vector2.new(1, 0)
-	closeButton.Position = UDim2.fromScale(1, 0)
-	closeButton.Size = UDim2.fromOffset(BUTTON, BUTTON)
-	closeButton.BackgroundColor3 = Theme.Colors.PanelBg
-	closeButton.BorderSizePixel = 0
-	closeButton.FontFace = Theme.FontBold
-	closeButton.TextSize = 18
-	closeButton.TextColor3 = Theme.Colors.Text
-	closeButton.Text = "×"
-	stroke(closeButton, Theme.Colors.PanelBorder)
-	closeButton.Parent = header
-
-	local status = text(window, 13)
-	status.Size = UDim2.new(1, 0, 0, 18)
-	status.TextXAlignment = Enum.TextXAlignment.Left
-	status.TextColor3 = Theme.Colors.Muted
-	status.LayoutOrder = 2
+	local win = CardKit.window(gui, "Tech", t("tech.titleBig"), t("tech.subtitle"), 940, 640, {}, { main = "list" })
+	local window = win.frame
+	window.ZIndex = 5
+	local moneyChip = CardKit.chip(win.chips, "money", 1)
+	local page = win.page("main")
+	local statusRow = Instance.new("Frame")
+	statusRow.BackgroundColor3 = Theme.Colors.Backdrop
+	statusRow.BorderSizePixel = 0
+	statusRow.Size = UDim2.new(1, 0, 0, 44)
+	statusRow.LayoutOrder = 1
+	statusRow.Parent = page
+	MenuKit.stroke(statusRow, Theme.Colors.PanelBorder, 2)
+	local status = MenuKit.label(statusRow, "", 15, Theme.Colors.Text, true)
+	status.Position = UDim2.fromOffset(12, 4)
+	local statusBarHost = Instance.new("Frame")
+	statusBarHost.BackgroundTransparency = 1
+	statusBarHost.Position = UDim2.fromOffset(12, 28)
+	statusBarHost.Size = UDim2.new(1, -24, 0, 8)
+	statusBarHost.Parent = statusRow
+	local statusBar = MenuKit.bar(statusBarHost, 8, Theme.Colors.Sky)
 
 	local columns = Instance.new("Frame")
 	columns.BackgroundTransparency = 1
-	columns.Size = UDim2.new(1, 0, 0, 22 + 4 * (CELL_H + 6))
-	columns.LayoutOrder = 3
-	columns.Parent = window
-	local colLayout = Instance.new("UIListLayout")
-	colLayout.FillDirection = Enum.FillDirection.Horizontal
-	colLayout.Padding = UDim.new(0, 8)
-	colLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	colLayout.Parent = columns
+	columns.Size = UDim2.new(1, 0, 0, 40 + #cfg.Cost * (CELL_H + 30))
+	columns.LayoutOrder = 2
+	columns.Parent = page
+	local colLayout = MenuKit.list(columns, 12, true)
+	colLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+	colLayout.HorizontalFlex = Enum.UIFlexAlignment.Fill
 
-	type Cell = { button: TextButton, name: TextLabel, desc: TextLabel, info: TextLabel, bar: Frame, edge: UIStroke }
+	type Cell = {
+		button: TextButton,
+		name: TextLabel,
+		desc: TextLabel,
+		info: TextLabel,
+		bar: Frame,
+		edge: UIStroke,
+		dim: Frame,
+		tag: TextLabel,
+	}
 	local cells: { [string]: Cell } = {}
+	local heads: { [string]: TextLabel } = {}
+	local BRANCH_ICON: { [string]: string } = { Army = "army", Economy = "money", Fleet = "tech" }
 
 	for k, branch in BRANCHES do
-		local col = Instance.new("Frame")
-		col.Name = branch
-		col.BackgroundTransparency = 1
-		col.Size = UDim2.new(0, COLUMN, 1, 0)
-		col.LayoutOrder = k
-		col.Parent = columns
-		local list = Instance.new("UIListLayout")
-		list.SortOrder = Enum.SortOrder.LayoutOrder
-		list.Padding = UDim.new(0, 6)
-		list.Parent = col
-		local head = text(col, 15, true)
-		head.Size = UDim2.new(1, 0, 0, 16)
-		head.Text = Strings.get("tech.branch." .. branch, lang)
-		head.LayoutOrder = 0
+		local col = MenuKit.box(columns, branch, k)
+		col.AutomaticSize = Enum.AutomaticSize.Y
+		col.Size = UDim2.fromOffset(COLUMN, 0)
+		MenuKit.list(col, 4, false, Enum.HorizontalAlignment.Center)
+		local headRow = MenuKit.box(col, "Head", 0)
+		MenuKit.list(headRow, 8, true)
+		MenuKit.icon(headRow, BRANCH_ICON[branch], 3, 1)
+		local head = MenuKit.label(headRow, t("tech.branch." .. branch), 18, Theme.Colors.Gold, true, 2)
+		heads[branch] = head
 		for level = 1, #cfg.Cost do
+			if level > 1 then
+				MenuKit.label(col, "▼", 14, Theme.Colors.PanelBorder, true, level * 2 - 1)
+			end
 			local b = Instance.new("TextButton")
 			b.Name = branch .. level
 			b.Size = UDim2.new(1, 0, 0, CELL_H)
 			b.BackgroundColor3 = Theme.Colors.Backdrop
-			b.BackgroundTransparency = 0.2
 			b.BorderSizePixel = 0
 			b.AutoButtonColor = true
 			b.Text = ""
-			b.LayoutOrder = level
+			b.LayoutOrder = level * 2
 			b.ClipsDescendants = true
-			local edge = Instance.new("UIStroke")
-			edge.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-			edge.Color = Theme.Colors.PanelBorder
-			edge.Thickness = Theme.BorderPx
-			edge.Parent = b
+			b.Parent = col
+			local edge = MenuKit.stroke(b, Theme.Colors.PanelBorder, 2)
 			local bar = Instance.new("Frame")
 			bar.Name = "Progress"
 			bar.BackgroundColor3 = Theme.Colors.Sky
@@ -237,24 +194,46 @@ function TechPanel.new(
 			bar.Size = UDim2.fromScale(0, 1)
 			bar.Visible = false
 			bar.Parent = b
-			local name = text(b, 14, true)
-			name.Position = UDim2.fromOffset(6, 4)
-			name.Size = UDim2.new(1, -12, 0, 18)
-			name.TextXAlignment = Enum.TextXAlignment.Left
-			name.Text = string.format("%d. %s", level, Strings.get("tech." .. branch .. "." .. level, lang))
-			local desc = text(b, 12)
-			desc.Position = UDim2.fromOffset(6, 24)
-			desc.Size = UDim2.new(1, -12, 0, 30)
-			desc.TextXAlignment = Enum.TextXAlignment.Left
+			local art = CardKit.art(b, "tech." .. branch .. level, 84, 56)
+			art.Position = UDim2.fromOffset(6, 6)
+			local name = MenuKit.label(
+				b,
+				string.format("%d. %s", level, t("tech." .. branch .. "." .. level)),
+				14,
+				Theme.Colors.Text,
+				true
+			)
+			name.AutomaticSize = Enum.AutomaticSize.None
+			name.Position = UDim2.fromOffset(98, 6)
+			name.Size = UDim2.new(1, -104, 0, 18)
+			name.TextTruncate = Enum.TextTruncate.AtEnd
+			local desc = MenuKit.label(b, describe(branch, level, lang), 11, Theme.Colors.Muted)
+			desc.AutomaticSize = Enum.AutomaticSize.None
+			desc.Position = UDim2.fromOffset(98, 25)
+			desc.Size = UDim2.new(1, -104, 0, 38)
+			desc.TextWrapped = true
 			desc.TextYAlignment = Enum.TextYAlignment.Top
-			desc.TextColor3 = Theme.Colors.Muted
-			desc.Text = describe(branch, level, lang)
-			local info = text(b, 12, true)
-			info.Position = UDim2.new(0, 6, 1, -18)
-			info.Size = UDim2.new(1, -12, 0, 16)
-			info.TextXAlignment = Enum.TextXAlignment.Left
-			b.Parent = col
-			cells[branch .. level] = { button = b, name = name, desc = desc, info = info, bar = bar, edge = edge }
+			local info = MenuKit.label(b, "", 12, Theme.Colors.Text, true)
+			info.AutomaticSize = Enum.AutomaticSize.None
+			info.Position = UDim2.new(0, 98, 1, -20)
+			info.Size = UDim2.new(1, -104, 0, 16)
+			local dim = Instance.new("Frame")
+			dim.Name = "Dim"
+			dim.BackgroundColor3 = Theme.color("Ink")
+			dim.BackgroundTransparency = 0.6
+			dim.BorderSizePixel = 0
+			dim.Position = UDim2.fromOffset(6, 6)
+			dim.Size = UDim2.fromOffset(84, 56)
+			dim.Visible = false
+			dim.Parent = b
+			local tag = MenuKit.label(b, "", 10, Theme.color("Ink"), true)
+			tag.Position = UDim2.fromOffset(8, 8)
+			tag.BackgroundTransparency = 0
+			tag.BackgroundColor3 = Theme.Colors.Gold
+			MenuKit.pad(tag, 4, 1)
+			tag.Visible = false
+			cells[branch .. level] =
+				{ button = b, name = name, desc = desc, info = info, bar = bar, edge = edge, dim = dim, tag = tag }
 			Session.connect(b.Activated, function()
 				if not playing() then
 					return
@@ -266,6 +245,7 @@ function TechPanel.new(
 			end)
 		end
 	end
+	local closeButton = win.close
 
 	local function researchLine(): string?
 		local r = cs.tech.research
@@ -291,6 +271,10 @@ function TechPanel.new(
 				if isResearching and r ~= nil then
 					c.bar.Size = UDim2.fromScale(math.clamp(1 - r.left / math.max(1, r.total), 0, 1), 1)
 				end
+				c.dim.Visible = closed or (not done and not available and not isResearching)
+				c.tag.Visible = done or closed
+				c.tag.Text = t(if done then "tech.tagDone" else "tech.tagLocked")
+				c.tag.BackgroundColor3 = if done then Theme.Colors.Gold else Theme.Colors.PanelBorder
 				c.button.AutoButtonColor = available
 				c.name.TextColor3 = if done
 					then Theme.Colors.Gold
@@ -301,6 +285,9 @@ function TechPanel.new(
 					elseif isResearching then Theme.Colors.Sky
 					elseif available then Theme.Colors.Text
 					else Theme.Colors.PanelBorder
+				if available then
+					c.edge.Color = Theme.Colors.Good
+				end
 				if done then
 					c.info.Text = Strings.get("tech.done", lang)
 					c.info.TextColor3 = Theme.Colors.Gold
@@ -324,6 +311,15 @@ function TechPanel.new(
 			end
 		end
 		status.Text = researchLine() or Strings.get("tech.idle", lang)
+		statusBar.frame.Visible = r ~= nil
+		if r ~= nil then
+			statusBar.set(1 - r.left / math.max(1, r.total))
+		end
+		moneyChip.Text = "$" .. Strings.formatInt(money)
+		for _, branch in BRANCHES do
+			local have = (cs.tech.levels :: any)[branch] :: number
+			heads[branch].Text = string.format(t("tech.branchLevel"), t("tech.branch." .. branch), have, #cfg.Cost)
+		end
 	end
 
 	local function refresh()

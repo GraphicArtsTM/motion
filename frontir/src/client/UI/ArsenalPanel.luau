@@ -14,6 +14,7 @@ local ClientState = require(Shared:WaitForChild("ClientState"))
 local Config = require(Shared:WaitForChild("Config"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
+local CardKit = require(script.Parent:WaitForChild("CardKit"))
 local MenuKit = require(script.Parent:WaitForChild("MenuKit"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
@@ -30,7 +31,7 @@ export type ArsenalPanel = {
 local ArsenalPanel = {}
 
 local W = 860
-local CARD_W, CARD_H = 156, 112
+local CARD_W, CARD_H = 156, 106
 local ICONS: { [string]: string } = {
 	Reinforce = "reinforce",
 	Convoy = "convoy",
@@ -108,27 +109,19 @@ function ArsenalPanel.new(
 	stage.ClipsDescendants = true
 	stage.Parent = main
 	MenuKit.stroke(stage, Theme.Colors.PanelBorder, 2)
-	-- Клетки «карты» под значком — пиксельный фон поля.
-	for k = 0, 5 do
-		local tile = Instance.new("Frame")
-		tile.BorderSizePixel = 0
-		tile.BackgroundColor3 = Theme.color(if k % 2 == 0 then "Forest" else "Pine")
-		tile.Position = UDim2.fromOffset(20 + k * 80, if k % 2 == 0 then 150 else 170)
-		tile.Size = UDim2.fromOffset(70, 120)
-		tile.Parent = stage
-	end
-	local bigIcons: { [string]: Frame } = {}
+	-- §15л ч.9: большая картинка предмета (ItemArt) во всё поле.
+	local bigIcons: { [string]: ImageLabel } = {}
 	for _, key in order do
-		local icon = MenuKit.icon(stage, ICONS[key], 18)
-		icon.AnchorPoint = Vector2.new(0.5, 0.5)
-		icon.Position = UDim2.fromScale(0.5, 0.45)
-		icon.Visible = false
-		bigIcons[key] = icon
+		local art = CardKit.art(stage, "arsenal." .. key, 500, 250)
+		art.Size = UDim2.fromScale(1, 1)
+		art.Visible = false
+		bigIcons[key] = art
 	end
 	local stageName = MenuKit.label(stage, "", 30, Theme.color("White"), true)
 	stageName.AnchorPoint = Vector2.new(0.5, 1)
 	stageName.Position = UDim2.new(0.5, 0, 1, -10)
 	stageName.TextStrokeTransparency = 0.2
+	stageName.ZIndex = 3
 
 	local info = Instance.new("Frame")
 	info.Name = "Info"
@@ -182,15 +175,14 @@ function ArsenalPanel.new(
 		b.BorderSizePixel = 0
 		b.Parent = row
 		local edge = MenuKit.stroke(b, Theme.Colors.PanelBorder, 2)
-		local icon = MenuKit.icon(b, ICONS[key], 5)
-		icon.AnchorPoint = Vector2.new(0.5, 0)
-		icon.Position = UDim2.new(0.5, 0, 0, 10)
+		local icon = CardKit.art(b, "arsenal." .. key, CARD_W - 16, 52)
+		icon.Position = UDim2.fromOffset(8, 6)
 		local name = MenuKit.label(b, t("arsenal.item." .. key), 13, Theme.Colors.Text, true)
 		name.AnchorPoint = Vector2.new(0.5, 0)
-		name.Position = UDim2.new(0.5, 0, 0, 58)
+		name.Position = UDim2.new(0.5, 0, 0, 62)
 		local price = MenuKit.label(b, "", 12, Theme.Colors.Gold, true)
 		price.AnchorPoint = Vector2.new(0.5, 0)
-		price.Position = UDim2.new(0.5, 0, 0, 80)
+		price.Position = UDim2.new(0.5, 0, 0, 84)
 		cards[key] = { button = b, edge = edge, name = name, price = price }
 		Session.connect(b.Activated, function()
 			selected = key

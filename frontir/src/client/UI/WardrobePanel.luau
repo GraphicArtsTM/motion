@@ -5,6 +5,7 @@
 	  «🔒 ур. N» / «🔒 пропуск» для открываемых уровнем и премиум-пропуском.
 	- Флаг: предпросмотр и строки «◀ значение ▶» (фон, раскладка, её цвет, эмблема, её цвет); закрытая часть —
 	  «Купить N»; «Сохранить флаг» — намерение flag (проверяет сервер).
+	§15л ч.9: витрина CardKit — вкладки, карточки с картинками ItemArt (узор, вспышка, титул), «НАДЕТО» / «ЕСТЬ».
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -16,7 +17,9 @@ local Config = require(Shared:WaitForChild("Config"))
 local Cosmetics = require(Shared:WaitForChild("Cosmetics"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
+local CardKit = require(script.Parent:WaitForChild("CardKit"))
 local FlagView = require(script.Parent:WaitForChild("FlagView"))
+local MenuKit = require(script.Parent:WaitForChild("MenuKit"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
@@ -33,7 +36,6 @@ export type WardrobePanel = {
 local WardrobePanel = {}
 
 local BUTTON = Config.Render.MinTouchTargetPx
-local W = 520
 local ROW = BUTTON + 6
 
 local function label(parent: Instance, size: number, bold: boolean?): TextLabel
@@ -82,56 +84,33 @@ function WardrobePanel.new(
 	openButton.AnchorPoint = Vector2.new(1, 0)
 	openButton.Position = UDim2.new(1, -12, 0, 124 + BUTTON + 24)
 
-	local window = Instance.new("ScrollingFrame")
-	window.Name = "Wardrobe"
-	window.AnchorPoint = Vector2.new(0.5, 0.5)
-	window.Position = UDim2.fromScale(0.5, 0.5)
-	window.Size = UDim2.new(0, W, 0.8, 0)
-	window.BackgroundColor3 = Theme.Colors.PanelBg
-	window.BorderSizePixel = 0
-	window.ScrollBarThickness = 6
-	window.Visible = false
-	window.Parent = gui
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = Theme.Colors.PanelBorder
-	stroke.Thickness = Theme.BorderPx
-	stroke.Parent = window
-	local scale = Instance.new("UIScale")
-	scale.Parent = window
-	local function fit()
-		scale.Scale = math.clamp((gui.AbsoluteSize.X - 24) / W, 0.5, 1)
+	-- §15л ч.9: витрина CardKit — вкладки «Узоры», «Вспышки», «Титулы», «Флаг», карточки с картинками ItemArt.
+	local function t(key: string): string
+		return Strings.get(key, lang)
 	end
-	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fit)
-	fit()
-	local close = button(window, "×", BUTTON)
-	close.Position = UDim2.fromOffset(W - 12 - BUTTON, 6)
-	Session.connect(close.Activated, function()
-		window.Visible = false
-	end)
-
-	local y = 8
-	local function heading(key: string)
-		local h = label(window, 15, true)
-		h.Position = UDim2.fromOffset(12, y)
-		h.Size = UDim2.fromOffset(W - 24 - BUTTON, 22)
-		h.TextColor3 = Theme.Colors.Gold
-		h.Text = Strings.get(key, lang)
-		y += 26
-	end
+	local win = CardKit.window(gui, "Wardrobe", t("wardrobe.title"), t("wardrobe.subtitle"), 860, 720, {
+		{ key = "pattern", label = t("wardrobe.patterns") },
+		{ key = "capture", label = t("wardrobe.captures") },
+		{ key = "title", label = t("wardrobe.titles") },
+		{ key = "flag", label = t("wardrobe.flag") },
+	}, { flag = "list" })
+	local window = win.frame
+	local medalsChip = CardKit.chip(win.chips, "money", 1)
 
 	-- Узоры, вспышки, титулы.
-	type Row = { kind: Cosmetics.Kind, id: string, action: TextButton }
+	type Row = { kind: Cosmetics.Kind, id: string, action: TextButton, card: CardKit.Card }
 	local rows: { Row } = {}
-	local function section(kind: Cosmetics.Kind, key: string)
-		heading(key)
-		for _, it in Cosmetics.list(kind) do
-			local name = label(window, 13)
-			name.Position = UDim2.fromOffset(12, y)
-			name.Size = UDim2.fromOffset(W - 200, BUTTON)
-			name.Text = Strings.get(kind .. "." .. it.id, lang)
-			local action = button(window, "", 160)
-			action.Position = UDim2.fromOffset(W - 12 - 160, y)
-			local row: Row = { kind = kind, id = it.id, action = action }
+	local function section(kind: Cosmetics.Kind)
+		for k, it in Cosmetics.list(kind) do
+			local card = CardKit.card(
+				win.page(kind),
+				kind .. "." .. it.id,
+				Strings.get(kind .. "." .. it.id, lang),
+				t("wardrobe.desc." .. kind),
+				k
+			)
+			local action = CardKit.button(card.actions, "", "primary", 1)
+			local row: Row = { kind = kind, id = it.id, action = action, card = card }
 			Session.connect(action.Activated, function()
 				local p = cs.profile
 				if p == nil then
@@ -146,22 +125,28 @@ function WardrobePanel.new(
 				end
 			end)
 			table.insert(rows, row)
-			y += ROW
 		end
 	end
-	section("pattern", "wardrobe.patterns")
-	section("capture", "wardrobe.captures")
-	section("title", "wardrobe.titles")
+	section("pattern")
+	section("capture")
+	section("title")
 
-	-- Флаг.
-	heading("wardrobe.flag")
-	local preview = FlagView.new(window, 120, 80, 3)
-	preview.frame.Position = UDim2.fromOffset(12, y)
+	-- Флаг: большой флаг слева, части справа (◀ значение ▶, закрытая — «Купить»), «Сохранить флаг».
+	local flagPage = win.page("flag")
+	local flagBox = Instance.new("Frame")
+	flagBox.Name = "FlagEditor"
+	flagBox.BackgroundColor3 = Theme.Colors.Backdrop
+	flagBox.BorderSizePixel = 0
+	flagBox.Size = UDim2.new(1, 0, 0, 5 * ROW + 80)
+	flagBox.Parent = flagPage
+	MenuKit.stroke(flagBox, Theme.Colors.PanelBorder, 2)
+	local preview = FlagView.new(flagBox, 240, 160, 3)
+	preview.frame.Position = UDim2.fromOffset(16, 16)
 	local draft: Cosmetics.Flag = Cosmetics.defaultFlag()
 	local flagCfg = Config.Cosmetics.Flag
 	type FlagRow = { field: string, value: TextLabel, buy: TextButton }
 	local flagRows: { FlagRow } = {}
-	local fy = y
+	local fx, fy = 280, 16
 	local function drawFlag()
 		preview.set(draft)
 		local p = cs.profile
@@ -171,24 +156,25 @@ function WardrobePanel.new(
 			fr.value.Text = if isPart then Strings.get("flag." .. v, lang) else Strings.get("color." .. v, lang)
 			local owned = not isPart or (p ~= nil and p.wardrobe.owned[Cosmetics.key(fr.field :: any, v)] == true)
 			fr.buy.Visible = not owned
-			fr.buy.Text = string.format(Strings.get("wardrobe.buy", lang), flagCfg.PartPrice)
+			fr.buy.Text = string.format(t("wardrobe.buy"), flagCfg.PartPrice)
 		end
 	end
 	for _, field in { "bg", "layout", "layoutColor", "emblem", "emblemColor" } do
-		local name = label(window, 12)
-		name.Position = UDim2.fromOffset(144, fy)
-		name.Size = UDim2.fromOffset(100, BUTTON)
-		name.Text = Strings.get("wardrobe.flag." .. field, lang)
-		local prev = button(window, "◀", BUTTON)
-		prev.Position = UDim2.fromOffset(248, fy)
-		local value = label(window, 12, true)
-		value.Position = UDim2.fromOffset(248 + BUTTON + 2, fy)
-		value.Size = UDim2.fromOffset(90, BUTTON)
+		local name = label(flagBox, 14)
+		name.Position = UDim2.fromOffset(fx, fy)
+		name.Size = UDim2.fromOffset(120, BUTTON)
+		name.TextColor3 = Theme.Colors.Muted
+		name.Text = t("wardrobe.flag." .. field)
+		local prev = button(flagBox, "◀", BUTTON)
+		prev.Position = UDim2.fromOffset(fx + 124, fy)
+		local value = label(flagBox, 14, true)
+		value.Position = UDim2.fromOffset(fx + 124 + BUTTON + 4, fy)
+		value.Size = UDim2.fromOffset(120, BUTTON)
 		value.TextXAlignment = Enum.TextXAlignment.Center
-		local nextB = button(window, "▶", BUTTON)
-		nextB.Position = UDim2.fromOffset(248 + BUTTON + 94, fy)
-		local buy = button(window, "", 74)
-		buy.Position = UDim2.fromOffset(W - 12 - 74, fy)
+		local nextB = button(flagBox, "▶", BUTTON)
+		nextB.Position = UDim2.fromOffset(fx + 124 + BUTTON + 128, fy)
+		local buy = button(flagBox, "", 110)
+		buy.Position = UDim2.fromOffset(fx + 124 + 2 * BUTTON + 136, fy)
 		buy.TextColor3 = Theme.Colors.Gold
 		local list: { string } = if field == "layout"
 			then flagCfg.Layouts
@@ -210,15 +196,12 @@ function WardrobePanel.new(
 		table.insert(flagRows, { field = field, value = value, buy = buy })
 		fy += ROW
 	end
-	y = math.max(y + 86, fy)
-	local save = button(window, Strings.get("wardrobe.saveFlag", lang), 200)
-	save.Position = UDim2.fromOffset(12, y)
-	save.TextColor3 = Theme.Colors.Gold
+	local save = CardKit.button(flagBox, t("wardrobe.saveFlag"), "primary")
+	save.Position = UDim2.fromOffset(16, 192)
+	save.Size = UDim2.fromOffset(240, MenuKit.Touch)
 	Session.connect(save.Activated, function()
 		send("flag", { flag = draft })
 	end)
-	y += ROW + 8
-	window.CanvasSize = UDim2.fromOffset(0, y)
 
 	local function draw()
 		local p = cs.profile
@@ -226,23 +209,29 @@ function WardrobePanel.new(
 		if p == nil then
 			return
 		end
+		medalsChip.Text = Strings.formatInt(p.medals)
 		local wr = p.wardrobe
 		for _, row in rows do
 			local it = Cosmetics.item(row.kind, row.id)
 			local owned = wr.owned[Cosmetics.key(row.kind, row.id)] == true
 			local worn = wr.equipped[row.kind] == row.id
 			row.action.Text = if owned
-				then Strings.get(if worn then "wardrobe.unequip" else "wardrobe.equip", lang)
-				elseif it ~= nil and it.price ~= nil then string.format(
-					Strings.get("wardrobe.buy", lang),
-					it.price
-				)
-				elseif it ~= nil and it.level ~= nil then string.format(
-					Strings.get("wardrobe.level", lang),
-					it.level
-				)
-				else Strings.get("wardrobe.pass", lang)
-			row.action.TextColor3 = if worn then Theme.Colors.Gold else Theme.Colors.Text
+				then t(if worn then "wardrobe.unequip" else "wardrobe.equip")
+				elseif it ~= nil and it.price ~= nil then string.format(t("wardrobe.buy"), it.price)
+				elseif it ~= nil and it.level ~= nil then string.format(t("wardrobe.level"), it.level)
+				else t("wardrobe.pass")
+			local canBuy = not owned and it ~= nil and it.price ~= nil and p.medals >= (it.price :: number)
+			row.action.BackgroundColor3 =
+				Theme.color(if worn then "Slate" elseif owned then "Forest" elseif canBuy then "Gold" else "Basalt")
+			row.action.TextColor3 = Theme.color(if canBuy and not owned then "Ink" else "White")
+			row.card.tag.Visible = worn or owned
+			row.card.tag.Text = t(if worn then "wardrobe.tagWorn" else "wardrobe.tagOwned")
+			row.card.edge.Color = if worn
+				then Theme.Colors.Gold
+				elseif owned then Theme.Colors.Good
+				else Theme.Colors.PanelBorder
+			row.card.price.Text = if owned then "" else row.action.Text
+			row.card.dim.Visible = not owned and not canBuy
 		end
 		drawFlag()
 	end
@@ -254,6 +243,9 @@ function WardrobePanel.new(
 		window.Visible = not window.Visible
 		draw()
 	end
+	Session.connect(win.close.Activated, function()
+		window.Visible = false
+	end)
 	Session.connect(openButton.Activated, open)
 	Session.connect(UserInputService.InputBegan, function(input: InputObject, gameProcessed: boolean)
 		if gameProcessed or UserInputService:GetFocusedTextBox() ~= nil then

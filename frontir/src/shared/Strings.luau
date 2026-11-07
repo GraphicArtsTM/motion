@@ -761,6 +761,15 @@ local TABLE: { [string]: Entry } = {
 	["tech.branch.Army"] = { ru = "Войска", en = "Army" },
 	["tech.branch.Economy"] = { ru = "Экономика", en = "Economy" },
 	["tech.branch.Fleet"] = { ru = "Флот", en = "Fleet" },
+	-- §15л ч.9
+	["tech.titleBig"] = { ru = "ТЕХНОЛОГИИ", en = "TECHNOLOGY" },
+	["tech.subtitle"] = {
+		ru = "Три ветки по 4 уровня: изучайте по порядку, одно исследование за раз.",
+		en = "Three branches of 4 levels: research in order, one at a time.",
+	},
+	["tech.branchLevel"] = { ru = "%s  %d/%d", en = "%s  %d/%d" },
+	["tech.tagDone"] = { ru = "ИЗУЧЕНО", en = "DONE" },
+	["tech.tagLocked"] = { ru = "ЗАКРЫТО", en = "LOCKED" },
 	["tech.Army.1"] = { ru = "Учебка", en = "Boot camp" },
 	["tech.Army.2"] = { ru = "Снабжение", en = "Logistics" },
 	["tech.Army.3"] = { ru = "Ракетная шахта", en = "Missile silo" },
@@ -1360,6 +1369,15 @@ local TABLE: { [string]: Entry } = {
 		en = "Boosts: one of each kind per match, for a HQ token (earned by levelling) or Robux. No boosts in duels.",
 	},
 	["shop.boosts"] = { ru = "Бусты в матче", en = "Match boosts" },
+	-- §15л ч.9 витрины
+	["shop.title"] = { ru = "МАГАЗИН", en = "SHOP" },
+	["shop.tabSeason"] = { ru = "Сезон и ящики", en = "Season & crates" },
+	["shop.stockBtn"] = { ru = "×%d", en = "×%d" },
+	["shop.stockHave"] = { ru = "в запасе %d · жетонов %d", en = "in stock %d · tokens %d" },
+	["shop.tagUsed"] = { ru = "ВЗЯТ", en = "USED" },
+	["shop.tagOwned"] = { ru = "ЕСТЬ ✓", en = "OWNED ✓" },
+	["shop.tagBought"] = { ru = "ВЗЯТО", en = "CLAIMED" },
+	["shop.forever"] = { ru = "навсегда", en = "forever" },
 	["shop.passes"] = { ru = "Навсегда", en = "Permanent" },
 	["shop.packs"] = { ru = "Наборы", en = "Bundles" },
 	["shop.robux"] = { ru = "R$ %d", en = "R$ %d" },
@@ -1515,6 +1533,26 @@ local TABLE: { [string]: Entry } = {
 	["wardrobe.level"] = { ru = "🔒 ур. %d", en = "🔒 lv %d" },
 	["wardrobe.pass"] = { ru = "🔒 пропуск, 30", en = "🔒 pass, tier 30" },
 	["wardrobe.saveFlag"] = { ru = "Сохранить флаг", en = "Save flag" },
+	-- §15л ч.9
+	["wardrobe.title"] = { ru = "ГАРДЕРОБ", en = "WARDROBE" },
+	["wardrobe.subtitle"] = {
+		ru = "Вид вашей державы: узор земли, вспышка захвата, титул и флаг. Только вид — на силу не влияет.",
+		en = "Your nation's look: land pattern, capture flash, title and flag. Looks only — no power.",
+	},
+	["wardrobe.desc.pattern"] = {
+		ru = "Узор на вашей земле — видят все",
+		en = "A pattern on your land — everyone sees it",
+	},
+	["wardrobe.desc.capture"] = {
+		ru = "Цвет вспышки, когда вы берёте клетку",
+		en = "Flash colour when you take a cell",
+	},
+	["wardrobe.desc.title"] = {
+		ru = "Подпись у названия державы",
+		en = "A tag next to your nation's name",
+	},
+	["wardrobe.tagWorn"] = { ru = "НАДЕТО", en = "WORN" },
+	["wardrobe.tagOwned"] = { ru = "ЕСТЬ", en = "OWNED" },
 	["wardrobe.flag.bg"] = { ru = "Фон", en = "Background" },
 	["wardrobe.flag.layout"] = { ru = "Раскладка", en = "Layout" },
 	["wardrobe.flag.layoutColor"] = { ru = "Её цвет", en = "Its colour" },
@@ -1563,6 +1601,12 @@ local TABLE: { [string]: Entry } = {
 	-- Задания и лидеры (§11.5)
 	["quests.open"] = { ru = "Задания и лидеры (J)", en = "Quests & leaders (J)" },
 	["quests.title"] = { ru = "Задания дня", en = "Daily quests" },
+	["quests.titleBig"] = { ru = "ЗАДАНИЯ И ЛИДЕРЫ", en = "QUESTS & LEADERS" },
+	["quests.subtitle"] = {
+		ru = "Три задания каждый день — медали и опыт пропуска; за все три — жетон.",
+		en = "Three quests every day — medals and pass XP; all three give a token.",
+	},
+	["quests.reward"] = { ru = "+%d 🏅  ·  +%d опыта пропуска", en = "+%d 🏅  ·  +%d pass XP" },
 	["quests.passXp"] = { ru = "опыта пропуска", en = "pass XP" },
 	["quests.bonus"] = {
 		ru = "Все три — +%d жетон штаба · новые задания через %d ч",
