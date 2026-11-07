@@ -1134,6 +1134,8 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				ok, reason = DevTools.revoltNow(m, id)
 			elseif action == "navy" then
 				ok, reason = DevTools.navy(m, id)
+			elseif action == "giant" then
+				ok, reason = DevTools.giant(m, id) -- §15м «Сверхдержава»
 			elseif action == "botLanding" and target ~= nil then
 				ok, reason = DevTools.botLanding(m, target, id)
 			elseif action == "airForce" then

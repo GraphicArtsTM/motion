@@ -47,6 +47,7 @@ local CameraInput = require(Client:WaitForChild("Input"):WaitForChild("CameraInp
 local AirLayer = require(Render:WaitForChild("AirLayer"))
 local MarkerLayer = require(Render:WaitForChild("MarkerLayer"))
 local WarFxLayer = require(Render:WaitForChild("WarFxLayer"))
+local BattleFxLayer = require(Render:WaitForChild("BattleFxLayer"))
 local ActionRingUI = require(UI:WaitForChild("ActionRing"))
 local DoomBar = require(UI:WaitForChild("DoomBar"))
 local CommandBar = require(UI:WaitForChild("CommandBar"))
@@ -158,6 +159,17 @@ local function runSession(mapId: string, resync: boolean)
 	gui.IgnoreGuiInset = true
 	gui.ResetOnSpawn = false
 	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+	-- Подложка под картой: при тряске экрана (§15м) по краям видно море, а не пустоту.
+	local underlay = Instance.new("Frame")
+	underlay.Name = "MapUnderlay"
+	underlay.AnchorPoint = Vector2.new(0.5, 0.5)
+	underlay.Position = UDim2.fromScale(0.5, 0.5)
+	underlay.Size = UDim2.new(1, 40, 1, 40)
+	underlay.BackgroundColor3 = Theme.Colors.Ocean
+	underlay.BorderSizePixel = 0
+	underlay.ZIndex = 0
+	underlay.Parent = gui
 
 	local viewport = Instance.new("Frame")
 	viewport.Name = "MapViewport"
@@ -282,6 +294,8 @@ local function runSession(mapId: string, resync: boolean)
 	warPanel = wars
 	-- Зрелищная война (§15б): баннер, искры границы, виньетка, стрелки наступления, вспышки захвата.
 	local warFx = WarFxLayer.new(view.canvas, hudGui, cs, lang)
+	-- Живой фронт (§15м): плашки перевеса, «ПРОРЫВ!», захват городов, выбывание, корона, тряска экрана.
+	local battleFx = BattleFxLayer.new(view.canvas, viewport, hudGui, cs, lang, map)
 	wars.refresh()
 	local build = BuildPanel.new(hudGui, cs, lang, send, hud.toast, map, provinces, buildGhost)
 	build.refresh()
@@ -810,7 +824,7 @@ local function runSession(mapId: string, resync: boolean)
 	)
 	stackInto(
 		column("TopRight", 1, UDim.new(1, -12), Enum.HorizontalAlignment.Right),
-		{ "PlaceChip", "Incoming", "Leaders", "Auction", "Forces" }
+		{ "PlaceChip", "GiantChip", "Incoming", "Leaders", "Auction", "Forces" }
 	)
 	-- Панель разработчика (F4) — только в Studio; создаётся в фоне (ждёт канал Remotes.Dev от сервера).
 	local devPanel: DevPanel.DevPanel? = nil
@@ -1012,9 +1026,11 @@ local function runSession(mapId: string, resync: boolean)
 			labels.recolor()
 			buildingLayer.recolor()
 			warFx.onSnapshot()
+			battleFx.onSnapshot()
 		end,
 		onDelta = function(cells: { number })
 			warFx.onDelta(cells) -- вспышки захвата (§15б)
+			battleFx.onDelta(cells) -- кольца захвата городов (§15м)
 			-- Звук захвата (§13): свои новые клетки; город — «Province».
 			local me = cs.myNation
 			if me ~= nil and cs.phase == "Play" then
@@ -1131,6 +1147,7 @@ local function runSession(mapId: string, resync: boolean)
 			airLayer.onEvents(events) -- вспышки бомб и сбитые самолёты
 			markerLayer.onEvents(events) -- круг ракеты сразу при пуске
 			warFx.onEvents(events) -- баннер войны, искры границы (§15б)
+			battleFx.onEvents(events) -- выбывание, тряска (§15м)
 			worldPanel.onEvents(events) -- баннер события
 			tutorial.onEvents(events) -- шаги обучения (§5.5)
 		end,
@@ -1402,6 +1419,7 @@ local function runSession(mapId: string, resync: boolean)
 		airLayer.update(now, camera.state)
 		markerLayer.update(now, camera.state)
 		warFx.update(now, camera.state)
+		battleFx.update(now, camera.state)
 		doomBar.update(now)
 		dock.update(now)
 		lobby.update(now)

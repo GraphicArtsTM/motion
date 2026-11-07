@@ -170,16 +170,22 @@ T.describe("Флот", function()
 				select(2, MatchSim.applyIntent(m, 1, { kind = "attack", target = 2, percent = 0.1, focus = target }))
 			)
 				.toBe("tooManyBoats")
-			runFor(m, 60)
+			-- Фронт открывается после высадки; без гарнизона у врага он может взять остров целиком (§15м — быстро).
 			local front = false
-			for _, a in m.attacks do
-				front = front or (a.attacker == 1 and a.target == 2)
+			for _ = 1, 60 do
+				runFor(m, 1)
+				for _, a in m.attacks do
+					front = front or (a.attacker == 1 and a.target == 2)
+				end
 			end
 			T.expect(front).toBe(true)
 			-- Земля на острове за морем (без города и порта) не сдаётся как котёл — снабжается морем.
 			T.expect(Grid.getOwner(m.grid, 12 * W + RIGHT0) == 1 or Grid.getOwner(m.grid, 3 * W + RIGHT0) == 1)
 				.toBe(true)
-			-- Без своего берега у моря — отказ.
+			-- Без своего берега у моря — отказ (свежий матч: остров врага могли уже взять целиком).
+			m = islands(2)
+			Forces.add(m.nations[1].home, INF, 3000)
+			DevTools.warNow(m, 1, 2)
 			for i = 0, W * H - 1 do
 				if Grid.getOwner(m.grid, i) == 1 then
 					Grid.setOwner(m.grid, i, 0)

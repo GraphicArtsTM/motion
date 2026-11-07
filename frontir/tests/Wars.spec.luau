@@ -269,6 +269,8 @@ T.describe("Реки", function()
 			local function captured(rows: { string }?): number
 				local m = pair(rows)
 				Forces.add(m.nations[1].home, TANKS, 6000)
+				-- Защитник с гарнизоном: перевес умеренный, скорость не упирается в насыщение кривой (§15м).
+				Forces.add(m.nations[2].home, INF, 1500)
 				goToWar(m, 1, 2)
 				MatchSim.applyIntent(m, 1, { kind = "attack", target = 2, percent = 1 })
 				local before = Grid.cellsOf(m.grid, 1)

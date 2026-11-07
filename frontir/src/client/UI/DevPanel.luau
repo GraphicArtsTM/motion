@@ -267,6 +267,10 @@ function DevPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, selfC
 	button(Strings.get("dev.revolt", lang), function()
 		fire("revolt", nil)
 	end)
+	-- §15м: «Сверхдержава» — ничья земля до полной доли.
+	button(Strings.get("dev.giant", lang), function()
+		fire("giant", nil)
+	end)
 	-- Этап 7б-1: флот (§6.12).
 	button(Strings.get("dev.navy", lang), function()
 		fire("navy", nil)

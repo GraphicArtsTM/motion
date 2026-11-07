@@ -197,6 +197,30 @@ function WarFx.arrowStrength(ratio: number, fullSpeedRatio: number, opening: boo
 	return math.clamp(0.35 + 0.65 * r + (if opening then 0.3 else 0), 0, 1)
 end
 
+-- Полоса перевеса (§15м) для плашки над фронтом: стоит (≤ ×1), ползёт, полная скорость (от FullSpeedRatio),
+-- прорыв (от BreakthroughRatio).
+export type RatioBand = "stall" | "crawl" | "full" | "breakthrough"
+function WarFx.ratioBand(ratio: number, fullSpeedRatio: number, breakthroughRatio: number): RatioBand
+	if ratio <= 1 then
+		return "stall"
+	elseif ratio < fullSpeedRatio then
+		return "crawl"
+	elseif ratio < breakthroughRatio then
+		return "full"
+	end
+	return "breakthrough"
+end
+
+-- Тряска экрана (§15м): смещение в пикселях в момент t (0..1) — затухающая дрожь по двум осям.
+function WarFx.shake(t: number, amp: number, hz: number, sec: number): (number, number)
+	if t < 0 or t >= 1 or amp <= 0 then
+		return 0, 0
+	end
+	local decay = (1 - t) * (1 - t)
+	local phase = t * sec * hz * 2 * math.pi
+	return amp * decay * math.sin(phase), amp * decay * math.cos(phase * 1.31 + 0.7)
+end
+
 -- Полёт ракеты (§15ж): точка на дуге от (x0, y0) к (x1, y1) в момент t (0..1); arc — высота дуги в долях
 -- расстояния (дуга «вверх» по экрану). Возвращает x, y и угол касательной в градусах.
 function WarFx.arc(x0: number, y0: number, x1: number, y1: number, t: number, arc: number): (number, number, number)

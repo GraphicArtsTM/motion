@@ -264,6 +264,8 @@ function WarFxLayer.new(canvas: Frame, screen: ScreenGui, cs: ClientState, lang:
 				)
 				local isOpening = (opening[a.attacker * 65536 + a.target] or 0) > now
 				local strength = WarFx.arrowStrength(a.ratio, Config.Combat.FullSpeedRatio, isOpening)
+				-- §15м: свой фронт в прорыве — стрелки золотые.
+				local gold = a.attacker == cs.myNation and a.ratio >= Config.Combat.BreakthroughRatio
 				for _, ar in list do
 					local cell = math.floor(ar.y) * w + math.floor(ar.x)
 					if #arrows < maxArrows and visible(cell) then
@@ -272,7 +274,7 @@ function WarFxLayer.new(canvas: Frame, screen: ScreenGui, cs: ClientState, lang:
 							y = ar.y,
 							dx = ar.dx,
 							dy = ar.dy,
-							color = colorOf(a.attacker),
+							color = if gold then Theme.Colors.Gold else colorOf(a.attacker),
 							strength = strength,
 							fast = isOpening or a.ratio >= Config.Combat.FullSpeedRatio,
 						})

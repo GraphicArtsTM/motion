@@ -74,4 +74,36 @@ T.describe("Зрелищная война (§15б)", function()
 			T.expect(cfg.MaxCaptureFlashes >= Config.Render.Phone.MaxCaptureFlashes).toBe(true)
 		end
 	)
+
+	T.it(
+		"§15м: полосы перевеса, тряска экрана затухает, пределы телефона не больше обычных",
+		function()
+			local full, br = Config.Combat.FullSpeedRatio, Config.Combat.BreakthroughRatio
+			T.expect(WarFx.ratioBand(0.7, full, br)).toBe("stall")
+			T.expect(WarFx.ratioBand(1, full, br)).toBe("stall")
+			T.expect(WarFx.ratioBand(1.4, full, br)).toBe("crawl")
+			T.expect(WarFx.ratioBand(full, full, br)).toBe("full")
+			T.expect(WarFx.ratioBand(br, full, br)).toBe("breakthrough")
+			T.expect(WarFx.ratioBand(math.huge, full, br)).toBe("breakthrough")
+			local sh = Config.Render.Shake
+			local x0, y0 = WarFx.shake(1, sh.NukePx, sh.Hz, sh.Sec)
+			T.expect(x0 == 0 and y0 == 0).toBe(true)
+			local peak = 0
+			for k = 0, 9 do
+				local x, y = WarFx.shake(k / 10, sh.NukePx, sh.Hz, sh.Sec)
+				T.expect(math.abs(x) <= sh.NukePx and math.abs(y) <= sh.NukePx).toBe(true)
+				peak = math.max(peak, math.abs(x), math.abs(y))
+			end
+			T.expect(peak > 0).toBe(true)
+			local late = 0
+			for k = 80, 99 do
+				local x, y = WarFx.shake(k / 100, sh.NukePx, sh.Hz, sh.Sec)
+				late = math.max(late, math.abs(x), math.abs(y))
+			end
+			T.expect(late < peak * 0.1).toBe(true)
+			local fx, phone = Config.Render.BattleFx, Config.Render.Phone
+			T.expect(fx.MaxBadges >= phone.MaxBadges and fx.MaxRings >= phone.MaxRings).toBe(true)
+			T.expect(fx.FireworkSparks >= phone.FireworkSparks).toBe(true)
+		end
+	)
 end)

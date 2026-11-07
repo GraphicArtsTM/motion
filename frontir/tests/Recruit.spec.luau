@@ -102,6 +102,8 @@ T.describe("Найм (правка перед 7в-2)", function()
 				local n = m.nations[2]
 				n.money = 500000
 				n.home = Forces.new()
+				-- Сосед с армией: бот остаётся «в мире» (§15м — беззащитного соседа фронт съедает за минуту).
+				Forces.add(m.nations[1].home, INF, 50000)
 				runFor(m, 60)
 				-- Нанятые — дома и на фронтах (бот может пойти на ничью землю).
 				return Forces.total(n.home) + Forces.total(MatchSim.frontForces(m, 2)), n.money

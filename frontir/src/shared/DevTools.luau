@@ -212,6 +212,42 @@ function DevTools.navy(m: Match, id: number): (boolean, string?)
 	return true, nil
 end
 
+-- «Сверхдержава» (§15м): держава прирастает ничьей землёй вокруг своей (обходом в ширину) до полной доли
+-- Combat.Giant.FullShare — чтобы увидеть корону, плашку и бонус фронта. Ничьей земли мало — «noLand».
+function DevTools.giant(m: Match, id: number): (boolean, string?)
+	local n = m.nations[id]
+	if n == nil or not n.alive then
+		return false, "dead"
+	end
+	local g = m.grid
+	local need = math.ceil(g.capturableCount * Config.Combat.Giant.FullShare) - Grid.cellsOf(g, id)
+	local queue: { number } = {}
+	local seen: { [number]: boolean } = {}
+	for i = 0, g.size - 1 do
+		if Grid.getOwner(g, i) == id then
+			table.insert(queue, i)
+			seen[i] = true
+		end
+	end
+	local head = 1
+	while head <= #queue and need > 0 do
+		Grid.forNeighbours(g, queue[head], function(j: number)
+			if need > 0 and not seen[j] and Grid.isCapturable(g, j) and Grid.getOwner(g, j) == 0 then
+				seen[j] = true
+				Grid.setOwner(g, j, id)
+				table.insert(queue, j)
+				need -= 1
+			end
+		end)
+		head += 1
+	end
+	if MatchSim.giantOf(m, id) <= 0 then
+		return false, "noLand"
+	end
+	m.infoDirty = true
+	return true, nil
+end
+
 -- Торговое судно сейчас (§15е): свой порт и порт торгового партнёра у того же моря, рейс — на следующем шаге.
 function DevTools.tradeNow(m: Match, id: number): (boolean, string?)
 	local n = m.nations[id]

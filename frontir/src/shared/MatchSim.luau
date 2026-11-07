@@ -2555,6 +2555,15 @@ local function battleRng(m: Match, a: Attack): Rng
 	return r
 end
 
+-- «Сверхдержава» (§15м): насколько держава огромна (0..1) по доле во всей захватываемой суше.
+function MatchSim.giantOf(m: Match, id: number): number
+	local total = m.grid.capturableCount
+	if id == 0 or total <= 0 then
+		return 0
+	end
+	return Fronts.giant(Grid.cellsOf(m.grid, id) / total)
+end
+
 local function stepAttacks(m: Match, simDt: number): number
 	local g = m.grid
 	local cities = MatchSim.cities(m)
@@ -2701,6 +2710,7 @@ local function stepAttacks(m: Match, simDt: number): number
 						counter = if counter ~= nil then counter.forces else nil,
 						bonus = (if still then Config.Fortify.LineBonus else 1) * MatchSim.abilityDefenseMul(m, a),
 						armor = if Tech.has(m.tech, a.target, "Army", 4) then Config.Tech.TankArmor else nil, -- Войска-4 (сводная правка)
+						giantAttacker = MatchSim.giantOf(m, a.attacker), -- §15м
 					},
 					Fronts.terrainDefense(m.map, front.list, front.river, fortified),
 					battleRng(m, a),
@@ -2712,9 +2722,12 @@ local function stepAttacks(m: Match, simDt: number): number
 				a.fighting = result.fighting
 				Wars.addLosses(war, a.attacker, result.lostAttacker)
 				Wars.addLosses(war, a.target, result.lostDefender)
-				local mul = Fronts.advanceMul(a, result.ratio)
-					* MatchSim.surgeMul(m, a.attacker)
-					* MatchSim.openingMul(m, war, a.attacker)
+				local mul = Fronts.advanceMul(
+					a,
+					result.ratio,
+					MatchSim.giantOf(m, a.attacker),
+					MatchSim.giantOf(m, a.target)
+				) * MatchSim.surgeMul(m, a.attacker) * MatchSim.openingMul(m, war, a.attacker)
 				local allowCities = result.ratio >= Config.Combat.CityCaptureRatio
 				local took = Expansion.advanceFront(
 					m.map,

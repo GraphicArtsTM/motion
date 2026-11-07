@@ -7,7 +7,8 @@
 	Оборона фронта = доля гарнизона защитника (по длине этого фронта среди всех фронтов против него)
 	+ войска его встречного фронта на той же границе. Сила защиты × бонус «на своей земле» × защита
 	местности вдоль фронта. Атака без снабжения слабее и тает.
-	Перевес = атака / оборона: > 1 — фронт идёт (к FullSpeedRatio — с полной скоростью), ≤ 1 — стоит.
+	Перевес = атака / оборона: > 1 — фронт идёт (скорость — кривая Combat.SpeedCurve, §15м), ≤ 1 — стоит.
+	«Сверхдержава» (§15м): giant(доля суши) 0..1 — её фронт быстрее и теряет меньше, фронты против неё быстрее.
 	Потери: каждая сторона теряет пропорционально силе противника (LossRate), с разбросом ±DamageSpread.
 ]]
 
@@ -29,6 +30,7 @@ export type Defense = {
 	counter: Forces?, -- войска встречного фронта защитника на этой границе
 	bonus: number?, -- множитель обороны (укреплённая линия, §6.9)
 	armor: number?, -- защита танков защитника × (технология «Тяжёлая броня», §6.14)
+	giantAttacker: number?, -- §15м: насколько атакующий — сверхдержава (0..1): его потери меньше
 }
 
 export type BattleResult = {
@@ -154,7 +156,11 @@ function Fronts.battle(
 	if applyLosses and fighting then
 		local spreadA = 1 + (Rng.nextFloat(rng) * 2 - 1) * cfg.DamageSpread
 		local spreadD = 1 + (Rng.nextFloat(rng) * 2 - 1) * cfg.DamageSpread
-		local toAttacker = defensePower * cfg.LossRate * dt * spreadA
+		local toAttacker = defensePower
+			* cfg.LossRate
+			* dt
+			* spreadA
+			* (1 + (cfg.Giant.AttackerLossMin - 1) * (defense.giantAttacker or 0))
 		local toDefender = attackPower * cfg.LossRate * dt * spreadD
 		lostA = Forces.applyDamage(attack.forces, toAttacker)
 		-- Урон защитнику делится между гарнизоном и встречным фронтом по их вкладу в оборону.
@@ -177,17 +183,44 @@ function Fronts.battle(
 	return { ratio = ratio, fighting = fighting, lostAttacker = lostA, lostDefender = lostD }
 end
 
--- Множитель скорости фронта по перевесу и составу войск (танки быстрее, звёзды ускоряют).
-function Fronts.advanceMul(attack: Attack, ratio: number): number
+-- Скорость по перевесу (§15м): кривая Combat.SpeedCurve, между точками — по прямой, после последней — насыщение.
+function Fronts.speedOf(ratio: number): number
+	local curve = Config.Combat.SpeedCurve
+	local first = curve[1]
+	if ratio <= first[1] then
+		return first[2]
+	end
+	for k = 2, #curve do
+		local p, q = curve[k - 1], curve[k]
+		if ratio <= q[1] then
+			return p[2] + (q[2] - p[2]) * (ratio - p[1]) / (q[1] - p[1])
+		end
+	end
+	return curve[#curve][2]
+end
+
+-- «Сверхдержава» (§15м): доля державы во всей захватываемой суше → 0..1 (плавно от FromShare до FullShare).
+function Fronts.giant(share: number): number
+	local g = Config.Combat.Giant
+	local t = math.clamp((share - g.FromShare) / (g.FullShare - g.FromShare), 0, 1)
+	return t * t * (3 - 2 * t)
+end
+
+-- Множитель скорости фронта по перевесу и составу войск (танки быстрее, звёзды ускоряют); giantAttacker и
+-- giantDefender — Fronts.giant атакующего и цели (§15м).
+function Fronts.advanceMul(attack: Attack, ratio: number, giantAttacker: number?, giantDefender: number?): number
 	local cfg = Config.Combat
-	if ratio <= 1 then
+	local speed = Fronts.speedOf(ratio)
+	if speed <= 0 then
 		return 0
 	end
-	local mul = math.clamp((ratio - 1) / (cfg.FullSpeedRatio - 1), 0, 1) * cfg.FrontSpeedMul
-	if ratio >= cfg.BreakthroughRatio then
-		mul *= cfg.BreakthroughMul
-	end
-	return mul * Forces.speedFactor(attack.forces) * (1 + Forces.avgStars(attack.forces) * cfg.VeteranStarBonus)
+	local giant = (1 + (cfg.Giant.AttackerSpeedMax - 1) * (giantAttacker or 0))
+		* (1 + (cfg.Giant.DefenderSpeedMax - 1) * (giantDefender or 0))
+	return speed
+		* cfg.FrontSpeedMul
+		* giant
+		* Forces.speedFactor(attack.forces)
+		* (1 + Forces.avgStars(attack.forces) * cfg.VeteranStarBonus)
 end
 
 return table.freeze(Fronts)

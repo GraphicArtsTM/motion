@@ -715,6 +715,7 @@ local TABLE: { [string]: Entry } = {
 	["reject.notSea"] = { ru = "Это не море этого корабля", en = "Not this ship's sea" },
 	["hud.fleet"] = { ru = "Флот: %d трансп., %d эсм.", en = "Fleet: %d transp., %d destr." },
 	["dev.navy"] = { ru = "Порт и флот", en = "Port and fleet" },
+	["dev.giant"] = { ru = "Сверхдержава (земля)", en = "Superpower (land)" },
 	["dev.botLanding"] = { ru = "Бот: десант на вас", en = "Bot: lands on you" },
 	-- Этап 7б-2: авиация
 	["building.Airfield"] = { ru = "Аэродром", en = "Airfield" },
@@ -1524,6 +1525,16 @@ local TABLE: { [string]: Entry } = {
 	["warfx.war"] = { ru = "⚔ ВОЙНА ⚔", en = "⚔ WAR ⚔" },
 	["warfx.offensive"] = { ru = "НАСТУПЛЕНИЕ!", en = "OFFENSIVE!" },
 	["warfx.vs"] = { ru = "%s → %s", en = "%s → %s" },
+	-- §15м: живой фронт и зрелищный матч.
+	["fx.breakthrough"] = { ru = "ПРОРЫВ ×%s", en = "BREAKTHROUGH ×%s" },
+	["fx.breakthroughPop"] = { ru = "ПРОРЫВ!", en = "BREAKTHROUGH!" },
+	["fx.cityTaken"] = { ru = "+ Город", en = "+ City" },
+	["fx.cityLost"] = { ru = "− Город", en = "− City" },
+	["fx.eliminated"] = { ru = "%s выбывает!", en = "%s is out!" },
+	["fx.giant"] = {
+		ru = "СВЕРХДЕРЖАВА · фронт +%d%% · потери −%d%%",
+		en = "SUPERPOWER · front +%d%% · losses −%d%%",
+	},
 	["shop.crateRestricted"] = {
 		ru = "Недоступно в вашем регионе (правила Roblox о платных случайных наградах)",
 		en = "Not available in your region (Roblox rules on paid random items)",

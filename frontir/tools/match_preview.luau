@@ -46,6 +46,7 @@ local ShipSprites = require("../src/shared/ShipSprites")
 local Types = require("../src/shared/Types")
 local UnitSprites = require("../src/shared/UnitSprites")
 local Png = require("./lib/Png")
+local PixelFont = require("./lib/PixelFont")
 
 local seconds = tonumber(process.args[1]) or 75
 local seed = tonumber(process.args[2]) or 12345
@@ -641,13 +642,23 @@ local function renderRegion(
 		rect(sx - s // 2, sy - s // 2 - 1, s, 1, gold)
 	end
 	-- Стрелки наступления (§15б): как у клиента (Shared.WarFx) — шевроны цвета нападающего к врагу.
+	local badges: { { x: number, y: number, text: string, color: string } } = {}
 	do
 		local wcfg = Config.Render.WarFx
 		local length = math.max(wcfg.ArrowMinPx, wcfg.ArrowLengthCells * cell)
 		local size = math.max(6, length / wcfg.ArrowChevrons * 1.1)
 		local thick = math.max(3, math.round(size * 0.25))
+		-- Встречные фронты пары — одна плашка (у того, кто сильнее).
+		local strongest: { [number]: number } = {}
 		for _, a in m.attacks do
 			if a.target ~= 0 then
+				local key = math.min(a.attacker, a.target) * 65536 + math.max(a.attacker, a.target)
+				strongest[key] = math.max(strongest[key] or 0, a.ratio)
+			end
+		end
+		for _, a in m.attacks do
+			if a.target ~= 0 then
+				local pairKey = math.min(a.attacker, a.target) * 65536 + math.max(a.attacker, a.target)
 				local list = WarFx.frontArrows(
 					ownerAt,
 					w,
@@ -663,7 +674,25 @@ local function renderRegion(
 					wcfg.ArrowMinCells
 				)
 				local strength = WarFx.arrowStrength(a.ratio, Config.Combat.FullSpeedRatio, false)
-				local color = ownerRgb(a.attacker)
+				-- §15м: свой (в превью — любой) фронт в прорыве — стрелки золотые.
+				local color = if a.ratio >= Config.Combat.BreakthroughRatio
+					then Palette.rgb("Gold")
+					else ownerRgb(a.attacker)
+				-- §15м: плашка перевеса над серединой фронта (как BattleFxLayer).
+				local mid = list[math.max(1, (#list + 1) // 2)]
+				if mid ~= nil and a.ratio >= (strongest[pairKey] or 0) then
+					local band = WarFx.ratioBand(a.ratio, Config.Combat.FullSpeedRatio, Config.Combat.BreakthroughRatio)
+					local bandName = ({ stall = "Red", crawl = "Orange", full = "Lime", breakthrough = "Gold" })[band]
+					local shown = if a.ratio >= Config.Render.BattleFx.BadgeMaxShown
+						then string.format("%d+", Config.Render.BattleFx.BadgeMaxShown)
+						else string.format("%.1f", math.max(0.1, a.ratio))
+					table.insert(badges, {
+						x = mid.x,
+						y = mid.y - 1.5,
+						text = (if band == "breakthrough" then "ПРОРЫВ X" else "X") .. shown,
+						color = bandName,
+					})
+				end
 				for _, ar in list do
 					local cx, cy = px(ar.x, ar.y)
 					-- Перпендикуляр к направлению.
@@ -700,6 +729,29 @@ local function renderRegion(
 					end
 				end
 			end
+		end
+	end
+	-- §15м: плашки перевеса поверх стрелок (пиксельный шрифт превью, ×2).
+	for _, b in badges do
+		local sc = 2
+		local tw = utf8.len(b.text) or #b.text
+		local bw, bh = tw * (PixelFont.W + 1) * sc + 10, PixelFont.H * sc + 8
+		local cx, cy = px(b.x, b.y)
+		local bx, by = math.round(cx - bw / 2), math.round(cy - bh)
+		local edge = Palette.rgb(b.color)
+		rect(bx - 2, by - 2, bw + 4, bh + 4, edge)
+		rect(bx, by, bw, bh, ink)
+		local k = 0
+		for _, code in utf8.codes(b.text) do
+			local g = PixelFont.glyph(utf8.char(code))
+			for gy = 1, PixelFont.H do
+				for gx = 1, PixelFont.W do
+					if string.sub(g[gy], gx, gx) == "#" then
+						rect(bx + 5 + (k * (PixelFont.W + 1) + gx - 1) * sc, by + 4 + (gy - 1) * sc, sc, sc, edge)
+					end
+				end
+			end
+			k += 1
 		end
 	end
 	-- На всей карте — только отметки боёв на линиях.

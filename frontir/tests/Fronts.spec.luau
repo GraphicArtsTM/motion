@@ -3,6 +3,7 @@ local T = require("./lib/TestKit")
 local Fixtures = require("./lib/Fixtures")
 local TinyMap = require("./lib/TinyMap")
 local Buildings = require("../src/shared/Buildings")
+local DevTools = require("../src/shared/DevTools")
 local Config = require("../src/shared/Config")
 local Forces = require("../src/shared/Forces")
 local Fronts = require("../src/shared/Fronts")
@@ -173,14 +174,62 @@ T.describe("Fronts.battle", function()
 		end
 	)
 
-	T.it("сильный фронт идёт; прорыв от BreakthroughRatio быстрее", function()
-		local a = frontAttack(forcesOf(1000))
-		local slow = Fronts.advanceMul(a, 1.5)
-		local full = Fronts.advanceMul(a, Config.Combat.FullSpeedRatio)
-		local breakthrough = Fronts.advanceMul(a, Config.Combat.BreakthroughRatio)
-		T.expect(slow > 0 and slow < full).toBe(true)
-		T.expect(breakthrough).toBeNear(full * Config.Combat.BreakthroughMul, 1e-9)
-	end)
+	T.it(
+		"сильный фронт идёт; скорость растёт с перевесом плавно и с насыщением (§15м)",
+		function()
+			local a = frontAttack(forcesOf(1000))
+			local slow = Fronts.advanceMul(a, 1.5)
+			local full = Fronts.advanceMul(a, Config.Combat.FullSpeedRatio)
+			local breakthrough = Fronts.advanceMul(a, Config.Combat.BreakthroughRatio)
+			T.expect(slow > 0 and slow < full and full < breakthrough).toBe(true)
+			T.expect(Fronts.speedOf(Config.Combat.FullSpeedRatio)).toBeNear(1, 1e-9)
+			T.expect(Fronts.speedOf(1)).toBe(0)
+			T.expect(Fronts.speedOf(0.5)).toBe(0)
+			-- Без ступенек: соседние значения близки, кривая не убывает.
+			local prev = 0
+			for k = 100, 1000 do
+				local v = Fronts.speedOf(k / 100)
+				T.expect(v >= prev and v - prev < 0.02).toBe(true)
+				prev = v
+			end
+			-- Насыщение: дальше последней точки не растёт; «обороны нет» — как последняя точка.
+			local curve = Config.Combat.SpeedCurve
+			local last = curve[#curve]
+			T.expect(Fronts.speedOf(last[1] * 10)).toBeNear(last[2], 1e-9)
+			T.expect(Fronts.speedOf(math.huge)).toBeNear(last[2], 1e-9)
+		end
+	)
+
+	T.it(
+		"«Сверхдержава» (§15м): быстрее и с меньшими потерями; против неё — быстрее",
+		function()
+			local g = Config.Combat.Giant
+			T.expect(Fronts.giant(0)).toBe(0)
+			T.expect(Fronts.giant(g.FromShare)).toBe(0)
+			T.expect(Fronts.giant(g.FullShare)).toBe(1)
+			T.expect(Fronts.giant(1)).toBe(1)
+			local mid = Fronts.giant((g.FromShare + g.FullShare) / 2)
+			T.expect(mid > 0 and mid < 1).toBe(true)
+			local a = frontAttack(forcesOf(1000))
+			local base = Fronts.advanceMul(a, 2)
+			T.expect(Fronts.advanceMul(a, 2, 1, 0)).toBeNear(base * g.AttackerSpeedMax, 1e-9)
+			T.expect(Fronts.advanceMul(a, 2, 0, 1)).toBeNear(base * g.DefenderSpeedMax, 1e-9)
+			-- Потери атакующей сверхдержавы — меньше (тот же бой, тот же ГСЧ).
+			local plain, giant = frontAttack(forcesOf(1000)), frontAttack(forcesOf(1000))
+			Fronts.battle(plain, { home = forcesOf(800), share = 1, counter = nil }, 1, Rng.new(5), DT, true)
+			Fronts.battle(
+				giant,
+				{ home = forcesOf(800), share = 1, counter = nil, giantAttacker = 1 },
+				1,
+				Rng.new(5),
+				DT,
+				true
+			)
+			local lostPlain = 1000 - Forces.total(plain.forces)
+			local lostGiant = 1000 - Forces.total(giant.forces)
+			T.expect(lostGiant).toBeNear(lostPlain * g.AttackerLossMin, lostPlain * 0.02)
+		end
+	)
 
 	T.it(
 		"гарнизон делится по фронтам: на коротком фронте обороны меньше",
@@ -383,6 +432,28 @@ T.describe("Фронты на «Пангее»", function()
 				end
 			end
 			T.expect(anyForces).toBe(true)
+		end
+	)
+end)
+
+T.describe("«Сверхдержава» в матче (§15м)", function()
+	T.it(
+		"доля суши → бонус; F4 «Сверхдержава» доводит державу до полной доли",
+		function()
+			local m = MatchSim.new(TinyMap.plains(60, 40), 3)
+			m.victory = false
+			MatchSim.addPlayer(m, 1, "A")
+			MatchSim.addPlayer(m, 2, "B")
+			m.phase = "Play"
+			Grid.setOwner(m.grid, 5 * 60 + 5, 1)
+			Grid.setOwner(m.grid, 30 * 60 + 50, 2)
+			T.expect(MatchSim.giantOf(m, 1)).toBe(0)
+			T.expect(MatchSim.giantOf(m, 0)).toBe(0)
+			T.expect((DevTools.giant(m, 1))).toBe(true)
+			local share = Grid.cellsOf(m.grid, 1) / m.grid.capturableCount
+			T.expect(share >= Config.Combat.Giant.FullShare).toBe(true)
+			T.expect(MatchSim.giantOf(m, 1)).toBe(1)
+			T.expect(MatchSim.giantOf(m, 2)).toBe(0)
 		end
 	)
 end)
