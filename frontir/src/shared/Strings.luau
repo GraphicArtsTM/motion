@@ -1284,6 +1284,367 @@ local TABLE: { [string]: Entry } = {
 		en = "Keys: Z/X/C/V — hire · B — build · Y — technology · T — diplomacy · Q/E — abilities · R — missiles · G — pings · M — shop · H — this help · Space — to capital",
 	},
 	["help.close"] = { ru = "Понятно!", en = "Got it!" },
+	-- §15х ч.5 Справочник механик (Shared.Handbook, UI/HandbookPanel): «Что это · Как запустить · Чем защититься».
+	["handbook.open"] = { ru = "Справочник механик", en = "Mechanics handbook" },
+	["handbook.title"] = { ru = "СПРАВОЧНИК МЕХАНИК", en = "MECHANICS HANDBOOK" },
+	["handbook.subtitle"] = {
+		ru = "Каждая механика: что это, как запустить и чем от неё защититься",
+		en = "Every mechanic: what it is, how to use it and how to defend against it",
+	},
+	["handbook.tab.strikes"] = { ru = "Удары и защита", en = "Strikes & defence" },
+	["handbook.tab.army"] = { ru = "Войска и фронт", en = "Troops & front" },
+	["handbook.tab.build"] = { ru = "Стройка и экономика", en = "Building & economy" },
+	["handbook.tab.air"] = { ru = "Флот и авиация", en = "Navy & air" },
+	["handbook.tab.diplo"] = { ru = "Дипломатия", en = "Diplomacy" },
+	["handbook.tab.world"] = { ru = "Мир и события", en = "World & events" },
+	["handbook.what"] = { ru = "Что это", en = "What it is" },
+	["handbook.how"] = { ru = "Как запустить", en = "How to use" },
+	["handbook.defense"] = { ru = "Чем защититься", en = "How to defend" },
+	["handbook.hinder"] = { ru = "Как помешать", en = "How to counter" },
+	-- Удары и защита
+	["handbook.missile.name"] = { ru = "Ракета", en = "Missile" },
+	["handbook.missile.what"] = {
+		ru = "Удар шахты по кругу на земле врага: здания в круге теряют уровень, фронты слабеют. До удара все видят дугу полёта и красный круг с отсчётом.",
+		en = "A silo strike on an enemy area: buildings in the circle lose a level, fronts weaken. Before impact everyone sees the arc and a red countdown circle.",
+	},
+	["handbook.missile.how"] = {
+		ru = "Технология «Ракетная шахта» (Y) → постройте шахту → R или ПКМ по врагу → «Ракета» → нажмите цель. Только по врагу в войне, есть перезарядка.",
+		en = "Research “Missile silo” (Y) → build a silo → R or right-click an enemy → “Missile” → tap the target. Enemies at war only, has a cooldown.",
+	},
+	["handbook.missile.defense"] = {
+		ru = "1 заряд ПВО, чей круг накрывает цель, сбивает ракету; ПВО ур. 3 ловит её и в дальнем круге. Прицел заранее пишет «собьют» или «дойдёт».",
+		en = "One charge of AA covering the target shoots it down; level 3 AA also catches it in the long-range circle. The aim hint says “shot down” or “gets through”.",
+	},
+	["handbook.nukes.name"] = { ru = "Атомная и водородная бомбы", en = "Atomic and hydrogen bombs" },
+	["handbook.nukes.what"] = {
+		ru = "Боеголовки шахты: большой круг, земля врага в нём становится ничьей, здания разрушены, остаётся заражение. Своя земля и нейтралы не задеваются.",
+		en = "Silo warheads: a big circle where enemy land becomes empty, buildings are destroyed and fallout remains. Your land and neutrals are spared.",
+	},
+	["handbook.nukes.how"] = {
+		ru = "Шахта (для водородной — ещё «Тяжёлая броня») → повторное R переключает боеголовку → нажмите цель. Стоят денег и нефти; при «Запрете супероружия» пуска нет.",
+		en = "A silo (hydrogen also needs “Heavy armor”) → press R again to switch warhead → tap the target. Cost money and oil; no launches under a “Superweapon ban”.",
+	},
+	["handbook.nukes.defense"] = {
+		ru = "Нужно 2 (атомная) или 3 (водородная) заряда ПВО над целью вместе; не хватает — заряды не тратятся и бомба падает. В Совете голосуйте за запрет супероружия.",
+		en = "It takes 2 (atomic) or 3 (hydrogen) AA charges over the target together; too few and none are spent — the bomb lands. Vote for a superweapon ban in the Council.",
+	},
+	["handbook.raid.name"] = { ru = "Налёт", en = "Air raid" },
+	["handbook.raid.what"] = {
+		ru = "Бомбардировщик с аэродрома бьёт по фронту, гарнизону у линии или зданию (−1 уровень). Самолёт виден в полёте, у цели — круг налёта.",
+		en = "A bomber from an airfield hits a front, the garrison at the line or a building (−1 level). The plane is visible in flight, the target gets a raid circle.",
+	},
+	["handbook.raid.how"] = {
+		ru = "Технология «Авиация» → аэродром → бомбардировщик в меню аэродрома → «Налёт» на панели «УДАРЫ» или ПКМ по врагу → цель в радиусе аэродрома.",
+		en = "Research “Aviation” → airfield → a bomber from the airfield menu → “Raid” on the STRIKES panel or right-click an enemy → a target within airfield range.",
+	},
+	["handbook.raid.defense"] = {
+		ru = "Бомбу сбивает заряд ПВО в её ближнем круге; самолёт в пути встречают ПВО и ваши истребители; урон по фронту режут зенитки (ПВО) в войсках.",
+		en = "An AA charge in its short-range circle stops the bomb; on the way the plane meets AA and your fighters; anti-air troops cut damage to the front.",
+	},
+	["handbook.ability.name"] = { ru = "Удар генерала и Арсенал", en = "General's strike and Arsenal" },
+	["handbook.ability.what"] = {
+		ru = "Q и E — способности генерала: у Маршала «Авиаудар» по фронтам врага в круге, у Адмирала, Разведчика и Инженера — свои. «Артналёт» и «Глушилка» из Арсенала — тоже удары.",
+		en = "Q and E are your general's abilities: the Marshal's “Airstrike” hits enemy fronts in a circle; the Admiral, Scout and Engineer have their own. Arsenal “Barrage” and “Jammer” are strikes too.",
+	},
+	["handbook.ability.how"] = {
+		ru = "Генерала и предмет Арсенала выберите до боя (U). В матче — Q / E или плитка на панели «УДАРЫ», потом нажмите цель. Есть перезарядка.",
+		en = "Pick a general and an Arsenal item before the match (U). In battle press Q / E or the STRIKES tile, then tap the target. Has a cooldown.",
+	},
+	["handbook.ability.defense"] = {
+		ru = "Урон авиаудара и артналёта по фронту режут зенитки (ПВО) в войсках. Глушилка на 20 с выключает ПВО в круге — ставьте ПВО в разных местах.",
+		en = "Anti-air troops cut airstrike and barrage damage to a front. The Jammer silences AA in a circle for 20 s — spread your AA out.",
+	},
+	["handbook.defense.name"] = { ru = "ПВО", en = "Air defence" },
+	["handbook.defense.what"] = {
+		ru = "Здание защиты от ударов. Ур. 1–2 — ближний круг: сбивает бомбы налётов, ракеты и боеголовки, стреляет по самолётам. Ур. 3 — ещё дальний круг против ракет.",
+		en = "The strike defence building. Lv 1–2 — short range: stops raid bombs, missiles and warheads, fires at planes. Lv 3 adds a long-range circle against missiles.",
+	},
+	["handbook.defense.how"] = {
+		ru = "Стройка (B) → «ПВО» рядом с городами и шахтой. Заряды = уровень (+1 с «Сетью ПВО»), каждый восстанавливается 30 с. Ур. 3 — после технологии «Дальняя ПВО».",
+		en = "Build (B) → “AA” next to cities and the silo. Charges = level (+1 with “Air defense grid”), each recharges in 30 s. Lv 3 needs “Long-range AA”.",
+	},
+	["handbook.defense.hinder"] = {
+		ru = "Бейте залпом: удары сверх запаса зарядов проходят. Глушилка из Арсенала выключает ПВО в круге на 20 с.",
+		en = "Strike in a salvo: hits beyond the charges get through. The Arsenal Jammer silences AA in a circle for 20 s.",
+	},
+	["handbook.threat.name"] = { ru = "Карта угроз и сирена", en = "Threat map and siren" },
+	["handbook.threat.what"] = {
+		ru = "Карта угроз показывает вашу ПВО и ПВО врага, куда летают его самолёты, его шахты и «дыры» — ваши здания без защиты от ракет. Сирена — строка с отсчётом, когда удар летит по вам.",
+		en = "The threat map shows your AA and the enemy's, where his planes fly, his silos and “holes” — your buildings with no missile defence. The siren is a countdown line when a strike flies at you.",
+	},
+	["handbook.threat.how"] = {
+		ru = "L или «Угрозы» в доке; «Показать дыру» ведёт камеру к каждой. Сирена включается сама, «показать» — камера к цели.",
+		en = "L or “Threats” in the dock; “Show a hole” moves the camera to each one. The siren turns on by itself, “show” moves the camera to the target.",
+	},
+	["handbook.threat.defense"] = {
+		ru = "Закройте дыры: ПВО ур. 3 у городов и важных зданий. Пока летит удар — постройте ПВО рядом с целью или уведите войска с её фронта.",
+		en = "Close the holes: level 3 AA by cities and key buildings. While a strike is in flight, build AA near the target or pull troops off that front.",
+	},
+	-- Войска и фронт
+	["handbook.hire.name"] = { ru = "Найм войск", en = "Hiring troops" },
+	["handbook.hire.what"] = {
+		ru = "Войска — общий запас державы: пехота, танки, артиллерия, ПВО. Найм идёт очередью по линиям; готовые встают в гарнизон.",
+		en = "Troops are your nation's shared pool: infantry, tanks, artillery, anti-air. Hiring queues up on lines; ready troops join the garrison.",
+	},
+	["handbook.hire.how"] = {
+		ru = "Z / X / C / V или кнопки в нижней полосе. Линии найма дают казармы и уровни городов; казармы ур. 2–3 открывают технику.",
+		en = "Z / X / C / V or the bottom bar buttons. Barracks and city levels add hiring lines; barracks lv 2–3 unlock vehicles.",
+	},
+	["handbook.hire.hinder"] = {
+		ru = "Бейте налётами и ракетами по казармам (−1 уровень — минус линия), берите города врага.",
+		en = "Hit barracks with raids and missiles (−1 level means one line less), take enemy cities.",
+	},
+	["handbook.front.name"] = { ru = "Фронт и перевес", en = "Front and odds" },
+	["handbook.front.what"] = {
+		ru = "Атака на державу — фронт: доля войск идёт вперёд. Скорость — от перевеса: ×1 и меньше — стоит, ×2 — полная, от ×3 — «ПРОРЫВ». Плашка над стрелками показывает перевес и прогноз.",
+		en = "Attacking a nation opens a front: a share of troops pushes forward. Speed depends on odds: ×1 or less — stalled, ×2 — full speed, ×3+ — “BREAKTHROUGH”. The badge over the arrows shows odds and forecast.",
+	},
+	["handbook.front.how"] = {
+		ru = "В войне нажмите на врага; ползунок задаёт долю войск. Подсказка у курсора до атаки пишет перевес.",
+		en = "At war, tap the enemy; the slider sets the troop share. The cursor hint shows the odds before you attack.",
+	},
+	["handbook.front.defense"] = {
+		ru = "Держите гарнизон и стройте укрепления (×1.5 защиты в провинции); фронт, что долго стоит, ещё сильнее. Встречный фронт сбивает перевес.",
+		en = "Keep a garrison and build forts (×1.5 defence in the province); a line that holds still gets stronger. A counter-front cuts the odds.",
+	},
+	["handbook.supply.name"] = { ru = "Снабжение", en = "Supply" },
+	["handbook.supply.what"] = {
+		ru = "Фронт снабжают города (свои и союзников) и порты по морю — в своём круге. Без снабжения фронт слабеет.",
+		en = "Fronts are supplied by cities (yours and allies') and by ports over sea, within their circle. Without supply a front weakens.",
+	},
+	["handbook.supply.how"] = {
+		ru = "Наведите на город или порт — виден круг снабжения. Новый город или порт у фронта тянет снабжение дальше; технология «Снабжение» — дальше в полтора раза.",
+		en = "Hover a city or port to see its supply circle. A new city or port near the front reaches further; the “Logistics” tech extends range.",
+	},
+	["handbook.supply.hinder"] = {
+		ru = "Берите города у фронта врага, блокируйте его порты эсминцем.",
+		en = "Take cities behind the enemy front, blockade his ports with a destroyer.",
+	},
+	["handbook.pocket.name"] = { ru = "Котёл", en = "Pocket" },
+	["handbook.pocket.what"] = {
+		ru = "Земля, не связанная со столицей: гарнизон её не защищает, фронты оттуда без снабжения. Котёл без своего города со временем сдаётся врагу.",
+		en = "Land cut off from your capital: the garrison does not defend it, its fronts have no supply. A pocket without a city surrenders to the enemy over time.",
+	},
+	["handbook.pocket.how"] = {
+		ru = "Окружите кусок врага фронтами или отрежьте его от столицы — котёл сдастся сам.",
+		en = "Encircle part of an enemy with fronts or cut it off from his capital — the pocket gives up on its own.",
+	},
+	["handbook.pocket.defense"] = {
+		ru = "Пробейте коридор к своей земле, держите в котле город или порт со снабжением по морю; земля у союзника с полным доверием — не котёл.",
+		en = "Break a corridor back to your land, keep a city or a sea-supplied port in the pocket; land touching a full-trust ally is not a pocket.",
+	},
+	["handbook.giant.name"] = { ru = "Сверхдержава", en = "Superpower" },
+	["handbook.giant.what"] = {
+		ru = "Держава от 10% суши получает бонус, полный к 35%: её фронты быстрее и теряют меньше. Над названием — корона.",
+		en = "A nation holding 10%+ of the land gets a bonus, full at 35%: its fronts move faster and lose less. A crown sits over its name.",
+	},
+	["handbook.giant.how"] = {
+		ru = "Включается сама, когда вы растёте; плашка «Сверхдержава» в верхней полосе показывает бонус.",
+		en = "Turns on by itself as you grow; the “Superpower” badge in the top bar shows the bonus.",
+	},
+	["handbook.giant.defense"] = {
+		ru = "Против сверхдержавы чужие фронты идут быстрее — её граница растянута. Бейте вместе с союзниками; Совет может ввести санкции против лидера.",
+		en = "Fronts against a superpower move faster — its border is stretched. Attack together with allies; the Council can sanction the leader.",
+	},
+	-- Стройка и экономика
+	["handbook.buildings.name"] = { ru = "Здания", en = "Buildings" },
+	["handbook.buildings.what"] = {
+		ru = "10 зданий, у каждого своя роль: Завод — деньги, Казармы — найм, Жилой квартал — люди, Город — снабжение и стабильность, ещё Нефтевышка, Укрепление, Порт, Аэродром, ПВО, Шахта.",
+		en = "10 buildings, each with one role: Factory — money, Barracks — hiring, Housing — people, City — supply and stability, plus Oil rig, Fort, Port, Airfield, AA, Silo.",
+	},
+	["handbook.buildings.how"] = {
+		ru = "B → выберите здание (клавиши 1–9, 0) → нажмите свою землю. То же здание рядом со своим — улучшение; нажмите своё здание — что оно делает и снос.",
+		en = "B → pick a building (keys 1–9, 0) → tap your land. The same building next to your own upgrades it; tap your building to see what it does or demolish it.",
+	},
+	["handbook.buildings.defense"] = {
+		ru = "Ракеты и налёты снимают уровень здания — прикройте ПВО. Город и здания на захваченной земле переходят врагу.",
+		en = "Missiles and raids remove a building level — cover it with AA. Cities and buildings on captured land go to the enemy.",
+	},
+	["handbook.district.name"] = { ru = "Район города", en = "City district" },
+	["handbook.district.what"] = {
+		ru = "Здание не дальше 6 клеток от своего города работает сильнее: +10% за каждый уровень города.",
+		en = "A building within 6 cells of your city works better: +10% per city level.",
+	},
+	["handbook.district.how"] = {
+		ru = "Ставьте заводы, казармы и жилые кварталы вокруг города и улучшайте сам город (до ур. 5).",
+		en = "Place factories, barracks and housing around a city and upgrade the city itself (up to lv 5).",
+	},
+	["handbook.district.hinder"] = {
+		ru = "Ракета по городу снимает его уровень — весь район слабеет. Взятый город забирает район целиком.",
+		en = "A missile on a city removes its level — the whole district weakens. Taking the city takes the district.",
+	},
+	["handbook.oil.name"] = { ru = "Нефть", en = "Oil" },
+	["handbook.oil.what"] = {
+		ru = "Нефть нужна технике, кораблям, самолётам и бомбам. Её дают вышки на нефтяных полях.",
+		en = "Oil fuels vehicles, ships, planes and bombs. Oil rigs on oil fields produce it.",
+	},
+	["handbook.oil.how"] = {
+		ru = "Стройка (B) → «Нефтевышка» в провинции с нефтяным полем. «Нефтедобыча» (Y) даёт +30%; событие «Нефтяная лихорадка» открывает новое поле.",
+		en = "Build (B) → “Oil rig” in a province with an oil field. “Oil drilling” (Y) gives +30%; the “Oil rush” event opens a new field.",
+	},
+	["handbook.oil.defense"] = {
+		ru = "Вышки — частая цель налётов: прикройте их ПВО и держите поля подальше от фронта.",
+		en = "Rigs are a common raid target: cover them with AA and keep fields away from the front.",
+	},
+	["handbook.tech.name"] = { ru = "Технологии", en = "Technology" },
+	["handbook.tech.what"] = {
+		ru = "Три ветки по четыре уровня: Войска, Экономика, Флот. Открывают шахту, аэродром, дальнюю ПВО и дают бонусы.",
+		en = "Three branches of four levels: Army, Economy, Fleet. They unlock the silo, airfield, long-range AA and give bonuses.",
+	},
+	["handbook.tech.how"] = {
+		ru = "Y → нажмите доступный уровень: деньги сразу, исследование идёт время. Одновременно — одно.",
+		en = "Y → tap an available level: you pay at once, research takes time. One at a time.",
+	},
+	["handbook.tech.hinder"] = {
+		ru = "Исследования стоят денег: берите заводы врага, бомбите их; санкции Совета режут лидеру доход.",
+		en = "Research costs money: take and bomb enemy factories; Council sanctions cut the leader's income.",
+	},
+	-- Флот и авиация
+	["handbook.landing.name"] = { ru = "Десант", en = "Naval landing" },
+	["handbook.landing.what"] = {
+		ru = "Транспорт везёт войска по морю и высаживает их: круг у берега становится вашим, войска сразу открывают фронт. Плацдарм — котёл, пока не взят город.",
+		en = "A transport carries troops by sea and lands them: a circle on the shore becomes yours and the troops open a front. The beachhead is a pocket until a city falls.",
+	},
+	["handbook.landing.how"] = {
+		ru = "Порт → «Транспорт» → «Высадка» → нажмите берег врага в войне или ничей. Можно и просто атаковать врага за морем — десант пойдёт сам.",
+		en = "Port → “Transport” → “Landing” → tap an enemy (at war) or empty shore. You can also just attack an enemy across the sea — a landing goes by itself.",
+	},
+	["handbook.landing.defense"] = {
+		ru = "Эсминец в патруле топит транспорты вместе с войсками. Держите город у берега и гарнизон — плацдарм без города сдастся.",
+		en = "A patrolling destroyer sinks transports with troops aboard. Keep a coastal city and a garrison — a beachhead without a city surrenders.",
+	},
+	["handbook.destroyer.name"] = { ru = "Эсминец и блокада", en = "Destroyer and blockade" },
+	["handbook.destroyer.what"] = {
+		ru = "Эсминец топит корабли врага рядом, обстреливает его фронты у берега и блокирует порт: тот не строит флот и не снабжает по морю.",
+		en = "A destroyer sinks nearby enemy ships, shells his coastal fronts and blockades a port: it builds no ships and gives no sea supply.",
+	},
+	["handbook.destroyer.how"] = {
+		ru = "Порт → «Эсминец». Нажмите свой эсминец → «Патруль» → точка моря; у вражеского порта — блокада.",
+		en = "Port → “Destroyer”. Tap your destroyer → “Patrol” → a sea point; next to an enemy port it blockades it.",
+	},
+	["handbook.destroyer.defense"] = {
+		ru = "Свои эсминцы в патруле у своих портов; налёт по порту врага выводит его из строя.",
+		en = "Your own destroyers patrolling by your ports; a raid on the enemy port knocks it out.",
+	},
+	["handbook.fighter.name"] = { ru = "Истребители", en = "Fighters" },
+	["handbook.fighter.what"] = {
+		ru = "Истребитель стоит на аэродроме и прикрывает круг вокруг точки прикрытия: перехватывает бомбардировщики врага.",
+		en = "A fighter sits at an airfield and guards a circle around its cover point: it intercepts enemy bombers.",
+	},
+	["handbook.fighter.how"] = {
+		ru = "Аэродром → «Истребитель»; «Прикрытие» → нажмите точку в радиусе аэродрома.",
+		en = "Airfield → “Fighter”; “Cover” → tap a point within airfield range.",
+	},
+	["handbook.fighter.hinder"] = {
+		ru = "Прогноз налёта пишет «у цели истребители врага: N». Сначала выбейте аэродром ракетой или бейте туда, где истребителей нет.",
+		en = "The raid forecast says “enemy fighters at the target: N”. Knock out the airfield with a missile first or strike where there are none.",
+	},
+	["handbook.trade.name"] = { ru = "Торговые суда", en = "Trade ships" },
+	["handbook.trade.what"] = {
+		ru = "Каждый ваш порт сам отправляет суда в порты других держав у того же моря (без войны и эмбарго). Доплыло — деньги обоим.",
+		en = "Each port of yours sends ships to other nations' ports on the same sea (no war, no embargo). On arrival both get money.",
+	},
+	["handbook.trade.how"] = {
+		ru = "Постройте порт — дальше само. Торговое соглашение (T) даёт ×1.5, технология «Торговые пути» — ещё больше.",
+		en = "Build a port — the rest is automatic. A trade deal (T) gives ×1.5, the “Trade routes” tech even more.",
+	},
+	["handbook.trade.defense"] = {
+		ru = "Эсминец врага в войне топит ваше судно и забирает половину груза — держите эсминцы на торговых путях.",
+		en = "An enemy destroyer at war sinks your ship and takes half the cargo — keep destroyers on your trade routes.",
+	},
+	-- Дипломатия
+	["handbook.war.name"] = { ru = "Война и мир", en = "War and peace" },
+	["handbook.war.what"] = {
+		ru = "По умолчанию со всеми мир. Объявленная война сначала — мобилизация, потом бой. Долгая война утомляет: падают прирост людей и стабильность.",
+		en = "You start at peace with everyone. A declared war begins with mobilization, then fighting. A long war tires you: population growth and stability drop.",
+	},
+	["handbook.war.how"] = {
+		ru = "ПКМ по соседу → «Объявить войну» (или T). Мир — в окне войны: предложите или примите условия.",
+		en = "Right-click a neighbour → “Declare war” (or T). Peace — in the war window: offer or accept terms.",
+	},
+	["handbook.war.defense"] = {
+		ru = "Мобилизация — время на найм и укрепления. Союзники могут вступить за вас; можно предложить мир или уступить провинцию.",
+		en = "Mobilization is time to hire and fortify. Allies may join you; you can offer peace or cede a province.",
+	},
+	["handbook.alliance.name"] = { ru = "Союз и полное доверие", en = "Alliance and full trust" },
+	["handbook.alliance.what"] = {
+		ru = "Союз: города союзника снабжают ваши фронты, победа общая. Полное доверие — второй уровень: ваши войска идут на врага через землю друга.",
+		en = "Alliance: your ally's cities supply your fronts, victory is shared. Full trust is the second level: your troops march at the enemy through your friend's land.",
+	},
+	["handbook.alliance.how"] = {
+		ru = "T → держава → «Союз»; через минуту союза — «Полное доверие». Удар через союзника — обычная атака по врагу за его землёй.",
+		en = "T → nation → “Alliance”; after a minute of alliance — “Full trust”. Striking through an ally is a normal attack on the enemy beyond his land.",
+	},
+	["handbook.alliance.defense"] = {
+		ru = "Разрыв союза — с предупреждением за 15 с; удар раньше — метка «Предатель» (−20 стабильности). Доверие можно снять в любой момент — отряды в пути вернутся.",
+		en = "Breaking an alliance gives a 15 s warning; striking earlier brands you a “Traitor” (−20 stability). Trust can be withdrawn any time — troops on the way turn back.",
+	},
+	["handbook.passage.name"] = { ru = "Удар через союзника", en = "Strike through an ally" },
+	["handbook.passage.what"] = {
+		ru = "Отряд идёт по земле союзника с полным доверием, выходит на землю врага у его границы, берёт плацдарм и открывает фронт. В пути враг его не видит.",
+		en = "A detachment marches through a full-trust ally, exits onto enemy land at the border, takes a beachhead and opens a front. The enemy cannot see it on the way.",
+	},
+	["handbook.passage.how"] = {
+		ru = "Война с врагом, у которого общая граница с вашим союзником → нажмите на врага. Стрелка показывает путь отряда.",
+		en = "At war with an enemy who borders your ally → tap the enemy. An arrow shows the detachment's route.",
+	},
+	["handbook.passage.defense"] = {
+		ru = "Держите гарнизон и укрепления на границе с союзниками врага; мир с врагом или конец доверия возвращают отряд домой.",
+		en = "Keep a garrison and forts on the border with the enemy's allies; peace or the end of trust sends the detachment home.",
+	},
+	["handbook.council.name"] = { ru = "Совет держав", en = "Council of Nations" },
+	["handbook.council.what"] = {
+		ru = "Каждые 6 минут голосование за одну из трёх резолюций: санкции против лидера, запрет супероружия, перемирие, помощь слабым, свободная торговля.",
+		en = "Every 6 minutes a vote on one of three resolutions: sanctions on the leader, superweapon ban, truce, aid to the weak, free trade.",
+	},
+	["handbook.council.how"] = {
+		ru = "Окно Совета открывается само на голосование; один голос на державу, побеждает большинство.",
+		en = "The Council window opens by itself for the vote; one vote per nation, majority wins.",
+	},
+	["handbook.council.defense"] = {
+		ru = "Против санкций — союзники, которые проголосуют иначе; лидеру выгодно не злить слабых.",
+		en = "Against sanctions — allies who vote the other way; a leader is wise not to anger the weak.",
+	},
+	-- Мир и события
+	["handbook.stability.name"] = { ru = "Стабильность и восстания", en = "Stability and revolts" },
+	["handbook.stability.what"] = {
+		ru = "У провинции стабильность 0–100. Ниже 30 — вдвое меньше дохода, ниже 15 — может восстать: земля становится ничьей.",
+		en = "Each province has stability 0–100. Below 30 it gives half income, below 15 it may revolt and its land becomes empty.",
+	},
+	["handbook.stability.how"] = {
+		ru = "N — окно стабильности. Поднимают: города, укрепления, мир, «Порядок» (Y); опускают: даль от столицы, война, свежий захват, «Предатель».",
+		en = "N — stability window. Raised by cities, forts, peace, “Public order” (Y); lowered by distance from the capital, war, fresh conquest, “Traitor”.",
+	},
+	["handbook.stability.defense"] = {
+		ru = "Стройте города в новых землях, не тяните войну, мир — +10 всем провинциям.",
+		en = "Build cities in new lands, don't drag wars out; peace gives +10 to every province.",
+	},
+	["handbook.events.name"] = { ru = "Случайные события", en = "Random events" },
+	["handbook.events.what"] = {
+		ru = "Раз в 3–4 минуты: шторм (море в круге непроходимо), урожай (+20% людей), нефтяная лихорадка, наёмники с аукциона, восстание у лидера.",
+		en = "Every 3–4 minutes: storm (sea in a circle is blocked), harvest (+20% people), oil rush, mercenaries at auction, a revolt at the leader's.",
+	},
+	["handbook.events.how"] = {
+		ru = "Приходят сами — баннер сверху и строка в ленте. На аукционе наёмников ставьте деньги, пока идёт отсчёт.",
+		en = "They come by themselves — a banner on top and a feed line. Bid money at the mercenary auction while the timer runs.",
+	},
+	["handbook.events.defense"] = {
+		ru = "В шторм корабли ждут у края круга — не планируйте десант через него. Восстание бьёт по самой нестабильной провинции лидера — подтягивайте слабые.",
+		en = "Ships wait at the edge of a storm — don't plan a landing through it. The revolt hits the leader's least stable province — shore up the weak ones.",
+	},
+	["handbook.doomsday.name"] = { ru = "Часы судного дня", en = "Doomsday clock" },
+	["handbook.doomsday.what"] = {
+		ru = "С 14-й минуты каждые 90 с растёт обязательная доля суши (2% → 16%). Кто ниже планки, получает череп и через 30 с распадается.",
+		en = "From minute 14, every 90 s the required land share rises (2% → 16%). Anyone below gets a skull and collapses in 30 s.",
+	},
+	["handbook.doomsday.how"] = {
+		ru = "Включаются сами (кроме «Обучения» и «Дуэли»); строка сверху: планка, у вас сколько, когда следующая волна.",
+		en = "Turns on by itself (not in Tutorial or Duel); the top line shows the bar, your share and the next wave.",
+	},
+	["handbook.doomsday.defense"] = {
+		ru = "Расширяйтесь заранее: берите ничью землю и слабых соседей. В «Командах» считается вся команда.",
+		en = "Expand early: take empty land and weak neighbours. In Teams the whole team counts.",
+	},
 	-- §15л Звания (Shared.Ranks)
 	-- §15ф Путь командира: ступени «какой частью командуете» (Ranks, Config.Ranks.Tiers)
 	["rank.1"] = { ru = "Новобранец", en = "Recruit" },

@@ -60,6 +60,7 @@ local ThreatPanel = require(UI:WaitForChild("ThreatPanel"))
 local GameMenu = require(UI:WaitForChild("GameMenu"))
 local MainMenu = require(UI:WaitForChild("MainMenu"))
 local RanksPanel = require(UI:WaitForChild("RanksPanel"))
+local HandbookPanel = require(UI:WaitForChild("HandbookPanel"))
 local MapTooltip = require(UI:WaitForChild("MapTooltip"))
 local AirPanel = require(UI:WaitForChild("AirPanel"))
 local BuildPanel = require(UI:WaitForChild("BuildPanel"))
@@ -609,6 +610,14 @@ local function runSession(mapId: string, resync: boolean)
 		end
 	end
 	local ranksPanel = RanksPanel.new(windowsGui, cs, lang)
+	-- §15х ч.5: справочник механик — из окна «Как играть» (окно «Как играть» закрывается, справочник — поверх).
+	local handbook = HandbookPanel.new(windowsGui, lang)
+	Session.connect(lobby.handbookButton.Activated, function()
+		if lobby.helpOpen() then
+			lobby.toggleHelp()
+		end
+		handbook.open(nil)
+	end)
 	-- Открыть окно (если уже открыто — оставить).
 	local function opener(isOpen: () -> boolean, toggle: () -> ()): () -> ()
 		return function()
@@ -752,6 +761,7 @@ local function runSession(mapId: string, resync: boolean)
 			Sound = "sound",
 			ServerSettings = "server",
 			HowToPlay = "help",
+			Handbook = "help",
 			ArsenalWindow = "arsenal",
 			RanksWindow = "ranks",
 			GameMenuWindow = "gamemenu",

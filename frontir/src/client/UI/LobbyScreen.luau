@@ -6,7 +6,8 @@
 	сложность ботов, внизу — «Выйти» (в главное меню). Голосований, генерала и флага здесь нет: генерал — в Арсенале,
 	флаг — в Гардеробе. Если голосование включено (Config.Match.LobbyVotes) — рамки ModePanel и CommanderPanel, как
 	раньше, переезжают сюда под карточку.
-	Отдельно — окно «Как играть» (H): шесть шагов и клавиши.
+	Отдельно — окно «Как играть» (H): шесть шагов и клавиши; кнопка «Справочник механик» (§15х ч.5) — handbookButton,
+	её подключает Main.client (окно UI/HandbookPanel).
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -30,6 +31,7 @@ export type LobbyScreen = {
 	update: (now: number) -> (),
 	toggleHelp: () -> (),
 	helpOpen: () -> boolean,
+	handbookButton: TextButton, -- §15х ч.5: «Справочник механик» в окне «Как играть»
 }
 
 local LobbyScreen = {}
@@ -359,15 +361,39 @@ function LobbyScreen.new(
 	keys.TextXAlignment = Enum.TextXAlignment.Left
 	keys.TextColor3 = Theme.Colors.Muted
 	keys.Text = Strings.get("help.keys", lang)
+	-- §15х ч.5: справочник механик — карточки «Что это · Как запустить · Чем защититься».
+	local buttons = Instance.new("Frame")
+	buttons.Name = "Buttons"
+	buttons.LayoutOrder = #cfg.HelpSteps + 2
+	buttons.BackgroundTransparency = 1
+	buttons.Size = UDim2.fromOffset(0, Config.Render.MinTouchTargetPx)
+	buttons.AutomaticSize = Enum.AutomaticSize.X
+	buttons.Parent = help
+	local buttonsList = Instance.new("UIListLayout")
+	buttonsList.FillDirection = Enum.FillDirection.Horizontal
+	buttonsList.SortOrder = Enum.SortOrder.LayoutOrder
+	buttonsList.Padding = UDim.new(0, 10)
+	buttonsList.Parent = buttons
+	local handbook = Instance.new("TextButton")
+	handbook.Name = "Handbook"
+	handbook.LayoutOrder = 1
+	handbook.Size = UDim2.fromOffset(240, Config.Render.MinTouchTargetPx)
+	handbook.BackgroundColor3 = Theme.Colors.Slate
+	handbook.FontFace = Theme.FontBold
+	handbook.TextSize = 16
+	handbook.TextColor3 = Theme.Colors.Sky
+	handbook.Text = Strings.get("handbook.open", lang)
+	handbook.Parent = buttons
+	Theme.decorate(handbook)
 	local close = Instance.new("TextButton")
-	close.LayoutOrder = #cfg.HelpSteps + 2
+	close.LayoutOrder = 2
 	close.Size = UDim2.fromOffset(180, Config.Render.MinTouchTargetPx)
 	close.BackgroundColor3 = Theme.Colors.Slate
 	close.FontFace = Theme.FontBold
 	close.TextSize = 16
 	close.TextColor3 = Theme.Colors.Gold
 	close.Text = Strings.get("help.close", lang)
-	close.Parent = help
+	close.Parent = buttons
 	Theme.decorate(close)
 	local function toggleHelp()
 		help.Visible = not help.Visible
@@ -488,6 +514,7 @@ function LobbyScreen.new(
 		helpOpen = function(): boolean
 			return help.Visible
 		end,
+		handbookButton = handbook,
 	}
 end
 
