@@ -11,6 +11,7 @@ local Grid = require("../src/shared/Grid")
 local Intents = require("../src/shared/Intents")
 local MapData = require("../src/shared/MapData")
 local MatchSim = require("../src/shared/MatchSim")
+local MatchStats = require("../src/shared/Net/MatchStats")
 local Pockets = require("../src/shared/Pockets")
 local Provinces = require("../src/shared/Provinces")
 local Rng = require("../src/shared/Rng")
@@ -318,9 +319,25 @@ T.describe("Укрепления и котлы", function()
 			end
 			T.expect(Grid.getOwner(m.grid, 4 * w + 15)).toBe(1)
 			T.expect(MatchSim.maxPeopleOf(m, 1)).toBe(Economy.maxPeople(Grid.cellsOf(m.grid, 1) - 16, 1))
+			-- §15х ч.8: котёл в таблице world — хозяину; соседу в мире — нет.
+			local seen = MatchStats.pockets(m, 1)
+			T.expect(#seen).toBe(1)
+			T.expect(seen[1].owner).toBe(1)
+			T.expect(seen[1].cells).toBe(16)
+			T.expect(Grid.getOwner(m.grid, seen[1].cell)).toBe(1)
+			local function seesOwner1(viewer: number): boolean
+				for _, p in MatchStats.pockets(m, viewer) do
+					if p.owner == 1 then
+						return true
+					end
+				end
+				return false
+			end
+			T.expect(seesOwner1(2)).toBe(false) -- у державы 2 свой котёл (полоса режет её землю), чужой не видит
 			-- Война: котёл без города переходит окружившему.
 			local war = Wars.declare(m.wars, 2, 1, m.simTime)
 			war.state, war.activeAt = "active", m.simTime
+			T.expect(seesOwner1(2)).toBe(true) -- враг видит котёл
 			for _ = 1, math.floor((Config.Pocket.SurrenderSec + 2) * Config.Sim.TickRate) do
 				MatchSim.step(m, DT)
 			end

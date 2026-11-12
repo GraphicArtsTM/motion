@@ -48,6 +48,7 @@ local CameraInput = require(Client:WaitForChild("Input"):WaitForChild("CameraInp
 local AirLayer = require(Render:WaitForChild("AirLayer"))
 local MarkerLayer = require(Render:WaitForChild("MarkerLayer"))
 local StrikeFxLayer = require(Render:WaitForChild("StrikeFxLayer"))
+local MapHighlightLayer = require(Render:WaitForChild("MapHighlightLayer"))
 local WarFxLayer = require(Render:WaitForChild("WarFxLayer"))
 local BattleFxLayer = require(Render:WaitForChild("BattleFxLayer"))
 local ActionRingUI = require(UI:WaitForChild("ActionRing"))
@@ -306,6 +307,8 @@ local function runSession(mapId: string, resync: boolean)
 	local battleFx = BattleFxLayer.new(view.canvas, viewport, hudGui, cs, lang, map)
 	-- §15х ч.7: зрелище ударов и разрушения (звено и ковёр разрывов, воронки, пожары, выжженная земля).
 	local strikeFx = StrikeFxLayer.new(view.canvas, cs, battleFx.shake)
+	-- §15х ч.8: граница с врагом пульсирует, контур державы под курсором, котлы с подписью.
+	local highlight = MapHighlightLayer.new(view.canvas, cs, lang)
 	wars.refresh()
 	local build = BuildPanel.new(hudGui, cs, lang, send, hud.toast, map, provinces, buildGhost)
 	build.refresh()
@@ -1484,6 +1487,7 @@ local function runSession(mapId: string, resync: boolean)
 		local cell = if cx ~= nil and cy ~= nil then cy * map.width + cx else nil
 		if build.active() then
 			tooltip.show(nil, 0, 0, 0)
+			highlight.setHover(nil)
 			build.hover(cell)
 			return
 		end
@@ -1507,6 +1511,7 @@ local function runSession(mapId: string, resync: boolean)
 			end
 		end
 		tooltip.show(cell, p.X, p.Y, hud.percent())
+		highlight.setHover(if cell ~= nil then ClientState.ownerAt(cs, cell) else nil)
 		aimCell = cell
 	end)
 
@@ -1635,6 +1640,7 @@ local function runSession(mapId: string, resync: boolean)
 		warFx.update(now, camera.state)
 		battleFx.update(now, camera.state)
 		strikeFx.update(now, camera.state)
+		highlight.update(now, camera.state)
 		doomBar.update(now)
 		dock.update(now)
 		lobby.update(now)

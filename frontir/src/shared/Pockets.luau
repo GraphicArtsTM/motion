@@ -3,8 +3,11 @@
 	Pockets — котлы (GDD §6.7): куски земли державы, не связанные своей землёй со столицей.
 	Чистый модуль. Связность считается заливкой от столицы по своим клеткам (4 соседа); всё остальное
 	своё — котлы, сгруппированные по связности. Держава без столицы котлов не имеет (не от чего считать).
+	§15х ч.8: узкая вода (река, пролив — не шире Combat.RiverMaxWidth клеток) между своими клетками — не разрыв:
+	заливка шагает через неё, как фронт (Expansion.acrossRiver). Раньше земля за рекой от столицы считалась котлом.
 ]]
 
+local Config = require("./Config")
 local Grid = require("./Grid")
 
 type Grid = Grid.Grid
@@ -31,7 +34,8 @@ end
 -- Клетки дописываются в out. Без замыканий и таблиц-множеств: на «Европе» держава — до 60 тыс. клеток.
 local function flood(g: Grid, nation: number, start: number, mark: number, skip: number, out: { number })
 	local w, size = g.width, g.size
-	local owner, stamp = g.owner, g.stamp
+	local owner, stamp, capturable = g.owner, g.stamp, g.capturable
+	local maxWater = Config.Combat.RiverMaxWidth
 	buffer.writeu32(stamp, start * 4, mark)
 	table.insert(out, start)
 	local head = #out
@@ -45,6 +49,27 @@ local function flood(g: Grid, nation: number, start: number, mark: number, skip:
 				elseif d == 2 then (if x < w - 1 then i + 1 else -1)
 				elseif d == 3 then i - w
 				else i + w
+			-- Через узкую воду (§15х ч.8): первая суша за ней в том же направлении, если она своя.
+			if j >= 0 and j < size and buffer.readu8(capturable, j) == 0 and buffer.readu16(owner, j * 2) ~= nation then
+				local step = j - i
+				local cur = j
+				local found = -1
+				for _ = 1, maxWater do
+					local cx = cur % w
+					if (step == 1 and cx == w - 1) or (step == -1 and cx == 0) then
+						break
+					end
+					cur += step
+					if cur < 0 or cur >= size then
+						break
+					end
+					if buffer.readu8(capturable, cur) == 1 then
+						found = cur
+						break
+					end
+				end
+				j = if found >= 0 then found else -1
+			end
 			if j >= 0 and j < size and buffer.readu16(owner, j * 2) == nation then
 				local s = buffer.readu32(stamp, j * 4)
 				if s ~= mark and s ~= skip then

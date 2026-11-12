@@ -469,6 +469,11 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   вид, задержка, жизнь, смещение, размер, цвет, слой), рисует `Render/StrikeFxLayer` по событиям `ability` /
   `boost` (Airstrike, `cell`), `arsenal` (Barrage), `raid`, `raidIntercepted`, `missileHit`, `nukeHit`, `missileShot`.
   Огненный шар, волна и «гриб» ракеты — по-прежнему `WarFxLayer`. Тряска — `BattleFxLayer.shake`.
+- §15х ч.8: граница в 2 клетки — `TerritoryPaint.borderDepth` (`Render.BorderWidth`; `TerritoryLayer.markAround` —
+  ромб того же радиуса). Подсветки — `Render/MapHighlightLayer` (граница с врагом — `WarFx.borderSamples`, контур под
+  курсором — `setHover` из `InputChanged` в `Main.client`, котлы — `cs.world.pockets` ← `MatchStats.pockets`), контуры —
+  чистый `MapOutline`. Значки зданий издалека — точки (`BuildingLayer`, `Render.BuildingDotZoom`). Строка о державе —
+  `MapTooltip.nationLine`. Котлы: заливка `Pockets` шагает через узкую воду (`Combat.RiverMaxWidth`).
 - §15х ч.6: 10 зданий. ЗРК → ПВО ур. 3 (`Buildings.AirDefense.longRangeLevel / longRadius / upgradeMul`, дальний круг
   не меньше ближнего; уровень открывает `Config.Tech.LevelUnlocks` → `MatchSim.levelAllows`, отказ `needLongRange`);
   Рынок → Завод ур. 3 (`Factory.bonusLevel / incomeBonus` → `Owned.incomeBonus`); Радар → Аэродром (`stepRadarIntel`,

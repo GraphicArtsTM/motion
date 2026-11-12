@@ -354,6 +354,41 @@ end
 -- своя шахта и её перезарядка. Таблица world.
 export type WorldMessage = ClientState.WorldMessage
 
+-- §15х ч.8: котлы глазами viewer — свои, друзей и держав, с которыми у viewer война (и мобилизация); в «Мгле» —
+-- только свои и друзей. Самые крупные, не больше Pocket.MaxShown. left — секунд до сдачи (-1 — не сдаётся: город).
+function MatchStats.pockets(m: MatchSim.Match, viewer: number?): { ClientState.PocketInfo }
+	local out: { ClientState.PocketInfo } = {}
+	if viewer == nil then
+		return out
+	end
+	local friends = Diplomacy.friends(m.diplo, viewer)
+	for id, np in m.pockets do
+		local n = m.nations[id]
+		local mine = id == viewer or friends[id] == true
+		local enemy = not mine and Wars.find(m.wars, viewer, id) ~= nil
+		if n ~= nil and n.alive and (mine or (enemy and not m.rules.fog)) then
+			for _, pocket in np.pockets do
+				if #pocket.cells > 0 then
+					local left = if pocket.hasCity
+						then -1
+						else math.max(0, Config.Pocket.SurrenderSec - (m.simTime - pocket.since))
+					table.insert(out, { owner = id, cell = pocket.cells[1], cells = #pocket.cells, left = left })
+				end
+			end
+		end
+	end
+	table.sort(out, function(a: ClientState.PocketInfo, b: ClientState.PocketInfo): boolean
+		if a.cells ~= b.cells then
+			return a.cells > b.cells
+		end
+		return a.cell < b.cell
+	end)
+	for k = #out, Config.Pocket.MaxShown + 1, -1 do
+		out[k] = nil
+	end
+	return out
+end
+
 function MatchStats.world(m: MatchSim.Match, viewer: number?): WorldMessage
 	local st = m.world
 	local now = m.simTime
@@ -424,6 +459,7 @@ function MatchStats.world(m: MatchSim.Match, viewer: number?): WorldMessage
 				marked = marked,
 			}
 		end)(),
+		pockets = MatchStats.pockets(m, viewer),
 		fallout = (function(): { { cell: number, radius: number, left: number } }
 			local out: { { cell: number, radius: number, left: number } } = {}
 			for _, f in m.fallout do

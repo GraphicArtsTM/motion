@@ -3,7 +3,8 @@
 	TerritoryPaint — цвет клетки с учётом владельца (слои 3, 4 и 6 из GDD §3):
 	3. цвет державы поверх местности: местность просвечивает (доля Config.Render.OwnerTint);
 	4. граница державы — её цвет × Config.Nations.BorderShade, линия в 1 клетку по краю территории
-	   (своя клетка, у которой сосед чужой, ничей или вода);
+	   (своя клетка, у которой сосед чужой, ничей или вода); §15х ч.8 — за ней яркая полоса во 2-й клетке
+	   (Render.BorderWidth, Render.BorderInnerTint);
 	6. вспышка свежезахваченной клетки: к белому на Config.Render.CaptureFlashStrength × flash.
 	Слой 5 (границы провинций) — этап 3.
 	Этап 7а: туман (клетка вне обзора темнее, §6.11), штриховка повстанцев на ничьей земле и режим карты
@@ -41,6 +42,31 @@ function TerritoryPaint.isBorder(owners: buffer, width: number, height: number, 
 		or ownerAt(owners, i + 1) ~= o
 		or ownerAt(owners, i - width) ~= o
 		or ownerAt(owners, i + width) ~= o
+end
+
+-- §15х ч.8: глубина клетки от края территории — 1 (сосед из 4 чужой), 2 (чужая клетка на расстоянии 2 по
+-- «манхэттену»), 0 — дальше (или depth больше Render.BorderWidth). Край карты — граница.
+local D2X = { -2, 2, 0, 0, -1, 1, -1, 1 }
+local D2Y = { 0, 0, -2, 2, -1, -1, 1, 1 }
+function TerritoryPaint.borderDepth(owners: buffer, width: number, height: number, i: number): number
+	if TerritoryPaint.isBorder(owners, width, height, i) then
+		return 1
+	end
+	if Config.Render.BorderWidth < 2 then
+		return 0
+	end
+	local o = ownerAt(owners, i)
+	local x, y = i % width, i // width
+	for k = 1, 8 do
+		local nx, ny = x + D2X[k], y + D2Y[k]
+		if nx < 0 or ny < 0 or nx >= width or ny >= height then
+			return 2
+		end
+		if ownerAt(owners, ny * width + nx) ~= o then
+			return 2
+		end
+	end
+	return 0
 end
 
 local function mix(r: number, g: number, b: number, c: Palette.Rgb, t: number): (number, number, number)
@@ -108,9 +134,15 @@ function TerritoryPaint.cellColor(
 		end
 		return r, g, b
 	end
-	if TerritoryPaint.isBorder(owners, width, height, i) then
+	local depth = TerritoryPaint.borderDepth(owners, width, height, i)
+	if depth == 1 then
 		local c = NationColors.Borders[ci]
 		r, g, b = c.r, c.g, c.b
+	elseif depth == 2 then
+		-- Яркая полоса внутри тёмной линии (§15х ч.8).
+		local c = NationColors.Colors[ci]
+		local t = Config.Render.BorderInnerTint
+		r, g, b = r + (c.r - r) * t, g + (c.g - g) * t, b + (c.b - b) * t
 	elseif extra ~= nil and extra.stability ~= nil then
 		local sr, sg, sb = TerritoryPaint.stabilityColor(extra.stability)
 		local t = Config.Render.StabilityTint

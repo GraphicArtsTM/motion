@@ -91,20 +91,21 @@ function TerritoryLayer.new(
 		end
 	end
 
+	-- Смена владельца клетки меняет вид клеток в радиусе ширины границы (§15х ч.8: граница в 2 клетки).
+	local reach = math.max(1, Config.Render.BorderWidth)
 	local function markAround(i: number)
-		markDirty(i)
-		local x = i % w
-		if x > 0 then
-			markDirty(i - 1)
-		end
-		if x < w - 1 then
-			markDirty(i + 1)
-		end
-		if i >= w then
-			markDirty(i - w)
-		end
-		if i + w < size then
-			markDirty(i + w)
+		local x, y = i % w, i // w
+		for dy = -reach, reach do
+			local ny = y + dy
+			if ny >= 0 and ny < h then
+				local span = reach - math.abs(dy)
+				for dx = -span, span do
+					local nx = x + dx
+					if nx >= 0 and nx < w then
+						markDirty(ny * w + nx)
+					end
+				end
+			end
 		end
 	end
 

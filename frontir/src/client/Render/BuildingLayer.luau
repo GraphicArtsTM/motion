@@ -4,7 +4,8 @@
 	Значки 12×12 (Shared.BuildingSprites, §15д ч.4) в клетке здания (§15г — любая своя клетка), цветом владельца клетки;
 	улучшенный город — золотые точки-уровни рядом с городом; нефтяное поле без вышки — тёмная капля в центре
 	провинции. С приближением значки крупнее (Render.BuildingIconScales). Владельцы меняются вместе с клетками —
-	recolor() перекрашивает.
+	recolor() перекрашивает. §15х ч.8: издалека (меньше Render.BuildingDotZoom px на клетку) — точка цвета державы,
+	без точек уровня, зарядов и нефтяных полей (иначе значки рябят по всей карте).
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -31,7 +32,7 @@ export type BuildingLayer = {
 	onCamera: (state: CameraState) -> (),
 }
 
-type Icon = { root: Frame, parts: { Frame }, kind: string, cell: number, owner: number, pips: number }
+type Icon = { root: Frame, parts: { Frame }, kind: string, cell: number, owner: number, pips: number, dot: Frame? }
 
 local BuildingLayer = {}
 
@@ -44,6 +45,7 @@ function BuildingLayer.new(
 	local icons: { Icon } = {}
 	local zoom = 1
 	local size = BuildingSprites.Size
+	local far = false -- §15х ч.8: дальний план — точки вместо значков
 
 	local function ownerColor(owner: number): Color3
 		local ci = ClientState.colorIndexOf(cs, owner)
@@ -61,6 +63,10 @@ function BuildingLayer.new(
 
 	local function paint(icon: Icon)
 		local color = ownerColor(icon.owner)
+		local d = icon.dot
+		if d ~= nil then
+			d.BackgroundColor3 = color
+		end
 		local r, g, b = math.round(color.R * 255), math.round(color.G * 255), math.round(color.B * 255)
 		for k, p in shapeOf(icon.kind) do
 			icon.parts[k].BackgroundColor3 = Color3.fromRGB(BuildingSprites.rgb(p, r, g, b))
@@ -69,6 +75,28 @@ function BuildingLayer.new(
 
 	local function place(icon: Icon)
 		local w = cs.width
+		-- Дальний план (§15х ч.8): у зданий — точка цвета державы, точки уровня города и нефть не видны.
+		local showDot = far and icon.kind ~= "City" and icon.kind ~= "OilField"
+		icon.root.Visible = not far or showDot
+		for _, f in icon.parts do
+			f.Visible = not far
+		end
+		local d = icon.dot
+		if d ~= nil then
+			d.Visible = showDot
+		end
+		if far then
+			if showDot and d ~= nil then
+				local px = Config.Render.BuildingDotPx
+				local cx, cy = icon.cell % w, icon.cell // w
+				icon.root.Size = UDim2.fromOffset(px, px)
+				icon.root.Position =
+					UDim2.fromOffset(math.round((cx + 0.5) * zoom - px / 2), math.round((cy + 0.5) * zoom - px / 2))
+				d.Size = UDim2.fromOffset(px, px)
+				d.Position = UDim2.fromOffset(0, 0)
+			end
+			return
+		end
 		local scale = 1
 		for _, step in Config.Render.BuildingIconScales do
 			if zoom >= step.zoom then
@@ -125,6 +153,19 @@ function BuildingLayer.new(
 			f.Parent = root
 			table.insert(parts, f)
 		end
+		local dot: Frame? = nil
+		if kind ~= "City" and kind ~= "OilField" then
+			local d = Instance.new("Frame")
+			d.Name = "Dot"
+			d.BorderSizePixel = 0
+			d.ZIndex = 5
+			d.Visible = false
+			local stroke = Instance.new("UIStroke")
+			stroke.Color = Theme.Colors.Backdrop
+			stroke.Parent = d
+			d.Parent = root
+			dot = d
+		end
 		root.Parent = canvas
 		local icon: Icon = {
 			root = root,
@@ -133,6 +174,7 @@ function BuildingLayer.new(
 			cell = cell,
 			owner = ClientState.knownOwnerAt(cs, cell),
 			pips = pips,
+			dot = dot,
 		}
 		if kind ~= "City" then
 			paint(icon)
@@ -184,8 +226,8 @@ function BuildingLayer.new(
 		end
 		table.clear(chargeDots)
 		local list = cs.world.batteries
-		if list == nil then
-			return
+		if list == nil or far then
+			return -- дальний план (§15х ч.8): заряды не рисуем
 		end
 		local byCell: { [number]: Icon } = {}
 		for _, icon in icons do
@@ -235,8 +277,13 @@ function BuildingLayer.new(
 		onCamera = function(state: CameraState)
 			if state.zoom ~= zoom then
 				zoom = state.zoom
+				local wasFar = far
+				far = zoom < Config.Render.BuildingDotZoom
 				for _, icon in icons do
 					place(icon)
+				end
+				if far ~= wasFar then
+					charges()
 				end
 			end
 		end,

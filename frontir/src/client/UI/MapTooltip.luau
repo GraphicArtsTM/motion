@@ -371,6 +371,45 @@ function MapTooltip.new(
 		return line
 	end
 
+	-- §15х ч.8: строка о державе под курсором — сила войск («?» — скрыта), доля суши, отношение к вам.
+	local totalLand = 0
+	local function nationLine(owner: number): string?
+		local st = ClientState.statsOf(cs, owner)
+		if st == nil then
+			return nil
+		end
+		if totalLand == 0 then
+			for i = 0, map.width * map.height - 1 do
+				if Config.Terrain[MapDataModule.getTerrain(map, i)].borderPassable then
+					totalLand += 1
+				end
+			end
+		end
+		local hidden = st.power < 0 or st.frontPower < 0
+		local power = if hidden then "?" else short(st.power + st.frontPower)
+		local me = cs.myNation
+		local rel, relColor = "tip.rel.peace", muted
+		if me ~= nil and owner == me then
+			rel, relColor = "tip.rel.you", sky
+		elseif me ~= nil then
+			local war = ClientState.warBetween(cs, me, owner)
+			local t = ClientState.treatyBetween(cs, me, owner)
+			if war ~= nil then
+				rel, relColor = if (war :: any).active then "tip.rel.war" else "tip.rel.mobilizing", alert
+			elseif t ~= nil and t.kind == "alliance" then
+				rel, relColor = if t.trust then "tip.rel.trust" else "tip.rel.ally", hex(Theme.color("Lime"))
+			end
+		end
+		return string.format(
+			'<font color="%s">%s</font> · %s · <font color="%s">%s</font>',
+			gold,
+			string.format(Strings.get("tip.power", lang), power),
+			string.format(Strings.get("tip.land", lang), st.cells / math.max(1, totalLand) * 100),
+			relColor,
+			Strings.get(rel, lang)
+		)
+	end
+
 	local function describe(cell: number, percent: number): string
 		local t = MapDataModule.getTerrain(map, cell)
 		local terrain = Strings.get("terrain." .. (terrainNames[t] or "?"), lang)
@@ -410,6 +449,10 @@ function MapTooltip.new(
 		local strike = if cs.phase == "Play" then strikeLine(cell) else nil
 		if strike ~= nil then
 			return head .. "\n" .. strike
+		end
+		local nation = if cs.phase == "Play" and owner ~= 0 then nationLine(owner) else nil
+		if nation ~= nil then
+			head ..= "\n" .. nation
 		end
 		-- §15х ч.2: здание или город — что делает (круг его действия рисует Main.client).
 		local building = if cs.phase == "Play" then buildingLine(cell) else nil

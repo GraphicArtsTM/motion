@@ -194,7 +194,11 @@ export type WorldMessage = {
 	batteries: { { cell: number, ready: number, max: number } }?, -- заряды батарей ПВО (§15д ч.3, видны всем)
 	fallout: { { cell: number, radius: number, left: number } }?, -- заражённые зоны (§15ж)
 	doom: DoomInfo?, -- «часы судного дня» (§15з)
+	pockets: { PocketInfo }?, -- котлы (§15х ч.8)
 }
+
+-- Котёл (§15х ч.8): чей, клетка в нём (от неё клиент находит кусок), клеток, секунд до сдачи (-1 — не сдаётся).
+export type PocketInfo = { owner: number, cell: number, cells: number, left: number }
 
 -- «Часы судного дня» (§15з): планка доли суши, номер волны (0 — ещё не начались), следующая планка и секунды
 -- (часов матча) до неё / до начала, кто ниже планки и сколько секунд до распада.
@@ -472,6 +476,17 @@ function ClientState.applyWorld(cs: ClientState, msg: any, now: number): { numbe
 			end
 		end
 	end
+	local pockets: { PocketInfo } = {}
+	if type(msg.pockets) == "table" then
+		for _, p in msg.pockets :: { any } do
+			if type(p) == "table" then
+				table.insert(
+					pockets,
+					{ owner = num(p.owner), cell = num(p.cell), cells = num(p.cells), left = num(p.left) }
+				)
+			end
+		end
+	end
 	local doom: DoomInfo? = nil
 	if type(msg.doom) == "table" then
 		local d = msg.doom :: any
@@ -502,6 +517,7 @@ function ClientState.applyWorld(cs: ClientState, msg: any, now: number): { numbe
 		batteries = batteries,
 		fallout = fallout,
 		doom = doom,
+		pockets = pockets,
 	}
 	cs.worldAt = now
 	return fresh
