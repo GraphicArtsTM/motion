@@ -1,8 +1,9 @@
 --!strict
 --[[
-	GameMenu — меню игры (GDD §15л; §15ф — сюда переехали окна из дока): кнопка «≡» слева сверху (и Tab) во время
-	матча и в лобби. Окно по центру: «МЕНЮ», карта и режим; «Продолжить»; сеткой по две — Как играть, Звук,
-	Магазин, Задания, Гардероб, Арсенал, Путь командира, Сервер (у владельца частного сервера); «Главное меню».
+	GameMenu — меню игры (GDD §15л; §15ф — сюда переехали окна из дока, §15ф Ф2 — док убран совсем): кнопка «≡»
+	слева сверху (и Tab) во время матча и в лобби. Окно по центру: «МЕНЮ», карта и режим; «Продолжить»; сеткой по
+	две — Как играть, Звук, Магазин, Дипломатия, Технологии, Стабильность, Угрозы, Метки (если доступны), Задания,
+	Гардероб, Арсенал, Путь командира, Сервер (у владельца частного сервера); «Главное меню».
 	Матч не на паузе — об этом строка внизу. Escape закрывает окно. Окно — в слое окон, кнопка «≡» — в HUD.
 ]]
 
@@ -20,6 +21,9 @@ local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
 
+-- Кнопка окна из прежнего дока (visible nil — всегда видна).
+export type MenuItem = { label: string, action: () -> (), visible: (() -> boolean)? }
+
 export type Actions = {
 	help: () -> (),
 	sound: () -> (),
@@ -27,7 +31,7 @@ export type Actions = {
 	mainMenu: () -> (),
 	blocked: () -> boolean, -- открыто главное меню — Tab ничего не делает
 	-- §15ф: окна из прежнего дока — кнопками сеткой (visible nil — всегда).
-	extra: { { label: string, action: () -> (), visible: (() -> boolean)? } }?,
+	extra: { MenuItem }?,
 }
 
 export type GameMenu = {
@@ -121,7 +125,7 @@ function GameMenu.new(
 	local function close()
 		window.Visible = false
 	end
-	local extraList: { { label: string, action: () -> (), visible: (() -> boolean)? } } = act.extra or {}
+	local extraList: { MenuItem } = act.extra or {}
 	for k, e in extraList do
 		local b = MenuKit.button(grid, e.label, "normal", nil, 3 + k)
 		b.TextSize = 15

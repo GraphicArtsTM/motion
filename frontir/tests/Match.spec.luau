@@ -653,6 +653,9 @@ T.describe("MatchSim", function()
 			for _, att in m.attacks do
 				T.expect(att.attacker ~= victim.id and att.target ~= victim.id).toBe(true)
 			end
+			-- §15ф Ф2: «побеждено» в итогах — выбил держава 1.
+			T.expect(victim.eliminatedBy).toBe(1)
+			T.expect(MatchSim.defeatedCounts(m)[1]).toBe(1)
 		end
 	)
 

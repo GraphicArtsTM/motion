@@ -1230,6 +1230,10 @@ local TABLE: { [string]: Entry } = {
 	-- §15л ч.5 верхняя панель матча
 	["hud.matchTime"] = { ru = "ВРЕМЯ МАТЧА", en = "MATCH TIME" },
 	["hud.incoming"] = { ru = "НА ВАС НАПАДАЮТ", en = "UNDER ATTACK" },
+	-- §15ф Ф2: панель «АТАКИ» справа и фишки атак над полосой.
+	["attacks.title"] = { ru = "АТАКИ", en = "ATTACKS" },
+	["attacks.count"] = { ru = "ваших %d · на вас %d", en = "yours %d · on you %d" },
+	["attacks.more"] = { ru = "ещё %d", en = "%d more" },
 	["hud.timeOf"] = { ru = "из %d:%02d", en = "of %d:%02d" },
 	["hud.controlTitle"] = { ru = "КОНТРОЛЬ СУШИ", en = "LAND CONTROL" },
 	["hud.goal"] = { ru = "ЦЕЛЬ %d%%", en = "GOAL %d%%" },
@@ -1888,7 +1892,9 @@ local TABLE: { [string]: Entry } = {
 	["result.tile.placeOf"] = { ru = "%d из %d", en = "%d of %d" },
 	["result.tile.peak"] = { ru = "ПИК СУШИ", en = "PEAK LAND" },
 	["result.tile.time"] = { ru = "ВРЕМЯ МАТЧА", en = "MATCH TIME" },
-	["result.tile.out"] = { ru = "ВЫБЫЛО ДЕРЖАВ", en = "NATIONS OUT" },
+	["result.tile.defeated"] = { ru = "ПОБЕЖДЕНО ВАМИ", en = "DEFEATED BY YOU" },
+	["result.more"] = { ru = "Подробнее", en = "Details" },
+	["result.less"] = { ru = "Свернуть", en = "Less" },
 	["result.reward"] = { ru = "+%d опыта · +%d 🏅", en = "+%d XP · +%d 🏅" },
 	["result.levelUp"] = { ru = "НОВЫЙ УРОВЕНЬ: %d!", en = "LEVEL UP: %d!" },
 	["result.menu"] = { ru = "В меню", en = "Main menu" },

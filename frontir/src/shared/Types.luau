@@ -168,6 +168,7 @@ export type Nation = {
 	money: number, -- §6.8
 	oil: number,
 	eliminatedAt: number?, -- секунда матча, когда выбыла (для мест)
+	eliminatedBy: number?, -- кто выбил (0 — никто: восстание, потоп; §15ф Ф2 «побеждено»)
 	botLevel: BotLevel?, -- уровень бота (§9.1); у игрока nil
 	personality: BotPersonality?, -- личность бота
 }
@@ -377,6 +378,7 @@ export type MatchResult = {
 	coWinners: { NationId }?, -- союзники победителя (совместная победа, §8.1)
 	times: { number }, -- секунды матча точек графика
 	shares: { [NationId]: { number } }, -- доля суши в процентах (целые) в эти моменты
+	defeated: { [NationId]: number }?, -- сколько держав выбила каждая (§15ф Ф2; ключи могут прийти строками)
 }
 
 return Types

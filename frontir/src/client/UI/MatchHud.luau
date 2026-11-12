@@ -25,7 +25,6 @@ local Economy = require(Shared:WaitForChild("Economy"))
 local EventFeed = require(Shared:WaitForChild("EventFeed"))
 local MapDataModule = require(Shared:WaitForChild("MapData"))
 local NationColors = require(Shared:WaitForChild("NationColors"))
-local Protocol = require(Shared:WaitForChild("Net"):WaitForChild("Protocol"))
 local Provinces = require(Shared:WaitForChild("Provinces"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
@@ -266,15 +265,18 @@ function MatchHud.new(
 	placeChip.AnchorPoint = Vector2.new(1, 0)
 	placeChip.Position = UDim2.new(1, -12, 0, GAP)
 	placeChip.Visible = false
-	-- §15л ч.7: «НА ВАС НАПАДАЮТ» — под местом справа: кто атакует и его сила.
-	local incoming = panel(gui, "Incoming")
-	incoming.AnchorPoint = Vector2.new(1, 0)
-	incoming.Position = UDim2.new(1, -12, 0, GAP)
-	incoming.Visible = false
-	local incomingText = richLabel(incoming, 14)
 	local placeText = richLabel(placeChip, 20)
 	placeText.FontFace = Theme.FontBold
 	placeText.TextColor3 = Theme.Colors.Gold
+	-- §15ф Ф2: нажатие на место — список лидеров (раньше висел справа всегда).
+	local leadersOpen = false
+	local placeTap = Instance.new("TextButton")
+	placeTap.Name = "Tap"
+	placeTap.Text = ""
+	placeTap.BackgroundTransparency = 1
+	placeTap.Size = UDim2.fromScale(1, 1)
+	placeTap.ZIndex = 5
+	placeTap.Parent = placeChip
 
 	-- Слева сверху: полоса ресурсов «как в игре» (§15д ч.5), под ней — держава.
 	local resources = ResourceBar.new(gui, lang)
@@ -323,29 +325,6 @@ function MatchHud.new(
 	local feedOrder = 0
 	-- Уровень событий, которые сейчас разбирает onEvents (nil — строка не из события: подсказка, отказ).
 	local eventLevel: EventFeed.Level? = nil
-
-	-- Строки активных атак (пул, чтобы кнопки не пересоздавались 5 раз в секунду).
-	type Row = { frame: Frame, text: TextLabel, cancel: TextButton, target: number }
-	local rows: { Row } = {}
-	for k = 1, cfg.MaxAttacks do
-		local rowFrame = panel(bottom, "AttackRow" .. k)
-		rowFrame.AutomaticSize = Enum.AutomaticSize.None
-		rowFrame.Size = UDim2.fromOffset(320, BUTTON + 4)
-		rowFrame.LayoutOrder = 1 + k
-		rowFrame.Visible = false
-		local text = richLabel(rowFrame, 14)
-		text.Position = UDim2.fromOffset(0, 2)
-		local cancel = button(rowFrame, "×", BUTTON)
-		cancel.AnchorPoint = Vector2.new(1, 0.5)
-		cancel.Position = UDim2.fromScale(1, 0.5)
-		local row: Row = { frame = rowFrame, text = text, cancel = cancel, target = -1 }
-		Session.connect(cancel.Activated, function()
-			if row.target >= 0 then
-				send("cancel", { target = row.target })
-			end
-		end)
-		table.insert(rows, row)
-	end
 
 	local slider = panel(bottom, "AttackSlider")
 	slider.LayoutOrder = 100
@@ -419,74 +398,6 @@ function MatchHud.new(
 	end)
 
 	-- Строка атаки: цель; ниже — люди (ничья земля) или сила войск, перевес и снабжение (фронт).
-	local function frontText(a: Protocol.AttackStats): string
-		local parts: { string } = {}
-		if a.target == 0 then
-			table.insert(
-				parts,
-				string.format(
-					Strings.get("hud.front.people", lang),
-					string.format(
-						'<font color="%s">%s</font>',
-						gold,
-						if a.troops < 0 then "?" else Strings.formatInt(a.troops)
-					)
-				)
-			)
-		end
-		-- Скрытая мощь (§6.11а): сила < 0 — чужая, без разведки «?».
-		if a.power >= 1 or a.power < 0 then
-			table.insert(
-				parts,
-				string.format(
-					Strings.get("hud.front.power", lang),
-					string.format(
-						'<font color="%s">%s</font>',
-						gold,
-						if a.power < 0 then "?" else Strings.formatInt(a.power)
-					)
-				)
-			)
-		end
-		if a.target ~= 0 then
-			if a.ratio == math.huge then
-				table.insert(
-					parts,
-					string.format('<font color="%s">%s</font>', sky, Strings.get("hud.front.open", lang))
-				)
-			elseif a.ratio <= 1 then
-				table.insert(
-					parts,
-					string.format(
-						'<font color="%s">%s · %s</font>',
-						alert,
-						string.format(Strings.get("hud.front.ratio", lang), a.ratio),
-						Strings.get("hud.front.stalled", lang)
-					)
-				)
-			else
-				table.insert(
-					parts,
-					string.format(
-						'<font color="%s">%s</font>',
-						sky,
-						string.format(Strings.get("hud.front.ratio", lang), a.ratio)
-					)
-				)
-			end
-			if not a.supplied then
-				table.insert(
-					parts,
-					string.format('<font color="%s">%s</font>', alert, Strings.get("hud.front.noSupply", lang))
-				)
-			end
-		end
-		return string.format(
-			'→ %s\n<font size="12">%s</font>',
-			escape(nationName(a.target)),
-			table.concat(parts, " · ")
-		)
-	end
 
 	local levelColor: { [string]: Color3 } = {
 		critical = Theme.Colors.Alert,
@@ -646,7 +557,7 @@ function MatchHud.new(
 		end
 
 		-- Лидеры.
-		leaders.Visible = playing and stats ~= nil
+		leaders.Visible = playing and stats ~= nil and leadersOpen
 		if stats ~= nil then
 			local sorted = table.clone(stats.nations)
 			table.sort(sorted, function(a, b)
@@ -704,53 +615,15 @@ function MatchHud.new(
 			leadersText.Text = table.concat(lines, "\n")
 		end
 
-		-- Ползунок и атаки — только у живой державы в игре.
-		local canAttack = playing and me ~= nil and me.alive
 		-- §15л ч.2: доля атаки — кнопками в командной полосе; старый ползунок не показываем.
 		slider.Visible = false
-		local k = 0
-		if canAttack and stats ~= nil and me ~= nil then
-			for _, a in stats.attacks do
-				if a.attacker == me.id and k < #rows then
-					k += 1
-					local row = rows[k]
-					row.target = a.target
-					row.text.Text = frontText(a)
-					row.frame.Visible = true
-				end
-			end
-		end
-		for j = k + 1, #rows do
-			rows[j].frame.Visible = false
-			rows[j].target = -1
-		end
-		-- Кто нападает на нас (§15л ч.7).
-		local lines: { string } = {}
-		if playing and stats ~= nil and me ~= nil and me.alive then
-			for _, a in stats.attacks do
-				if a.target == me.id and #lines < cfg.MaxAttacks then
-					table.insert(
-						lines,
-						string.format(
-							'<font color="%s">⚔</font> %s  <font color="%s">%s</font>',
-							alert,
-							escape(nationName(a.attacker)),
-							gold,
-							if a.power < 0 then "?" else Strings.formatInt(a.power)
-						)
-					)
-				end
-			end
-		end
-		incoming.Visible = #lines > 0
-		if #lines > 0 then
-			incomingText.Text = string.format(
-				'<font color="%s"><b>%s</b></font>\n',
-				alert,
-				Strings.get("hud.incoming", lang)
-			) .. table.concat(lines, "\n")
-		end
+		-- §15ф Ф2: свои атаки и атаки на вас — в панели «АТАКИ» справа и фишках над полосой (UI/AttackPanel).
 	end
+
+	Session.connect(placeTap.Activated, function()
+		leadersOpen = not leadersOpen
+		refresh()
+	end)
 
 	local lastBanner = ""
 	local function update(now: number)

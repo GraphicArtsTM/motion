@@ -2402,6 +2402,7 @@ local function eliminate(m: Match, n: Nation, by: number)
 	Commanders.removeNation(m.commanders, n.id)
 	n.alive = false
 	n.eliminatedAt = m.time
+	n.eliminatedBy = by
 	n.people = 0
 	n.home = Forces.new()
 	n.queue = {}
@@ -6113,6 +6114,18 @@ function MatchSim.places(m: Match, winner: number, coWinners: { number }?): { nu
 	return out
 end
 
+-- «Побеждено» в итогах (§15ф Ф2): сколько держав выбила каждая (выбывание без виновника — не в счёт).
+function MatchSim.defeatedCounts(m: Match): { [number]: number }
+	local out: { [number]: number } = {}
+	for _, n in m.nations do
+		local by = n.eliminatedBy
+		if not n.alive and by ~= nil and by ~= 0 and by ~= n.id then
+			out[by] = (out[by] or 0) + 1
+		end
+	end
+	return out
+end
+
 -- Суша державы для победы: своя и её вассалов (§8.1).
 -- Суша державы для победы: своя + суша вассалов с весом Diplomacy.VassalVictoryShare (§15о).
 local function landOf(m: Match, id: number): number
@@ -6138,6 +6151,7 @@ local function finishMatch(m: Match, winner: number, reason: Types.VictoryReason
 		coWinners = coWinners,
 		times = m.history.times,
 		shares = m.history.shares,
+		defeated = MatchSim.defeatedCounts(m),
 	}
 	m.phase = "Over"
 	m.phaseLeft = Config.Match.ResultsSec

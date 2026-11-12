@@ -54,6 +54,7 @@ local StrikeStatus = require(UI:WaitForChild("StrikeStatus"))
 local DoomBar = require(UI:WaitForChild("DoomBar"))
 local CommandBar = require(UI:WaitForChild("CommandBar"))
 local Dock = require(UI:WaitForChild("Dock"))
+local AttackPanel = require(UI:WaitForChild("AttackPanel"))
 local LobbyScreen = require(UI:WaitForChild("LobbyScreen"))
 local SirenPanel = require(UI:WaitForChild("SirenPanel"))
 local ThreatPanel = require(UI:WaitForChild("ThreatPanel"))
@@ -318,6 +319,10 @@ local function runSession(mapId: string, resync: boolean)
 	local siren = SirenPanel.new(hudGui, cs, lang, function(cell: number)
 		toFront(cell % map.width + 0.5, cell // map.width + 0.5)
 	end)
+	-- §15ф Ф2: панель «АТАКИ» справа (свои и на вас) и фишки своих атак над полосой.
+	local attackPanel = AttackPanel.new(hudGui, cs, lang, send, function(cell: number)
+		toFront(cell % map.width + 0.5, cell // map.width + 0.5)
+	end)
 	-- §15х ч.4б: «Карта угроз» (L, кнопка в доке) — зоны защиты и угроз, «дыры» в своей защите.
 	local threat = ThreatPanel.new(hudGui, cs, lang, markerLayer.zone, function(cell: number)
 		toFront(cell % map.width + 0.5, cell // map.width + 0.5)
@@ -343,10 +348,10 @@ local function runSession(mapId: string, resync: boolean)
 		if nationPanel ~= nil and abilities ~= nil then
 			local np, ab = nationPanel :: Frame, abilities :: Frame
 			local function stack()
-				-- §15ф: под строкой дока (она — сверху слева правее «≡»).
+				-- §15ф Ф2: дока нет — сразу под кнопкой «≡» (она сверху слева, 8 px от края).
 				local left = 12
-				np.Position = UDim2.fromOffset(left, Config.Render.Dock.TopPx + Config.Render.Dock.ButtonPx + 18)
-				-- §15ф: панель державы спрятана (в FrontirStash) — способности сразу под доком.
+				np.Position = UDim2.fromOffset(left, 8 + Config.Render.MinTouchTargetPx + 10)
+				-- §15ф: панель державы спрятана (в FrontirStash) — способности сразу под «≡».
 				local shown = np.Visible and np:IsDescendantOf(hudGui)
 				local bottom = np.Position.Y.Offset + (if shown then np.AbsoluteSize.Y + 8 else 0)
 				ab.Position = UDim2.fromOffset(left, bottom)
@@ -412,6 +417,7 @@ local function runSession(mapId: string, resync: boolean)
 		{
 			icon = "tech",
 			name = "dock.tech",
+			hidden = true, -- §15ф Ф2: дока нет — окно в меню игры (≡) и на клавише
 			key = "Y",
 			button = techPanel.button,
 			toggle = techPanel.toggle,
@@ -420,6 +426,7 @@ local function runSession(mapId: string, resync: boolean)
 		{
 			icon = "diplomacy",
 			name = "dock.diplomacy",
+			hidden = true, -- §15ф Ф2: дока нет — окно в меню игры (≡) и на клавише
 			key = "T",
 			button = diplomacy.button, -- §15ф: «Дипломатия (T)» над полосой больше не висит
 			toggle = diplomacy.toggle,
@@ -428,6 +435,7 @@ local function runSession(mapId: string, resync: boolean)
 		{
 			icon = "stability",
 			name = "dock.stability",
+			hidden = true, -- §15ф Ф2: дока нет — окно в меню игры (≡) и на клавише
 			key = "N",
 			button = stabilityPanel.button,
 			toggle = stabilityPanel.toggle,
@@ -436,6 +444,7 @@ local function runSession(mapId: string, resync: boolean)
 		{
 			icon = "ping",
 			name = "dock.ping",
+			hidden = true, -- §15ф Ф2: дока нет — окно в меню игры (≡) и на клавише
 			key = "G",
 			button = pings.button,
 			toggle = pings.toggle,
@@ -444,6 +453,7 @@ local function runSession(mapId: string, resync: boolean)
 		{
 			icon = "threat",
 			name = "dock.threat",
+			hidden = true, -- §15ф Ф2: дока нет — окно в меню игры (≡) и на клавише
 			key = "L",
 			visible = threat.visible, -- §15х ч.4б
 			toggle = threat.toggle,
@@ -568,9 +578,12 @@ local function runSession(mapId: string, resync: boolean)
 				end
 			end
 		end
+		local anyBusy = false
 		for k, sheet in sheets do
 			sheetWas[k] = sheet.busy()
+			anyBusy = anyBusy or sheetWas[k]
 		end
+		attackPanel.setBlocked(anyBusy) -- окно снизу по центру — фишки атак не мешают
 	end)
 
 	-- §15л: слои над HUD — главное меню (2) и окна (3). Магазин, гардероб, задания, звук, настройки сервера,
@@ -715,26 +728,60 @@ local function runSession(mapId: string, resync: boolean)
 		end
 	end
 	openMainMenu = toMainMenu -- «В меню» на экране итогов
+	local menuExtra: { GameMenu.MenuItem } = {
+		{
+			label = Strings.get("dock.diplomacy", lang) .. "  [T]",
+			action = diplomacy.toggle,
+			visible = function(): boolean
+				return diplomacy.button.Visible
+			end,
+		},
+		{
+			label = Strings.get("dock.tech", lang) .. "  [Y]",
+			action = techPanel.toggle,
+			visible = function(): boolean
+				return techPanel.button.Visible
+			end,
+		},
+		{
+			label = Strings.get("dock.stability", lang) .. "  [N]",
+			action = stabilityPanel.toggle,
+			visible = function(): boolean
+				return stabilityPanel.button.Visible
+			end,
+		},
+		{
+			label = Strings.get("dock.threat", lang) .. "  [L]",
+			action = threat.toggle,
+			visible = threat.visible,
+		},
+		{
+			label = Strings.get("dock.ping", lang) .. "  [G]",
+			action = pings.toggle,
+			visible = function(): boolean
+				return pings.button.Visible
+			end,
+		},
+		{ label = Strings.get("dock.quests", lang) .. "  [J]", action = questsPanel.toggle },
+		{ label = Strings.get("dock.wardrobe", lang) .. "  [K]", action = wardrobe.toggle },
+		{ label = Strings.get("dock.arsenal", lang) .. "  [U]", action = arsenalPanel.toggle },
+		{ label = Strings.get("menu.nav.ranks", lang), action = ranksPanel.toggle },
+		{
+			label = Strings.get("dock.server", lang) .. "  [O]",
+			action = serverPanel.toggle,
+			visible = function(): boolean
+				return serverPanel.button.Visible
+			end,
+		},
+	}
 	gameMenu = GameMenu.new(hudGui, windowsGui, cs, lang, map.name, {
 		help = openHelp,
 		sound = openSound,
 		shop = openShop,
 		mainMenu = toMainMenu,
 		blocked = mainMenu.isOpen,
-		-- §15ф: окна из прежнего дока.
-		extra = {
-			{ label = Strings.get("dock.quests", lang) .. "  [J]", action = questsPanel.toggle },
-			{ label = Strings.get("dock.wardrobe", lang) .. "  [K]", action = wardrobe.toggle },
-			{ label = Strings.get("dock.arsenal", lang) .. "  [U]", action = arsenalPanel.toggle },
-			{ label = Strings.get("menu.nav.ranks", lang), action = ranksPanel.toggle },
-			{
-				label = Strings.get("dock.server", lang) .. "  [O]",
-				action = serverPanel.toggle,
-				visible = function(): boolean
-					return serverPanel.button.Visible
-				end,
-			},
-		},
+		-- §15ф: окна из прежнего дока (§15ф Ф2: док убран совсем — здесь и дела матча).
+		extra = menuExtra,
 	})
 	-- §15л ч.2: командная полоса снизу по центру. Прежние полоса ресурсов и карточки найма — в выключенный
 	-- ScreenGui (их код работает как раньше, но на экране их нет: всё это — в полосе).
@@ -821,6 +868,7 @@ local function runSession(mapId: string, resync: boolean)
 			end
 		end
 		at("AttackArea", Vector2.new(0, 1), UDim.new(0, 12), 0)
+		at("AttackChips", Vector2.new(0.5, 1), UDim.new(0.5, 0), 0) -- §15ф Ф2: фишки своих атак
 		at("Minimap", Vector2.new(1, 1), UDim.new(1, -12), 0)
 		at("BuildMenu", Vector2.new(0.5, 1), UDim.new(0.5, 0), 0)
 		at("Phrases", Vector2.new(0.5, 1), UDim.new(0.5, 0), 0)
@@ -906,7 +954,7 @@ local function runSession(mapId: string, resync: boolean)
 	})
 	stackInto(
 		column("TopRight", 1, UDim.new(1, -12), Enum.HorizontalAlignment.Right),
-		{ "PlaceChip", "GiantChip", "Incoming", "Leaders", "Auction", "Forces" }
+		{ "PlaceChip", "GiantChip", "Attacks", "Leaders", "Auction", "Forces" }
 	)
 	-- HUD рисуется в режиме Global: содержимое окон с поднятым ZIndex — выше их фона (иначе текст под фоном).
 	Layering.liftAll(hudGui)
@@ -1594,6 +1642,7 @@ local function runSession(mapId: string, resync: boolean)
 		commandBar.update(now)
 		worldPanel.update(now)
 		hud.update(now)
+		attackPanel.update(now)
 		hints.update(now)
 		commanderPanel.update(now)
 		wars.update(now)

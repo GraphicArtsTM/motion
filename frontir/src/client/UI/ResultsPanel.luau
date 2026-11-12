@@ -1,10 +1,11 @@
 --!strict
 --[[
-	ResultsPanel — экран результатов (GDD §8, этап 4в; вид — §15л): крупно «ПОБЕДА» / «ПОРАЖЕНИЕ» / «ИТОГИ»
-	(зритель), кто и как победил; плитки «Место», «Пик суши», «Время матча», «Выбыло держав»; награда за матч
-	(опыт, медали, новый уровень) и полоса уровня со званием; места держав, график доли суши за матч (лучшие
-	Render.ResultsChartLines держав). Виден в фазе Over; «Смотреть карту» прячет окно, «Итоги» возвращает,
-	«В меню» — главное меню. Новый матч сбрасывает окно.
+	ResultsPanel — итоги матча одной карточкой (GDD §8, этап 4в; вид — §15л; §15ф Ф2): крупно «ПОБЕДА» /
+	«ПОРАЖЕНИЕ» / «ИТОГИ» (зритель), кто и как победил; плитки 2×2 — «Место», «Пик суши», «Побеждено вами»
+	(MatchResult.defeated), «Время матча»; награда за матч (опыт, медали, новый уровень) и полоса уровня; большая
+	«В МЕНЮ», под ней «Смотреть карту» (прячет окно, «Итоги» возвращает) и «Подробнее» — места держав и график доли
+	суши за матч (лучшие Render.ResultsChartLines держав), по умолчанию свёрнуты. Виден в фазе Over. Новый матч
+	сбрасывает окно.
 	График — линии из повёрнутых Frame (точек не больше Render.ResultsChartPoints на линию).
 ]]
 
@@ -32,9 +33,9 @@ export type ResultsPanel = {
 
 local ResultsPanel = {}
 
-local TILE_W, TILE_H, TILE_GAP = 150, 60, 8
+local TILE_W, TILE_H, TILE_GAP = 220, 64, 8
 local PLACE_H = 40
-local TILES_W = 4 * TILE_W + 3 * TILE_GAP
+local TILES_W = 2 * TILE_W + TILE_GAP -- ширина карточки (плитки 2×2)
 local CHART_W, CHART_H = TILES_W, 150
 local BUTTON = Config.Render.MinTouchTargetPx
 
@@ -61,6 +62,15 @@ local function nationColor(cs: ClientState, id: number): Color3
 	end
 	local c = NationColors.Colors[n.colorIndex]
 	return Color3.fromRGB(c.r, c.g, c.b)
+end
+
+-- Сколько держав выбила держава (§15ф Ф2; ключи могут прийти строками после RemoteEvent).
+local function defeatedOf(result: Types.MatchResult, id: number): number
+	local d = result.defeated :: any
+	if d == nil then
+		return 0
+	end
+	return d[id] or d[tostring(id)] or 0
 end
 
 -- Доли державы из итога (ключи могут прийти строками после RemoteEvent).
@@ -140,26 +150,40 @@ function ResultsPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, o
 	-- Узкий экран: окно ужимается масштабом, а не вылезает за край.
 	local scale = Instance.new("UIScale")
 	scale.Parent = panel
+	local expanded = false -- «Подробнее»: места и график
 	local function fit()
 		local s = gui.AbsoluteSize
-		scale.Scale = math.clamp(math.min(s.X / (TILES_W + 60), s.Y / (CHART_H + 560)), 0.45, 1)
+		local h = if expanded then CHART_H + 640 else 520
+		scale.Scale = math.clamp(math.min(s.X / (TILES_W + 60), s.Y / h), 0.45, 1)
 	end
 	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fit)
 	fit()
 
+	-- Заголовок и «кто победил» — по центру карточки, строка переносится, а не раздвигает окно.
 	local title = label(panel, 40, 1)
-	title.FontFace = Theme.FontBold
+	title.FontFace = Theme.FontHeavy
 	title.TextStrokeTransparency = 0.5
+	title.AutomaticSize = Enum.AutomaticSize.Y
+	title.Size = UDim2.fromOffset(TILES_W, 0)
+	title.TextXAlignment = Enum.TextXAlignment.Center
 	local reason = label(panel, 14, 2)
 	reason.TextColor3 = Theme.Colors.Muted
+	reason.AutomaticSize = Enum.AutomaticSize.Y
+	reason.Size = UDim2.fromOffset(TILES_W, 0)
+	reason.TextWrapped = true
+	reason.TextXAlignment = Enum.TextXAlignment.Center
 	-- Плитки: место, пик суши, время, выбыло держав (§15л).
 	local tilesRow = Instance.new("Frame")
 	tilesRow.Name = "Tiles"
 	tilesRow.BackgroundTransparency = 1
-	tilesRow.Size = UDim2.fromOffset(TILES_W, TILE_H)
+	tilesRow.Size = UDim2.fromOffset(TILES_W, 2 * TILE_H + TILE_GAP)
 	tilesRow.LayoutOrder = 3
 	tilesRow.Parent = panel
-	MenuKit.list(tilesRow, TILE_GAP, true)
+	local tilesGrid = Instance.new("UIGridLayout")
+	tilesGrid.CellSize = UDim2.fromOffset(TILE_W, TILE_H)
+	tilesGrid.CellPadding = UDim2.fromOffset(TILE_GAP, TILE_GAP)
+	tilesGrid.SortOrder = Enum.SortOrder.LayoutOrder
+	tilesGrid.Parent = tilesRow
 	-- Плитка: картинка слева, подпись и число справа (§15л ч.11).
 	local function tile(order: number, artKey: string, caption: string): TextLabel
 		local f = Instance.new("Frame")
@@ -178,14 +202,15 @@ function ResultsPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, o
 		cap.Size = UDim2.fromOffset(TILE_W - 82, 22)
 		cap.TextWrapped = true
 		cap.TextYAlignment = Enum.TextYAlignment.Top
-		local value = MenuKit.label(f, "—", 18, Theme.Colors.Text, true)
-		value.Position = UDim2.fromOffset(78, 32)
+		local value = MenuKit.label(f, "—", 22, Theme.Colors.Text, true)
+		value.FontFace = Theme.FontHeavy
+		value.Position = UDim2.fromOffset(78, 30)
 		return value
 	end
 	local placeValue = tile(1, "results.place", Strings.get("result.tile.place", lang))
 	local peakValue = tile(2, "results.peak", Strings.get("result.tile.peak", lang))
-	local timeValue = tile(3, "results.time", Strings.get("result.tile.time", lang))
-	local outValue = tile(4, "results.out", Strings.get("result.tile.out", lang))
+	local defeatedValue = tile(3, "results.out", Strings.get("result.tile.defeated", lang))
+	local timeValue = tile(4, "results.time", Strings.get("result.tile.time", lang))
 	-- Награда за матч: картинка, опыт и медали, плашка «новый уровень».
 	local rewardRow = Instance.new("Frame")
 	rewardRow.Name = "Reward"
@@ -219,7 +244,8 @@ function ResultsPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, o
 	local levelBar = MenuKit.bar(levelBarHost, 6, Theme.Colors.Sky)
 	local levelXp = MenuKit.label(levelRow, "", 11, Theme.Colors.Muted, false, 4)
 	-- Места держав: строки с медалью (1–3) или номером, цветом державы, долей суши.
-	local placesList = MenuKit.box(panel, "Places", 6)
+	local placesList = MenuKit.box(panel, "Places", 8)
+	placesList.Visible = false
 	placesList.Size = UDim2.fromOffset(TILES_W, 0)
 	local placesGrid = Instance.new("UIGridLayout")
 	placesGrid.CellSize = UDim2.fromOffset((TILES_W - TILE_GAP) / 2, PLACE_H)
@@ -230,25 +256,31 @@ function ResultsPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, o
 	placesGrid.Parent = placesList
 	local chartTitle = label(panel, 13, 5)
 	chartTitle.TextColor3 = Theme.Colors.Muted
-	chartTitle.LayoutOrder = 7
+	chartTitle.LayoutOrder = 9
 	chartTitle.Text = Strings.get("result.chart", lang)
+	chartTitle.Visible = false
 	local chart = Instance.new("Frame")
 	chart.Name = "Chart"
 	chart.Size = UDim2.fromOffset(CHART_W, CHART_H)
 	chart.BackgroundColor3 = Theme.Colors.Backdrop
 	chart.BorderSizePixel = 0
 	chart.ClipsDescendants = true
-	chart.LayoutOrder = 8
+	chart.LayoutOrder = 10
+	chart.Visible = false
 	chart.Parent = panel
 	local chartStroke = Instance.new("UIStroke")
 	chartStroke.Color = Theme.Colors.PanelBorder
 	chartStroke.Thickness = Theme.BorderPx
 	chartStroke.Parent = chart
+	-- Большая «В МЕНЮ» во всю ширину карточки, под ней — отсчёт, «Смотреть карту», «Подробнее».
+	local menuButton = MenuKit.button(panel, Strings.get("result.menu", lang), "good", 52, 6)
+	menuButton.Size = UDim2.fromOffset(TILES_W, 52)
+	Session.connect(menuButton.Activated, onMenu)
 	local footer = Instance.new("Frame")
 	footer.BackgroundTransparency = 1
 	footer.Size = UDim2.fromOffset(0, BUTTON)
 	footer.AutomaticSize = Enum.AutomaticSize.X
-	footer.LayoutOrder = 9
+	footer.LayoutOrder = 7
 	footer.Parent = panel
 	local footerLayout = Instance.new("UIListLayout")
 	footerLayout.FillDirection = Enum.FillDirection.Horizontal
@@ -259,11 +291,16 @@ function ResultsPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, o
 	countdown.TextColor3 = Theme.Colors.Muted
 	local hideButton = button(footer, Strings.get("result.hide", lang))
 	hideButton.LayoutOrder = 2
-	local menuButton = button(footer, Strings.get("result.menu", lang))
-	menuButton.LayoutOrder = 3
-	menuButton.BackgroundColor3 = Theme.color("Forest")
-	menuButton.TextColor3 = Theme.Colors.Text
-	Session.connect(menuButton.Activated, onMenu)
+	local moreButton = button(footer, Strings.get("result.more", lang))
+	moreButton.LayoutOrder = 3
+	Session.connect(moreButton.Activated, function()
+		expanded = not expanded
+		placesList.Visible = expanded
+		chartTitle.Visible = expanded
+		chart.Visible = expanded
+		moreButton.Text = Strings.get(if expanded then "result.less" else "result.more", lang)
+		fit()
+	end)
 
 	-- «Итоги» — вернуть спрятанное окно (по центру сверху, под баннером).
 	local showButton = button(gui, Strings.get("result.show", lang))
@@ -358,13 +395,7 @@ function ResultsPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, o
 		peakValue.Text = if own ~= nil then string.format("%d%%", peak) else "—"
 		local duration = if #result.times > 0 then result.times[#result.times] else 0
 		timeValue.Text = MenuKit.clock(duration)
-		local out = 0
-		for _, n in cs.nations do
-			if not n.alive then
-				out += 1
-			end
-		end
-		outValue.Text = tostring(out)
+		defeatedValue.Text = if me ~= nil then tostring(defeatedOf(result, me)) else "—"
 
 		for _, child in placesList:GetChildren() do
 			if child:IsA("Frame") then
