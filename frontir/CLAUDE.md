@@ -465,6 +465,10 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   в `Main.client`). Атаки — `UI/AttackPanel` (панель `Attacks` в столбике `TopRight`, фишки `AttackChips` — в
   `aboveBar`, прячутся, пока занят любой из `sheets`), что показать — чистый `AttackList`. Лидеры — по нажатию на
   `PlaceChip`. Итоги — карточка 2×2, «побеждено» — `MatchResult.defeated` (`MatchSim.defeatedCounts`).
+- §15х ч.7: удары на карте — план чистый `StrikeFx.plan(kind, x, y, {radius, seed, dirX, dirY, buildings})` (частицы:
+  вид, задержка, жизнь, смещение, размер, цвет, слой), рисует `Render/StrikeFxLayer` по событиям `ability` /
+  `boost` (Airstrike, `cell`), `arsenal` (Barrage), `raid`, `raidIntercepted`, `missileHit`, `nukeHit`, `missileShot`.
+  Огненный шар, волна и «гриб» ракеты — по-прежнему `WarFxLayer`. Тряска — `BattleFxLayer.shake`.
 - §15х ч.6: 10 зданий. ЗРК → ПВО ур. 3 (`Buildings.AirDefense.longRangeLevel / longRadius / upgradeMul`, дальний круг
   не меньше ближнего; уровень открывает `Config.Tech.LevelUnlocks` → `MatchSim.levelAllows`, отказ `needLongRange`);
   Рынок → Завод ур. 3 (`Factory.bonusLevel / incomeBonus` → `Owned.incomeBonus`); Радар → Аэродром (`stepRadarIntel`,

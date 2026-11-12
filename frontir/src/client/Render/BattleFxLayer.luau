@@ -43,6 +43,7 @@ export type BattleFxLayer = {
 	onDelta: (cells: { number }) -> (),
 	update: (now: number, state: CameraState) -> (),
 	giantChip: Frame, -- плашка «Сверхдержава» (Main ставит её в столбик справа сверху)
+	shake: (px: number) -> (), -- §15х ч.7: тряска экрана (удары — из StrikeFxLayer)
 }
 
 type Badge = {
@@ -757,6 +758,7 @@ function BattleFxLayer.new(
 		onDelta = onDelta,
 		update = update,
 		giantChip = chip,
+		shake = shake,
 	}
 end
 

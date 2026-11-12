@@ -135,7 +135,7 @@ export type MatchEvent =
 	| { kind: "boatLaunched", nation: number, target: number } -- десант на другой берег (§15д)
 	-- Разведка (§6.11а): nation разведал target
 	| { kind: "flood", step: number, cells: number } -- «Потоп» (§5.3): вода поднялась
-	| { kind: "boost", nation: number, boost: string } -- буст магазина (§11.1)
+	| { kind: "boost", nation: number, boost: string, cell: number? } -- буст магазина (§11.1)
 	| { kind: "arsenal", nation: number, item: string, cell: number? } -- предмет Арсенала (§15л ч.6)
 	| { kind: "tutorial", nation: number, step: number } -- «Обучение» (§5.5): шаг пройден
 	| { kind: "tutorialDone", nation: number }
@@ -591,7 +591,11 @@ function MatchSim.useBoost(m: Match, id: number, key: string, cell: number?): (b
 		m.boostsUsed[id] = used
 	end
 	used[key] = true
-	table.insert(m.events, { kind = "boost", nation = id, boost = key })
+	-- §15х ч.7: клетка — для зрелища «Авиаудара» на клиенте (у прочих бустов nil).
+	table.insert(
+		m.events,
+		{ kind = "boost", nation = id, boost = key, cell = if key == "Airstrike" then cell else nil }
+	)
 	return true, nil
 end
 

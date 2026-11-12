@@ -196,7 +196,7 @@ function AirLayer.new(canvas: Frame, cs: ClientState): AirLayer
 	}
 	local fx = Config.Render.Air
 	local effects: { Effect } = {}
-	local orange, gold, white = Theme.color("Orange"), Theme.Colors.Gold, Theme.Colors.Text
+	local orange = Theme.color("Orange")
 
 	local function addEffect(e: Effect)
 		if #effects >= fx.MaxEffects then
@@ -234,32 +234,12 @@ function AirLayer.new(canvas: Frame, cs: ClientState): AirLayer
 
 	local function onEvents(events: { any })
 		local now = os.clock()
-		local w = cs.width
 		for _, e in events do
 			if type(e) ~= "table" then
 				continue
 			end
-			if e.kind == "raid" and type(e.cell) == "number" then
-				local cx, cy = e.cell % w + 0.5, e.cell // w + 0.5
-				if visibleAt(cx, cy, tonumber(e.nation)) then
-					-- Вспышки бомб — по кругу налёта, одна за другой.
-					local r = Config.Air.BombRadius
-					for k = 1, fx.BombFlashes do
-						local a = math.random() * math.pi * 2
-						local d = math.sqrt(math.random()) * r
-						local color = if k % 3 == 0 then white elseif k % 2 == 0 then gold else orange
-						addEffect({
-							kind = "flash",
-							frame = round(color, 14),
-							x = cx + math.cos(a) * d,
-							y = cy + math.sin(a) * d,
-							start = now + (k - 1) / fx.BombFlashes * fx.BombFlashSec,
-							life = fx.FlashLifeSec,
-							size = fx.FlashPx,
-						})
-					end
-				end
-			elseif e.kind == "planeShot" and type(e.x) == "number" and type(e.y) == "number" then
+			-- §15х ч.7: разрывы бомб налёта рисует StrikeFxLayer (ковёр разрывов, пожары, воронки).
+			if e.kind == "planeShot" and type(e.x) == "number" and type(e.y) == "number" then
 				if visibleAt(e.x, e.y, nil) then
 					-- Сбитый самолёт: копия спрайта цветом державы падает, крутясь; потом взрыв.
 					local kind = if e.plane == "Fighter" then "Fighter" else "Bomber"
