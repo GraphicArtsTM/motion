@@ -144,7 +144,7 @@ export type MatchEvent =
 	| { kind: "ability", nation: number, ability: string, cell: number?, target: number }
 	-- Флот (§6.12, этап 7б-1)
 	| { kind: "shipBuilt", nation: number, ship: Types.ShipKind }
-	| { kind: "shipSunk", nation: number, by: number, ship: Types.ShipKind, lost: number }
+	| { kind: "shipSunk", nation: number, by: number, ship: Types.ShipKind, lost: number, x: number, y: number }
 	| { kind: "landed", nation: number, target: number, cell: number, cells: number }
 	-- §15у: полное доверие и удар через союзника
 	| { kind: "trustRemoved", nation: number, target: number }
@@ -162,7 +162,7 @@ export type MatchEvent =
 	| { kind: "blockade", nation: number, cell: number, on: boolean }
 	-- Торговые суда (§15е): доставка (деньги обоим) и пиратство (эсминец врага забрал часть груза)
 	| { kind: "tradeDelivered", nation: number, target: number, amount: number, cell: number }
-	| { kind: "merchantSunk", nation: number, by: number, amount: number }
+	| { kind: "merchantSunk", nation: number, by: number, amount: number, x: number, y: number }
 	-- Авиация (§6.13, этап 7б-2)
 	| { kind: "planeBuilt", nation: number, plane: Types.PlaneKind }
 	| { kind: "planeShot", nation: number, by: number, plane: Types.PlaneKind }
@@ -5507,7 +5507,10 @@ local function stepFleet(m: Match, simDt: number)
 				if pirate ~= nil then
 					pirate.money += loot
 				end
-				table.insert(m.events, { kind = "merchantSunk", nation = ship.owner, by = h.by, amount = loot })
+				table.insert(
+					m.events,
+					{ kind = "merchantSunk", nation = ship.owner, by = h.by, amount = loot, x = ship.x, y = ship.y }
+				)
 			end
 			continue
 		end
@@ -5551,6 +5554,8 @@ local function stepFleet(m: Match, simDt: number)
 				by = h.by,
 				ship = ship.kind,
 				lost = Fleet.cargoPower(ship),
+				x = ship.x, -- §15х ч.9: где тонет (зрелище на клиенте)
+				y = ship.y,
 			})
 		end
 	end

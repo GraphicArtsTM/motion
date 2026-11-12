@@ -44,6 +44,7 @@ export type BattleFxLayer = {
 	update: (now: number, state: CameraState) -> (),
 	giantChip: Frame, -- плашка «Сверхдержава» (Main ставит её в столбик справа сверху)
 	shake: (px: number) -> (), -- §15х ч.7: тряска экрана (удары — из StrikeFxLayer)
+	setCityHook: (fn: (cell: number, owner: number) -> ()) -> (), -- §15х ч.9: город взят (флаг — SpectacleLayer)
 }
 
 type Badge = {
@@ -578,6 +579,7 @@ function BattleFxLayer.new(
 		end
 	end
 
+	local cityHook: ((cell: number, owner: number) -> ())? = nil
 	local function onDelta(cells: { number })
 		syncCities()
 		local me = cs.myNation
@@ -589,6 +591,10 @@ function BattleFxLayer.new(
 					cityOwner[c] = after
 					if after ~= 0 and visible(c) then
 						ring(c, colorOf(after))
+						local hook = cityHook
+						if hook ~= nil then
+							hook(c, after)
+						end
 						local x, y = c % w + 0.5, c // w
 						if me ~= nil and after == me then
 							float(x, y, Strings.get("fx.cityTaken", lang), Theme.Colors.Gold, 18, cfg.CityTextSec)
@@ -759,6 +765,9 @@ function BattleFxLayer.new(
 		update = update,
 		giantChip = chip,
 		shake = shake,
+		setCityHook = function(fn: (cell: number, owner: number) -> ())
+			cityHook = fn
+		end,
 	}
 end
 

@@ -32,6 +32,9 @@ type CameraState = CameraMath.CameraState
 export type StrikeFxLayer = {
 	onEvents: (events: { any }) -> (),
 	update: (now: number, state: CameraState) -> (),
+	-- §15х ч.9: запустить готовый план частиц (SpectacleFx) от державы owner через delay с; low — фоновые
+	-- (кильватер, дождь, заражение): не больше Render.Spectacle.LowShare от предела, чтобы ударам хватало кадров.
+	spawn: (parts: { StrikeFx.Part }, owner: number, delay: number, low: boolean) -> (),
 }
 
 type Live = {
@@ -55,7 +58,17 @@ local ROUND: { [string]: boolean } = {
 	fire = true,
 	ring = true,
 	cross = true,
+	-- §15х ч.9
+	wake = true,
+	splash = true,
+	glow = true,
+	cloud = true,
+	slick = true,
+	wave = true,
 }
+-- Кольца (рамка без заливки) и составные частицы (свои кадры, не из пула).
+local RING: { [string]: boolean } = { ring = true, cross = true, splash = true, wave = true }
+local COMPOSITE: { [string]: boolean } = { jet = true, shadow = true, flag = true, chev = true }
 
 function StrikeFxLayer.new(canvas: Frame, cs: ClientState, shake: (px: number) -> ()): StrikeFxLayer
 	local cfg = Config.Render.StrikeFx
@@ -114,7 +127,7 @@ function StrikeFxLayer.new(canvas: Frame, cs: ClientState, shake: (px: number) -
 	end
 	local function drop(l: Live)
 		local f = l.frame
-		if l.part.kind == "jet" or l.part.kind == "shadow" then
+		if COMPOSITE[l.part.kind] then
 			f:Destroy()
 			return
 		end
@@ -155,7 +168,80 @@ function StrikeFxLayer.new(canvas: Frame, cs: ClientState, shake: (px: number) -
 		return f
 	end
 
-	local pending: { { part: StrikeFx.Part, at: number, owner: number } } = {}
+	-- §15х ч.9: флаг над взятым городом — древко и полотнище цвета державы (низ древка — в точке).
+	local function flag(color: Color3): Frame
+		local f = Instance.new("Frame")
+		f.AnchorPoint = Vector2.new(0.5, 1)
+		f.BackgroundTransparency = 1
+		f.ZIndex = StrikeFx.Z.flag
+		local pole = Instance.new("Frame")
+		pole.Name = "Pole"
+		pole.BorderSizePixel = 0
+		pole.BackgroundColor3 = Theme.Colors.Backdrop
+		pole.Position = UDim2.fromScale(0.1, 0)
+		pole.Size = UDim2.fromScale(0.09, 1)
+		pole.ZIndex = StrikeFx.Z.flag
+		pole.Parent = f
+		local cloth = Instance.new("Frame")
+		cloth.Name = "Cloth"
+		cloth.BorderSizePixel = 0
+		cloth.BackgroundColor3 = color
+		cloth.Position = UDim2.fromScale(0.19, 0.02)
+		cloth.Size = UDim2.fromScale(0.72, 0.46)
+		cloth.ZIndex = StrikeFx.Z.flag
+		local st = Instance.new("UIStroke")
+		st.Color = Theme.Colors.Backdrop
+		st.Thickness = 2
+		st.Parent = cloth
+		cloth.Parent = f
+		local knob = Instance.new("Frame")
+		knob.Name = "Knob"
+		knob.BorderSizePixel = 0
+		knob.BackgroundColor3 = Theme.Colors.Gold
+		knob.Position = UDim2.fromScale(0.05, -0.06)
+		knob.Size = UDim2.fromScale(0.2, 0.08)
+		knob.ZIndex = StrikeFx.Z.flag
+		knob.Parent = f
+		f.Parent = canvas
+		return f
+	end
+	-- Шеврон «>» из двух планок (остриём вправо, поворачиваем рамку).
+	local function chevron(color: Color3): Frame
+		local f = Instance.new("Frame")
+		f.AnchorPoint = Vector2.new(0.5, 0.5)
+		f.BackgroundTransparency = 1
+		f.ZIndex = StrikeFx.Z.chev
+		for b = 1, 2 do
+			local bar = Instance.new("Frame")
+			bar.Name = "Bar" .. b
+			bar.AnchorPoint = Vector2.new(1, 0.5)
+			bar.BorderSizePixel = 0
+			bar.BackgroundColor3 = color
+			bar.Rotation = if b == 1 then 40 else -40
+			bar.Position = UDim2.fromScale(0.85, if b == 1 then 0.32 else 0.68)
+			bar.Size = UDim2.fromScale(0.62, 0.22)
+			bar.ZIndex = StrikeFx.Z.chev
+			local st = Instance.new("UIStroke")
+			st.Color = Theme.Colors.Backdrop
+			st.Parent = bar
+			bar.Parent = f
+		end
+		f.Parent = canvas
+		return f
+	end
+	local function setChildrenAlpha(f: GuiObject, alpha: number)
+		for _, c in f:GetChildren() do
+			if c:IsA("Frame") then
+				c.BackgroundTransparency = alpha
+				local st = c:FindFirstChildOfClass("UIStroke")
+				if st ~= nil then
+					st.Transparency = alpha
+				end
+			end
+		end
+	end
+
+	local pending: { { part: StrikeFx.Part, at: number, owner: number, low: boolean } } = {}
 	local live: { Live } = {}
 	local shakes: { { at: number, px: number } } = {}
 
@@ -163,8 +249,9 @@ function StrikeFxLayer.new(canvas: Frame, cs: ClientState, shake: (px: number) -
 		return Theme.color(name)
 	end
 
-	local function activate(p: StrikeFx.Part, at: number, owner: number)
-		if #live >= maxParts then
+	local lowLimit = math.floor(maxParts * Config.Render.Spectacle.LowShare)
+	local function activate(p: StrikeFx.Part, at: number, owner: number, low: boolean)
+		if #live >= maxParts or (low and #live >= lowLimit) then
 			return -- предел частиц: лишнее не рисуем
 		end
 		local frame: GuiObject
@@ -172,17 +259,21 @@ function StrikeFxLayer.new(canvas: Frame, cs: ClientState, shake: (px: number) -
 		local color = if p.color == "nation" then colorOf(owner) else palette(p.color)
 		if p.kind == "jet" or p.kind == "shadow" then
 			frame = plane(color, p.kind == "shadow")
+		elseif p.kind == "flag" then
+			frame = flag(color)
+		elseif p.kind == "chev" then
+			frame = chevron(color)
 		else
 			local f = take(ROUND[p.kind] == true)
 			f.ZIndex = p.z
 			f.BackgroundColor3 = color
-			if p.kind == "ring" or p.kind == "cross" then
+			if RING[p.kind] then
 				f.BackgroundTransparency = 1
 				local s = f:FindFirstChildOfClass("UIStroke")
 				if s ~= nil then
 					s.Enabled = true
 					s.Color = color
-					s.Thickness = if p.kind == "cross" then 2 else 3
+					s.Thickness = if p.kind == "cross" or p.kind == "splash" then 2 else 3
 					s.Transparency = 0
 					stroke = s
 				end
@@ -237,7 +328,7 @@ function StrikeFxLayer.new(canvas: Frame, cs: ClientState, shake: (px: number) -
 		local now = os.clock()
 		local firstBoom = math.huge
 		for _, p in parts do
-			table.insert(pending, { part = p, at = now + delay + p.t, owner = owner })
+			table.insert(pending, { part = p, at = now + delay + p.t, owner = owner, low = false })
 			if p.kind == "burst" or p.kind == "ring" or p.kind == "debris" then
 				firstBoom = math.min(firstBoom, p.t)
 			end
@@ -286,7 +377,7 @@ function StrikeFxLayer.new(canvas: Frame, cs: ClientState, shake: (px: number) -
 		while k <= #pending do
 			local q = pending[k]
 			if now >= q.at then
-				activate(q.part, q.at, q.owner)
+				activate(q.part, q.at, q.owner, q.low)
 				pending[k] = pending[#pending]
 				pending[#pending] = nil
 			else
@@ -347,7 +438,7 @@ function StrikeFxLayer.new(canvas: Frame, cs: ClientState, shake: (px: number) -
 			elseif kind == "debris" then
 				alpha = t * t
 				f.Rotation = p.rot + 360 * t
-			elseif kind == "ring" or kind == "cross" then
+			elseif RING[kind] then
 				local st = l.stroke
 				if st ~= nil then
 					st.Transparency = if kind == "cross" then t * t else t
@@ -355,11 +446,41 @@ function StrikeFxLayer.new(canvas: Frame, cs: ClientState, shake: (px: number) -
 				alpha = 1
 			elseif kind == "jet" or kind == "shadow" then
 				f.Rotation = p.rot
+			-- §15х ч.9
+			elseif kind == "wake" then
+				alpha = 0.35 + 0.65 * t
+			elseif kind == "tracer" then
+				alpha = 0
+			elseif kind == "glow" then
+				alpha = 1 - 0.8 * math.sin(math.pi * t)
+			elseif kind == "rain" then
+				alpha = 0.35 + 0.5 * t
+				f.Rotation = p.rot
+			elseif kind == "cloud" then
+				alpha = 1 - 0.5 * math.sin(math.pi * t)
+			elseif kind == "spark" then
+				alpha = t
+			elseif kind == "slick" then
+				alpha = if t < 0.7 then 0.45 else 0.45 + 0.55 * (t - 0.7) / 0.3
+			elseif kind == "flag" then
+				setChildrenAlpha(f, if t > 0.8 then (t - 0.8) / 0.2 else 0)
+			elseif kind == "chev" then
+				f.Rotation = p.rot
+				setChildrenAlpha(f, t * t)
 			end
 			f.Position = UDim2.fromOffset(x * zoom, y * zoom)
 			if kind == "jet" or kind == "shadow" then
 				local px = math.max(cfg.JetMinPx, size * zoom)
 				f.Size = UDim2.fromOffset(px, px * PlaneSprites.Height / PlaneSprites.Width)
+			elseif kind == "flag" then
+				local px = math.max(cfg.JetMinPx, size * zoom)
+				f.Size = UDim2.fromOffset(px, px)
+			elseif kind == "chev" then
+				local px = math.max(14, size * zoom)
+				f.Size = UDim2.fromOffset(px, px)
+			elseif kind == "rain" then
+				f.Size = UDim2.fromOffset(math.max(1, 0.25 * zoom), math.max(5, 1.5 * zoom))
+				f.BackgroundTransparency = math.clamp(alpha, 0, 1)
 			else
 				local small = kind == "burst" or kind == "flash" or kind == "fire"
 				local px = math.max(if small then cfg.BurstMinPx else 2, size * zoom)
@@ -370,7 +491,16 @@ function StrikeFxLayer.new(canvas: Frame, cs: ClientState, shake: (px: number) -
 		end
 	end
 
-	return { onEvents = onEvents, update = update }
+	return {
+		onEvents = onEvents,
+		update = update,
+		spawn = function(parts: { StrikeFx.Part }, owner: number, delay: number, low: boolean)
+			local now = os.clock()
+			for _, p in parts do
+				table.insert(pending, { part = p, at = now + delay + p.t, owner = owner, low = low })
+			end
+		end,
+	}
 end
 
 return table.freeze(StrikeFxLayer)

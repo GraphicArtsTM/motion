@@ -33,6 +33,18 @@ export type PartKind =
 	| "smoke"
 	| "debris"
 	| "ember"
+	-- §15х ч.9 зрелищность (план — SpectacleFx):
+	| "wake" -- кильватер
+	| "splash" -- всплеск (кольцо на воде)
+	| "tracer" -- снаряд эсминца
+	| "glow" -- огонёк заражения
+	| "rain" -- капля дождя
+	| "cloud" -- туча
+	| "flag" -- флаг над взятым городом
+	| "chev" -- шеврон приказа
+	| "spark" -- искра салюта
+	| "slick" -- масляное пятно
+	| "wave" -- волна цвета державы
 
 export type Part = {
 	kind: PartKind,
@@ -76,6 +88,18 @@ StrikeFx.Z = table.freeze({
 	cross = 15,
 	shadow = 16,
 	jet = 17,
+	-- §15х ч.9
+	slick = 8,
+	wake = 9,
+	glow = 10,
+	splash = 11,
+	rain = 15,
+	cloud = 16,
+	tracer = 14,
+	wave = 13,
+	spark = 17,
+	flag = 18,
+	chev = 18,
 })
 
 local function part(
@@ -104,10 +128,13 @@ local function part(
 	}
 end
 
+-- Частица для других планов (SpectacleFx, §15х ч.9).
+StrikeFx.make = part
+
 -- Движение частицы за жизнь 0..1: самолёты — ровно, обломки — быстро и тормозят, дым — плавно.
 function StrikeFx.ease(kind: PartKind, t: number): number
 	t = math.clamp(t, 0, 1)
-	if kind == "jet" or kind == "shadow" then
+	if kind == "jet" or kind == "shadow" or kind == "tracer" or kind == "rain" or kind == "chev" then
 		return t
 	end
 	return 1 - (1 - t) * (1 - t)

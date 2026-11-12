@@ -878,7 +878,7 @@ Config.Render = {
 	Phone = {
 		MaxUnitsOnScreen = 90,
 		MaxParticles = 100,
-		MaxStrikeParts = 110, -- §15х ч.7: частиц ударов
+		MaxStrikeParts = 110, -- §15х ч.7: частиц ударов и зрелища (§15х ч.9 — тот же движок)
 		WarDots = 80, -- §15х ч.8
 		HoverDots = 140,
 		PocketDots = 60,
@@ -910,6 +910,45 @@ Config.Render = {
 		FireworkCells = 7, -- разлёт салюта, клеток
 		CrownPx = 3, -- пиксель короны сверхдержавы (корона 7×5 пикселей)
 		CrownFromGiant = 0.5, -- корона — когда бонус «Сверхдержава» от половины
+	},
+	-- §15х ч.9: зрелищность (план — SpectacleFx, частицы — StrikeFxLayer.spawn, управляет Render/SpectacleLayer).
+	-- Время — секунды, размеры — клетки. Фоновые частицы (кильватер, дождь, заражение) — не больше LowShare от
+	-- общего предела частиц, чтобы удары не оставались без кадров.
+	Spectacle = {
+		LowShare = 0.6,
+		WakeEverySec = 0.25, -- клуб кильватера за идущим кораблём
+		WakeSec = 1.4,
+		MaxWakeShips = 24, -- кораблей с кильватером в кадре
+		SalvoEverySec = 0.9, -- залп эсминца в бою
+		TracerSec = 0.22,
+		SinkSlickSec = 10, -- масляное пятно
+		FlagSec = 3.2, -- флаг над взятым городом
+		FlagSize = 3.4,
+		FlagRise = 1.6, -- на сколько клеток поднимается
+		CaptureWave = { 9, 15 }, -- две волны цвета державы (поперечник, клеток)
+		FalloutEverySec = 0.2, -- огонёк заражения
+		FalloutPerTick = 3,
+		StormEverySec = 0.1, -- капли дождя
+		StormPerTick = 6,
+		StormCloudEverySec = 0.8,
+		OrderSec = 0.8, -- шевроны сходятся к точке приказа
+		OrderReach = 4, -- откуда начинают (клеток)…
+		OrderMinPx = 40, -- …но на экране не ближе стольких px
+		VictoryVolleys = 6, -- залпов салюта над столицей победителя
+		VictoryEverySec = 0.7,
+		VictorySparks = 22,
+		VictoryZoom = 6, -- камера к победителю (px на клетку)
+		PickRingSec = 1.6, -- «дышащее» кольцо на выборе старта
+		MaxCityLights = 120,
+	},
+	-- §15х ч.9: день и ночь по времени матча (ПК; на телефоне выключено). Темнота — доля затемнения карты.
+	DayNight = {
+		Enabled = true,
+		Phone = false,
+		CycleSec = 300, -- сутки (секунд матча)
+		NightStart = 0.45, -- ночь — когда «свет» (0..1, полдень — 1) ниже этого
+		MaxDark = 0.45,
+		LightPx = 6, -- огонь города ур. 1 (+ по 2 за уровень)
 	},
 	-- §15х ч.7: зрелищные удары и разрушения (план — StrikeFx, рисует Render/StrikeFxLayer). Время — в секундах,
 	-- размеры — в клетках карты.

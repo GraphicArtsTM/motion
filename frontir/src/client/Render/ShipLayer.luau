@@ -30,7 +30,11 @@ export type ShipLayer = {
 	select: (id: number?) -> (),
 	-- Ближайший к точке (в клетках) корабль державы owner не дальше reach клеток.
 	pick: (x: number, y: number, owner: number, reach: number) -> Protocol.ShipInfo?,
+	-- §15х ч.9: видимые сейчас корабли (плавная позиция и куда идут) — для кильватера и морского боя.
+	visible: () -> { VisibleShip },
 }
+
+export type VisibleShip = { id: number, owner: number, kind: string, x: number, y: number, dx: number, dy: number }
 
 type Sprite = {
 	root: Frame,
@@ -219,6 +223,26 @@ function ShipLayer.new(canvas: Frame, cs: ClientState): ShipLayer
 		update = update,
 		select = function(id: number?)
 			selected = id
+		end,
+		visible = function(): { VisibleShip }
+			local out: { VisibleShip } = {}
+			for id, s in sprites do
+				if s.root.Visible then
+					table.insert(out, {
+						id = id,
+						owner = s.owner,
+						kind = s.kind,
+						x = s.x,
+						y = s.y,
+						dx = s.toX - s.fromX,
+						dy = s.toY - s.fromY,
+					})
+				end
+			end
+			table.sort(out, function(a: VisibleShip, b: VisibleShip): boolean
+				return a.id < b.id
+			end)
+			return out
 		end,
 		pick = function(x: number, y: number, owner: number, reach: number): Protocol.ShipInfo?
 			local best: Protocol.ShipInfo? = nil

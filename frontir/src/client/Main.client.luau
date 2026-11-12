@@ -49,6 +49,7 @@ local AirLayer = require(Render:WaitForChild("AirLayer"))
 local MarkerLayer = require(Render:WaitForChild("MarkerLayer"))
 local StrikeFxLayer = require(Render:WaitForChild("StrikeFxLayer"))
 local MapHighlightLayer = require(Render:WaitForChild("MapHighlightLayer"))
+local SpectacleLayer = require(Render:WaitForChild("SpectacleLayer"))
 local WarFxLayer = require(Render:WaitForChild("WarFxLayer"))
 local BattleFxLayer = require(Render:WaitForChild("BattleFxLayer"))
 local ActionRingUI = require(UI:WaitForChild("ActionRing"))
@@ -260,9 +261,19 @@ local function runSession(mapId: string, resync: boolean)
 			Audio.play(name)
 		end
 	end
+	-- §15х ч.9: приказ по клетке — шевроны к точке (SpectacleLayer создаётся ниже).
+	local onOrder: ((cell: number) -> ())? = nil
+	local ORDER_CELL: { [string]: string } =
+		{ attack = "focus", land = "target", raid = "cell", cover = "cell", patrol = "cell" }
 	local function send(kind: string, payload: { [string]: any })
 		if client ~= nil then
 			client.send(kind, payload)
+		end
+		local field = ORDER_CELL[kind]
+		local cell = if field ~= nil then payload[field] else nil
+		local hook = onOrder
+		if hook ~= nil and type(cell) == "number" then
+			hook(cell)
 		end
 		-- Звук своего действия (§13): найм и стройка сразу, отказ сервера — «Error».
 		if kind == "hire" then
@@ -309,6 +320,18 @@ local function runSession(mapId: string, resync: boolean)
 	local strikeFx = StrikeFxLayer.new(view.canvas, cs, battleFx.shake)
 	-- §15х ч.8: граница с врагом пульсирует, контур державы под курсором, котлы с подписью.
 	local highlight = MapHighlightLayer.new(view.canvas, cs, lang)
+	-- §15х ч.9: зрелищность — флот, взятый город, заражение, шторм, день и ночь, старт, приказ, победа.
+	local spectacle = SpectacleLayer.new(view.canvas, cs, strikeFx.spawn, shipLayer.visible, function(cell: number)
+		-- Победа: камера к столице победителя, крупно.
+		CameraMath.centerOn(camera.state, cell % map.width + 0.5, cell // map.width + 0.5)
+		camera.refresh()
+		local st = camera.state
+		if st.zoom < Config.Render.Spectacle.VictoryZoom then
+			camera.zoomTo(Config.Render.Spectacle.VictoryZoom, st.viewW / 2, st.viewH / 2)
+		end
+	end)
+	battleFx.setCityHook(spectacle.cityTaken)
+	onOrder = spectacle.order
 	wars.refresh()
 	local build = BuildPanel.new(hudGui, cs, lang, send, hud.toast, map, provinces, buildGhost)
 	build.refresh()
@@ -1291,6 +1314,7 @@ local function runSession(mapId: string, resync: boolean)
 			warFx.onEvents(events) -- баннер войны, искры границы (§15б)
 			battleFx.onEvents(events) -- выбывание, тряска (§15м)
 			strikeFx.onEvents(events) -- удары и разрушения (§15х ч.7)
+			spectacle.onEvents(events) -- гибель кораблей, салют победы (§15х ч.9)
 			worldPanel.onEvents(events) -- баннер события
 			tutorial.onEvents(events) -- шаги обучения (§5.5)
 		end,
@@ -1641,6 +1665,7 @@ local function runSession(mapId: string, resync: boolean)
 		battleFx.update(now, camera.state)
 		strikeFx.update(now, camera.state)
 		highlight.update(now, camera.state)
+		spectacle.update(now, camera.state)
 		doomBar.update(now)
 		dock.update(now)
 		lobby.update(now)

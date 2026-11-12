@@ -474,6 +474,11 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   курсором — `setHover` из `InputChanged` в `Main.client`, котлы — `cs.world.pockets` ← `MatchStats.pockets`), контуры —
   чистый `MapOutline`. Значки зданий издалека — точки (`BuildingLayer`, `Render.BuildingDotZoom`). Строка о державе —
   `MapTooltip.nationLine`. Котлы: заливка `Pockets` шагает через узкую воду (`Combat.RiverMaxWidth`).
+- §15х ч.9: зрелищность — план чистый `SpectacleFx` (wake, duels, salvo, sinking, capture, fallout, storm, order,
+  fireworks, darkness), частицы рисует `StrikeFxLayer.spawn(parts, owner, delay, low)`, управляет `Render/SpectacleLayer`
+  (корабли — `ShipLayer.visible`, город — `BattleFxLayer.setCityHook`, приказ — `onOrder` в `send` в `Main.client`,
+  победа — камера в колбэке `SpectacleLayer.new`). Ночь — рамка `Night` (ZIndex 2) и огни городов на canvas.
+  Числа — `Config.Render.Spectacle`, `Config.Render.DayNight`.
 - §15х ч.6: 10 зданий. ЗРК → ПВО ур. 3 (`Buildings.AirDefense.longRangeLevel / longRadius / upgradeMul`, дальний круг
   не меньше ближнего; уровень открывает `Config.Tech.LevelUnlocks` → `MatchSim.levelAllows`, отказ `needLongRange`);
   Рынок → Завод ур. 3 (`Factory.bonusLevel / incomeBonus` → `Owned.incomeBonus`); Радар → Аэродром (`stepRadarIntel`,
