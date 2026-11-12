@@ -24,6 +24,17 @@ export type Facts = {
 	bombed: boolean, -- нас недавно бомбили
 	batteries: number, -- своих батарей ПВО
 	lowStability: boolean, -- есть провинции ниже LowBelow
+	-- §15т ч.2: флот, авиация и шахта по шагам (не заданы — 0 / false)
+	ports: number?,
+	ships: number?, -- своих кораблей (транспорты и эсминцы)
+	transports: number?,
+	landed: boolean?, -- своя высадка уже была
+	airfields: number?,
+	planes: number?,
+	bombers: number?,
+	raided: boolean?, -- свой налёт уже был
+	silos: number?,
+	launched: boolean?, -- свой пуск уже был
 }
 
 local Hints = {}
@@ -38,6 +49,11 @@ Hints.Order = table.freeze({
 	"tanks",
 	"defense",
 	"stability",
+	"ship",
+	"landing",
+	"plane",
+	"raid",
+	"silo",
 	"war",
 }) :: { string }
 
@@ -60,6 +76,16 @@ local function want(key: string, f: Facts): boolean
 		return f.bombed and f.batteries == 0
 	elseif key == "stability" then
 		return f.lowStability
+	elseif key == "ship" then
+		return (f.ports or 0) > 0 and (f.ships or 0) == 0
+	elseif key == "landing" then
+		return (f.transports or 0) > 0 and not f.landed
+	elseif key == "plane" then
+		return (f.airfields or 0) > 0 and (f.planes or 0) == 0
+	elseif key == "raid" then
+		return (f.bombers or 0) > 0 and f.atWar and not f.raided
+	elseif key == "silo" then
+		return (f.silos or 0) > 0 and f.atWar and not f.launched
 	elseif key == "war" then
 		return not f.atWar and f.time >= cfg.WarAfterSec and f.troops >= cfg.WarTroops
 	end

@@ -6,7 +6,8 @@
 	- Выбрали державу — действия: пакт 3 / 5 мин, союз, разорвать, требование (потом нажать её провинцию на карте),
 	  объявить войну (окно WarPanel), независимость (если вы вассал). Внизу — история договоров матча.
 	- Входящее предложение или требование — окно с таймером: принять / отказать (у требования — «Отдать»).
-	Все решения — на сервере; клиент шлёт намерения offer / offerReply / breakTreaty / rebel.
+	Все решения — на сервере; клиент шлёт намерения offer / offerReply / breakTreaty / rebel / distrust.
+	§15у: союз — «частичное доверие»; «Полное доверие» (предложение союзнику) и «Снять доверие».
 	§15л ч.10: витрина CardKit — державы карточками, выбранная — портрет её цветом и кнопки по группам.
 ]]
 
@@ -29,6 +30,7 @@ local Session = require(script.Parent.Parent:WaitForChild("Session"))
 type ClientState = ClientState.ClientState
 
 export type DiplomacyPanel = {
+	button: TextButton, -- §15ф: прежняя кнопка «Дипломатия (T)» — в док
 	refresh: () -> (),
 	update: (now: number) -> (),
 	tap: (cell: number) -> boolean, -- режим требования забирает нажатие на карту
@@ -298,6 +300,15 @@ function DiplomacyPanel.new(
 	local allianceButton = act("alliance", function()
 		offer("alliance")
 	end, treaties, "primary")
+	-- §15у: второй уровень союза — полное доверие (удар через союзника) и снять его.
+	local trustButton = act("trust", function()
+		offer("trust")
+	end, treaties, "primary")
+	local distrustButton = act("distrust", function()
+		if selected ~= nil and playing() then
+			send("distrust", { target = selected })
+		end
+	end, treaties)
 	local tradeButton = act("trade", function()
 		offer("trade")
 	end, treaties)
@@ -435,7 +446,7 @@ function DiplomacyPanel.new(
 		local t = ClientState.treatyBetween(cs, me, id)
 		if t ~= nil then
 			local text = if t.kind == "alliance"
-				then Strings.get("diplo.rel.alliance", lang)
+				then Strings.get(if t.trust then "diplo.rel.trust" else "diplo.rel.alliance", lang)
 				else string.format(
 					Strings.get("diplo.rel.pact", lang),
 					clock(ClientState.diploLeft(cs, t.left or 0, now, ClientState.simRate(cs)) / cs.speed)
@@ -449,6 +460,27 @@ function DiplomacyPanel.new(
 			return string.format('<font color="%s">%s</font>', sky, text)
 		end
 		return Strings.get("diplo.rel.peace", lang)
+	end
+	-- §15у ч.2: союзы державы id с другими (не с нами) — «союз с X» / «полное доверие с X»: все знают, кто с кем.
+	local function allianceTags(id: number): string
+		local me = cs.myNation
+		local out = ""
+		for _, tr in cs.diplo.treaties do
+			if tr.kind == "alliance" and (tr.a == id or tr.b == id) then
+				local other = if tr.a == id then tr.b else tr.a
+				if other ~= me then
+					out ..= string.format(
+						' <font color="%s">· %s</font>',
+						sky,
+						string.format(
+							Strings.get(if tr.trust then "diplo.tag.trust" else "diplo.tag.alliance", lang),
+							nameOf(other)
+						)
+					)
+				end
+			end
+		end
+		return out
 	end
 	-- Торговля и эмбарго (§8.2) — довеском к отношению.
 	local function tradeTags(id: number): string
@@ -518,12 +550,12 @@ function DiplomacyPanel.new(
 			local traitor = if ClientState.isTraitor(cs, id, now, ClientState.simRate(cs))
 				then string.format(' <font color="%s">⚠</font>', alert)
 				else ""
-			r.name.Text = escape(nameOf(id)) .. traitor
+			r.name.Text = nameOf(id) .. traitor -- nameOf уже RichText с экранированным именем
 			if id == me then
 				r.rel.Text = string.format('<font color="%s">%s</font>', gold, t("diplo.you"))
 				r.power.Text = ""
 			else
-				r.rel.Text = relation(id) .. tradeTags(id)
+				r.rel.Text = relation(id) .. tradeTags(id) .. allianceTags(id)
 				r.power.Text = string.format(t("diplo.power"), if powerOf(id) < 0 then "?" else approx(powerOf(id)))
 			end
 		end
@@ -563,9 +595,9 @@ function DiplomacyPanel.new(
 				portrait = art
 			end
 		end
-		selName.Text = if valid and target ~= nil then escape(nameOf(target)) else ""
+		selName.Text = if valid and target ~= nil then nameOf(target) else ""
 		selectedText.Text = if valid and target ~= nil
-			then relation(target) .. tradeTags(target) .. commanderOf(target)
+			then relation(target) .. tradeTags(target) .. allianceTags(target) .. commanderOf(target)
 			else string.format('<font color="%s">%s</font>', muted, Strings.get("diplo.pick", lang))
 		selPower.Text = if valid and target ~= nil
 			then string.format(
@@ -589,6 +621,16 @@ function DiplomacyPanel.new(
 			)
 		end
 		breakButton.Visible = valid and t ~= nil
+		-- §15у: «Полное доверие» — союзнику без доверия (до TrustAfterSec — с отсчётом), «Снять доверие» — с ним.
+		local allied = valid and t ~= nil and t.kind == "alliance" and t.breakLeft == nil
+		trustButton.Visible = allied and t ~= nil and not t.trust
+		distrustButton.Visible = allied and t ~= nil and t.trust == true
+		if trustButton.Visible and t ~= nil then
+			local age = (t.age or 0) + (now - cs.diploAt) * ClientState.simRate(cs)
+			local wait = (Config.Alliance.TrustAfterSec - age) / cs.speed
+			trustButton.Text = Strings.get("diplo.act.trust", lang)
+				.. if wait > 0 then string.format(" %s", clock(wait)) else ""
+		end
 		rebelButton.Visible = lord ~= nil
 		if lord ~= nil and me ~= nil then
 			for _, v in cs.diplo.vassals do
@@ -761,6 +803,7 @@ function DiplomacyPanel.new(
 	end
 
 	return {
+		button = mainButton, -- §15ф: прежняя кнопка — в док (Dock прячет её и читает видимость)
 		refresh = refresh,
 		update = update,
 		tap = tap,

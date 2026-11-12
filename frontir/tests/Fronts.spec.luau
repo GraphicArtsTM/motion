@@ -454,6 +454,9 @@ T.describe("«Сверхдержава» в матче (§15м)", function()
 			T.expect(share >= Config.Combat.Giant.FullShare).toBe(true)
 			T.expect(MatchSim.giantOf(m, 1)).toBe(1)
 			T.expect(MatchSim.giantOf(m, 2)).toBe(0)
+			-- Замер снежного кома (tools/snowball): флаг матча выключает бонусы.
+			m.giantOff = true
+			T.expect(MatchSim.giantOf(m, 1)).toBe(0)
 		end
 	)
 end)

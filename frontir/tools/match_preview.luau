@@ -1051,7 +1051,7 @@ for _, n in m.nations do
 			n.oil,
 			(function(): string
 				local o = MatchSim.ownedOf(m, n.id)
-				return string.format("з%d р%d в%d у%d г%d", o.factories, o.markets, o.rigs, o.forts, o.cityLevels)
+				return string.format("з%d в%d у%d г%d", o.factories, o.rigs, o.forts, o.cityLevels)
 			end)(),
 			if n.alive then "" else "  (пала)"
 		)

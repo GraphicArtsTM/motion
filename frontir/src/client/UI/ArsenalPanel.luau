@@ -4,6 +4,8 @@
 	Сверху — заголовок, медали и «×». Слева — большой значок выбранного предмета на тёмном поле, справа — что делает,
 	полоса «медали N / цена» и кнопка: «Купить за N» / «🔒 ур. N» / «Взять в бой» / «В бою ✓». Снизу — карточки
 	всех предметов (значок, название, цена или «открыто» / «в бою»). Открывается из главного меню, дока (U).
+	§15ф Ф1: внизу — «Генерал в бой»: четыре карточки генералов (пассивка, Q и E, замок до уровня); выбранный
+	сохраняется в профиле (намерение prefCommander) и ставится в каждый матч до начала игры.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -15,6 +17,9 @@ local Config = require(Shared:WaitForChild("Config"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
 local CardKit = require(script.Parent:WaitForChild("CardKit"))
+local CommanderPanel = require(script.Parent:WaitForChild("CommanderPanel"))
+local Commanders = require(Shared:WaitForChild("Commanders"))
+local Types = require(Shared:WaitForChild("Types"))
 local MenuKit = require(script.Parent:WaitForChild("MenuKit"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
@@ -32,6 +37,7 @@ local ArsenalPanel = {}
 
 local W = 860
 local CARD_W, CARD_H = 156, 106
+local GEN_H = 118 -- §15ф Ф1: карточка генерала
 local ICONS: { [string]: string } = {
 	Reinforce = "reinforce",
 	Convoy = "convoy",
@@ -72,7 +78,7 @@ function ArsenalPanel.new(
 	scale.Parent = window
 	local function fit()
 		local s = gui.AbsoluteSize
-		scale.Scale = math.clamp(math.min((s.X - 24) / W, (s.Y - 24) / 560), 0.4, 1)
+		scale.Scale = math.clamp(math.min((s.X - 24) / W, (s.Y - 24) / 720), 0.4, 1)
 	end
 	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fit)
 	fit()
@@ -190,6 +196,59 @@ function ArsenalPanel.new(
 		end)
 	end
 
+	-- §15ф Ф1: «Генерал в бой» — выбор по умолчанию для всех матчей (раньше — в лобби).
+	local generalsTitle = MenuKit.label(window, t("arsenal.generals"), 16, Theme.Colors.Sky, true, 4)
+	generalsTitle.Size = UDim2.new(1, 0, 0, 20)
+	local generals = Instance.new("Frame")
+	generals.BackgroundTransparency = 1
+	generals.Size = UDim2.new(1, 0, 0, GEN_H)
+	generals.LayoutOrder = 5
+	generals.Parent = window
+	MenuKit.list(generals, 10, true)
+	type General = { button: TextButton, edge: UIStroke, lock: TextLabel }
+	local generalCards: { [string]: General } = {}
+	local genW = math.floor((W - 32 - 10 * (#Types.CommanderIds - 1)) / #Types.CommanderIds)
+	for k, raw in Types.CommanderIds do
+		local id: Types.CommanderId = raw :: any
+		local b = Instance.new("TextButton")
+		b.Name = "General_" .. id
+		b.Text = ""
+		b.AutoButtonColor = true
+		b.LayoutOrder = k
+		b.Size = UDim2.fromOffset(genW, GEN_H)
+		b.BackgroundColor3 = Theme.Colors.Backdrop
+		b.BorderSizePixel = 0
+		b.Parent = generals
+		local edge = MenuKit.stroke(b, Theme.Colors.PanelBorder, 2)
+		MenuKit.pad(b, 10, 8)
+		MenuKit.list(b, 4)
+		MenuKit.label(b, t("commander." .. id), 17, Theme.Colors.Text, true, 1)
+		MenuKit.wrapLabel(
+			b,
+			string.format(
+				"%s\nQ — %s\nE — %s",
+				CommanderPanel.passive(id, lang),
+				t("ability." .. Commanders.ability(id, 1)),
+				t("ability." .. Commanders.ability(id, 2))
+			),
+			13,
+			Theme.Colors.Muted,
+			2
+		)
+		local lock = MenuKit.label(
+			b,
+			string.format(t("commander.locked"), (Config.Profile.CommanderLevels :: any)[id] or 1),
+			13,
+			Theme.Colors.Alert,
+			true,
+			3
+		)
+		generalCards[id] = { button = b, edge = edge, lock = lock }
+		Session.connect(b.Activated, function()
+			send("prefCommander", { commander = id })
+		end)
+	end
+
 	local function level(): number
 		local p = cs.profile
 		return if p ~= nil then p.level else 1
@@ -246,6 +305,14 @@ function ArsenalPanel.new(
 		local can = owned or (level() >= it.level and have >= it.price)
 		action.AutoButtonColor = can
 		action.BackgroundTransparency = if can then 0 else 0.45
+		-- Генерал в бой: выбранный — золотом, закрытый — с замком.
+		local pref = (if p ~= nil and p.arsenal ~= nil then p.arsenal.commander else nil) or "Marshal"
+		for id, g in generalCards do
+			local need = (Config.Profile.CommanderLevels :: any)[id] or 1
+			g.lock.Visible = level() < need
+			g.edge.Color = if id == pref then Theme.Colors.Gold else Theme.Colors.PanelBorder
+			g.edge.Thickness = if id == pref then 3 else 2
+		end
 	end
 
 	Session.connect(action.Activated, function()

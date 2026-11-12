@@ -17,8 +17,11 @@ local ClientState = require(Shared:WaitForChild("ClientState"))
 local Commanders = require(Shared:WaitForChild("Commanders"))
 local Config = require(Shared:WaitForChild("Config"))
 local Strings = require(Shared:WaitForChild("Strings"))
+local StrikeMenu = require(Shared:WaitForChild("StrikeMenu"))
 local Types = require(Shared:WaitForChild("Types"))
 
+local CardKit = require(script.Parent:WaitForChild("CardKit"))
+local StrikeStatus = require(script.Parent:WaitForChild("StrikeStatus"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
@@ -30,6 +33,8 @@ export type CommanderPanel = {
 	tap: (cell: number) -> boolean, -- true — нажатие ушло в цель способности
 	isOpen: () -> boolean, -- самопроверка: карточки (лобби) или кнопки способностей (игра) на экране
 	pickerFrame: Frame, -- §15и: на время лобби переезжает в экран лобби
+	aiming: () -> Types.Warhead?, -- §15х: ждём цель ракеты / бомбы — какой (для прогноза удара)
+	setRaid: (start: () -> ()) -> (), -- §15х ч.4: строка «Налёт» включает выбор цели в AirPanel
 }
 
 local CommanderPanel = {}
@@ -39,6 +44,8 @@ local CARD_W, CARD_H = 176, 112
 local KEYS = { Enum.KeyCode.Q, Enum.KeyCode.E, Enum.KeyCode.R }
 local KEY_NAMES = { "Q", "E" }
 local MISSILE = 3 -- третий «слот» — ракета из своей шахты (§6.9, этап 7г)
+local RAID = 4 -- §15х ч.4: четвёртая строка — налёт бомбардировщика (цель — нажатием на карту, AirPanel)
+local HOW_SEC = 7 -- сколько висит подсказка «что сделать», когда удар не готов
 
 local function stroke(parent: Instance, color: Color3): UIStroke
 	local s = Instance.new("UIStroke")
@@ -76,6 +83,8 @@ local function passive(c: Types.CommanderId, lang: Strings.Lang): string
 	return string.format(fmt, math.round(cfg.BuildDiscount * 100))
 end
 
+CommanderPanel.passive = passive -- §15ф Ф1: тот же текст — в Арсенале
+
 function CommanderPanel.new(
 	gui: ScreenGui,
 	cs: ClientState,
@@ -87,6 +96,9 @@ function CommanderPanel.new(
 		return if cs.myNation ~= nil then cs.nations[cs.myNation] else nil
 	end
 	local function choosing(): boolean
+		if not Config.Match.LobbyVotes then
+			return false -- §15ф Ф1: генерал выбирается в Арсенале, не в лобби
+		end
 		local n = me()
 		return n ~= nil and (cs.phase == "Lobby" or cs.phase == "Pick" or cs.phase == "Waiting")
 	end
@@ -162,38 +174,138 @@ function CommanderPanel.new(
 		end)
 	end
 
-	-- Кнопки способностей (игра).
+	-- §15х ч.4–5: панель «УДАРЫ» (игра) — четыре плитки: Q и E генерала, R ракета, налёт. У плитки картинка
+	-- (ItemArt «strike.*»), клавиша, название, состояние («ГОТОВО» / «88 с» / «нужна шахта») и полоса перезарядки;
+	-- готовая — яркая рамка цвета удара, не готовая — бледная. Наведение — что делает удар (строка внизу панели).
+	local cfgS = Config.Render.Strikes
+	local TILE_W, TILE_H, ART_H = cfgS.TileW, cfgS.TileH, cfgS.ArtH
+	local PAD, GAP = 10, 6
 	local bar = Instance.new("Frame")
 	bar.Name = "Abilities"
 	bar.Position = UDim2.fromOffset(12, 64)
-	bar.Size = UDim2.fromOffset(240, 3 * BUTTON + 12 + 20)
-	bar.BackgroundTransparency = 1
+	bar.Size = UDim2.fromOffset(2 * PAD + 4 * TILE_W + 3 * GAP, PAD + 22 + TILE_H + 8 + 34 + PAD)
+	bar.BackgroundColor3 = Theme.Colors.PanelBg
+	bar.BackgroundTransparency = 0.08
+	bar.BorderSizePixel = 0
 	bar.Visible = false
+	bar:SetAttribute("FrontirStyled", true)
 	bar.Parent = gui
-	local header = text(bar, 13, true)
-	header.Size = UDim2.new(1, 0, 0, 18)
+	local barCorner = Instance.new("UICorner")
+	barCorner.CornerRadius = UDim.new(0, 12)
+	barCorner.Parent = bar
+	stroke(bar, Theme.Colors.PanelBorder)
+	local barScale = Instance.new("UIScale")
+	barScale.Parent = bar
+	local function fitBar()
+		barScale.Scale = math.clamp(gui.AbsoluteSize.X * cfgS.MaxScreenShare / bar.Size.X.Offset, 0.6, 1)
+	end
+	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fitBar)
+	fitBar()
+	local header = text(bar, 14, true)
+	header.Position = UDim2.fromOffset(PAD, PAD)
+	header.Size = UDim2.new(1, -2 * PAD, 0, 18)
+	header.RichText = true
 	header.TextColor3 = Theme.Colors.Gold
+
+	type Tile = {
+		button: TextButton,
+		art: ImageLabel,
+		name: TextLabel,
+		state: TextLabel,
+		fill: Frame,
+		edge: UIStroke,
+		accent: Color3,
+	}
+	local ACCENTS = { Theme.Colors.Gold, Theme.Colors.Gold, Theme.Colors.Alert, Theme.color("Orange") }
+	local tiles: { Tile } = {}
 	local buttons: { TextButton } = {}
-	for slot = 1, 3 do
+	local hovered: number? = nil
+	for slot = 1, 4 do
 		local b = Instance.new("TextButton")
-		b.Name = "Ability" .. slot
-		b.Position = UDim2.fromOffset(0, 20 + (slot - 1) * (BUTTON + 6))
-		b.Size = UDim2.new(1, 0, 0, BUTTON)
-		b.BackgroundColor3 = Theme.Colors.PanelBg
+		b.Name = if slot == RAID then "Raid" else "Ability" .. slot
+		b.Position = UDim2.fromOffset(PAD + (slot - 1) * (TILE_W + GAP), PAD + 22)
+		b.Size = UDim2.fromOffset(TILE_W, TILE_H)
+		b.BackgroundColor3 = Theme.Colors.Backdrop
 		b.BackgroundTransparency = 0.1
 		b.BorderSizePixel = 0
 		b.AutoButtonColor = true
-		b.FontFace = Theme.FontBold
-		b.TextSize = 13
-		b.TextWrapped = true
-		b.TextXAlignment = Enum.TextXAlignment.Left
-		local pad = Instance.new("UIPadding")
-		pad.PaddingLeft = UDim.new(0, 8)
-		pad.Parent = b
-		stroke(b, Theme.Colors.PanelBorder)
+		b.Text = ""
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0, 10)
+		corner.Parent = b
+		local edge = stroke(b, Theme.Colors.PanelBorder)
+		edge.Thickness = 2
+		local art = CardKit.art(b, if slot == MISSILE then "strike.missile" else "strike.raid", TILE_W - 8, ART_H)
+		art.Position = UDim2.fromOffset(4, 4)
+		local artCorner = Instance.new("UICorner")
+		artCorner.CornerRadius = UDim.new(0, 7)
+		artCorner.Parent = art
+		local key = text(b, 13, true)
+		key.Name = "Key"
+		key.Position = UDim2.fromOffset(8, 8)
+		key.Size = UDim2.fromOffset(20, 20)
+		key.BackgroundColor3 = Theme.color("Ink")
+		key.BackgroundTransparency = 0.15
+		key.TextXAlignment = Enum.TextXAlignment.Center
+		key.TextYAlignment = Enum.TextYAlignment.Center
+		key.TextColor3 = Theme.Colors.Gold
+		key.Text = if slot == RAID then "✈" else (KEY_NAMES[slot] or "R")
+		key.ZIndex = 3
+		local keyCorner = Instance.new("UICorner")
+		keyCorner.CornerRadius = UDim.new(0, 5)
+		keyCorner.Parent = key
+		local name = text(b, 13, true)
+		name.Name = "Title"
+		name.Position = UDim2.fromOffset(4, ART_H + 8)
+		name.Size = UDim2.new(1, -8, 0, 16)
+		name.TextXAlignment = Enum.TextXAlignment.Center
+		name.TextTruncate = Enum.TextTruncate.AtEnd
+		name.TextWrapped = false
+		local state = text(b, 12, true)
+		state.Name = "State"
+		state.Position = UDim2.fromOffset(4, ART_H + 26)
+		state.Size = UDim2.new(1, -8, 0, 15)
+		state.TextXAlignment = Enum.TextXAlignment.Center
+		state.TextTruncate = Enum.TextTruncate.AtEnd
+		state.TextWrapped = false
+		-- Полоса перезарядки (у налёта — сколько бомбардировщиков на аэродроме).
+		local track = Instance.new("Frame")
+		track.Name = "Bar"
+		track.Position = UDim2.new(0, 8, 1, -9)
+		track.Size = UDim2.new(1, -16, 0, 4)
+		track.BackgroundColor3 = Theme.color("Ink")
+		track.BorderSizePixel = 0
+		track.Parent = b
+		local fill = Instance.new("Frame")
+		fill.Size = UDim2.fromScale(0, 1)
+		fill.BorderSizePixel = 0
+		fill.BackgroundColor3 = ACCENTS[slot]
+		fill.Parent = track
+		for _, f in { track, fill } do
+			local c = Instance.new("UICorner")
+			c.CornerRadius = UDim.new(1, 0)
+			c.Parent = f
+		end
 		b.Parent = bar
+		tiles[slot] =
+			{ button = b, art = art, name = name, state = state, fill = fill, edge = edge, accent = ACCENTS[slot] }
 		buttons[slot] = b
+		Session.connect(b.MouseEnter, function()
+			hovered = slot
+		end)
+		Session.connect(b.MouseLeave, function()
+			if hovered == slot then
+				hovered = nil
+			end
+		end)
 	end
+	-- Внизу: что делает удар под курсором; иначе — «ПКМ по врагу — все удары по нему».
+	local hint = text(bar, 12)
+	hint.Name = "Hint"
+	hint.Position = UDim2.fromOffset(PAD, PAD + 22 + TILE_H + 8)
+	hint.Size = UDim2.new(1, -2 * PAD, 0, 34)
+	hint.TextColor3 = Theme.Colors.Muted
+	hint.Text = Strings.get("strikes.hint", lang)
 
 	-- Строка режима цели и действующего эффекта (сверху по центру).
 	local modeLine = Instance.new("TextButton")
@@ -213,6 +325,14 @@ function CommanderPanel.new(
 	modeLine.Parent = gui
 
 	local pending: number? = nil -- слот, ждущий цели
+	local howUntil = 0 -- §15х ч.4: до какого os.clock() висит подсказка «что сделать»
+	local startRaid: () -> () = function() end
+	local function showHow(kind: StrikeMenu.Kind, why: string, f: StrikeMenu.Facts)
+		pending = nil
+		modeLine.Text = StrikeStatus.how(kind, why, f, lang)
+		modeLine.Visible = true
+		howUntil = os.clock() + HOW_SEC
+	end
 	-- §15ж: боеголовка шахты — повторное R переключает «Ракета → Атомная → Водородная → отмена».
 	local WARHEADS: { Types.Warhead } = { "missile", "atom", "hydrogen" }
 	local warhead = 1
@@ -244,14 +364,40 @@ function CommanderPanel.new(
 	end
 	local function cancel()
 		pending = nil
+		howUntil = 0
 		modeLine.Visible = false
+	end
+	-- Готова ли способность слота: перезарядка; удар по врагу — только когда идёт война (как StrikeMenu.ability).
+	local function abilityWhy(slot: number, atWar: boolean, now: number): string
+		if leftOf(slot, now) > 0 then
+			return "cooldown"
+		end
+		local ability = Commanders.ability(ClientState.myCommander(cs), slot)
+		if StrikeMenu.EnemyAbilities[ability] and not atWar then
+			return "notAtWar"
+		end
+		return "ok"
 	end
 	local function activate(slot: number)
 		if not playing() then
 			return
 		end
+		if slot == RAID then
+			local f = StrikeStatus.facts(cs, nil, os.clock())
+			local why = StrikeMenu.raid(f)
+			if why ~= "ok" then
+				showHow("raid", why, f)
+				return
+			end
+			cancel()
+			startRaid()
+			return
+		end
 		if slot == MISSILE then
-			if not cs.world.silo then
+			local f = StrikeStatus.facts(cs, nil, os.clock())
+			local why = StrikeMenu.missile(f)
+			if why ~= "ok" and pending ~= slot then
+				showHow("missile", why, f)
 				return
 			end
 			if pending == slot then
@@ -274,6 +420,13 @@ function CommanderPanel.new(
 			return
 		end
 		local ability = Commanders.ability(ClientState.myCommander(cs), slot)
+		local f = StrikeStatus.facts(cs, nil, os.clock())
+		local why = abilityWhy(slot, f.atWar, os.clock())
+		if why ~= "ok" then
+			f.abilityLeft = leftOf(slot, os.clock())
+			showHow("ability", why, f)
+			return
+		end
 		if not Commanders.needsTarget(ability) then
 			cancel()
 			send("ability", { slot = slot })
@@ -307,41 +460,75 @@ function CommanderPanel.new(
 		if not bar.Visible then
 			return
 		end
-		for slot, b in buttons do
-			local left = leftOf(slot, now)
-			if slot == MISSILE then
-				b.Visible = cs.world.silo
-				b.Text = string.format(
-					Strings.get("missile.button", lang),
-					if left > 0
-						then string.format(Strings.get("missile.cooldown", lang), math.ceil(left))
-						else Strings.get("missile.ready", lang)
-				)
-				b.TextColor3 = if left > 0
-					then Theme.Colors.Muted
-					elseif pending == slot then Theme.Colors.Gold
-					else Theme.Colors.Alert
-				continue
-			end
-			local key = KEY_NAMES[slot]
-			if left > 0 then
-				b.Text = string.format(
-					Strings.get("ability.cooldown", lang),
-					key .. " " .. abilityName(slot),
-					math.ceil(left)
-				)
-				b.TextColor3 = Theme.Colors.Muted
+		local facts = StrikeStatus.facts(cs, nil, now)
+		local commander: Types.CommanderId = ClientState.myCommander(cs)
+		for slot, tile in tiles do
+			local why: string
+			local progress: number
+			if slot == RAID then
+				why = StrikeMenu.raid(facts)
+				progress = if facts.bombers > 0 then facts.bombersReady / facts.bombers else 0
+				tile.name.Text = Strings.get("ring.raid", lang)
+			elseif slot == MISSILE then
+				why = StrikeMenu.missile(facts)
+				local cd = Config.Buildings.MissileSilo.cooldownSec
+				progress = if facts.silo then 1 - facts.missileLeft / cd else 0
+				tile.name.Text = Strings.get("ring.missile", lang)
 			else
-				b.Text = string.format(
-					Strings.get("ability.ready", lang),
-					key .. " " .. abilityName(slot),
-					Strings.get("ability.desc." .. Commanders.ability(ClientState.myCommander(cs), slot), lang)
-				)
-				b.TextColor3 = if pending == slot then Theme.Colors.Gold else Theme.Colors.Text
+				local ability = Commanders.ability(commander, slot)
+				local left = leftOf(slot, now)
+				why = abilityWhy(slot, facts.atWar, now)
+				progress = 1 - left / math.max(1, Commanders.cooldown(commander, slot))
+				tile.name.Text = Strings.get("ability." .. ability, lang)
 			end
+			local ready = why == "ok"
+			local active = pending == slot
+			local kind: StrikeMenu.Kind = if slot == RAID
+				then "raid"
+				elseif slot == MISSILE then "missile"
+				else "ability"
+			if ready then
+				tile.state.Text = if slot == RAID
+					then string.format(Strings.get("strikes.raidReady", lang), facts.bombersReady)
+					else Strings.get("strikes.ready", lang)
+			elseif why == "cooldown" then
+				local left = if slot == MISSILE then facts.missileLeft else leftOf(slot, now)
+				tile.state.Text = string.format(Strings.get("missile.cooldown", lang), math.ceil(left))
+			else
+				tile.state.Text = StrikeStatus.short(kind, why, facts, lang)
+			end
+			tile.state.TextColor3 = if ready
+				then Theme.color("Lime")
+				elseif why == "cooldown" then Theme.color("Orange")
+				else Theme.Colors.Muted
+			tile.name.TextColor3 = if ready then Theme.Colors.Text else Theme.Colors.Muted
+			tile.art.ImageTransparency = if ready or active then 0 else 0.55
+			tile.edge.Color = if active
+				then Theme.Colors.Gold
+				elseif ready then tile.accent
+				else Theme.Colors.PanelBorder
+			tile.edge.Thickness = if active then 3 else 2
+			tile.fill.Size = UDim2.fromScale(math.clamp(progress, 0, 1), 1)
+			tile.fill.BackgroundColor3 = if ready then tile.accent else Theme.Colors.Muted
 		end
-		-- Действующий эффект (прорыв, вспышка) — в строке режима, если не ждём цели.
-		if pending == nil then
+		-- Подсказка внизу панели: что делает удар под курсором.
+		local h = hovered
+		if h == nil then
+			hint.Text = Strings.get("strikes.hint", lang)
+		elseif h == RAID then
+			hint.Text = Strings.get("strikes.desc.raid", lang)
+		elseif h == MISSILE then
+			hint.Text = Strings.get("strikes.desc.missile", lang)
+		else
+			-- «%%» в описании — шаблонный знак процента; сюда текст идёт аргументом, поэтому — «%».
+			hint.Text = (
+				string.gsub(Strings.get("ability.desc." .. Commanders.ability(commander, h), lang), "%%%%", "%%")
+			)
+		end
+		-- Действующий эффект (прорыв, вспышка) — в строке режима, если не ждём цели и нет подсказки.
+		if pending == nil and os.clock() < howUntil then
+			modeLine.Visible = true
+		elseif pending == nil then
 			local elapsed = (now - cs.commanderAt) * ClientState.simRate(cs)
 			local surge = cs.commander.surge - elapsed
 			local reveal = cs.commander.reveal - elapsed
@@ -380,10 +567,17 @@ function CommanderPanel.new(
 		end
 		bar.Visible = playing()
 		if bar.Visible then
+			local commander: Types.CommanderId = ClientState.myCommander(cs)
 			header.Text = string.format(
-				Strings.get("commander.label", lang),
-				Strings.get("commander." .. ClientState.myCommander(cs), lang)
+				'%s   <font color="#%s">%s</font>',
+				Strings.get("strikes.title", lang),
+				Theme.Colors.Muted:ToHex(),
+				string.format(Strings.get("strikes.commander", lang), Strings.get("commander." .. commander, lang))
 			)
+			-- Картинки способностей — по генералу (сменился — перерисовать).
+			for slot = 1, 2 do
+				CardKit.repaint(tiles[slot].art, "strike." .. Commanders.ability(commander, slot))
+			end
 		else
 			cancel()
 		end
@@ -406,7 +600,13 @@ function CommanderPanel.new(
 
 	refresh()
 	return {
+		aiming = function(): Types.Warhead?
+			return if pending == MISSILE then WARHEADS[warhead] else nil
+		end,
 		pickerFrame = picker,
+		setRaid = function(start: () -> ())
+			startRaid = start
+		end,
 		refresh = refresh,
 		update = update,
 		tap = tap,

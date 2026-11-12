@@ -129,7 +129,7 @@ T.describe("Разведка и скрытая мощь (§6.11а)", function()
 		-- Радар державы 1 у границы с 2 (x = 45); держава 3 (x ≥ 101) — дальше 25 клеток.
 		local province = 45 // 10 + 1
 		local p = m.provinces.list[province]
-		Buildings.place(m.buildings, "Radar", p.center, province)
+		Buildings.place(m.buildings, "Airfield", p.center, province) -- §15х ч.6: аэродром — и радар
 		MatchSim.refreshOwned(m)
 		MatchSim.step(m, DT)
 		T.expect(MatchSim.knows(m, 1, 2)).toBe(true)

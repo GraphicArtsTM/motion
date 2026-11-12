@@ -1,13 +1,13 @@
 --!strict
 --[[
-	Ranks — звания по уровню профиля (GDD §15л): 20 званий, каждые Config.Ranks.LevelsPerRank уровней — новое.
-	Только вид (наград за звание нет): меню, лобби, итоги. Названия — Strings «rank.N».
-	Значок 14×14 рисуется программно (пока нет арта, docs/ART_LIST.md), цвета — имена палитры:
-	- 1–6 — рядовые и сержанты: золотые шевроны (1–3), у старших — полосы под ними;
-	- 7–14 — погон: прапорщик (серебряные звёзды), младшие офицеры (одна полоса, 1–4 малые звезды),
-	  старшие (две полосы, 1–3 большие звезды);
-	- 15–18 — генералы: золотой погон, 1–3 большие звезды, у генерала армии — одна крупная;
-	- 19–20 — маршалы: большая звезда с лавром.
+	Ranks — путь командира (§15ф, вместо 20 воинских званий §15л): уровень профиля показывает, КАКОЙ ЧАСТЬЮ вы
+	командуете — от новобранца до командующего фронтом. 11 ступеней, первая — с уровня Config.Ranks.Tiers[k].
+	Только вид (наград за ступень нет): меню, окно «Путь командира», итоги. Названия — Strings «rank.N»,
+	«сколько бойцов» — Strings «rank.troops.N».
+
+	Значок 16×16 — знак части с карты: прямоугольник с перекрестьем (пехота), над ним метки размера части —
+	точки (отделение, взвод), палочки (рота, батальон, полк), крестики (бригада и выше). Цвет рамки по группе:
+	бойцы — голубой, офицеры — золото, генералы — оранжевый, командующие — красный.
 ]]
 
 local Config = require("./Config")
@@ -17,21 +17,26 @@ type Part = PixelIcons.Part
 
 local Ranks = {}
 
-Ranks.IconSize = 14
-Ranks.Count = Config.Ranks.Count
+Ranks.IconSize = 16
+Ranks.Count = #Config.Ranks.Tiers
 
--- Звание (1..Count) по уровню профиля.
+-- Ступень по уровню: последняя, чей первый уровень не больше level.
 function Ranks.of(level: number): number
-	local per = Config.Ranks.LevelsPerRank
-	return math.clamp((math.max(1, math.floor(level)) - 1) // per + 1, 1, Ranks.Count)
+	local lv = math.max(1, math.floor(level))
+	local rank = 1
+	for k, first in Config.Ranks.Tiers do
+		if lv >= first then
+			rank = k
+		end
+	end
+	return rank
 end
 
--- С какого уровня звание.
 function Ranks.firstLevel(rank: number): number
-	return (math.clamp(rank, 1, Ranks.Count) - 1) * Config.Ranks.LevelsPerRank + 1
+	return Config.Ranks.Tiers[math.clamp(rank, 1, Ranks.Count)]
 end
 
--- Уровень, на котором будет следующее звание (nil — звание последнее).
+-- Уровень следующей ступени (nil — уже высшая).
 function Ranks.nextAt(level: number): number?
 	local rank = Ranks.of(level)
 	if rank >= Ranks.Count then
@@ -40,106 +45,77 @@ function Ranks.nextAt(level: number): number?
 	return Ranks.firstLevel(rank + 1)
 end
 
+-- Группа ступени: 1 — бойцы, 2 — офицеры, 3 — генералы, 4 — командующие (цвет значка и подписи).
+function Ranks.group(rank: number): number
+	if rank <= 3 then
+		return 1
+	elseif rank <= 6 then
+		return 2
+	elseif rank <= 9 then
+		return 3
+	end
+	return 4
+end
+
+Ranks.GroupColors = table.freeze({ "Sky", "Gold", "Orange", "Red" })
+
 local function p(x: number, y: number, w: number, h: number, color: string): Part
 	return { x = x, y = y, w = w, h = h, color = color }
 end
 
--- Шеврон «^» шириной 10 и высотой 4 (тень снизу) с верхушкой в строке y.
-local function chevron(out: { Part }, y: number)
-	table.insert(out, p(6, y + 1, 2, 1, "Orange"))
-	table.insert(out, p(4, y + 2, 2, 1, "Orange"))
-	table.insert(out, p(8, y + 2, 2, 1, "Orange"))
-	table.insert(out, p(2, y + 3, 2, 1, "Orange"))
-	table.insert(out, p(10, y + 3, 2, 1, "Orange"))
-	table.insert(out, p(6, y, 2, 1, "Gold"))
-	table.insert(out, p(4, y + 1, 2, 1, "Gold"))
-	table.insert(out, p(8, y + 1, 2, 1, "Gold"))
-	table.insert(out, p(2, y + 2, 2, 1, "Gold"))
-	table.insert(out, p(10, y + 2, 2, 1, "Gold"))
-end
-
--- Звезда: крест с лучами длины r и заполненной серединой (r = 1 — крестик 3×3); с r ≥ 4 лучи толще,
--- а середина — ромб радиуса ⌈r/2⌉, чтобы звезда не превращалась в ромб.
-local function star(out: { Part }, cx: number, cy: number, r: number, color: string)
-	table.insert(out, p(cx, cy - r, 1, 2 * r + 1, color))
-	table.insert(out, p(cx - r, cy, 2 * r + 1, 1, color))
-	local core = r
-	if r >= 4 then
-		table.insert(out, p(cx - 1, cy - r + 1, 3, 2 * r - 1, color))
-		table.insert(out, p(cx - r + 1, cy - 1, 2 * r - 1, 3, color))
-		core = math.ceil(r / 2) + 1
-	end
-	for k = 1, core - 1 do
-		table.insert(out, p(cx - k, cy - (core - k), 2 * k + 1, 2 * (core - k) + 1, color))
-	end
-end
-
--- Погон 7×14 (x 3..9): основа, кромка, продольные полосы (0, 1 или 2).
-local function board(out: { Part }, base: string, edge: string, stripes: number)
-	table.insert(out, p(3, 0, 7, 14, base))
-	table.insert(out, p(3, 0, 1, 14, edge))
-	table.insert(out, p(9, 0, 1, 14, edge))
-	if stripes == 1 then
-		table.insert(out, p(6, 0, 1, 14, "Red"))
-	elseif stripes == 2 then
-		table.insert(out, p(4, 0, 1, 14, "Red"))
-		table.insert(out, p(8, 0, 1, 14, "Red"))
-	end
-end
-
-local SMALL_ROWS = { { 7 }, { 4, 10 }, { 3, 7, 11 }, { 2, 5, 8, 11 } }
-local BIG_ROWS = { { 7 }, { 4, 10 }, { 2, 7, 11 } }
+-- Метки размера над рамкой (строки 0–4): тип и сколько.
+local MARKS: { { kind: string, n: number } } = {
+	{ kind = "none", n = 0 }, -- новобранец
+	{ kind = "dot", n = 1 }, -- отделение
+	{ kind = "dot", n = 3 }, -- взвод
+	{ kind = "bar", n = 1 }, -- рота
+	{ kind = "bar", n = 2 }, -- батальон
+	{ kind = "bar", n = 3 }, -- полк
+	{ kind = "cross", n = 1 }, -- бригада
+	{ kind = "cross", n = 2 }, -- дивизия
+	{ kind = "cross", n = 3 }, -- корпус
+	{ kind = "cross", n = 4 }, -- армия
+	{ kind = "cross", n = 5 }, -- фронт
+}
 
 local function build(rank: number): { Part }
 	local out: { Part } = {}
-	if rank <= 6 then
-		-- Шевроны и полосы, по центру по высоте.
-		local chevrons = ({ 1, 2, 3, 2, 3, 2 })[rank]
-		local bars = ({ 0, 0, 0, 1, 1, 2 })[rank]
-		local height = 3 * chevrons + 1 + (if bars > 0 then 3 * bars else 0)
-		local y = (Ranks.IconSize - height) // 2
-		for k = 0, chevrons - 1 do
-			chevron(out, y + 3 * k)
+	local edge = Ranks.GroupColors[Ranks.group(rank)]
+	-- Рамка части (строки 6–15) с тёмным полем и перекрестьем.
+	table.insert(out, p(0, 6, 16, 10, "Ink"))
+	table.insert(out, p(0, 6, 16, 1, edge))
+	table.insert(out, p(0, 15, 16, 1, edge))
+	table.insert(out, p(0, 6, 1, 10, edge))
+	table.insert(out, p(15, 6, 1, 10, edge))
+	for k = 0, 6 do
+		-- Перекрестье: две диагонали внутри рамки (14×8), по 2 клетки в шаге.
+		table.insert(out, p(1 + 2 * k, 7 + k, 2, 1, "White"))
+		table.insert(out, p(13 - 2 * k, 7 + k, 2, 1, "White"))
+	end
+	-- Метки размера по центру над рамкой.
+	local m = MARKS[math.clamp(rank, 1, #MARKS)]
+	if m.kind == "dot" then
+		local start = 8 - (3 * m.n - 1) // 2
+		for k = 0, m.n - 1 do
+			table.insert(out, p(start + 3 * k, 2, 2, 2, edge))
 		end
-		local by = y + 3 * chevrons + 1
-		for k = 0, bars - 1 do
-			table.insert(out, p(2, by + 3 * k + 1, 10, 1, "Orange"))
-			table.insert(out, p(2, by + 3 * k, 10, 1, "Gold"))
+	elseif m.kind == "bar" then
+		local start = 8 - (3 * m.n - 1) // 2
+		for k = 0, m.n - 1 do
+			table.insert(out, p(start + 3 * k, 0, 1, 5, edge))
 		end
-	elseif rank == 7 then
-		board(out, "Steel", "Slate", 0)
-		for _, y in SMALL_ROWS[2] do
-			star(out, 6, y, 1, "Mist")
+	elseif m.kind == "cross" then
+		local w = 3 * m.n
+		local start = 8 - w // 2
+		for k = 0, m.n - 1 do
+			local x = start + 3 * k
+			-- Крестик 3×3 (с пропуском между ними — в соседней клетке следующего).
+			table.insert(out, p(x, 1, 1, 1, edge))
+			table.insert(out, p(x + 2, 1, 1, 1, edge))
+			table.insert(out, p(x + 1, 2, 1, 1, edge))
+			table.insert(out, p(x, 3, 1, 1, edge))
+			table.insert(out, p(x + 2, 3, 1, 1, edge))
 		end
-	elseif rank <= 11 then
-		board(out, "Steel", "Slate", 1)
-		for _, y in SMALL_ROWS[rank - 7] do
-			star(out, 6, y, 1, "Gold")
-		end
-	elseif rank <= 14 then
-		board(out, "Steel", "Slate", 2)
-		for _, y in BIG_ROWS[rank - 11] do
-			star(out, 6, y, 2, "Gold")
-		end
-	elseif rank <= 17 then
-		board(out, "Gold", "Orange", 0)
-		for _, y in BIG_ROWS[rank - 14] do
-			star(out, 6, y, 2, "White")
-		end
-	elseif rank == 18 then
-		board(out, "Gold", "Orange", 0)
-		star(out, 6, 7, 3, "White")
-	else
-		-- Маршал: звезда в обводке, лавр снизу; у Главного маршала — красная середина.
-		star(out, 7, 6, 6, "Orange")
-		star(out, 7, 6, 5, "Gold")
-		if rank == 20 then
-			star(out, 7, 6, 2, "Red")
-		end
-		table.insert(out, p(0, 11, 4, 2, "Grass"))
-		table.insert(out, p(10, 11, 4, 2, "Grass"))
-		table.insert(out, p(1, 13, 3, 1, "Forest"))
-		table.insert(out, p(10, 13, 3, 1, "Forest"))
 	end
 	return out
 end
@@ -149,7 +125,7 @@ for rank = 1, Ranks.Count do
 	icons[rank] = table.freeze(build(rank))
 end
 
--- Значок звания: части 14×14 в именах палитры (PixelIcons.Part).
+-- Значок ступени: части 16×16 в именах палитры (PixelIcons.Part).
 function Ranks.icon(rank: number): { Part }
 	return icons[math.clamp(rank, 1, Ranks.Count)]
 end

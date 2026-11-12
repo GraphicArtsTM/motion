@@ -6,7 +6,8 @@
 Сделаны этапы **0–6**, **7а**, **7б-1** (флот), **7б-2** (авиация), доработки перед 7в, **7в-1** и **7в-2** — всё в `main` (PR #2–#8).
 **7в-1** (технологии) и **7в-2** (генералы) смержены (PR #7, #8). **7г** и **8а** смержены (PR #9), разведка, **8б** и **8в** — PR #10. **8г** — PR #11. **9а** и **9б** — PR #12, **9в** и **9г** — PR #13.
 Этап 10 смержен (PR #14–#15). **Сводная правка §15а** (4 части: самопроверка, баланс, мелкие решения, публикация — `docs/PUBLISH.md`, PolicyService) — PR #16 (смержен). **Правка §15б** (самолёты, Инженер, зрелищная война, «Первый удар») — PR #17. §15в–§15д — PR #17–#19 (смержены). **§15е–§15к** (идеи из OpenFront, ядерные удары, ЗРК, «судный день», док, экран лобби, флаг и карта в лобби) — PR #20.
-**§15л части 1–11** (главное меню, звания, меню игры, итоги, интерфейс без наложений, командная полоса, док слева, хаб и матч — разные места, свой матч по коду, пиксельный вид, логотип, живой фон хаба, верх матча, Арсенал, миниатюры карт, матч только по «В БОЙ», картинки у окон, окна-витрины с карточками, Дипломатия, Совет и стройка карточками, порт, аэродром, здание, война и мир, итоги карточками) и **§15м** (живой фронт: скорость от перевеса, «Сверхдержава», зрелищный матч) — ветка
+**§15л части 1–11** (главное меню, звания, меню игры, итоги, интерфейс без наложений, командная полоса, док слева, хаб и матч — разные места, свой матч по коду, пиксельный вид, логотип, живой фон хаба, верх матча, Арсенал, миниатюры карт, матч только по «В БОЙ», картинки у окон, окна-витрины с карточками, Дипломатия, Совет и стройка карточками, порт, аэродром, здание, война и мир, итоги карточками) и **§15м** (живой фронт: скорость от перевеса, «Сверхдержава», зрелищный матч), **§15н ч.1** (прогноз фронта на плашке), **§15у** (два уровня союза, удар через союзника), **§15ф** (редизайн, Ф1), **§15х ч.1–4в, ч.6** (понятные удары и
+защита, сирена, удары под рукой, панель «УДАРЫ», 10 зданий вместо 13) — ветка
 `claude/vibrant-curie-ef1e6e`.
 **10а** (обучение) готов и ждёт проверки в Studio; **10б** (звук и музыка) и **10в** (телефон, аналитика, отчёт баланса) — тоже
 (см. «Статус» в начале GDD §15). Обновляй «Статус» в GDD и этот раздел в конце каждого этапа.
@@ -224,7 +225,8 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   `land` (плацдарм и фронт), `stepFleet` (найм, высадки, обстрел берега, блокада), снабжение по морю в `stepAttacks`
   (`seaSupplySets`, `Attack.seaSupplied`) и `pocketSeaSupplied` в котлах. Боты: `navyView` (цели — лениво, функциями)
   и `navyDecision` в `BotBrain` (личность `navy`).
-- **Десант на другой берег (§15д):** атака с `focus` на суше другого массива (`Naval.landAt`, `MatchSim.overSea`) —
+- **Десант на другой берег (§15д):** атака с `focus` на суше другого массива (`Naval.landAt`, `MatchSim.overSea`)
+  или на враге без общей границы (залив на своём материке; без `focus` — к столице) —
   `MatchSim.seaInvade`: десантный корабль (`ship.boat`, `Fleet.boats`, лимит `Naval.MaxBoats`) из ближайшей своей
   прибрежной провинции, высадка у ближайшего берега, потом исчезает. Земля за морем у берега — не котёл
   (`MatchSim.overseas`, фильтр в `stepPockets`).
@@ -367,9 +369,10 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   `MarkerLayer`; второе кольцо (эмодзи) — `UI/ActionRing.choose`.
 
 ## Быстрая война, ЗРК, «судный день», док (§15з)
-- ЗРК — здание `Sam` (`Buildings.owned.sams`, `rangeOf`), заряды — `MatchSim.batteryCharges`; защитники клетки —
-  `defenders(m, victim, cell, vsMissile)` (батареи всегда, ЗРК — только против ракет и бомб), `intercept` возвращает
-  хозяина и клетку защитника (`missileShot.at` — перехватчик на клиенте). Боты — `spots.sam`.
+- ЗРК (с §15х ч.6 — ПВО ур. 3, `Buildings.owned.longRange`, `rangeOf(kind, w, level)`), заряды — `MatchSim.batteryCharges`;
+  защитники клетки — `defenders(m, victim, cell, vsMissile)` (ближний круг всегда, дальний ур. 3 — только против ракет
+  и бомб), `intercept` возвращает хозяина и клетку защитника (`missileShot.at` — перехватчик на клиенте). Боты —
+  `spots.sam` (ПВО у столицы под улучшение до ур. 3).
 - «Часы судного дня» — `Config.Doomsday`, `rules.doomsday`, `MatchSim.doomBar` / `sideShare` / `stepDoomsday`
   (`m.doomSince`), в `world` — `doom` (`ClientState.DoomInfo`); клиент — `UI/DoomBar`.
 - Док — `UI/Dock` (кнопки окон: у каждого окна `button` + `toggle` + `isOpen`; прежние кнопки переезжают в
@@ -432,6 +435,49 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   `MatchSim.giantOf` (`Combat.Giant`: скорость фронта, потери атаки — `Defense.giantAttacker`, фронты против неё).
   Эффекты — `Render/BattleFxLayer` (плашки перевеса, «ПРОРЫВ!», кольца городов, выбывание и салют, корона,
   `GiantChip`, тряска `viewport` — под ним `MapUnderlay`), полосы и тряска — чистые `WarFx.ratioBand` / `WarFx.shake`.
+- §15н: прогноз фронта — чистый `FrontForecast` (состояние, причина `why` — номер в `FrontForecast.Whys`, «сколько
+  нужно», «на сколько хватит», тренд, строки); сервер пишет `a.why / needAtk / needDef / burn` в `stepAttacks`
+  (`Fronts.battle` → `burn`, `defStrength`), по сети — поля `why / need / burn` в STATS, только сторонам фронта
+  (`MatchStats.forViewer`). Плашка — `Render/BattleFxLayer` (`forecast`). Числа — `Config.Forecast`.
+- §15н ч.2: прогноз до атаки — чистый `AttackPreview.compute(source, enemy, cell, percent)` (данные клиента) →
+  `FrontForecast.preview` (та же `Fronts.battle` без потерь) → строки `FrontForecast.previewLines`; подсказка —
+  `UI/MapTooltip`. Тест сверяет прогноз с перевесом сервера после удара.
+- §15т: лента — чистый `EventFeed` (`level(e, me, friends)`, `push` / `expire` / `textOf`, сроки `Config.Feed`);
+  в `MatchHud` уровень строки — по событию (`eventLevel` в `onEvents`), вне событий `toast` — важное, `alert` —
+  критичное. Подсказки флота и авиации — `Hints` («ship / landing / plane / raid / silo»), факты — `UI/HintPanel`.
+- §15у: союз двух уровней — `Treaty.trust` (`Diplomacy.trusted / trustedOf / setTrust`, предложение `"trust"`,
+  намерение `distrust`); удар через союзника — чистый `Passage` (`exitNear`, `entryNear`, `route`, `travelSec`),
+  сервер — `MatchSim.passageRoute / startPassage`, отряды в пути `m.passages` (`stepPassages` → `landAt(..., via)`,
+  событие `passageArrived`), коридор — `MatchSim.allyCorridor` в `stepPockets`; боты — `BotView.reach`
+  (`Neighbour.via / canJoin / trust / trustReady`). F4 — `DevTools.trustAlly`. Числа — `Config.Alliance`.
+  Доступы (§15у ч.2): снабжение, ПВО/ЗРК, порты, общий обзор, зоны «Авиаудара» — `Diplomacy.trustFriends`
+  (клиент — `ClientState.trustFriendsOf`); сила войск, фронты, корабли и самолёты союзника — `Diplomacy.friends`.
+  Стрелка отряда — `WarFxLayer` (`passageStarted.from` → `cell`).
+- §15ф Ф1 (редизайн): вид — `Theme` (шрифт `Config.Render.UiFontFamily` Montserrat, `CornerPx`, без фаски; `Polish`
+  скругляет всё в слое). Голосований нет (`Config.Match.LobbyVotes`, `m.lobbyVotes`): режим — `MatchSim.lobbyMode`
+  (`m.rotationMode` из `startLobby`, без лобби — «Все против всех»), карта — `Modes.nextMap` в `MatchService`.
+  «Ожидание игроков» — `UI/LobbyScreen` (`leave` → намерение `leaveMatch`), выбор старта — баннер `MatchHud` и
+  подсказка `MapTooltip`; генерал — Арсенал (`prefCommander`, `Profile.commander`), «Обучение» — `playTutorial`.
+  Главное меню — колонка слева (`UI/MainMenu`), под меню — облёт камеры (`tour` в `Main.client`). «Путь командира» —
+  `Ranks` (`Config.Ranks.Tiers`, `group`, значок 16×16) и `UI/RanksPanel`. Док — строкой сверху (`Dock`, пункты
+  с `hidden = true` — только в меню игры `GameMenu.extra`); панель державы — в `FrontirStash`.
+- §15х ч.6: 10 зданий. ЗРК → ПВО ур. 3 (`Buildings.AirDefense.longRangeLevel / longRadius / upgradeMul`, дальний круг
+  не меньше ближнего; уровень открывает `Config.Tech.LevelUnlocks` → `MatchSim.levelAllows`, отказ `needLongRange`);
+  Рынок → Завод ур. 3 (`Factory.bonusLevel / incomeBonus` → `Owned.incomeBonus`); Радар → Аэродром (`stepRadarIntel`,
+  `MatchStats.radarsOf` и `ClientState` берут аэродромы). Формы `BuildingSprites.Radar / Market / AirDefenseLong` —
+  только для картинок.
+- §15х (понятные механики): прогноз удара — чистый `StrikeForecast` (правило как `MatchSim.defenders`), чем целимся —
+  `CommanderPanel.aiming` / `AirPanel.aiming` → `MapTooltip.setAiming`; круги защиты у цели — `MarkerLayer.defenses`
+  (каждый кадр в `Main.client`). Новая механика — по принципу §15х: где запустить, что видно, чем защититься, прогноз.
+  Удары под рукой (ч.4): чистый `StrikeMenu` (готов ли удар и первая причина, ключи `strikeHow.*` / `strikeShort.*`),
+  факты — `UI/StrikeStatus`; кольцо — действия `missile / raid / ability` (`ActionRing.open(..., decorate)`),
+  панель «УДАРЫ» — `CommanderPanel` (плитки, слот `RAID`, `setRaid` ← `AirPanel.startRaid`; картинки — `ItemArt`
+  «strike.<missile|raid|способность>», размеры — `Config.Render.Strikes`). Перепись зданий — `tools/building_census`.
+  Наведение на здание — `MapTooltip` (`range.*`, `rangeAt`) + `MarkerLayer.range` (`Buildings.rangeOf`, город и порт —
+  снабжение). «Сирена» — `UI/SirenPanel` (в столбике `TopCenter`), цвет летящих ударов — `MarkerLayer.strikeColor`.
+- Шаблоны строк для `string.format`: знак процента — только «%%» (тест `Strings.spec`).
+- Studio MCP подключён в `.mcp.json` (`Roblox_Studio`): клик мышью — в координатах без верхнего отступа
+  (`AbsolutePosition`, без `GuiInset`); кнопки с одинаковым именем — по `AbsolutePosition`, не по пути.
 - Сверху по центру и справа — столбики `TopCenter` / `TopRight` (`stackInto` в `Main.client` по именам рамок):
   новое окно-баннер сверху — добавить имя в список, а не ставить Position числами.
 
@@ -452,6 +498,19 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   (поток на пару атакующий → цель); боты — `botRngsOf` (think, main, navy, air, diplo, tech, ability, missile; в `BotBrain.decide` —
   параметр `streams`). Новой механике — свой поток, не общий.
 - Замер: `tools/bench_ab` (git worktree `main` в `build/`), в отчётах — только его минимум.
+- Снежный ком — `tools/snowball` (варианты `base / noGiant / noDoom / neither`, флаг матча `m.giantOff` — только
+  для замеров и тестов); итоги — `docs/BALANCE.md` «Снежный ком».
+- §15о: суша вассалов в победу — с весом `Diplomacy.VassalVictoryShare` (0.5) в `landOf` / `MatchSim.victoryLandOf`;
+  клиент — `ClientState.victoryLand / blocLand / victoryLeader` (полоса «Контроль суши» в `MatchHud`).
+- **HUD (`FrontirHud`) — ZIndex `Global`:** содержимое окна с ZIndex > 1 рисуется под его фоном, если его ZIndex
+  меньше. `UI/Layering.liftAll(hudGui)` в `Main.client` поднимает содержимое окон (и добавленное позже) — новое
+  окно в HUD ничего делать не должно; окно, созданное после `liftAll`, — `Layering.lift(окно)`.
+- §15р: радиус бомб — `MatchSim.warheadRadius` от средней живой державы (`Nukes.*.area`, пределы `RadiusMinScale /
+  RadiusMaxScale`), фиксируется при пуске (`Missile.radius`); ракета — постоянная `MissileSilo.strikeRadius`.
+- §15с: выключатели «сначала фронт» (`Bots.FrontFirst`) и «найм в войне» (`BotLevels.*.warHireFillMul`), оба выключены.
+  Крючок `m.onBotIntent(id, intent, ok, reason)` — решения ботов для `tools/bot_metrics` (в игре nil).
+- Боеголовки — `tools/nuke_report` (удары по снимкам партии, матч не меняется), метрики ботов — `tools/bot_metrics`
+  (7 метрик по уровням); итоги — `docs/BALANCE.md` «Боеголовки» и «Метрики ботов».
 - Арена (`tools/bot_arena`) — инструмент для отчёта, **не проверка CI** (решение геймдизайнера): полоса против
   Генералов 2.0 < среднее место ≤ 3.5, против Новичков первый ≥ 80% партий.
 

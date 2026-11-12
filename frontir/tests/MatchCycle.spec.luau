@@ -9,6 +9,7 @@ local DT = 1 / Config.Sim.TickRate
 
 local function playing(seed: number): MatchSim.Match
 	local m = MatchSim.new(Fixtures.pangea, seed)
+	m.forcedMode = "Ffa" -- §15ф Ф1: режим по очереди сервера — здесь проверяем «Все против всех»
 	MatchSim.addPlayer(m, 1, "A")
 	MatchSim.startLobby(m)
 	while m.phase ~= "Play" do

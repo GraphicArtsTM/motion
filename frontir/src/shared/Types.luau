@@ -44,13 +44,10 @@ export type BuildingKind =
 	| "Factory"
 	| "Airfield"
 	| "Fort"
-	| "AirDefense"
-	| "Radar"
-	| "Market"
+	| "AirDefense" -- §15х ч.6: ур. 3 — дальняя (бывший ЗРК)
 	| "MissileSilo"
 	| "Barracks" -- §15д
 	| "Housing"
-	| "Sam" -- §15з: зенитный ракетный комплекс (ЗРК)
 
 export type UnitStats = {
 	cost: number,
@@ -198,6 +195,12 @@ export type Attack = {
 	line: { number }?, -- выборка клеток линии фронта (до Fog.LineSamples): сервер проверяет по ней обзор (§6.11)
 	seaSupplied: boolean?, -- снабжение по морю (§6.12), пересчёт раз в секунду
 	seaCheckedAt: number?,
+	-- Прогноз фронта (§15н), пересчёт в бою: причина (номер в FrontForecast.Whys), сколько силы нужно атаке до полной
+	-- скорости и обороне до остановки, ожидаемые потери атаки в игровую секунду.
+	why: number?,
+	needAtk: number?,
+	needDef: number?,
+	burn: number?,
 }
 
 -- Здание (§6.9): стоит в клетке (центр провинции или город), принадлежит владельцу этой клетки.
@@ -231,6 +234,7 @@ export type Intent =
 	| OfferIntent
 	| OfferReplyIntent
 	| BreakIntent
+	| DistrustIntent
 	| RebelIntent
 	| TransferIntent
 	| EmbargoIntent
@@ -278,6 +282,7 @@ export type BotLevelParams = {
 	buildReserve: number,
 	hireChance: number,
 	hireWhenFill: number,
+	warHireFillMul: number, -- §15с: пока идёт война, hireWhenFill × это (нанимает раньше)
 	maxQueue: number, -- держит в очереди найма не больше (≤ Forces.MaxQueue)
 	attackWhenFill: number,
 	peaceAfterSec: number, -- раньше мира не просит
@@ -293,7 +298,7 @@ export type BotPersonalityParams = {
 	front: number, -- × к доле войск на фронт
 	peace: number, -- × к порогу «просить мира» (больше — раньше)
 	maxWars: number, -- сам объявляет войну, пока войн меньше
-	maxMarkets: number,
+	maxFactories: number, -- §15х ч.6: заводов до этого числа ставит новые, дальше — улучшает
 	distracted: number, -- вес цели, которая уже воюет с другим
 	leader: number, -- вес цели-лидера
 	forts: boolean, -- строит укрепления у фронта
@@ -310,7 +315,7 @@ export type BotPersonalityParams = {
 
 -- Договоры (§8.1).
 export type TreatyKind = "pact" | "alliance"
-export type OfferKind = "pact3" | "pact5" | "alliance" | "demand" | "trade"
+export type OfferKind = "pact3" | "pact5" | "alliance" | "demand" | "trade" | "trust" -- trust — полное доверие (§15у)
 export type Resolution = "sanctions" | "truce" | "aid" | "freeTrade" | "superweaponBan"
 export type Phrase = "help" | "attack" | "alliance" | "thanks" | "traitor"
 export type TransferIntent = { kind: "transfer", target: NationId, money: number, oil: number, people: number }
@@ -320,6 +325,7 @@ export type PingIntent = { kind: "ping", cell: number, phrase: Phrase }
 export type OfferIntent = { kind: "offer", target: NationId, offer: OfferKind, province: number? }
 export type OfferReplyIntent = { kind: "offerReply", target: NationId, accept: boolean }
 export type BreakIntent = { kind: "breakTreaty", target: NationId }
+export type DistrustIntent = { kind: "distrust", target: NationId } -- §15у: снять полное доверие
 export type RebelIntent = { kind: "rebel" }
 -- Флот (§6.12, этап 7б-1).
 export type ShipKind = "Transport" | "Destroyer"

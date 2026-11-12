@@ -52,13 +52,14 @@ end
 
 T.describe("Экономика", function()
 	T.it(
-		"доход: налог с клеток, уровни городов, рынки; нефть с вышек; содержание войск",
+		"доход: налог с клеток, уровни городов, заводы ур. 3 (+доля); нефть с вышек; содержание войск",
 		function()
 			local cfg = Config.Economy
 			T.expect(Economy.income(1000, 2, 0))
 				.toBeNear(1000 * cfg.TaxPerCellPerSec + 2 * cfg.CityIncomePerLevel, 1e-9)
 			local base = Economy.income(1000, 2, 0)
-			T.expect(Economy.income(1000, 2, 2)).toBeNear(base * (1 + 2 * Config.Buildings.Market.incomeBonus), 1e-9)
+			local bonus = 2 * Config.Buildings.Factory.incomeBonus
+			T.expect(Economy.income(1000, 2, 0, bonus)).toBeNear(base * (1 + bonus), 1e-9)
 			T.expect(Economy.oilIncome(3)).toBe(3 * Config.Oil.PerRigPerSec)
 			T.expect(Economy.upkeep(5000)).toBe(5000 * cfg.UpkeepPerStrengthPerSec)
 			T.expect(Economy.maxPeople(100, 3) - Economy.maxPeople(100)).toBe(3 * cfg.CityMaxPeoplePerLevel)
@@ -141,8 +142,8 @@ T.describe("Здания", function()
 			T.expect(MatchSim.ownedOf(m, 1).factories).toBe(1)
 			-- §15д: в провинции можно и второе здание; следующее того же типа дороже на CostStep, нажатие на своё —
 			-- улучшение (ур. 2), до maxLevel.
-			local market = MatchSim.buildSpot(m, 1, "Market", target.cells[1])
-			T.expect((MatchSim.applyIntent(m, 1, { kind = "build", building = "Market", cell = market }))).toBe(true)
+			local market = MatchSim.buildSpot(m, 1, "Housing", target.cells[1])
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "build", building = "Housing", cell = market }))).toBe(true)
 			local step = Config.Build.CostStep
 			local up = (MatchSim.buildPrice(m, 1, "Factory", cell)) :: number
 			T.expect(up).toBeNear(Config.Buildings.Factory.cost * Config.Build.UpgradeMul[2] * (1 + step), 1e-6)
@@ -155,14 +156,14 @@ T.describe("Здания", function()
 				.toBe("maxLevel")
 			-- Своя клетка вплотную к столице (ближе Build.MinGap к городу) — нельзя; вода — нельзя.
 			local cap = me.capital :: number
-			T.expect(select(2, MatchSim.checkBuild(m, 1, "Market", cap + 1))).toBe("tooClose")
-			T.expect(select(2, MatchSim.checkBuild(m, 1, "Market", 0))).toBe("notOwner")
+			T.expect(select(2, MatchSim.checkBuild(m, 1, "Housing", cap + 1))).toBe("tooClose")
+			T.expect(select(2, MatchSim.checkBuild(m, 1, "Housing", 0))).toBe("notOwner")
 			-- Чужая провинция — нельзя.
 			for _, q in m.provinces.list do
 				local o = Grid.getOwner(m.grid, q.center)
 				if o ~= 1 then
 					T.expect(
-						select(2, MatchSim.applyIntent(m, 1, { kind = "build", building = "Market", cell = q.center }))
+						select(2, MatchSim.applyIntent(m, 1, { kind = "build", building = "Housing", cell = q.center }))
 					)
 						.toBe("notOwner")
 					break

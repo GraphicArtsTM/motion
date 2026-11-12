@@ -36,6 +36,7 @@ export type Neighbour = {
 	border: number?, -- клеток общей границы
 	share: number?, -- его доля суши (0..1)
 	distracted: boolean?, -- уже воюет с кем-то другим
+	enemies: number?, -- §15п: со сколькими державами (кроме нас) воюет
 	mix: { number }?, -- доли типов войск гарнизона (Types.LandUnits)
 	city: number?, -- его город, ближайший к нашей столице (направление удара)
 	cities: number?, -- сколько у него городов
@@ -45,6 +46,11 @@ export type Neighbour = {
 	trade: boolean?, -- с ним торговое соглашение (§8.2)
 	weakened: boolean?, -- воюет с кем-то ещё и потерял больше Diplomacy.BetrayLossShare войск
 	embargo: boolean?, -- между нами эмбарго
+	-- §15у: полное доверие
+	trust: boolean?, -- союз с ним — с полным доверием
+	trustReady: boolean?, -- можно предложить ему полное доверие
+	via: number?, -- держава за союзником с полным доверием (через кого бить)
+	canJoin: boolean?, -- можно вступить в войну с ней вместе с союзником
 }
 
 -- Свой фронт или атака глазами бота.
@@ -79,6 +85,7 @@ export type BotView = {
 	hasCapital: boolean,
 	hasNeutral: boolean, -- рядом есть ничья земля, которую можно взять
 	neighbours: { Neighbour }, -- соседние державы
+	reach: { Neighbour }?, -- §15у: державы за союзниками с полным доверием (бить через союзника)
 	wars: { WarView },
 	fronts: { FrontView }?,
 	mix: { number }?, -- доли типов своих войск (гарнизон)
@@ -89,7 +96,7 @@ export type BotView = {
 	overlord: number?, -- наш сюзерен (мы — вассал)
 	overlordPower: number?,
 	canRebel: boolean?,
-	leader: number?, -- держава ближе всех к победе (не мы), если её доля суши от Bots.StopLeaderShare
+	leader: number?, -- держава ближе всех к победе (не мы), если её доля суши к победе от Bots.StopLeaderShare (§15п)
 	tradeDeals: number?, -- сколько торговых соглашений (§8.2)
 	alliesAtWar: { number }?, -- союзники, которые воюют (им можно помочь деньгами)
 	money: number,
@@ -97,11 +104,11 @@ export type BotView = {
 	economy: { income: number, oilIncome: number, upkeep: number }, -- в секунду
 	owned: {
 		factories: number,
-		markets: number,
 		rigs: number,
 		forts: number,
 		cityLevels: number,
 		barracksLevel: number?, -- §15д: лучший уровень казарм (танки — 2, ПВО — 3)
+		incomeBonus: number?, -- §15х ч.6: доля к доходу от заводов ур. 3
 		housing: number?,
 	},
 	spots: BuildSpots,
@@ -152,7 +159,8 @@ export type BuildSpots = {
 	port: number?, -- своя прибрежная провинция без здания (§6.12)
 	airfield: number?, -- своя провинция без здания, ближайшая к врагу (§6.13)
 	battery: number?, -- своя провинция без здания, ближайшая к месту недавнего налёта на нас (сводная правка)
-	sam: number?, -- §15з: место под ЗРК у столицы — у врага в войне есть ракетная шахта, своего ЗРК нет
+	sam: number?, -- §15х ч.6: ПВО у столицы под улучшение до ур. 3 (или место для новой) — у врага шахта
+	factory: number?, -- §15х ч.6: свой завод ниже предела — улучшить (ур. 3 — +доход)
 	barracks: number?, -- свои казармы, которые можно улучшить (§15д)
 	batteryCovered: boolean?, -- место налёта уже прикрыто своей батареей ПВО — новую не ставить
 }
@@ -332,7 +340,7 @@ local function chooseBuild(view: BotView, profile: Profile, rng: Rng, atWar: boo
 		add(want("Factory", spots.free))
 		add(want("Housing", spots.free))
 		add(want("OilRig", spots.oilRig))
-		add(want("Market", spots.free))
+		add(want("Factory", spots.factory))
 		add(want("City", spots.city))
 		return if #options > 0 then options[Rng.range(rng, 1, #options)] else nil
 	end
@@ -382,9 +390,9 @@ local function chooseBuild(view: BotView, profile: Profile, rng: Rng, atWar: boo
 				return airfield
 			end
 		end
-		-- §15з: у врага шахта — Генерал ставит ЗРК у столицы.
+		-- §15х ч.6: у врага шахта — Генерал ставит у столицы дальнюю ПВО (ур. 3).
 		if level.smartTarget and spots.sam ~= nil then
-			local sam = want("Sam", spots.sam)
+			local sam = want("AirDefense", spots.sam)
 			if sam ~= nil then
 				return sam
 			end
@@ -413,10 +421,18 @@ local function chooseBuild(view: BotView, profile: Profile, rng: Rng, atWar: boo
 		end
 	end
 	return want("OilRig", if owned.rigs < Config.Bots.MaxRigs then spots.oilRig else nil)
-		or want("Factory", if owned.factories <= personality.maxMarkets then spots.free else nil)
+		or want("Factory", if owned.factories <= personality.maxFactories then spots.free else nil)
 		or want("Barracks", if atWar or barracks < 2 then spots.barracks else nil)
 		or want("Housing", if (owned.housing or 0) < 1 + owned.factories // 2 then spots.free else nil)
-		or want("Market", if owned.markets < personality.maxMarkets then spots.free else nil)
+		-- §15х ч.6: улучшить завод (ур. 3 — +доход, бывший «Рынок»): заводов ур. 3 — до половины maxFactories (улучшение —
+		-- два шага, и каждый сам даёт деньги; так бот строит примерно столько же раз, сколько с рынками).
+		or want(
+			"Factory",
+			if (owned.incomeBonus or 0)
+					< math.ceil(personality.maxFactories / 2) * Config.Buildings.Factory.incomeBonus
+				then spots.factory
+				else nil
+		)
 		or want("Fort", fortSpot)
 		or want("City", spots.city)
 end
@@ -629,6 +645,15 @@ local function techDecision(view: BotView, p: Profile, rng: Rng): Types.Intent?
 	return intent
 end
 
+-- §15п: во сколько раз гарнизон соседа слабее у нашей границы — лидер (доля суши к победе от StopLeaderShare),
+-- воюющий с другими, делит гарнизон по фронтам: (его войн + 1), не больше LeaderSplitMax. Остальные — 1.
+function BotBrain.leaderSplit(n: Neighbour): number
+	if (n.share or 0) < Config.Bots.StopLeaderShare then
+		return 1
+	end
+	return math.clamp(1 + (n.enemies or 0), 1, Config.Bots.LeaderSplitMax)
+end
+
 -- Оценка цели войны (Генерал, §9.1): перевес, длина границы, враг отвлечён, лидер, добыча.
 function BotBrain.targetScore(
 	n: Neighbour,
@@ -636,7 +661,7 @@ function BotBrain.targetScore(
 	personality: Types.BotPersonalityParams,
 	maxBorder: number
 ): number
-	local defense = math.max(1, n.power * Config.Combat.DefenderHomeBonus)
+	local defense = math.max(1, n.power * Config.Combat.DefenderHomeBonus / BotBrain.leaderSplit(n))
 	local score = math.min(send / defense, 4)
 	score *= 0.5 + math.min(1, (n.border or 0) / math.max(1, maxBorder))
 	if n.distracted then
@@ -666,6 +691,13 @@ local function pickTarget(
 			maxBorder = math.max(maxBorder, n.border or 0)
 		end
 	end
+	-- §15у: за союзником с полным доверием — тоже цели (удар через его землю).
+	local reach: { Neighbour } = view.reach or {}
+	for _, n in reach do
+		if filter(n) then
+			table.insert(candidates, n)
+		end
+	end
 	if #candidates == 0 then
 		return nil
 	end
@@ -675,7 +707,10 @@ local function pickTarget(
 	local best: Neighbour? = nil
 	local bestScore = -math.huge
 	for _, n in candidates do
-		local s = if level.smartTarget then BotBrain.targetScore(n, send, profile.personality, maxBorder) else -n.power -- слабейший
+		-- Обычный — «слабейший» сосед; гарнизон лидера на нескольких фронтах — делённый (§15п).
+		local s = if level.smartTarget
+			then BotBrain.targetScore(n, send, profile.personality, maxBorder)
+			else -n.power / BotBrain.leaderSplit(n)
 		if s > bestScore then
 			best, bestScore = n, s
 		end
@@ -702,12 +737,24 @@ local function diplomacy(view: BotView, p: Profile, rng: Rng, memory: Memory?, n
 		return { kind = "rebel" }
 	end
 	-- Союзник воюет — верный бот вступает в войну против его врага-соседа.
+	-- §15у: и против врага за союзником с полным доверием (бить будет через него).
 	local allyEnemies: { number } = view.allyEnemies or {}
 	for _, enemy in allyEnemies do
 		for _, n in view.neighbours do
 			if
 				n.id == enemy
 				and n.canDeclare
+				and send >= Config.Forces.MinFrontStrength
+				and Rng.nextFloat(rng) < 0.5 * personality.loyalty
+			then
+				return { kind = "declare", target = n.id }
+			end
+		end
+		local reach: { Neighbour } = view.reach or {}
+		for _, n in reach do
+			if
+				n.id == enemy
+				and n.canJoin
 				and send >= Config.Forces.MinFrontStrength
 				and Rng.nextFloat(rng) < 0.5 * personality.loyalty
 			then
@@ -766,6 +813,18 @@ local function diplomacy(view: BotView, p: Profile, rng: Rng, memory: Memory?, n
 			memory.lastOfferAt = now
 		end
 		return intent
+	end
+	-- §15у: верный бот предлагает союзнику полное доверие (союз уже достаточно старый — trustReady).
+	-- Случайное число берётся, только если есть кому предложить (иначе поток решений не меняется).
+	if personality.loyalty >= Config.Alliance.BotTrustLoyalty then
+		for _, n in view.neighbours do
+			if n.trustReady and not n.traitor then
+				if Rng.nextFloat(rng) < Config.Alliance.BotTrustChance then
+					return made({ kind = "offer", target = n.id, offer = "trust" })
+				end
+				break
+			end
+		end
 	end
 	-- Союз против лидера: с самым сильным соседом, который не лидер и не предатель.
 	if view.leader ~= nil and view.overlord == nil and (view.allies or 0) < Config.Match.MaxAlliesFfa then
@@ -868,6 +927,39 @@ function BotBrain.decide(view: BotView, rng: Rng, profile: Profile?, memory: Mem
 		end
 	end
 
+	local frontPercent = math.clamp(level.frontPercent * personality.front, 0.1, 0.9)
+	local send = view.power * frontPercent
+	-- §15с: война с соседом, а своего фронта против врагов нет — сначала фронт (Обычный и Генерал; Новичок — как был).
+	if
+		cfg.FrontFirst
+		and atWar
+		and not level.randomTarget
+		and send >= Config.Forces.MinFrontStrength
+		and view.attacks < cfg.MaxAttacks
+	then
+		local hasFront = false
+		for _, f in fronts do
+			if f.target ~= 0 then
+				hasFront = true
+				break
+			end
+		end
+		if not hasFront then
+			local first = pickTarget(view, p, rng, send, function(n: Neighbour): boolean
+				local until_ = if memory ~= nil then memory.retreatUntil[n.id] else nil
+				return n.atWar and (until_ == nil or now >= until_)
+			end)
+			if first ~= nil then
+				return {
+					kind = "attack",
+					target = first.id,
+					percent = frontPercent,
+					focus = if level.useFocus then first.city else nil,
+				}
+			end
+		end
+	end
+
 	if Rng.nextFloat(rng) < level.buildChance * personality.build then
 		local build = chooseBuild(view, p, rng, atWar)
 		if build ~= nil then
@@ -888,8 +980,6 @@ function BotBrain.decide(view: BotView, rng: Rng, profile: Profile?, memory: Mem
 		return techIntent
 	end
 
-	local frontPercent = math.clamp(level.frontPercent * personality.front, 0.1, 0.9)
-	local send = view.power * frontPercent
 	-- Против кого война: лучшая цель среди тех, с кем воюем.
 	local enemy = pickTarget(view, p, rng, send, function(n: Neighbour): boolean
 		local until_ = if memory ~= nil then memory.retreatUntil[n.id] else nil
@@ -899,7 +989,11 @@ function BotBrain.decide(view: BotView, rng: Rng, profile: Profile?, memory: Mem
 	if
 		view.hasCapital
 		and view.queue < level.maxQueue
-		and view.people >= view.maxPeople * level.hireWhenFill
+		and view.people
+			>= view.maxPeople
+				* level.hireWhenFill
+				-- §15с: в войне нанимает раньше (BotLevels.*.warHireFillMul)
+				* (if atWar then level.warHireFillMul else 1)
 		-- Угроза (война или мобилизация): Торговец нанимает чаще (personality.threatHire).
 		and Rng.nextFloat(rng)
 			< level.hireChance * personality.hire * (if #view.wars > 0 then personality.threatHire or 1 else 1)
@@ -1010,7 +1104,9 @@ function BotBrain.decide(view: BotView, rng: Rng, profile: Profile?, memory: Mem
 	if target == nil then
 		return nil
 	end
-	local defense = target.power * (if level.smartTarget then Config.Combat.DefenderHomeBonus else 1)
+	local defense = target.power
+		* (if level.smartTarget then Config.Combat.DefenderHomeBonus else 1)
+		/ (if level.randomTarget then 1 else BotBrain.leaderSplit(target)) -- §15п: лидер на нескольких фронтах; Новичок — как был
 	local need = math.max(Config.Forces.MinFrontStrength, defense * level.advantage * personality.declare)
 	if send >= need then
 		return { kind = "declare", target = target.id }
@@ -1079,6 +1175,13 @@ function BotBrain.answerOffer(offer: OfferView, profile: Profile?): boolean
 		local stronger = offer.fromPower >= offer.myPower * cfg.AllyStrongerShare
 		local score = personality.alliance * (if offer.threat then 1 else 0.6) * (if stronger then 1.2 else 0.9)
 		return score >= 0.9
+	end
+	if offer.kind == "trust" then
+		-- §15у: полное доверие — не лидеру; при общей угрозе, своей войне или если бот верный.
+		if offer.fromIsLeader then
+			return false
+		end
+		return offer.threat or offer.atWarElsewhere or personality.loyalty >= Config.Alliance.BotTrustLoyalty
 	end
 	-- Пакт: соглашается, если сам не собирался нападать (сосед не слабак), если занят войной или миролюбив.
 	return offer.fromPower >= offer.myPower * 0.7 or offer.atWarElsewhere or personality.alliance >= 1.3

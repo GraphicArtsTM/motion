@@ -148,4 +148,38 @@ T.describe("Strings", function()
 			end
 		end
 	)
+
+	T.it(
+		"в шаблонах знак процента — только «%%»: «+5% income» ронял string.format (окно торговли, Studio)",
+		function()
+			local bad: { string } = {}
+			for key, entry in Strings.Table do
+				for _, lang: Strings.Lang in Strings.Langs do
+					local s = Strings.pick(entry, lang)
+					-- Только шаблоны (есть %s / %d …): простой текст с «5%» выводится как есть и не ломается.
+					local template = string.find(s, "%%[%-%+#0]*%d*%.?%d*[sdifgxXqc]") ~= nil
+					local i = if template then 1 else #s + 1
+					while true do
+						local p = string.find(s, "%", i, true)
+						if p == nil then
+							break
+						end
+						if string.sub(s, p + 1, p + 1) == "%" then
+							i = p + 2
+						else
+							local spec = string.match(s, "^%%[%-%+#0]*%d*%.?%d*[sdifgxXqc]", p)
+							if spec == nil or string.match(string.sub(s, p - 1, p - 1), "%d") ~= nil then
+								table.insert(bad, key .. "/" .. lang .. ": " .. s)
+							end
+							i = p + 1
+						end
+					end
+				end
+			end
+			table.sort(bad)
+			if #bad > 0 then
+				error("одиночный %: " .. table.concat(bad, "; "))
+			end
+		end
+	)
 end)

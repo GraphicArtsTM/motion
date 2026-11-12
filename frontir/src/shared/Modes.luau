@@ -104,6 +104,19 @@ function Modes.weekly(unixTime: number): ModeId
 	return list[week % #list + 1] :: ModeId
 end
 
+-- §15ф Ф1: режим без голосования — по кругу Config.Match.ModeRotation (от сида матча).
+function Modes.rotation(seed: number): ModeId
+	local list = Config.Match.ModeRotation
+	return list[math.abs(math.floor(seed)) % #list + 1] :: ModeId
+end
+
+-- §15ф Ф1: следующая карта по кругу Config.MapVote.Pool (неизвестная — первая из пула).
+function Modes.nextMap(current: string): string
+	local pool = Config.MapVote.Pool
+	local k = table.find(pool, current)
+	return pool[if k ~= nil then k % #pool + 1 else 1]
+end
+
 -- Варианты голосования в лобби; «Дуэль» — четвёртым, если игроков ровно 2 или 4 (§5.2).
 function Modes.options(unixTime: number, humans: number?): { ModeId }
 	local out: { ModeId } = { "Ffa", "Teams", Modes.weekly(unixTime) }

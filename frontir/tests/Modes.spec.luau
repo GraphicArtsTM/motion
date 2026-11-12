@@ -109,6 +109,7 @@ T.describe("Режимы (§5.1)", function()
 		"голосование в лобби: только игроки, только варианты; конец лобби — режим и скорость",
 		function()
 			local m = MatchSim.new(Fixtures.pangea, 5)
+			m.lobbyVotes = true -- §15ф Ф1: голосование включено (по умолчанию — режим по очереди)
 			local a = MatchSim.addPlayer(m, 1, "A") :: number
 			local b = MatchSim.addPlayer(m, 2, "B") :: number
 			local c = MatchSim.addPlayer(m, 3, "C") :: number
@@ -293,6 +294,7 @@ T.describe("Режимы (§5.1)", function()
 			T.expect(m.phase).toBe("Over")
 			T.expect(select(2, MatchSim.applyIntent(m, 1, { kind = "mapVote", map = "World" }))).toBe("phase")
 			local lobby = MatchSim.new(Fixtures.pangea, 78)
+			lobby.lobbyVotes = true -- §15ф Ф1
 			MatchSim.addPlayer(lobby, 1001, "Игрок1")
 			MatchSim.addPlayer(lobby, 1002, "Игрок2")
 			MatchSim.startLobby(lobby)
@@ -320,6 +322,7 @@ T.describe("Режимы (§5.1)", function()
 			T.expect(duel.timeLimitSec).toBe(Config.Modes.Duel.TimeLimitSec)
 			-- Лобби: третий игрок пришёл — «Дуэли» нет, голос за неё снят.
 			local m = MatchSim.new(Fixtures.pangea, 31)
+			m.lobbyVotes = true -- §15ф Ф1
 			local a = MatchSim.addPlayer(m, 1, "A") :: number
 			MatchSim.addPlayer(m, 2, "B")
 			MatchSim.startLobby(m)

@@ -38,6 +38,7 @@ local Expansion = require("./Expansion")
 local Flood = require("./Flood")
 local Fleet = require("./Fleet")
 local Forces = require("./Forces")
+local FrontForecast = require("./FrontForecast")
 local Fronts = require("./Fronts")
 local Grid = require("./Grid")
 local MapData = require("./MapData")
@@ -45,6 +46,7 @@ local Modes = require("./Modes")
 local NameGen = require("./NameGen")
 local NationColors = require("./NationColors")
 local Naval = require("./Naval")
+local Passage = require("./Passage")
 local Pockets = require("./Pockets")
 local Provinces = require("./Provinces")
 local Rng = require("./Rng")
@@ -127,7 +129,7 @@ export type MatchEvent =
 	}
 	-- §15ж: эмодзи над столицей державы target
 	| { kind: "emoji", nation: number, target: number, emoji: number }
-	| { kind: "missileHit", nation: number, cell: number, cells: number }
+	| { kind: "missileHit", nation: number, cell: number, cells: number, radius: number }
 	| { kind: "missileShot", nation: number, by: number, cell: number, at: number? } -- at — клетка батареи / ЗРК (§15з)
 	| { kind: "raidIntercepted", nation: number, by: number, cell: number } -- заряд ПВО перехватил налёт (§15д)
 	| { kind: "boatLaunched", nation: number, target: number } -- десант на другой берег (§15д)
@@ -144,6 +146,19 @@ export type MatchEvent =
 	| { kind: "shipBuilt", nation: number, ship: Types.ShipKind }
 	| { kind: "shipSunk", nation: number, by: number, ship: Types.ShipKind, lost: number }
 	| { kind: "landed", nation: number, target: number, cell: number, cells: number }
+	-- §15у: полное доверие и удар через союзника
+	| { kind: "trustRemoved", nation: number, target: number }
+	| {
+		kind: "passageStarted",
+		nation: number,
+		target: number,
+		ally: number,
+		cell: number,
+		from: number,
+		sec: number,
+	}
+	| { kind: "passageArrived", nation: number, target: number, ally: number, cell: number, cells: number }
+	| { kind: "passageReturned", nation: number, target: number, ally: number }
 	| { kind: "blockade", nation: number, cell: number, on: boolean }
 	-- Торговые суда (§15е): доставка (деньги обоим) и пиратство (эсминец врага забрал часть груза)
 	| { kind: "tradeDelivered", nation: number, target: number, amount: number, cell: number }
@@ -154,7 +169,18 @@ export type MatchEvent =
 	| { kind: "raid", nation: number, target: number, cell: number, lost: number, buildings: number }
 
 -- Потоки случайных чисел бота: когда думать, главные решения, флот, авиация, дипломатия.
-export type Missile = { owner: number, cell: number, impactAt: number, warhead: Types.Warhead }
+-- radius — круг удара, зафиксирован при пуске (§15р: от средней державы в тот момент; предупреждение = взрыв).
+export type Missile = { owner: number, cell: number, impactAt: number, warhead: Types.Warhead, radius: number? }
+-- §15у: отряд идёт через землю союзника с полным доверием к врагу.
+export type PassageMarch = {
+	owner: number,
+	ally: number,
+	target: number,
+	exit: number, -- клетка врага, где выйдет
+	from: number, -- наша клетка, откуда пошёл
+	forces: Types.Forces,
+	arriveAt: number, -- simTime
+}
 -- Заражённая зона (§15ж): её ничья земля не берётся до untilTime.
 export type Fallout = { cell: number, radius: number, untilTime: number }
 
@@ -222,6 +248,7 @@ export type Match = {
 	tradeAt: { [number]: number }, -- клетка порта → simTime следующего торгового судна
 	tradeCheckAt: number, -- торговля проверяется раз в секунду (не каждый тик)
 	missiles: { Missile }, -- ракеты в полёте (§6.9)
+	passages: { PassageMarch }, -- §15у: отряды в пути через союзников
 	fallout: { Fallout }, -- заражённые зоны после ядерных ударов (§15ж)
 	doomSince: { [number]: number }, -- §15з: держава → m.time, с какого она ниже планки судного дня
 	doomCheckAt: number,
@@ -238,6 +265,11 @@ export type Match = {
 	nextBlockadeAt: number,
 	result: Types.MatchResult?, -- итог (фаза Over)
 	victory: boolean, -- проверять ли победу (тесты на крошечных картах выключают)
+	giantOff: boolean, -- без бонусов «Сверхдержавы» (§15м) — только для замеров (tools/snowball) и тестов
+	trustGateOff: boolean, -- §15у ч.2: снабжение, ПВО, порты от любого союза (как раньше) — только для замеров
+	trustOff: boolean, -- §15у: боты не предлагают полное доверие (как до §15у) — только для замеров
+	-- Решение бота и ответ сервера — только для замеров (tools/bot_metrics) и тестов; в игре nil.
+	onBotIntent: ((id: number, intent: Types.Intent?, ok: boolean, reason: string?) -> ())?,
 	history: { times: { number }, shares: { [number]: { number } } }, -- доля суши по времени
 	nextHistoryAt: number,
 	-- Режимы (§5.1, этап 8а): правила режима, голосование в лобби, команды, охота на столицы, против ботов.
@@ -249,6 +281,8 @@ export type Match = {
 	mapOptions: { string }, -- голосование за карту в лобби (§15к; раньше — на экране итогов, §5.2)
 	mapVotes: { [number]: string },
 	forcedMode: Types.ModeId?, -- режим без голосования (Dev.Mode, F4)
+	lobbyVotes: boolean, -- §15ф Ф1: голосование за режим и карту (Config.Match.LobbyVotes; тесты голосований — true)
+	rotationMode: Types.ModeId?, -- §15ф Ф1: режим по очереди сервера (ставит startLobby; без лобби — нет)
 	teams: { [number]: number }, -- держава → команда («Команды»)
 	teamCount: number,
 	startCapitals: { [number]: number }, -- держава → исходная столица («Охота на столицы»)
@@ -352,6 +386,7 @@ function MatchSim.new(map: MapData, seed: number): Match
 		tradeAt = {},
 		tradeCheckAt = 0,
 		missiles = {},
+		passages = {},
 		fallout = {},
 		doomSince = {},
 		doomCheckAt = 0,
@@ -367,6 +402,9 @@ function MatchSim.new(map: MapData, seed: number): Match
 		nextBlockadeAt = 0,
 		result = nil,
 		victory = true,
+		giantOff = false,
+		trustGateOff = false,
+		trustOff = false,
 		history = { times = {}, shares = {} },
 		nextHistoryAt = 0,
 		mode = "Ffa",
@@ -377,6 +415,7 @@ function MatchSim.new(map: MapData, seed: number): Match
 		mapOptions = {},
 		mapVotes = {},
 		forcedMode = if Modes.isMode(Config.Dev.Mode) then Config.Dev.Mode :: Types.ModeId else nil,
+		lobbyVotes = Config.Match.LobbyVotes,
 		teams = {},
 		teamCount = 0,
 		startCapitals = {},
@@ -630,7 +669,6 @@ function MatchSim.useArsenal(m: Match, id: number, cell: number?): (boolean, str
 			end
 		end
 		jam(MatchSim.buildingsOf(m, "AirDefense"))
-		jam(MatchSim.buildingsOf(m, "Sam"))
 		if hit == 0 then
 			return false, "noTarget"
 		end
@@ -641,6 +679,12 @@ function MatchSim.useArsenal(m: Match, id: number, cell: number?): (boolean, str
 end
 
 -- Разведка и скрытая мощь (§6.11а) ------------------------------------------------------------
+
+-- §15у ч.2: чьи города, ПВО, порты и зоны «Авиаудара» помогают державе id — друзья по полному доверию
+-- (с флагом m.trustGateOff — любой союз, как до ч.2; только для замеров).
+local function supportFriends(m: Match, id: number): { [number]: boolean }
+	return if m.trustGateOff then Diplomacy.friends(m.diplo, id) else Diplomacy.trustFriends(m.diplo, id)
+end
 
 -- Чью военную мощь видит viewer: сам, друзья, разведанные, в радиусе радаров (своих и друзей),
 -- у Разведчика — соседи по суше (§6.15). nil — видно всё (мощь не скрывается или идёт «Радарная вспышка»).
@@ -752,7 +796,7 @@ function MatchSim.tutorialDone(m: Match, n: Nation, step: number): boolean
 		return MatchSim.citiesOf(m, n.id) >= 2
 	elseif kind == "build" then
 		local o = MatchSim.ownedOf(m, n.id)
-		return o.factories + o.markets + o.rigs + o.forts + o.ports + o.airfields + o.silos + o.barracks + o.housing > 0
+		return o.factories + o.rigs + o.forts + o.ports + o.airfields + o.silos + o.barracks + o.housing > 0
 	elseif kind == "alliance" then
 		return #Diplomacy.alliesOf(m.diplo, n.id) > 0
 	end
@@ -798,7 +842,7 @@ local function stepRadarIntel(m: Match)
 	local w, h = g.width, g.height
 	local r = Config.Fog.RadarVision
 	local step = Config.Intel.RadarStep
-	for _, b in MatchSim.buildingsOf(m, "Radar") do
+	for _, b in MatchSim.buildingsOf(m, "Airfield") do -- §15х ч.6: аэродром — и радар
 		if not MatchSim.isDisabled(m, b.cell) then
 			local seen = m.radarIntel[b.owner]
 			if seen == nil then
@@ -850,8 +894,11 @@ end
 -- Варианты голосования по времени сервера (режим недели — по номеру недели UTC).
 function MatchSim.openVote(m: Match, unixTime: number)
 	m.voteTime = unixTime
-	-- Режим задан (F4, Dev.Mode, частный сервер) — голосования нет.
-	m.modeOptions = if m.forcedMode ~= nil then {} else Modes.options(unixTime, MatchSim.humans(m))
+	-- Режим задан (F4, Dev.Mode, частный сервер) или голосований нет (§15ф Ф1) — вариантов нет.
+	m.modeOptions = if m.forcedMode ~= nil or not m.lobbyVotes then {} else Modes.options(unixTime, MatchSim.humans(m))
+	if not m.lobbyVotes and m.rotationMode ~= nil then
+		m.mode = MatchSim.lobbyMode(m) -- карточка матча показывает режим заранее
+	end
 	table.clear(m.modeVotes)
 	m.infoDirty = true
 end
@@ -861,13 +908,29 @@ local function refreshModeOptions(m: Match)
 	if m.phase ~= "Waiting" and m.phase ~= "Lobby" then
 		return
 	end
-	m.modeOptions = if m.forcedMode ~= nil then {} else Modes.options(m.voteTime, MatchSim.humans(m))
+	m.modeOptions = if m.forcedMode ~= nil or not m.lobbyVotes
+		then {}
+		else Modes.options(m.voteTime, MatchSim.humans(m))
 	for id, mode in m.modeVotes do
 		if table.find(m.modeOptions, mode) == nil then
 			m.modeVotes[id] = nil
 		end
 	end
 	m.infoDirty = true
+end
+
+-- §15ф Ф1: режим этого матча, пока идёт ожидание: заданный (F4, частный сервер, обучение), по голосам (если
+-- голосование включено) или по очереди сервера.
+function MatchSim.lobbyMode(m: Match): Types.ModeId
+	if m.forcedMode ~= nil then
+		return m.forcedMode
+	end
+	if m.lobbyVotes or m.rotationMode == nil then
+		-- Без вариантов (тесты, арена — без лобби) — «Все против всех».
+		local voted: Types.ModeId? = if #m.modeOptions > 0 then Modes.tally(m.modeOptions, m.modeVotes) else nil
+		return voted or "Ffa"
+	end
+	return m.rotationMode :: Types.ModeId
 end
 
 -- Итог голосования за карту (§5.2): карта следующего матча.
@@ -1039,8 +1102,8 @@ function MatchSim.openMapVote(m: Match)
 	m.mapOptions = Modes.mapOptions(m.map.name, function(n: number): number
 		return Rng.range(mapRng, 1, n)
 	end)
-	if m.settings ~= nil and m.settings.map ~= nil then
-		m.mapOptions = {}
+	if (m.settings ~= nil and m.settings.map ~= nil) or not m.lobbyVotes then
+		m.mapOptions = {} -- карта владельца (§5.4) или без голосований (§15ф Ф1): карта — эта
 	end
 	table.clear(m.mapVotes)
 	m.infoDirty = true
@@ -1053,6 +1116,10 @@ function MatchSim.startLobby(m: Match)
 	end
 	m.phase = "Lobby"
 	m.phaseLeft = Config.Match.LobbySec
+	if not m.lobbyVotes then
+		m.rotationMode = Modes.rotation(m.seed) -- §15ф Ф1: режим по очереди сервера
+		m.mode = MatchSim.lobbyMode(m)
+	end
 	MatchSim.openMapVote(m)
 	m.infoDirty = true
 end
@@ -1072,7 +1139,7 @@ function MatchSim.startPick(m: Match)
 	end
 	m.phase = "Pick"
 	m.phaseLeft = Config.Match.StartPickSec
-	MatchSim.setMode(m, m.forcedMode or Modes.tally(m.modeOptions, m.modeVotes))
+	MatchSim.setMode(m, MatchSim.lobbyMode(m))
 	m.solo = MatchSim.humans(m) == 1
 	if m.rules.duel then
 		m.targetNations = math.max(2, MatchSim.humans(m)) -- дуэль без ботов (§5.2); один игрок — против одного бота
@@ -1174,6 +1241,7 @@ function MatchSim.finishPick(m: Match)
 				local b = order[j]
 				if m.teams[a.id] == m.teams[b.id] then
 					Diplomacy.sign(m.diplo, "alliance", a.id, b.id, 0)
+					Diplomacy.setTrust(m.diplo, a.id, b.id, true, 0) -- §15у ч.2: команда — сразу полное доверие
 				end
 			end
 		end
@@ -1230,6 +1298,14 @@ function MatchSim.frontForces(m: Match, nationId: number): Types.Forces
 	for _, a in m.attacks do
 		if a.attacker == nationId then
 			for kind, s in a.forces do
+				Forces.add(sum, kind, s.strength, s.xp)
+			end
+		end
+	end
+	-- §15у: отряды в пути через союзника — тоже на фронте.
+	for _, p in m.passages do
+		if p.owner == nationId then
+			for kind, s in p.forces do
 				Forces.add(sum, kind, s.strength, s.xp)
 			end
 		end
@@ -1499,6 +1575,12 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 		if money == nil then
 			return false, "maxLevel"
 		end
+		-- §15х ч.6: уровень, который открывает технология (ПВО ур. 3 — «Дальняя ПВО»).
+		local existing = m.buildings.byCell[spot]
+		local nextLevel = if existing ~= nil and existing.kind == intent.building then existing.level + 1 else 1
+		if not MatchSim.levelAllows(m, nationId, intent.building, nextLevel) then
+			return false, "needLongRange"
+		end
 		if n.money < money then
 			return false, "noMoney"
 		end
@@ -1663,6 +1745,15 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 		return true, nil
 	end
 
+	if intent.kind == "distrust" then
+		-- §15у: снять полное доверие — сразу, союз остаётся; отряды в пути через этого союзника идут домой.
+		if not Diplomacy.setTrust(m.diplo, nationId, intent.target, false, m.simTime) then
+			return false, "noTrust"
+		end
+		table.insert(m.events, { kind = "trustRemoved", nation = nationId, target = intent.target })
+		return true, nil
+	end
+
 	if intent.kind == "breakTreaty" then
 		if MatchSim.teammates(m, nationId, intent.target) then
 			return false, "team" -- союз команды вечный (§5.1)
@@ -1758,10 +1849,48 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 	if focus ~= nil and MatchSim.overSea(m, nationId, focus) then
 		return MatchSim.seaInvade(m, n, target, focus, intent.percent)
 	end
+	-- Граница с целью есть, но далеко (длинный перешеек), а через пролив ближе: десант, если берег цели у нажатой
+	-- клетки заметно ближе сухопутной линии. Не вышло (нет кораблей, берега) — обычная атака по суше.
+	-- §15у: через союзника с полным доверием, если он граничит с врагом у нажатой клетки, — раньше моря.
+	if focus ~= nil then
+		local far = Config.Naval.InvadeFarCells * m.grid.width / Config.UnitsReferenceMapWidth
+		local byLand = MatchSim.landDistance(m, nationId, target, focus)
+		if byLand ~= nil and byLand > far and target ~= 0 then
+			local route = MatchSim.passageRoute(m, nationId, target, focus)
+			if
+				route ~= nil
+				and Passage.distance(route.exit, focus, m.grid.width) < byLand * Config.Naval.InvadeCloserMul
+			then
+				return MatchSim.startPassage(m, n, target, route, intent.percent)
+			end
+		end
+		if byLand ~= nil and byLand > far then
+			local ok = MatchSim.seaInvade(m, n, target, focus, intent.percent, byLand * Config.Naval.InvadeCloserMul)
+			if ok then
+				return true, nil
+			end
+		end
+	end
 	-- Города в соседстве считаются, если их есть чем брать: фронт против державы или войска с собой.
 	-- Фронт против страны видит и землю за рекой; граница людей реку не переходит.
 	local riverMap = if target ~= 0 then m.map else nil
 	if not Expansion.hasFrontier(m.grid, nationId, target, target ~= 0 or Forces.total(n.home) > 0, riverMap) then
+		-- Общей границы нет, а цель — на том же массиве суши за заливом или проливом: тоже десант (§15д).
+		-- Без точки удара (боты, кнопки) плывём к столице врага.
+		local point = focus
+		if point == nil and target ~= 0 then
+			point = m.nations[target].capital
+		end
+		-- §15у: между нами союзник с полным доверием — войска идут через его землю (раньше моря).
+		if point ~= nil and target ~= 0 then
+			local route = MatchSim.passageRoute(m, nationId, target, point)
+			if route ~= nil then
+				return MatchSim.startPassage(m, n, target, route, intent.percent)
+			end
+		end
+		if point ~= nil and Grid.getOwner(m.grid, point) == target and Grid.isCapturable(m.grid, point) then
+			return MatchSim.seaInvade(m, n, target, point, intent.percent)
+		end
 		return false, "notAdjacent"
 	end
 	local _, existing = findAttack(m, nationId, target)
@@ -1875,11 +2004,23 @@ local function buildSpots(m: Match, n: Nation): BotBrain.BuildSpots
 			end
 		end
 	end
-	-- Свои казармы ниже предела — улучшить (§15д).
+	-- Свои казармы и заводы ниже предела — улучшить (§15д; заводы — §15х ч.6).
 	for cell, b in m.buildings.byCell do
 		if b.kind == "Barracks" and b.level < Buildings.maxLevel("Barracks") and Grid.getOwner(g, cell) == n.id then
 			spots.barracks = cell
 			break
+		end
+	end
+	-- Завод — тот, что ближе к ур. 3 (сначала довести один до бонуса к доходу, потом следующий).
+	local factoryLevel = 0
+	for cell, b in m.buildings.byCell do
+		if
+			b.kind == "Factory"
+			and b.level < Buildings.maxLevel("Factory")
+			and b.level > factoryLevel
+			and Grid.getOwner(g, cell) == n.id
+		then
+			spots.factory, factoryLevel = cell, b.level
 		end
 	end
 	for _, cell in m.cityOf do
@@ -1889,8 +2030,14 @@ local function buildSpots(m: Match, n: Nation): BotBrain.BuildSpots
 			end
 		end
 	end
-	-- §15з: ЗРК у столицы, если у врага в войне есть ракетная шахта, а своего ЗРК нет.
-	if n.capital ~= nil and MatchSim.ownedOf(m, n.id).sams == 0 and MatchSim.techAllows(m, n.id, "Sam") then
+	-- §15з → §15х ч.6: дальняя ПВО у столицы, если у врага в войне есть ракетная шахта, а своей дальней ПВО нет:
+	-- своя ПВО у столицы ниже ур. 3 — улучшить, нет — поставить в ближайшей свободной провинции.
+	local longFrom = Config.Buildings.AirDefense.longRangeLevel
+	if
+		n.capital ~= nil
+		and MatchSim.ownedOf(m, n.id).longRange == 0
+		and MatchSim.levelAllows(m, n.id, "AirDefense", longFrom)
+	then
 		local threat = false
 		for _, s in MatchSim.buildingsOf(m, "MissileSilo") do
 			if Wars.isActive(m.wars, n.id, s.owner) then
@@ -1902,6 +2049,17 @@ local function buildSpots(m: Match, n: Nation): BotBrain.BuildSpots
 			local w = g.width
 			local cap = n.capital :: number
 			local best = math.huge
+			for cell, b in m.buildings.byCell do
+				if b.kind == "AirDefense" and b.level < longFrom and Grid.getOwner(g, cell) == n.id then
+					local d = (cell % w - cap % w) ^ 2 + (cell // w - cap // w) ^ 2
+					if d < best then
+						spots.sam, best = cell, d
+					end
+				end
+			end
+			if spots.sam ~= nil then
+				best = -1 -- есть своя ПВО ниже ур. 3 — улучшаем её, новую не ставим
+			end
 			for _, p in m.provinces.list do
 				if Grid.getOwner(g, p.center) == n.id and m.buildings.byProvince[p.id] == nil then
 					local d = (p.center % w - cap % w) ^ 2 + (p.center // w - cap // w) ^ 2
@@ -2064,13 +2222,14 @@ local function botView(m: Match, n: Nation): BotBrain.BotView
 		if owner ~= 0 then
 			local other = m.nations[owner]
 			if other ~= nil and other.alive then
-				-- Отвлечён: уже воюет с кем-то, кроме нас.
-				local distracted = false
+				-- Отвлечён: уже воюет с кем-то, кроме нас (§15п: со сколькими — гарнизон лидера делится по фронтам).
+				local enemies = 0
 				for _, war in Wars.of(m.wars, owner) do
 					if Wars.enemyOf(war, owner) ~= n.id then
-						distracted = true
+						enemies += 1
 					end
 				end
+				local distracted = enemies > 0
 				local t = Diplomacy.treaty(ds, n.id, owner)
 				local treaty: ("pact" | "alliance" | "vassal" | "overlord")? = if t ~= nil
 					then t.kind
@@ -2092,12 +2251,55 @@ local function botView(m: Match, n: Nation): BotBrain.BotView
 					weakened = weakenedElsewhere(m, owner, n.id),
 					embargo = Diplomacy.embargoed(ds, n.id, owner),
 					border = border,
-					share = Grid.cellsOf(g, owner) / math.max(1, g.capturableCount),
+					share = MatchSim.victoryShareOf(m, owner), -- §15п: суша к победе (с вассалами)
 					distracted = distracted,
+					enemies = enemies,
 					mix = Forces.composition(other.home),
 					city = nearCity[owner],
 					cities = cityCount[owner] or 0,
+					trust = t ~= nil and t.trust == true, -- §15у
+					trustReady = not m.trustOff
+						and treaty == "alliance"
+						and (t == nil or not t.trust)
+						and (Diplomacy.canOffer(ds, n.id, owner, "trust", m.simTime)),
 				})
+			end
+		end
+	end
+	-- §15у: державы за союзниками с полным доверием (граничат с союзником, не с нами) — бить через союзника.
+	local reach: { BotBrain.Neighbour } = {}
+	local seenReach: { [number]: boolean } = {}
+	for _, ally in Diplomacy.trustedOf(ds, n.id) do
+		if adjacent[ally] ~= nil then
+			for owner in Grid.adjacentOwners(m.grid, ally) do
+				local other = m.nations[owner]
+				if
+					owner ~= 0
+					and owner ~= n.id
+					and adjacent[owner] == nil
+					and not seenReach[owner]
+					and other ~= nil
+					and other.alive
+				then
+					seenReach[owner] = true
+					local free = Diplomacy.treaty(ds, n.id, owner) == nil
+						and myLord ~= owner
+						and Diplomacy.overlordOf(ds, owner) ~= n.id
+					table.insert(reach, {
+						id = owner,
+						people = other.people,
+						power = Forces.total(other.home),
+						frontPower = Forces.total(MatchSim.frontForces(m, owner)),
+						atWar = Wars.isActive(m.wars, n.id, owner),
+						canDeclare = false, -- сам по себе войну дальнему не объявляет — только вместе с союзником
+						canJoin = free and (Wars.canDeclare(m.wars, n.id, owner, m.simTime)),
+						via = ally,
+						border = 0,
+						share = MatchSim.victoryShareOf(m, owner),
+						mix = Forces.composition(other.home),
+						city = other.capital,
+					})
+				end
 			end
 		end
 	end
@@ -2115,13 +2317,7 @@ local function botView(m: Match, n: Nation): BotBrain.BotView
 			end
 		end
 	end
-	local leader: number? = nil
-	local leaderCells = g.capturableCount * Config.Bots.StopLeaderShare
-	for _, other in m.nations do
-		if other.alive and other.id ~= n.id and Grid.cellsOf(g, other.id) >= leaderCells then
-			leader, leaderCells = other.id, Grid.cellsOf(g, other.id)
-		end
-	end
+	local leader = MatchSim.botLeader(m, { [n.id] = true }) -- §15п: по суше к победе, от 25%
 	local fronts: { BotBrain.FrontView } = {}
 	for _, a in m.attacks do
 		if a.attacker == n.id then
@@ -2174,6 +2370,7 @@ local function botView(m: Match, n: Nation): BotBrain.BotView
 		time = m.simTime,
 		allies = #Diplomacy.alliesOf(ds, n.id),
 		allyEnemies = allyEnemies,
+		reach = reach,
 		overlord = myLord,
 		overlordPower = if myLord ~= nil then totalPower(m, myLord) else nil,
 		canRebel = (Diplomacy.canRebel(ds, n.id, m.simTime)),
@@ -2195,6 +2392,11 @@ end
 -- Держава выбыла: войска гибнут, её клетки становятся ничьими, атаки на неё заканчиваются.
 local function eliminate(m: Match, n: Nation, by: number)
 	Diplomacy.removeNation(m.diplo, n.id)
+	for k = #m.passages, 1, -1 do
+		if m.passages[k].owner == n.id then
+			table.remove(m.passages, k)
+		end
+	end
 	Stability.removeNation(m.stability, n.id)
 	Tech.removeNation(m.tech, n.id)
 	Commanders.removeNation(m.commanders, n.id)
@@ -2409,7 +2611,12 @@ function MatchSim.offer(
 		return false, "diplomacyOff"
 	end
 	-- Команды (§5.1): союз и пакты — только своя команда (вечный союз уже есть), требовать у своих нельзя.
-	if m.rules.teams and (kind ~= "trade" and (kind ~= "demand" or MatchSim.teammates(m, from, to))) then
+	if
+		m.rules.teams
+		and kind ~= "trade"
+		and not (kind == "trust" and MatchSim.teammates(m, from, to)) -- §15у: доверие внутри команды можно
+		and (kind ~= "demand" or MatchSim.teammates(m, from, to))
+	then
 		return false, "team"
 	end
 	local ok, reason = Diplomacy.canOffer(m.diplo, from, to, kind, m.simTime)
@@ -2474,6 +2681,16 @@ function MatchSim.resolveOffer(m: Match, offer: Diplomacy.Offer, accept: boolean
 			-- Те же проверки, что при предложении (без паузы между предложениями: оно уже сделано).
 			if Diplomacy.canOffer(m.diplo, from, to, "trade", m.simTime + Config.Diplomacy.OfferRetrySec) then
 				Diplomacy.signTrade(m.diplo, from, to, m.simTime)
+			else
+				accept = false
+			end
+		elseif kind == "trust" then
+			-- §15у: союз ещё держится (не разрывается) — полное доверие.
+			if
+				Diplomacy.canOffer(m.diplo, from, to, "trust", m.simTime + Config.Diplomacy.OfferRetrySec)
+				and Wars.find(m.wars, from, to) == nil
+			then
+				Diplomacy.setTrust(m.diplo, from, to, true, m.simTime)
 			else
 				accept = false
 			end
@@ -2558,7 +2775,7 @@ end
 -- «Сверхдержава» (§15м): насколько держава огромна (0..1) по доле во всей захватываемой суше.
 function MatchSim.giantOf(m: Match, id: number): number
 	local total = m.grid.capturableCount
-	if id == 0 or total <= 0 then
+	if id == 0 or total <= 0 or m.giantOff then
 		return 0
 	end
 	return Fronts.giant(Grid.cellsOf(m.grid, id) / total)
@@ -2674,7 +2891,7 @@ local function stepAttacks(m: Match, simDt: number): number
 					cities,
 					a.attacker,
 					front.list,
-					Diplomacy.friends(m.diplo, a.attacker),
+					supportFriends(m, a.attacker), -- §15у ч.2: города союзника — при полном доверии
 					if Tech.has(m.tech, a.attacker, "Army", 2) then Config.Tech.SupplyRangeMul else 1
 				) and fromAtkPocket * 2 <= #front.list
 				-- Снабжение по морю (§6.12): рядом с линией фронта берег, до которого недалеко от своего порта.
@@ -2702,24 +2919,36 @@ local function stepAttacks(m: Match, simDt: number): number
 				end
 				-- Встречные фронты пары — один бой: потери считаются один раз за тик.
 				local applyLosses = not (counter ~= nil and battled[counter])
-				local result = Fronts.battle(
-					a,
-					{
-						home = defender.home,
-						share = homeShare,
-						counter = if counter ~= nil then counter.forces else nil,
-						bonus = (if still then Config.Fortify.LineBonus else 1) * MatchSim.abilityDefenseMul(m, a),
-						armor = if Tech.has(m.tech, a.target, "Army", 4) then Config.Tech.TankArmor else nil, -- Войска-4 (сводная правка)
-						giantAttacker = MatchSim.giantOf(m, a.attacker), -- §15м
-					},
-					Fronts.terrainDefense(m.map, front.list, front.river, fortified),
-					battleRng(m, a),
-					simDt,
-					applyLosses
-				)
+				local terrainDef = Fronts.terrainDefense(m.map, front.list, front.river, fortified)
+				local abilityMul = MatchSim.abilityDefenseMul(m, a)
+				local result = Fronts.battle(a, {
+					home = defender.home,
+					share = homeShare,
+					counter = if counter ~= nil then counter.forces else nil,
+					bonus = (if still then Config.Fortify.LineBonus else 1) * abilityMul,
+					armor = if Tech.has(m.tech, a.target, "Army", 4) then Config.Tech.TankArmor else nil, -- Войска-4 (сводная правка)
+					giantAttacker = MatchSim.giantOf(m, a.attacker), -- §15м
+				}, terrainDef, battleRng(m, a), simDt, applyLosses)
 				battled[a] = true
 				a.ratio = result.ratio
 				a.fighting = result.fighting
+				-- Прогноз фронта (§15н): причина торможения — самый большой множитель обороны на линии.
+				a.burn = result.burn
+				a.needAtk = FrontForecast.needAttack(Forces.total(a.forces), result.ratio)
+				a.needDef = FrontForecast.needDefense(result.defStrength, result.ratio)
+				a.why = 0
+				if result.fighting and result.ratio < Config.Combat.FullSpeedRatio then
+					local plain = Fronts.terrainDefense(m.map, front.list, nil, nil)
+					local withRiver = Fronts.terrainDefense(m.map, front.list, front.river, nil)
+					a.why = FrontForecast.why({
+						supply = if a.supplied then 1 else 1 / Config.Combat.UnsuppliedPowerMul,
+						fortLine = if still then Config.Fortify.LineBonus else 1,
+						forts = terrainDef / math.max(withRiver, 1e-6),
+						river = withRiver / math.max(plain, 1e-6),
+						terrain = plain,
+						ability = abilityMul,
+					}, result.ratio, result.fighting)
+				end
 				Wars.addLosses(war, a.attacker, result.lostAttacker)
 				Wars.addLosses(war, a.target, result.lostDefender)
 				local mul = Fronts.advanceMul(
@@ -2879,30 +3108,43 @@ local function stepCouncil(m: Match)
 	end
 end
 
+-- §15п: доля суши к победе (своя + вассалы с весом §15о) — так боты видят, кто близок к победе.
+function MatchSim.victoryShareOf(m: Match, id: number): number
+	return MatchSim.victoryLandOf(m, id) / math.max(1, m.grid.capturableCount)
+end
+
+-- §15п: лидер для ботов — держава (не вассал, не из except) с наибольшей сушей к победе от Bots.StopLeaderShare.
+function MatchSim.botLeader(m: Match, except: { [number]: boolean }?): number?
+	local best: number? = nil
+	local bestShare = Config.Bots.StopLeaderShare
+	for _, other in m.nations do
+		if
+			other.alive
+			and (except == nil or not except[other.id])
+			and Diplomacy.overlordOf(m.diplo, other.id) == nil
+		then
+			local share = MatchSim.victoryShareOf(m, other.id)
+			if share >= bestShare then
+				best, bestShare = other.id, share
+			end
+		end
+	end
+	return best
+end
+
 -- Бот решает, принять ли предложение или требование (§8.1).
 local function botAnswersOffer(m: Match, offer: Diplomacy.Offer): boolean
 	if m.rules.tutorial and offer.kind == "alliance" then
 		return true -- обучение (§5.5): бот соглашается на союз
 	end
-	local g = m.grid
-	local leaderCells = g.capturableCount * Config.Bots.StopLeaderShare
-	local threat = false
-	for _, other in m.nations do
-		if
-			other.alive
-			and other.id ~= offer.to
-			and other.id ~= offer.from
-			and Grid.cellsOf(g, other.id) >= leaderCells
-		then
-			threat = true
-		end
-	end
+	-- §15п: «общая угроза» — лидер (не мы и не предлагающий) по суше к победе; «предлагает сам лидер» — так же.
+	local threat = MatchSim.botLeader(m, { [offer.to] = true, [offer.from] = true }) ~= nil
 	return BotBrain.answerOffer({
 		kind = offer.kind,
 		myPower = totalPower(m, offer.to),
 		fromPower = totalPower(m, offer.from),
 		fromTraitor = Diplomacy.isTraitor(m.diplo, offer.from, m.simTime),
-		fromIsLeader = Grid.cellsOf(g, offer.from) >= leaderCells,
+		fromIsLeader = MatchSim.victoryShareOf(m, offer.from) >= Config.Bots.StopLeaderShare,
 		threat = threat,
 		atWarElsewhere = #Wars.of(m.wars, offer.to) > 0,
 		allies = #Diplomacy.alliesOf(m.diplo, offer.to),
@@ -2947,7 +3189,7 @@ local function stepEconomy(m: Match, n: Nation, simDt: number)
 	local cityLevels = owned.cityLevels - unrest.lowCityLevels * cut
 	local e: NationEconomy = {
 		-- Генералу +10% дохода — единственное послабление ботам (§9).
-		income = Economy.income(math.max(0, cells), math.max(0, cityLevels), 0, owned.factoryIncome, owned.marketBonus)
+		income = Economy.income(math.max(0, cells), math.max(0, cityLevels), owned.factoryIncome, owned.incomeBonus)
 			* (1 + (if n.isBot then profileOf(m, n.id).level.incomeBonus else 0)),
 		oilIncome = Economy.oilIncome(owned.rigOil),
 		upkeep = Economy.upkeep(strength) + owned.upkeep, -- войска и здания (§15д)
@@ -3017,7 +3259,7 @@ local function stepPockets(m: Match)
 			local inPocket: { [number]: number } = {}
 			local cells = 0
 			for _, pocket in computed.pockets do
-				if not MatchSim.overseas(m, n, pocket.cells) then
+				if not MatchSim.overseas(m, n, pocket.cells) and not MatchSim.allyCorridor(m, n.id, pocket.cells) then
 					table.insert(kept, pocket)
 					for _, cell in pocket.cells do
 						inPocket[cell] = #kept
@@ -3078,6 +3320,12 @@ function MatchSim.recruitLines(m: Match, nationId: number): number
 end
 
 -- Технологии (§6.14, этап 7в-1) ---------------------------------------------------------------
+
+-- §15х ч.6: открыт ли державе уровень level здания kind (Config.Tech.LevelUnlocks; остальные — всегда).
+function MatchSim.levelAllows(m: Match, nationId: number, kind: Types.BuildingKind, level: number): boolean
+	local need = (Config.Tech.LevelUnlocks :: any)[kind]
+	return need == nil or level < need.from or Tech.has(m.tech, nationId, need.branch, need.level)
+end
 
 -- Открыто ли державе здание kind технологией (Config.Tech.Unlocks; остальные здания — всегда).
 function MatchSim.techAllows(m: Match, nationId: number, kind: Types.BuildingKind): boolean
@@ -3144,7 +3392,7 @@ function MatchSim.abilityDefenseMul(m: Match, a: Attack): number
 	local mul = 1
 	for _, s in st.strikes do
 		if
-			(s.owner == a.attacker or Diplomacy.friends(m.diplo, a.attacker)[s.owner])
+			(s.owner == a.attacker or supportFriends(m, a.attacker)[s.owner]) -- §15у ч.2
 			and Wars.isActive(m.wars, s.owner, a.target)
 			and lineTouches(m, a, s.cell, cfg.StrikeRadius)
 		then
@@ -3601,13 +3849,30 @@ function MatchSim.nukeConfig(warhead: Types.Warhead): any
 	return if warhead == "atom" then Config.Nukes.Atom elseif warhead == "hydrogen" then Config.Nukes.Hydrogen else nil
 end
 
--- Радиус удара боеголовки в клетках этой карты.
+-- Радиус удара боеголовки в клетках этой карты. Ракета — постоянный. Бомбы (§15р): круг ≈ доля `area` средней живой
+-- державы (её суша сейчас; до начала игры — суша карты / держав матча), в пределах RadiusMinScale…RadiusMaxScale от
+-- прежнего радиуса по ширине карты. Летящая бомба хранит радиус пуска (Missile.radius).
 function MatchSim.warheadRadius(m: Match, warhead: Types.Warhead): number
 	local nuke = MatchSim.nukeConfig(warhead)
 	if nuke == nil then
 		return Config.Buildings.MissileSilo.strikeRadius
 	end
-	return math.max(1, math.round(nuke.radius * m.grid.width / Config.UnitsReferenceMapWidth))
+	local old = nuke.radius * m.grid.width / Config.UnitsReferenceMapWidth
+	local area = nuke.area
+	local owned, alive = 0, 0
+	for _, n in m.nations do
+		if n.alive then
+			local cells = Grid.cellsOf(m.grid, n.id)
+			if cells > 0 then
+				owned += cells
+				alive += 1
+			end
+		end
+	end
+	local perNation = if alive > 0 then owned / alive else m.grid.capturableCount / math.max(2, m.targetNations)
+	local r = math.sqrt(area * perNation / math.pi)
+	local cfg = Config.Nukes
+	return math.max(1, math.round(math.clamp(r, old * cfg.RadiusMinScale, old * cfg.RadiusMaxScale)))
 end
 
 -- В заражённой зоне ли клетка (§15ж).
@@ -3669,7 +3934,11 @@ function MatchSim.launch(m: Match, n: Nation, cell: number, warhead: Types.Warhe
 		warning = nuke.warningSec
 	end
 	m.missileReady[n.id] = m.simTime + cfg.cooldownSec
-	table.insert(m.missiles, { owner = n.id, cell = cell, impactAt = m.simTime + warning, warhead = kind })
+	local radius = MatchSim.warheadRadius(m, kind) -- §15р: круг фиксируется при пуске
+	table.insert(
+		m.missiles,
+		{ owner = n.id, cell = cell, impactAt = m.simTime + warning, warhead = kind, radius = radius }
+	)
 	table.insert(m.events, {
 		kind = "missileLaunched",
 		nation = n.id,
@@ -3686,18 +3955,15 @@ end
 -- Удар ракеты (или перехват сетью ПВО).
 -- Удары и защита (§15д ч.3) -----------------------------------------------------------------------
 
--- Заряды батареи ПВО или ЗРК (§15з) в клетке cell: сколько готово и сколько всего. Батарея — ур. × ChargesPerLevel
--- («Сеть ПВО» — больше), ЗРК — по заряду за уровень.
+-- Заряды батареи ПВО в клетке cell: сколько готово и сколько всего — ур. × ChargesPerLevel («Сеть ПВО» — больше).
 function MatchSim.batteryCharges(m: Match, cell: number): (number, number)
 	local b = m.buildings.byCell[cell]
-	if b == nil or (b.kind ~= "AirDefense" and b.kind ~= "Sam") then
+	if b == nil or b.kind ~= "AirDefense" then
 		return 0, 0
 	end
 	local cfg = Config.Defense
 	local owner = Grid.getOwner(m.grid, cell)
-	local max = if b.kind == "Sam"
-		then b.level
-		else b.level * cfg.ChargesPerLevel + (if Tech.has(m.tech, owner, "Fleet", 4) then cfg.NetworkBonus else 0)
+	local max = b.level * cfg.ChargesPerLevel + (if Tech.has(m.tech, owner, "Fleet", 4) then cfg.NetworkBonus else 0)
 	local spent = m.aaSpent[cell]
 	local used = 0
 	if spent ~= nil then
@@ -3714,33 +3980,33 @@ function MatchSim.batteryCharges(m: Match, cell: number): (number, number)
 	return math.max(0, max - used), max
 end
 
--- Защитники клетки: батареи ПВО (радиус Buildings.AirDefense.radius) victim и её друзей с готовыми зарядами,
--- а против ракет и бомб (vsMissile) — ещё ЗРК (§15з, дальнобойные). Ближайшие — первыми.
+-- Защитники клетки: батареи ПВО (радиус Buildings.AirDefense.radius) victim и её друзей с готовыми зарядами;
+-- против ракет и бомб (vsMissile) ПВО ур. 3 бьёт дальним кругом (§15х ч.6, бывший ЗРК). Ближайшие — первыми.
 type Defender = { cell: number, owner: number, d: number, charges: number, recharge: number }
 local function defenders(m: Match, victim: number, cell: number, vsMissile: boolean): { Defender }
 	local out: { Defender } = {}
 	if victim == 0 then
 		return out
 	end
-	local friends = Diplomacy.friends(m.diplo, victim)
+	local friends = supportFriends(m, victim) -- §15у ч.2: ПВО союзника — при полном доверии
 	local w = m.grid.width
 	local cx, cy = cell % w, cell // w
-	local function scan(kind: Types.BuildingKind, reach: number, recharge: number)
-		for _, b in MatchSim.buildingsOf(m, kind) do
-			if b.owner == victim or friends[b.owner] then
-				local dx, dy = b.cell % w - cx, b.cell // w - cy
-				local d = dx * dx + dy * dy
-				local charges = MatchSim.batteryCharges(m, b.cell)
-				if d <= reach * reach and charges > 0 then
-					table.insert(out, { cell = b.cell, owner = b.owner, d = d, charges = charges, recharge = recharge })
-				end
+	local cfg = Config.Buildings.AirDefense
+	local near = cfg.radius
+	local far = math.max(near, cfg.longRadius * w / Config.UnitsReferenceMapWidth) -- не меньше ближнего
+	for _, b in MatchSim.buildingsOf(m, "AirDefense") do
+		if b.owner == victim or friends[b.owner] then
+			local building = m.buildings.byCell[b.cell]
+			local level = if building ~= nil then building.level else 1
+			local reach = if vsMissile and level >= cfg.longRangeLevel then far else near
+			local dx, dy = b.cell % w - cx, b.cell // w - cy
+			local d = dx * dx + dy * dy
+			local charges = MatchSim.batteryCharges(m, b.cell)
+			if d <= reach * reach and charges > 0 then
+				local recharge = Config.Defense.RechargeSec
+				table.insert(out, { cell = b.cell, owner = b.owner, d = d, charges = charges, recharge = recharge })
 			end
 		end
-	end
-	scan("AirDefense", Config.Buildings.AirDefense.radius, Config.Defense.RechargeSec)
-	if vsMissile then
-		local sam = Config.Buildings.Sam
-		scan("Sam", sam.radius * w / Config.UnitsReferenceMapWidth, sam.rechargeSec)
 	end
 	table.sort(out, function(a: Defender, b: Defender): boolean
 		return if a.d ~= b.d then a.d < b.d else a.cell < b.cell
@@ -3884,7 +4150,7 @@ local function nukeImpact(m: Match, missile: Missile)
 	local w = g.width
 	local cell = missile.cell
 	local nuke = MatchSim.nukeConfig(missile.warhead)
-	local r = MatchSim.warheadRadius(m, missile.warhead)
+	local r = missile.radius or MatchSim.warheadRadius(m, missile.warhead)
 	local victim = Grid.getOwner(g, cell)
 	local by, at = MatchSim.interceptCharges(m, victim, cell, nuke.charges)
 	if by ~= nil then
@@ -3974,7 +4240,7 @@ local function missileImpact(m: Match, missile: Missile)
 	local g = m.grid
 	local w = g.width
 	local cell = missile.cell
-	local r = Config.Buildings.MissileSilo.strikeRadius
+	local r = missile.radius or MatchSim.warheadRadius(m, "missile") -- §15р: круг пуска
 	local cx, cy = cell % w, cell // w
 	-- Заряды ПВО (§15д ч.3): батарея державы-цели или её друга рядом с целью с зарядом — ракета сбита.
 	local by, at = MatchSim.intercept(m, Grid.getOwner(g, cell), cell, true)
@@ -4004,7 +4270,7 @@ local function missileImpact(m: Match, missile: Missile)
 			Forces.applyDamage(a.forces, Forces.total(a.forces) * Config.Missile.FrontLoss)
 		end
 	end
-	table.insert(m.events, { kind = "missileHit", nation = missile.owner, cell = cell, cells = taken })
+	table.insert(m.events, { kind = "missileHit", nation = missile.owner, cell = cell, cells = taken, radius = r })
 end
 
 -- События по расписанию, конец шторма и аукциона, удары ракет.
@@ -4294,7 +4560,7 @@ end
 
 -- Берег, который снабжают по морю незаблокированные порты державы и её друзей (§6.12).
 local function seaSupplySets(m: Match, nationId: number): { { [number]: boolean } }
-	local friends = Diplomacy.friends(m.diplo, nationId)
+	local friends = supportFriends(m, nationId) -- §15у ч.2: порты союзника — при полном доверии
 	local sets: { { [number]: boolean } } = {}
 	for _, p in MatchSim.ports(m) do
 		if friends[p.owner] and not m.fleet.blocked[p.cell] then
@@ -4531,53 +4797,157 @@ function MatchSim.overSea(m: Match, id: number, cell: number): boolean
 	return true
 end
 
--- Десант на корабле (§15д): из своей прибрежной провинции у того же моря, ближайшей к focus, выходит десантный
--- корабль с долей войск (и людей), плывёт и высаживается у focus. Порт не нужен; после высадки корабль исчезает.
-function MatchSim.seaInvade(m: Match, n: Nation, target: number, focus: number, percent: number): (boolean, string?)
+-- Свой берег (§15д): наши клетки у моря (не озера) — клетка, вода рядом и номер моря. Считается по клеткам, а не по
+-- центрам провинций: частично взятая прибрежная провинция тоже даёт берег.
+local function myCoast(m: Match, id: number): { { cell: number, water: number, sea: number } }
+	local g, w = m.grid, m.grid.width
+	local out = {}
+	for i in Grid.borderCells(g, id) do
+		local x = i % w
+		for k = 1, 4 do
+			local j = if k == 1
+				then (if x > 0 then i - 1 else -1)
+				elseif k == 2 then (if x < w - 1 then i + 1 else -1)
+				elseif k == 3 then i - w
+				else i + w
+			local seaId = Naval.seaAt(m.sea, j)
+			if seaId ~= 0 then
+				table.insert(out, { cell = i, water = j, sea = seaId })
+				break
+			end
+		end
+	end
+	return out
+end
+
+-- Насколько далеко нажатая клетка от нашей сухопутной линии с целью (клеток; nil — общей границы нет).
+function MatchSim.landDistance(m: Match, id: number, target: number, cell: number): number?
+	local g, w = m.grid, m.grid.width
+	local cx, cy = cell % w, cell // w
+	local best = math.huge
+	for i in Grid.borderCells(g, id) do
+		local d = (i % w - cx) ^ 2 + (i // w - cy) ^ 2
+		if d < best then
+			local touches = false
+			Grid.forNeighbours(g, i, function(j)
+				touches = touches or (Grid.getOwner(g, j) == target and Grid.isCapturable(g, j))
+			end)
+			if touches then
+				best = d
+			end
+		end
+	end
+	return if best < math.huge then math.sqrt(best) else nil
+end
+
+-- Десант на корабле (§15д): из своей прибрежной клетки у того же моря, ближайшей к focus, выходит десантный
+-- корабль с долей войск (и людей), плывёт и высаживается на земле цели у focus. Порт не нужен; после высадки
+-- корабль исчезает. within — высадка не дальше стольких клеток от focus (nil — любой берег в BoatSearch).
+-- Груз снимается только когда всё проверено: отказ ничего не списывает.
+function MatchSim.seaInvade(
+	m: Match,
+	n: Nation,
+	target: number,
+	focus: number,
+	percent: number,
+	within: number?
+): (boolean, string?)
 	local cfg = Config.Naval
 	if Fleet.boats(m.fleet, n.id) >= cfg.MaxBoats then
 		return false, "tooManyBoats"
 	end
-	-- Берег острова, ближайший к нажатой клетке: море — расширяющимся поиском, высадка — на суше того же острова у него.
-	local w = m.grid.width
-	local water: number? = nil
-	for _, r in cfg.BoatSearch do
-		water = Naval.waterNear(m.sea, focus, r)
-		if water ~= nil then
-			break
+	local w, h = m.grid.width, m.grid.height
+	local fx, fy = focus % w, focus // w
+	local coast = myCoast(m, n.id)
+	local mySeas: { number } = {}
+	for _, c in coast do
+		if table.find(mySeas, c.sea) == nil then
+			table.insert(mySeas, c.sea)
 		end
 	end
-	if water == nil then
-		return false, "notCoast"
+	if #mySeas == 0 then
+		return false, "noCoast"
 	end
+	-- Место высадки — ближайшая к focus земля цели на том же массиве суши у воды моря с нашим берегом
+	-- (расширяющийся поиск): остров, залив на своём материке; чужой берег третьей державы не выбирается.
 	local island = Naval.landAt(m.sea, focus)
-	local shore: number? = nil
-	local shoreD = math.huge
-	local wx, wy = (water :: number) % w, (water :: number) // w
-	for dy = -2, 2 do
-		for dx = -2, 2 do
-			local x, y = wx + dx, wy + dy
-			if x >= 0 and y >= 0 and x < w and y < m.grid.height then
-				local j = y * w + x
-				if Naval.landAt(m.sea, j) == island and Grid.isCapturable(m.grid, j) and dx * dx + dy * dy < shoreD then
-					shore, shoreD = j, dx * dx + dy * dy
+	local reach = cfg.LandReach
+	local function waterBy(j: number): number?
+		local jx, jy = j % w, j // w
+		local best: number? = nil
+		local bestD = math.huge
+		for dy = -reach, reach do
+			for dx = -reach, reach do
+				local x, y = jx + dx, jy + dy
+				local d = dx * dx + dy * dy
+				if d < bestD and x >= 0 and y >= 0 and x < w and y < h then
+					local id = Naval.seaAt(m.sea, y * w + x)
+					if id ~= 0 and table.find(mySeas, id) ~= nil then
+						best, bestD = y * w + x, d
+					end
 				end
 			end
 		end
+		return best
 	end
-	if shore == nil then
-		return false, "notCoast"
+	local limit = if within ~= nil then within * within else math.huge
+	local shore: number? = nil
+	local water: number? = nil
+	local checked = -1 -- квадрат этого радиуса уже просмотрен
+	for _, r in cfg.BoatSearch do
+		local shoreD = limit
+		for dy = -r, r do
+			for dx = -r, r do
+				local x, y = fx + dx, fy + dy
+				local d = dx * dx + dy * dy
+				if
+					d <= shoreD
+					and math.max(math.abs(dx), math.abs(dy)) > checked
+					and x >= 0
+					and y >= 0
+					and x < w
+					and y < h
+				then
+					local j = y * w + x
+					if
+						Grid.getOwner(m.grid, j) == target
+						and Naval.landAt(m.sea, j) == island
+						and Grid.isCapturable(m.grid, j)
+						and not Grid.isCity(m.grid, j)
+						and (shore == nil or d < shoreD)
+					then
+						local c = waterBy(j)
+						if c ~= nil then
+							shore, water, shoreD = j, c, d
+						end
+					end
+				end
+			end
+		end
+		if shore ~= nil or r * r > limit then
+			break
+		end
+		checked = r
 	end
-	local seaId = Naval.seaAt(m.sea, water :: number)
-	local fx, fy = focus % w, focus // w
-	local launch: { cell: number, dock: number }? = nil
+	if shore == nil or water == nil then
+		-- Рядом только чужое море — «нет своего берега у этого моря»; иначе до берега цели слишком далеко.
+		local far = cfg.BoatSearch[#cfg.BoatSearch]
+		local ours = false
+		for _, id in mySeas do
+			ours = ours or Naval.waterNear(m.sea, focus, far, id) ~= nil
+		end
+		return false, if not ours and Naval.waterNear(m.sea, focus, far) ~= nil then "noCoast" else "notCoast"
+	end
+	-- Выход — наша прибрежная клетка у того же моря, ближайшая к месту высадки.
+	local seaId = Naval.seaAt(m.sea, water)
+	local sx, sy = water % w, water // w
+	local launch: { cell: number, water: number }? = nil
 	local bestD = math.huge
-	for _, p in m.provinces.list do
-		local dock = m.sea.docks[p.id]
-		if dock ~= nil and Naval.seaAt(m.sea, dock) == seaId and Grid.getOwner(m.grid, p.center) == n.id then
-			local d = (dock % w - fx) ^ 2 + (dock // w - fy) ^ 2
+	for _, c in coast do
+		if c.sea == seaId then
+			local d = (c.water % w - sx) ^ 2 + (c.water // w - sy) ^ 2
 			if d < bestD then
-				launch, bestD = { cell = p.center, dock = dock }, d
+				launch, bestD = { cell = c.cell, water = c.water }, d
 			end
 		end
 	end
@@ -4588,12 +4958,12 @@ function MatchSim.seaInvade(m: Match, n: Nation, target: number, focus: number, 
 	if cargo == nil then
 		return false, if target == 0 then "noTroops" else "noUnits"
 	end
-	local ship = Fleet.spawn(m.fleet, w, n.id, "Transport", launch.cell, launch.dock)
+	local ship = Fleet.spawn(m.fleet, w, n.id, "Transport", launch.cell, launch.water)
 	ship.boat = true
 	ship.cargo = cargo
 	ship.people = people
 	ship.target = shore
-	Fleet.order(ship, "land", water :: number)
+	Fleet.order(ship, "land", water)
 	table.insert(m.events, { kind = "boatLaunched", nation = n.id, target = target })
 	return true, nil
 end
@@ -4703,7 +5073,15 @@ end
 -- Плацдарм радиуса r у клетки target: свои клетки в круге (ничьи и врага, кроме городов), войска cargo — фронт
 -- против врага рядом (или на ничью землю), люди — с ними или домой. Общее для высадки с транспорта и десантов
 -- генералов (§6.15).
-function MatchSim.landAt(m: Match, owner: number, target: number, cargo: Types.Forces, people: number, r: number)
+function MatchSim.landAt(
+	m: Match,
+	owner: number,
+	target: number,
+	cargo: Types.Forces,
+	people: number,
+	r: number,
+	via: number? -- §15у: войска пришли через землю союзника via (событие passageArrived вместо landed)
+)
 	local n = m.nations[owner]
 	if n == nil or not n.alive then
 		return
@@ -4779,7 +5157,198 @@ function MatchSim.landAt(m: Match, owner: number, target: number, cargo: Types.F
 		Forces.merge(n.home, cargo)
 		n.people += people
 	end
-	table.insert(m.events, { kind = "landed", nation = n.id, target = enemy, cell = target, cells = taken })
+	if via ~= nil then
+		table.insert(
+			m.events,
+			{ kind = "passageArrived", nation = n.id, target = enemy, ally = via, cell = target, cells = taken }
+		)
+	else
+		table.insert(m.events, { kind = "landed", nation = n.id, target = enemy, cell = target, cells = taken })
+	end
+end
+
+-- Удар через союзника (§15у) ------------------------------------------------------------------------
+
+-- Как Passage видит сетку сервера.
+local function passageCtx(m: Match): Passage.Ctx
+	local g = m.grid
+	return {
+		width = g.width,
+		height = g.height,
+		ownerAt = function(cell: number): number
+			return Grid.getOwner(g, cell)
+		end,
+		capturable = function(cell: number): boolean
+			return Grid.isCapturable(g, cell)
+		end,
+		isCity = function(cell: number): boolean
+			return Grid.isCity(g, cell)
+		end,
+		-- Клетка врага у границы союзников — по границе союзников (точно: столица врага может быть далеко).
+		exitNear = function(enemy: number, allies: { [number]: boolean }, point: number): (number?, number)
+			local w = g.width
+			local px, py = point % w, point // w
+			local best: number? = nil
+			local bestAlly, bestD = 0, math.huge
+			for ally in allies do
+				for i in Grid.borderCells(g, ally) do
+					Grid.forNeighbours(g, i, function(j)
+						if Grid.getOwner(g, j) == enemy and Grid.isCapturable(g, j) and not Grid.isCity(g, j) then
+							local d = (j % w - px) ^ 2 + (j // w - py) ^ 2
+							if d < bestD or (d == bestD and best ~= nil and j < (best :: number)) then
+								best, bestAlly, bestD = j, ally, d
+							end
+						end
+					end)
+				end
+			end
+			return best, bestAlly
+		end,
+		-- Своя клетка у границы союзника — по своей границе (точно, без предела радиуса).
+		entryNear = function(me: number, ally: number, exit: number): number?
+			local w = g.width
+			local ex, ey = exit % w, exit // w
+			local best: number? = nil
+			local bestD = math.huge
+			for i in Grid.borderCells(g, me) do
+				local d = (i % w - ex) ^ 2 + (i // w - ey) ^ 2
+				if d < bestD then
+					local touches = false
+					Grid.forNeighbours(g, i, function(j)
+						touches = touches or Grid.getOwner(g, j) == ally
+					end)
+					if touches then
+						best, bestD = i, d
+					end
+				end
+			end
+			return best
+		end,
+	}
+end
+
+-- Союзники id с полным доверием (живые) — множество.
+function MatchSim.trustedSet(m: Match, id: number): { [number]: boolean }
+	local out: { [number]: boolean } = {}
+	for _, ally in Diplomacy.trustedOf(m.diplo, id) do
+		local a = m.nations[ally]
+		if a ~= nil and a.alive then
+			out[ally] = true
+		end
+	end
+	return out
+end
+
+-- Путь через союзника с полным доверием к врагу target у клетки point (nil — нельзя).
+function MatchSim.passageRoute(m: Match, id: number, target: number, point: number): Passage.Route?
+	local allies = MatchSim.trustedSet(m, id)
+	if next(allies) == nil or point < 0 or point >= m.grid.size then
+		return nil
+	end
+	return Passage.route(passageCtx(m), id, target, allies, point)
+end
+
+-- Отправить долю гарнизона по пути route. Войска списываются, только если всё проверено.
+function MatchSim.startPassage(
+	m: Match,
+	n: Nation,
+	target: number,
+	route: Passage.Route,
+	percent: number
+): (boolean, string?)
+	local count = 0
+	for _, p in m.passages do
+		if p.owner == n.id then
+			count += 1
+		end
+	end
+	if count >= Config.Alliance.MaxPassages then
+		return false, "tooManyPassages"
+	end
+	local forces = Forces.take(n.home, percent)
+	if Forces.total(forces) < Config.Forces.MinFrontStrength then
+		Forces.merge(n.home, forces)
+		return false, "noUnits"
+	end
+	table.insert(m.passages, {
+		owner = n.id,
+		ally = route.ally,
+		target = target,
+		exit = route.exit,
+		from = route.from,
+		forces = forces,
+		arriveAt = m.simTime + route.sec,
+	})
+	table.insert(m.events, {
+		kind = "passageStarted",
+		nation = n.id,
+		target = target,
+		ally = route.ally,
+		cell = route.exit,
+		from = route.from, -- §15у ч.2: стрелка на карте — от этой клетки к месту выхода
+		sec = route.sec,
+	})
+	return true, nil
+end
+
+-- Отряды в пути: дошли — плацдарм и фронт; война кончилась, доверие снято, союзник выбыл — домой.
+local function stepPassages(m: Match)
+	local k = 1
+	while k <= #m.passages do
+		local p = m.passages[k]
+		local n = m.nations[p.owner]
+		local ally = m.nations[p.ally]
+		local enemy = m.nations[p.target]
+		local valid = n ~= nil
+			and n.alive
+			and ally ~= nil
+			and ally.alive
+			and enemy ~= nil
+			and enemy.alive
+			and Diplomacy.trusted(m.diplo, p.owner, p.ally)
+			and Wars.isActive(m.wars, p.owner, p.target)
+		if valid and m.simTime < p.arriveAt then
+			k += 1
+			continue
+		end
+		table.remove(m.passages, k)
+		if n == nil or not n.alive then
+			continue
+		end
+		local exit: number? = nil
+		if valid then
+			exit = p.exit
+			if Grid.getOwner(m.grid, p.exit) ~= p.target or Grid.isCity(m.grid, p.exit) then
+				-- Место выхода уже не вражеское — ближайшее другое у границы того же союзника.
+				exit = Passage.exitNear(passageCtx(m), p.target, { [p.ally] = true }, p.exit)
+			end
+		end
+		if exit ~= nil then
+			MatchSim.landAt(m, p.owner, exit, p.forces, 0, Config.Alliance.PassageBeachhead, p.ally)
+		else
+			Forces.merge(n.home, p.forces)
+			table.insert(m.events, { kind = "passageReturned", nation = p.owner, target = p.target, ally = p.ally })
+		end
+	end
+end
+
+-- Коридор союзника (§15у): кусок земли касается земли союзника с полным доверием — не котёл.
+function MatchSim.allyCorridor(m: Match, id: number, cells: { number }): boolean
+	local allies = MatchSim.trustedSet(m, id)
+	if next(allies) == nil then
+		return false
+	end
+	local g = m.grid
+	for _, cell in cells do
+		local touches = false
+		Grid.forNeighbours(g, cell, function(j)
+			touches = touches or allies[Grid.getOwner(g, j)] == true
+		end)
+		if touches then
+			return true
+		end
+	end
+	return false
 end
 
 -- Флот за simDt: найм, пути, движение и высадки, бой кораблей, обстрел берега, блокада.
@@ -5545,16 +6114,19 @@ function MatchSim.places(m: Match, winner: number, coWinners: { number }?): { nu
 end
 
 -- Суша державы для победы: своя и её вассалов (§8.1).
+-- Суша державы для победы: своя + суша вассалов с весом Diplomacy.VassalVictoryShare (§15о).
 local function landOf(m: Match, id: number): number
 	local sum = Grid.cellsOf(m.grid, id)
 	for _, v in Diplomacy.vassalsOf(m.diplo, id) do
-		sum += Grid.cellsOf(m.grid, v)
+		sum += Grid.cellsOf(m.grid, v) * Config.Diplomacy.VassalVictoryShare
 	end
 	return sum
 end
+MatchSim.victoryLandOf = landOf
 
--- Победа (§2, §8.1): 60% суши у державы с союзниками и вассалами, последний выживший (или все живые — союз
--- с вассалами), больше всех суши к лимиту времени. Союзники победителя побеждают вместе с ним.
+-- Победа (§2, §8.1): 60% суши у державы с союзниками и вассалами (их суша — наполовину, §15о), последний
+-- выживший (или все живые — союз с вассалами), больше всех суши к лимиту времени. Союзники победителя побеждают
+-- вместе с ним.
 -- Возвращает true, если матч кончился.
 local function finishMatch(m: Match, winner: number, reason: Types.VictoryReason, coWinners: { number })
 	m.nextHistoryAt = 0
@@ -5814,6 +6386,7 @@ function MatchSim.step(m: Match, dt: number)
 	stepFlood(m) -- «Потоп» (§5.3)
 	stepTutorial(m) -- «Обучение» (§5.5)
 	stepFleet(m, simDt)
+	stepPassages(m) -- §15у: отряды через союзников
 	stepAir(m, simDt)
 	m.lastCaptured = stepAttacks(m, simDt)
 	stepPockets(m)
@@ -5860,11 +6433,17 @@ function MatchSim.step(m: Match, dt: number)
 				memory,
 				{ navy = rngs.navy, air = rngs.air, diplo = rngs.diplo, tech = rngs.tech }
 			)
+			if intent == nil and m.onBotIntent ~= nil then
+				m.onBotIntent(n.id, nil, false, nil)
+			end
 			if intent ~= nil then
 				if intent.kind == "build" then
 					intent.cell = MatchSim.buildSpot(m, n.id, intent.building, intent.cell)
 				end
-				local ok = MatchSim.applyIntent(m, n.id, intent)
+				local ok, reason = MatchSim.applyIntent(m, n.id, intent)
+				if m.onBotIntent ~= nil then
+					m.onBotIntent(n.id, intent, ok, reason)
+				end
 				-- Богатый бот (правка перед 7в-2) за одно раздумье ставит в очередь столько же юнитов, сколько у него
 				-- линий найма: иначе один юнит за раздумье не успевает за доходом большой державы.
 				if ok and intent.kind == "hire" and n.money >= Config.Bots.RichHireMoney then

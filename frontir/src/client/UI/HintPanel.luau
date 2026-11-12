@@ -101,6 +101,8 @@ function HintPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang): Hin
 
 	-- Когда нас бомбили в последний раз (событие raid по нам; onEvents из Main).
 	local bombedAt = -math.huge
+	-- §15т ч.2: своя высадка, налёт и пуск уже были в этом матче (подсказка уходит).
+	local done: { [string]: boolean } = {}
 	local function facts(now: number): Hints.Facts?
 		local me = if cs.myNation ~= nil then cs.nations[cs.myNation] else nil
 		local stats = cs.stats
@@ -124,12 +126,36 @@ function HintPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang): Hin
 			end
 		end
 		local factories, batteries, cities, cityLevels = 0, 0, 0, 0
+		local ports, airfields, silos = 0, 0, 0
 		for cell, b in cs.buildings do
 			if ClientState.ownerAt(cs, cell) == me.id then
 				if b.kind == "Factory" then
 					factories += 1
 				elseif b.kind == "AirDefense" then
 					batteries += 1
+				elseif b.kind == "Port" then
+					ports += 1
+				elseif b.kind == "Airfield" then
+					airfields += 1
+				elseif b.kind == "MissileSilo" then
+					silos += 1
+				end
+			end
+		end
+		local ships, transports, planes, bombers = 0, 0, 0, 0
+		for _, ship in cs.ships.ships do
+			if ship.owner == me.id and ship.kind ~= "Merchant" then
+				ships += 1
+				if ship.kind == "Transport" then
+					transports += 1
+				end
+			end
+		end
+		for _, plane in cs.air.planes do
+			if plane.owner == me.id then
+				planes += 1
+				if plane.kind == "Bomber" then
+					bombers += 1
 				end
 			end
 		end
@@ -165,6 +191,16 @@ function HintPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang): Hin
 			bombed = now - bombedAt < Config.Hints.BombedSec,
 			batteries = batteries,
 			lowStability = cs.stability.lowCells > 0,
+			ports = ports,
+			ships = ships,
+			transports = transports,
+			landed = done.landed == true,
+			airfields = airfields,
+			planes = planes,
+			bombers = bombers,
+			raided = done.raid == true,
+			silos = silos,
+			launched = done.missileLaunched == true,
 		}
 	end
 
@@ -176,6 +212,7 @@ function HintPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang): Hin
 		if cs.matchId ~= matchId then
 			matchId = cs.matchId
 			table.clear(dismissed)
+			table.clear(done)
 		end
 		local f = facts(now)
 		local key = if f ~= nil then Hints.pick(f, dismissed) else nil
@@ -197,6 +234,15 @@ function HintPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang): Hin
 			for _, e in events do
 				if type(e) == "table" and e.kind == "raid" and e.target == cs.myNation then
 					bombedAt = os.clock()
+				end
+				-- §15т ч.2: своя высадка, налёт, пуск — подсказка «как это делать» больше не нужна.
+				if
+					type(e) == "table"
+					and cs.myNation ~= nil
+					and e.nation == cs.myNation
+					and (e.kind == "landed" or e.kind == "raid" or e.kind == "missileLaunched")
+				then
+					done[e.kind] = true
 				end
 			end
 		end,

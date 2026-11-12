@@ -19,6 +19,10 @@ export type Action =
 	| "build"
 	| "mark"
 	| "emoji" -- §15ж: эмодзи над столицей державы
+	-- §15х ч.4: удары по врагу в войне — всегда в кольце; не готов — подсказка «что сделать» (StrikeMenu)
+	| "missile"
+	| "raid"
+	| "ability"
 
 export type Facts = {
 	playing: boolean, -- идёт матч и у игрока есть держава
@@ -28,9 +32,10 @@ export type Facts = {
 	war: "none" | "mobilizing" | "active", -- война с владельцем
 	allied: boolean, -- союзник
 	trade: boolean, -- уже есть торговое соглашение
+	ability: boolean?, -- §15х ч.4: у генерала есть удар по врагу (StrikeMenu.EnemyAbilities)
 }
 
-ActionRing.MaxActions = 6
+ActionRing.MaxActions = 8
 
 function ActionRing.actions(f: Facts): { Action }
 	local out: { Action } = {}
@@ -57,6 +62,12 @@ function ActionRing.actions(f: Facts): { Action }
 		if f.war == "active" then
 			table.insert(out, "attack")
 		end
+		-- §15х ч.4: удары видны и в мобилизацию (не готовы — кольцо скажет, чего ждать).
+		if f.ability then
+			table.insert(out, "ability")
+		end
+		table.insert(out, "missile")
+		table.insert(out, "raid")
 		table.insert(out, "intel")
 		table.insert(out, "target")
 		table.insert(out, "emoji")

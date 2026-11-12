@@ -98,7 +98,14 @@ function Intents.parse(kind: any, payload: any): (Types.Intent?, string?)
 		if not isInt(target) or target <= 0 then
 			return nil, "bad target"
 		end
-		if offer ~= "pact3" and offer ~= "pact5" and offer ~= "alliance" and offer ~= "demand" and offer ~= "trade" then
+		if
+			offer ~= "pact3"
+			and offer ~= "pact5"
+			and offer ~= "alliance"
+			and offer ~= "demand"
+			and offer ~= "trade"
+			and offer ~= "trust"
+		then
 			return nil, "bad offer"
 		end
 		if offer == "demand" and (not isInt(province) or province <= 0) then
@@ -126,6 +133,12 @@ function Intents.parse(kind: any, payload: any): (Types.Intent?, string?)
 			return nil, "bad target"
 		end
 		return { kind = "breakTreaty", target = target }, nil
+	elseif kind == "distrust" then
+		local target = payload.target
+		if not isInt(target) or target <= 0 then
+			return nil, "bad target"
+		end
+		return { kind = "distrust", target = target }, nil
 	elseif kind == "rebel" then
 		return { kind = "rebel" }, nil
 	elseif kind == "transfer" then

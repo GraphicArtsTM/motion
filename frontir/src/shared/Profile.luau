@@ -52,6 +52,7 @@ export type Data = {
 	-- §15л ч.6 Арсенал: открытое навсегда и взятое в бой.
 	arsenal: { [string]: boolean },
 	loadout: string?,
+	commander: string?, -- §15ф Ф1: генерал по умолчанию (выбор в Арсенале, не в лобби)
 }
 
 -- Награда (пропуск, ящик, ежедневная, набор).
@@ -94,7 +95,20 @@ function Profile.new(): Data
 		noPaidRandom = false,
 		arsenal = {},
 		loadout = nil,
+		commander = nil,
 	}
+end
+
+-- §15ф Ф1: генерал по умолчанию — только открытый (уровень или пропуск «Все генералы»).
+function Profile.setCommander(d: Data, commander: any, allPass: boolean): (boolean, string?)
+	if type(commander) ~= "string" or table.find(Types.CommanderIds, commander) == nil then
+		return false, "commander"
+	end
+	if not Profile.commanderUnlocked(d, commander :: any, allPass) then
+		return false, "locked"
+	end
+	d.commander = commander
+	return true, nil
 end
 
 -- Громкости (§13): 0..1, с шагом Audio.VolumeStep; мусор — по умолчанию.
@@ -205,6 +219,9 @@ function Profile.migrate(raw: any): Data
 		}
 	end
 	d.arsenal, d.loadout = Arsenal.migrate(raw.arsenal, raw.loadout)
+	if type(raw.commander) == "string" and table.find(Types.CommanderIds, raw.commander) ~= nil then
+		d.commander = raw.commander
+	end
 	Profile.syncSeason(d)
 	return d
 end

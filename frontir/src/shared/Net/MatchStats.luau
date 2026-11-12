@@ -24,11 +24,11 @@ local Protocol = require("./Protocol")
 
 local MatchStats = {}
 
--- Клетки радаров держав из набора (§6.11).
+-- Клетки аэродромов держав из набора — обзор и разведка вокруг них (§6.11; §15х ч.6: аэродром — и радар).
 function MatchStats.radarsOf(m: MatchSim.Match, friends: { [number]: boolean }): { number }
 	local out: { number } = {}
 	for cell, b in m.buildings.byCell do
-		if b.kind == "Radar" and friends[Grid.getOwner(m.grid, cell)] and not MatchSim.isDisabled(m, cell) then
+		if b.kind == "Airfield" and friends[Grid.getOwner(m.grid, cell)] and not MatchSim.isDisabled(m, cell) then
 			table.insert(out, cell)
 		end
 	end
@@ -40,7 +40,9 @@ end
 export type Vision = { friends: { [number]: boolean }, blocks: { [number]: boolean } }
 
 function MatchStats.vision(m: MatchSim.Match, viewer: number): Vision
-	local friends = Diplomacy.friends(m.diplo, viewer)
+	-- §15у ч.2: общий обзор (земля, радары, корабли, самолёты) — только от друзей по полному доверию; фронты союзника
+	-- при частичном доверии видны всё равно (friends — сторона фронта).
+	local friends = Diplomacy.trustFriends(m.diplo, viewer)
 	local borders: { { [number]: boolean } } = {}
 	for id in friends do
 		table.insert(borders, Grid.borderCells(m.grid, id))
@@ -65,7 +67,7 @@ function MatchStats.vision(m: MatchSim.Match, viewer: number): Vision
 		ships,
 		m.rules.visionMul -- «Мгла» (§5.1)
 	)
-	return { friends = friends, blocks = blocks }
+	return { friends = Diplomacy.friends(m.diplo, viewer), blocks = blocks }
 end
 
 -- Какие атаки и фронты видит держава viewer (туман, §6.11): свои и друзей — всегда, чужие — если линия фронта
@@ -154,6 +156,10 @@ function MatchStats.build(m: MatchSim.Match, tickMs: number, changed: number, vi
 			fighting = a.fighting,
 			ratio = a.ratio,
 			focus = a.focus,
+			-- Прогноз фронта (§15н) глазами атакующего; forViewer оставляет его только сторонам фронта.
+			why = a.why or 0,
+			need = a.needAtk or 0,
+			burn = a.burn or 0,
 		})
 	end
 	return { tickMs = tickMs, changed = changed, nations = nations, attacks = attacks }
@@ -169,12 +175,30 @@ function MatchStats.forViewer(
 	known: { [number]: boolean }?
 ): Protocol.Stats
 	local nations, attacks = full.nations, full.attacks
+	-- Прогноз фронта (§15н): атакующему — свой, защитнику — только «сколько обороны нужно», остальным — нули
+	-- (иначе по причине и потерям видна скрытая мощь, §6.11а). Индексы full.attacks совпадают с m.attacks.
+	local own = full.attacks
+	if viewer ~= nil then
+		own = {}
+		for k, a in full.attacks do
+			local src = m.attacks[k]
+			local need = if a.target == viewer and src ~= nil then src.needDef or 0 else 0
+			if a.attacker == viewer or ((a.why or 0) == 0 and (a.need or 0) == need and (a.burn or 0) == 0) then
+				own[k] = a
+			else
+				local c = table.clone(a)
+				c.why, c.need, c.burn = 0, need, 0
+				own[k] = c
+			end
+		end
+		attacks = own
+	end
 	if viewer ~= nil and MatchStats.fogOn(m) then
 		local visible = MatchStats.attackFilter(m, viewer, vision)
 		attacks = {}
 		for k, a in m.attacks do
-			if visible(a) and full.attacks[k] ~= nil then
-				table.insert(attacks, full.attacks[k])
+			if visible(a) and own[k] ~= nil then
+				table.insert(attacks, own[k])
 			end
 		end
 	end
@@ -335,22 +359,21 @@ function MatchStats.world(m: MatchSim.Match, viewer: number?): WorldMessage
 	local now = m.simTime
 	local storm = st.storm
 	local a = st.auction
-	local missiles: { { cell: number, owner: number, left: number, radius: number? } } = {}
+	local missiles: { { cell: number, owner: number, left: number, radius: number?, warhead: string? } } = {}
 	for _, mi in m.missiles do
 		table.insert(missiles, {
 			cell = mi.cell,
 			owner = mi.owner,
 			left = math.max(0, mi.impactAt - now),
-			radius = MatchSim.warheadRadius(m, mi.warhead),
+			radius = mi.radius or MatchSim.warheadRadius(m, mi.warhead), -- §15р: круг пуска
+			warhead = mi.warhead :: string, -- §15х ч.3: сирена — что летит и сколько зарядов нужно
 		})
 	end
 	-- Заряды батарей ПВО (§15д ч.3): видны всем — атакующий знает, сколько ударов нужно.
 	local batteries: { { cell: number, ready: number, max: number } } = {}
-	for _, kind: Types.BuildingKind in { "AirDefense", "Sam" } :: { Types.BuildingKind } do -- §15з: заряды ЗРК — тоже
-		for _, b in MatchSim.buildingsOf(m, kind) do
-			local ready, max = MatchSim.batteryCharges(m, b.cell)
-			table.insert(batteries, { cell = b.cell, ready = ready, max = max })
-		end
+	for _, b in MatchSim.buildingsOf(m, "AirDefense") do
+		local ready, max = MatchSim.batteryCharges(m, b.cell)
+		table.insert(batteries, { cell = b.cell, ready = ready, max = max })
 	end
 	local silo = false
 	if viewer ~= nil then
@@ -539,6 +562,8 @@ function MatchStats.diplo(m: MatchSim.Match): ClientState.DiploMessage
 			b = t.b,
 			left = if t.untilTime ~= nil then math.max(0, t.untilTime - now) else nil,
 			breakLeft = if t.breakAt ~= nil then math.max(0, t.breakAt - now) else nil,
+			trust = t.trust, -- §15у: полное доверие
+			age = now - t.since, -- §15у: сколько длится (кнопка «Полное доверие» — с Alliance.TrustAfterSec)
 		})
 	end
 	local offers: { ClientState.DiploOffer } = {}

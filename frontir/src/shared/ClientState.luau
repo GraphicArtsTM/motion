@@ -84,7 +84,8 @@ export type ProfileInfo = {
 	passes: { [string]: boolean },
 	premium: boolean,
 	unlocked: { [string]: boolean }, -- открытые генералы
-	arsenal: { owned: { [string]: boolean }, loadout: string?, used: boolean }?, -- §15л ч.6
+	tutorialDone: boolean?, -- §15ф Ф1
+	arsenal: { owned: { [string]: boolean }, loadout: string?, commander: string?, used: boolean }?, -- §15л ч.6; генерал — §15ф Ф1
 	used: { [string]: boolean }, -- бусты, взятые в этом матче
 	boosts: boolean, -- бусты в этом матче разрешены
 	packs: { [string]: boolean }, -- какие наборы можно купить
@@ -124,7 +125,15 @@ export type ServerRow = {
 export type MapVoteInfo = { options: { string }, counts: { number }, myVote: string? }
 
 -- Договоры (§8.1) глазами клиента: сообщение diplo. Сроки — в секундах игрового времени от момента отправки.
-export type DiploTreaty = { kind: Types.TreatyKind, a: number, b: number, left: number?, breakLeft: number? }
+export type DiploTreaty = {
+	kind: Types.TreatyKind,
+	a: number,
+	b: number,
+	left: number?,
+	breakLeft: number?,
+	trust: boolean?, -- §15у: союз с полным доверием
+	age: number?, -- §15у: сколько игровых секунд длится договор (на момент сообщения)
+}
 export type DiploOffer = { kind: Types.OfferKind, from: number, to: number, province: number?, left: number }
 export type DiploMessage = {
 	kind: "diplo",
@@ -178,7 +187,7 @@ export type WorldMessage = {
 	kind: "world",
 	storm: { cell: number, radius: number, left: number }?,
 	auction: { left: number, top: number, topId: number, minBid: number }?,
-	missiles: { { cell: number, owner: number, left: number, radius: number? } }, -- radius — по боеголовке (§15ж)
+	missiles: { { cell: number, owner: number, left: number, radius: number?, warhead: string? } }, -- radius — по боеголовке (§15ж)
 	oilExtra: { number },
 	silo: boolean, -- у меня есть работающая шахта
 	missileLeft: number, -- до готовности пуска
@@ -422,7 +431,7 @@ function ClientState.applyWorld(cs: ClientState, msg: any, now: number): { numbe
 		local a = msg.auction
 		auction = { left = num(a.left), top = num(a.top), topId = num(a.topId), minBid = num(a.minBid) }
 	end
-	local missiles: { { cell: number, owner: number, left: number, radius: number? } } = {}
+	local missiles: { { cell: number, owner: number, left: number, radius: number?, warhead: string? } } = {}
 	for _, mi in msg.missiles do
 		if type(mi) == "table" then
 			table.insert(missiles, {
@@ -430,6 +439,7 @@ function ClientState.applyWorld(cs: ClientState, msg: any, now: number): { numbe
 				owner = num(mi.owner),
 				left = num(mi.left),
 				radius = if type(mi.radius) == "number" then mi.radius else nil,
+				warhead = if type(mi.warhead) == "string" then mi.warhead else nil, -- §15х ч.3
 			})
 		end
 	end
@@ -836,6 +846,28 @@ function ClientState.friendsOf(cs: ClientState, id: number): { [number]: boolean
 	return out
 end
 
+-- §15у ч.2: друзья по полному доверию (как Diplomacy.trustFriends): союзники с полным доверием, вассалы, сюзерен.
+function ClientState.trustFriendsOf(cs: ClientState, id: number): { [number]: boolean }
+	local out: { [number]: boolean } = { [id] = true }
+	for _, t in cs.diplo.treaties do
+		if t.kind == "alliance" and t.trust then
+			if t.a == id then
+				out[t.b] = true
+			elseif t.b == id then
+				out[t.a] = true
+			end
+		end
+	end
+	for _, v in cs.diplo.vassals do
+		if v.overlord == id then
+			out[v.vassal] = true
+		elseif v.vassal == id then
+			out[v.overlord] = true
+		end
+	end
+	return out
+end
+
 -- Что даёт обзор игроку сейчас; nil — видно всё (нет своей живой державы, не фаза игры, туман выключен).
 function ClientState.fogSources(cs: ClientState): Fog.Sources?
 	local me = cs.myNation
@@ -855,7 +887,7 @@ function ClientState.fogSources(cs: ClientState): Fog.Sources?
 	if ClientState.revealLeft(cs, os.clock()) > 0 then
 		return nil
 	end
-	local friends = ClientState.friendsOf(cs, me)
+	local friends = ClientState.trustFriendsOf(cs, me) -- §15у ч.2: общий обзор — при полном доверии
 	local fronts: { { mine: number, other: number } } = {}
 	local stats = cs.stats
 	if stats ~= nil then
@@ -874,8 +906,8 @@ function ClientState.fogSources(cs: ClientState): Fog.Sources?
 	local ports: { number } = {}
 	local commander = cs.commander.commander
 	for cell, b in cs.buildings do
-		if b.kind == "Radar" and friends[ClientState.ownerAt(cs, cell)] then
-			table.insert(radars, cell)
+		if b.kind == "Airfield" and friends[ClientState.ownerAt(cs, cell)] then
+			table.insert(radars, cell) -- §15х ч.6: аэродром — и радар
 		elseif b.kind == "Port" and commander == "Admiral" and ClientState.ownerAt(cs, cell) == me then
 			table.insert(ports, cell) -- Адмирал (§6.15): обзор вокруг своих портов больше
 		end
@@ -1009,6 +1041,49 @@ function ClientState.alliesOf(cs: ClientState, id: number): { number }
 		end
 	end
 	return out
+end
+
+-- §15о: суша державы к победе — своя + вассалы с весом Diplomacy.VassalVictoryShare (как MatchSim.victoryLandOf).
+function ClientState.victoryLand(cs: ClientState, id: number): number
+	local s = ClientState.statsOf(cs, id)
+	local land = if s ~= nil then s.cells else 0
+	for _, v in cs.diplo.vassals do
+		if v.overlord == id then
+			local vs = ClientState.statsOf(cs, v.vassal)
+			land += (if vs ~= nil then vs.cells else 0) * Config.Diplomacy.VassalVictoryShare
+		end
+	end
+	return land
+end
+
+-- Суша блока к победе (§8.1): держава и её союзники, каждый со своими вассалами — как checkVictory на сервере.
+function ClientState.blocLand(cs: ClientState, id: number): number
+	local land = ClientState.victoryLand(cs, id)
+	for _, ally in ClientState.alliesOf(cs, id) do
+		land += ClientState.victoryLand(cs, ally)
+	end
+	return land
+end
+
+-- Ближе всех к победе: глава блока (не вассал) и суша блока в клетках; ничья — у кого больше своей суши с вассалами.
+function ClientState.victoryLeader(cs: ClientState): (number, number)
+	local stats = cs.stats
+	if stats == nil then
+		return 0, 0
+	end
+	local best, bestLand = 0, -1
+	for _, s in stats.nations do
+		if ClientState.overlordOf(cs, s.id) == nil then
+			local land = ClientState.blocLand(cs, s.id)
+			if
+				land > bestLand
+				or (land == bestLand and ClientState.victoryLand(cs, s.id) > ClientState.victoryLand(cs, best))
+			then
+				best, bestLand = s.id, land
+			end
+		end
+	end
+	return best, math.max(bestLand, 0)
 end
 
 return table.freeze(ClientState)

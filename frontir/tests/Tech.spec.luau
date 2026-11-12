@@ -224,7 +224,7 @@ T.describe("Технологии", function()
 	end)
 
 	T.it(
-		"Верфи — скидка на корабли; Радар и Авиация открывают здания",
+		"Верфи — скидка на корабли; Авиация открывает аэродром, «Дальняя ПВО» — ПВО ур. 3",
 		function()
 			local m = duo()
 			local full = MatchSim.shipCost(m, 1, "Transport")
@@ -233,22 +233,30 @@ T.describe("Технологии", function()
 			T.expect(MatchSim.shipCost(m, 2, "Transport")).toBe(full)
 
 			local cell = m.provinces.list[3].center
-			T.expect(MatchSim.techAllows(m, 1, "Radar")).toBe(false)
 			T.expect(MatchSim.techAllows(m, 1, "Airfield")).toBe(false)
 			T.expect(MatchSim.techAllows(m, 1, "Factory")).toBe(true)
 			T.expect(MatchSim.techAllows(m, 1, "AirDefense")).toBe(true)
-			local ok, reason = MatchSim.applyIntent(m, 1, { kind = "build", building = "Radar", cell = cell })
+			local ok, reason = MatchSim.applyIntent(m, 1, { kind = "build", building = "Airfield", cell = cell })
 			T.expect(ok).toBe(false)
 			T.expect(reason).toBe("needTech")
-			-- Флот-2 «Авиация» — аэродром, Флот-3 «Радар» — радар.
+			-- Флот-2 «Авиация» — аэродром.
 			Tech.grant(m.tech, 1, "Fleet", 2)
 			T.expect(MatchSim.techAllows(m, 1, "Airfield")).toBe(true)
-			T.expect(MatchSim.techAllows(m, 1, "Radar")).toBe(false)
-			ok, reason = MatchSim.applyIntent(m, 1, { kind = "build", building = "Radar", cell = cell })
-			T.expect(reason).toBe("needTech")
+			-- §15х ч.6: ПВО ур. 1–2 — всегда, ур. 3 «дальняя» — Флот-3 «Дальняя ПВО».
+			m.nations[1].money = 1e6
+			for _ = 1, 2 do
+				T.expect((MatchSim.applyIntent(m, 1, { kind = "build", building = "AirDefense", cell = cell })))
+					.toBe(true)
+			end
+			T.expect(m.buildings.byCell[cell].level).toBe(2)
+			T.expect(MatchSim.levelAllows(m, 1, "AirDefense", 3)).toBe(false)
+			ok, reason = MatchSim.applyIntent(m, 1, { kind = "build", building = "AirDefense", cell = cell })
+			T.expect(reason).toBe("needLongRange")
 			Tech.grant(m.tech, 1, "Fleet", 3)
-			T.expect(MatchSim.techAllows(m, 1, "Radar")).toBe(true)
-			T.expect((MatchSim.applyIntent(m, 1, { kind = "build", building = "Radar", cell = cell }))).toBe(true)
+			T.expect(MatchSim.levelAllows(m, 1, "AirDefense", 3)).toBe(true)
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "build", building = "AirDefense", cell = cell }))).toBe(true)
+			T.expect(m.buildings.byCell[cell].level).toBe(3)
+			T.expect(MatchSim.ownedOf(m, 1).longRange).toBe(1)
 		end
 	)
 

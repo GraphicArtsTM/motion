@@ -45,12 +45,17 @@ function DevPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, selfC
 	end
 	local event = devEvent :: RemoteEvent
 
-	local panel = Instance.new("Frame")
+	-- Кнопок много — панель прокручивается и не уходит за край экрана (на низком окне верх был недоступен).
+	local panel = Instance.new("ScrollingFrame")
 	panel.Name = "DevPanel"
 	panel.AnchorPoint = Vector2.new(0, 0.5)
 	panel.Position = UDim2.new(0, 12, 0.5, 0)
-	panel.Size = UDim2.fromOffset(250, 0)
-	panel.AutomaticSize = Enum.AutomaticSize.Y
+	panel.Size = UDim2.new(0, 250, 1, -24)
+	panel.CanvasSize = UDim2.new()
+	panel.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	panel.ScrollingDirection = Enum.ScrollingDirection.Y
+	panel.ScrollBarThickness = 6
+	panel.ScrollBarImageColor3 = Theme.Colors.Muted
 	panel.BackgroundColor3 = Theme.Colors.PanelBg
 	panel.BackgroundTransparency = 0.05
 	panel.BorderSizePixel = 0
@@ -270,6 +275,10 @@ function DevPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, selfC
 	-- §15м: «Сверхдержава» — ничья земля до полной доли.
 	button(Strings.get("dev.giant", lang), function()
 		fire("giant", nil)
+	end)
+	-- §15у: союзник с полным доверием и враг за ним — проверить удар через союзника.
+	button(Strings.get("dev.trustAlly", lang), function()
+		fire("trustAlly", nil)
 	end)
 	-- Этап 7б-1: флот (§6.12).
 	button(Strings.get("dev.navy", lang), function()

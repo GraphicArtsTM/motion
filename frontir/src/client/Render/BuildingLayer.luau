@@ -193,7 +193,7 @@ function BuildingLayer.new(
 		end
 		for _, b in list do
 			local icon = byCell[b.cell]
-			if icon ~= nil and (icon.kind == "AirDefense" or icon.kind == "Sam") then
+			if icon ~= nil and icon.kind == "AirDefense" then
 				local dots: { Frame } = {}
 				for k = 1, b.max do
 					local f = Instance.new("Frame")

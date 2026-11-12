@@ -9,9 +9,9 @@ local Strings = require("../src/shared/Strings")
 
 T.describe("Звания (§15л)", function()
 	T.it(
-		"звание по уровню: каждые LevelsPerRank уровней, последнее — до MaxLevel",
+		"ступень по уровню: с уровней Ranks.Tiers, последняя — до MaxLevel",
 		function()
-			local per = Config.Ranks.LevelsPerRank
+			local per = Config.Ranks.Tiers[2] - 1 -- §15ф: последний уровень первой ступени
 			T.expect(Ranks.of(1)).toBe(1)
 			T.expect(Ranks.of(per)).toBe(1)
 			T.expect(Ranks.of(per + 1)).toBe(2)
@@ -32,7 +32,7 @@ T.describe("Звания (§15л)", function()
 	)
 
 	T.it(
-		"у каждого звания есть название RU/EN и свой значок в рамке 14×14 из цветов палитры",
+		"у каждого звания есть название RU/EN и свой значок в рамке 16×16 из цветов палитры",
 		function()
 			local seen: { [string]: number } = {}
 			for rank = 1, Ranks.Count do

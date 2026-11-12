@@ -1,29 +1,24 @@
 --!strict
 --[[
-	LobbyScreen — экран лобби (GDD §15и): карта за ним затемнена, по центру — «ФРОНТИР» и карточка «Следующий матч»
-	(карта, режим — лидер голосования, игроки, большой отсчёт с полосой), ниже — голосование за режим и выбор генерала
-	(рамки ModePanel и CommanderPanel переезжают сюда на время лобби, их логика не меняется), список игроков.
-	Снизу остаётся док (магазин, задания, гардероб…). В выборе старта и в игре экран скрыт, рамки возвращаются.
+	LobbyScreen — §15ф Ф1 «Ожидание игроков» (было — экран лобби §15и с голосованиями). Карта за ним затемнена,
+	по центру — логотип и одна карточка: «ОЖИДАНИЕ ИГРОКОВ», карта и режим (по очереди сервера), квадратики игроков
+	(занятые — люди, остальные места займут боты), «СТАРТ ЧЕРЕЗ N С» с полосой, код своего матча, у одиночной игры —
+	сложность ботов, внизу — «Выйти» (в главное меню). Голосований, генерала и флага здесь нет: генерал — в Арсенале,
+	флаг — в Гардеробе. Если голосование включено (Config.Match.LobbyVotes) — рамки ModePanel и CommanderPanel, как
+	раньше, переезжают сюда под карточку.
 	Отдельно — окно «Как играть» (H): шесть шагов и клавиши.
-	§15к: голосование за карту (рамка ModePanel.mapVoteFrame) — тоже здесь, под режимом; в строке карты — лидер
-	голосования. В карточке — плашка игрока: флаг, имя, уровень и «Изменить флаг» (те же части, что в гардеробе;
-	сохранить можно только открытые, закрытые покупаются в гардеробе).
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local ClientState = require(Shared:WaitForChild("ClientState"))
 local Config = require(Shared:WaitForChild("Config"))
-local Cosmetics = require(Shared:WaitForChild("Cosmetics"))
 local PixelIcons = require(Shared:WaitForChild("PixelIcons"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
-local FlagView = require(script.Parent:WaitForChild("FlagView"))
 local Logo = require(script.Parent:WaitForChild("Logo"))
-local SceneBanner = require(script.Parent:WaitForChild("SceneBanner"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
@@ -108,17 +103,13 @@ local function smallButton(parent: Instance, text: string, w: number, h: number)
 	return b
 end
 
-local function cycle(list: { string }, value: string, dir: number): string
-	local k = table.find(list, value) or 1
-	return list[(k - 1 + dir) % #list + 1]
-end
-
 function LobbyScreen.new(
 	gui: ScreenGui,
 	cs: ClientState,
 	lang: Strings.Lang,
 	mapName: string,
-	send: (string, { [string]: any }) -> ()
+	send: (string, { [string]: any }) -> (),
+	leave: (() -> ())? -- §15ф Ф1: «Выйти» — в главное меню (Main.client)
 ): LobbyScreen
 	local cfg = Config.Render.Lobby
 	-- Затемнение поверх карты (снизу оставляем место доку).
@@ -169,7 +160,7 @@ function LobbyScreen.new(
 	subtitle.Text = Strings.get("lobby.subtitle", lang)
 	subtitle.TextColor3 = Theme.Colors.Muted
 
-	-- Карточка «Следующий матч».
+	-- Карточка «Ожидание игроков».
 	local card = Instance.new("Frame")
 	card.Name = "NextMatch"
 	card.LayoutOrder = 3
@@ -179,37 +170,51 @@ function LobbyScreen.new(
 	card.Parent = content
 	Theme.decorate(card)
 	local cardPad = Instance.new("UIPadding")
-	cardPad.PaddingLeft = UDim.new(0, 18)
-	cardPad.PaddingRight = UDim.new(0, 18)
-	cardPad.PaddingTop = UDim.new(0, 12)
-	cardPad.PaddingBottom = UDim.new(0, 14)
+	cardPad.PaddingLeft = UDim.new(0, 28)
+	cardPad.PaddingRight = UDim.new(0, 28)
+	cardPad.PaddingTop = UDim.new(0, 22)
+	cardPad.PaddingBottom = UDim.new(0, 24)
 	cardPad.Parent = card
 	local cardList = Instance.new("UIListLayout")
 	cardList.SortOrder = Enum.SortOrder.LayoutOrder
-	cardList.Padding = UDim.new(0, 6)
+	cardList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	cardList.Padding = UDim.new(0, 12)
 	cardList.Parent = card
-	SceneBanner.image(card, "lobby", Config.Render.Banner.CardPx, 0) -- §15л ч.8: колонна войск
-	local head = label(card, 13, true, 1)
-	head.Text = Strings.get("lobby.next", lang)
-	head.TextColor3 = Theme.Colors.Sky
-	local mapLine = label(card, 30, true, 2)
-	mapLine.Text = Strings.get("map." .. mapName, lang)
-	local infoLine = label(card, 15, false, 3)
-	infoLine.TextColor3 = Theme.Colors.Text
-	local timeRow = Instance.new("Frame")
-	timeRow.BackgroundTransparency = 1
-	timeRow.LayoutOrder = 4
-	timeRow.Size = UDim2.new(1, 0, 0, 30)
-	timeRow.Parent = card
+	local head = label(card, 30, true, 1)
+	head.FontFace = Theme.FontHeavy
+	head.Text = Strings.get("lobby.waiting", lang)
+	local infoLine = label(card, 17, false, 2)
+	infoLine.TextColor3 = Theme.Colors.Muted
+	-- Квадратики мест: люди — голубые, остальное займут боты.
+	local seats = Instance.new("Frame")
+	seats.Name = "Seats"
+	seats.BackgroundTransparency = 1
+	seats.LayoutOrder = 3
+	seats.Size = UDim2.fromScale(1, 0)
+	seats.AutomaticSize = Enum.AutomaticSize.Y
+	seats.Parent = card
+	local seatsList = Instance.new("UIGridLayout")
+	seatsList.CellSize = UDim2.fromOffset(cfg.SeatPx, cfg.SeatPx)
+	seatsList.CellPadding = UDim2.fromOffset(6, 6)
+	seatsList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	seatsList.SortOrder = Enum.SortOrder.LayoutOrder
+	seatsList.Parent = seats
+	local seatFrames: { Frame } = {}
+	local playersLine = label(card, 15, false, 4)
+	playersLine.TextColor3 = Theme.Colors.Muted
+	playersLine.TextWrapped = true
+	playersLine.AutomaticSize = Enum.AutomaticSize.Y
+	playersLine.Size = UDim2.fromScale(1, 0)
+	local countdown = label(card, 18, true, 5)
+	countdown.TextColor3 = Theme.Colors.Gold
 	local bar = Instance.new("Frame")
-	bar.AnchorPoint = Vector2.new(0, 0.5)
-	bar.Position = UDim2.fromScale(0, 0.5)
-	bar.Size = UDim2.new(1, -90, 0, 10)
+	bar.LayoutOrder = 6
+	bar.Size = UDim2.new(1, 0, 0, 8)
 	bar.BackgroundColor3 = Theme.Colors.Backdrop
 	bar.BorderSizePixel = 0
-	bar.Parent = timeRow
+	bar.Parent = card
 	local barCorner = Instance.new("UICorner")
-	barCorner.CornerRadius = UDim.new(0, 5)
+	barCorner.CornerRadius = UDim.new(0, 4)
 	barCorner.Parent = bar
 	local fill = Instance.new("Frame")
 	fill.Size = UDim2.fromScale(0, 1)
@@ -217,199 +222,50 @@ function LobbyScreen.new(
 	fill.BorderSizePixel = 0
 	fill.Parent = bar
 	local fillCorner = Instance.new("UICorner")
-	fillCorner.CornerRadius = UDim.new(0, 5)
+	fillCorner.CornerRadius = UDim.new(0, 4)
 	fillCorner.Parent = fill
-	local countdown = Instance.new("TextLabel")
-	countdown.AnchorPoint = Vector2.new(1, 0.5)
-	countdown.Position = UDim2.fromScale(1, 0.5)
-	countdown.Size = UDim2.fromOffset(80, 30)
-	countdown.BackgroundTransparency = 1
-	countdown.FontFace = Theme.FontBold
-	countdown.TextSize = 26
-	countdown.TextColor3 = Theme.Colors.Gold
-	countdown.TextXAlignment = Enum.TextXAlignment.Right
-	countdown.Parent = timeRow
 	-- §15л ч.4: код своего матча — крупно, золотом (друзья входят по нему из главного меню).
-	local codeLine = label(card, 18, true, 5)
+	local codeLine = label(card, 20, true, 7)
 	codeLine.TextColor3 = Theme.Colors.Gold
 	codeLine.Visible = false
-	local players = label(card, 13, false, 6)
-	players.TextColor3 = Theme.Colors.Muted
-	players.TextWrapped = true
-	players.AutomaticSize = Enum.AutomaticSize.Y
-	players.Size = UDim2.fromScale(1, 0)
-	players.TextXAlignment = Enum.TextXAlignment.Left
-
-	-- §15к Плашка игрока: флаг, имя, уровень; «Изменить флаг» раскрывает строки частей флага.
+	-- Одиночная игра (один человек): сложность ботов — три кнопки.
 	local BTN = Config.Render.MinTouchTargetPx
-	local plate = Instance.new("Frame")
-	plate.Name = "Me"
-	plate.BackgroundColor3 = Theme.Colors.Backdrop
-	plate.BackgroundTransparency = 0.4
-	plate.BorderSizePixel = 0
-	plate.LayoutOrder = 7
-	plate.Size = UDim2.new(1, 0, 0, 56)
-	plate.Parent = card
-	local plateCorner = Instance.new("UICorner")
-	plateCorner.CornerRadius = UDim.new(0, 6)
-	plateCorner.Parent = plate
-	local myFlag = FlagView.new(plate, 60, 40, 2)
-	myFlag.frame.Position = UDim2.fromOffset(8, 8)
-	myFlag.frame.Parent = plate
-	local myName = Instance.new("TextLabel")
-	myName.BackgroundTransparency = 1
-	myName.Position = UDim2.fromOffset(80, 8)
-	myName.Size = UDim2.new(1, -260, 0, 22)
-	myName.FontFace = Theme.FontBold
-	myName.TextSize = 17
-	myName.TextColor3 = Theme.Colors.Text
-	myName.TextXAlignment = Enum.TextXAlignment.Left
-	myName.TextTruncate = Enum.TextTruncate.AtEnd
-	myName.Text = Players.LocalPlayer.DisplayName
-	myName.Parent = plate
-	local myLevel = Instance.new("TextLabel")
-	myLevel.BackgroundTransparency = 1
-	myLevel.Position = UDim2.fromOffset(80, 30)
-	myLevel.Size = UDim2.new(1, -260, 0, 18)
-	myLevel.FontFace = Theme.Font
-	myLevel.TextSize = 13
-	myLevel.TextColor3 = Theme.Colors.Muted
-	myLevel.TextXAlignment = Enum.TextXAlignment.Left
-	myLevel.Parent = plate
-	local editFlag = smallButton(plate, Strings.get("lobby.editFlag", lang), 170, BTN)
-	editFlag.AnchorPoint = Vector2.new(1, 0.5)
-	editFlag.Position = UDim2.new(1, -8, 0.5, 0)
-	editFlag.TextColor3 = Theme.Colors.Gold
-
-	-- Редактор флага: пять строк «часть ◀ значение ▶», внизу «Сохранить» и подсказка про закрытые части.
-	local editor = Instance.new("Frame")
-	editor.Name = "FlagEditor"
-	editor.BackgroundTransparency = 1
-	editor.LayoutOrder = 8
-	editor.Size = UDim2.fromScale(1, 0)
-	editor.AutomaticSize = Enum.AutomaticSize.Y
-	editor.Visible = false
-	editor.Parent = card
-	local editorList = Instance.new("UIListLayout")
-	editorList.SortOrder = Enum.SortOrder.LayoutOrder
-	editorList.Padding = UDim.new(0, 4)
-	editorList.Parent = editor
-	local flagCfg = Config.Cosmetics.Flag
-	local draft: Cosmetics.Flag = Cosmetics.defaultFlag()
-	type EditRow = { field: string, value: TextLabel, lock: TextLabel }
-	local editRows: { EditRow } = {}
-	local saveRow = Instance.new("Frame")
-	local saveFlag: TextButton
-	local saveNote: TextLabel
-	local function partOwned(field: string, v: string): boolean
-		local p = cs.profile
-		if field ~= "layout" and field ~= "emblem" then
-			return true
-		end
-		return p ~= nil and p.wardrobe.owned[Cosmetics.key(field :: any, v)] == true
-	end
-	local function drawEditor()
-		myFlag.set(draft)
-		local allOwned = true
-		for _, r in editRows do
-			local v = (draft :: any)[r.field] :: string
-			local isPart = r.field == "layout" or r.field == "emblem"
-			r.value.Text = if isPart then Strings.get("flag." .. v, lang) else Strings.get("color." .. v, lang)
-			local owned = partOwned(r.field, v)
-			r.lock.Visible = not owned
-			allOwned = allOwned and owned
-		end
-		saveFlag.AutoButtonColor = allOwned
-		saveFlag.TextColor3 = if allOwned then Theme.Colors.Gold else Theme.Colors.Muted
-		saveNote.Text = if allOwned then "" else Strings.get("lobby.flagLocked", lang)
-	end
-	for k, field in { "bg", "layout", "layoutColor", "emblem", "emblemColor" } do
-		local row = Instance.new("Frame")
-		row.BackgroundTransparency = 1
-		row.LayoutOrder = k
-		row.Size = UDim2.new(1, 0, 0, BTN)
-		row.Parent = editor
-		local name = Instance.new("TextLabel")
-		name.BackgroundTransparency = 1
-		name.Size = UDim2.fromOffset(150, BTN)
-		name.FontFace = Theme.Font
-		name.TextSize = 13
-		name.TextColor3 = Theme.Colors.Muted
-		name.TextXAlignment = Enum.TextXAlignment.Left
-		name.Text = Strings.get("wardrobe.flag." .. field, lang)
-		name.Parent = row
-		local prev = smallButton(row, "◀", BTN, BTN)
-		prev.Position = UDim2.fromOffset(160, 0)
-		local value = Instance.new("TextLabel")
-		value.BackgroundTransparency = 1
-		value.Position = UDim2.fromOffset(160 + BTN + 4, 0)
-		value.Size = UDim2.fromOffset(150, BTN)
-		value.FontFace = Theme.FontBold
-		value.TextSize = 14
-		value.TextColor3 = Theme.Colors.Text
-		value.Parent = row
-		local nextB = smallButton(row, "▶", BTN, BTN)
-		nextB.Position = UDim2.fromOffset(160 + BTN + 158, 0)
-		local lock = Instance.new("TextLabel")
-		lock.BackgroundTransparency = 1
-		lock.Position = UDim2.fromOffset(160 + 2 * BTN + 166, 0)
-		lock.Size = UDim2.fromOffset(200, BTN)
-		lock.FontFace = Theme.Font
-		lock.TextSize = 12
-		lock.TextColor3 = Theme.Colors.Alert
-		lock.TextXAlignment = Enum.TextXAlignment.Left
-		lock.Text = string.format(Strings.get("lobby.flagPart", lang), flagCfg.PartPrice)
-		lock.Visible = false
-		lock.Parent = row
-		local list: { string } = if field == "layout"
-			then flagCfg.Layouts
-			elseif field == "emblem" then flagCfg.Emblems
-			else flagCfg.Colors
-		local function step(dir: number)
-			(draft :: any)[field] = cycle(list, (draft :: any)[field], dir)
-			drawEditor()
-		end
-		Session.connect(prev.Activated, function()
-			step(-1)
+	local diffRow = Instance.new("Frame")
+	diffRow.Name = "Difficulty"
+	diffRow.BackgroundTransparency = 1
+	diffRow.LayoutOrder = 8
+	diffRow.Size = UDim2.fromScale(1, 0)
+	diffRow.AutomaticSize = Enum.AutomaticSize.Y
+	diffRow.Visible = false
+	diffRow.Parent = card
+	local diffList = Instance.new("UIListLayout")
+	diffList.FillDirection = Enum.FillDirection.Horizontal
+	diffList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	diffList.VerticalAlignment = Enum.VerticalAlignment.Center
+	diffList.Padding = UDim.new(0, 8)
+	diffList.SortOrder = Enum.SortOrder.LayoutOrder
+	diffList.Parent = diffRow
+	local diffLabel = label(diffRow, 15, false, 0)
+	diffLabel.TextColor3 = Theme.Colors.Muted
+	diffLabel.Text = Strings.get("lobby.difficulty", lang)
+	local diffButtons: { [string]: TextButton } = {}
+	for k, level in { "Novice", "Normal", "General" } do
+		local b = smallButton(diffRow, Strings.get("mode.level." .. level, lang), 120, BTN)
+		b.LayoutOrder = k
+		b.TextSize = 15
+		diffButtons[level] = b
+		Session.connect(b.Activated, function()
+			send("difficulty", { level = level })
 		end)
-		Session.connect(nextB.Activated, function()
-			step(1)
-		end)
-		table.insert(editRows, { field = field, value = value, lock = lock })
 	end
-	saveRow.BackgroundTransparency = 1
-	saveRow.LayoutOrder = 10
-	saveRow.Size = UDim2.new(1, 0, 0, BTN)
-	saveRow.Parent = editor
-	saveFlag = smallButton(saveRow, Strings.get("wardrobe.saveFlag", lang), 200, BTN)
-	saveNote = Instance.new("TextLabel")
-	saveNote.BackgroundTransparency = 1
-	saveNote.Position = UDim2.fromOffset(212, 0)
-	saveNote.Size = UDim2.new(1, -212, 1, 0)
-	saveNote.FontFace = Theme.Font
-	saveNote.TextSize = 12
-	saveNote.TextWrapped = true
-	saveNote.TextColor3 = Theme.Colors.Muted
-	saveNote.TextXAlignment = Enum.TextXAlignment.Left
-	saveNote.Parent = saveRow
-	Session.connect(saveFlag.Activated, function()
-		for _, r in editRows do
-			if not partOwned(r.field, (draft :: any)[r.field]) then
-				return
-			end
+	-- «Выйти» — в главное меню.
+	local leaveButton = smallButton(card, Strings.get("lobby.leave", lang), 220, BTN + 4)
+	leaveButton.LayoutOrder = 9
+	leaveButton.TextSize = 17
+	Session.connect(leaveButton.Activated, function()
+		if leave ~= nil then
+			leave()
 		end
-		send("flag", { flag = table.clone(draft) })
-		editor.Visible = false
-		editFlag.Text = Strings.get("lobby.editFlag", lang)
-	end)
-	Session.connect(editFlag.Activated, function()
-		editor.Visible = not editor.Visible
-		editFlag.Text = Strings.get(if editor.Visible then "lobby.closeFlag" else "lobby.editFlag", lang)
-		local p = cs.profile
-		if editor.Visible and p ~= nil then
-			draft = table.clone(p.wardrobe.flag)
-		end
-		drawEditor()
 	end)
 
 	-- Места для голосования (режим, под ним — карта) и выбора генерала.
@@ -420,6 +276,9 @@ function LobbyScreen.new(
 	type Attached = { frame: GuiObject, home: Instance?, position: UDim2, anchor: Vector2, slot: Frame }
 	local attached: { Attached } = {}
 	local function attach(vote: GuiObject?, picker: GuiObject?, mapVote: GuiObject?)
+		if not Config.Match.LobbyVotes then
+			return -- §15ф Ф1: без голосований и генерала в лобби
+		end
 		local slots = { voteSlot, pickerSlot, mapSlot }
 		for k, f in { vote, picker, mapVote } :: { [number]: GuiObject? } do
 			if f ~= nil then
@@ -546,7 +405,7 @@ function LobbyScreen.new(
 		if not lobby then
 			return
 		end
-		-- Режим: лидер голосования (до конца лобби — «Каждый сам за себя»).
+		-- Режим: заданный по очереди сервера (с голосованием — лидер голосования).
 		local mode = cs.mode
 		local best, bestVotes = mode.mode, -1
 		for k, id in mode.options do
@@ -555,9 +414,8 @@ function LobbyScreen.new(
 				best, bestVotes = id, v
 			end
 		end
-		-- Карта: лидер голосования (ничья — раньше в списке, первой идёт текущая карта, как Modes.mapWinner).
-		local mv = cs.mapVote
 		local mapLead = mapName
+		local mv = cs.mapVote
 		if mv ~= nil and #mv.options > 0 then
 			local bestK = 1
 			for k = 2, #mv.options do
@@ -567,45 +425,55 @@ function LobbyScreen.new(
 			end
 			mapLead = mv.options[bestK]
 		end
-		mapLine.Text = Strings.get("map." .. mapLead, lang)
-		mapLine.TextColor3 = if mapLead ~= mapName then Theme.Colors.Gold else Theme.Colors.Text
-		-- Плашка игрока: уровень из профиля, флаг — сохранённый (пока редактор закрыт).
-		local p = cs.profile
-		plate.Visible = p ~= nil
-		if p ~= nil then
-			myLevel.Text = string.format(Strings.get("lobby.level", lang), p.level)
-			if not editor.Visible then
-				myFlag.set(p.wardrobe.flag)
-			end
-		else
-			editor.Visible = false
-		end
+		infoLine.Text = Strings.get("map." .. mapLead, lang) .. "  ·  " .. Strings.get("mode." .. best, lang)
 		local humans: { string } = {}
 		for _, n in cs.nations do
 			if not n.isBot then
 				table.insert(humans, if lang == "en" then n.nameEn else n.name)
 			end
 		end
-		infoLine.Text = string.format(
-			Strings.get("lobby.info", lang),
-			Strings.get("mode." .. best, lang),
-			#humans,
-			cs.targetNations
-		)
+		-- Места: всего держав в матче (люди + боты), не больше SeatsMax квадратиков.
+		local total = math.clamp(math.max(cs.targetNations, #humans), 1, cfg.SeatsMax)
+		for k = 1, math.max(total, #seatFrames) do
+			local f: Frame? = seatFrames[k]
+			if f == nil and k <= total then
+				local made = Instance.new("Frame")
+				made.BorderSizePixel = 0
+				made.LayoutOrder = k
+				made.Parent = seats
+				local c = Instance.new("UICorner")
+				c.CornerRadius = UDim.new(0, 4)
+				c.Parent = made
+				seatFrames[k] = made
+				f = made
+			end
+			if f ~= nil then
+				f.Visible = k <= total
+				f.BackgroundColor3 = if k <= #humans then Theme.Colors.Sky else Theme.Colors.Slate
+				f.BackgroundTransparency = if k <= #humans then 0 else 0.4
+			end
+		end
+		playersLine.Text = string.format(Strings.get("lobby.seats", lang), #humans, math.max(cs.targetNations, #humans))
+			.. (if #humans > 0 then "\n" .. table.concat(humans, " · ") else "")
 		local code = if cs.server ~= nil then cs.server.code else nil
 		codeLine.Visible = code ~= nil
 		if code ~= nil then
 			codeLine.Text = string.format(Strings.get("lobby.code", lang), code)
 		end
-		players.Text = if #humans > 0
-			then Strings.get("lobby.players", lang) .. " " .. table.concat(humans, " · ")
-			else ""
+		-- Одиночная игра: сложность (выбранная — золотом).
+		diffRow.Visible = mode.humans == 1 and cs.phase == "Lobby"
+		for level, b in diffButtons do
+			local on = mode.difficulty == level
+			b.BackgroundColor3 = if on then Theme.Colors.Gold else Theme.Colors.PanelBg
+			b.TextColor3 = if on then Theme.Colors.Backdrop else Theme.Colors.Text
+		end
+		leaveButton.Visible = leave ~= nil
 		if cs.phase == "Waiting" then
-			countdown.Text = "…"
+			countdown.Text = Strings.get("lobby.waitingMore", lang)
 			fill.Size = UDim2.fromScale(0.15 + 0.1 * math.sin(now * 3), 1)
 		else
 			local left = math.max(0, cs.phaseEndsAt - now)
-			countdown.Text = string.format("%d", math.ceil(left))
+			countdown.Text = string.format(Strings.get("lobby.startsIn", lang), math.ceil(left))
 			fill.Size = UDim2.fromScale(1 - math.clamp(left / Config.Match.LobbySec, 0, 1), 1)
 			countdown.TextColor3 = if left <= 5 and math.floor(now * 2) % 2 == 0
 				then Theme.Colors.Alert

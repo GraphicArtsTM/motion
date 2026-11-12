@@ -1,10 +1,11 @@
 --!strict
 --[[
-	Dock — док окон (GDD §15з; с §15л ч.2 — вертикальной полосой слева под «≡»): все окна открываются отсюда.
-	Квадратные кнопки со значком (Shared.PixelIcons) и клавишей в уголке; открытое окно — золотая рамка; при
-	наведении над доком — подсказка: название и состояние (текст прежней кнопки окна, например «Технологии —
+	Dock — док окон матча (GDD §15з; §15ф — строкой сверху слева, правее «≡»): кнопки «значок · название ·
+	клавиша» для дел в матче (Дипломатия, Технологии, Стабильность, Метки); открытое окно — золотая рамка; при
+	наведении — подсказка под кнопкой: название и состояние (текст прежней кнопки окна, например «Технологии —
 	исследуется: Авиация, 30 с»). Прежние разбросанные кнопки окон переезжают в скрытую папку: их логика (когда
-	видны, что написано) работает как раньше, док только читает её.
+	видны, что написано) работает как раньше, док только читает её. Пункты с hidden = true (магазин, задания,
+	гардероб…) в доке не рисуются — их кнопки только прячутся, сами окна открываются из меню игры (≡).
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -25,6 +26,7 @@ export type Item = {
 	visible: (() -> boolean)?, -- если прежней кнопки нет
 	toggle: () -> (),
 	isOpen: (() -> boolean)?,
+	hidden: boolean?, -- §15ф: в доке не рисовать (окно — в меню игры), прежнюю кнопку — спрятать
 }
 
 export type Dock = {
@@ -49,10 +51,10 @@ function Dock.new(gui: ScreenGui, lang: Strings.Lang, items: { Item }): Dock
 
 	local frame = Instance.new("Frame")
 	frame.Name = "Dock"
-	-- §15л ч.2: слева под кнопкой «≡» (снизу теперь командная полоса матча).
+	-- §15ф: строкой сверху слева, правее кнопки «≡».
 	frame.Position = UDim2.fromOffset(cfg.LeftPx, cfg.TopPx)
-	frame.Size = UDim2.fromOffset(cfg.ButtonPx + 2 * cfg.PadPx, 0)
-	frame.AutomaticSize = Enum.AutomaticSize.Y
+	frame.Size = UDim2.fromOffset(0, cfg.ButtonPx + 2 * cfg.PadPx)
+	frame.AutomaticSize = Enum.AutomaticSize.X
 	local dockScale = Instance.new("UIScale")
 	dockScale.Parent = frame
 	frame.BackgroundColor3 = Theme.Colors.Backdrop
@@ -74,16 +76,16 @@ function Dock.new(gui: ScreenGui, lang: Strings.Lang, items: { Item }): Dock
 	pad.PaddingBottom = UDim.new(0, cfg.PadPx)
 	pad.Parent = frame
 	local row = Instance.new("UIListLayout")
-	row.FillDirection = Enum.FillDirection.Vertical
+	row.FillDirection = Enum.FillDirection.Horizontal
 	row.Padding = UDim.new(0, cfg.GapPx)
 	row.SortOrder = Enum.SortOrder.LayoutOrder
-	row.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	row.VerticalAlignment = Enum.VerticalAlignment.Center
 	row.Parent = frame
 
-	-- Подсказка справа от кнопки.
+	-- Подсказка под кнопкой.
 	local tip = Instance.new("TextLabel")
 	tip.Name = "DockTip"
-	tip.AnchorPoint = Vector2.new(0, 0.5)
+	tip.AnchorPoint = Vector2.new(0, 0)
 	tip.Size = UDim2.fromOffset(0, 26)
 	tip.AutomaticSize = Enum.AutomaticSize.X
 	tip.BackgroundColor3 = Theme.Colors.PanelBg
@@ -128,12 +130,16 @@ function Dock.new(gui: ScreenGui, lang: Strings.Lang, items: { Item }): Dock
 		if b ~= nil then
 			b.Parent = holder
 		end
+		if item.hidden then
+			continue
+		end
 		local root = Instance.new("TextButton")
 		root.Name = "Dock_" .. item.icon
 		root.Text = ""
 		root.AutoButtonColor = true
 		root.LayoutOrder = order
-		root.Size = UDim2.fromOffset(cfg.ButtonPx, cfg.ButtonPx)
+		root.Size = UDim2.fromOffset(0, cfg.ButtonPx)
+		root.AutomaticSize = Enum.AutomaticSize.X
 		root.BackgroundColor3 = Theme.Colors.PanelBg
 		root.BorderSizePixel = 0
 		root.Parent = frame
@@ -145,14 +151,33 @@ function Dock.new(gui: ScreenGui, lang: Strings.Lang, items: { Item }): Dock
 		edge.Color = Theme.Colors.PanelBorder
 		edge.Thickness = 2
 		edge.Parent = root
-		-- Значок 8×8 крупно по центру.
+		-- Значок слева, название, клавиша — в строку.
+		local rootPad = Instance.new("UIPadding")
+		rootPad.PaddingLeft = UDim.new(0, 8)
+		rootPad.PaddingRight = UDim.new(0, 10)
+		rootPad.Parent = root
+		local rootList = Instance.new("UIListLayout")
+		rootList.FillDirection = Enum.FillDirection.Horizontal
+		rootList.VerticalAlignment = Enum.VerticalAlignment.Center
+		rootList.Padding = UDim.new(0, 8)
+		rootList.SortOrder = Enum.SortOrder.LayoutOrder
+		rootList.Parent = root
 		local scale = cfg.IconScale
 		local icon = Instance.new("Frame")
 		icon.BackgroundTransparency = 1
-		icon.AnchorPoint = Vector2.new(0.5, 0.5)
-		icon.Position = UDim2.fromScale(0.5, 0.45)
+		icon.LayoutOrder = 1
 		icon.Size = UDim2.fromOffset(PixelIcons.Size * scale, PixelIcons.Size * scale)
 		icon.Parent = root
+		local label = Instance.new("TextLabel")
+		label.BackgroundTransparency = 1
+		label.LayoutOrder = 2
+		label.AutomaticSize = Enum.AutomaticSize.X
+		label.Size = UDim2.fromOffset(0, cfg.ButtonPx)
+		label.FontFace = Theme.FontBold
+		label.TextSize = 15
+		label.TextColor3 = Theme.Colors.Text
+		label.Text = Strings.get(item.name, lang)
+		label.Parent = root
 		local parts: { PixelIcons.Part } = PixelIcons.Icons[item.icon] or {}
 		for _, part in parts do
 			local f = Instance.new("Frame")
@@ -164,9 +189,8 @@ function Dock.new(gui: ScreenGui, lang: Strings.Lang, items: { Item }): Dock
 		end
 		if item.key ~= nil then
 			local badge = Instance.new("TextLabel")
-			badge.AnchorPoint = Vector2.new(1, 1)
-			badge.Position = UDim2.new(1, -2, 1, -2)
-			badge.Size = UDim2.fromOffset(16, 14)
+			badge.LayoutOrder = 3
+			badge.Size = UDim2.fromOffset(20, 18)
 			badge.BackgroundColor3 = Theme.Colors.Backdrop
 			badge.BackgroundTransparency = 0.2
 			badge.BorderSizePixel = 0
@@ -212,9 +236,9 @@ function Dock.new(gui: ScreenGui, lang: Strings.Lang, items: { Item }): Dock
 				slot.root.BackgroundColor3 = if open then Theme.Colors.Slate else Theme.Colors.PanelBg
 			end
 			frame.Visible = any
-			-- Не ниже места под командную полосу: высокий док ужимается (телефон, маленький экран).
-			local natural = frame.AbsoluteSize.Y / math.max(0.01, dockScale.Scale)
-			local room = gui.AbsoluteSize.Y - cfg.TopPx - cfg.BottomPx
+			-- Не шире половины экрана: длинная строка ужимается (телефон, маленький экран).
+			local natural = frame.AbsoluteSize.X / math.max(0.01, dockScale.Scale)
+			local room = gui.AbsoluteSize.X * 0.5 - cfg.LeftPx
 			dockScale.Scale = math.clamp(room / math.max(1, natural), 0.5, 1)
 		end
 		local h = hovered
@@ -222,7 +246,7 @@ function Dock.new(gui: ScreenGui, lang: Strings.Lang, items: { Item }): Dock
 			tip.Visible = true
 			tip.Text = tipText(h.item)
 			local p = h.root.AbsolutePosition - gui.AbsolutePosition
-			tip.Position = UDim2.fromOffset(p.X + h.root.AbsoluteSize.X + 10, p.Y + h.root.AbsoluteSize.Y / 2)
+			tip.Position = UDim2.fromOffset(p.X, p.Y + h.root.AbsoluteSize.Y + 8)
 		else
 			tip.Visible = false
 		end

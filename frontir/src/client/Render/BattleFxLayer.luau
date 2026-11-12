@@ -5,6 +5,8 @@
 	- Плашка перевеса над фронтами, которые касаются игрока: «×2.4», цвет полосы (стоит — красный, ползёт —
 	  оранжевый, полная скорость — зелёный, прорыв — золотой); число и место плавно догоняют новые значения;
 	  фронт против вас — со знаком ⚠ и красной рамкой.
+	- Прогноз фронта под числом (§15н, FrontForecast): состояние и тренд, главная причина торможения, сколько
+	  войск нужно, на сколько хватит войск, совет «Лучше отступить». На телефоне — без строки чисел.
 	- Свой фронт перешёл в прорыв — всплывает «ПРОРЫВ!» (стрелки золотые — WarFxLayer).
 	- Захват города: ударное кольцо цветом захватчика, «+ Город» (взяли вы) / «− Город» (потеряли вы).
 	- Выбывание державы: баннер «X выбывает» и салют цветом победителя над её столицей.
@@ -22,6 +24,7 @@ local CitySprites = require(Shared:WaitForChild("CitySprites"))
 local ClientState = require(Shared:WaitForChild("ClientState"))
 local Config = require(Shared:WaitForChild("Config"))
 local Fog = require(Shared:WaitForChild("Fog"))
+local FrontForecast = require(Shared:WaitForChild("FrontForecast"))
 local Fronts = require(Shared:WaitForChild("Fronts"))
 local MapDataModule = require(Shared:WaitForChild("MapData"))
 local NationColors = require(Shared:WaitForChild("NationColors"))
@@ -47,6 +50,10 @@ type Badge = {
 	frame: Frame,
 	stroke: UIStroke,
 	label: TextLabel,
+	status: TextLabel, -- §15н: «Медленно ↑ · река»
+	detail: TextLabel, -- «+1.2K до ×2 · войск на ~40 с»
+	advice: TextLabel, -- «Лучше отступить»
+	history: { { t: number, r: number } }, -- перевес по времени — для тренда
 	x: number,
 	y: number,
 	tx: number,
@@ -158,8 +165,8 @@ function BattleFxLayer.new(
 		f.BackgroundColor3 = Theme.Colors.Backdrop
 		f.BackgroundTransparency = 0.15
 		f.BorderSizePixel = 0
-		f.Size = UDim2.fromOffset(0, 22)
-		f.AutomaticSize = Enum.AutomaticSize.X
+		f.Size = UDim2.fromOffset(0, 0)
+		f.AutomaticSize = Enum.AutomaticSize.XY
 		f.ZIndex = 17
 		f.Parent = canvas
 		local stroke = Instance.new("UIStroke")
@@ -168,21 +175,42 @@ function BattleFxLayer.new(
 		local pad = Instance.new("UIPadding")
 		pad.PaddingLeft = UDim.new(0, 6)
 		pad.PaddingRight = UDim.new(0, 6)
+		pad.PaddingBottom = UDim.new(0, 2)
 		pad.Parent = f
-		local l = Instance.new("TextLabel")
-		l.BackgroundTransparency = 1
-		l.FontFace = Theme.FontBold
-		l.TextSize = 15
-		l.Size = UDim2.fromScale(0, 1)
-		l.AutomaticSize = Enum.AutomaticSize.X
-		l.ZIndex = 18
-		l.Parent = f
+		local list = Instance.new("UIListLayout")
+		list.FillDirection = Enum.FillDirection.Vertical
+		list.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		list.SortOrder = Enum.SortOrder.LayoutOrder
+		list.Parent = f
+		local function line(order: number, size: number, bold: boolean, color: Color3): TextLabel
+			local t = Instance.new("TextLabel")
+			t.BackgroundTransparency = 1
+			t.FontFace = if bold then Theme.FontBold else Theme.Font
+			t.TextSize = size
+			t.TextColor3 = color
+			t.Size = UDim2.fromOffset(0, size + 4)
+			t.AutomaticSize = Enum.AutomaticSize.X
+			t.LayoutOrder = order
+			t.ZIndex = 18
+			t.Visible = order == 1
+			t.Parent = f
+			return t
+		end
+		local l = line(1, 15, true, Theme.Colors.Text)
+		local fc = Config.Forecast
+		local status = line(2, fc.StatusTextPx, true, Theme.Colors.Text)
+		local detail = line(3, fc.DetailTextPx, false, Theme.Colors.Muted)
+		local advice = line(4, fc.DetailTextPx, true, Theme.Colors.Alert)
 		badgeCount += 1
 		return {
 			key = key,
 			frame = f,
 			stroke = stroke,
 			label = l,
+			status = status,
+			detail = detail,
+			advice = advice,
+			history = {},
 			x = x,
 			y = y,
 			tx = x,
@@ -201,6 +229,37 @@ function BattleFxLayer.new(
 			badges[key] = nil
 			badgeCount -= 1
 		end
+	end
+
+	-- Прогноз фронта (§15н): тренд по истории перевеса, остальное — от сервера (только сторонам фронта).
+	local function forecast(b: Badge, a: any, now: number)
+		local fc = Config.Forecast
+		local hist = b.history
+		if #hist == 0 or now - hist[#hist].t >= fc.HistoryStepSec then
+			table.insert(hist, { t = now, r = a.ratio })
+		end
+		while #hist > 1 and hist[2].t <= now - fc.TrendSec do
+			table.remove(hist, 1)
+		end
+		local old = if hist[1].t <= now - fc.TrendSec + fc.HistoryStepSec then hist[1].r else nil
+		local lasts = if b.againstMe then nil else FrontForecast.lastsSec(a.power, a.burn or 0, ClientState.simRate(cs))
+		local lines = FrontForecast.lines({
+			ratio = a.ratio,
+			fighting = a.fighting,
+			againstMe = b.againstMe,
+			why = a.why or 0,
+			need = a.need or 0,
+			lasts = lasts,
+			trend = FrontForecast.trend(old, a.ratio),
+		}, lang)
+		b.status.Text = lines.status
+		b.status.Visible = true
+		local detail = lines.detail
+		b.detail.Text = detail or ""
+		b.detail.Visible = detail ~= nil and not phone
+		local advice = lines.advice
+		b.advice.Text = advice or ""
+		b.advice.Visible = advice ~= nil
 	end
 
 	local function scanBadges(state: CameraState)
@@ -245,6 +304,7 @@ function BattleFxLayer.new(
 							b.tx, b.ty = mid.x, mid.y - 1.5
 							b.ratio = a.ratio
 							b.seen = now
+							forecast(b, a, now)
 						end
 					end
 				end
@@ -582,6 +642,7 @@ function BattleFxLayer.new(
 				else "×" .. value
 			b.label.Text = (if b.againstMe then "⚠ " else "") .. text
 			b.label.TextColor3 = bandColor[band]
+			b.status.TextColor3 = bandColor[band]
 			b.stroke.Color = if b.againstMe then Theme.Colors.Alert else bandColor[band]
 			-- Прорыв — плашка пульсирует.
 			local pulse = if band == "breakthrough" then 1 + 0.08 * math.sin(now * 8) else 1

@@ -63,7 +63,7 @@ T.describe("Экономика 2.0 (§15д)", function()
 			-- Улучшение: ур. 2 по UpgradeMul[2], потом новый завод — уже +2 шага.
 			T.expect((build(m, "Factory", far))).toBe(true)
 			T.expect((MatchSim.buildPrice(m, 1, "Factory", 40 * W + 40))).toBeNear(base * (1 + 2 * cfg.CostStep), 1e-6)
-			T.expect((MatchSim.buildPrice(m, 1, "Market", 40 * W + 40))).toBe(Config.Buildings.Market.cost)
+			T.expect((MatchSim.buildPrice(m, 1, "Housing", 40 * W + 40))).toBe(Config.Buildings.Housing.cost)
 			-- Держава 2 платит свою цену.
 			T.expect((MatchSim.buildPrice(m, 2, "Factory", 40 * W + 100))).toBe(base)
 			-- Ограничения на число нет: десять заводов подряд (не вплотную) строятся.
@@ -100,8 +100,8 @@ T.describe("Экономика 2.0 (§15д)", function()
 			MatchSim.step(m, DT)
 			T.expect(m.economy[1].upkeep >= want).toBe(true)
 			-- Доход с заводом больше, чем без него (те же клетки и города).
-			local e = Economy.income(Grid.cellsOf(m.grid, 1), owned().cityLevels, 0, owned().factoryIncome, 0)
-			T.expect(e - Economy.income(Grid.cellsOf(m.grid, 1), owned().cityLevels, 0))
+			local e = Economy.income(Grid.cellsOf(m.grid, 1), owned().cityLevels, owned().factoryIncome, 0)
+			T.expect(e - Economy.income(Grid.cellsOf(m.grid, 1), owned().cityLevels))
 				.toBeNear(owned().factoryIncome, 1e-6)
 		end
 	)
@@ -118,6 +118,14 @@ T.describe("Экономика 2.0 (§15д)", function()
 			-- Город ур. 2 — район сильнее.
 			T.expect((build(m, "City", cap))).toBe(true)
 			T.expect(MatchSim.ownedOf(m, 1).factoryIncome).toBeNear(income * (1 + 2 * cfg.DistrictPerCityLevel), 1e-9)
+			-- §15х ч.6: завод ур. 3 — ещё +incomeBonus ко всему доходу (бывший «Рынок»), тоже с районом.
+			T.expect(MatchSim.ownedOf(m, 1).incomeBonus).toBe(0)
+			T.expect((build(m, "Factory", near))).toBe(true)
+			T.expect((build(m, "Factory", near))).toBe(true)
+			T.expect(m.buildings.byCell[near].level).toBe(3)
+			local f = Config.Buildings.Factory
+			T.expect(MatchSim.ownedOf(m, 1).incomeBonus)
+				.toBeNear(f.incomeBonus * (1 + 2 * cfg.DistrictPerCityLevel), 1e-9)
 		end
 	)
 
@@ -126,14 +134,14 @@ T.describe("Экономика 2.0 (§15д)", function()
 		function()
 			local m = duo()
 			local far = 40 * W + 20
-			T.expect((build(m, "Market", far))).toBe(true)
+			T.expect((build(m, "Housing", far))).toBe(true)
 			local money = m.nations[1].money
 			T.expect((MatchSim.applyIntent(m, 1, { kind = "demolish", cell = far }))).toBe(true)
-			T.expect(m.nations[1].money - money).toBeNear(Config.Buildings.Market.cost * cfg.DemolishRefund, 1e-6)
+			T.expect(m.nations[1].money - money).toBeNear(Config.Buildings.Housing.cost * cfg.DemolishRefund, 1e-6)
 			T.expect(m.buildings.byCell[far]).toBe(nil)
 			-- У границы с врагом в войне — нельзя.
 			local border = 40 * W + 58
-			T.expect((build(m, "Market", border))).toBe(true)
+			T.expect((build(m, "Housing", border))).toBe(true)
 			DevTools.warNow(m, 1, 2)
 			T.expect(select(2, MatchSim.applyIntent(m, 1, { kind = "demolish", cell = border }))).toBe("nearFront")
 			T.expect(select(2, MatchSim.applyIntent(m, 2, { kind = "demolish", cell = far + 4 }))).toBe("notOwner")
@@ -208,7 +216,7 @@ T.describe("Экономика 2.0 (§15д)", function()
 			T.expect((build(m, "Factory", far))).toBe(true)
 			T.expect((build(m, "Factory", far))).toBe(true)
 			local market = 40 * W + 40
-			T.expect((build(m, "Market", market))).toBe(true)
+			T.expect((build(m, "Housing", market))).toBe(true)
 			MatchSim.step(m, DT)
 			Grid.setOwner(m.grid, far, 2)
 			Grid.setOwner(m.grid, market, 2)

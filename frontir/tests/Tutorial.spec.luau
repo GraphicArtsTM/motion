@@ -32,6 +32,7 @@ T.describe("Обучение (§5.5)", function()
 			T.expect(r.events).toBe(false)
 			T.expect(r.boosts).toBe(false)
 			local m = MatchSim.new(Fixtures.pangea, 61)
+			m.lobbyVotes = true -- §15ф Ф1: вариант «Обучение» — в голосовании
 			local me = MatchSim.addPlayer(m, 1, "Новичок") :: number
 			MatchSim.startLobby(m)
 			T.expect(table.find(m.modeOptions, "Tutorial") ~= nil).toBe(true)

@@ -24,6 +24,7 @@ export type Treaty = {
 	untilTime: number?, -- конец пакта
 	breakAt: number?, -- объявлен разрыв: договор кончится в этот момент
 	breaker: number?, -- кто разрывает
+	trust: boolean?, -- §15у: союз с полным доверием (удар через союзника, коридор)
 }
 
 export type Offer = {
@@ -49,7 +50,9 @@ export type Entry = {
 		| "ceded"
 		| "refused"
 		| "trade"
-		| "embargo",
+		| "embargo"
+		| "trust"
+		| "distrust",
 	a: number,
 	b: number,
 	at: number,
@@ -121,6 +124,40 @@ function Diplomacy.allied(ds: DiploSet, a: number, b: number): boolean
 	return t ~= nil and t.kind == "alliance"
 end
 
+-- §15у: союз с полным доверием.
+function Diplomacy.trusted(ds: DiploSet, a: number, b: number): boolean
+	local t = Diplomacy.treaty(ds, a, b)
+	return t ~= nil and t.kind == "alliance" and t.trust == true
+end
+
+-- Союзники a с полным доверием (по возрастанию номера).
+function Diplomacy.trustedOf(ds: DiploSet, a: number): { number }
+	local out: { number } = {}
+	for _, t in ds.treaties do
+		if t.kind == "alliance" and t.trust == true then
+			if t.a == a then
+				table.insert(out, t.b)
+			elseif t.b == a then
+				table.insert(out, t.a)
+			end
+		end
+	end
+	table.sort(out)
+	return out
+end
+
+-- Поставить или снять полное доверие у союза a–b (by — кто). Возвращает, изменилось ли.
+function Diplomacy.setTrust(ds: DiploSet, a: number, b: number, on: boolean, now: number): boolean
+	local t = Diplomacy.treaty(ds, a, b)
+	if t == nil or t.kind ~= "alliance" or (t.trust == true) == on then
+		return false
+	end
+	t.trust = if on then true else nil
+	log(ds, { kind = if on then "trust" else "distrust", a = a, b = b, at = now })
+	touch(ds)
+	return true
+end
+
 function Diplomacy.alliesOf(ds: DiploSet, a: number): { number }
 	local out: { number } = {}
 	for _, t in ds.treaties do
@@ -160,6 +197,23 @@ function Diplomacy.friends(ds: DiploSet, a: number): { [number]: boolean }
 	end
 	for _, id in Diplomacy.vassalsOf(ds, a) do
 		out[id] = true
+	end
+	local lord = Diplomacy.overlordOf(ds, a)
+	if lord ~= nil then
+		out[lord] = true
+	end
+	return out
+end
+
+-- §15у ч.2: друзья по полному доверию — союзники с полным доверием, вассалы и сюзерен. Им — снабжение, ПВО,
+-- порты, общий обзор, зоны «Авиаудара». Обычный союз (частичное доверие) — только в Diplomacy.friends.
+function Diplomacy.trustFriends(ds: DiploSet, a: number): { [number]: boolean }
+	local out: { [number]: boolean } = { [a] = true }
+	for _, ally in Diplomacy.trustedOf(ds, a) do
+		out[ally] = true
+	end
+	for _, vassal in Diplomacy.vassalsOf(ds, a) do
+		out[vassal] = true
 	end
 	local lord = Diplomacy.overlordOf(ds, a)
 	if lord ~= nil then
@@ -291,6 +345,22 @@ function Diplomacy.canOffer(
 	end
 	if vassalPair then
 		return false, "vassal"
+	end
+	-- §15у: полное доверие — только союзнику, союз не разрывается и длится не меньше Alliance.TrustAfterSec.
+	if kind == "trust" then
+		if t == nil or t.kind ~= "alliance" then
+			return false, "needAlliance"
+		end
+		if t.trust then
+			return false, "already"
+		end
+		if t.breakAt ~= nil then
+			return false, "breaking"
+		end
+		if now - t.since < Config.Alliance.TrustAfterSec then
+			return false, "trustTooEarly"
+		end
+		return cooldown()
 	end
 	if kind == "alliance" then
 		if t ~= nil and t.kind == "alliance" then

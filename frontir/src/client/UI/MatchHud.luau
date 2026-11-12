@@ -22,6 +22,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local ClientState = require(Shared:WaitForChild("ClientState"))
 local Config = require(Shared:WaitForChild("Config"))
 local Economy = require(Shared:WaitForChild("Economy"))
+local EventFeed = require(Shared:WaitForChild("EventFeed"))
 local MapDataModule = require(Shared:WaitForChild("MapData"))
 local NationColors = require(Shared:WaitForChild("NationColors"))
 local Protocol = require(Shared:WaitForChild("Net"):WaitForChild("Protocol"))
@@ -316,9 +317,12 @@ function MatchHud.new(
 	feedLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	feedLayout.Padding = UDim.new(0, 2)
 	feedLayout.Parent = feed
-	type FeedLine = { label: TextLabel, untilTime: number }
-	local feedLines: { FeedLine } = {}
+	-- §15т: лента по важности — строки и вытеснение в EventFeed, здесь — подписи к ним.
+	local feedState = EventFeed.new(Config.Render.FeedLines)
+	local feedLabels: { [EventFeed.Line]: TextLabel? } = {}
 	local feedOrder = 0
+	-- Уровень событий, которые сейчас разбирает onEvents (nil — строка не из события: подсказка, отказ).
+	local eventLevel: EventFeed.Level? = nil
 
 	-- Строки активных атак (пул, чтобы кнопки не пересоздавались 5 раз в секунду).
 	type Row = { frame: Frame, text: TextLabel, cancel: TextButton, target: number }
@@ -484,37 +488,54 @@ function MatchHud.new(
 		)
 	end
 
-	local function push(text: string, color: Color3)
-		local line: FeedLine
-		if #feedLines >= Config.Render.FeedLines then
-			line = table.remove(feedLines, 1) :: FeedLine -- самая старая строка уходит
-		else
-			local label = richLabel(feed, 15)
-			label.TextStrokeColor3 = Theme.Colors.Backdrop
-			label.TextStrokeTransparency = 0.2
-			label.TextWrapped = true
-			label.AutomaticSize = Enum.AutomaticSize.Y
-			label.Size = UDim2.fromOffset(320, 0)
-			line = { label = label, untilTime = 0 }
+	local levelColor: { [string]: Color3 } = {
+		critical = Theme.Colors.Alert,
+		important = Theme.Colors.Gold,
+		background = Theme.Colors.Muted,
+	}
+	local function push(text: string, level: EventFeed.Level)
+		local line, evicted = EventFeed.push(feedState, text, level, os.clock())
+		if evicted ~= nil then
+			local old = feedLabels[evicted]
+			if old ~= nil then
+				old:Destroy()
+				feedLabels[evicted] = nil
+			end
 		end
-		feedOrder += 1
-		line.label.LayoutOrder = feedOrder
-		line.label.Text = escape(text)
-		line.label.TextColor3 = color
-		line.label.Visible = true
-		-- Новая строка проявляется (§15г).
-		line.label.TextTransparency = 1
-		TweenService:Create(line.label, TweenInfo.new(0.25, Enum.EasingStyle.Quad), { TextTransparency = 0 }):Play()
-		line.untilTime = os.clock() + Config.Render.FeedSec
-		table.insert(feedLines, line)
+		if line == nil then
+			return -- лента занята более важным (§15т)
+		end
+		local label = feedLabels[line]
+		local fresh = label == nil
+		if label == nil then
+			local made = richLabel(feed, 15)
+			made.TextStrokeColor3 = Theme.Colors.Backdrop
+			made.TextStrokeTransparency = 0.2
+			made.TextWrapped = true
+			made.AutomaticSize = Enum.AutomaticSize.Y
+			made.Size = UDim2.fromOffset(320, 0)
+			feedOrder += 1
+			made.LayoutOrder = feedOrder
+			feedLabels[line] = made
+			label = made
+		end
+		local shown = label :: TextLabel
+		shown.Text = escape(EventFeed.textOf(line))
+		shown.TextColor3 = levelColor[line.level] or Theme.Colors.Gold
+		shown.Visible = true
+		if fresh then
+			-- Новая строка проявляется (§15г).
+			shown.TextTransparency = 1
+			TweenService:Create(shown, TweenInfo.new(0.25, Enum.EasingStyle.Quad), { TextTransparency = 0 }):Play()
+		end
 	end
 
 	local function toast(text: string)
-		push(text, Theme.Colors.Gold)
+		push(text, eventLevel or "important")
 	end
 
 	local function alertLine(text: string)
-		push(text, Theme.Colors.Alert)
+		push(text, eventLevel or "critical")
 	end
 
 	local lastValues: ResourceBar.Values? = nil
@@ -738,19 +759,26 @@ function MatchHud.new(
 		if cs.phase == "Waiting" then
 			text = Strings.get("hud.waiting", lang)
 		elseif cs.phase == "Pick" then
+			-- §15ф Ф1: «ВЫБЕРИТЕ МЕСТО СТАРТА», что делать, сколько игроков уже выбрали и сколько секунд осталось.
 			local left = math.max(0, math.ceil(cs.phaseEndsAt - now))
-			text = string.format(Strings.get("hud.pick", lang), left)
-			if cs.myNation ~= nil then
-				local me = cs.nations[cs.myNation]
-				local hint = if me ~= nil and me.capital ~= nil then "hud.pick.done" else "hud.pick.hint"
-				text ..= string.format('\n<font color="%s" size="14">%s</font>', sky, Strings.get(hint, lang))
+			local humans, placed = 0, 0
+			for _, n in cs.nations do
+				if not n.isBot then
+					humans += 1
+					if n.capital ~= nil then
+						placed += 1
+					end
+				end
 			end
-			-- Режим, выбранный в лобби (§5.1).
-			text ..= string.format(
-				'\n<font color="%s" size="14">%s</font>',
-				sky,
-				string.format(Strings.get("hud.mode", lang), Strings.get("mode." .. cs.mode.mode, lang))
-			)
+			local me = if cs.myNation ~= nil then cs.nations[cs.myNation] else nil
+			local hint = if me ~= nil and me.capital ~= nil then "hud.pick.done" else "hud.pick.hint"
+			text = string.format('<font size="22"><b>%s</b></font>', Strings.get("hud.pickTitle", lang))
+				.. string.format('\n<font color="%s" size="15">%s</font>', sky, Strings.get(hint, lang))
+				.. string.format(
+					'\n<font color="%s" size="15">%s</font>',
+					gold,
+					string.format(Strings.get("hud.pickCount", lang), placed, humans, left)
+				)
 		elseif cs.phase == "Lobby" then
 			local left = math.max(0, math.ceil(cs.phaseEndsAt - now))
 			local players = 0
@@ -829,7 +857,7 @@ function MatchHud.new(
 				text ..= string.format('\n<font color="%s" size="18">%s</font>', gold, Strings.get("hud.paused", lang))
 			end
 		end
-		-- Лидер к победе: доля суши / порог победы.
+		-- Ближе всех к победе: суша блока (союзники, вассалы наполовину — §15о) / порог победы, как на сервере.
 		local stats = cs.stats
 		local showBar = cs.phase == "Play" and stats ~= nil
 		top.Visible = showBar
@@ -837,16 +865,21 @@ function MatchHud.new(
 			placeChip.Visible = false
 		end
 		if showBar and stats ~= nil then
-			local best, bestCells = 0, -1
-			for _, s in stats.nations do
-				if s.cells > bestCells then
-					best, bestCells = s.id, s.cells
-				end
-			end
+			local best, bestCells = ClientState.victoryLeader(cs)
 			local share = bestCells / math.max(1, totalLand)
+			local bestOwn = ClientState.statsOf(cs, best)
+			local bestWithBloc = bestOwn ~= nil and bestCells > bestOwn.cells + 0.5
 			leaderFill.Size = UDim2.fromScale(math.clamp(share / cs.rules.victoryShare, 0, 1), 1)
 			local mine = if cs.myNation ~= nil then ClientState.statsOf(cs, cs.myNation) else nil
 			local myShare = if mine ~= nil then mine.cells / math.max(1, totalLand) else 0
+			-- К победе: свой блок; вассал сам не побеждает — у него своя суша.
+			local myVictory = myShare
+			local myWithBloc = false
+			if mine ~= nil and ClientState.overlordOf(cs, mine.id) == nil then
+				local bloc = ClientState.blocLand(cs, mine.id)
+				myVictory = bloc / math.max(1, totalLand)
+				myWithBloc = bloc > mine.cells + 0.5
+			end
 			placeChip.Visible = mine ~= nil
 			if mine ~= nil then
 				local place = 1
@@ -858,7 +891,7 @@ function MatchHud.new(
 				placeText.Text = string.format(Strings.get("hud.place", lang), place, myShare * 100)
 			end
 			myMark.Visible = mine ~= nil
-			myMark.Position = UDim2.fromScale(math.clamp(myShare / cs.rules.victoryShare, 0, 1), 0.5)
+			myMark.Position = UDim2.fromScale(math.clamp(myVictory / cs.rules.victoryShare, 0, 1), 0.5)
 			goalText.Text = string.format(Strings.get("hud.goal", lang), math.round(cs.rules.victoryShare * 100))
 			local function nationHex(id: number?): string
 				local nn = if id ~= nil then cs.nations[id] else nil
@@ -872,16 +905,18 @@ function MatchHud.new(
 				then string.format(
 					'<font color="%s">■</font> %s  ',
 					nationHex(cs.myNation),
-					string.format(Strings.get("hud.youShare", lang), myShare * 100)
+					string.format(Strings.get("hud.youShare", lang), myVictory * 100)
+						.. (if myWithBloc then " " .. Strings.get("hud.withBloc", lang) else "")
 				)
 				else ""
 			controlText.Text = you
 				.. string.format(
-					'<font color="%s">♛</font> <font color="%s">■</font> %s %.1f%%',
+					'<font color="%s">♛</font> <font color="%s">■</font> %s %.1f%%%s',
 					gold,
 					nationHex(best),
 					escape(nationName(best)),
-					share * 100
+					share * 100,
+					if bestWithBloc then " " .. Strings.get("hud.withBloc", lang) else ""
 				)
 			local n = cs.nations[best]
 			leaderFill.BackgroundColor3 = if n ~= nil and n.colorIndex >= 1
@@ -901,14 +936,11 @@ function MatchHud.new(
 		if banner.Visible == lobby then
 			banner.Visible = not lobby
 		end
-		local j = 1
-		while j <= #feedLines do
-			local line = feedLines[j]
-			if now > line.untilTime then
-				line.label:Destroy()
-				table.remove(feedLines, j)
-			else
-				j += 1
+		for _, line in EventFeed.expire(feedState, os.clock()) do
+			local label = feedLabels[line]
+			if label ~= nil then
+				label:Destroy()
+				feedLabels[line] = nil
 			end
 		end
 	end
@@ -952,10 +984,13 @@ function MatchHud.new(
 	end
 
 	local function onEvents(events: { any })
+		local friends = if cs.myNation ~= nil then ClientState.friendsOf(cs, cs.myNation) else nil
 		for _, e in events do
 			if type(e) ~= "table" then
 				continue
 			end
+			-- §15т: важность строки — по событию (кто его касается), а не по цвету вызова.
+			eventLevel = EventFeed.level(e, cs.myNation, friends)
 			local a, b = nationName(tonumber(e.nation) or 0), nationName(tonumber(e.target) or 0)
 			if e.kind == "eliminated" or e.kind == "capitalLost" then
 				toast(string.format(Strings.get("event." .. e.kind, lang), a))
@@ -978,6 +1013,7 @@ function MatchHud.new(
 			elseif e.kind == "offerAccepted" then
 				local key = if e.offer == "alliance"
 					then "event.offerAccepted.alliance"
+					elseif e.offer == "trust" then "event.offerAccepted.trust"
 					elseif e.offer == "demand" then "event.offerAccepted.demand"
 					else "event.offerAccepted.pact"
 				toast(string.format(Strings.get(key, lang), a, b))
@@ -1093,6 +1129,27 @@ function MatchHud.new(
 				elseif e.by == cs.myNation then
 					toast(text)
 				end
+			-- §15у: удар через союзника.
+			elseif e.kind == "trustRemoved" then
+				toast(string.format(Strings.get("event.trustRemoved", lang), a, b))
+			elseif e.kind == "passageStarted" and e.nation == cs.myNation then
+				toast(
+					string.format(
+						Strings.get("event.passageStarted", lang),
+						nationName(tonumber(e.ally) or 0),
+						b,
+						math.ceil((tonumber(e.sec) or 0) / cs.speed)
+					)
+				)
+			elseif e.kind == "passageArrived" then
+				local via = nationName(tonumber(e.ally) or 0)
+				if e.target == cs.myNation then
+					alertLine(string.format(Strings.get("event.passageOnYou", lang), a, via))
+				else
+					toast(string.format(Strings.get("event.passageArrived", lang), a, b, via))
+				end
+			elseif e.kind == "passageReturned" and e.nation == cs.myNation then
+				toast(string.format(Strings.get("event.passageReturned", lang), nationName(tonumber(e.ally) or 0)))
 			elseif e.kind == "landed" then
 				if e.target == cs.myNation then
 					alertLine(string.format(Strings.get("event.landedOnYou", lang), a))
@@ -1245,6 +1302,7 @@ function MatchHud.new(
 				)
 			end
 		end
+		eventLevel = nil
 	end
 
 	return {

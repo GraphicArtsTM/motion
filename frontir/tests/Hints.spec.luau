@@ -56,4 +56,43 @@ T.describe("Подсказки (§15д ч.5)", function()
 			T.expect(Strings.get("hint." .. key, "en") ~= "hint." .. key).toBe(true)
 		end
 	end)
+	T.it(
+		"§15т ч.2: флот, авиация и шахта по шагам — после стабильности, до «можно воевать»; уходят, когда сделано",
+		function()
+			local f = facts()
+			f.money = 0
+			f.attacks = 1 -- «расширяйтесь» не мешает
+			f.barracks, f.factories, f.troops = 2, 1, 9999 -- казармы ур. 2: «танки» не мешают
+			T.expect(Hints.pick(f, {})).toBe(nil)
+			f.ports = 1
+			T.expect(Hints.pick(f, {})).toBe("ship")
+			f.ships, f.transports = 1, 1
+			T.expect(Hints.pick(f, {})).toBe("landing")
+			f.landed = true
+			T.expect(Hints.pick(f, {})).toBe(nil)
+			f.airfields = 1
+			T.expect(Hints.pick(f, {})).toBe("plane")
+			f.planes, f.bombers = 1, 1
+			T.expect(Hints.pick(f, {})).toBe(nil) -- налёт — только в войне
+			f.atWar = true
+			T.expect(Hints.pick(f, {})).toBe("raid")
+			f.raided = true
+			f.silos = 1
+			T.expect(Hints.pick(f, {})).toBe("silo")
+			T.expect(Hints.pick(f, { silo = true })).toBe(nil) -- «Понятно» — закрыта
+			f.launched = true
+			T.expect(Hints.pick(f, {})).toBe(nil)
+			-- Стабильность важнее флота; «можно воевать» — после.
+			f.ports, f.ships, f.transports, f.landed = 1, 0, 0, false
+			f.lowStability = true
+			T.expect(Hints.pick(f, {})).toBe("stability")
+			local order = Hints.Order
+			local silo: number = table.find(order, "silo") or 0
+			local war: number = table.find(order, "war") or 0
+			T.expect(silo > 0 and silo < war).toBe(true)
+			for _, key in { "ship", "landing", "plane", "raid", "silo" } do
+				T.expect(Strings.Table["hint." .. key] ~= nil).toBe(true)
+			end
+		end
+	)
 end)

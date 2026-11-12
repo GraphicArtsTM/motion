@@ -57,6 +57,10 @@ export type AttackStats = {
 	fighting: boolean,
 	ratio: number, -- перевес (math.huge — обороны нет)
 	focus: number?, -- главное направление удара (клетка)
+	-- Прогноз фронта (§15н) — только сторонам фронта (MatchStats.forViewer), остальным 0.
+	why: number?, -- номер причины в FrontForecast.Whys
+	need: number?, -- атакующему — силы до полной скорости, защитнику — обороны до остановки
+	burn: number?, -- потери атаки в игровую секунду
 }
 
 export type Stats = {
@@ -447,6 +451,8 @@ end
 local RATIO_SCALE = 32
 local KINDS = #Types.LandUnits
 local NO_FOCUS = 0xFFFFFFFF
+local NEED_SCALE = 10 -- §15н: «сколько нужно» — с шагом 10 силы (до 655К)
+local BURN_SCALE = 10 -- §15н: потери в секунду — с шагом 0.1
 
 -- Начало STATS: заголовок и державы (одинаковые для всех; фронты — у каждого игрока свои из-за тумана, §6.11).
 function Protocol.encodeStatsHead(s: Stats): buffer
@@ -475,7 +481,7 @@ end
 -- STATS целиком. head — готовое начало (encodeStatsHead) тех же держав, чтобы не кодировать их для каждого игрока.
 function Protocol.encodeStats(s: Stats, head: buffer?): buffer
 	local start = head or Protocol.encodeStatsHead(s)
-	local w = writer(buffer.len(start) + 2 + #s.attacks * 20)
+	local w = writer(buffer.len(start) + 2 + #s.attacks * 25)
 	buffer.copy(w.buf, 0, start, 0, buffer.len(start))
 	w.pos = buffer.len(start)
 	u16(w, math.min(#s.attacks, 65535))
@@ -491,6 +497,9 @@ function Protocol.encodeStats(s: Stats, head: buffer?): buffer
 		u8(w, (if a.supplied then 1 else 0) + (if a.fighting then 2 else 0))
 		u8(w, if a.ratio == math.huge then 255 else math.clamp(math.round(a.ratio * RATIO_SCALE), 0, 254))
 		u32(w, if a.focus ~= nil then a.focus else NO_FOCUS)
+		u8(w, math.clamp(a.why or 0, 0, 255))
+		u16(w, math.clamp(math.round((a.need or 0) / NEED_SCALE), 0, 65535))
+		u16(w, math.clamp(math.round((a.burn or 0) * BURN_SCALE), 0, 65535))
 	end
 	return finish(w)
 end
@@ -543,6 +552,9 @@ function Protocol.decodeStats(b: buffer): Stats
 		local flags = ru8(r)
 		local ratioByte = ru8(r)
 		local focus = ru32(r)
+		local why = ru8(r)
+		local need = ru16(r) * NEED_SCALE
+		local burn = ru16(r) / BURN_SCALE
 		table.insert(attacks, {
 			attacker = attacker,
 			target = target,
@@ -553,6 +565,9 @@ function Protocol.decodeStats(b: buffer): Stats
 			fighting = (flags // 2) % 2 == 1,
 			ratio = if ratioByte == 255 then math.huge else ratioByte / RATIO_SCALE,
 			focus = if focus == NO_FOCUS then nil else focus,
+			why = why,
+			need = need,
+			burn = burn,
 		})
 	end
 	if r.pos ~= r.len then

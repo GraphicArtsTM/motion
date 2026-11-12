@@ -297,12 +297,14 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				return out
 			end)(),
 			questsBonus = d.questsBonus,
+			tutorialDone = d.tutorialDone, -- §15ф Ф1: кнопка «Обучение» в меню
 			dayLeft = 86400 - now % 86400,
 			elo = d.elo,
 			-- §15л ч.6 Арсенал: открытое, взятое в бой, применено ли в этом матче.
 			arsenal = {
 				owned = d.arsenal,
 				loadout = d.loadout,
+				commander = d.commander, -- §15ф Ф1: генерал по умолчанию
 				used = id ~= nil and m.arsenalUsed[id] == true,
 			},
 			volume = { sfx = d.sfx, music = d.music }, -- громкости (§13)
@@ -347,6 +349,12 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		local chosen = Commanders.of(m.commanders, id)
 		if chosen ~= nil and not open[chosen] and m.phase ~= "Play" then
 			Commanders.choose(m.commanders, id, "Marshal")
+			m.infoDirty = true
+		end
+		-- §15ф Ф1: генерал из профиля (выбран в Арсенале) — до начала игры.
+		local pref = session.data.commander
+		if pref ~= nil and open[pref] and m.phase ~= "Play" and Commanders.of(m.commanders, id) ~= pref then
+			Commanders.choose(m.commanders, id, pref :: any)
 			m.infoDirty = true
 		end
 	end
@@ -985,6 +993,46 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			return
 		end
 		-- Громкости звука и музыки (§13): хранятся в профиле.
+		-- §15ф Ф1: генерал по умолчанию (Арсенал) — в профиль; в лобби своего матча — сразу.
+		if kind == "prefCommander" then
+			local session = profiles.get(player.UserId)
+			if session == nil or type(payload) ~= "table" then
+				return
+			end
+			local ok, why =
+				Profile.setCommander(session.data, payload.commander, shop.passes(player).AllCommanders == true)
+			if not ok then
+				matchEvent:FireClient(player, { kind = "rejected", reason = why or "?", intent = kind })
+				return
+			end
+			applyProfile(player)
+			sendProfile(player)
+			return
+		end
+		-- §15ф Ф1: «Выйти» из ожидания игроков — держава убирается, игрок снова в меню.
+		if kind == "leaveMatch" then
+			local id = nationOf[player]
+			if id ~= nil and (m.phase == "Waiting" or m.phase == "Lobby") then
+				MatchSim.removePlayer(m, id)
+				nationOf[player] = nil
+				joined[player] = nil
+				m.infoDirty = true
+				matchEvent:FireClient(player, infoFor(player))
+			end
+			return
+		end
+		-- §15ф Ф1: «Обучение» из главного меню — вступить и (один в лобби) сыграть обучение.
+		if kind == "playTutorial" then
+			if role == "combined" then
+				joinMatch(player)
+				if (m.phase == "Waiting" or m.phase == "Lobby") and MatchSim.humans(m) == 1 then
+					m.forcedMode = "Tutorial"
+					m.mode = "Tutorial"
+					m.infoDirty = true
+				end
+			end
+			return
+		end
 		if kind == "volume" then
 			local session = profiles.get(player.UserId)
 			if session == nil or type(payload) ~= "table" then
@@ -1136,6 +1184,8 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				ok, reason = DevTools.navy(m, id)
 			elseif action == "giant" then
 				ok, reason = DevTools.giant(m, id) -- §15м «Сверхдержава»
+			elseif action == "trustAlly" then
+				ok, reason = DevTools.trustAlly(m, id) -- §15у: союзник с полным доверием и враг за ним
 			elseif action == "botLanding" and target ~= nil then
 				ok, reason = DevTools.botLanding(m, target, id)
 			elseif action == "airForce" then
@@ -1476,7 +1526,10 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			if isHub or (role == "combined" and not anyone) then
 				startDemo() -- показательный бой: хаб — следующая карта; «как раньше» — все в меню (§15л ч.7)
 			else
-				local nextMap = devMap or (if settings ~= nil then settings.map else nil) or map.name
+				-- §15ф Ф1: без голосований — следующая карта по кругу пула.
+				local nextMap = devMap
+					or (if settings ~= nil then settings.map else nil)
+					or (if m.lobbyVotes then map.name else Modes.nextMap(map.name))
 				devMap = nil
 				startNewMatch(nextMap)
 			end

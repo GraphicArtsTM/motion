@@ -38,6 +38,7 @@ local MapFormat = require(Shared:WaitForChild("MapFormat"))
 local MapPaint = require(Shared:WaitForChild("MapPaint"))
 local Provinces = require(Shared:WaitForChild("Provinces"))
 local Strings = require(Shared:WaitForChild("Strings"))
+local StrikeMenu = require(Shared:WaitForChild("StrikeMenu"))
 
 local Client = script.Parent
 local Render = Client:WaitForChild("Render")
@@ -49,10 +50,13 @@ local MarkerLayer = require(Render:WaitForChild("MarkerLayer"))
 local WarFxLayer = require(Render:WaitForChild("WarFxLayer"))
 local BattleFxLayer = require(Render:WaitForChild("BattleFxLayer"))
 local ActionRingUI = require(UI:WaitForChild("ActionRing"))
+local StrikeStatus = require(UI:WaitForChild("StrikeStatus"))
 local DoomBar = require(UI:WaitForChild("DoomBar"))
 local CommandBar = require(UI:WaitForChild("CommandBar"))
 local Dock = require(UI:WaitForChild("Dock"))
 local LobbyScreen = require(UI:WaitForChild("LobbyScreen"))
+local SirenPanel = require(UI:WaitForChild("SirenPanel"))
+local ThreatPanel = require(UI:WaitForChild("ThreatPanel"))
 local GameMenu = require(UI:WaitForChild("GameMenu"))
 local MainMenu = require(UI:WaitForChild("MainMenu"))
 local RanksPanel = require(UI:WaitForChild("RanksPanel"))
@@ -69,6 +73,7 @@ local BuildingLayer = require(Render:WaitForChild("BuildingLayer"))
 local CouncilPanel = require(UI:WaitForChild("CouncilPanel"))
 local DebugOverlay = require(UI:WaitForChild("DebugOverlay"))
 local DevPanel = require(UI:WaitForChild("DevPanel"))
+local Layering = require(UI:WaitForChild("Layering"))
 local DiplomacyPanel = require(UI:WaitForChild("DiplomacyPanel"))
 local ForcesPanel = require(UI:WaitForChild("ForcesPanel"))
 local FrontLayer = require(Render:WaitForChild("FrontLayer"))
@@ -308,6 +313,14 @@ local function runSession(mapId: string, resync: boolean)
 		CameraMath.centerOn(camera.state, wx, wy)
 		camera.refresh()
 	end)
+	-- §15х ч.3: «Сирена» — удар летит по вам: строка сверху, «Показать» — камера к цели.
+	local siren = SirenPanel.new(hudGui, cs, lang, function(cell: number)
+		toFront(cell % map.width + 0.5, cell // map.width + 0.5)
+	end)
+	-- §15х ч.4б: «Карта угроз» (L, кнопка в доке) — зоны защиты и угроз, «дыры» в своей защите.
+	local threat = ThreatPanel.new(hudGui, cs, lang, markerLayer.zone, function(cell: number)
+		toFront(cell % map.width + 0.5, cell // map.width + 0.5)
+	end)
 	local openMainMenu: () -> () = function() end -- главное меню создаётся ниже (§15л)
 	local results = ResultsPanel.new(hudGui, cs, lang, function()
 		openMainMenu()
@@ -329,14 +342,17 @@ local function runSession(mapId: string, resync: boolean)
 		if nationPanel ~= nil and abilities ~= nil then
 			local np, ab = nationPanel :: Frame, abilities :: Frame
 			local function stack()
-				-- §15л ч.2: правее дока (он — полосой слева под «≡»), с самого верха.
-				local left = Config.Render.Dock.LeftPx + Config.Render.Dock.ButtonPx + 2 * Config.Render.Dock.PadPx + 8
-				np.Position = UDim2.fromOffset(left, 8)
-				local bottom = np.Position.Y.Offset + (if np.Visible then np.AbsoluteSize.Y else 0)
-				ab.Position = UDim2.fromOffset(left, bottom + 8)
+				-- §15ф: под строкой дока (она — сверху слева правее «≡»).
+				local left = 12
+				np.Position = UDim2.fromOffset(left, Config.Render.Dock.TopPx + Config.Render.Dock.ButtonPx + 18)
+				-- §15ф: панель державы спрятана (в FrontirStash) — способности сразу под доком.
+				local shown = np.Visible and np:IsDescendantOf(hudGui)
+				local bottom = np.Position.Y.Offset + (if shown then np.AbsoluteSize.Y + 8 else 0)
+				ab.Position = UDim2.fromOffset(left, bottom)
 			end
 			Session.connect(np:GetPropertyChangedSignal("AbsoluteSize"), stack)
 			Session.connect(np:GetPropertyChangedSignal("Visible"), stack)
+			Session.connect(np.AncestryChanged, stack)
 			stack()
 		end
 	end
@@ -373,7 +389,13 @@ local function runSession(mapId: string, resync: boolean)
 	local tutorial = TutorialPanel.new(hudGui, cs, lang, hud.toast) -- обучение (§5.5)
 	local soundPanel = SoundPanel.new(hudGui, cs, lang, send) -- громкости (§13)
 	-- Экран лобби (§15и): «Следующий матч», голосование и выбор генерала переезжают в него на время лобби.
-	local lobby = LobbyScreen.new(hudGui, cs, lang, map.name, send)
+	-- §15ф Ф1: «Выйти» из ожидания — держава убирается, главное меню (сервер матча — в хаб).
+	local lobby = LobbyScreen.new(hudGui, cs, lang, map.name, send, function()
+		if cs.place ~= "match" then
+			send("leaveMatch", {})
+		end
+		openMainMenu()
+	end)
 	lobby.attach(modePanel.voteFrame, commanderPanel.pickerFrame, modePanel.mapVoteFrame)
 	-- Док снизу по центру (§15з): все окна — отсюда; прежние кнопки окон прячутся, их состояние — в подсказке.
 	local dock = Dock.new(hudGui, lang, {
@@ -381,6 +403,7 @@ local function runSession(mapId: string, resync: boolean)
 			icon = "build",
 			name = "dock.build",
 			key = "B",
+			hidden = true, -- §15ф: стройка — в нижней полосе (1–0)
 			button = build.button,
 			toggle = build.toggle,
 			isOpen = build.isOpen,
@@ -397,9 +420,7 @@ local function runSession(mapId: string, resync: boolean)
 			icon = "diplomacy",
 			name = "dock.diplomacy",
 			key = "T",
-			visible = function(): boolean
-				return cs.phase == "Play" and cs.myNation ~= nil
-			end,
+			button = diplomacy.button, -- §15ф: «Дипломатия (T)» над полосой больше не висит
 			toggle = diplomacy.toggle,
 			isOpen = diplomacy.isOpen,
 		},
@@ -420,8 +441,17 @@ local function runSession(mapId: string, resync: boolean)
 			isOpen = pings.isOpen,
 		},
 		{
+			icon = "threat",
+			name = "dock.threat",
+			key = "L",
+			visible = threat.visible, -- §15х ч.4б
+			toggle = threat.toggle,
+			isOpen = threat.isOpen,
+		},
+		{
 			icon = "shop",
 			name = "dock.shop",
+			hidden = true, -- §15ф: окно — в меню игры (≡)
 			key = "M",
 			button = shopPanel.button,
 			toggle = shopPanel.toggle,
@@ -430,6 +460,7 @@ local function runSession(mapId: string, resync: boolean)
 		{
 			icon = "quests",
 			name = "dock.quests",
+			hidden = true, -- §15ф: окно — в меню игры (≡)
 			key = "J",
 			button = questsPanel.button,
 			toggle = questsPanel.toggle,
@@ -438,6 +469,7 @@ local function runSession(mapId: string, resync: boolean)
 		{
 			icon = "wardrobe",
 			name = "dock.wardrobe",
+			hidden = true, -- §15ф: окно — в меню игры (≡)
 			key = "K",
 			button = wardrobe.button,
 			toggle = wardrobe.toggle,
@@ -446,6 +478,7 @@ local function runSession(mapId: string, resync: boolean)
 		{
 			icon = "arsenal",
 			name = "dock.arsenal",
+			hidden = true, -- §15ф: окно — в меню игры (≡)
 			key = "U",
 			toggle = arsenalPanel.toggle,
 			isOpen = arsenalPanel.isOpen,
@@ -453,6 +486,7 @@ local function runSession(mapId: string, resync: boolean)
 		{
 			icon = "server",
 			name = "dock.server",
+			hidden = true, -- §15ф: окно — в меню игры (≡)
 			key = "O",
 			button = serverPanel.button,
 			toggle = serverPanel.toggle,
@@ -461,11 +495,19 @@ local function runSession(mapId: string, resync: boolean)
 		{
 			icon = "sound",
 			name = "dock.sound",
+			hidden = true, -- §15ф: окно — в меню игры (≡)
 			button = soundPanel.button,
 			toggle = soundPanel.toggle,
 			isOpen = soundPanel.isOpen,
 		},
-		{ icon = "help", name = "dock.help", key = "H", toggle = lobby.toggleHelp, isOpen = lobby.helpOpen },
+		{
+			icon = "help",
+			name = "dock.help",
+			key = "H",
+			toggle = lobby.toggleHelp,
+			isOpen = lobby.helpOpen,
+			hidden = true, -- §15ф: в меню игры
+		},
 	})
 	-- Клик (§13): любая кнопка HUD, в том числе созданная позже.
 	local function hookButton(inst: Instance)
@@ -496,6 +538,7 @@ local function runSession(mapId: string, resync: boolean)
 	end)
 	local naval = NavalPanel.new(hudGui, cs, lang, map, provinces, send, hud.percent, shipLayer.pick, shipLayer.select)
 	local airPanel = AirPanel.new(hudGui, cs, lang, map, provinces, send, airLayer.pick, airLayer.select)
+	commanderPanel.setRaid(airPanel.startRaid) -- §15х ч.4: «Налёт» в панели «УДАРЫ»
 	-- Окна снизу по центру (меню стройки, здание, порт, аэродром, «Объявить войну») стоят в одном месте и не
 	-- накладываются: открылось новое (нажатием, клавишей, кольцом, доком) — прежние закрываются.
 	local sheets: { { busy: () -> boolean, cancel: () -> () } } = {
@@ -609,6 +652,12 @@ local function runSession(mapId: string, resync: boolean)
 				send("joinMatch", {})
 			end
 		end,
+		tutorial = function()
+			-- §15ф Ф1: обучение — вступить в матч одному (сервер ставит режим «Обучение»).
+			if cs.place == "combined" and cs.myNation == nil then
+				send("playTutorial", {})
+			end
+		end,
 		invite = function()
 			-- §15л ч.7: окно приглашения Roblox (если игроку можно приглашать).
 			task.spawn(function()
@@ -663,6 +712,20 @@ local function runSession(mapId: string, resync: boolean)
 		shop = openShop,
 		mainMenu = toMainMenu,
 		blocked = mainMenu.isOpen,
+		-- §15ф: окна из прежнего дока.
+		extra = {
+			{ label = Strings.get("dock.quests", lang) .. "  [J]", action = questsPanel.toggle },
+			{ label = Strings.get("dock.wardrobe", lang) .. "  [K]", action = wardrobe.toggle },
+			{ label = Strings.get("dock.arsenal", lang) .. "  [U]", action = arsenalPanel.toggle },
+			{ label = Strings.get("menu.nav.ranks", lang), action = ranksPanel.toggle },
+			{
+				label = Strings.get("dock.server", lang) .. "  [O]",
+				action = serverPanel.toggle,
+				visible = function(): boolean
+					return serverPanel.button.Visible
+				end,
+			},
+		},
 	})
 	-- §15л ч.2: командная полоса снизу по центру. Прежние полоса ресурсов и карточки найма — в выключенный
 	-- ScreenGui (их код работает как раньше, но на экране их нет: всё это — в полосе).
@@ -672,7 +735,8 @@ local function runSession(mapId: string, resync: boolean)
 	stash.ResetOnSpawn = false
 	Session.track(stash)
 	stash.Parent = playerGui
-	for _, name in { "ResourceBar", "HireCards" } do
+	-- §15ф: панель державы (имя, «атакует») — тоже: имя и доля мира — в нижней полосе.
+	for _, name in { "ResourceBar", "HireCards", "NationPanel" } do
 		local g = hudGui:FindFirstChild(name)
 		if g ~= nil then
 			g.Parent = stash
@@ -818,18 +882,32 @@ local function runSession(mapId: string, resync: boolean)
 			end
 		end
 	end
-	stackInto(
-		column("TopCenter", 0.5, UDim.new(0.5, 0), Enum.HorizontalAlignment.Center),
-		{ "PhaseBanner", "DoomBar", "PrivateServer", "WarStatus", "Resolutions", "HintPanel", "WorldBanner" }
-	)
+	stackInto(column("TopCenter", 0.5, UDim.new(0.5, 0), Enum.HorizontalAlignment.Center), {
+		"PhaseBanner",
+		"Solo", -- §15х ч.3: «Пауза / ×2» — в столбике, сирену не закрывает
+		"Siren",
+		"ThreatLegend", -- §15х ч.4б
+		"DoomBar",
+		"PrivateServer",
+		"WarStatus",
+		"Resolutions",
+		"HintPanel",
+		"WorldBanner",
+	})
 	stackInto(
 		column("TopRight", 1, UDim.new(1, -12), Enum.HorizontalAlignment.Right),
 		{ "PlaceChip", "GiantChip", "Incoming", "Leaders", "Auction", "Forces" }
 	)
+	-- HUD рисуется в режиме Global: содержимое окон с поднятым ZIndex — выше их фона (иначе текст под фоном).
+	Layering.liftAll(hudGui)
 	-- Панель разработчика (F4) — только в Studio; создаётся в фоне (ждёт канал Remotes.Dev от сервера).
 	local devPanel: DevPanel.DevPanel? = nil
 	task.spawn(function()
 		devPanel = DevPanel.new(hudGui, cs, lang, SelfCheck.start)
+		local panel = hudGui:FindFirstChild("DevPanel")
+		if panel ~= nil and panel:IsA("GuiObject") then
+			Layering.lift(panel)
+		end
 	end)
 	-- Самопроверка (Studio, F4): окна этой сессии; модуль живёт над сессиями (смена карты).
 	SelfCheck.attach({
@@ -1204,9 +1282,27 @@ local function runSession(mapId: string, resync: boolean)
 	-- Последняя точка кольца: «Эмодзи» открывает второе кольцо там же.
 	local ringAt: { x: number, y: number, reopen: boolean, pick: ((index: number) -> ())? } =
 		{ x = 0, y = 0, reopen = false, pick = nil }
+	-- §15х ч.4: удар из кольца — готов: сразу по клетке; не готов — подсказка «что сделать».
+	local function strikeAt(kind: StrikeMenu.Kind, cell: number)
+		local f = StrikeStatus.facts(cs, cell, os.clock())
+		local why = StrikeMenu.check(kind, f)
+		if why ~= "ok" then
+			hud.toast(StrikeStatus.how(kind, why, f, lang))
+			return
+		end
+		if kind == "missile" then
+			send("missile", { cell = cell, warhead = "missile" })
+		elseif kind == "raid" then
+			send("raid", { cell = cell })
+		else
+			send("ability", { slot = StrikeStatus.abilitySlot(cs), cell = cell, percent = hud.percent() })
+		end
+	end
 	local ring
 	ring = ActionRingUI.new(hudGui, viewport, lang, function(action, cell: number, owner: number)
-		if action == "expand" or action == "attack" then
+		if action == "missile" or action == "raid" or action == "ability" then
+			strikeAt(action :: any, cell)
+		elseif action == "expand" or action == "attack" then
 			hud.tapCell(cell)
 		elseif action == "declare" then
 			wars.offerDeclare(owner)
@@ -1249,6 +1345,29 @@ local function runSession(mapId: string, resync: boolean)
 		local cell = cy * map.width + cx
 		local owner = ClientState.ownerAt(cs, cell)
 		local war = if owner ~= 0 and owner ~= me then ClientState.warBetween(cs, me, owner) else nil
+		-- §15х ч.4: у ударов — готовность и чего не хватает прямо на кнопке.
+		local function decorate(action: string): (string?, boolean, string?, Color3?)
+			if action ~= "missile" and action ~= "raid" and action ~= "ability" then
+				return nil, true, nil, nil
+			end
+			local kind: StrikeMenu.Kind = action :: any
+			local f = StrikeStatus.facts(cs, cell, os.clock())
+			local why = StrikeMenu.check(kind, f)
+			local ability = f.ability
+			local name = if kind == "ability" and ability ~= nil
+				then Strings.get("ability." .. ability, lang)
+				else Strings.get("ring." .. kind, lang)
+			-- §15х ч.5: картинка удара и цвет рамки (ракета — красный, налёт — оранжевый, генерал — золотой).
+			local art = if kind == "ability" and ability ~= nil then "strike." .. ability else "strike." .. kind
+			local accent = if kind == "missile"
+				then Theme.Colors.Alert
+				elseif kind == "raid" then Theme.color("Orange")
+				else Theme.Colors.Gold
+			if why == "ok" then
+				return name, true, art, accent
+			end
+			return name .. "\n" .. StrikeStatus.short(kind, why, f, lang), false, art, accent
+		end
 		ring.open(sx, sy, cell, {
 			playing = cs.phase == "Play" and cs.nations[me] ~= nil and cs.nations[me].alive,
 			me = me,
@@ -1257,7 +1376,8 @@ local function runSession(mapId: string, resync: boolean)
 			war = if war == nil then "none" elseif war.active then "active" else "mobilizing",
 			allied = table.find(ClientState.alliesOf(cs, me), owner) ~= nil,
 			trade = owner ~= 0 and ClientState.hasTrade(cs, me, owner),
-		})
+			ability = StrikeStatus.abilitySlot(cs) ~= nil,
+		}, decorate :: any)
 	end
 
 	local input = CameraInput.bind(camera, viewport, {
@@ -1287,6 +1407,11 @@ local function runSession(mapId: string, resync: boolean)
 	-- «Призрак» стройки за курсором (§15г).
 	-- §15к: подсказка при наведении на карту (владелец, местность, провинция, что будет по клику).
 	local tooltip = MapTooltip.new(hudGui, cs, lang, map, provinces)
+	local aimCell: number? = nil -- клетка под курсором (для кругов защиты при прицеливании)
+	-- §15х: чем целимся сейчас — ракета / бомба (R) или налёт (аэродром); подсказка и круги защиты у курсора.
+	tooltip.setAiming(function(): any
+		return commanderPanel.aiming() or (if airPanel.aiming() then "raid" else nil)
+	end)
 	Session.connect(UserInputService.InputChanged, function(io: InputObject)
 		if io.UserInputType ~= Enum.UserInputType.MouseMovement then
 			return
@@ -1320,6 +1445,7 @@ local function runSession(mapId: string, resync: boolean)
 			end
 		end
 		tooltip.show(cell, p.X, p.Y, hud.percent())
+		aimCell = cell
 	end)
 
 	local musicAt = 0
@@ -1367,14 +1493,24 @@ local function runSession(mapId: string, resync: boolean)
 	local function tour(now: number)
 		local dt = math.min(0.1, now - tourLast)
 		tourLast = now
-		if (cs.place ~= "hub" and not cs.demo) or (cs.phase ~= "Play" and cs.phase ~= "Over") then
+		-- §15ф: облёт — в хабе, за показом и под главным меню (карта на весь экран, а не маленькая посередине).
+		local menuOpen = mainMenu.isOpen()
+		if
+			(cs.place ~= "hub" and not cs.demo and not menuOpen)
+			or (cs.phase ~= "Play" and cs.phase ~= "Over" and not menuOpen)
+		then
 			return
 		end
 		local s = camera.state
 		if now >= tourAt then
 			tourAt = now + Config.Hub.TourSec
 			tourX, tourY = tourTarget()
-			s.zoom = CameraMath.snapZoom(s, CameraMath.minZoom(s) * Config.Hub.TourZoom)
+			-- Не мельче «карта закрывает экран» (по большей стороне), с запасом TourZoom от «вся карта».
+			local cover = math.max(s.viewW / s.mapW, s.viewH / s.mapH)
+			s.zoom = CameraMath.snapZoom(s, math.max(CameraMath.minZoom(s) * Config.Hub.TourZoom, cover * 1.15))
+			if tourX == nil then
+				tourX, tourY = s.mapW / 2, s.mapH / 2 -- держав ещё нет — середина карты
+			end
 		end
 		local tx, ty = tourX, tourY
 		if tx == nil or ty == nil then
@@ -1417,7 +1553,23 @@ local function runSession(mapId: string, resync: boolean)
 		frontLayer.update(now, camera.state)
 		shipLayer.update(now, camera.state)
 		airLayer.update(now, camera.state)
+		-- §15х: целимся — круги защиты врага, которые накрывают клетку под курсором.
+		local ac = aimCell
+		if ac ~= nil then
+			local f = tooltip.forecast(ac)
+			if f ~= nil then
+				markerLayer.defenses(f.covers)
+			else
+				-- §15х ч.2: не целимся — круг действия здания (или снабжения города) под курсором.
+				local r, color = tooltip.rangeAt(ac)
+				if r ~= nil and color ~= nil then
+					markerLayer.range(ac, r, color)
+				end
+			end
+		end
+		threat.update(now) -- §15х ч.4б: круги угроз — до кадра маркеров
 		markerLayer.update(now, camera.state)
+		siren.update(now)
 		warFx.update(now, camera.state)
 		battleFx.update(now, camera.state)
 		doomBar.update(now)

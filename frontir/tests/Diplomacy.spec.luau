@@ -239,6 +239,85 @@ T.describe("Договоры", function()
 	)
 
 	T.it(
+		"суша вассала идёт в победу наполовину (§15о): 33% + вассал 35% — ещё не победа, 47% + вассал — победа",
+		function()
+			local m = trio()
+			m.victory = true
+			Diplomacy.setVassal(m.diplo, 2, 1, m.simTime)
+			local total = m.grid.capturableCount
+			local own, vassal = Grid.cellsOf(m.grid, 1), Grid.cellsOf(m.grid, 2)
+			T.expect(MatchSim.victoryLandOf(m, 1)).toBeNear(own + vassal * Config.Diplomacy.VassalVictoryShare, 1e-9)
+			T.expect((own + vassal) / total >= m.rules.victoryShare).toBe(true) -- раньше это была бы победа
+			MatchSim.step(m, DT)
+			T.expect(m.phase).toBe("Play")
+			-- Сюзерен берёт ещё 6 столбцов у державы 3 — своей суши ~47%, с половиной вассала больше 60%.
+			for y = 1, H - 2 do
+				for x = STRIP * 6, STRIP * 6 + 5 do
+					local i = y * W + x
+					if not Grid.isCity(m.grid, i) then
+						Grid.setOwner(m.grid, i, 1)
+					end
+				end
+			end
+			T.expect(MatchSim.victoryLandOf(m, 1) / total >= m.rules.victoryShare).toBe(true)
+			MatchSim.step(m, DT)
+			T.expect(m.phase).toBe("Over")
+			local result = m.result :: Types.MatchResult
+			T.expect(result.reason).toBe("land")
+			T.expect(result.winner).toBe(1)
+		end
+	)
+
+	T.it(
+		"§15п: лидер для ботов — по суше к победе (вассалы наполовину), от StopLeaderShare; вассал не лидер",
+		function()
+			local m = trio()
+			-- Три трети по ~33–35%: лидер — держава 2 (больше всех своей суши), если она дотягивает до порога.
+			local expected = if MatchSim.victoryShareOf(m, 2) >= Config.Bots.StopLeaderShare then 2 else nil
+			T.expect(MatchSim.botLeader(m)).toBe(expected)
+			T.expect(MatchSim.botLeader(m, { [2] = true }) ~= 2).toBe(true)
+			-- 3 — вассал 1: у 1 своя треть + половина вассала (~49%), 3 лидером быть не может.
+			Diplomacy.setVassal(m.diplo, 3, 1, m.simTime)
+			T.expect(MatchSim.botLeader(m)).toBe(1)
+			T.expect(MatchSim.victoryShareOf(m, 1))
+				.toBeNear(MatchSim.victoryLandOf(m, 1) / m.grid.capturableCount, 1e-9)
+			T.expect(MatchSim.botLeader(m, { [1] = true, [2] = true })).toBe(nil)
+			-- Ниже порога лидера нет: почти вся суша — ничья.
+			local m2 = trio()
+			for i = 0, m2.grid.size - 1 do
+				if Grid.getOwner(m2.grid, i) ~= 0 and not Grid.isCity(m2.grid, i) then
+					Grid.setOwner(m2.grid, i, 0)
+				end
+			end
+			T.expect(MatchSim.botLeader(m2)).toBe(nil)
+		end
+	)
+
+	T.it(
+		"клиент считает сушу к победе как сервер: союзник целиком, вассал наполовину (§15о)",
+		function()
+			local m = trio()
+			Diplomacy.setVassal(m.diplo, 2, 1, m.simTime)
+			local cs = ClientState.new(W, H)
+			cs.myNation = 1
+			cs.stats = MatchStats.build(m, 0, 0)
+			ClientState.applyDiplo(cs, MatchStats.diplo(m), 10)
+			T.expect(ClientState.victoryLand(cs, 1)).toBeNear(MatchSim.victoryLandOf(m, 1), 1e-9)
+			local leader, land = ClientState.victoryLeader(cs)
+			T.expect(leader).toBe(1) -- вассал 2 сам не лидер, его суша — у 1 наполовину
+			T.expect(land).toBeNear(MatchSim.victoryLandOf(m, 1), 1e-9)
+			-- Союз 3 с сюзереном 1: блок — суша 1 с половиной вассала плюс суша 3.
+			offer(m, 3, 1, "alliance")
+			reply(m, 1, 3, true)
+			ClientState.applyDiplo(cs, MatchStats.diplo(m), 10)
+			local blocLand = MatchSim.victoryLandOf(m, 1) + MatchSim.victoryLandOf(m, 3)
+			T.expect(ClientState.blocLand(cs, 1)).toBeNear(blocLand, 1e-9)
+			T.expect(ClientState.blocLand(cs, 3)).toBeNear(blocLand, 1e-9)
+			T.expect(select(2, ClientState.victoryLeader(cs))).toBeNear(blocLand, 1e-9)
+		end
+	)
+
+	T.it(
 		"клиент видит договоры, предложения, предателя и вассала из сообщения diplo",
 		function()
 			local m = trio()
@@ -347,7 +426,7 @@ T.describe("Дипломатия ботов", function()
 			money = 0,
 			oil = 0,
 			economy = { income = 0, oilIncome = 0, upkeep = 0 },
-			owned = { factories = 0, markets = 0, rigs = 0, forts = 0, cityLevels = 1 },
+			owned = { factories = 0, rigs = 0, forts = 0, cityLevels = 1 },
 			spots = {},
 			time = 100,
 			allies = 0,
@@ -560,8 +639,7 @@ T.describe("Торговля (§8.2)", function()
 			T.expect(Diplomacy.hasTrade(m.diplo, 1, 2)).toBe(true)
 			MatchSim.step(m, DT)
 			local owned = MatchSim.ownedOf(m, 1)
-			local base =
-				require("../src/shared/Economy").income(Grid.cellsOf(m.grid, 1), owned.cityLevels, owned.markets)
+			local base = require("../src/shared/Economy").income(Grid.cellsOf(m.grid, 1), owned.cityLevels)
 			T.expect(m.economy[1].income).toBeNear(base * (1 + Config.Trade.AgreementIncome), 1e-6)
 			-- Эмбарго рвёт и не даёт заключить снова.
 			MatchSim.applyIntent(m, 1, { kind = "embargo", target = 2, on = true })
@@ -637,8 +715,7 @@ T.describe("Совет держав (§8.2)", function()
 			MatchSim.applyResolution(m, "sanctions")
 			MatchSim.step(m, DT)
 			local owned = MatchSim.ownedOf(m, 2)
-			local base =
-				require("../src/shared/Economy").income(Grid.cellsOf(m.grid, 2), owned.cityLevels, owned.markets)
+			local base = require("../src/shared/Economy").income(Grid.cellsOf(m.grid, 2), owned.cityLevels)
 			T.expect(m.economy[2].income).toBeNear(base * Config.Council.SanctionsIncomeMul, 1e-6)
 			-- Перемирие.
 			Forces.add(m.nations[1].home, INF, 5000)

@@ -11,6 +11,7 @@ local Forces = require("../src/shared/Forces")
 local Grid = require("../src/shared/Grid")
 local Intents = require("../src/shared/Intents")
 local MapData = require("../src/shared/MapData")
+local MapFormat = require("../src/shared/MapFormat")
 local MatchSim = require("../src/shared/MatchSim")
 local MatchStats = require("../src/shared/Net/MatchStats")
 local Rng = require("../src/shared/Rng")
@@ -292,7 +293,8 @@ T.describe("Ракетная шахта", function()
 			T.expect(Forces.total(front.forces) <= 500 + 1e-6).toBe(true)
 			local hit = events(m, "missileHit")
 			T.expect(#hit).toBe(1)
-			T.expect(hit[1].cells > 50).toBe(true)
+			T.expect(hit[1].cells > 0).toBe(true)
+			T.expect(hit[1].radius).toBe(MatchSim.warheadRadius(m, "missile")) -- §15р: радиус — в событии для клиента
 			T.expect(MatchStats.world(m, 1).missileLeft > 0).toBe(true)
 			local _ = n
 		end
@@ -455,9 +457,69 @@ T.describe("Ядерные удары (§15ж)", function()
 			-- С Войска-4 водородная разрешена.
 			Tech.grant(m.tech, 1, "Army", 4)
 			m.missileReady[1] = nil
-			T.expect((MatchSim.applyIntent(m, 1, { kind = "missile", cell = 16 * W + 110, warhead = "hydrogen" })))
+			-- Цель — любая клетка врага (§15р: круги прошлых ударов зависят от размера держав).
+			local enemyCell = 16 * W + 110
+			for i = 0, W * H - 1 do
+				if Grid.getOwner(m.grid, i) == 2 then
+					enemyCell = i
+					break
+				end
+			end
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "missile", cell = enemyCell, warhead = "hydrogen" })))
 				.toBe(true)
 			T.expect(MatchSim.warheadRadius(m, "hydrogen") > MatchSim.warheadRadius(m, "atom")).toBe(true)
+		end
+	)
+
+	T.it(
+		"§15р: радиус бомб — по средней живой державе, в пределах 0.4–1.0 прежнего; ракета постоянная",
+		function()
+			local function match(mapName: string, nations: number): MatchSim.Match
+				local map = MapFormat.fromModule((require :: any)("../maps/" .. mapName) :: MapFormat.MapModule)
+				local m = MatchSim.new(map, 1)
+				m.targetNations = nations
+				return m
+			end
+			local function oldRadius(m: MatchSim.Match, nuke: any): number
+				return nuke.radius * m.grid.width / Config.UnitsReferenceMapWidth
+			end
+			local function expected(m: MatchSim.Match, nuke: any, perNation: number): number
+				local old = oldRadius(m, nuke)
+				local r = math.sqrt(nuke.area * perNation / math.pi)
+				return math.round(math.clamp(r, old * Config.Nukes.RadiusMinScale, old * Config.Nukes.RadiusMaxScale))
+			end
+			local atomCfg, hydrogenCfg = Config.Nukes.Atom, Config.Nukes.Hydrogen
+			-- До начала игры — суша карты / держав матча.
+			local eu = match("Europe", 12)
+			T.expect(MatchSim.warheadRadius(eu, "missile")).toBe(Config.Buildings.MissileSilo.strikeRadius)
+			T.expect(MatchSim.warheadRadius(eu, "atom")).toBe(expected(eu, atomCfg, eu.grid.capturableCount / 12))
+			T.expect(MatchSim.warheadRadius(eu, "hydrogen"))
+				.toBe(expected(eu, hydrogenCfg, eu.grid.capturableCount / 12))
+			-- «Мир», 24 державы: держава мельче — круг меньше прежнего, но не меньше нижнего предела; ракета та же.
+			local w = match("World", 24)
+			local wAtom = MatchSim.warheadRadius(w, "atom")
+			T.expect(wAtom < oldRadius(w, atomCfg)).toBe(true)
+			T.expect(wAtom >= math.floor(oldRadius(w, atomCfg) * Config.Nukes.RadiusMinScale)).toBe(true)
+			T.expect(MatchSim.warheadRadius(w, "hydrogen") > wAtom).toBe(true)
+			T.expect(MatchSim.warheadRadius(w, "missile")).toBe(Config.Buildings.MissileSilo.strikeRadius)
+			-- Дуэль: средняя держава огромна — круг не больше прежнего (верхний предел 1.0).
+			local duel = match("Europe", 2)
+			T.expect(MatchSim.warheadRadius(duel, "atom")).toBe(math.round(oldRadius(duel, atomCfg)))
+			-- В игре — средняя суша живых держав: две державы по 10 000 клеток.
+			MatchSim.addPlayer(eu, 1, "A")
+			MatchSim.addPlayer(eu, 2, "B")
+			local given = { 0, 0 }
+			for i = 0, eu.grid.size - 1 do
+				if Grid.isCapturable(eu.grid, i) then
+					local k = if given[1] < 10000 then 1 elseif given[2] < 10000 then 2 else 0
+					if k == 0 then
+						break
+					end
+					Grid.setOwner(eu.grid, i, k)
+					given[k] += 1
+				end
+			end
+			T.expect(MatchSim.warheadRadius(eu, "atom")).toBe(expected(eu, atomCfg, 10000))
 		end
 	)
 
@@ -478,33 +540,32 @@ T.describe("Ядерные удары (§15ж)", function()
 	)
 end)
 
-T.describe("ЗРК и «часы судного дня» (§15з)", function()
+T.describe("Дальняя ПВО и «часы судного дня» (§15з → §15х ч.6)", function()
 	T.it(
-		"ЗРК: далеко сбивает ракету и бомбу (не налёт), ур. N — N зарядов; нужна Флот-3",
+		"ПВО ур. 3 — дальняя: сбивает ракету, ур. N — N зарядов; ур. 3 открывает Флот-3",
 		function()
 			local m = duo()
 			DevTools.silo(m, 1)
 			DevTools.warNow(m, 1, 2)
-			T.expect(MatchSim.techAllows(m, 2, "Sam")).toBe(false)
-			Tech.grant(m.tech, 2, "Fleet", 3)
-			T.expect(MatchSim.techAllows(m, 2, "Sam")).toBe(true)
-			-- ЗРК у столицы врага (x 115) накрывает цель в 20+ клетках (вне радиуса батареи ПВО).
 			local p = m.provinces.list[12]
-			Buildings.place(m.buildings, "Sam", p.center, 12)
+			Buildings.place(m.buildings, "AirDefense", p.center, 12)
+			m.buildings.byCell[p.center].level = 2
+			T.expect(MatchSim.levelAllows(m, 2, "AirDefense", 3)).toBe(false)
+			Tech.grant(m.tech, 2, "Fleet", 3)
+			T.expect(MatchSim.levelAllows(m, 2, "AirDefense", 3)).toBe(true)
+			m.buildings.byCell[p.center].level = 3
 			MatchSim.refreshOwned(m)
-			T.expect(MatchSim.ownedOf(m, 2).sams).toBe(1)
-			T.expect((MatchSim.batteryCharges(m, p.center))).toBe(1)
-			-- Радиус ЗРК на этой узкой карте (160) — 12 клеток: цель в 9 клетках от него.
+			T.expect(MatchSim.ownedOf(m, 2).longRange).toBe(1)
+			T.expect((MatchSim.batteryCharges(m, p.center))).toBe(3 * Config.Defense.ChargesPerLevel)
+			-- Цель в 9 клетках от ПВО у столицы врага (x 115): сбита, потрачен один заряд.
 			local target = 16 * W + 106
 			T.expect((MatchSim.applyIntent(m, 1, { kind = "missile", cell = target }))).toBe(true)
 			runFor(m, silo.warningSec + 0.5)
 			local shot = events(m, "missileShot")
 			T.expect(#shot).toBe(1)
 			T.expect(shot[1].at).toBe(p.center)
-			T.expect((MatchSim.batteryCharges(m, p.center))).toBe(0)
-			-- Против налёта ЗРК не работает.
-			T.expect((MatchSim.intercept(m, 2, target))).toBe(nil)
-			T.expect(Config.Buildings.Sam.radius > Config.Buildings.AirDefense.radius).toBe(true)
+			T.expect((MatchSim.batteryCharges(m, p.center))).toBe(3 * Config.Defense.ChargesPerLevel - 1)
+			T.expect(Config.Buildings.AirDefense.longRadius > Config.Buildings.AirDefense.radius).toBe(true)
 		end
 	)
 

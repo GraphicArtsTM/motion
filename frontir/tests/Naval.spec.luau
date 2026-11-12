@@ -30,11 +30,14 @@ local function provinceAt(x: number, y: number): number
 	local band = if y < 8 then 0 elseif y < 16 then 1 else 2
 	if x <= LEFT1 then
 		return 7 * band + x // 10 + 1
+	elseif x < RIGHT0 then
+		return 43 + (x - LEFT1) // 10 -- перешеек (islands(..., true))
 	end
 	return 21 + 7 * band + (x - RIGHT0) // 10 + 1
 end
 
-local function islands(rightOwner: number): MatchSim.Match
+-- bridge — ничей перешеек по нижнему ряду суши: оба «острова» становятся одним массивом суши с заливом между ними.
+local function islands(rightOwner: number, bridge: boolean?): MatchSim.Match
 	local rows: { string } = {}
 	for y = 0, H - 1 do
 		local row = table.create(W, "~")
@@ -43,6 +46,11 @@ local function islands(rightOwner: number): MatchSim.Match
 				row[x + 1] = "."
 			end
 			for x = RIGHT0, RIGHT1 do
+				row[x + 1] = "."
+			end
+		end
+		if bridge and y == H - 3 then
+			for x = LEFT1 + 1, RIGHT0 - 1 do
 				row[x + 1] = "."
 			end
 		end
@@ -65,7 +73,7 @@ local function islands(rightOwner: number): MatchSim.Match
 		if MapData.getTerrain(map, i) ~= 0 then
 			if x <= LEFT1 then
 				Grid.setOwner(m.grid, i, 1)
-			elseif rightOwner ~= 0 then
+			elseif x >= RIGHT0 and rightOwner ~= 0 then
 				Grid.setOwner(m.grid, i, rightOwner)
 			end
 		end
@@ -149,6 +157,110 @@ T.describe("Флот", function()
 				end
 			end
 			T.expect(mine > 0).toBe(true)
+		end
+	)
+
+	T.it(
+		"враг за заливом на том же материке: общей границы нет — атака уходит десантом, а не отказом",
+		function()
+			local m = islands(2, true)
+			local n = m.nations[1]
+			Forces.add(n.home, INF, 3000)
+			DevTools.warNow(m, 1, 2)
+			local target = 12 * W + 120
+			T.expect(Naval.landAt(m.sea, target)).toBe(Naval.landAt(m.sea, 12 * W + 30)) -- один массив суши
+			T.expect(MatchSim.overSea(m, 1, target)).toBe(false)
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "attack", target = 2, percent = 0.2, focus = target })))
+				.toBe(true)
+			T.expect(Fleet.boats(m.fleet, 1)).toBe(1)
+			-- Без точки удара (боты, кнопки) — к столице врага.
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "attack", target = 2, percent = 0.2 }))).toBe(true)
+			T.expect(Fleet.boats(m.fleet, 1)).toBe(2)
+			local landed = false
+			for _ = 1, 60 do
+				runFor(m, 1)
+				for _, e in MatchSim.takeEvents(m) do
+					landed = landed or (e.kind == "landed" and e.nation == 1 and e.cells > 0)
+				end
+			end
+			T.expect(landed).toBe(true)
+			T.expect(Fleet.boats(m.fleet, 1)).toBe(0)
+			-- Высадились на земле врага, а не на ничьём перешейке и не у своего берега.
+			local taken = 0
+			for i = 0, W * H - 1 do
+				if i % W >= RIGHT0 and Grid.getOwner(m.grid, i) == 1 then
+					taken += 1
+				end
+			end
+			T.expect(taken > 0).toBe(true)
+		end
+	)
+
+	T.it(
+		"граница есть, но далеко (перешеек): клик через пролив — десант; рядом с линией и без кораблей — по суше",
+		function()
+			local m = islands(2, true)
+			for x = LEFT1 + 1, RIGHT0 - 1 do
+				Grid.setOwner(m.grid, (H - 3) * W + x, 1) -- наш перешеек упирается во врага внизу
+			end
+			Forces.add(m.nations[1].home, INF, 3000)
+			DevTools.warNow(m, 1, 2)
+			local far = 3 * W + RIGHT1 -- дальний угол врага у моря
+			T.expect((MatchSim.landDistance(m, 1, 2, far) :: number) > cfg.InvadeFarCells).toBe(true)
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "attack", target = 2, percent = 0.1, focus = far })))
+				.toBe(true)
+			T.expect(Fleet.boats(m.fleet, 1)).toBe(1)
+			T.expect(#m.attacks).toBe(0)
+			-- Клик у линии — обычный фронт.
+			local near = (H - 4) * W + RIGHT0
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "attack", target = 2, percent = 0.1, focus = near })))
+				.toBe(true)
+			T.expect(Fleet.boats(m.fleet, 1)).toBe(1)
+			T.expect(#m.attacks).toBe(1)
+			-- Все десантные корабли в море — дальний клик не отклоняется, а идёт по суше.
+			for _ = 2, cfg.MaxBoats do
+				MatchSim.applyIntent(m, 1, { kind = "attack", target = 2, percent = 0.1, focus = far })
+			end
+			T.expect(Fleet.boats(m.fleet, 1)).toBe(cfg.MaxBoats)
+			local before = Forces.total(m.nations[1].home)
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "attack", target = 2, percent = 0.1, focus = far })))
+				.toBe(true)
+			T.expect(Fleet.boats(m.fleet, 1)).toBe(cfg.MaxBoats)
+			T.expect(Forces.total(m.nations[1].home) < before).toBe(true) -- ушло на сухопутный фронт, не пропало
+		end
+	)
+
+	T.it(
+		"частично взятая прибрежная провинция (центр не наш) — тоже берег для десанта; отказ ничего не списывает",
+		function()
+			local m = islands(0)
+			local n = m.nations[1]
+			for i = 0, W * H - 1 do
+				if Grid.getOwner(m.grid, i) == 1 then
+					Grid.setOwner(m.grid, i, 0)
+				end
+			end
+			for y = 14, 15 do
+				for x = LEFT1 - 2, LEFT1 do
+					Grid.setOwner(m.grid, y * W + x, 1)
+				end
+			end
+			local p = m.provinces.list[provinceAt(LEFT1, 14)]
+			T.expect(Grid.getOwner(m.grid, p.center) ~= 1).toBe(true)
+			-- Груза нет — отказ, люди и войска на месте.
+			n.people = 0
+			T.expect(
+				select(
+					2,
+					MatchSim.applyIntent(m, 1, { kind = "attack", target = 0, percent = 0.5, focus = 12 * W + 130 })
+				)
+			).toBe("noTroops")
+			T.expect(Fleet.boats(m.fleet, 1)).toBe(0)
+			n.people = 5000
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "attack", target = 0, percent = 0.5, focus = 12 * W + 130 })))
+				.toBe(true)
+			T.expect(Fleet.boats(m.fleet, 1)).toBe(1)
+			T.expect(n.people).toBe(5000 - math.min(2500, cfg.TransportPeople))
 		end
 	)
 

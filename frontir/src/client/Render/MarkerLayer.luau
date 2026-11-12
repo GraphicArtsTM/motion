@@ -11,6 +11,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local CameraMath = require(Shared:WaitForChild("CameraMath"))
 local ClientState = require(Shared:WaitForChild("ClientState"))
 local Config = require(Shared:WaitForChild("Config"))
+local StrikeForecast = require(Shared:WaitForChild("StrikeForecast"))
 
 local Theme = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("Theme"))
 
@@ -21,6 +22,13 @@ export type MarkerLayer = {
 	refresh: () -> (), -- пришло сообщение world
 	onEvents: (events: { any }) -> (),
 	update: (now: number, state: CameraState) -> (),
+	-- §15х: круги защиты врага у цели прицеливания (ПВО — оранжевый, ЗРК — голубой, без зарядов — серый);
+	-- звать каждый кадр, пока целимся: перестали — круги гаснут сами.
+	defenses: (covers: { StrikeForecast.Cover }) -> (),
+	-- §15х ч.2: круг действия здания под курсором (звать каждый кадр, пока наведено).
+	range: (cell: number, radius: number, color: Color3) -> (),
+	-- §15х ч.4б: круг «Карты угроз» под ключом key (цвет — при создании, в ключе должен быть вид); звать каждый кадр.
+	zone: (key: string, cell: number, radius: number, color: Color3) -> (),
 }
 
 type Marker = { frame: Frame, label: TextLabel?, cell: number, radius: number, endsAt: number }
@@ -72,6 +80,17 @@ function MarkerLayer.new(canvas: Frame, cs: ClientState): MarkerLayer
 		m.cell, m.radius, m.endsAt = cell, radius, endsAt
 	end
 
+	-- §15х ч.3: свой удар — голубой, союзника — зелёный, чужой — красный.
+	local function strikeColor(owner: number): Color3
+		local me = cs.myNation
+		if me ~= nil and owner == me then
+			return Theme.Colors.Sky
+		elseif me ~= nil and ClientState.friendsOf(cs, me)[owner] then
+			return Theme.color("Lime")
+		end
+		return Theme.Colors.Alert
+	end
+
 	local function refresh()
 		local now = os.clock()
 		local speed = math.max(ClientState.simRate(cs), 1e-3) -- на паузе отсчёт стоит
@@ -92,7 +111,7 @@ function MarkerLayer.new(canvas: Frame, cs: ClientState): MarkerLayer
 			local key = "missile_" .. mi.cell
 			set(
 				key,
-				Theme.Colors.Alert,
+				strikeColor(mi.owner),
 				mi.cell,
 				mi.radius or Config.Buildings.MissileSilo.strikeRadius,
 				now + mi.left / speed,
@@ -115,7 +134,7 @@ function MarkerLayer.new(canvas: Frame, cs: ClientState): MarkerLayer
 				local left = (tonumber(e.impactIn) or 0) / math.max(ClientState.simRate(cs), 1e-3)
 				set(
 					"missile_" .. e.cell,
-					Theme.Colors.Alert,
+					strikeColor(tonumber(e.nation) or 0),
 					e.cell,
 					if type(e.radius) == "number" then e.radius else Config.Buildings.MissileSilo.strikeRadius,
 					now + left,
@@ -158,7 +177,38 @@ function MarkerLayer.new(canvas: Frame, cs: ClientState): MarkerLayer
 		end
 	end
 
-	return { refresh = refresh, onEvents = onEvents, update = update }
+	local function defenses(covers: { StrikeForecast.Cover })
+		local now = os.clock()
+		for _, c in covers do
+			local color = if c.ready <= 0
+				then Theme.Colors.Muted
+				elseif c.long then Theme.Colors.Sky
+				else Theme.color("Orange")
+			-- §15х ч.6: накрывает дальним кругом — круг дальний (голубой), иначе ближний (оранжевый).
+			local near = Config.Buildings.AirDefense.radius
+			local radius = math.round(if c.long then StrikeForecast.radius(99, width, true) else near)
+			-- Ключ — с состоянием заряда: цвет круга задаётся при создании.
+			local key = "def_" .. c.cell .. (if c.ready > 0 then "_on" else "_off")
+			set(key, color, c.cell, radius, now - 0.6, false) -- без обновления гаснет через ~0.4 с
+		end
+	end
+
+	local function range(cell: number, radius: number, color: Color3)
+		set("range_" .. cell, color, cell, math.max(1, math.round(radius)), os.clock() - 0.6, false)
+	end
+
+	local function zone(key: string, cell: number, radius: number, color: Color3)
+		set(key, color, cell, math.max(1, math.round(radius)), os.clock() - 0.6, false)
+	end
+
+	return {
+		refresh = refresh,
+		onEvents = onEvents,
+		update = update,
+		defenses = defenses,
+		range = range,
+		zone = zone,
+	}
 end
 
 return table.freeze(MarkerLayer)

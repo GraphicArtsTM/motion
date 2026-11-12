@@ -7,6 +7,8 @@
 	- Стрелки наступления: шевроны цвета нападающего на видимых фронтах против держав бегут к врагу; побеждающий
 	  фронт — быстрее и ярче.
 	- Вспышки захвата: клетки, отнятые у другой державы, коротко вспыхивают (пул ограничен).
+	- §15у ч.2: отряд через союзника — пунктир цветом державы от её границы до места выхода и бегущая «>» (где отряд);
+	  видят держава и её друзья (passageStarted → passageArrived / passageReturned).
 	Всё на canvas карты (клетки → пиксели — CameraMath.cellEdge) и в своём ScreenGui (баннер, виньетка).
 ]]
 
@@ -236,6 +238,99 @@ function WarFxLayer.new(canvas: Frame, screen: ScreenGui, cs: ClientState, lang:
 	end
 	local arrows: { ArrowView } = {}
 	local lastScan = -math.huge
+
+	-- §15у ч.2: отряды через союзника — пунктир и метка «>».
+	type March = {
+		owner: number,
+		ally: number,
+		target: number,
+		x0: number,
+		y0: number,
+		x1: number,
+		y1: number,
+		born: number,
+		dur: number,
+		dots: { Frame },
+		head: Chevron,
+	}
+	local marches: { March } = {}
+	local function newHead(): Chevron
+		local root = Instance.new("Frame")
+		root.AnchorPoint = Vector2.new(0.5, 0.5)
+		root.BackgroundTransparency = 1
+		root.ZIndex = 9
+		root.Parent = canvas
+		local bars: { Frame } = {}
+		for _ = 1, 2 do
+			local bar = Instance.new("Frame")
+			bar.AnchorPoint = Vector2.new(0.5, 0.5)
+			bar.BorderSizePixel = 0
+			bar.ZIndex = 9
+			local stroke = Instance.new("UIStroke")
+			stroke.Color = Theme.Colors.Backdrop
+			stroke.Thickness = 1
+			stroke.Parent = bar
+			bar.Parent = root
+			table.insert(bars, bar)
+		end
+		return { root = root, bars = bars }
+	end
+	local function endMarch(k: number)
+		local mr = marches[k]
+		for _, d in mr.dots do
+			d:Destroy()
+		end
+		mr.head.root:Destroy()
+		table.remove(marches, k)
+	end
+	local function startMarch(owner: number, ally: number, target: number, from: number, exit: number, sec: number)
+		local x0, y0 = from % w + 0.5, from // w + 0.5
+		local x1, y1 = exit % w + 0.5, exit // w + 0.5
+		local cells = math.sqrt((x1 - x0) ^ 2 + (y1 - y0) ^ 2)
+		local count = math.clamp(math.floor(cells / cfg.PassageDotCells), 4, cfg.PassageMaxDots)
+		local color = colorOf(owner)
+		local dots: { Frame } = {}
+		for _ = 1, count do
+			-- Своя точка с тёмной каймой: на земле того же цвета пунктир тоже виден.
+			local f = Instance.new("Frame")
+			f.AnchorPoint = Vector2.new(0.5, 0.5)
+			f.BorderSizePixel = 0
+			f.BackgroundColor3 = color
+			f.ZIndex = 9
+			local stroke = Instance.new("UIStroke")
+			stroke.Color = Theme.Colors.Backdrop
+			stroke.Thickness = 1
+			stroke.Parent = f
+			f.Parent = canvas
+			table.insert(dots, f)
+		end
+		local head = newHead()
+		for _, bar in head.bars do
+			bar.BackgroundColor3 = color
+		end
+		local rate = math.max(ClientState.simRate(cs), 1e-3)
+		table.insert(marches, {
+			owner = owner,
+			ally = ally,
+			target = target,
+			x0 = x0,
+			y0 = y0,
+			x1 = x1,
+			y1 = y1,
+			born = os.clock(),
+			dur = math.max(0.5, sec / rate),
+			dots = dots,
+			head = head,
+		})
+	end
+	local function finishMarch(owner: number, ally: number, target: number)
+		for k, mr in marches do
+			if mr.owner == owner and mr.ally == ally and mr.target == target then
+				endMarch(k)
+				return
+			end
+		end
+	end
 	local opening: { [number]: number } = {} -- нападающий * 65536 + цель → до когда «Первый удар» (os.clock)
 
 	local function scanArrows(state: CameraState)
@@ -497,7 +592,7 @@ function WarFxLayer.new(canvas: Frame, screen: ScreenGui, cs: ClientState, lang:
 				intercepted(if type(e.at) == "number" then e.at else nil, e.cell)
 				continue
 			elseif e.kind == "missileHit" and type(e.cell) == "number" then
-				explode(e.cell, Config.Buildings.MissileSilo.strikeRadius, false)
+				explode(e.cell, tonumber(e.radius) or Config.Buildings.MissileSilo.strikeRadius, false) -- §15р
 				continue
 			elseif e.kind == "emoji" and type(e.target) == "number" then
 				showEmoji(e.target, tonumber(e.emoji) or 0)
@@ -511,6 +606,16 @@ function WarFxLayer.new(canvas: Frame, screen: ScreenGui, cs: ClientState, lang:
 				continue
 			end
 			local a, b = e.nation :: number, e.target :: number
+			-- §15у ч.2: стрелка отряда через союзника — своим и друзьям.
+			if e.kind == "passageStarted" and type(e.from) == "number" and type(e.cell) == "number" then
+				if friends[a] then
+					startMarch(a, tonumber(e.ally) or 0, b, e.from, e.cell, tonumber(e.sec) or 5)
+				end
+				continue
+			elseif e.kind == "passageArrived" or e.kind == "passageReturned" then
+				finishMarch(a, tonumber(e.ally) or 0, b)
+				continue
+			end
 			local big = friends[a] == true or friends[b] == true
 			if e.kind == "warDeclared" then
 				showBanner("warfx.war", a, b, big, Theme.Colors.Alert)
@@ -733,6 +838,42 @@ function WarFxLayer.new(canvas: Frame, screen: ScreenGui, cs: ClientState, lang:
 				f.frame.BackgroundTransparency = 0.15 + 0.85 * t
 				place(f.frame, zoom, f.cell, 1 + 0.8 * t)
 				k += 1
+			end
+		end
+		-- §15у ч.2: отряды через союзника — пунктир (пройденное ярче) и «>» там, где отряд сейчас.
+		local mk = 1
+		while mk <= #marches do
+			local mr = marches[mk]
+			local p = (now - mr.born) / mr.dur
+			if p >= 1 + cfg.PassageKeepSec / mr.dur then
+				endMarch(mk)
+			else
+				p = math.min(p, 1)
+				local dx, dy = mr.x1 - mr.x0, mr.y1 - mr.y0
+				local dotSize = math.max(cfg.PassageDotMinPx, zoom * cfg.PassageDotScale)
+				local n = #mr.dots
+				for j, d in mr.dots do
+					local t = j / (n + 1)
+					d.Position = UDim2.fromOffset((mr.x0 + dx * t) * zoom, (mr.y0 + dy * t) * zoom)
+					d.Size = UDim2.fromOffset(dotSize, dotSize)
+					local pulse = 0.5 + 0.5 * math.sin(now * 4 - j * 0.6)
+					d.BackgroundTransparency = if t <= p then 0.1 + 0.2 * pulse else 0.55 + 0.2 * pulse
+				end
+				local hx, hy = (mr.x0 + dx * p) * zoom, (mr.y0 + dy * p) * zoom
+				local size = cfg.PassageHeadPx
+				local head = mr.head
+				head.root.Position = UDim2.fromOffset(hx, hy)
+				head.root.Size = UDim2.fromOffset(size, size)
+				head.root.Rotation = math.deg(math.atan2(dy, dx))
+				local barLen, thick = size * 0.62, math.max(3, size * 0.25)
+				local back = barLen / 2 * 0.7071
+				for b, bar in head.bars do
+					bar.Size = UDim2.fromOffset(barLen, thick)
+					bar.Position = UDim2.new(0.75, -back, 0.5, if b == 1 then -back else back)
+					bar.Rotation = if b == 1 then 45 else -45
+					bar.BackgroundTransparency = 0
+				end
+				mk += 1
 			end
 		end
 		-- Стрелки наступления.

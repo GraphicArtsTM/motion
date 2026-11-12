@@ -31,13 +31,12 @@ export type BuildingSet = {
 -- Что у державы есть: для дохода, найма и ботов. Счётчики — число зданий; «сила» — с уровнями и районами.
 export type Owned = {
 	factories: number,
-	markets: number,
 	rigs: number,
 	forts: number,
 	ports: number, -- §6.12
 	airfields: number, -- §6.13
 	silos: number, -- ракетные шахты (§6.9, этап 7г)
-	sams: number, -- ЗРК (§15з)
+	longRange: number, -- §15х ч.6: ПВО ур. 3 «дальняя» (бывший ЗРК)
 	cityLevels: number, -- сумма уровней своих городов
 	-- Экономика 2.0 (§15д)
 	barracks: number, -- число казарм
@@ -46,7 +45,7 @@ export type Owned = {
 	housing: number, -- число жилых кварталов
 	housingPeople: number, -- + к максимуму людей (с районами)
 	factoryIncome: number, -- денег в секунду от заводов (с районами)
-	marketBonus: number, -- доля к доходу от рынков (с районами), складывается
+	incomeBonus: number, -- §15х ч.6: доля к доходу от заводов ур. 3 (с районами), складывается
 	rigOil: number, -- множитель нефти вышек (сумма по уровням)
 	upkeep: number, -- содержание зданий, денег в секунду
 }
@@ -60,13 +59,12 @@ end
 function Buildings.emptyOwned(): Owned
 	return {
 		factories = 0,
-		markets = 0,
 		rigs = 0,
 		forts = 0,
 		ports = 0,
 		airfields = 0,
 		silos = 0,
-		sams = 0, -- §15з
+		longRange = 0, -- §15х ч.6
 		cityLevels = 0,
 		barracks = 0,
 		barracksLevel = 0,
@@ -74,7 +72,7 @@ function Buildings.emptyOwned(): Owned
 		housing = 0,
 		housingPeople = 0,
 		factoryIncome = 0,
-		marketBonus = 0,
+		incomeBonus = 0,
 		rigOil = 0,
 		upkeep = 0,
 	}
@@ -108,7 +106,8 @@ end
 -- Цена здания kind (нового или следующего уровня), когда у державы уже levels уровней этого типа (§15д).
 function Buildings.priceFor(kind: string, nextLevel: number, levels: number): number
 	local stats = (Config.Buildings :: any)[kind]
-	local mul = Config.Build.UpgradeMul[nextLevel] or Config.Build.UpgradeMul[#Config.Build.UpgradeMul]
+	local muls: { number } = stats.upgradeMul or Config.Build.UpgradeMul -- §15х ч.6: своя цена уровней (ПВО)
+	local mul = muls[nextLevel] or muls[#muls]
 	return stats.cost * mul * (1 + Config.Build.CostStep * levels)
 end
 
@@ -157,14 +156,21 @@ function Buildings.fromList(list: { [any]: Building }, map: MapData.MapData): Bu
 	return set
 end
 
--- Радиус действия здания в клетках для круга у «призрака» стройки (§15г); nil — круга нет.
-function Buildings.rangeOf(kind: string, mapWidth: number): number?
-	if kind == "Radar" then
-		return Config.Fog.RadarVision
+-- Радиус действия здания в клетках для круга у «призрака» стройки (§15г) и при наведении (§15х ч.2); nil — круга нет.
+-- Город — дальность снабжения фронтов (Combat.SupplyRange), порт — снабжения берега по морю (Naval.SeaSupplyRange,
+-- по воде — круг примерный).
+function Buildings.rangeOf(kind: string, mapWidth: number, level: number?): number?
+	if kind == "City" then
+		return Config.Combat.SupplyRange * mapWidth / Config.UnitsReferenceMapWidth
+	elseif kind == "Port" then
+		return Config.Naval.SeaSupplyRange
 	elseif kind == "AirDefense" then
-		return Config.Buildings.AirDefense.radius
-	elseif kind == "Sam" then
-		return Config.Buildings.Sam.radius * mapWidth / Config.UnitsReferenceMapWidth
+		-- §15х ч.6: ПВО ур. 3 — дальний круг против ракет и боеголовок.
+		local cfg = Config.Buildings.AirDefense
+		if (level or 1) >= cfg.longRangeLevel then
+			return math.max(cfg.radius, cfg.longRadius * mapWidth / Config.UnitsReferenceMapWidth)
+		end
+		return cfg.radius
 	elseif kind == "Airfield" then
 		return Config.Air.Range * mapWidth / Config.UnitsReferenceMapWidth
 	end
@@ -456,9 +462,9 @@ function Buildings.owned(
 		if b.kind == "Factory" then
 			o.factories += 1
 			o.factoryIncome += stats.Factory.income * b.level * district(cell, owner)
-		elseif b.kind == "Market" then
-			o.markets += 1
-			o.marketBonus += stats.Market.incomeBonus * district(cell, owner)
+			if b.level >= stats.Factory.bonusLevel then
+				o.incomeBonus += stats.Factory.incomeBonus * district(cell, owner) -- §15х ч.6: бывший «Рынок»
+			end
 		elseif b.kind == "Housing" then
 			o.housing += 1
 			o.housingPeople += stats.Housing.people * b.level * district(cell, owner)
@@ -477,8 +483,8 @@ function Buildings.owned(
 			o.airfields += 1
 		elseif b.kind == "MissileSilo" then
 			o.silos += 1
-		elseif b.kind == "Sam" then
-			o.sams += 1
+		elseif b.kind == "AirDefense" and b.level >= stats.AirDefense.longRangeLevel then
+			o.longRange += 1
 		end
 	end
 	return out

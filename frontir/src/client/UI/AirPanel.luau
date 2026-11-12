@@ -34,6 +34,8 @@ export type AirPanel = {
 	-- Окна снизу не накладываются (Main.client → closeSheets): занято ли меню или режим выбора, и сброс всего.
 	busy: () -> boolean,
 	cancel: () -> (),
+	aiming: () -> boolean, -- §15х: ждём цель налёта (для прогноза удара)
+	startRaid: () -> (), -- §15х ч.4: выбор цели налёта без меню аэродрома (панель «УДАРЫ»)
 }
 
 export type PlanePicker = (x: number, y: number, owner: number, reach: number) -> Protocol.PlaneInfo?
@@ -229,6 +231,13 @@ function AirPanel.new(
 	end
 
 	return {
+		aiming = function(): boolean
+			return mode == "raid"
+		end,
+		startRaid = function()
+			close()
+			setMode("raid", Strings.get("air.pickTarget", lang))
+		end,
 		close = close,
 		isOpen = function(): boolean
 			return panel.Visible

@@ -46,6 +46,98 @@ local TABLE: { [string]: Entry } = {
 	["hud.waiting"] = { ru = "Ожидание игроков…", en = "Waiting for players…" },
 	["hud.pick"] = { ru = "Выберите точку старта: %d с", en = "Choose your start: %d s" },
 	["hud.pick.hint"] = { ru = "Нажмите на свободную сушу", en = "Tap free land" },
+	-- §15ф Ф1: экран выбора старта
+	["tip.pickTaken"] = { ru = "Здесь уже чужая столица", en = "Someone already starts here" },
+	["tip.pickCalm"] = {
+		ru = "Соседей рядом: %d · спокойное начало",
+		en = "Neighbours nearby: %d · calm start",
+	},
+	["tip.pickCrowded"] = {
+		ru = "Соседей рядом: %d · тесно, трудное начало",
+		en = "Neighbours nearby: %d · crowded, tough start",
+	},
+	["tip.pickHere"] = {
+		ru = "Нажмите — здесь будет ваша столица",
+		en = "Click to place your capital here",
+	},
+	-- §15х прогноз удара (подсказка при прицеливании ракетой, бомбой или налётом)
+	-- §15х ч.2: что делает здание под курсором (круг его действия — на карте)
+	["range.level"] = { ru = "ур. %d", en = "lv %d" },
+	["range.charges"] = {
+		ru = "Заряды: %d / %d (восстанавливаются сами)",
+		en = "Charges: %d / %d (refill over time)",
+	},
+	["range.AirDefense"] = {
+		ru = "сбивает бомбы налётов, ракеты и боеголовки в круге, бьёт по самолётам; ур. 3 — ракеты и боеголовки далеко",
+		en = "shoots down raid bombs, missiles and warheads in the circle, fires at planes; lv 3 — missiles far away",
+	},
+	["range.AirDefenseLong"] = {
+		ru = "дальняя ПВО: ракеты и боеголовки — во всём круге, бомбы налётов — рядом",
+		en = "long-range AA: missiles and warheads in the whole circle, raid bombs — nearby",
+	},
+	["range.Airfield"] = {
+		ru = "самолёты летают в этом круге; видит силу врага рядом",
+		en = "planes fly within this circle; sees enemy strength nearby",
+	},
+	["range.Port"] = {
+		ru = "корабли; снабжает фронты на берегу (по воде, круг примерный)",
+		en = "ships; supplies fronts on the coast (by sea, circle is approximate)",
+	},
+	["range.City"] = {
+		ru = "снабжает ваши фронты в круге",
+		en = "supplies your fronts in the circle",
+	},
+	["range.Factory"] = {
+		ru = "приносит деньги; ур. 3 — ещё +5% дохода",
+		en = "earns money; lv 3 — +5% income too",
+	},
+	["range.Barracks"] = {
+		ru = "линии найма; ур. 2–3 — техника",
+		en = "recruit lines; lv 2–3 — vehicles",
+	},
+	["range.Housing"] = { ru = "больше людей", en = "more people" },
+	["range.OilRig"] = { ru = "нефть", en = "oil" },
+	["range.Fort"] = {
+		ru = "провинция обороняется сильнее",
+		en = "the province defends better",
+	},
+	["range.MissileSilo"] = {
+		ru = "ракеты и бомбы по всей карте (R)",
+		en = "missiles and bombs anywhere on the map (R)",
+	},
+	-- §15х ч.3 «Сирена»: удар летит по вам
+	["siren.incoming"] = {
+		ru = "%s летит по вашей земле — через %d с",
+		en = "%s incoming on your land — %d s",
+	},
+	["siren.open"] = {
+		ru = "Защиты у цели нет — дойдёт. ПВО рядом (или дальняя ПВО ур. 3) сбила бы её.",
+		en = "No defense at the target — it gets through. AA nearby (or long-range AA lv 3) would stop it.",
+	},
+	["siren.covered"] = {
+		ru = "Ваша защита: ПВО ×%d (дальних ×%d), зарядов %d (нужно %d) —",
+		en = "Your defense: AA ×%d (long-range ×%d), charges %d (needs %d) —",
+	},
+	["siren.stopped"] = { ru = "собьём", en = "it will be shot down" },
+	["siren.through"] = { ru = "зарядов мало, дойдёт", en = "not enough charges, it gets through" },
+	["siren.more"] = { ru = "(ещё %d)", en = "(%d more)" },
+	["siren.show"] = { ru = "Показать", en = "Show" },
+	["strike.open"] = {
+		ru = "Цель без защиты — удар дойдёт",
+		en = "Target is undefended — the strike gets through",
+	},
+	["strike.covered"] = {
+		ru = "Прикрыта: ПВО ×%d (дальних ×%d) · зарядов %d, нужно %d —",
+		en = "Covered: AA ×%d (long-range ×%d) · charges %d, needs %d —",
+	},
+	["strike.stopped"] = { ru = "собьют", en = "will be shot down" },
+	["strike.through"] = { ru = "зарядов мало — дойдёт", en = "not enough charges — gets through" },
+	["strike.fighters"] = {
+		ru = "У цели истребители врага: %d — самолёт могут сбить в пути",
+		en = "Enemy fighters near the target: %d — the plane may be shot down",
+	},
+	["hud.pickTitle"] = { ru = "ВЫБЕРИТЕ МЕСТО СТАРТА", en = "CHOOSE YOUR STARTING LOCATION" },
+	["hud.pickCount"] = { ru = "Выбрали: %d из %d  ·  %d с", en = "Placed: %d of %d  ·  %d s" },
 	["hud.pick.done"] = {
 		ru = "Точка выбрана — можно перевыбрать",
 		en = "Start chosen — you can change it",
@@ -113,6 +205,9 @@ local TABLE: { [string]: Entry } = {
 	["diplo.rel.mobilizing"] = { ru = "мобилизация", en = "mobilizing" },
 	["diplo.rel.pact"] = { ru = "пакт %s", en = "pact %s" },
 	["diplo.rel.alliance"] = { ru = "союз", en = "alliance" },
+	["diplo.rel.trust"] = { ru = "союз · полное доверие", en = "alliance · full trust" },
+	["diplo.tag.alliance"] = { ru = "союз с %s", en = "allied with %s" },
+	["diplo.tag.trust"] = { ru = "полное доверие с %s", en = "full trust with %s" },
 	["diplo.rel.vassal"] = { ru = "ваш вассал", en = "your vassal" },
 	["diplo.rel.overlord"] = { ru = "ваш сюзерен", en = "your overlord" },
 	["diplo.rel.breaking"] = { ru = "разрыв через %d с", en = "breaks in %d s" },
@@ -125,6 +220,8 @@ local TABLE: { [string]: Entry } = {
 	["diplo.act.pact3"] = { ru = "Пакт 3 мин", en = "Pact 3 min" },
 	["diplo.act.pact5"] = { ru = "Пакт 5 мин", en = "Pact 5 min" },
 	["diplo.act.alliance"] = { ru = "Союз", en = "Alliance" },
+	["diplo.act.trust"] = { ru = "Полное доверие", en = "Full trust" },
+	["diplo.act.distrust"] = { ru = "Снять доверие", en = "Remove trust" },
 	["diplo.act.break"] = { ru = "Разорвать", en = "Break" },
 	["diplo.act.demand"] = { ru = "Требование", en = "Demand" },
 	["diplo.act.war"] = { ru = "Объявить войну", en = "Declare war" },
@@ -140,6 +237,8 @@ local TABLE: { [string]: Entry } = {
 	["diplo.history"] = { ru = "История договоров", en = "Treaty history" },
 	["diplo.hist.pact"] = { ru = "%s и %s: пакт на %d мин", en = "%s and %s: pact for %d min" },
 	["diplo.hist.alliance"] = { ru = "%s и %s: союз", en = "%s and %s: alliance" },
+	["diplo.hist.trust"] = { ru = "%s и %s: полное доверие", en = "%s and %s: full trust" },
+	["diplo.hist.distrust"] = { ru = "%s и %s: доверие снято", en = "%s and %s: trust removed" },
 	["diplo.hist.broken"] = { ru = "%s разорвал договор с %s", en = "%s broke the treaty with %s" },
 	["diplo.hist.expired"] = { ru = "%s и %s: пакт истёк", en = "%s and %s: pact expired" },
 	["diplo.hist.betrayal"] = { ru = "%s предал %s", en = "%s betrayed %s" },
@@ -156,6 +255,10 @@ local TABLE: { [string]: Entry } = {
 		en = "%s offers a non-aggression pact for 5 min",
 	},
 	["diplo.offer.alliance"] = { ru = "%s предлагает союз", en = "%s offers an alliance" },
+	["diplo.offer.trust"] = {
+		ru = "%s предлагает полное доверие: войска смогут идти через земли друг друга к врагу",
+		en = "%s offers full trust: troops may march through each other's land to the enemy",
+	},
 	["diplo.offer.demand"] = {
 		ru = "%s требует провинцию «%s» — или война",
 		en = "%s demands the province «%s» — or war",
@@ -166,6 +269,40 @@ local TABLE: { [string]: Entry } = {
 	["diplo.cede"] = { ru = "Отдать", en = "Cede" },
 	["event.offerAccepted.pact"] = { ru = "%s и %s заключили пакт", en = "%s and %s signed a pact" },
 	["event.offerAccepted.alliance"] = { ru = "%s и %s — союз", en = "%s and %s are allies" },
+	["event.offerAccepted.trust"] = { ru = "%s и %s — полное доверие", en = "%s and %s — full trust" },
+	-- §15у: удар через союзника
+	["event.trustRemoved"] = {
+		ru = "%s сняла полное доверие с %s",
+		en = "%s removed full trust from %s",
+	},
+	["event.passageStarted"] = {
+		ru = "Войска идут через землю %s к %s (~%d с)",
+		en = "Troops march through %s toward %s (~%d s)",
+	},
+	["event.passageArrived"] = { ru = "%s вышла к %s через землю %s", en = "%s reached %s through %s" },
+	["event.passageOnYou"] = { ru = "%s ударила через землю %s!", en = "%s struck you through %s!" },
+	["event.passageReturned"] = {
+		ru = "Войска не прошли через %s — вернулись домой",
+		en = "Troops could not pass through %s — back home",
+	},
+	["tooltip.passage"] = {
+		ru = "Удар через союзника %s (~%d с)",
+		en = "Strike through ally %s (~%d s)",
+	},
+	["reject.needAlliance"] = { ru = "Сначала — союз", en = "Alliance first" },
+	["reject.trustTooEarly"] = {
+		ru = "Полное доверие — когда союз длится минуту",
+		en = "Full trust — once the alliance lasts a minute",
+	},
+	["reject.noTrust"] = { ru = "Полного доверия нет", en = "No full trust" },
+	["reject.tooManyPassages"] = {
+		ru = "Уже два отряда идут через союзника",
+		en = "Two units are already marching through an ally",
+	},
+	["reject.noAllyBetween"] = {
+		ru = "Нет соседа, за которым есть другая держава",
+		en = "No neighbour with another nation behind it",
+	},
 	["event.offerAccepted.demand"] = { ru = "%s отдала провинцию %s", en = "%s ceded a province to %s" },
 	["event.offerRefused"] = { ru = "%s отказала: %s", en = "%s refused: %s" },
 	["event.betrayal"] = { ru = "%s предала %s!", en = "%s betrayed %s!" },
@@ -236,8 +373,8 @@ local TABLE: { [string]: Entry } = {
 	["diplo.rel.trade"] = { ru = "торговля", en = "trade" },
 	["diplo.rel.embargo"] = { ru = "эмбарго", en = "embargo" },
 	["diplo.offer.trade"] = {
-		ru = "%s предлагает торговое соглашение (+5% дохода обоим)",
-		en = "%s offers a trade agreement (+5% income for both)",
+		ru = "%s предлагает торговое соглашение (+5%% дохода обоим)",
+		en = "%s offers a trade agreement (+5%% income for both)",
 	},
 	["diplo.hist.trade"] = { ru = "%s и %s: торговое соглашение", en = "%s and %s: trade agreement" },
 	["diplo.hist.embargo"] = { ru = "%s объявил эмбарго %s", en = "%s embargoed %s" },
@@ -405,6 +542,10 @@ local TABLE: { [string]: Entry } = {
 		en = "You need troops: recruit units (Z/X/C/V)",
 	},
 	["reject.queueFull"] = { ru = "Очередь найма полна", en = "Recruitment queue is full" },
+	["reject.noLand"] = {
+		ru = "Нет земли — сначала выберите старт",
+		en = "No land — pick a start first",
+	}, -- F4
 	["reject.notAtWar"] = {
 		ru = "С этой страной мир — сначала объявите войну",
 		en = "You are at peace — declare war first",
@@ -563,6 +704,27 @@ local TABLE: { [string]: Entry } = {
 		ru = "Войска готовы: нажмите на землю соседа — объявите войну и наступайте.",
 		en = "Troops are ready: tap a neighbour's land — declare war and attack.",
 	},
+	-- §15т ч.2: флот, авиация и шахта по шагам
+	["hint.ship"] = {
+		ru = "Порт готов: нажмите на него и наймите транспорт — он повезёт войска через море.",
+		en = "Your port is ready: tap it and hire a transport — it carries troops across the sea.",
+	},
+	["hint.landing"] = {
+		ru = "Высадка: порт → «Высадка» → клетка берега. Эсминец защитит транспорт в пути.",
+		en = "Landing: port → «Landing» → a coast cell. A destroyer guards the transport.",
+	},
+	["hint.plane"] = {
+		ru = "Аэродром готов: нажмите на него. Истребитель прикрывает, бомбардировщик бьёт по фронту и зданиям.",
+		en = "Your airfield is ready: tap it. Fighters cover, bombers hit fronts and buildings.",
+	},
+	["hint.raid"] = {
+		ru = "Налёт: аэродром → «Налёт» → клетка у фронта врага. ПВО врага может сбить самолёт.",
+		en = "Raid: airfield → «Air raid» → a cell at the enemy front. Enemy AA may shoot it down.",
+	},
+	["hint.silo"] = {
+		ru = "Шахта готова: R — выбор боеголовки, нажмите на врага. Он увидит круг и может сбить ракету ПВО.",
+		en = "Silo ready: R — pick a warhead, tap the enemy. They see the circle and may shoot it down.",
+	},
 	["hint.close"] = { ru = "Понятно", en = "Got it" },
 	["res.army"] = { ru = "войска", en = "army" },
 	["res.land"] = { ru = "суша", en = "land" },
@@ -577,8 +739,8 @@ local TABLE: { [string]: Entry } = {
 	["building.OilRig.hint"] = { ru = "только на нефтяном поле", en = "oil fields only" },
 	["building.Factory"] = { ru = "Завод", en = "Factory" },
 	["building.Factory.hint"] = {
-		ru = "деньги: +$15/с за уровень",
-		en = "money: +$15/s per level",
+		ru = "деньги: +$15/с за уровень; ур. 3 — ещё +5% дохода",
+		en = "money: +$15/s per level; lv 3 — +5% income too",
 	},
 	-- Экономика 2.0 (§15д)
 	["building.Barracks"] = { ru = "Казармы", en = "Barracks" },
@@ -588,7 +750,6 @@ local TABLE: { [string]: Entry } = {
 	},
 	["building.Housing"] = { ru = "Жилой квартал", en = "Housing" },
 	["building.Housing.hint"] = { ru = "+500 людей за уровень", en = "+500 people per level" },
-	["building.Market.hint"] = { ru = "+5% дохода", en = "+5% income" },
 	["build.upgrade"] = { ru = "Улучшить: %s ур. %d  $%s", en = "Upgrade: %s lv %d  $%s" },
 	["build.district"] = { ru = "Район города: +%d%%", en = "City district: +%d%%" },
 	["build.upkeep"] = { ru = "Содержание: $%s/с", en = "Upkeep: $%s/s" },
@@ -612,9 +773,6 @@ local TABLE: { [string]: Entry } = {
 	["hire.needBarracks"] = { ru = "нужны казармы ур. %d", en = "needs barracks lv %d" },
 	["building.Fort"] = { ru = "Укрепление", en = "Fortification" },
 	["building.Fort.hint"] = { ru = "защита провинции ×1.5", en = "province defence ×1.5" },
-	["building.Market"] = { ru = "Рынок", en = "Market" },
-	["building.Radar"] = { ru = "Радар", en = "Radar" },
-	["building.Radar.hint"] = { ru = "обзор 25 клеток в тумане", en = "sees 25 cells through fog" },
 	-- Этап 7а: стабильность, восстания, туман
 	["hud.stability"] = { ru = "Стабильность: %s", en = "Stability: %s" },
 	["hud.lowIncome"] = { ru = "(½ дохода: %s кл.)", en = "(½ income: %s cells)" },
@@ -716,22 +874,25 @@ local TABLE: { [string]: Entry } = {
 	["hud.fleet"] = { ru = "Флот: %d трансп., %d эсм.", en = "Fleet: %d transp., %d destr." },
 	["dev.navy"] = { ru = "Порт и флот", en = "Port and fleet" },
 	["dev.giant"] = { ru = "Сверхдержава (земля)", en = "Superpower (land)" },
+	["dev.trustAlly"] = {
+		ru = "Союзник-доверие и враг за ним",
+		en = "Trusted ally + enemy behind",
+	},
 	["dev.botLanding"] = { ru = "Бот: десант на вас", en = "Bot: lands on you" },
 	-- Этап 7б-2: авиация
 	["building.Airfield"] = { ru = "Аэродром", en = "Airfield" },
 	["building.Airfield.hint"] = {
-		ru = "истребители и бомбардировщики",
-		en = "fighters and bombers",
+		ru = "истребители и бомбардировщики; видит силу врага рядом",
+		en = "fighters and bombers; sees enemy strength nearby",
 	},
-	["building.AirDefense"] = { ru = "Батарея ПВО", en = "AA battery" },
-	["building.Sam"] = { ru = "ЗРК", en = "SAM site" },
-	["building.Sam.hint"] = {
-		ru = "далеко сбивает ракеты и ядерные бомбы (не самолёты)",
-		en = "shoots down missiles and nukes far away (not planes)",
-	},
+	["building.AirDefense"] = { ru = "ПВО", en = "Air defense" },
 	["building.AirDefense.hint"] = {
-		ru = "заряды: ловит налёты и ракеты рядом",
-		en = "charges: stops raids and missiles nearby",
+		ru = "заряды: ловит налёты и ракеты рядом; ур. 3 — ракеты далеко",
+		en = "charges: stops raids and missiles nearby; lv 3 — missiles far away",
+	},
+	["reject.needLongRange"] = {
+		ru = "Нужна технология: ПВО ур. 3 открывает «Дальняя ПВО» (Y → Флот, ур. 3)",
+		en = "Needs tech: AA lv 3 is unlocked by «Long-range AA» (Y → Fleet, lv 3)",
 	},
 	["plane.Fighter"] = { ru = "Истребитель", en = "Fighter" },
 	["plane.Bomber"] = { ru = "Бомбардировщик", en = "Bomber" },
@@ -798,7 +959,7 @@ local TABLE: { [string]: Entry } = {
 	["tech.Economy.4"] = { ru = "Порядок", en = "Public order" },
 	["tech.Fleet.1"] = { ru = "Верфи", en = "Shipyards" },
 	["tech.Fleet.2"] = { ru = "Авиация", en = "Aviation" },
-	["tech.Fleet.3"] = { ru = "Радар", en = "Radar" },
+	["tech.Fleet.3"] = { ru = "Дальняя ПВО", en = "Long-range AA" },
 	["tech.Fleet.4"] = { ru = "Сеть ПВО", en = "Air defense grid" },
 	["tech.desc.Army.1"] = { ru = "Новые юниты — сразу 1★", en = "New units start at 1★" },
 	["tech.desc.Army.2"] = { ru = "Снабжение дальше ×%s", en = "Supply range ×%s" },
@@ -810,7 +971,10 @@ local TABLE: { [string]: Entry } = {
 	["tech.desc.Economy.4"] = { ru = "Стабильность +%d", en = "Stability +%d" },
 	["tech.desc.Fleet.1"] = { ru = "Корабли −%d%% цены", en = "Ships −%d%% cost" },
 	["tech.desc.Fleet.2"] = { ru = "Открывает «Аэродром»", en = "Unlocks Airfield" },
-	["tech.desc.Fleet.3"] = { ru = "Открывает «Радар»", en = "Unlocks Radar" },
+	["tech.desc.Fleet.3"] = {
+		ru = "ПВО ур. 3: ракеты и боеголовки сбивает далеко",
+		en = "AA lv 3: shoots down missiles and warheads far away",
+	},
 	["tech.desc.Fleet.4"] = {
 		ru = "+1 заряд каждой батарее ПВО",
 		en = "+1 charge for every AA battery",
@@ -958,6 +1122,92 @@ local TABLE: { [string]: Entry } = {
 		en = "☢ %s: %s hit %s — %s cells",
 	},
 	["ring.emoji"] = { ru = "Эмодзи", en = "Emoji" },
+	-- §15х ч.4: удары под рукой — кольцо по врагу и панель «УДАРЫ»
+	-- §15х ч.4б «Карта угроз»
+	["dock.threat"] = { ru = "Угрозы", en = "Threats" },
+	["threat.title"] = { ru = "КАРТА УГРОЗ", en = "THREAT MAP" },
+	["threat.legend.myAA"] = { ru = "ваша ПВО", en = "your AA" },
+	["threat.legend.myAALong"] = { ru = "ваша дальняя ПВО", en = "your long-range AA" },
+	["threat.legend.enemyAA"] = { ru = "ПВО врага", en = "enemy AA" },
+	["threat.legend.enemyAALong"] = { ru = "дальняя ПВО врага", en = "enemy long-range AA" },
+	["threat.legend.enemyAir"] = { ru = "куда летает авиация врага", en = "enemy air range" },
+	["threat.legend.hole"] = { ru = "дыра: ракета дойдёт", en = "hole: a missile gets through" },
+	["threat.stats"] = {
+		ru = "Шахт у врага: %d (ракеты — по всей карте) · аэродромов: %d · ПВО: %d\n"
+			.. '<font color="#%s">Под защитой от ракет: %d из %d ваших городов и зданий</font>',
+		en = "Enemy silos: %d (missiles reach anywhere) · airfields: %d · AA: %d\n"
+			.. '<font color="#%s">Protected from missiles: %d of %d of your cities and buildings</font>',
+	},
+	["threat.showHole"] = { ru = "Показать дыру", en = "Show a hole" },
+	["threat.close"] = { ru = "Закрыть (L)", en = "Close (L)" },
+	["ring.missile"] = { ru = "Ракета", en = "Missile" },
+	["ring.raid"] = { ru = "Налёт", en = "Air raid" },
+	["ring.ability"] = { ru = "Удар генерала", en = "Commander strike" },
+	["strikes.title"] = { ru = "УДАРЫ", en = "STRIKES" },
+	["strikes.commander"] = { ru = "генерал: %s", en = "commander: %s" },
+	["strikes.ready"] = { ru = "ГОТОВО", en = "READY" },
+	["strikes.desc.missile"] = {
+		ru = "Ракета из шахты по любой точке карты: здания в круге −1 ур., фронты слабее. Сбивает ПВО врага.",
+		en = "Silo missile anywhere on the map: buildings in the circle −1 lv, fronts weaker. Enemy AA stops it.",
+	},
+	["strikes.desc.raid"] = {
+		ru = "Бомбардировщик летит к цели: бьёт фронт, гарнизон у линии, здание −1 ур. Бомбу сбивает ПВО, самолёт — истребители.",
+		en = "A bomber flies to the target: hits the front, troops near the line, a building −1 lv. AA stops the bomb, fighters the plane.",
+	},
+	["strikes.raidRow"] = { ru = "Налёт — %s", en = "Air raid — %s" },
+	["strikes.raidReady"] = { ru = "готов (%d)", en = "ready (%d)" },
+	["strikes.hint"] = {
+		ru = "ПКМ по врагу (долгое касание) — все удары по нему",
+		en = "Right-click an enemy (long press) — all strikes on it",
+	},
+	["strikeHow.notAtWar"] = {
+		ru = "Удары — только по врагу в войне. ПКМ по соседу → «Объявить войну», потом дождитесь конца мобилизации.",
+		en = "Strikes only hit an enemy at war. Right-click a neighbour → «Declare war», then wait for mobilization to end.",
+	},
+	["strikeHow.cooldown"] = { ru = "Перезарядка: ещё %d с.", en = "Reloading: %d s left." },
+	["strikeHow.missile.needTech"] = {
+		ru = "Ракета: изучите «Ракетная шахта» (технологии Y → Войска, ур. 3), потом постройте шахту (B).",
+		en = "Missile: research «Missile silo» (tech Y → Army, lv 3), then build a silo (B).",
+	},
+	["strikeHow.missile.needSilo"] = {
+		ru = "Ракета: постройте ракетную шахту (B → «Ракетная шахта») — ракеты долетают по всей карте.",
+		en = "Missile: build a missile silo (B → «Missile silo») — missiles reach anywhere on the map.",
+	},
+	["strikeHow.raid.needAirfieldTech"] = {
+		ru = "Налёт: изучите «Авиация» (технологии Y → Флот, ур. 2), постройте аэродром (B) и наймите бомбардировщик.",
+		en = "Air raid: research «Aviation» (tech Y → Fleet, lv 2), build an airfield (B) and hire a bomber.",
+	},
+	["strikeHow.raid.needAirfield"] = {
+		ru = "Налёт: постройте аэродром (B), нажмите на него и наймите бомбардировщик.",
+		en = "Air raid: build an airfield (B), tap it and hire a bomber.",
+	},
+	["strikeHow.raid.needBomber"] = {
+		ru = "Налёт: нажмите на свой аэродром и наймите бомбардировщик.",
+		en = "Air raid: tap your airfield and hire a bomber.",
+	},
+	["strikeHow.raid.bombersBusy"] = {
+		ru = "Все бомбардировщики в полёте — дождитесь, пока вернутся на аэродром.",
+		en = "All bombers are flying — wait until they return to base.",
+	},
+	["strikeHow.raid.outOfRange"] = {
+		ru = "Цель дальше, чем летают ваши самолёты (круг вокруг аэродрома) — постройте аэродром ближе к фронту.",
+		en = "The target is beyond your planes' range (circle around an airfield) — build an airfield closer to the front.",
+	},
+	["strikeHow.ability.noAbility"] = {
+		ru = "У вашего генерала нет удара по врагу — другого генерала можно выбрать в Арсенале (до матча).",
+		en = "Your commander has no strike on enemies — pick another commander in the Arsenal (before the match).",
+	},
+	["strikeShort.cooldown"] = { ru = "перезарядка", en = "reloading" },
+	["strikeShort.ok"] = { ru = "готово", en = "ready" },
+	["strikeShort.notAtWar"] = { ru = "нет войны", en = "no war" },
+	["strikeShort.needTech"] = { ru = "нужна технология", en = "needs tech" },
+	["strikeShort.needSilo"] = { ru = "нужна шахта", en = "needs a silo" },
+	["strikeShort.needAirfieldTech"] = { ru = "нужна технология", en = "needs tech" },
+	["strikeShort.needAirfield"] = { ru = "нужен аэродром", en = "needs an airfield" },
+	["strikeShort.needBomber"] = { ru = "нет бомбардировщиков", en = "no bombers" },
+	["strikeShort.bombersBusy"] = { ru = "все в полёте", en = "all flying" },
+	["strikeShort.outOfRange"] = { ru = "далеко", en = "too far" },
+	["strikeShort.noAbility"] = { ru = "нет", en = "none" },
 	-- Экран лобби и «Как играть» (§15и).
 	["lobby.title"] = { ru = "WORLD CONQUER", en = "WORLD CONQUER" }, -- §15л ч.5: название с логотипа
 	["lobby.subtitle"] = {
@@ -965,6 +1215,16 @@ local TABLE: { [string]: Entry } = {
 		en = "Hold more land than your neighbours — by alliance, trade or war",
 	},
 	["lobby.next"] = { ru = "СЛЕДУЮЩИЙ МАТЧ", en = "NEXT MATCH" },
+	-- §15ф Ф1: «Ожидание игроков»
+	["lobby.waiting"] = { ru = "Ожидание игроков", en = "Waiting for players" },
+	["lobby.seats"] = {
+		ru = "Игроков: %d из %d — остальные места займут боты",
+		en = "Players: %d of %d — bots take the rest",
+	},
+	["lobby.waitingMore"] = { ru = "ЖДЁМ ЕЩЁ ИГРОКОВ…", en = "WAITING FOR MORE PLAYERS…" },
+	["lobby.startsIn"] = { ru = "СТАРТ ЧЕРЕЗ %d С", en = "STARTING IN %dS" },
+	["lobby.difficulty"] = { ru = "Сложность ботов:", en = "Bot difficulty:" },
+	["lobby.leave"] = { ru = "Выйти", en = "Leave" },
 	["lobby.info"] = { ru = "Режим: %s  ·  игроков %d из %d", en = "Mode: %s  ·  players %d of %d" },
 	["lobby.players"] = { ru = "В лобби:", en = "In lobby:" },
 	-- §15л ч.5 верхняя панель матча
@@ -973,6 +1233,8 @@ local TABLE: { [string]: Entry } = {
 	["hud.timeOf"] = { ru = "из %d:%02d", en = "of %d:%02d" },
 	["hud.controlTitle"] = { ru = "КОНТРОЛЬ СУШИ", en = "LAND CONTROL" },
 	["hud.goal"] = { ru = "ЦЕЛЬ %d%%", en = "GOAL %d%%" },
+	-- §15о: доля к победе — вместе с союзниками и вассалами (вассалы наполовину)
+	["hud.withBloc"] = { ru = "с союзом", en = "with bloc" },
 	["hud.youShare"] = { ru = "Вы %.1f%%", en = "You %.1f%%" },
 	["hud.place"] = { ru = "#%d · %.1f%%", en = "#%d · %.1f%%" },
 	-- §15к подсказка при наведении на карту
@@ -1006,8 +1268,8 @@ local TABLE: { [string]: Entry } = {
 		en = "<b>War.</b> Right-click (or long-press) a neighbour → “Declare war”. Fighting starts in 5 s: tap the enemy, the slider sets the troop share. Hire — Z/X/C/V.",
 	},
 	["help.build"] = {
-		ru = "<b>Стройка (B).</b> Завод — деньги, Казармы — войска, Жилой квартал — люди, Порт — торговые суда, ЗРК — защита от ракет.",
-		en = "<b>Build (B).</b> Factory — money, Barracks — troops, Housing — people, Port — trade ships, SAM — missile defence.",
+		ru = "<b>Стройка (B).</b> Завод — деньги, Казармы — войска, Жилой квартал — люди, Порт — торговые суда, ПВО — защита от ударов.",
+		en = "<b>Build (B).</b> Factory — money, Barracks — troops, Housing — people, Port — trade ships, AA — strike defence.",
 	},
 	["help.goal"] = {
 		ru = "<b>Цель.</b> 60% суши (в «Командах» — 70%) или больше всех к концу лимита времени.",
@@ -1023,41 +1285,47 @@ local TABLE: { [string]: Entry } = {
 	},
 	["help.close"] = { ru = "Понятно!", en = "Got it!" },
 	-- §15л Звания (Shared.Ranks)
-	["rank.1"] = { ru = "Рядовой", en = "Private" },
-	["rank.2"] = { ru = "Ефрейтор", en = "Lance Corporal" },
-	["rank.3"] = { ru = "Младший сержант", en = "Junior Sergeant" },
-	["rank.4"] = { ru = "Сержант", en = "Sergeant" },
-	["rank.5"] = { ru = "Старший сержант", en = "Senior Sergeant" },
-	["rank.6"] = { ru = "Старшина", en = "Sergeant Major" },
-	["rank.7"] = { ru = "Прапорщик", en = "Warrant Officer" },
-	["rank.8"] = { ru = "Младший лейтенант", en = "Second Lieutenant" },
-	["rank.9"] = { ru = "Лейтенант", en = "Lieutenant" },
-	["rank.10"] = { ru = "Старший лейтенант", en = "Senior Lieutenant" },
-	["rank.11"] = { ru = "Капитан", en = "Captain" },
-	["rank.12"] = { ru = "Майор", en = "Major" },
-	["rank.13"] = { ru = "Подполковник", en = "Lieutenant Colonel" },
-	["rank.14"] = { ru = "Полковник", en = "Colonel" },
-	["rank.15"] = { ru = "Генерал-майор", en = "Major General" },
-	["rank.16"] = { ru = "Генерал-лейтенант", en = "Lieutenant General" },
-	["rank.17"] = { ru = "Генерал-полковник", en = "Colonel General" },
-	["rank.18"] = { ru = "Генерал армии", en = "General of the Army" },
-	["rank.19"] = { ru = "Маршал", en = "Marshal" },
-	["rank.20"] = { ru = "Главный маршал", en = "Chief Marshal" },
+	-- §15ф Путь командира: ступени «какой частью командуете» (Ranks, Config.Ranks.Tiers)
+	["rank.1"] = { ru = "Новобранец", en = "Recruit" },
+	["rank.troops.1"] = { ru = "один в строю", en = "one soldier" },
+	["rank.2"] = { ru = "Командир отделения", en = "Squad leader" },
+	["rank.troops.2"] = { ru = "~10 бойцов", en = "~10 soldiers" },
+	["rank.3"] = { ru = "Командир взвода", en = "Platoon leader" },
+	["rank.troops.3"] = { ru = "~30 бойцов", en = "~30 soldiers" },
+	["rank.4"] = { ru = "Командир роты", en = "Company commander" },
+	["rank.troops.4"] = { ru = "~150 бойцов", en = "~150 soldiers" },
+	["rank.5"] = { ru = "Командир батальона", en = "Battalion commander" },
+	["rank.troops.5"] = { ru = "~600 бойцов", en = "~600 soldiers" },
+	["rank.6"] = { ru = "Командир полка", en = "Regiment commander" },
+	["rank.troops.6"] = { ru = "~2 000 бойцов", en = "~2,000 soldiers" },
+	["rank.7"] = { ru = "Командир бригады", en = "Brigade commander" },
+	["rank.troops.7"] = { ru = "~4 000 бойцов", en = "~4,000 soldiers" },
+	["rank.8"] = { ru = "Командир дивизии", en = "Division commander" },
+	["rank.troops.8"] = { ru = "~12 000 бойцов", en = "~12,000 soldiers" },
+	["rank.9"] = { ru = "Командир корпуса", en = "Corps commander" },
+	["rank.troops.9"] = { ru = "~40 000 бойцов", en = "~40,000 soldiers" },
+	["rank.10"] = { ru = "Командующий армией", en = "Army commander" },
+	["rank.troops.10"] = { ru = "~100 000 бойцов", en = "~100,000 soldiers" },
+	["rank.11"] = { ru = "Командующий фронтом", en = "Front commander" },
+	["rank.troops.11"] = { ru = "несколько армий", en = "several armies" },
 
-	["ranks.title"] = { ru = "ЗВАНИЯ", en = "RANKS" },
+	-- §15ф Путь командира (окно RanksPanel)
+	["ranks.title"] = { ru = "ПУТЬ КОМАНДИРА", en = "COMMANDER PATH" },
 	["ranks.subtitle"] = {
-		ru = "Опыт дают все матчи — за победу и места больше. Новое звание — каждые 5 уровней.",
-		en = "Every match gives XP — more for wins and top places. A new rank every 5 levels.",
+		ru = "Ваш уровень — это часть, которой вы командуете. Растёт с каждым матчем.",
+		en = "Your level is the unit you command. It grows with every match.",
 	},
-	["ranks.levels"] = { ru = "УРОВНИ %d–%d", en = "LEVELS %d–%d" },
+	["ranks.now"] = { ru = "СЕЙЧАС", en = "NOW" },
+	["ranks.next"] = { ru = "ДАЛЬШЕ", en = "NEXT" },
 	["ranks.you"] = { ru = "ВЫ", en = "YOU" },
-	["ranks.next"] = {
-		ru = "Следующее звание: %s — на уровне %d",
-		en = "Next rank: %s — at level %d",
+	["ranks.level"] = { ru = "ур. %d", en = "lv %d" },
+	["ranks.levelLine"] = { ru = "Уровень %d  ·  %s", en = "Level %d  ·  %s" },
+	["ranks.xp"] = { ru = "Опыт %d / %d до уровня %d", en = "XP %d / %d to level %d" },
+	["ranks.nextWhen"] = { ru = "с уровня %d — ещё %d", en = "from level %d — %d to go" },
+	["ranks.how"] = {
+		ru = "Опыт дают все матчи — за место, захваченную землю и задания дня; победа — больше всего.",
+		en = "Every match gives XP — for your place, land taken and daily quests; a win gives the most.",
 	},
-	["ranks.max"] = { ru = "Высшее звание!", en = "Highest rank!" },
-	["ranks.total"] = { ru = "Матчей: %d · побед: %d", en = "Matches: %d · wins: %d" },
-	["ranks.locked"] = { ru = "🔒", en = "🔒" },
 
 	-- §15л Главное меню
 	["menu.level"] = { ru = "Уровень %d", en = "Level %d" },
@@ -1107,9 +1375,10 @@ local TABLE: { [string]: Entry } = {
 		en = "The match starts when you press «TO BATTLE»",
 	},
 	["menu.demoHint"] = {
-		ru = "Сначала лобби: голосование за режим и карту, выбор генерала — потом выбор старта.",
-		en = "Lobby first: vote for mode and map, pick a general — then choose your start.",
+		ru = "Ждём игроков несколько секунд, потом выбираете место старта.",
+		en = "A few seconds of waiting for players, then you pick your start.",
 	},
+	["menu.tutorial"] = { ru = "Обучение · 5 минут", en = "Tutorial · 5 minutes" },
 	["menu.tile.invite"] = { ru = "ПРИГЛАСИТЬ", en = "INVITE" },
 	["menu.inviteNo"] = {
 		ru = "Приглашения сейчас недоступны",
@@ -1117,6 +1386,43 @@ local TABLE: { [string]: Entry } = {
 	},
 	-- §15л ч.4 свой матч по коду
 	["menu.friends"] = { ru = "С ДРУЗЬЯМИ", en = "WITH FRIENDS" },
+	-- §15ф главное меню: штабная колонка
+	["menu.tagline"] = {
+		ru = "Захватите больше земли, чем соседи, — союзом, торговлей или войной",
+		en = "Hold more land than your neighbours — by alliance, trade or war",
+	},
+	["menu.hubLine"] = { ru = "Открытых матчей: %d", en = "Open matches: %d" },
+	["menu.nav.arsenal"] = { ru = "Арсенал", en = "Arsenal" },
+	["menu.navSub.arsenal"] = {
+		ru = "особое оружие и генерал в бой",
+		en = "special weapons and your general",
+	},
+	["menu.nav.shop"] = { ru = "Магазин", en = "Shop" },
+	["menu.navSub.shop"] = {
+		ru = "бусты, наборы, пропуск сезона",
+		en = "boosts, packs, season pass",
+	},
+	["menu.nav.wardrobe"] = { ru = "Гардероб", en = "Wardrobe" },
+	["menu.navSub.wardrobe"] = { ru = "флаг, узор земли, титул", en = "flag, land pattern, title" },
+	["menu.nav.ranks"] = { ru = "Путь командира", en = "Commander path" },
+	["menu.navSub.ranks"] = {
+		ru = "ваш уровень и следующая ступень",
+		en = "your level and the next step",
+	},
+	["menu.nav.help"] = { ru = "Как играть", en = "How to play" },
+	["menu.navSub.help"] = { ru = "шесть шагов за минуту", en = "six steps in a minute" },
+	["menu.nav.invite"] = { ru = "Пригласить друзей", en = "Invite friends" },
+	["menu.navSub.invite"] = {
+		ru = "играть вместе на этом сервере",
+		en = "play together on this server",
+	},
+	["menu.nav.sound"] = { ru = "Звук", en = "Sound" },
+	["menu.navSub.sound"] = { ru = "громкость звуков и музыки", en = "effects and music volume" },
+	["menu.nav.server"] = { ru = "Настройки сервера", en = "Server settings" },
+	["menu.navSub.server"] = {
+		ru = "только владелец частного сервера",
+		en = "private server owner only",
+	},
 	["menu.privateCreate"] = { ru = "Свой матч", en = "Own match" },
 	["menu.codePlaceholder"] = { ru = "КОД", en = "CODE" },
 	["menu.codeJoin"] = { ru = "Войти", en = "Join" },
@@ -1146,8 +1452,8 @@ local TABLE: { [string]: Entry } = {
 	["menu.play"] = { ru = "В БОЙ", en = "TO BATTLE" },
 	["menu.watch"] = { ru = "СМОТРЕТЬ", en = "WATCH" },
 	["menu.playHint"] = {
-		ru = "Лобби: голосование за режим и карту, выбор генерала",
-		en = "Lobby: vote for mode and map, pick a general",
+		ru = "Ждём игроков, потом выбираете место старта",
+		en = "Waiting for players, then you pick your start",
 	},
 	["menu.watchHint"] = {
 		ru = "Вы в этом матче не играете — можно смотреть, следующий начнётся сам",
@@ -1528,6 +1834,36 @@ local TABLE: { [string]: Entry } = {
 	-- §15м: живой фронт и зрелищный матч.
 	["fx.breakthrough"] = { ru = "ПРОРЫВ ×%s", en = "BREAKTHROUGH ×%s" },
 	["fx.breakthroughPop"] = { ru = "ПРОРЫВ!", en = "BREAKTHROUGH!" },
+	-- §15н Прогноз фронта (FrontForecast.lines)
+	["forecast.state.free"] = { ru = "Свободно", en = "Unopposed" },
+	["forecast.state.stalled"] = { ru = "Стоит", en = "Stalled" },
+	["forecast.state.slow"] = { ru = "Медленно", en = "Slow" },
+	["forecast.state.advance"] = { ru = "Наступает", en = "Advancing" },
+	["forecast.state.breakthrough"] = { ru = "Прорыв", en = "Breakthrough" },
+	["forecast.enemy.free"] = { ru = "Обороны нет", en = "No defense" },
+	["forecast.enemy.stalled"] = { ru = "Держитесь", en = "Holding" },
+	["forecast.enemy.slow"] = { ru = "Враг ползёт", en = "Enemy creeping" },
+	["forecast.enemy.advance"] = { ru = "Отступаем", en = "Falling back" },
+	["forecast.enemy.breakthrough"] = { ru = "Прорыв врага", en = "Enemy breakthrough" },
+	["forecast.why.supply"] = { ru = "нет снабжения", en = "no supply" },
+	["forecast.why.fortLine"] = { ru = "укреплённая линия", en = "fortified line" },
+	["forecast.why.forts"] = { ru = "укрепления", en = "forts" },
+	["forecast.why.river"] = { ru = "река", en = "river" },
+	["forecast.why.terrain"] = { ru = "местность", en = "terrain" },
+	["forecast.why.ability"] = { ru = "способность генерала", en = "general's ability" },
+	["forecast.why.garrison"] = { ru = "мало войск", en = "outnumbered" },
+	["forecast.need"] = { ru = "+%s до ×%s", en = "+%s for ×%s" },
+	["forecast.needDef"] = { ru = "+%s обороны остановят", en = "+%s defense stops it" },
+	["forecast.lasts"] = { ru = "войск на ~%d с", en = "troops last ~%ds" },
+	["forecast.retreat"] = { ru = "Лучше отступить", en = "Better retreat" },
+	-- §15н ч.2: прогноз до атаки (подсказка над картой)
+	["forecast.preview"] = { ru = "Атака сейчас: %s", en = "Attack now: %s" },
+	["forecast.previewReinforce"] = { ru = "Подкрепление: %s → %s", en = "Reinforce: %s → %s" },
+	["forecast.previewDeclare"] = { ru = "Если начать войну: %s", en = "If you go to war: %s" },
+	["forecast.previewGuess"] = {
+		ru = "оценка: силы врага скрыты",
+		en = "estimate: enemy strength hidden",
+	},
 	["fx.cityTaken"] = { ru = "+ Город", en = "+ City" },
 	["fx.cityLost"] = { ru = "− Город", en = "− City" },
 	["fx.eliminated"] = { ru = "%s выбывает!", en = "%s is out!" },
@@ -1756,8 +2092,8 @@ local TABLE: { [string]: Entry } = {
 		en = "Tap an enemy cell (at war): their front troops in the circle lose 12%.",
 	},
 	["arsenal.desc.Jammer"] = {
-		ru = "Нажмите на клетку: ПВО и ЗРК врага в радиусе 12 клеток молчат 20 секунд — время для ракет и налётов.",
-		en = "Tap a cell: enemy AA and SAMs within 12 tiles go silent for 20 seconds — time for missiles and raids.",
+		ru = "Нажмите на клетку: ПВО врага в радиусе 12 клеток молчат 20 секунд — время для ракет и налётов.",
+		en = "Tap a cell: enemy AA within 12 tiles goes silent for 20 seconds — time for missiles and raids.",
 	},
 	["arsenal.pickTarget"] = {
 		ru = "Арсенал: нажмите на цель на карте",
@@ -1765,6 +2101,10 @@ local TABLE: { [string]: Entry } = {
 	},
 	["arsenal.used"] = { ru = "Арсенал: применено", en = "Arsenal: used" },
 	["menu.tile.arsenal"] = { ru = "АРСЕНАЛ", en = "ARSENAL" },
+	["arsenal.generals"] = {
+		ru = "ГЕНЕРАЛ В БОЙ — выберите, он будет в каждом матче",
+		en = "GENERAL — pick one, they join every match",
+	},
 	["dock.arsenal"] = { ru = "Арсенал", en = "Arsenal" },
 	["bar.arsenal"] = { ru = "АРСЕНАЛ", en = "ARSENAL" },
 	["reject.medals"] = { ru = "Не хватает медалей", en = "Not enough medals" },

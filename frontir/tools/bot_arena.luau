@@ -8,6 +8,7 @@
 	У каждой системы и каждого бота свой поток случайных чисел (MatchSim), поэтому решения «игрока» не меняют
 	ход боёв и решений остальных ботов.
 	Запуск из frontir/:  lune run tools/bot_arena [карта=Europe] [сидов=20] [уровни=Novice,Normal,General] [соперников=3]
+	  [oldAlliance — союз как до §15у ч.2: снабжение, ПВО и порты от любого союза]
 ]]
 
 local process = require("@lune/process")
@@ -23,6 +24,10 @@ local mapName = process.args[1] or "Europe"
 local seeds = tonumber(process.args[2]) or 20
 local levelsArg = process.args[3] or "Novice,Normal,General"
 local rivals = tonumber(process.args[4]) or 3
+-- §15у ч.2: «oldAlliance» — снабжение, ПВО и порты от любого союза (как до ч.2), для сравнения на тех же сидах.
+local oldAlliance = process.args[5] == "oldAlliance" or process.args[5] == "noTrust"
+-- «noTrust» — как до §15у целиком: ещё и боты не предлагают полное доверие (нет удара через союзника).
+local noTrust = process.args[5] == "noTrust"
 
 local map = MapFormat.fromModule((require :: any)("../maps/" .. mapName) :: MapFormat.MapModule)
 local dt = 1 / Config.Sim.TickRate
@@ -36,6 +41,8 @@ end
 
 local function play(level: any, seed: number, commander: Types.CommanderId): Outcome
 	local m = MatchSim.new(map, seed)
+	m.trustGateOff = oldAlliance
+	m.trustOff = noTrust
 	MatchSim.addPlayer(m, 1, "Игрок")
 	m.targetNations = rivals + 1
 	MatchSim.startPick(m)

@@ -26,6 +26,7 @@
 	- silo: «Ракетная шахта» и «Сеть ПВО» изучены, шахта в своей провинции (если нет), пуск готов.
 	- botMissile: выбранный бот (война сразу) получает шахту и пускает ракету по вашему городу.
 	- selfAbility / worldEventKind: для самопроверки в Studio — своя способность с подбором цели, событие по имени.
+	- trustAlly: сосед — союзник с полным доверием, его сосед (не ваш) — враг в войне сразу (§15у).
 	Ускорение времени — в MatchService (шагов симуляции за кадр больше).
 ]]
 
@@ -246,6 +247,62 @@ function DevTools.giant(m: Match, id: number): (boolean, string?)
 	end
 	m.infoDirty = true
 	return true, nil
+end
+
+-- §15у: «Союзник с полным доверием и враг за ним». Сосед id становится союзником с полным доверием, а держава,
+-- которая граничит с ним, но не с id, — врагом в активной войне (чтобы сразу проверить удар через союзника).
+-- Возвращает ещё союзника и врага (для самопроверки).
+function DevTools.trustAlly(m: Match, id: number): (boolean, string?, number?, number?)
+	local n = m.nations[id]
+	if n == nil or not n.alive then
+		return false, "dead", nil, nil
+	end
+	local g = m.grid
+	local mine = Grid.adjacentOwners(g, id)
+	local allies: { number } = {}
+	for owner in mine do
+		local o = m.nations[owner]
+		if owner ~= 0 and o ~= nil and o.alive then
+			table.insert(allies, owner)
+		end
+	end
+	table.sort(allies)
+	for _, ally in allies do
+		local enemies: { number } = {}
+		for owner in Grid.adjacentOwners(g, ally) do
+			local o = m.nations[owner]
+			if owner ~= 0 and owner ~= id and mine[owner] == nil and o ~= nil and o.alive then
+				table.insert(enemies, owner)
+			end
+		end
+		table.sort(enemies)
+		local enemy = enemies[1]
+		if enemy ~= nil then
+			-- Мешающие договоры и вассалитет снимаем: это проверка.
+			for _, pair in { { id, ally }, { id, enemy } } do
+				local a, b = pair[1], pair[2]
+				if Diplomacy.overlordOf(m.diplo, a) == b then
+					Diplomacy.free(m.diplo, a, m.simTime, false)
+				elseif Diplomacy.overlordOf(m.diplo, b) == a then
+					Diplomacy.free(m.diplo, b, m.simTime, false)
+				end
+			end
+			local war = Wars.find(m.wars, id, ally)
+			if war ~= nil then
+				Wars.finish(m.wars, war, m.simTime, false)
+			end
+			Diplomacy.sign(m.diplo, "alliance", id, ally, m.simTime)
+			Diplomacy.setTrust(m.diplo, id, ally, true, m.simTime)
+			-- Договор с врагом — разрыв уже прошёл предупреждение (война без метки «Предатель»).
+			if Diplomacy.treaty(m.diplo, id, enemy) ~= nil then
+				Diplomacy.startBreak(m.diplo, id, enemy, m.simTime - Config.Diplomacy.BreakWarningSec)
+			end
+			DevTools.warNow(m, id, enemy)
+			m.infoDirty = true
+			return true, nil, ally, enemy
+		end
+	end
+	return false, "noAllyBetween", nil, nil
 end
 
 -- Торговое судно сейчас (§15е): свой порт и порт торгового партнёра у того же моря, рейс — на следующем шаге.

@@ -39,7 +39,7 @@ local function view(): BotBrain.BotView
 		money = 1e6,
 		oil = 1e4,
 		economy = { income = 1000, oilIncome = 0, upkeep = 0 },
-		owned = { factories = 1, markets = 2, rigs = 3, forts = 0, cityLevels = 1 },
+		owned = { factories = 1, rigs = 3, forts = 0, cityLevels = 1 },
 		spots = {},
 	}
 end
@@ -115,6 +115,67 @@ T.describe("Боты v2: решения", function()
 	)
 
 	T.it(
+		"§15п: лидер на нескольких фронтах — Обычный бьёт его, а не соседа послабее; без чужих войн — как раньше",
+		function()
+			local lead, below = Config.Bots.StopLeaderShare + 0.05, Config.Bots.StopLeaderShare - 0.05
+			T.expect(BotBrain.leaderSplit(neighbour(4, 3000, { share = below, enemies = 2 }))).toBe(1) -- не лидер
+			T.expect(BotBrain.leaderSplit(neighbour(4, 3000, { share = lead, enemies = 1 }))).toBe(2)
+			T.expect(BotBrain.leaderSplit(neighbour(4, 3000, { share = lead, enemies = 9 })))
+				.toBe(Config.Bots.LeaderSplitMax)
+			local v = view()
+			v.power, v.totalPower = 20000, 20000
+			-- Лидер (суша к победе выше порога) воюет ещё с двумя — у нашей границы его гарнизон втрое слабее (1000 < 1500).
+			v.neighbours = {
+				neighbour(4, 3000, { share = lead, enemies = 2, distracted = true }),
+				neighbour(5, 1500),
+			}
+			local d = BotBrain.decide(v, rng, profile("Normal", "Aggressor"))
+			T.expect(d ~= nil and d.kind == "declare" and d.target == 4).toBe(true)
+			-- Лидер ни с кем не воюет — Обычный по-прежнему выбирает слабейшего.
+			v.neighbours = { neighbour(4, 3000, { share = lead }), neighbour(5, 1500) }
+			local d2 = BotBrain.decide(v, rng, profile("Normal", "Aggressor"))
+			T.expect(d2 ~= nil and d2.kind == "declare" and d2.target == 5).toBe(true)
+		end
+	)
+
+	T.it(
+		"§15с: в войне Обычный нанимает при меньшем запасе людей; «сначала фронт» — только с Bots.FrontFirst",
+		function()
+			local v = view()
+			v.queue = 0
+			v.people = 1000
+			local general = profile("General")
+			general.level = table.clone(general.level)
+			general.level.hireChance = 1 -- раньше найм шёл первым
+			v.neighbours = { neighbour(4, 300, { atWar = true, canDeclare = false }) }
+			local g = BotBrain.decide(v, rng, general)
+			if Config.Bots.FrontFirst then
+				T.expect(g ~= nil and g.kind == "attack" and g.target == 4).toBe(true)
+			else
+				T.expect(g ~= nil and g.kind == "hire").toBe(true) -- выключено: найм, как раньше
+			end
+			-- Фронт есть — снова сначала найм.
+			v.attacks = 1
+			v.fronts = { { target = 4, ratio = 5, supplied = true, fighting = true, stalledSec = 0, power = 1000 } }
+			local g2 = BotBrain.decide(v, rng, general)
+			T.expect(g2 ~= nil and g2.kind == "hire").toBe(true)
+			-- Людей 30% максимума: в мире Обычный не нанимает (порог 45%), в войне с warHireFillMul 0.5 — нанимает.
+			local normal = profile("Normal")
+			normal.level = table.clone(normal.level)
+			normal.level.hireChance = 1
+			normal.level.warHireFillMul = 0.5 -- механизм §15с (в Config сейчас 1 — выключен)
+			v.people = math.floor(v.maxPeople * 0.3)
+			T.expect(v.people < v.maxPeople * normal.level.hireWhenFill).toBe(true)
+			local n = BotBrain.decide(v, rng, normal)
+			T.expect(n ~= nil and n.kind == "hire").toBe(true)
+			v.neighbours = { neighbour(4, 300) }
+			v.fronts, v.attacks = {}, 0
+			local n2 = BotBrain.decide(v, rng, normal)
+			T.expect(n2 == nil or n2.kind ~= "hire").toBe(true)
+		end
+	)
+
+	T.it(
 		"состав войск: Генерал нанимает против состава врага и держит пехоту",
 		function()
 			local v = view()
@@ -124,6 +185,9 @@ T.describe("Боты v2: решения", function()
 			local general = profile("General")
 			general.level = table.clone(general.level)
 			general.level.hireChance = 1
+			-- Фронт уже идёт (§15с: без фронта Генерал сначала открыл бы его) и с большим перевесом — подкреплять не нужно.
+			v.attacks = 1
+			v.fronts = { { target = 4, ratio = 5, supplied = true, fighting = true, stalledSec = 0, power = 1000 } }
 			-- Враг — одни танки: лучший ответ — артиллерия.
 			v.neighbours = { neighbour(4, 99999, { atWar = true, canDeclare = false, mix = { 0, 1, 0, 0 } }) }
 			local h = BotBrain.decide(v, rng, general)
@@ -138,7 +202,7 @@ T.describe("Боты v2: решения", function()
 			T.expect(h3 ~= nil and h3.kind == "hire" and h3.unit == "Infantry").toBe(true)
 			-- Без завода — только пехота у всех.
 			v.mix = { 0.5, 0.5, 0, 0 }
-			v.owned = { factories = 0, markets = 0, rigs = 0, forts = 0, cityLevels = 1 }
+			v.owned = { factories = 0, rigs = 0, forts = 0, cityLevels = 1 }
 			local h4 = BotBrain.decide(v, rng, general)
 			T.expect(h4 ~= nil and h4.kind == "hire" and h4.unit == "Infantry").toBe(true)
 			-- Оценка контр-типов сама по себе.
@@ -171,6 +235,7 @@ T.describe("Боты v2: решения", function()
 	T.it(
 		"решимость: Новичок лезет на почти равного, Генерал ждёт перевеса; Миролюбивый осторожнее",
 		function()
+			local rng = Rng.new(5) -- свой поток: не зависит от того, сколько чисел взяли тесты выше
 			local v = view()
 			v.power = 1000 -- отправят 400 / 600 / 700
 			v.neighbours = { neighbour(3, 500) }
@@ -257,7 +322,7 @@ T.describe("Боты v2 в матче", function()
 		MatchSim.step(m, DT)
 		for id, mul in { [1] = 1 + Config.BotLevels.General.incomeBonus, [2] = 1 } do
 			local owned = MatchSim.ownedOf(m, id)
-			local base = Economy.income(Grid.cellsOf(m.grid, id), owned.cityLevels, owned.markets)
+			local base = Economy.income(Grid.cellsOf(m.grid, id), owned.cityLevels)
 			T.expect(m.economy[id].income).toBeNear(base * mul, 1e-6)
 		end
 		T.expect(Config.BotLevels.General.incomeBonus).toBe(0.10)

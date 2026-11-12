@@ -38,6 +38,8 @@ export type BattleResult = {
 	fighting: boolean, -- у защитника есть войска на этом фронте
 	lostAttacker: number, -- силы потеряно за этот шаг (бой и нехватка снабжения)
 	lostDefender: number,
+	burn: number, -- §15н: ожидаемые потери атаки в игровую секунду (без разброса, с нехваткой снабжения)
+	defStrength: number, -- §15н: сила войск обороны на этой линии (доля гарнизона + встречный фронт)
 }
 
 local Fronts = {}
@@ -152,15 +154,16 @@ function Fronts.battle(
 	local fighting = defensePower > 0
 	local ratio = if fighting then attackPower / defensePower else math.huge
 	local lostA, lostD = 0, 0
+	local giantLoss = 1 + (cfg.Giant.AttackerLossMin - 1) * (defense.giantAttacker or 0)
+	local burn = (if fighting then defensePower * cfg.LossRate * giantLoss else 0)
+		+ (if attack.supplied then 0 else Forces.total(attack.forces) * cfg.OutOfSupplyLossPerSec)
+	local defStrength = Forces.total(defense.home) * defense.share
+		+ (if counter ~= nil then Forces.total(counter) else 0)
 
 	if applyLosses and fighting then
 		local spreadA = 1 + (Rng.nextFloat(rng) * 2 - 1) * cfg.DamageSpread
 		local spreadD = 1 + (Rng.nextFloat(rng) * 2 - 1) * cfg.DamageSpread
-		local toAttacker = defensePower
-			* cfg.LossRate
-			* dt
-			* spreadA
-			* (1 + (cfg.Giant.AttackerLossMin - 1) * (defense.giantAttacker or 0))
+		local toAttacker = defensePower * cfg.LossRate * dt * spreadA * giantLoss
 		local toDefender = attackPower * cfg.LossRate * dt * spreadD
 		lostA = Forces.applyDamage(attack.forces, toAttacker)
 		-- Урон защитнику делится между гарнизоном и встречным фронтом по их вкладу в оборону.
@@ -180,7 +183,14 @@ function Fronts.battle(
 		Forces.attrition(attack.forces, cfg.OutOfSupplyLossPerSec * dt)
 		lostA += before - Forces.total(attack.forces)
 	end
-	return { ratio = ratio, fighting = fighting, lostAttacker = lostA, lostDefender = lostD }
+	return {
+		ratio = ratio,
+		fighting = fighting,
+		lostAttacker = lostA,
+		lostDefender = lostD,
+		burn = burn,
+		defStrength = defStrength,
+	}
 end
 
 -- Скорость по перевесу (§15м): кривая Combat.SpeedCurve, между точками — по прямой, после последней — насыщение.

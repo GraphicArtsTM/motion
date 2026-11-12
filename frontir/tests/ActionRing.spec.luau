@@ -43,19 +43,40 @@ T.describe("Кольцо действий (§15е)", function()
 		T.expect(has(war, "declare") or has(war, "alliance")).toBe(false)
 		-- Мобилизация: атаковать ещё нельзя.
 		T.expect(has(ActionRing.actions(facts({ owner = 2, war = "mobilizing" })), "attack")).toBe(false)
+		-- §15х ч.4: удары по врагу в войне — всегда в кольце (ракета, налёт, удар генерала, если он есть).
+		T.expect(has(war, "missile") and has(war, "raid")).toBe(true)
+		T.expect(has(war, "ability")).toBe(false)
+		local marshal = ActionRing.actions(facts({ owner = 2, war = "active", ability = true }))
+		T.expect(has(marshal, "ability") and has(marshal, "emoji")).toBe(true)
+		T.expect(has(ActionRing.actions(facts({ owner = 2, war = "mobilizing" })), "missile")).toBe(true)
+		T.expect(has(peace, "missile") or has(peace, "raid") or has(own, "missile")).toBe(false)
 		local ally = ActionRing.actions(facts({ owner = 3, allied = true }))
 		T.expect(has(ally, "help") and has(ally, "trade")).toBe(true)
 		T.expect(has(ally, "declare")).toBe(false)
 	end)
 
 	T.it("не больше MaxActions кнопок; у каждой есть строка RU/EN", function()
-		local all =
-			{ "expand", "attack", "declare", "alliance", "trade", "intel", "target", "help", "build", "mark", "emoji" }
+		local all = {
+			"expand",
+			"attack",
+			"declare",
+			"alliance",
+			"trade",
+			"intel",
+			"target",
+			"help",
+			"build",
+			"mark",
+			"emoji",
+			"missile",
+			"raid",
+			"ability",
+		}
 		for _, a in all do
 			T.expect(Strings.get("ring." .. a, "ru") ~= "ring." .. a).toBe(true)
 			T.expect(Strings.get("ring." .. a, "en") ~= "ring." .. a).toBe(true)
 		end
-		for _, f in { facts({ owner = 2 }), facts({ owner = 2, war = "active" }), facts({ owner = 1 }) } do
+		for _, f in { facts({ owner = 2 }), facts({ owner = 2, war = "active", ability = true }), facts({ owner = 1 }) } do
 			T.expect(#ActionRing.actions(f) <= ActionRing.MaxActions).toBe(true)
 		end
 	end)

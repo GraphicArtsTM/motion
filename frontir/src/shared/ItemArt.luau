@@ -331,10 +331,10 @@ local TECH: { [string]: (c: Canvas) -> () } = {
 		plane(c, "Bomber", 28, 14, 2, nation(4))
 	end,
 	Fleet3 = function(c)
-		building(c, "Radar", 12, 3, 2, nation(4))
+		building(c, "AirDefenseLong", 12, 3, 2, nation(4)) -- «Дальняя ПВО» (§15х ч.6)
 	end,
 	Fleet4 = function(c)
-		building(c, "Sam", 12, 3, 2, nation(4))
+		building(c, "AirDefense", 12, 3, 2, nation(4)) -- «Сеть ПВО»
 	end,
 }
 for key, draw in TECH do
@@ -577,6 +577,95 @@ for _, id in { "Stripes", "Checker", "Dots", "Grid", "Waves" } do
 	ITEMS["pattern." .. id] = function(c)
 		stage(c, { "Night", "Slate" }, nil)
 		swatch(c, id)
+	end
+end
+
+-- §15х ч.5: удары в панели «УДАРЫ» и в кольце — ракета, налёт, удары генералов.
+local function arc(c: Canvas, x0: number, y0: number, x1: number, y1: number, peak: number, name: string)
+	local col = rgb(name)
+	for k = 0, 24 do
+		if k % 2 == 0 then
+			local t = k / 24
+			local x = x0 + (x1 - x0) * t
+			local y = y0 + (y1 - y0) * t - peak * 4 * t * (1 - t)
+			put(c, math.round(x), math.round(y), col.r, col.g, col.b)
+		end
+	end
+end
+ITEMS["strike.missile"] = function(c)
+	stage(c, { "Ink", "Night", "Plum" }, "Basalt")
+	stars(c, 12, 5, 7)
+	building(c, "MissileSilo", 2, 13, 1, nation(2))
+	arc(c, 8, 16, 38, 23, 16, "Mist")
+	rect(c, 27, 4, 4, 2, rgb("White"))
+	rect(c, 31, 4, 2, 2, rgb("Red"))
+	rect(c, 25, 4, 2, 2, rgb("Orange"))
+	burst(c, 39, 22, 5, "Red", "Gold")
+end
+ITEMS["strike.raid"] = function(c)
+	stage(c, { "Night", "Plum", "Orange" }, "Basalt")
+	plane(c, "Bomber", 2, 2, 2, nation(6))
+	rect(c, 20, 15, 2, 3, rgb("Ink"))
+	rect(c, 24, 19, 2, 3, rgb("Ink"))
+	building(c, "Factory", 28, 10, 1, rgb("Steel"))
+	burst(c, 36, 21, 6, "Orange", "Gold")
+end
+ITEMS["strike.Airstrike"] = function(c)
+	stage(c, { "Night", "Plum", "Orange" }, "Grass")
+	plane(c, "Fighter", 4, 2, 2, nation(2))
+	unit(c, "Tanks", 24, 16, 1, nation(9))
+	burst(c, 30, 18, 5, "Orange", "Gold")
+	burst(c, 42, 22, 3, "Gold", "White")
+end
+ITEMS["strike.Surge"] = function(c)
+	stage(c, { "Night", "Slate", "Ochre" }, "Grass")
+	unit(c, "Tanks", 2, 15, 1, nation(2))
+	unit(c, "Infantry", 18, 16, 1, nation(2))
+	for k = 0, 2 do
+		rect(c, 34 + k * 4, 12 + k, 3, 1, rgb("Gold"))
+		rect(c, 34 + k * 4, 20 - k, 3, 1, rgb("Gold"))
+	end
+	spark(c, 44, 16, "White")
+end
+ITEMS["strike.SeaLanding"] = function(c)
+	sky(c, { "Sea", "Sky" }, 18)
+	water(c, 0, 18, 30, 3)
+	rect(c, 30, 18, 18, 14, rgb("Dune"))
+	ship(c, "Transport", 2, 10, 2, nation(4))
+	unit(c, "Infantry", 32, 12, 1, nation(4))
+end
+ITEMS["strike.Blockade"] = function(c)
+	sky(c, { "Night", "Sea" }, 16)
+	water(c, 0, 16, c.w, 5)
+	ship(c, "Destroyer", 4, 8, 2, nation(4))
+	building(c, "Port", 32, 6, 1, rgb("Steel"))
+	burst(c, 38, 12, 3, "Orange", "Gold")
+end
+ITEMS["strike.Reveal"] = function(c)
+	stage(c, { "Ink", "Night" }, "Basalt")
+	building(c, "Radar", 4, 7, 2, nation(6))
+	for k = 1, 3 do
+		arc(c, 22, 18 - k * 3, 44, 18 - k * 3, 2 + k, "Lime")
+	end
+end
+ITEMS["strike.Propaganda"] = function(c)
+	stage(c, { "Night", "Plum" }, "Grass")
+	flag(c, 8, 4, nation(6), rgb("White"))
+	icon(c, "stability", 24, 6, 2)
+end
+ITEMS["strike.Fortify"] = function(c)
+	stage(c, { "Slate", "Steel" }, "Basalt")
+	building(c, "Fort", 8, 3, 2, nation(10))
+	spark(c, 40, 6, "Gold")
+end
+ITEMS["strike.Airdrop"] = function(c)
+	sky(c, { "Sea", "Sky" }, 26)
+	rect(c, 0, 26, c.w, 6, rgb("Grass"))
+	plane(c, "Bomber", 2, 2, 2, nation(8))
+	for k = 0, 2 do
+		local x = 22 + k * 8
+		rect(c, x, 10 + k * 3, 6, 2, rgb("White"))
+		rect(c, x + 2, 12 + k * 3, 2, 3, rgb("Ink"))
 	end
 end
 
