@@ -1315,7 +1315,10 @@ local TABLE: { [string]: Entry } = {
 		ru = "1 заряд ПВО, чей круг накрывает цель, сбивает ракету; ПВО ур. 3 ловит её и в дальнем круге. Прицел заранее пишет «собьют» или «дойдёт».",
 		en = "One charge of AA covering the target shoots it down; level 3 AA also catches it in the long-range circle. The aim hint says “shot down” or “gets through”.",
 	},
-	["handbook.nukes.name"] = { ru = "Атомная и водородная бомбы", en = "Atomic and hydrogen bombs" },
+	["handbook.nukes.name"] = {
+		ru = "Атомная и водородная бомбы",
+		en = "Atomic and hydrogen bombs",
+	},
 	["handbook.nukes.what"] = {
 		ru = "Боеголовки шахты: большой круг, земля врага в нём становится ничьей, здания разрушены, остаётся заражение. Своя земля и нейтралы не задеваются.",
 		en = "Silo warheads: a big circle where enemy land becomes empty, buildings are destroyed and fallout remains. Your land and neutrals are spared.",
@@ -1341,7 +1344,10 @@ local TABLE: { [string]: Entry } = {
 		ru = "Бомбу сбивает заряд ПВО в её ближнем круге; самолёт в пути встречают ПВО и ваши истребители; урон по фронту режут зенитки (ПВО) в войсках.",
 		en = "An AA charge in its short-range circle stops the bomb; on the way the plane meets AA and your fighters; anti-air troops cut damage to the front.",
 	},
-	["handbook.ability.name"] = { ru = "Удар генерала и Арсенал", en = "General's strike and Arsenal" },
+	["handbook.ability.name"] = {
+		ru = "Удар генерала и Арсенал",
+		en = "General's strike and Arsenal",
+	},
 	["handbook.ability.what"] = {
 		ru = "Q и E — способности генерала: у Маршала «Авиаудар» по фронтам врага в круге, у Адмирала, Разведчика и Инженера — свои. «Артналёт» и «Глушилка» из Арсенала — тоже удары.",
 		en = "Q and E are your general's abilities: the Marshal's “Airstrike” hits enemy fronts in a circle; the Admiral, Scout and Engineer have their own. Arsenal “Barrage” and “Jammer” are strikes too.",
@@ -1606,7 +1612,10 @@ local TABLE: { [string]: Entry } = {
 		en = "Against sanctions — allies who vote the other way; a leader is wise not to anger the weak.",
 	},
 	-- Мир и события
-	["handbook.stability.name"] = { ru = "Стабильность и восстания", en = "Stability and revolts" },
+	["handbook.stability.name"] = {
+		ru = "Стабильность и восстания",
+		en = "Stability and revolts",
+	},
 	["handbook.stability.what"] = {
 		ru = "У провинции стабильность 0–100. Ниже 30 — вдвое меньше дохода, ниже 15 — может восстать: земля становится ничьей.",
 		en = "Each province has stability 0–100. Below 30 it gives half income, below 15 it may revolt and its land becomes empty.",
