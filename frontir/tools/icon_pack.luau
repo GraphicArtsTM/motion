@@ -1,6 +1,7 @@
 --!strict
 --[[
-	Иконки зданий и юнитов (§15ш Ш5) без загрузки в Roblox: PNG из assets/icons/{buildings,units}/*.png →
+	Иконки зданий, юнитов (§15ш Ш5) и значки интерфейса (Ш7) без загрузки в Roblox: PNG из
+	assets/icons/{buildings,units,ui}/*.png →
 	Size×Size пикселей палитры (docs/palette.md) → src/shared/IconData.luau (данные; рисует игра через EditableImage,
 	как миниатюры карт). Уменьшение — по квадратам: самый частый цвет палитры среди непрозрачных пикселей квадрата;
 	прозрачно, если непрозрачных меньше половины.
@@ -82,7 +83,7 @@ local function pack(img: Png.Image): { string }
 	return rows
 end
 
-local groups = { "buildings", "units" }
+local groups = { "buildings", "units", "ui" } -- ui — значки окон, ресурсов, ударов, Арсенала (§15ш Ш7)
 local names: { string } = {}
 local packed: { [string]: { string } } = {}
 for _, group in groups do

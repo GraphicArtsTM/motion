@@ -1061,7 +1061,7 @@ local function runSession(mapId: string, resync: boolean)
 			end,
 		},
 		{
-			icon = "server",
+			icon = "menu", -- §15ш Ш7: свой значок меню (без картинки — шестерёнка)
 			name = "mapbtn.menu",
 			key = "Tab",
 			toggle = (gameMenu :: GameMenu.GameMenu).toggle,

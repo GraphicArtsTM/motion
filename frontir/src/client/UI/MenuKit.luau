@@ -13,6 +13,7 @@ local Config = require(Shared:WaitForChild("Config"))
 local PixelIcons = require(Shared:WaitForChild("PixelIcons"))
 local Ranks = require(Shared:WaitForChild("Ranks"))
 
+local IconImage = require(script.Parent:WaitForChild("IconImage"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
 
 export type Card = { frame: Frame, body: Frame, title: TextLabel, accent: TextLabel }
@@ -241,8 +242,26 @@ function MenuKit.pixels(
 	return root
 end
 
+-- §15ш Ш7: значок — картинка геймдизайнера (IconArt, имя как у PixelIcons), без неё — прежние пиксели 8×8.
+-- Новым значкам без пиксельной пары — запасной пиксельный.
+local PIXEL_FALLBACK: { [string]: string } = { menu = "server", home = "help" }
 function MenuKit.icon(parent: Instance, key: string, scale: number, order: number?): Frame
-	return MenuKit.pixels(parent, PixelIcons.Icons[key] or {}, PixelIcons.Size, scale, order)
+	local content = IconImage.content(key)
+	if content == nil then
+		local parts = PixelIcons.Icons[key] or PixelIcons.Icons[PIXEL_FALLBACK[key] or ""] or {}
+		return MenuKit.pixels(parent, parts, PixelIcons.Size, scale, order)
+	end
+	local side = PixelIcons.Size * scale
+	local root = MenuKit.pixels(parent, {}, PixelIcons.Size, scale, order)
+	local img = Instance.new("ImageLabel")
+	img.Name = "Image"
+	img.BackgroundTransparency = 1
+	img.Size = UDim2.fromOffset(side, side)
+	img.ResampleMode = Enum.ResamplerMode.Pixelated
+	img.ScaleType = Enum.ScaleType.Fit
+	img.ImageContent = content
+	img.Parent = root
+	return root
 end
 
 -- Значок звания; перерисовать — MenuKit.setRank(frame, rank, scale).

@@ -1,6 +1,6 @@
 --!strict
 --[[
-	IconArt — иконки зданий и юнитов (§15ш Ш5), чистый модуль: какой картинке интерфейса (ключ CardKit / ItemArt)
+	IconArt — иконки зданий и юнитов (§15ш Ш5) и значки интерфейса (Ш7: имена как у PixelIcons), чистый модуль: какой картинке интерфейса (ключ CardKit / ItemArt)
 	соответствует иконка и её пиксели RGBA. Данные — IconData (делает tools/icon_pack из assets/icons; цвета —
 	палитра docs/palette.md). Клиент рисует через EditableImage (UI/IconImage) — загрузка в Roblox не нужна.
 ]]
@@ -18,6 +18,21 @@ local BY_KEY: { [string]: string } = {
 	["naval.Destroyer"] = "Destroyer",
 	["air.Fighter"] = "Fighter",
 	["air.Bomber"] = "Bomber",
+	-- §15ш Ш7: плитки «УДАРОВ» и карточки Арсенала.
+	["strike.missile"] = "missile",
+	["strike.raid"] = "raid",
+	["strike.Airstrike"] = "ability_airstrike",
+	["strike.Surge"] = "ability_surge",
+	["strike.SeaLanding"] = "ability_sealanding",
+	["strike.Blockade"] = "ability_blockade",
+	["strike.Reveal"] = "ability_reveal",
+	["strike.Propaganda"] = "ability_propaganda",
+	["strike.Fortify"] = "ability_fortify",
+	["strike.Airdrop"] = "ability_airdrop",
+	["arsenal.Reinforce"] = "reinforce",
+	["arsenal.Convoy"] = "convoy",
+	["arsenal.Barrage"] = "barrage",
+	["arsenal.Jammer"] = "jammer",
 }
 
 function IconArt.has(name: string): boolean

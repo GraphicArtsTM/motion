@@ -14,6 +14,7 @@ local Hints = require(Shared:WaitForChild("Hints"))
 local PixelIcons = require(Shared:WaitForChild("PixelIcons"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
+local MenuKit = require(script.Parent:WaitForChild("MenuKit"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
@@ -51,18 +52,7 @@ function HintPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang): Hin
 	pad.PaddingBottom = UDim.new(0, 40) -- кнопка «Понятно» — внутри рамки, не на строке ленты под ней
 	pad.Parent = panel
 	local scale = 3
-	local icon = Instance.new("Frame")
-	icon.BackgroundTransparency = 1
-	icon.Size = UDim2.fromOffset(PixelIcons.Size * scale, PixelIcons.Size * scale)
-	icon.Parent = panel
-	for _, p in PixelIcons.Icons.hint do
-		local f = Instance.new("Frame")
-		f.BorderSizePixel = 0
-		f.BackgroundColor3 = Theme.color(p.color)
-		f.Position = UDim2.fromOffset(p.x * scale, p.y * scale)
-		f.Size = UDim2.fromOffset(p.w * scale, p.h * scale)
-		f.Parent = icon
-	end
+	MenuKit.icon(panel, "hint", scale) -- §15ш Ш7: лампочка — картинка (без неё — пиксели)
 	local text = Instance.new("TextLabel")
 	text.BackgroundTransparency = 1
 	text.Position = UDim2.fromOffset(PixelIcons.Size * scale + 8, 0)

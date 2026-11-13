@@ -22,7 +22,8 @@ onPointEnd` → `pointAt` в `Main.client` (общий для мыши и пал
 Совет — кнопка у мини-карты и F. Ш4: Угрозы и Метки — `MapButtons.new(..., tools)` (квадраты над зумом),
 подсказка клетки полосы по касанию (`CommandBar.withTip`), подписи карты × `UiScale.factor`, GDD §10 — новый.
 Ш5: иконки зданий и юнитов — PNG в `assets/icons` → `lune run tools/icon_pack` → `IconData` (не править руками);
-чистый `IconArt.forKey / paint`, клиент `UI/IconImage` (EditableImage, кеш на сессию); стоят в `CommandBar` и `CardKit.art`.
+чистый `IconArt.forKey / paint`, клиент `UI/IconImage` (EditableImage, кеш на сессию); стоят в `CommandBar` и `CardKit.art`. Ш7: значки интерфейса — `assets/icons/ui/<имя PixelIcons>.png` → тот же
+`IconData`; `MenuKit.icon` рисует картинку (нет — пиксели), «strike.*» и «arsenal.*» — в `IconArt.forKey`.
 - §15ц Ц5г: окно в списке самопроверки (`windows` в `Main.client`) — с `frame` (имя рамки: проверка «влезает в
   экран»); блок «Экран матча» в `SelfCheck` (заголовки полосы, кнопки у мини-карты, наложения, одно окно за раз) —
   новую рамку HUD снизу или справа добавить в его список наложений.

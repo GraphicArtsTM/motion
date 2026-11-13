@@ -4,7 +4,9 @@
 `assets/icons/buildings/*.png` (10 зданий + `MissileSilo_alt`) и `assets/icons/units/*.png` (9 юнитов) — PNG 512×512
 с прозрачным фоном (исходники, превью — `docs/previews/icons.png`). В игру — без загрузки в Roblox:
 `lune run tools/icon_pack` → `src/shared/IconData.luau` (64×64, палитра; превью `docs/previews/icons-game.png`),
-рисует `UI/IconImage`. Заменить иконку — новый PNG с тем же именем и снова `tools/icon_pack`. Значки на самой карте
+рисует `UI/IconImage`. Заменить иконку — новый PNG с тем же именем и снова `tools/icon_pack`. Значки интерфейса (§15ш Ш7) —
+`assets/icons/ui/<имя PixelIcons>.png` (36 шт.; нет — «Резерв штаба» `hqReserve`), удары — `missile`, `raid`,
+`ability_<способность>`. Значки на самой карте
 (12×12, корабли 8×5) остаются пиксельными.
 
 Пока всё рисуется программно (плейсхолдеры). Здесь — что понадобится и каких размеров.
