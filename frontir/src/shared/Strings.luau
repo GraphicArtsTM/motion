@@ -669,6 +669,11 @@ local TABLE: { [string]: Entry } = {
 	["war.banner"] = { ru = "ВОЙНА: %s — %s", en = "WAR: %s — %s" },
 	["war.mobilizing"] = { ru = "МОБИЛИЗАЦИЯ: %s — %s · %d с", en = "MOBILIZATION: %s — %s · %d s" },
 	["war.stats"] = { ru = "Земля: %s / %s · Потери: %s / %s", en = "Land: %s / %s · Losses: %s / %s" },
+	["war.statsMine"] = { -- §15ш Ш2: счёт со стороны игрока
+		ru = "Вы взяли %s, потеряли %s · враг: взял %s, потерял %s",
+		en = "You took %s, lost %s · enemy: took %s, lost %s",
+	},
+	["war.bannerOf"] = { ru = "ВОЙНА %d/%d: %s — %s", en = "WAR %d/%d: %s — %s" },
 	["war.toFront"] = { ru = "К фронту", en = "To front" },
 	["war.peace"] = { ru = "Мир", en = "Peace" },
 	["war.vs"] = { ru = "VS", en = "VS" },
@@ -1320,7 +1325,19 @@ local TABLE: { [string]: Entry } = {
 	["hud.incoming"] = { ru = "НА ВАС НАПАДАЮТ", en = "UNDER ATTACK" },
 	-- §15ф Ф2: панель «АТАКИ» справа и фишки атак над полосой.
 	["attacks.title"] = { ru = "АТАКИ", en = "ATTACKS" },
-	["attacks.count"] = { ru = "ваших %d · на вас %d", en = "yours %d · on you %d" },
+	["attacks.countOut"] = { ru = "ваших %d", en = "yours %d" }, -- §15ш Ш2: «на вас N» — отдельно, крупнее
+	["attacks.countIn"] = { ru = "на вас %d", en = "on you %d" },
+	["attacks.legend.hidden"] = { ru = "? — сила скрыта (туман)", en = "? — strength hidden (fog)" },
+	["attacks.legend.recall"] = { ru = "↩ — отозвать", en = "↩ — recall" },
+	["attacks.legend.focus"] = { ru = "◎ — к фронту", en = "◎ — go to front" },
+	["alarm.noTroops"] = {
+		ru = "НА ВАС АТАКУЮТ (%d) — НЕТ ВОЙСК!",
+		en = "UNDER ATTACK (%d) — NO TROOPS!",
+	},
+	["alarm.hint"] = {
+		ru = "Наймите войска — без них фронт не устоит.",
+		en = "Hire troops — without them the front will fall.",
+	},
 	["attacks.more"] = { ru = "ещё %d", en = "%d more" },
 	["hud.timeOf"] = { ru = "из %d:%02d", en = "of %d:%02d" },
 	["hud.controlTitle"] = { ru = "КОНТРОЛЬ СУШИ", en = "LAND CONTROL" },
@@ -2074,6 +2091,8 @@ local TABLE: { [string]: Entry } = {
 	["bar.forces"] = { ru = "ВОЙСКА", en = "TROOPS" },
 	["bar.army"] = { ru = "в армии %s", en = "army %s" },
 	["bar.noArmy"] = { ru = "нет войск", en = "no troops" },
+	["bar.lockLevel"] = { ru = "🔒каз.%d", en = "🔒bar.%d" }, -- §15ш Ш2: нужны Казармы ур. N
+	["bar.lockTech"] = { ru = "🔒тех.", en = "🔒tech" }, -- §15ш Ш2: нужна технология
 	["building.City.short"] = { ru = "Город", en = "City" },
 	["building.Barracks.short"] = { ru = "Казармы", en = "Barracks" },
 	["building.Factory.short"] = { ru = "Завод", en = "Factory" },

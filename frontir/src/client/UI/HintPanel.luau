@@ -29,10 +29,10 @@ local HintPanel = {}
 function HintPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang): HintPanel
 	local panel = Instance.new("Frame")
 	panel.Name = "HintPanel"
-	-- Сверху по центру, под фазой и полоской лидера.
-	panel.AnchorPoint = Vector2.new(0.5, 0)
-	panel.Position = UDim2.new(0.5, 0, 0, 84)
-	panel.Size = UDim2.fromOffset(360, 0)
+	-- §15ш Ш2: внизу слева, над лентой событий (Main.client кладёт в «AttackArea»); ширина — как у ленты.
+	panel.AnchorPoint = Vector2.new(0, 1)
+	panel.Position = UDim2.new(0, 12, 1, -160)
+	panel.Size = UDim2.fromOffset(320, 0)
 	panel.AutomaticSize = Enum.AutomaticSize.Y
 	panel.BackgroundColor3 = Theme.Colors.PanelBg
 	panel.BackgroundTransparency = 0.08
@@ -48,6 +48,7 @@ function HintPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang): Hin
 	for _, side in { "PaddingLeft", "PaddingRight", "PaddingTop", "PaddingBottom" } do
 		(pad :: any)[side] = UDim.new(0, 8)
 	end
+	pad.PaddingBottom = UDim.new(0, 40) -- кнопка «Понятно» — внутри рамки, не на строке ленты под ней
 	pad.Parent = panel
 	local scale = 3
 	local icon = Instance.new("Frame")

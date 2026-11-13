@@ -573,7 +573,10 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 		armyLabel.TextColor3 = if total >= 1 then Theme.Colors.Sky else Theme.Colors.Alert
 		for k, s in hireSlots do
 			local info = deps.hireInfo(k)
-			s.price.Text = if info.needLevel ~= nil then "🔒" else "$" .. Strings.formatInt(info.cost)
+			-- §15ш Ш2: причина замка — на клетке (на телефоне подсказки по наведению нет).
+			s.price.Text = if info.needLevel ~= nil
+				then string.format(t("bar.lockLevel"), info.needLevel :: number)
+				else "$" .. Strings.formatInt(info.cost)
 			queueBadges[k].Text = if info.queued > 0 then string.format(t("bar.queued"), info.queued) else ""
 			dim(s, not info.affordable)
 		end
@@ -582,7 +585,10 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 			local kind: Types.BuildingKind = buildKinds[k]
 			local price = deps.build.price(kind)
 			local unlocked = deps.build.unlocked(kind)
-			s.price.Text = if not unlocked then "🔒" elseif price ~= nil then "$" .. Strings.formatInt(price) else ""
+			s.price.Text = if not unlocked
+				then t("bar.lockTech")
+				elseif price ~= nil then "$" .. Strings.formatInt(price)
+				else ""
 			dim(s, not unlocked or price == nil or v.money < price)
 			s.edge.Color = if selected == kind then Theme.Colors.Gold else Theme.Colors.Slate
 		end

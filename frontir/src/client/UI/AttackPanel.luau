@@ -99,6 +99,7 @@ function AttackPanel.new(
 	local title = MenuKit.label(head, "⚔  " .. t("attacks.title"), 14, Theme.Colors.Gold, true)
 	title.Position = UDim2.fromOffset(0, 3)
 	local count = MenuKit.label(head, "", 12, Theme.Colors.Muted, false)
+	count.RichText = true
 	count.AnchorPoint = Vector2.new(1, 0)
 	count.Position = UDim2.new(1, 0, 0, 5)
 	count.TextXAlignment = Enum.TextXAlignment.Right
@@ -189,6 +190,11 @@ function AttackPanel.new(
 		table.insert(rows, row)
 	end
 	local more = MenuKit.label(list, "", 12, Theme.Colors.Muted, false, cfg.MaxRows + 1)
+	-- §15ш Ш2: легенда — только для того, что сейчас есть в списке («?», «↩», «◎»).
+	local legend = MenuKit.label(list, "", 12, Theme.Colors.Muted, false, cfg.MaxRows + 2)
+	legend.AutomaticSize = Enum.AutomaticSize.Y
+	legend.Size = UDim2.fromScale(1, 0)
+	legend.TextWrapped = true
 	Session.connect(head.Activated, function()
 		collapsed = not collapsed
 	end)
@@ -259,8 +265,15 @@ function AttackPanel.new(
 		local myId = if playing then cs.myNation else nil
 		local shown, counts = AttackList.rows(attacks, myId, cfg.MaxRows)
 		list.Visible = #shown > 0
-		count.Text = string.format(t("attacks.count"), counts.out, counts.inc)
+		-- §15ш Ш2: «на вас N» — крупнее и красным, когда на вас атакуют.
+		local incText = string.format(t("attacks.countIn"), counts.inc)
+		count.Text = string.format(t("attacks.countOut"), counts.out)
+			.. " · "
+			.. (if counts.inc > 0
+				then string.format('<font color="#%s" size="15"><b>%s</b></font>', Theme.Colors.Alert:ToHex(), incText)
+				else incText)
 			.. (if collapsed then "  ▸" else "  ▾")
+		local anyHidden, anyOut, anyIn = false, false, false
 		for k, row in rows do
 			local r = shown[k]
 			if r == nil or collapsed then
@@ -281,8 +294,23 @@ function AttackPanel.new(
 				row.bar.fill.BackgroundColor3 = if winning then Theme.Colors.Sky else Theme.Colors.Alert
 				row.action.Text = if out then "↩" else "◎"
 				row.action.TextColor3 = if out then Theme.Colors.Gold else Theme.Colors.Text
+				anyHidden = anyHidden or r.power < 0
+				anyOut = anyOut or out
+				anyIn = anyIn or not out
 			end
 		end
+		local parts: { string } = {}
+		if anyHidden then
+			table.insert(parts, t("attacks.legend.hidden"))
+		end
+		if anyOut then
+			table.insert(parts, t("attacks.legend.recall"))
+		end
+		if anyIn then
+			table.insert(parts, t("attacks.legend.focus"))
+		end
+		legend.Text = table.concat(parts, " · ")
+		legend.Visible = not collapsed and #parts > 0
 		more.Visible = not collapsed and counts.hidden > 0
 		more.Text = string.format(t("attacks.more"), counts.hidden)
 

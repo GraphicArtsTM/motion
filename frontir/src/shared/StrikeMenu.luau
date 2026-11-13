@@ -121,4 +121,17 @@ function StrikeMenu.howKey(kind: Kind, why: Why): string
 	return "strikeHow." .. kind .. "." .. why
 end
 
+-- §15ш Ш2: удару не хватает технологии, здания или самолёта — это надолго, плитка в «УДАРАХ» узкая (без картинки).
+-- Перезарядка, «нет войны», «далеко», «самолёты заняты» — скоро пройдут, плитка обычная.
+local MISSING: { [string]: boolean } = {
+	needTech = true,
+	needSilo = true,
+	needAirfieldTech = true,
+	needAirfield = true,
+	needBomber = true,
+}
+function StrikeMenu.missing(why: string): boolean
+	return MISSING[why] == true
+end
+
 return table.freeze(StrikeMenu)

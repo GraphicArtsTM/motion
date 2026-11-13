@@ -457,11 +457,36 @@ function CommanderPanel.new(
 		end
 	end)
 
+	-- §15ш Ш2: плитка удара, которому не хватает технологии или здания, — узкая и без картинки; плитки — подряд.
+	local narrowOf: { boolean } = { false, false, false, false }
+	local function layoutTiles()
+		local x = PAD
+		for slot, tile in tiles do
+			local narrow = narrowOf[slot]
+			local w = if narrow then cfgS.NarrowW else TILE_W
+			tile.button.Position = UDim2.fromOffset(x, PAD + 22)
+			tile.button.Size = UDim2.fromOffset(w, TILE_H)
+			tile.art.Visible = not narrow
+			tile.name.Position = UDim2.fromOffset(4, if narrow then 32 else ART_H + 8)
+			tile.name.Size = UDim2.new(1, -8, 0, if narrow then 32 else 16)
+			tile.name.TextWrapped = narrow
+			tile.name.TextTruncate = if narrow then Enum.TextTruncate.None else Enum.TextTruncate.AtEnd
+			tile.state.Position = UDim2.fromOffset(4, if narrow then 66 else ART_H + 26)
+			tile.state.Size = UDim2.new(1, -8, 0, if narrow then 30 else 15)
+			tile.state.TextWrapped = narrow
+			tile.state.TextTruncate = if narrow then Enum.TextTruncate.None else Enum.TextTruncate.AtEnd
+			x += w + GAP
+		end
+		bar.Size = UDim2.fromOffset(x - GAP + PAD, bar.Size.Y.Offset)
+		fitBar()
+	end
+
 	local function update(now: number)
 		if not bar.Visible then
 			return
 		end
 		local facts = StrikeStatus.facts(cs, nil, now)
+		local relayout = false
 		local commander: Types.CommanderId = ClientState.myCommander(cs)
 		for slot, tile in tiles do
 			local why: string
@@ -484,6 +509,11 @@ function CommanderPanel.new(
 			end
 			local ready = why == "ok"
 			local active = pending == slot
+			local narrow = StrikeMenu.missing(why) and not active
+			if narrow ~= narrowOf[slot] then
+				narrowOf[slot] = narrow
+				relayout = true
+			end
 			local kind: StrikeMenu.Kind = if slot == RAID
 				then "raid"
 				elseif slot == MISSILE then "missile"
@@ -511,6 +541,9 @@ function CommanderPanel.new(
 			tile.edge.Thickness = if active then 3 else 2
 			tile.fill.Size = UDim2.fromScale(math.clamp(progress, 0, 1), 1)
 			tile.fill.BackgroundColor3 = if ready then tile.accent else Theme.Colors.Muted
+		end
+		if relayout then
+			layoutTiles()
 		end
 		-- Подсказка внизу панели: что делает удар под курсором.
 		local h = hovered

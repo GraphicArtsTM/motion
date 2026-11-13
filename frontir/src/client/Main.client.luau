@@ -61,6 +61,7 @@ local Dock = require(UI:WaitForChild("Dock"))
 local AttackPanel = require(UI:WaitForChild("AttackPanel"))
 local LobbyScreen = require(UI:WaitForChild("LobbyScreen"))
 local SirenPanel = require(UI:WaitForChild("SirenPanel"))
+local AlarmBanner = require(UI:WaitForChild("AlarmBanner"))
 local ThreatPanel = require(UI:WaitForChild("ThreatPanel"))
 local GameMenu = require(UI:WaitForChild("GameMenu"))
 local MainMenu = require(UI:WaitForChild("MainMenu"))
@@ -356,6 +357,10 @@ local function runSession(mapId: string, resync: boolean)
 		camera.refresh()
 	end)
 	-- §15х ч.3: «Сирена» — удар летит по вам: строка сверху, «Показать» — камера к цели.
+	-- §15ш Ш2: тревога «на вас атакуют — нет войск» с наймом пехоты (как Z).
+	local alarm = AlarmBanner.new(hudGui, cs, lang, forcesPanel.army, function()
+		forcesPanel.hire(1)
+	end)
 	local siren = SirenPanel.new(hudGui, cs, lang, function(cell: number)
 		toFront(cell % map.width + 0.5, cell // map.width + 0.5)
 	end)
@@ -1145,6 +1150,7 @@ local function runSession(mapId: string, resync: boolean)
 		end
 	end
 	stackInto(column("TopCenter", 0.5, UDim.new(0.5, 0), Enum.HorizontalAlignment.Center), {
+		"Alarm", -- §15ш Ш2: тревога — первой
 		"PhaseBanner",
 		"Solo", -- §15ц Ц3: плашка «ПАУЗА · P — продолжить» (пауза и ×2 — в меню игры)
 		"Siren",
@@ -1153,9 +1159,17 @@ local function runSession(mapId: string, resync: boolean)
 		"PrivateServer",
 		"WarStatus",
 		"Resolutions",
-		"HintPanel",
 		"WorldBanner",
 	})
+	-- §15ш Ш2: сверху по центру — меньше карточек: подсказка «что делать дальше» — внизу слева, над лентой.
+	do
+		local area = hudGui:FindFirstChild("AttackArea")
+		local hintFrame = hudGui:FindFirstChild("HintPanel")
+		if area ~= nil and hintFrame ~= nil and hintFrame:IsA("GuiObject") then
+			hintFrame.LayoutOrder = 0 -- лента — 1, ползунок — 100
+			hintFrame.Parent = area
+		end
+	end
 	stackInto(
 		column("TopRight", 1, UDim.new(1, -12), Enum.HorizontalAlignment.Right),
 		{ "PlaceChip", "GiantChip", "Attacks", "Leaders", "Auction" }
@@ -1873,6 +1887,7 @@ local function runSession(mapId: string, resync: boolean)
 		threat.update(now) -- §15х ч.4б: круги угроз — до кадра маркеров
 		markerLayer.update(now, camera.state)
 		siren.update(now)
+		alarm.update(now)
 		warFx.update(now, camera.state)
 		battleFx.update(now, camera.state)
 		strikeFx.update(now, camera.state)

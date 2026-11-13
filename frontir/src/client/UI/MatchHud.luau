@@ -22,6 +22,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local ClientState = require(Shared:WaitForChild("ClientState"))
 local Config = require(Shared:WaitForChild("Config"))
 local Economy = require(Shared:WaitForChild("Economy"))
+local Alarm = require(Shared:WaitForChild("Alarm"))
 local EventFeed = require(Shared:WaitForChild("EventFeed"))
 local MapDataModule = require(Shared:WaitForChild("MapData"))
 local NationColors = require(Shared:WaitForChild("NationColors"))
@@ -404,6 +405,12 @@ function MatchHud.new(
 		important = Theme.Colors.Gold,
 		background = Theme.Colors.Muted,
 	}
+	-- §15ш Ш2: цвет тревоги не сливается со своей державой (красная держава — розовый или белый).
+	local function alertColor(): Color3
+		local me = if cs.myNation ~= nil then cs.nations[cs.myNation] else nil
+		local rgb = if me ~= nil and me.colorIndex >= 1 then NationColors.Colors[me.colorIndex] else nil
+		return Theme.color(Alarm.alertName(rgb))
+	end
 	local function push(text: string, level: EventFeed.Level)
 		local line, evicted = EventFeed.push(feedState, text, level, os.clock())
 		if evicted ~= nil then
@@ -423,6 +430,15 @@ function MatchHud.new(
 			made.TextStrokeColor3 = Theme.Colors.Backdrop
 			made.TextStrokeTransparency = 0.2
 			made.TextWrapped = true
+			-- §15ш Ш2: тёмная подложка — строка читается поверх любой державы.
+			made.BackgroundColor3 = Theme.Colors.Backdrop
+			made.BackgroundTransparency = 0.3
+			local linePad = Instance.new("UIPadding")
+			linePad.PaddingLeft = UDim.new(0, 8)
+			linePad.PaddingRight = UDim.new(0, 8)
+			linePad.PaddingTop = UDim.new(0, 3)
+			linePad.PaddingBottom = UDim.new(0, 3)
+			linePad.Parent = made
 			made.AutomaticSize = Enum.AutomaticSize.Y
 			made.Size = UDim2.fromOffset(320, 0)
 			feedOrder += 1
@@ -432,12 +448,19 @@ function MatchHud.new(
 		end
 		local shown = label :: TextLabel
 		shown.Text = escape(EventFeed.textOf(line))
-		shown.TextColor3 = levelColor[line.level] or Theme.Colors.Gold
+		shown.TextColor3 = if line.level == "critical"
+			then alertColor()
+			else levelColor[line.level] or Theme.Colors.Gold
 		shown.Visible = true
 		if fresh then
 			-- Новая строка проявляется (§15г).
 			shown.TextTransparency = 1
-			TweenService:Create(shown, TweenInfo.new(0.25, Enum.EasingStyle.Quad), { TextTransparency = 0 }):Play()
+			shown.BackgroundTransparency = 1
+			TweenService:Create(
+				shown,
+				TweenInfo.new(0.25, Enum.EasingStyle.Quad),
+				{ TextTransparency = 0, BackgroundTransparency = 0.3 }
+			):Play()
 		end
 	end
 

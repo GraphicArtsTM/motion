@@ -43,7 +43,7 @@ export type WarPanel = {
 local WarPanel = {}
 
 local BUTTON = Config.Render.MinTouchTargetPx
-local WIDTH = 420
+local WIDTH = 560 -- §15ш Ш2: баннер одной строкой — заголовок и обе кнопки в ряд
 
 local function hex(c: Color3): string
 	return string.format("#%02x%02x%02x", math.round(c.R * 255), math.round(c.G * 255), math.round(c.B * 255))
@@ -123,20 +123,6 @@ local function button(parent: Instance, text: string, width: number, height: num
 	return b
 end
 
-local function row(parent: Instance, order: number): Frame
-	local f = Instance.new("Frame")
-	f.BackgroundTransparency = 1
-	f.Size = UDim2.new(1, 0, 0, BUTTON)
-	f.LayoutOrder = order
-	local layout = Instance.new("UIListLayout")
-	layout.FillDirection = Enum.FillDirection.Horizontal
-	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	layout.Padding = UDim.new(0, 8)
-	layout.Parent = f
-	f.Parent = parent
-	return f
-end
-
 function WarPanel.new(
 	gui: ScreenGui,
 	cs: ClientState,
@@ -193,20 +179,31 @@ function WarPanel.new(
 	local nextButton = button(titleRow, "▶", BUTTON)
 	nextButton.AnchorPoint = Vector2.new(1, 0)
 	nextButton.Position = UDim2.fromScale(1, 0)
+	-- §15ш Ш2: «◀ ВОЙНА 1/3: A — B [К фронту] [Мир] ▶» — одной строкой, справа налево: ▶, Мир, К фронту.
+	local ACTION_W = 104
+	local frontButton = button(titleRow, Strings.get("war.toFront", lang), ACTION_W)
+	frontButton.AnchorPoint = Vector2.new(1, 0)
+	frontButton.Position = UDim2.new(1, -(BUTTON + 4 + ACTION_W + 4), 0, 0)
+	local peaceButton = button(titleRow, Strings.get("war.peace", lang), ACTION_W)
+	peaceButton.AnchorPoint = Vector2.new(1, 0)
+	peaceButton.Position = UDim2.new(1, -(BUTTON + 4), 0, 0)
+	peaceButton.TextColor3 = Theme.Colors.Sky
 	local title = Instance.new("TextLabel")
 	title.BackgroundTransparency = 1
 	title.RichText = true
-	title.TextWrapped = true
-	title.Size = UDim2.new(1, -2 * (BUTTON + 4), 1, 0)
+	title.TextWrapped = false
+	title.TextTruncate = Enum.TextTruncate.AtEnd
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.Size = UDim2.new(1, -(2 * (BUTTON + 4) + 2 * (ACTION_W + 4)), 1, 0)
 	title.Position = UDim2.fromOffset(BUTTON + 4, 0)
 	title.FontFace = Theme.FontBold
-	title.TextSize = 16
+	title.TextSize = 15
 	title.TextColor3 = Theme.Colors.Text
 	title.Parent = titleRow
 	local bar = Instance.new("Frame")
 	bar.BorderSizePixel = 0
 	bar.BackgroundColor3 = Theme.Colors.Backdrop
-	bar.Size = UDim2.new(1, 0, 0, 10)
+	bar.Size = UDim2.new(1, 0, 0, 6)
 	bar.LayoutOrder = 2
 	bar.Parent = banner
 	local barA = Instance.new("Frame")
@@ -219,11 +216,7 @@ function WarPanel.new(
 	barB.Position = UDim2.fromScale(1, 0)
 	barB.Size = UDim2.fromScale(0.5, 1)
 	barB.Parent = bar
-	local statsLabel = label(banner, 13, 3)
-	local buttons = row(banner, 4)
-	local frontButton = button(buttons, Strings.get("war.toFront", lang), 140)
-	local peaceButton = button(buttons, Strings.get("war.peace", lang), 140)
-	peaceButton.TextColor3 = Theme.Colors.Sky
+	local statsLabel = label(banner, 12, 3)
 
 	-- Окна войны и мира (§15л ч.11): рамка с картинками, кнопки во всю ширину.
 	local function window(name: string, width: number, edge: Color3): Frame
@@ -424,7 +417,22 @@ function WarPanel.new(
 		prevButton.Visible = #wars > 1
 		nextButton.Visible = #wars > 1
 		if war.active then
-			title.Text = string.format(Strings.get("war.banner", lang), coloredName(war.a), coloredName(war.b))
+			-- §15ш Ш2: несколько войн — «ВОЙНА 1/3», стрелки листают.
+			local index = 1
+			for k, w in wars do
+				if keyOf(w) == keyOf(war) then
+					index = k
+				end
+			end
+			title.Text = if #wars > 1
+				then string.format(
+					Strings.get("war.bannerOf", lang),
+					index,
+					#wars,
+					coloredName(war.a),
+					coloredName(war.b)
+				)
+				else string.format(Strings.get("war.banner", lang), coloredName(war.a), coloredName(war.b))
 		else
 			local left = math.max(0, math.ceil(war.timeLeft - (now - cs.warsAt)))
 			title.Text =
@@ -441,13 +449,27 @@ function WarPanel.new(
 		local function num(id: number, value: number): string
 			return string.format('<font color="%s">%s</font>', hex(colorOf(id)), Strings.formatInt(value))
 		end
-		statsLabel.Text = string.format(
-			Strings.get("war.stats", lang),
-			num(war.a, war.takenA),
-			num(war.b, war.takenB),
-			num(war.a, war.lossesA),
-			num(war.b, war.lossesB)
-		)
+		-- §15ш Ш2: счёт со стороны игрока — «вы взяли / потеряли · враг: взял / потерял».
+		local me = cs.myNation
+		if me == war.a or me == war.b then
+			local mineA = me == war.a
+			local enemy = if mineA then war.b else war.a
+			statsLabel.Text = string.format(
+				Strings.get("war.statsMine", lang),
+				num(me :: number, if mineA then war.takenA else war.takenB),
+				num(me :: number, if mineA then war.lossesA else war.lossesB),
+				num(enemy, if mineA then war.takenB else war.takenA),
+				num(enemy, if mineA then war.lossesB else war.lossesA)
+			)
+		else
+			statsLabel.Text = string.format(
+				Strings.get("war.stats", lang),
+				num(war.a, war.takenA),
+				num(war.b, war.takenB),
+				num(war.a, war.lossesA),
+				num(war.b, war.lossesB)
+			)
+		end
 	end
 
 	local function drawOffer(now: number)

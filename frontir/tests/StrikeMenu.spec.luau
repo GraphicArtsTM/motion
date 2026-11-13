@@ -78,3 +78,18 @@ T.describe("Удары под рукой (§15х ч.4)", function()
 		end
 	)
 end)
+
+-- §15ш Ш2: узкие плитки — только для того, чего не хватает надолго.
+T.describe("Узкие плитки «УДАРОВ» (§15ш Ш2)", function()
+	T.it(
+		"нет технологии, здания или самолёта — узко; перезарядка и «нет войны» — обычная плитка",
+		function()
+			for _, why in { "needTech", "needSilo", "needAirfieldTech", "needAirfield", "needBomber" } do
+				T.expect(StrikeMenu.missing(why)).toBe(true)
+			end
+			for _, why in { "ok", "cooldown", "notAtWar", "bombersBusy", "outOfRange" } do
+				T.expect(StrikeMenu.missing(why)).toBe(false)
+			end
+		end
+	)
+end)
