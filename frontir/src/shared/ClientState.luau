@@ -95,6 +95,7 @@ export type ProfileInfo = {
 	crates: number,
 	pityLeft: number, -- через сколько ящиков гарантированный джекпот
 	season: { tier: number, xp: number, per: number, premium: boolean, left: number? }, -- left nil — без срока
+	path: { claimed: number }?, -- §15щ Щ1: награды «Пути командира» забраны до этого уровня
 	weekly: { offer: { stock: { [string]: number }, crates: number, tokens: number, medals: number? }, left: number },
 	noPaidRandom: boolean?, -- сводная правка ч.4: в стране игрока ящики за Robux не продаются (PolicyService)
 	dailyStreak: number,

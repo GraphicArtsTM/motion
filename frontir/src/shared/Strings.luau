@@ -2507,6 +2507,10 @@ local TABLE: { [string]: Entry } = {
 	["shop.crateOpened"] = { ru = "Ящик: %s", en = "Crate: %s" },
 	["shop.jackpot"] = { ru = "ДЖЕКПОТ!", en = "JACKPOT!" },
 	["reject.noCrates"] = { ru = "Ящиков нет", en = "No crates" },
+	["reject.nothingToClaim"] = {
+		ru = "Наград пока нет — наберите опыт",
+		en = "No rewards yet — earn more XP",
+	}, -- §15щ Щ1
 	["reject.noPort"] = { ru = "Нужен свой порт", en = "You need a port" },
 	["reject.noAirfield"] = { ru = "Нужен свой аэродром", en = "You need an airfield" },
 	-- Гардероб и косметика (§11.4)

@@ -277,6 +277,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			-- Этап 9б (§11.3): ящики, пропуск, предложение недели — сроки настоящие (секунды до конца).
 			crates = d.crates,
 			pityLeft = Config.Crates.Pity - d.pity,
+			path = { claimed = d.pathClaimed }, -- §15щ Щ1
 			season = {
 				tier = Profile.seasonTier(d),
 				xp = d.seasonXp % per,
@@ -1174,6 +1175,21 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				matchEvent:FireClient(player, { kind = "rejected", reason = why or "?", intent = kind })
 				return
 			end
+			sendProfile(player)
+			return
+		end
+		-- §15щ Щ1: забрать награды «Пути командира» (все пройденные уровни по порядку).
+		if kind == "pathClaim" then
+			local session = profiles.get(player.UserId)
+			if session == nil then
+				return
+			end
+			local got = Profile.pathClaim(session.data)
+			if #got == 0 then
+				matchEvent:FireClient(player, { kind = "rejected", reason = "nothingToClaim", intent = "pathClaim" })
+				return
+			end
+			matchEvent:FireClient(player, { kind = "pathClaimed", got = got })
 			sendProfile(player)
 			return
 		end

@@ -40,7 +40,7 @@ T.describe("Магазин: потолок и честность (§11.1)", func
 			for _, key in Shop.BoostKeys do
 				T.expect((Config.Shop.Boosts :: any)[key] ~= nil).toBe(true)
 			end
-			T.expect(Config.Profile.TokenEveryLevels > 0).toBe(true)
+			T.expect(Config.Path.TokenEvery > 0).toBe(true) -- §15щ Щ1: жетоны — на дорожке «Пути командира»
 		end
 	)
 
@@ -58,7 +58,7 @@ end)
 
 T.describe("Профиль (§11.2)", function()
 	T.it(
-		"уровни по опыту, награда за матч, жетоны каждые 2 уровня",
+		"уровни по опыту, награда за матч; награды уровней ждут на «Пути командира»",
 		function()
 			local need1 = Profile.xpNeeded(1)
 			T.expect(need1).toBe(Config.Profile.XpBase)
@@ -71,9 +71,10 @@ T.describe("Профиль (§11.2)", function()
 			local vip = Profile.matchReward(4, 0, false, 1.5)
 			T.expect(vip).toBe(math.floor(xp4 * 1.5))
 			local d = Profile.new()
-			local _, tokens = Profile.addXp(d, need1 + Profile.xpNeeded(2)) -- до 3-го уровня
+			local _, waiting = Profile.addXp(d, need1 + Profile.xpNeeded(2)) -- до 3-го уровня
 			T.expect((Profile.levelOf(d.xp))).toBe(3)
-			T.expect(tokens).toBe(1) -- уровень 2 — жетон
+			T.expect(waiting).toBe(2) -- награды уровней 2 и 3 ждут, сами не выданы
+			T.expect(d.tokens).toBe(0)
 			local before = d.medals
 			Profile.applyMatch(d, 1, 3, true, 1)
 			T.expect(d.matches).toBe(1)

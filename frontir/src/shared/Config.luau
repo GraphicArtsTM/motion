@@ -112,8 +112,8 @@ Config.Profile = {
 	LockRetrySec = 3, -- чужая живая блокировка — повторить через
 	LockRetries = 10, -- §15л ч.3: переход хаб → матч — хаб снимает блокировку при выходе игрока
 	PurchaseLog = 50, -- сколько последних id покупок помнить (продукт не начислится дважды)
-	XpBase = 300, -- опыта до 2-го уровня
-	XpGrowth = 1.15, -- каждый следующий уровень — во столько раз дороже
+	XpBase = 600, -- опыта до 2-го уровня
+	XpStep = 60, -- §15щ Щ1: каждый следующий уровень дороже на столько (линейно, без «стены» на высоких уровнях)
 	MaxLevel = 100,
 	XpPlay = 60, -- за участие в матче
 	XpPlace = { 220, 140, 90 }, -- за 1-е, 2-е, 3-е место
@@ -121,7 +121,6 @@ Config.Profile = {
 	XpWin = 120, -- бонус за победу (и совместную)
 	MedalShare = 1 / 3, -- медалей — доля опыта
 	PremiumXpMul = 1.1, -- Roblox Premium
-	TokenEveryLevels = 2, -- жетон штаба за каждые столько уровней
 	-- Генералы по уровню (§11.2); «Все генералы» — сразу.
 	CommanderLevels = { Marshal = 1, Engineer = 3, Admiral = 6, Scout = 10 },
 }
@@ -211,6 +210,30 @@ Config.Cosmetics = {
 		PartPrice = 400, -- остальные — за медали
 	},
 	VipNameColor = "Gold",
+}
+
+-- §15щ Щ1 «Путь командира»: награда за каждый уровень 2…Profile.MaxLevel (забирает игрок). Медали —
+-- MedalsBase + MedalsPerLevel × уровень; каждый TokenEvery-й уровень — жетон штаба вместо медалей; каждый
+-- CrateEvery-й — ещё и ящик снабжения (бесплатный). Ступень звания и последний уровень — Milestones (поверх правила;
+-- cosmetic — «вид:id» из Cosmetics; уже есть — вместо него медали по его цене).
+Config.Path = {
+	MedalsBase = 100,
+	MedalsPerLevel = 5,
+	TokenEvery = 3,
+	CrateEvery = 5,
+	Milestones = {
+		[4] = { cosmetic = "capture:Sky", medals = 300, tokens = 1, crates = 0 },
+		[8] = { cosmetic = "pattern:Dots", medals = 400, tokens = 1, crates = 0 },
+		[13] = { cosmetic = "capture:Gold", medals = 500, tokens = 1, crates = 1 },
+		[19] = { cosmetic = "pattern:Stripes", medals = 600, tokens = 1, crates = 1 },
+		[26] = { cosmetic = "capture:Red", medals = 700, tokens = 2, crates = 1 },
+		[34] = { cosmetic = "pattern:Checker", medals = 800, tokens = 2, crates = 1 },
+		[44] = { cosmetic = "capture:Lime", medals = 900, tokens = 2, crates = 2 },
+		[56] = { cosmetic = "pattern:Grid", medals = 1000, tokens = 3, crates = 2 },
+		[70] = { cosmetic = "capture:Violet", medals = 1200, tokens = 3, crates = 2 },
+		[86] = { cosmetic = "pattern:Waves", medals = 1500, tokens = 4, crates = 3 },
+		[100] = { medals = 3000, tokens = 5, crates = 3 },
+	} :: { [number]: { cosmetic: string?, medals: number, tokens: number, crates: number } },
 }
 
 -- §15л Звания по уровню профиля (только вид); §15ф — ступени «Путь командира» (Ranks).

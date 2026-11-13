@@ -26,6 +26,9 @@ onPointEnd` → `pointAt` в `Main.client` (общий для мыши и пал
 `IconData`; `MenuKit.icon` рисует картинку (нет — пиксели), «strike.*» и «arsenal.*» — в `IconArt.forKey`.
 Ш8: карточки ударов — гладкие, полный цвет (исключение из палитры): `assets/cards` → `lune run tools/card_pack` →
 `CardData` (не править руками) → чистый `CardArt` → `IconImage.card`; в `CardKit.art` карточка главнее значка.
+**§15щ Путь командира 2.0:** Щ1 — линейная кривая опыта (`Profile.XpStep`), награда за уровень `Profile.pathReward`
+(`Config.Path`), забрать — намерение `pathClaim` → `Profile.pathClaim` (событие `pathClaimed`, `pathClaimed` в профиле);
+Щ2 — погоны в `Ranks.icon` (превью `tools/epaulette_preview`); Щ3 — окно с лентой наград и анимациями.
 - §15ц Ц5г: окно в списке самопроверки (`windows` в `Main.client`) — с `frame` (имя рамки: проверка «влезает в
   экран»); блок «Экран матча» в `SelfCheck` (заголовки полосы, кнопки у мини-карты, наложения, одно окно за раз) —
   новую рамку HUD снизу или справа добавить в его список наложений.

@@ -53,6 +53,7 @@ export type Data = {
 	arsenal: { [string]: boolean },
 	loadout: string?,
 	commander: string?, -- §15ф Ф1: генерал по умолчанию (выбор в Арсенале, не в лобби)
+	pathClaimed: number, -- §15щ Щ1: награды «Пути командира» забраны до этого уровня включительно (1 — ни одной)
 }
 
 -- Награда (пропуск, ящик, ежедневная, набор).
@@ -96,6 +97,7 @@ function Profile.new(): Data
 		arsenal = {},
 		loadout = nil,
 		commander = nil,
+		pathClaimed = 1,
 	}
 end
 
@@ -136,6 +138,7 @@ function Profile.migrate(raw: any): Data
 		return d
 	end
 	d.xp = num(raw.xp)
+	d.pathClaimed = math.max(1, num(raw.pathClaimed))
 	d.medals = num(raw.medals)
 	d.tokens = num(raw.tokens)
 	d.matches = num(raw.matches)
@@ -413,10 +416,10 @@ function Profile.claimDaily(d: Data, day: number): (number?, Reward?)
 	return d.dailyStreak, r
 end
 
--- Опыта нужно, чтобы с уровня level перейти на следующий.
+-- Опыта нужно, чтобы с уровня level перейти на следующий (§15щ Щ1: линейно).
 function Profile.xpNeeded(level: number): number
 	local cfg = Config.Profile
-	return math.floor(cfg.XpBase * cfg.XpGrowth ^ (level - 1))
+	return math.floor(cfg.XpBase + cfg.XpStep * (math.max(1, level) - 1))
 end
 
 -- Уровень по всему опыту: (уровень, опыта внутри уровня, нужно до следующего).
@@ -445,15 +448,84 @@ function Profile.matchReward(place: number, cities: number, won: boolean, mul: n
 	return xp, math.floor(xp * cfg.MedalShare)
 end
 
--- Начислить опыт: (уровней получено, жетонов получено).
+-- Начислить опыт: (уровней получено, наград «Пути командира» ждёт). §15щ Щ1: жетоны за уровни не выдаются сами —
+-- они на дорожке наград (Profile.pathClaim).
 function Profile.addXp(d: Data, xp: number): (number, number)
 	local before = Profile.levelOf(d.xp)
 	d.xp += math.max(0, math.floor(xp))
 	local after = Profile.levelOf(d.xp)
-	local every = Config.Profile.TokenEveryLevels
-	local tokens = after // every - before // every
-	d.tokens += tokens
-	return after - before, tokens
+	return after - before, Profile.pathClaimable(d)
+end
+
+-- «Путь командира» (§15щ Щ1) -------------------------------------------------------------------------
+
+export type PathReward = {
+	medals: number,
+	tokens: number,
+	crates: number,
+	stock: { [string]: number },
+	cosmetic: string?,
+}
+
+-- Награда уровня (2…MaxLevel): правило Config.Path, ступени званий и последний уровень — Milestones.
+function Profile.pathReward(level: number): PathReward
+	local cfg = Config.Path
+	local r: PathReward = { medals = 0, tokens = 0, crates = 0, stock = {}, cosmetic = nil }
+	if level < 2 or level > Config.Profile.MaxLevel then
+		return r
+	end
+	local ms = cfg.Milestones[level]
+	if ms ~= nil then
+		r.medals, r.tokens, r.crates, r.cosmetic = ms.medals, ms.tokens, ms.crates, ms.cosmetic
+		return r
+	end
+	if level % cfg.TokenEvery == 0 then
+		r.tokens = 1
+	else
+		r.medals = cfg.MedalsBase + cfg.MedalsPerLevel * level
+	end
+	if level % cfg.CrateEvery == 0 then
+		r.crates = 1
+	end
+	return r
+end
+
+-- Сколько наград ждёт (пройденные уровни, ещё не забранные).
+function Profile.pathClaimable(d: Data): number
+	local level = Profile.levelOf(d.xp)
+	return math.max(0, level - d.pathClaimed)
+end
+
+-- Забрать по порядку все награды до текущего уровня. Возвращает забранное: { level, reward } (пусто — нечего).
+-- Узор или вспышка, которые уже есть, — вместо них медали по их цене.
+function Profile.pathClaim(d: Data): { { level: number, reward: PathReward } }
+	local out: { { level: number, reward: PathReward } } = {}
+	local level = Profile.levelOf(d.xp)
+	for lv = d.pathClaimed + 1, level do
+		local r = Profile.pathReward(lv)
+		local cosmetic = r.cosmetic
+		if cosmetic ~= nil then
+			if d.cosmetics[cosmetic] then
+				local kind, id = string.match(cosmetic, "^(%a+):(%a+)$")
+				local price = 0
+				for _, list in { Config.Cosmetics.Patterns, Config.Cosmetics.Captures } do
+					for _, it in list :: { { id: string, price: number } } do
+						if (kind == "pattern" or kind == "capture") and it.id == id then
+							price = it.price
+						end
+					end
+				end
+				r.medals += price
+				r.cosmetic = nil
+			else
+				d.cosmetics[cosmetic] = true
+			end
+		end
+		Profile.give(d, { medals = r.medals, tokens = r.tokens, crates = r.crates, stock = r.stock })
+		table.insert(out, { level = lv, reward = r })
+	end
+	d.pathClaimed = math.max(d.pathClaimed, level)
+	return out
 end
 
 -- Итог матча в профиль.

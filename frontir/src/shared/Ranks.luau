@@ -63,59 +63,93 @@ local function p(x: number, y: number, w: number, h: number, color: string): Par
 	return { x = x, y = y, w = w, h = h, color = color }
 end
 
--- Метки размера над рамкой (строки 0–4): тип и сколько.
-local MARKS: { { kind: string, n: number } } = {
-	{ kind = "none", n = 0 }, -- новобранец
-	{ kind = "dot", n = 1 }, -- отделение
-	{ kind = "dot", n = 3 }, -- взвод
-	{ kind = "bar", n = 1 }, -- рота
-	{ kind = "bar", n = 2 }, -- батальон
-	{ kind = "bar", n = 3 }, -- полк
-	{ kind = "cross", n = 1 }, -- бригада
-	{ kind = "cross", n = 2 }, -- дивизия
-	{ kind = "cross", n = 3 }, -- корпус
-	{ kind = "cross", n = 4 }, -- армия
-	{ kind = "cross", n = 5 }, -- фронт
+-- §15щ Щ2: погон ступени — по общему виду (без знаков какой-либо реальной страны). Погон 10×16 по центру клетки
+-- 16×16: тёмный силуэт, поле, кант, пуговица сверху. Бойцы — полевой погон и 0 / 2 / 3 лычки; офицеры — один (рота)
+-- или два просвета и звёзды (3 малых; 1 / 2 / 3 больших); генералы — золотое поле с плетением и 1–3 большие звезды;
+-- командующий фронтом — большая звезда с венком.
+type Look = { field: string, kind: "stripes" | "officer" | "general" | "marshal", n: number, lanes: number }
+local LOOKS: { Look } = {
+	{ field = "Ochre", kind = "stripes", n = 0, lanes = 0 }, -- новобранец
+	{ field = "Ochre", kind = "stripes", n = 2, lanes = 0 }, -- командир отделения
+	{ field = "Ochre", kind = "stripes", n = 3, lanes = 0 }, -- командир взвода
+	{ field = "Ochre", kind = "officer", n = 3, lanes = 1 }, -- рота: просвет и 3 малые звезды
+	{ field = "Ochre", kind = "officer", n = 1, lanes = 2 }, -- батальон
+	{ field = "Ochre", kind = "officer", n = 2, lanes = 2 }, -- полк
+	{ field = "Ochre", kind = "officer", n = 3, lanes = 2 }, -- бригада
+	{ field = "Gold", kind = "general", n = 1, lanes = 0 }, -- дивизия
+	{ field = "Gold", kind = "general", n = 2, lanes = 0 }, -- корпус
+	{ field = "Gold", kind = "general", n = 3, lanes = 0 }, -- армия
+	{ field = "Gold", kind = "marshal", n = 1, lanes = 0 }, -- фронт
 }
+
+-- Большая звезда 4×3 с верхним рядом y (центр погона — колонки 7–8).
+local function bigStar(out: { Part }, y: number, color: string)
+	table.insert(out, p(7, y, 2, 1, color))
+	table.insert(out, p(6, y + 1, 4, 1, color))
+	table.insert(out, p(7, y + 2, 2, 1, color))
+end
 
 local function build(rank: number): { Part }
 	local out: { Part } = {}
-	local edge = Ranks.GroupColors[Ranks.group(rank)]
-	-- Рамка части (строки 6–15) с тёмным полем и перекрестьем.
-	table.insert(out, p(0, 6, 16, 10, "Ink"))
-	table.insert(out, p(0, 6, 16, 1, edge))
-	table.insert(out, p(0, 15, 16, 1, edge))
-	table.insert(out, p(0, 6, 1, 10, edge))
-	table.insert(out, p(15, 6, 1, 10, edge))
-	for k = 0, 6 do
-		-- Перекрестье: две диагонали внутри рамки (14×8), по 2 клетки в шаге.
-		table.insert(out, p(1 + 2 * k, 7 + k, 2, 1, "White"))
-		table.insert(out, p(13 - 2 * k, 7 + k, 2, 1, "White"))
+	local look = LOOKS[math.clamp(rank, 1, #LOOKS)]
+	-- Силуэт: скруглённый верх, тело погона, тёмная обводка.
+	table.insert(out, p(5, 0, 6, 1, "Ink"))
+	table.insert(out, p(4, 1, 8, 1, "Ink"))
+	table.insert(out, p(3, 2, 10, 14, "Ink"))
+	-- Поле и красный кант по краю.
+	table.insert(out, p(5, 1, 6, 1, look.field))
+	table.insert(out, p(4, 2, 8, 13, "Red"))
+	table.insert(out, p(5, 2, 6, 12, look.field))
+	-- Плетение генеральского погона: косые стежки.
+	if look.kind == "general" or look.kind == "marshal" then
+		for y = 3, 13 do
+			for x = 5, 10 do
+				if (x + y) % 3 == 0 then
+					table.insert(out, p(x, y, 1, 1, "Dune"))
+				end
+			end
+		end
 	end
-	-- Метки размера по центру над рамкой.
-	local m = MARKS[math.clamp(rank, 1, #MARKS)]
-	if m.kind == "dot" then
-		local start = 8 - (3 * m.n - 1) // 2
-		for k = 0, m.n - 1 do
-			table.insert(out, p(start + 3 * k, 2, 2, 2, edge))
+	-- Пуговица сверху.
+	table.insert(out, p(7, 1, 2, 2, if look.kind == "stripes" then "Mist" else "Gold"))
+	if look.kind == "stripes" then
+		-- Поперечные лычки снизу вверх.
+		for k = 1, look.n do
+			table.insert(out, p(5, 14 - 2 * k, 6, 1, "Gold"))
 		end
-	elseif m.kind == "bar" then
-		local start = 8 - (3 * m.n - 1) // 2
-		for k = 0, m.n - 1 do
-			table.insert(out, p(start + 3 * k, 0, 1, 5, edge))
+	elseif look.kind == "officer" then
+		-- Просветы вдоль погона.
+		if look.lanes == 1 then
+			table.insert(out, p(7, 4, 2, 10, "Red"))
+		else
+			table.insert(out, p(6, 4, 1, 10, "Red")) -- на пиксель от канта, чтобы не сливались
+			table.insert(out, p(9, 4, 1, 10, "Red"))
 		end
-	elseif m.kind == "cross" then
-		local w = 3 * m.n
-		local start = 8 - w // 2
-		for k = 0, m.n - 1 do
-			local x = start + 3 * k
-			-- Крестик 3×3 (с пропуском между ними — в соседней клетке следующего).
-			table.insert(out, p(x, 1, 1, 1, edge))
-			table.insert(out, p(x + 2, 1, 1, 1, edge))
-			table.insert(out, p(x + 1, 2, 1, 1, edge))
-			table.insert(out, p(x, 3, 1, 1, edge))
-			table.insert(out, p(x + 2, 3, 1, 1, edge))
+		if look.lanes == 1 then
+			-- Три малые звезды треугольником.
+			table.insert(out, p(5, 10, 2, 2, "Gold"))
+			table.insert(out, p(9, 10, 2, 2, "Gold"))
+			table.insert(out, p(7, 6, 2, 2, "Gold"))
+		else
+			for k = 1, look.n do
+				bigStar(out, 15 - 4 * k, "Gold")
+			end
 		end
+	elseif look.kind == "general" then
+		for k = 1, look.n do
+			bigStar(out, 15 - 4 * k, "Red")
+		end
+	else
+		-- Командующий фронтом: большая звезда и венок.
+		table.insert(out, p(7, 3, 2, 1, "Red"))
+		table.insert(out, p(6, 4, 4, 1, "Red"))
+		table.insert(out, p(5, 5, 6, 1, "Red"))
+		table.insert(out, p(6, 6, 4, 1, "Red"))
+		table.insert(out, p(6, 7, 1, 1, "Red"))
+		table.insert(out, p(9, 7, 1, 1, "Red"))
+		table.insert(out, p(5, 9, 1, 3, "Forest"))
+		table.insert(out, p(10, 9, 1, 3, "Forest"))
+		table.insert(out, p(6, 12, 4, 1, "Forest"))
 	end
 	return out
 end
