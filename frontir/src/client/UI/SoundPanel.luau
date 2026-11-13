@@ -1,6 +1,6 @@
 --!strict
 --[[
-	SoundPanel — громкости (GDD §13, этап 10б): кнопка «♪» над мини-картой → окно: «Звуки» и «Музыка» с кнопками
+	SoundPanel — громкости (GDD §13, этап 10б): кнопка «🔊» над мини-картой → окно: «Звуки» и «Музыка» с кнопками
 	− / + (шаг Audio.VolumeStep), «Без звука» / «Вернуть звук». Сразу меняет громкость у клиента и шлёт намерение
 	volume — сервер сохраняет в профиле, при входе громкости приходят в profile.
 ]]
@@ -56,7 +56,7 @@ function SoundPanel.new(
 	lang: Strings.Lang,
 	send: (string, { [string]: any }) -> ()
 ): SoundPanel
-	local main = button(gui, "♪", BUTTON)
+	local main = button(gui, "🔊", BUTTON)
 	main.Name = "SoundButton"
 	main.AnchorPoint = Vector2.new(1, 1)
 	main.Position = UDim2.new(1, -12, 1, -12 - Config.Render.MinimapSide - 8)

@@ -187,7 +187,7 @@ function ForcesPanel.new(
 		if n <= 0 then
 			return ""
 		end
-		return string.format(' <font color="%s">%s</font>', gold, string.rep("★", n))
+		return string.format(' <font color="%s">%s</font>', gold, string.rep("⭐", n))
 	end
 
 	-- Маршал (§6.15): танки дешевле — та же формула, что на сервере (MatchSim.unitCost).

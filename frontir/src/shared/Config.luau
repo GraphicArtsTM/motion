@@ -141,7 +141,7 @@ Config.Shop = {
 		Research = { id = 0, price = 29 },
 		Reserve = { id = 0, price = 25 },
 		-- Платные части (этап 9б, §11.3).
-		Guards = { id = 0, price = 59, powerShare = 0.12, minStrength = 400, xp = 3 }, -- танки 2★ (Forces.StarXp)
+		Guards = { id = 0, price = 59, powerShare = 0.12, minStrength = 400, xp = 3 }, -- танки 2⭐ (Forces.StarXp)
 		Airstrike = { id = 0, price = 45, frontLoss = 0.15 }, -- по клетке; радиус — Commanders.StrikeRadius
 		Squadron = { id = 0, price = 49 }, -- эсминец и транспорт у своего порта
 		AirWing = { id = 0, price = 49 }, -- истребитель и бомбардировщик у своего аэродрома

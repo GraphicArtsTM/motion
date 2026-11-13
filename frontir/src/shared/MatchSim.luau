@@ -605,7 +605,7 @@ function MatchSim.useBoost(m: Match, id: number, key: string, cell: number?): (b
 	elseif key == "Reserve" then
 		Commanders.resetCooldowns(m.commanders, id)
 	elseif key == "Guards" then
-		-- Танки 2★: доля силы державы (гарнизон и фронты), не меньше minStrength (§11.3).
+		-- Танки 2⭐: доля силы державы (гарнизон и фронты), не меньше minStrength (§11.3).
 		local g = cfg.Guards
 		local power = Forces.total(n.home) + Forces.total(MatchSim.frontForces(m, id))
 		local tanks = Forces.kindIndex("Tanks") :: number
@@ -6700,7 +6700,7 @@ function MatchSim.step(m: Match, dt: number)
 				local item = n.queue[k]
 				item.left -= simDt
 				if item.left <= 0 then
-					-- «Учебка» (§6.14): новобранцы сразу с 1★.
+					-- «Учебка» (§6.14): новобранцы сразу с 1⭐.
 					local xp = if Tech.has(m.tech, n.id, "Army", 1) then Config.Combat.StarXp[1] else 0
 					Forces.add(n.home, item.kind, Forces.stats(item.kind).strength, xp)
 					table.remove(n.queue, k)

@@ -181,7 +181,7 @@ function QuestsPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, to
 		tokensChip.Text = tostring(p.tokens)
 		for k, q in p.quests do
 			local row = questRow(k, q.kind)
-			row.name.Text = (if q.done then "✓ " else "")
+			row.name.Text = (if q.done then "✔ " else "")
 				.. string.format(Strings.get("quest." .. q.kind, lang), q.target)
 			row.name.TextColor3 = if q.done then Theme.Colors.Gold else Theme.Colors.Text
 			row.bar.set(q.progress / math.max(1, q.target))

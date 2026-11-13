@@ -112,14 +112,14 @@ function GameMenu.new(
 	gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	gridLayout.Parent = grid
 	local help = MenuKit.button(grid, "?  " .. t("gamemenu.help"), "normal", nil, 1)
-	local sound = MenuKit.button(grid, "♪  " .. t("gamemenu.sound"), "normal", nil, 2)
+	local sound = MenuKit.button(grid, "🔊  " .. t("gamemenu.sound"), "normal", nil, 2)
 	local shop = MenuKit.button(grid, "$  " .. t("gamemenu.shop"), "normal", nil, 3)
 	type Extra = { button: TextButton, visible: (() -> boolean)?, text: (() -> string)? }
 	local extras: { Extra } = {}
 	local line2 = line:Clone()
 	line2.LayoutOrder = 8
 	line2.Parent = window
-	local main = MenuKit.button(window, "⌂  " .. t("gamemenu.main"), "danger", nil, 9)
+	local main = MenuKit.button(window, "🏠  " .. t("gamemenu.main"), "danger", nil, 9)
 	local note = MenuKit.wrapLabel(window, t("gamemenu.note"), 12, Theme.Colors.Muted, 10)
 
 	local function close()

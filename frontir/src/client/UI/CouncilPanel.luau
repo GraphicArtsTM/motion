@@ -86,7 +86,7 @@ function CouncilPanel.new(
 		return string.format('<font color="%s">%s</font>', color, if lang == "en" then nation.nameEn else nation.name)
 	end
 
-	-- Карточки резолюций: нажатие — выбор (золотая рамка), «✓ ваш голос» — метка в углу.
+	-- Карточки резолюций: нажатие — выбор (золотая рамка), «✔ ваш голос» — метка в углу.
 	local myVote, picked = 0, 0
 	local draw: (now: number) -> ()
 	type Option = { card: CardKit.Card, kind: string }

@@ -676,7 +676,7 @@ function MainMenu.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, mapNa
 			local q = list[k]
 			row.frame.Visible = q ~= nil
 			if q ~= nil then
-				row.name.Text = (if q.done then "✓ " else "")
+				row.name.Text = (if q.done then "✔ " else "")
 					.. string.format(Strings.get("quest." .. q.kind, lang), q.target)
 				row.name.TextColor3 = if q.done then Theme.Colors.Gold else Theme.Colors.Text
 				row.reward.Text = string.format(t("menu.questReward"), q.medals)

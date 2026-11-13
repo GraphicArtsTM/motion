@@ -1620,7 +1620,7 @@ local function runSession(mapId: string, resync: boolean)
 			camera.fit()
 		end
 	end
-	-- Телефон (этап 10в): кнопка «⌂» — к столице (на ПК — пробел), над кнопкой звука.
+	-- Телефон (этап 10в): кнопка «🏠» — к столице (на ПК — пробел), над кнопкой звука.
 	if RenderBudget.isPhone(UserInputService.TouchEnabled, UserInputService.KeyboardEnabled) then
 		local home = Instance.new("TextButton")
 		home.Name = "HomeButton"
@@ -1633,7 +1633,7 @@ local function runSession(mapId: string, resync: boolean)
 		home.FontFace = Theme.FontBold
 		home.TextSize = 20
 		home.TextColor3 = Theme.Colors.Text
-		home.Text = "⌂"
+		home.Text = "🏠"
 		local stroke = Instance.new("UIStroke")
 		stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 		stroke.Color = Theme.Colors.PanelBorder
@@ -1775,7 +1775,7 @@ local function runSession(mapId: string, resync: boolean)
 				end
 			end
 		end,
-		-- Space — к своей столице (GDD §10); нет столицы — вся карта. На телефоне — кнопка «⌂».
+		-- Space — к своей столице (GDD §10); нет столицы — вся карта. На телефоне — кнопка «🏠».
 		onHome = goHome,
 	})
 	-- «Призрак» стройки за курсором (§15г).

@@ -2,7 +2,7 @@
 --[[
 	TutorialPanel — «Обучение» (GDD §5.5, этап 10а; под новый экран — §15ц Ц5б).
 	- Карточка слева: «ОБУЧЕНИЕ · шаг N из 6», полоса прогресса, текущий шаг крупно и подсказка, ниже — все шаги
-	  (пройденные — ✓). Шаги проверяет сервер (info.tutorialStep, события tutorial / tutorialDone).
+	  (пройденные — ✔). Шаги проверяет сервер (info.tutorialStep, события tutorial / tutorialDone).
 	- Подсветка места: вокруг того, что нажать на текущем шаге (Config.Tutorial.Focus — путь рамки в HUD), —
 	  пульсирующая золотая рамка со стрелкой «▼». Рамка не ловит нажатия (под ней кнопка работает как обычно).
 ]]
@@ -108,14 +108,14 @@ function TutorialPanel.new(
 			current.Text = "▶ " .. t("tutorial." .. kind)
 			hint.Text = t("tutorial.hint." .. kind)
 		else
-			current.Text = "✓ " .. t("tutorial.title")
+			current.Text = "✔ " .. t("tutorial.title")
 			hint.Text = t("tutorial.finished")
 		end
 		local lines: { string } = {}
 		for j, name in steps do
 			local text = t("tutorial." .. name)
 			if j < k then
-				table.insert(lines, "✓ " .. text)
+				table.insert(lines, "✔ " .. text)
 			elseif j == k then
 				table.insert(
 					lines,
