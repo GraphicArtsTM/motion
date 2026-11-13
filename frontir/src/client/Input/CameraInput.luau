@@ -8,6 +8,8 @@
 	- нажатие (левая кнопка или короткое касание без сдвига) — onTap(точка экрана, Shift): выбор старта, атака;
 	- Space — onHome (к своей столице), если задан, иначе вся карта;
 	- правая кнопка без сдвига или долгое касание (Render.LongPressSec) — onContext: кольцо действий (§15е).
+	- §15ш Ш3: палец лежит без сдвига дольше Render.TouchTipDelaySec — onPoint(точка экрана, true) (подсказка);
+	  отпустили после нажатия — onPoint(точка, false) (подсказка ещё держится); сдвиг, щипок, кольцо — onPointEnd.
 	Координаты ввода переводятся в координаты области карты через её AbsolutePosition,
 	поэтому верхняя панель Roblox (GUI inset) не сбивает зум к курсору.
 ]]
@@ -51,6 +53,9 @@ export type Handlers = {
 	onTap: ((sx: number, sy: number, shift: boolean) -> ())?,
 	onHome: (() -> ())?,
 	onContext: ((sx: number, sy: number) -> ())?, -- кольцо действий (§15е)
+	-- §15ш Ш3: подсказка по касанию — точка в координатах экрана (как io.Position у мыши); down — палец ещё лежит.
+	onPoint: ((x: number, y: number, down: boolean) -> ())?,
+	onPointEnd: (() -> ())?,
 }
 
 local function shiftDown(): boolean
@@ -186,7 +191,19 @@ function CameraInput.bind(camera: Camera2D, viewport: GuiObject, handlers: Handl
 		startAt: number,
 		moved: boolean,
 		held: boolean?, -- долгое касание уже открыло кольцо (§15е): отпускание — не нажатие
+		screenX: number, -- §15ш Ш3: точка касания на экране (для подсказки)
+		screenY: number,
+		pointed: boolean?, -- подсказка по касанию уже показана
 	}
+	local function pointEnd(touch: Touch)
+		if touch.pointed then
+			touch.pointed = false
+			local f = h.onPointEnd
+			if f ~= nil then
+				f()
+			end
+		end
+	end
 	local touches: { [InputObject]: Touch } = {}
 	local touchCount = 0
 	local pinchStartDist = 0
@@ -221,13 +238,23 @@ function CameraInput.bind(camera: Camera2D, viewport: GuiObject, handlers: Handl
 				return
 			end
 			local x, y = toLocal(input.Position)
-			touches[input] = { x = x, y = y, startX = x, startY = y, startAt = os.clock(), moved = false }
+			touches[input] = {
+				x = x,
+				y = y,
+				startX = x,
+				startY = y,
+				startAt = os.clock(),
+				moved = false,
+				screenX = input.Position.X,
+				screenY = input.Position.Y,
+			}
 			touchCount += 1
 			if touchCount == 2 then
 				camera.cancelZoom()
 				-- Второй палец — это щипок, а не нажатие.
 				for _, t in touches do
 					t.moved = true
+					pointEnd(t)
 				end
 				beginPinch()
 			end
@@ -244,6 +271,7 @@ function CameraInput.bind(camera: Camera2D, viewport: GuiObject, handlers: Handl
 			local x, y = toLocal(input.Position)
 			if math.abs(x - touch.startX) > slop or math.abs(y - touch.startY) > slop then
 				touch.moved = true
+				pointEnd(touch) -- палец повёл камеру — подсказка уходит
 			end
 			if touchCount == 1 then
 				CameraMath.pan(state, x - touch.x, y - touch.y)
@@ -279,6 +307,17 @@ function CameraInput.bind(camera: Camera2D, viewport: GuiObject, handlers: Handl
 					and os.clock() - touch.startAt <= Config.Render.TapMaxSec
 				then
 					onTap(touch.startX, touch.startY, false)
+					-- §15ш Ш3: после нажатия подсказка держится — видно, что стало (прогноз атаки, сила).
+					local onPoint = h.onPoint
+					if onPoint ~= nil then
+						touch.pointed = true
+						onPoint(touch.screenX, touch.screenY, false)
+					end
+				elseif touch.pointed and not touch.moved and not touch.held then
+					local onPoint = h.onPoint
+					if onPoint ~= nil then
+						onPoint(touch.screenX, touch.screenY, false) -- подержали и отпустили — подсказка ещё держится
+					end
 				end
 				if touchCount == 2 then
 					beginPinch()
@@ -294,12 +333,22 @@ function CameraInput.bind(camera: Camera2D, viewport: GuiObject, handlers: Handl
 	table.insert(
 		connections,
 		Session.connect(RunService.RenderStepped, function()
-			local onContext = h.onContext
-			if onContext == nil or touchCount ~= 1 then
+			if touchCount ~= 1 then
 				return
 			end
+			local onContext = h.onContext
+			local onPoint = h.onPoint
 			for _, touch in touches do
-				if not touch.moved and not touch.held and os.clock() - touch.startAt >= Config.Render.LongPressSec then
+				local age = os.clock() - touch.startAt
+				-- §15ш Ш3: палец лежит без сдвига — подсказка над картой (как наведение мыши).
+				if onPoint ~= nil and not touch.moved and not touch.held and not touch.pointed then
+					if age >= Config.Render.TouchTipDelaySec then
+						touch.pointed = true
+						onPoint(touch.screenX, touch.screenY, true)
+					end
+				end
+				if onContext ~= nil and not touch.moved and not touch.held and age >= Config.Render.LongPressSec then
+					pointEnd(touch) -- кольцо закрыло бы подсказку
 					touch.held = true
 					onContext(touch.startX, touch.startY)
 				end

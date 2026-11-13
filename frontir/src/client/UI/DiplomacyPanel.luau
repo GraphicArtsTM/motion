@@ -793,7 +793,8 @@ function DiplomacyPanel.new(
 		if gameProcessed or UserInputService:GetFocusedTextBox() ~= nil then
 			return
 		end
-		if input.KeyCode == Enum.KeyCode.T then
+		-- §15ш Ш3: только в матче (как Y и N) — в меню окно больше не открывается невидимым; закрыть — всегда.
+		if input.KeyCode == Enum.KeyCode.T and (window.Visible or playing()) then
 			setOpen(not window.Visible)
 		elseif input.KeyCode == Enum.KeyCode.Escape then
 			setOpen(false)

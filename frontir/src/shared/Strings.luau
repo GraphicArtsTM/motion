@@ -1458,8 +1458,8 @@ local TABLE: { [string]: Entry } = {
 		en = "1–0 — build · Y — technology · N — stability",
 	},
 	["help.keys.peace"] = {
-		ru = "T — дипломатия · G — метки на карте · Tab — меню",
-		en = "T — diplomacy · G — map pings · Tab — menu",
+		ru = "T — дипломатия · F — Совет держав · G — метки на карте · Tab — меню",
+		en = "T — diplomacy · F — Council · G — map pings · Tab — menu",
 	},
 	["help.toHandbook"] = { ru = "Справочник: %s", en = "Handbook: %s" },
 	["help.close"] = { ru = "Понятно!", en = "Got it!" },

@@ -94,6 +94,15 @@ PixelIcons.Icons = table.freeze({
 		p(5, 3, 3, 2, "Ochre"),
 		p(2, 7, 4, 1, "Steel"),
 	},
+	council = { -- §15ш Ш3: колонны — Совет держав
+		p(1, 0, 6, 1, "Gold"),
+		p(0, 1, 8, 1, "Gold"),
+		p(1, 2, 1, 4, "White"),
+		p(3, 2, 2, 4, "White"),
+		p(6, 2, 1, 4, "White"),
+		p(0, 6, 8, 1, "Mist"),
+		p(0, 7, 8, 1, "Steel"),
+	},
 	ping = { -- метка на карте
 		p(2, 0, 4, 4, "Red"),
 		p(3, 1, 2, 2, "White"),

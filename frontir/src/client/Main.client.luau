@@ -735,6 +735,31 @@ local function runSession(mapId: string, resync: boolean)
 			end
 		end,
 	})
+	-- §15ш Ш3: одно окно за раз — и окна из меню (Магазин, Арсенал, Гардероб, Задания, Путь командира, Звук,
+	-- настройки сервера). Окно предложения мира — нет: оно приходит само и не закрывает то, где игрок.
+	local function sheetOf(isOpen: () -> boolean, toggle: () -> ()): { busy: () -> boolean, cancel: () -> () }
+		return {
+			busy = isOpen,
+			cancel = function()
+				if isOpen() then
+					toggle()
+				end
+			end,
+		}
+	end
+	for _, w in
+		{
+			{ shopPanel.isOpen, shopPanel.toggle },
+			{ arsenalPanel.isOpen, arsenalPanel.toggle },
+			{ wardrobe.isOpen, wardrobe.toggle },
+			{ questsPanel.isOpen, questsPanel.toggle },
+			{ ranksPanel.isOpen, ranksPanel.toggle },
+			{ soundPanel.isOpen, soundPanel.toggle },
+			{ serverPanel.isOpen, serverPanel.toggle },
+		} :: { { any } }
+	do
+		table.insert(sheets, sheetOf(w[1], w[2]))
+	end
 	openHandbookAt = function(tab: string)
 		handbook.open(tab)
 	end
@@ -878,7 +903,7 @@ local function runSession(mapId: string, resync: boolean)
 			end,
 		},
 		{
-			label = Strings.get("council.title", lang), -- §15ц Ц4а: окно Совета
+			label = Strings.get("council.title", lang) .. "  [F]", -- §15ц Ц4а: окно Совета
 			action = council.toggle,
 			visible = function(): boolean
 				return stabilityPanel.button.Visible -- то же условие: идёт игра и держава жива
@@ -1023,6 +1048,16 @@ local function runSession(mapId: string, resync: boolean)
 			isOpen = stabilityPanel.isOpen,
 			visible = function(): boolean
 				return stabilityPanel.button.Visible
+			end,
+		},
+		{ -- §15ш Ш3: Совет — на виду, как остальные окна механик
+			icon = "council",
+			name = "council.title",
+			key = "F",
+			toggle = council.toggle,
+			isOpen = council.isOpen,
+			visible = function(): boolean
+				return stabilityPanel.button.Visible -- то же условие, что в меню игры: идёт игра, держава жива
 			end,
 		},
 		{
@@ -1690,8 +1725,17 @@ local function runSession(mapId: string, resync: boolean)
 		}, decorate :: any)
 	end
 
+	-- §15ш Ш3: подсказка по касанию (телефон) — задаётся ниже, когда готова подсказка над картой.
+	local touchPoint: (x: number, y: number, down: boolean) -> () = function() end
+	local touchPointEnd: () -> () = function() end
 	local input = CameraInput.bind(camera, viewport, {
 		onContext = openRing,
+		onPoint = function(x: number, y: number, down: boolean)
+			touchPoint(x, y, down)
+		end,
+		onPointEnd = function()
+			touchPointEnd()
+		end,
 		onTap = function(sx: number, sy: number)
 			local cx, cy = CameraMath.cellAt(camera.state, sx, sy)
 			if cx ~= nil and cy ~= nil then
@@ -1722,11 +1766,8 @@ local function runSession(mapId: string, resync: boolean)
 	tooltip.setAiming(function(): any
 		return commanderPanel.aiming() or (if airPanel.aiming() then "raid" else nil)
 	end)
-	Session.connect(UserInputService.InputChanged, function(io: InputObject)
-		if io.UserInputType ~= Enum.UserInputType.MouseMovement then
-			return
-		end
-		local p = io.Position
+	-- Подсказка, подсветка державы и «призрак» стройки у точки экрана: курсор мыши или палец (§15ш Ш3).
+	local function pointAt(p: Vector3)
 		local inset = viewport.AbsolutePosition
 		local cx, cy = CameraMath.cellAt(camera.state, p.X - inset.X, p.Y - inset.Y)
 		local cell = if cx ~= nil and cy ~= nil then cy * map.width + cx else nil
@@ -1759,7 +1800,30 @@ local function runSession(mapId: string, resync: boolean)
 		tooltip.show(cell, UiScale.units(p.X), UiScale.units(p.Y), hud.percent())
 		highlight.setHover(if cell ~= nil then ClientState.ownerAt(cs, cell) else nil)
 		aimCell = cell
+	end
+	Session.connect(UserInputService.InputChanged, function(io: InputObject)
+		if io.UserInputType == Enum.UserInputType.MouseMovement then
+			pointAt(io.Position)
+		end
 	end)
+	-- §15ш Ш3: палец лежит — подсказка; отпустили — держится Render.TouchTipSec; повели камеру — уходит.
+	local touchTipUntil: number? = nil
+	touchPoint = function(x: number, y: number, down: boolean)
+		pointAt(Vector3.new(x, y, 0))
+		touchTipUntil = if down then math.huge else os.clock() + Config.Render.TouchTipSec
+	end
+	touchPointEnd = function()
+		if touchTipUntil == nil then
+			return
+		end
+		touchTipUntil = nil
+		tooltip.show(nil, 0, 0, 0)
+		highlight.setHover(nil)
+		if build.active() then
+			build.hover(nil)
+		end
+		aimCell = nil
+	end
 
 	local musicAt = 0
 	local travelToastAt = -1
@@ -1870,6 +1934,9 @@ local function runSession(mapId: string, resync: boolean)
 		railLayer.update(now, math.clamp(now - railAt, 0, 0.25), camera.state) -- §15ч Ч2: дороги вдали и поезда
 		railAt = now
 		tooltip.tick(hud.percent()) -- §15ш Ш1: числа в подсказке живые и без движения мыши
+		if touchTipUntil ~= nil and os.clock() > touchTipUntil then
+			touchPointEnd() -- §15ш Ш3: подсказка по касанию отслужила
+		end
 		-- §15х: целимся — круги защиты врага, которые накрывают клетку под курсором.
 		local ac = aimCell
 		if ac ~= nil then

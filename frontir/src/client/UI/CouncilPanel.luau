@@ -10,6 +10,7 @@
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local ClientState = require(Shared:WaitForChild("ClientState"))
@@ -277,6 +278,25 @@ function CouncilPanel.new(
 	end
 
 	local lastSecond = -1
+	local function toggle()
+		if window.Visible then
+			window.Visible = false
+		elseif playing() then
+			win.setTab(if cs.diplo.council.vote ~= nil then "vote" else "active")
+			window.Visible = true
+			draw(os.clock())
+		end
+	end
+	-- §15ш Ш3: клавиша F — как у Дипломатии (T), Технологий (Y), Стабильности (N); кнопка — у мини-карты.
+	Session.connect(UserInputService.InputBegan, function(input: InputObject, gameProcessed: boolean)
+		if gameProcessed or UserInputService:GetFocusedTextBox() ~= nil then
+			return
+		end
+		if input.KeyCode == Enum.KeyCode.F and (window.Visible or playing()) then
+			toggle()
+		end
+	end)
+
 	return {
 		window = window,
 		refresh = function()
@@ -289,15 +309,7 @@ function CouncilPanel.new(
 				all(now)
 			end
 		end,
-		toggle = function()
-			if window.Visible then
-				window.Visible = false
-			elseif playing() then
-				win.setTab(if cs.diplo.council.vote ~= nil then "vote" else "active")
-				window.Visible = true
-				draw(os.clock())
-			end
-		end,
+		toggle = toggle,
 		isOpen = function(): boolean
 			return window.Visible
 		end,
