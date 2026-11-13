@@ -1334,6 +1334,14 @@ local TABLE: { [string]: Entry } = {
 		ru = "НА ВАС АТАКУЮТ (%d) — НЕТ ВОЙСК!",
 		en = "UNDER ATTACK (%d) — NO TROOPS!",
 	},
+	["alarm.losing"] = {
+		ru = "ФРОНТ ПРОСЕДАЕТ: ВРАГ СИЛЬНЕЕ ВДВОЕ (%d)",
+		en = "FRONT COLLAPSING: ENEMY TWICE AS STRONG (%d)",
+	},
+	["alarm.hintLosing"] = {
+		ru = "Наймите войска — гарнизон сам держит оборону на всех границах.",
+		en = "Hire troops — the garrison defends every border by itself.",
+	},
 	["alarm.hint"] = {
 		ru = "Наймите войска — без них фронт не устоит.",
 		en = "Hire troops — without them the front will fall.",

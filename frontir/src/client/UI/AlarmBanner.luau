@@ -1,7 +1,7 @@
 --!strict
 --[[
-	AlarmBanner — тревога «НА ВАС АТАКУЮТ — НЕТ ВОЙСК» (GDD §15ш Ш2): первой в столбике сверху по центру.
-	Когда показывать — чистый Alarm.state (входящие атаки из AttackList, войска — ForcesPanel.army);
+	AlarmBanner — тревога «НА ВАС АТАКУЮТ — НЕТ ВОЙСК» или «ФРОНТ ПРОСЕДАЕТ» (GDD §15ш Ш2): первой в столбике
+	сверху по центру. Когда показывать — чистый Alarm.state (перевесы атак на вас, войска — ForcesPanel.army);
 	кнопка «Пехота [Z]» нанимает, как клавиша Z. Рамка и заголовок — цветом тревоги (Alarm.alertName), рамка мигает.
 ]]
 
@@ -9,7 +9,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Alarm = require(Shared:WaitForChild("Alarm"))
-local AttackList = require(Shared:WaitForChild("AttackList"))
 local ClientState = require(Shared:WaitForChild("ClientState"))
 local Config = require(Shared:WaitForChild("Config"))
 local NationColors = require(Shared:WaitForChild("NationColors"))
@@ -72,9 +71,14 @@ function AlarmBanner.new(
 		local me = if cs.myNation ~= nil then cs.nations[cs.myNation] else nil
 		local state: Alarm.State? = nil
 		if cs.phase == "Play" and stats ~= nil and me ~= nil and me.alive then
-			local _, counts = AttackList.rows(stats.attacks :: any, cs.myNation, 0)
+			local ratios: { number } = {}
+			for _, a in stats.attacks do
+				if a.target == cs.myNation and a.attacker ~= cs.myNation then
+					table.insert(ratios, a.ratio)
+				end
+			end
 			local home, front = army()
-			state = Alarm.state(counts.inc, home + front)
+			state = Alarm.state(ratios, home + front)
 		end
 		shown = state ~= nil
 		frame.Visible = shown
@@ -83,7 +87,10 @@ function AlarmBanner.new(
 		end
 		local rgb = if me.colorIndex >= 1 then NationColors.Colors[me.colorIndex] else nil
 		local color = Theme.color(Alarm.alertName(rgb))
-		title.Text = string.format(Strings.get("alarm.noTroops", lang), state.attacks)
+		local losing = state.kind == "losing"
+		title.Text =
+			string.format(Strings.get(if losing then "alarm.losing" else "alarm.noTroops", lang), state.attacks)
+		hint.Text = Strings.get(if losing then "alarm.hintLosing" else "alarm.hint", lang)
 		title.TextColor3 = color
 		edge.Color = color
 		-- Рамка мигает: заметно краем глаза, но текст не дёргается.

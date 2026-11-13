@@ -7,14 +7,24 @@ local NationColors = require("../src/shared/NationColors")
 local Palette = require("../src/shared/Palette")
 
 T.describe("Тревога «нет войск» (§15ш Ш2)", function()
-	T.it("плашка — только когда на вас атакуют, а войск нет", function()
-		T.expect(Alarm.state(0, 0)).toBe(nil)
-		T.expect(Alarm.state(2, 150)).toBe(nil)
-		local s = Alarm.state(3, 0)
-		T.expect(s ~= nil).toBe(true)
-		T.expect((s :: Alarm.State).attacks).toBe(3)
-		T.expect(Alarm.state(1, 0.5) ~= nil).toBe(true) -- полсолдата — это ещё не войска
+	T.it("«нет войск» — на вас атакуют, а войск меньше одного", function()
+		T.expect(Alarm.state({}, 0)).toBe(nil)
+		local s = Alarm.state({ 0.5, 3, math.huge }, 0) :: Alarm.State
+		T.expect(s.kind).toBe("noTroops")
+		T.expect(s.attacks).toBe(3)
+		T.expect((Alarm.state({ 0.2 }, 0.5) :: Alarm.State).kind).toBe("noTroops") -- полсолдата — ещё не войска
 	end)
+
+	T.it(
+		"«фронт проседает» — войска есть, но перевес врага на фронте не меньше LosingRatio",
+		function()
+			local edge = Config.Render.Alarm.LosingRatio
+			T.expect(Alarm.state({ 0.8, edge - 0.01 }, 150)).toBe(nil) -- держимся
+			local s = Alarm.state({ 0.8, edge, math.huge }, 150) :: Alarm.State
+			T.expect(s.kind).toBe("losing")
+			T.expect(s.attacks).toBe(2) -- только проседающие фронты
+		end
+	)
 
 	T.it("цвет тревоги не сливается ни с одним цветом державы", function()
 		local names = Config.Render.Alarm.AlertColors :: { string }
