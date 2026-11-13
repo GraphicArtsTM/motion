@@ -16,6 +16,7 @@ local Strings = require(Shared:WaitForChild("Strings"))
 
 local CardKit = require(script.Parent:WaitForChild("CardKit"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local UiScale = require(script.Parent:WaitForChild("UiScale"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 export type ActionRing = {
@@ -188,15 +189,18 @@ function ActionRing.new(
 		for k, run in todo do
 			runs[k] = run
 		end
+		-- §15ц: слой в масштабе экрана — точка нажатия (настоящие пиксели) переводится в условные.
+		local f = UiScale.factor()
 		local inset = viewport.AbsolutePosition - gui.AbsolutePosition
-		local cx, cy = sx + inset.X, sy + inset.Y
+		local px, py = (sx + inset.X) / f, (sy + inset.Y) / f
+		local cx, cy = px, py
 		-- Кольцо не вылезает за край экрана.
-		local size = gui.AbsoluteSize
+		local size = UiScale.size(gui)
 		local r = radiusFor(#labels)
 		local margin = r + cfg.ButtonW / 2
 		cx = math.clamp(cx, margin, math.max(margin, size.X - margin))
 		cy = math.clamp(cy, r + 30, math.max(r + 30, size.Y - r - 30))
-		center.Position = UDim2.fromOffset(sx + inset.X, sy + inset.Y)
+		center.Position = UDim2.fromOffset(px, py)
 		for k, text in labels do
 			local b = button(k)
 			-- Первая кнопка — сверху, дальше по часовой стрелке.

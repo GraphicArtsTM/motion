@@ -6,21 +6,19 @@
 	сложность ботов, внизу — «Выйти» (в главное меню). Голосований, генерала и флага здесь нет: генерал — в Арсенале,
 	флаг — в Гардеробе. Если голосование включено (Config.Match.LobbyVotes) — рамки ModePanel и CommanderPanel, как
 	раньше, переезжают сюда под карточку.
-	Отдельно — окно «Как играть» (H): шесть шагов и клавиши; кнопка «Справочник механик» (§15х ч.5) — handbookButton,
-	её подключает Main.client (окно UI/HandbookPanel).
+	Окно «Как играть» (H) с §15ц Ц4б — отдельный модуль UI/HowToPlay.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local ClientState = require(Shared:WaitForChild("ClientState"))
 local Config = require(Shared:WaitForChild("Config"))
-local PixelIcons = require(Shared:WaitForChild("PixelIcons"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
 local Logo = require(script.Parent:WaitForChild("Logo"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local UiScale = require(script.Parent:WaitForChild("UiScale"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
@@ -29,9 +27,6 @@ export type LobbyScreen = {
 	-- Рамки голосования (режим, карта) и выбора генерала: на время лобби — в экран, потом — обратно.
 	attach: (vote: GuiObject?, picker: GuiObject?, mapVote: GuiObject?) -> (),
 	update: (now: number) -> (),
-	toggleHelp: () -> (),
-	helpOpen: () -> boolean,
-	handbookButton: TextButton, -- §15х ч.5: «Справочник механик» в окне «Как играть»
 }
 
 local LobbyScreen = {}
@@ -63,24 +58,6 @@ local function column(parent: Instance, name: string, order: number, gap: number
 	list.Padding = UDim.new(0, gap)
 	list.Parent = f
 	return f
-end
-
-local function icon(parent: Instance, key: string, scale: number, order: number): Frame
-	local root = Instance.new("Frame")
-	root.BackgroundTransparency = 1
-	root.Size = UDim2.fromOffset(PixelIcons.Size * scale, PixelIcons.Size * scale)
-	root.LayoutOrder = order
-	root.Parent = parent
-	local parts: { PixelIcons.Part } = PixelIcons.Icons[key] or {}
-	for _, p in parts do
-		local f = Instance.new("Frame")
-		f.BorderSizePixel = 0
-		f.BackgroundColor3 = Theme.color(p.color)
-		f.Position = UDim2.fromOffset(p.x * scale, p.y * scale)
-		f.Size = UDim2.fromOffset(p.w * scale, p.h * scale)
-		f.Parent = root
-	end
-	return root
 end
 
 local function smallButton(parent: Instance, text: string, w: number, h: number): TextButton
@@ -139,10 +116,10 @@ function LobbyScreen.new(
 	local scale = Instance.new("UIScale")
 	scale.Parent = content
 	local function fit()
-		local s = gui.AbsoluteSize
+		local s = UiScale.size(gui)
 		scale.Scale = math.clamp(math.min((s.X - 24) / cfg.WidthPx, (s.Y - cfg.DockSpacePx) / cfg.HeightPx), 0.5, 1)
 	end
-	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fit)
+	UiScale.onResize(gui, fit)
 	fit()
 
 	-- Заголовок.
@@ -295,124 +272,6 @@ function LobbyScreen.new(
 		end
 	end
 
-	-- «Как играть»: окно поверх всего.
-	local help = Instance.new("Frame")
-	help.Name = "HowToPlay"
-	help.AnchorPoint = Vector2.new(0.5, 0.5)
-	help.Position = UDim2.fromScale(0.5, 0.5)
-	help.Size = UDim2.fromOffset(cfg.HelpWidthPx, 0)
-	help.AutomaticSize = Enum.AutomaticSize.Y
-	help.BackgroundColor3 = Theme.Colors.PanelBg
-	help.Visible = false
-	help.ZIndex = 30
-	help.Parent = gui
-	Theme.decorate(help)
-	local helpScale = Instance.new("UIScale")
-	helpScale.Parent = help
-	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), function()
-		helpScale.Scale = math.clamp((gui.AbsoluteSize.X - 24) / cfg.HelpWidthPx, 0.5, 1)
-	end)
-	helpScale.Scale = math.clamp((gui.AbsoluteSize.X - 24) / cfg.HelpWidthPx, 0.5, 1)
-	local helpPad = Instance.new("UIPadding")
-	helpPad.PaddingLeft = UDim.new(0, 18)
-	helpPad.PaddingRight = UDim.new(0, 18)
-	helpPad.PaddingTop = UDim.new(0, 14)
-	helpPad.PaddingBottom = UDim.new(0, 14)
-	helpPad.Parent = help
-	local helpList = Instance.new("UIListLayout")
-	helpList.SortOrder = Enum.SortOrder.LayoutOrder
-	helpList.Padding = UDim.new(0, 8)
-	helpList.Parent = help
-	local helpTitle = label(help, 22, true, 0)
-	helpTitle.Text = Strings.get("help.title", lang)
-	helpTitle.TextColor3 = Theme.Colors.Gold
-	for k, step in cfg.HelpSteps do
-		local row = Instance.new("Frame")
-		row.BackgroundTransparency = 1
-		row.LayoutOrder = k
-		row.Size = UDim2.fromScale(1, 0)
-		row.AutomaticSize = Enum.AutomaticSize.Y
-		row.Parent = help
-		local rowList = Instance.new("UIListLayout")
-		rowList.FillDirection = Enum.FillDirection.Horizontal
-		rowList.VerticalAlignment = Enum.VerticalAlignment.Center
-		rowList.Padding = UDim.new(0, 12)
-		rowList.SortOrder = Enum.SortOrder.LayoutOrder
-		rowList.Parent = row
-		icon(row, step.icon, 4, 1)
-		local t = Instance.new("TextLabel")
-		t.LayoutOrder = 2
-		t.BackgroundTransparency = 1
-		t.Size = UDim2.new(1, -48, 0, 0)
-		t.AutomaticSize = Enum.AutomaticSize.Y
-		t.TextWrapped = true
-		t.RichText = true
-		t.TextXAlignment = Enum.TextXAlignment.Left
-		t.FontFace = Theme.Font
-		t.TextSize = 15
-		t.TextColor3 = Theme.Colors.Text
-		t.Text = Strings.get("help." .. step.key, lang)
-		t.Parent = row
-	end
-	local keys = label(help, 13, false, #cfg.HelpSteps + 1)
-	keys.TextWrapped = true
-	keys.AutomaticSize = Enum.AutomaticSize.Y
-	keys.Size = UDim2.fromScale(1, 0)
-	keys.TextXAlignment = Enum.TextXAlignment.Left
-	keys.TextColor3 = Theme.Colors.Muted
-	keys.Text = Strings.get("help.keys", lang)
-	-- §15х ч.5: справочник механик — карточки «Что это · Как запустить · Чем защититься».
-	local buttons = Instance.new("Frame")
-	buttons.Name = "Buttons"
-	buttons.LayoutOrder = #cfg.HelpSteps + 2
-	buttons.BackgroundTransparency = 1
-	buttons.Size = UDim2.fromOffset(0, Config.Render.MinTouchTargetPx)
-	buttons.AutomaticSize = Enum.AutomaticSize.X
-	buttons.Parent = help
-	local buttonsList = Instance.new("UIListLayout")
-	buttonsList.FillDirection = Enum.FillDirection.Horizontal
-	buttonsList.SortOrder = Enum.SortOrder.LayoutOrder
-	buttonsList.Padding = UDim.new(0, 10)
-	buttonsList.Parent = buttons
-	local handbook = Instance.new("TextButton")
-	handbook.Name = "Handbook"
-	handbook.LayoutOrder = 1
-	handbook.Size = UDim2.fromOffset(240, Config.Render.MinTouchTargetPx)
-	handbook.BackgroundColor3 = Theme.Colors.Slate
-	handbook.FontFace = Theme.FontBold
-	handbook.TextSize = 16
-	handbook.TextColor3 = Theme.Colors.Sky
-	handbook.Text = Strings.get("handbook.open", lang)
-	handbook.Parent = buttons
-	Theme.decorate(handbook)
-	local close = Instance.new("TextButton")
-	close.LayoutOrder = 2
-	close.Size = UDim2.fromOffset(180, Config.Render.MinTouchTargetPx)
-	close.BackgroundColor3 = Theme.Colors.Slate
-	close.FontFace = Theme.FontBold
-	close.TextSize = 16
-	close.TextColor3 = Theme.Colors.Gold
-	close.Text = Strings.get("help.close", lang)
-	close.Parent = buttons
-	Theme.decorate(close)
-	local function toggleHelp()
-		help.Visible = not help.Visible
-		if help.Visible then
-			Theme.popIn(help)
-		end
-	end
-	Session.connect(close.Activated, toggleHelp)
-	Session.connect(UserInputService.InputBegan, function(input: InputObject, gameProcessed: boolean)
-		if gameProcessed or UserInputService:GetFocusedTextBox() ~= nil then
-			return
-		end
-		if input.KeyCode == Enum.KeyCode.H then
-			toggleHelp()
-		elseif input.KeyCode == Enum.KeyCode.Escape and help.Visible then
-			help.Visible = false
-		end
-	end)
-
 	local function update(now: number)
 		local lobby = cs.phase == "Lobby" or cs.phase == "Waiting"
 		root.Visible = lobby
@@ -486,8 +345,8 @@ function LobbyScreen.new(
 		if code ~= nil then
 			codeLine.Text = string.format(Strings.get("lobby.code", lang), code)
 		end
-		-- Одиночная игра: сложность (выбранная — золотом).
-		diffRow.Visible = mode.humans == 1 and cs.phase == "Lobby"
+		-- §15ц Ц2 / Ц5б: при ожидании выбора сложности нет — сила ботов выбирается в «Играть одному».
+		diffRow.Visible = false
 		for level, b in diffButtons do
 			local on = mode.difficulty == level
 			b.BackgroundColor3 = if on then Theme.Colors.Gold else Theme.Colors.PanelBg
@@ -510,11 +369,6 @@ function LobbyScreen.new(
 	return {
 		attach = attach,
 		update = update,
-		toggleHelp = toggleHelp,
-		helpOpen = function(): boolean
-			return help.Visible
-		end,
-		handbookButton = handbook,
 	}
 end
 

@@ -17,6 +17,7 @@ local Strings = require(Shared:WaitForChild("Strings"))
 
 local MenuKit = require(script.Parent:WaitForChild("MenuKit"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local UiScale = require(script.Parent:WaitForChild("UiScale"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
@@ -59,10 +60,10 @@ function RanksPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang): Ra
 	local scale = Instance.new("UIScale")
 	scale.Parent = window
 	local function fit()
-		local s = gui.AbsoluteSize
+		local s = UiScale.size(gui)
 		scale.Scale = math.clamp(math.min((s.X - 24) / W, (s.Y - 24) / 620), 0.4, 1)
 	end
-	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fit)
+	UiScale.onResize(gui, fit)
 	fit()
 
 	-- Заголовок и «×».

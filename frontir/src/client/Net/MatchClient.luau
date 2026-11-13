@@ -24,6 +24,7 @@ export type Handlers = {
 	onForces: () -> (),
 	onWars: () -> (),
 	onBuildings: () -> (),
+	onRails: ((msg: any) -> ())?, -- §15ч Ч1: железные дороги
 	onDiplo: () -> (),
 	onStability: (rebelsChanged: { number }) -> (), -- своя стабильность и повстанцы (§6.10)
 	onTech: (() -> ())?, -- свои технологии пришли (§6.14)
@@ -105,6 +106,11 @@ function MatchClient.connect(cs: ClientState, handlers: Handlers, mapId: string?
 			elseif msg.kind == "buildings" and type(msg.list) == "table" then
 				ClientState.applyBuildings(cs, msg.list)
 				handlers.onBuildings()
+			elseif msg.kind == "rails" then
+				-- §15ч Ч1: железные дороги (ClientState.applyRails — в обработчике: нужна карта для мостов).
+				if handlers.onRails ~= nil then
+					handlers.onRails(msg)
+				end
 			elseif msg.kind == "stability" then
 				handlers.onStability(ClientState.applyStability(cs, msg))
 			elseif msg.kind == "tech" then

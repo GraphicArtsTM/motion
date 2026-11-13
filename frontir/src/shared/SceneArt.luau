@@ -44,6 +44,7 @@ SceneArt.Keys = table.freeze({
 	"tech",
 	"diplomacy",
 	"council",
+	"stability",
 	"sound",
 	"server",
 	"help",
@@ -159,6 +160,19 @@ SCENES.council = function(c)
 		flag(c, 16 + k * 18, 10, nation(1 + k * 5), rgb("White"))
 		flag(c, 128 + k * 18, 10, nation(4 + k * 5), rgb("Gold"))
 	end
+end
+
+-- §15ц Ц4а: окно «Стабильность» — спокойный город слева, неспокойный (закат, повстанцы) справа, весы над ними.
+SCENES.stability = function(c)
+	sky(c, { "Sky", "Gold", "Orange" }, 26)
+	hills(c, 24, 3, 0.05, 2, "Forest")
+	ground(c, 28, "Meadow", "Grass")
+	city(c, 4, 14, 4, 1, nation(3))
+	city(c, 3, 150, 4, 1, nation(3))
+	unit(c, "Infantry", 130, 16, 1, nation(15), true)
+	unit(c, "Infantry", 116, 16, 1, nation(15), true)
+	flag(c, 60, 10, nation(3), rgb("White"))
+	icon(c, "stability", 84, 2, 4)
 end
 
 SCENES.sound = function(c)

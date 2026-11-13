@@ -597,6 +597,10 @@ function WarFxLayer.new(canvas: Frame, screen: ScreenGui, cs: ClientState, lang:
 			elseif e.kind == "emoji" and type(e.target) == "number" then
 				showEmoji(e.target, tonumber(e.emoji) or 0)
 				continue
+			elseif e.kind == "trainStop" and type(e.cell) == "number" then
+				-- §15ч Ч2: поезд на остановке — «+$N» над станцией (свои — всегда, чужие — тоже видно торговлю).
+				floatText(e.cell, "+$" .. Strings.formatInt(tonumber(e.amount) or 0))
+				continue
 			end
 			if type(e.nation) ~= "number" or type(e.target) ~= "number" then
 				continue

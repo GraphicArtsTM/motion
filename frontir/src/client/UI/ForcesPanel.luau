@@ -21,6 +21,7 @@ local Strings = require(Shared:WaitForChild("Strings"))
 local Types = require(Shared:WaitForChild("Types"))
 
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local UiScale = require(script.Parent:WaitForChild("UiScale"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
@@ -41,6 +42,8 @@ export type ForcesPanel = {
 	hire: (k: number) -> (),
 	hireInfo: (k: number) -> HireInfo,
 	cards: Frame, -- прежние карточки найма (Main.client прячет их: найм — в полосе)
+	army: () -> (number, number), -- войска дома и на фронтах
+	summary: () -> string, -- состав войск строками (RichText)
 }
 
 local ForcesPanel = {}
@@ -108,7 +111,7 @@ function ForcesPanel.new(
 	-- Узкий экран (телефон): по центру карточки налезут на ползунок атаки слева — прижимаем вправо
 	-- и складываем в две строки.
 	local function placeCards()
-		if gui.AbsoluteSize.X < Config.Render.NarrowScreenPx then
+		if UiScale.size(gui).X < Config.Render.NarrowScreenPx then
 			cards.AnchorPoint = Vector2.new(1, 1)
 			cards.Position = UDim2.new(1, -20 - Config.Render.MinimapSide, 1, -12) -- справа мини-карта
 			cards.AutomaticSize = Enum.AutomaticSize.Y
@@ -122,7 +125,7 @@ function ForcesPanel.new(
 			cardsLayout.Wraps = false
 		end
 	end
-	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), placeCards)
+	UiScale.onResize(gui, placeCards)
 	placeCards()
 
 	local cardButtons: { TextButton } = {}
@@ -226,6 +229,7 @@ function ForcesPanel.new(
 		}
 	end
 
+	local summary: () -> string
 	local function refresh()
 		local playing = canCommand()
 		cards.Visible = playing
@@ -285,7 +289,25 @@ function ForcesPanel.new(
 			b.TextTransparency = if affordable then 0 else 0.5
 		end
 
-		-- Панель войск.
+		info.Text = summary()
+	end
+
+	-- Войска дома и на фронтах (§15ц Ц3: заголовок группы ВОЙСКА в полосе).
+	local function army(): (number, number)
+		local home, front = 0, 0
+		local forces = cs.myForces
+		if forces ~= nil then
+			for _, kf in forces.kinds do
+				home += kf.home
+				front += kf.front
+			end
+		end
+		return home, front
+	end
+
+	-- Состав войск строками (прежняя панель «Войска»; §15ц Ц3 — подсказка группы ВОЙСКА).
+	summary = function(): string
+		local forces = cs.myForces
 		local lines: { string } = { "<b>" .. Strings.get("forces.title", lang) .. "</b>" }
 		local homeTotal, frontTotal = 0, 0
 		if forces ~= nil then
@@ -344,10 +366,10 @@ function ForcesPanel.new(
 			lines,
 			string.format('<font size="12" color="%s">%s</font>', muted, Strings.get("forces.hint", lang))
 		)
-		info.Text = table.concat(lines, "\n")
+		return table.concat(lines, "\n")
 	end
 
-	return { refresh = refresh, hire = hire, hireInfo = hireInfo, cards = cards }
+	return { refresh = refresh, hire = hire, hireInfo = hireInfo, cards = cards, army = army, summary = summary }
 end
 
 return table.freeze(ForcesPanel)

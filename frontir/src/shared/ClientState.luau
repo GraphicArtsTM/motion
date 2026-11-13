@@ -10,6 +10,7 @@ local Config = require("./Config")
 local Fog = require("./Fog")
 local Cosmetics = require("./Cosmetics")
 local Modes = require("./Modes")
+local Rails = require("./Rails")
 local ServerSettings = require("./ServerSettings")
 local Protocol = require("./Net/Protocol")
 local Types = require("./Types")
@@ -110,9 +111,11 @@ export type ProfileInfo = {
 export type LeaderEntry = { userId: number, name: string, value: number }
 export type LeadersInfo = { weekly: { LeaderEntry }, duel: { LeaderEntry } }
 
--- §15л ч.3: строка «Матчи» в хабе (сервер матча; action — "join", "watch" или "full").
+-- §15л ч.3, §15ц Ц2: строка «Матчи» (Lobbies.Row): action — "join", "teams", "watch", "full", "new" или "busy";
+-- id "" — сервера пары ещё нет (новое лобби), "here" — свой сервер («как раньше»).
 export type ServerRow = {
 	id: string,
+	slot: number, -- номер пары плейлиста (0 — не из плейлиста)
 	map: string,
 	mode: string,
 	phase: string,
@@ -212,6 +215,11 @@ export type DoomInfo = {
 
 export type ApplyResult = "snapshot" | "delta" | "stats" | "forces" | "wars" | "ships" | "air" | "partial" | "ignored"
 
+-- §15ч Ч1: железные дороги. cells — клетка дороги → 1 / 2 (рельсы, шпала через клетку) или 3 (мост);
+-- nets — по державам: пути и станции главной сети (со столицей).
+export type RailNet = { paths: { { number } }, connected: { [number]: boolean } }
+export type RailsState = { nets: { [number]: RailNet }, cells: { [number]: number }, owner: { [number]: number } }
+
 export type ClientState = {
 	width: number,
 	height: number,
@@ -231,6 +239,7 @@ export type ClientState = {
 	myForces: Protocol.MyForces?, -- свои войска (только у игрока с державой)
 	wars: Protocol.WarsMessage, -- войны и запреты после мира (§6.7а)
 	buildings: { [number]: Types.Building }, -- клетка → здание (владелец — по сетке)
+	rails: RailsState, -- §15ч Ч1: железные дороги держав
 	warsAt: number, -- когда пришли wars (часы клиента; для обратных отсчётов)
 	bytes: number, -- принято байт с начала (для F3: байт/с)
 	matchId: number,
@@ -292,6 +301,7 @@ function ClientState.applyServers(cs: ClientState, list: any, now: number)
 			then
 				table.insert(out, {
 					id = r.id,
+					slot = if type(r.slot) == "number" then r.slot else 0,
 					map = r.map,
 					mode = r.mode,
 					phase = r.phase,
@@ -373,6 +383,7 @@ function ClientState.new(width: number, height: number): ClientState
 		myForces = nil,
 		wars = { wars = {}, cooldowns = {} },
 		buildings = {},
+		rails = { nets = {}, cells = {}, owner = {} },
 		matchId = 0,
 		targetNations = 0,
 		timeLimit = 0,
@@ -602,6 +613,7 @@ function ClientState.applyInfo(cs: ClientState, info: Info, now: number): boolea
 			cs.wars = { wars = {}, cooldowns = {} }
 			cs.diplo = ClientState.emptyDiplo()
 			table.clear(cs.buildings)
+			cs.rails = { nets = {}, cells = {}, owner = {} }
 			cs.fog = Fog.new(cs.width, cs.height)
 			cs.stability = ClientState.emptyStability()
 			cs.rebelSet = {}
@@ -751,6 +763,75 @@ function ClientState.cooldownBetween(cs: ClientState, a: number, b: number): num
 end
 
 -- Новые здания (сообщение buildings или полный список из info). Неверные записи пропускаются.
+-- §15ч Ч1: сообщение rails (MatchSim.railsMessage): nations[id] = { links = { { s, d } }, connected = { клетки } }
+-- или false (сети нет). full — весь список (прежние сети забыть). isRiver — клетка реки (мост).
+-- Возвращает клетки, у которых сменился вид (старые и новые рельсы) — их перерисовать.
+function ClientState.applyRails(cs: ClientState, msg: any, isRiver: (cell: number) -> boolean): { number }
+	local changed: { number } = {}
+	if type(msg) ~= "table" or type(msg.nations) ~= "table" then
+		return changed
+	end
+	local rails = cs.rails
+	local function forget(id: number)
+		local old = rails.nets[id]
+		if old == nil then
+			return
+		end
+		for _, path in old.paths do
+			for _, cell in path do
+				if rails.owner[cell] == id then
+					rails.cells[cell] = nil
+					rails.owner[cell] = nil
+					table.insert(changed, cell)
+				end
+			end
+		end
+		rails.nets[id] = nil
+	end
+	if msg.full == true then
+		for id in rails.nets do
+			forget(id)
+		end
+	end
+	for key, data in msg.nations do
+		local id = tonumber(key)
+		if id ~= nil then
+			forget(id)
+			if type(data) == "table" and type(data.links) == "table" then
+				local net: RailNet = { paths = {}, connected = {} }
+				for _, link in data.links do
+					if type(link) == "table" and type(link.s) == "number" and type(link.d) == "string" then
+						local path = Rails.decode(link.s, link.d, cs.width)
+						table.insert(net.paths, path)
+						-- Концы пути — станции (здание или город), рельсы между ними.
+						for k = 2, #path - 1 do
+							local cell = path[k]
+							rails.cells[cell] = if isRiver(cell) then 3 else 1 + (k % 2)
+							rails.owner[cell] = id
+							table.insert(changed, cell)
+						end
+					end
+				end
+				if type(data.connected) == "table" then
+					for _, cell in data.connected do
+						if type(cell) == "number" then
+							net.connected[cell] = true
+						end
+					end
+				end
+				rails.nets[id] = net
+			end
+		end
+	end
+	return changed
+end
+
+-- §15ч Ч1: станция (город, завод, порт) державы id — в её главной сети (дорога до столицы)?
+function ClientState.railConnected(cs: ClientState, id: number, cell: number): boolean
+	local net = cs.rails.nets[id]
+	return net ~= nil and net.connected[cell] == true
+end
+
 function ClientState.applyBuildings(cs: ClientState, list: { any })
 	for _, b in list do
 		if

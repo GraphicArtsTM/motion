@@ -23,7 +23,18 @@ export type Extra = {
 	stability: number?, -- своя клетка в режиме «Стабильность»: стабильность её провинции 0..100
 	pattern: string?, -- узор территории владельца (косметика §11.4)
 	flashColor: string?, -- цвет вспышки захвата владельца (палитра; nil — белый)
+	rail: number?, -- §15ч Ч1: железная дорога — 1 / 2 (рельсы: шпала / промежуток), 3 (мост)
 }
+
+-- §15ч Ч1: клетка железной дороги поверх уже посчитанного цвета: шпала — тёмная, промежуток — светлее
+-- (Render.Rail), мост — цветом дерева. Цвет державы просвечивает (дорога «своя»).
+local function railColor(kind: number, r: number, g: number, b: number): (number, number, number)
+	local cfg = Config.Render.Rail
+	local name = if kind == 3 then cfg.Bridge elseif kind == 1 then cfg.Sleeper else cfg.Track
+	local c = Palette.rgb(name)
+	local t = if kind == 3 then cfg.BridgeMix else cfg.Mix
+	return r + (c.r - r) * t, g + (c.g - g) * t, b + (c.b - b) * t
+end
 
 local TerritoryPaint = {}
 
@@ -128,6 +139,12 @@ function TerritoryPaint.cellColor(
 				r, g, b = mix(r, g, b, Palette.rgb(Config.Render.RebelColor), Config.Render.RebelHatchMix)
 				r, g, b = math.floor(r + 0.5), math.floor(g + 0.5), math.floor(b + 0.5)
 			end
+			-- Мост через реку (клетка реки ничья) — §15ч Ч1.
+			local rail = extra.rail
+			if rail ~= nil then
+				r, g, b = railColor(rail, r, g, b)
+				r, g, b = math.floor(r + 0.5), math.floor(g + 0.5), math.floor(b + 0.5)
+			end
 			if extra.fogged then
 				return TerritoryPaint.fog(r, g, b)
 			end
@@ -160,6 +177,11 @@ function TerritoryPaint.cellColor(
 			local k = Config.Cosmetics.PatternMix
 			r, g, b = r + (bc.r - r) * k, g + (bc.g - g) * k, b + (bc.b - b) * k
 		end
+	end
+	-- Рельсы (§15ч Ч1) — поверх цвета державы и узора, но не поверх тёмной линии границы.
+	local rail = if extra ~= nil then extra.rail else nil
+	if rail ~= nil and depth ~= 1 then
+		r, g, b = railColor(rail, r, g, b)
 	end
 	if extra ~= nil and extra.fogged then
 		return TerritoryPaint.fog(r, g, b)

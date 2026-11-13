@@ -1,7 +1,7 @@
 --!strict
 --[[
 	DebugOverlay — окно F3 (GDD §12): FPS, карта, зум, камера, клетка под курсором, память EditableImage.
-	В Studio открыто сразу, в игре — по F3. Время тика сервера, клеток за тик и пинг — строками extra.
+	Открывается только по F3 (§15ц Ц3: и в Studio закрыто при входе). Время тика сервера, клеток за тик и пинг — строками extra.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -49,7 +49,7 @@ function DebugOverlay.create(parent: Instance, source: DebugSource, lang: String
 	panel.BackgroundColor3 = Theme.Colors.PanelBg
 	panel.BackgroundTransparency = 0.1
 	panel.BorderSizePixel = 0
-	panel.Visible = RunService:IsStudio()
+	panel.Visible = false -- §15ц Ц3: только по F3 (и в Studio закрыта при входе)
 	panel.ZIndex = 10
 	panel.Parent = parent
 

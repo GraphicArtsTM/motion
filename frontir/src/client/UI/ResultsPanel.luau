@@ -22,6 +22,7 @@ local Types = require(Shared:WaitForChild("Types"))
 local CardKit = require(script.Parent:WaitForChild("CardKit"))
 local MenuKit = require(script.Parent:WaitForChild("MenuKit"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local UiScale = require(script.Parent:WaitForChild("UiScale"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
@@ -33,7 +34,7 @@ export type ResultsPanel = {
 
 local ResultsPanel = {}
 
-local TILE_W, TILE_H, TILE_GAP = 220, 64, 8
+local TILE_W, TILE_H, TILE_GAP = 280, 80, 10 -- §15ц Ц5б: крупнее под новый экран
 local PLACE_H = 40
 local TILES_W = 2 * TILE_W + TILE_GAP -- ширина карточки (плитки 2×2)
 local CHART_W, CHART_H = TILES_W, 150
@@ -152,11 +153,11 @@ function ResultsPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, o
 	scale.Parent = panel
 	local expanded = false -- «Подробнее»: места и график
 	local function fit()
-		local s = gui.AbsoluteSize
-		local h = if expanded then CHART_H + 640 else 520
+		local s = UiScale.size(gui)
+		local h = if expanded then CHART_H + 720 else 600
 		scale.Scale = math.clamp(math.min(s.X / (TILES_W + 60), s.Y / h), 0.45, 1)
 	end
-	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fit)
+	UiScale.onResize(gui, fit)
 	fit()
 
 	-- Заголовок и «кто победил» — по центру карточки, строка переносится, а не раздвигает окно.
@@ -194,17 +195,17 @@ function ResultsPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, o
 		f.BorderSizePixel = 0
 		f.Parent = tilesRow
 		MenuKit.stroke(f, Theme.Colors.PanelBorder, 2)
-		local art = CardKit.art(f, artKey, 66, 44)
-		art.Position = UDim2.fromOffset(6, 8)
-		local cap = MenuKit.label(f, caption, 10, Theme.Colors.Muted, true)
+		local art = CardKit.art(f, artKey, 90, 60)
+		art.Position = UDim2.fromOffset(8, 10)
+		local cap = MenuKit.label(f, caption, 12, Theme.Colors.Muted, true)
 		cap.AutomaticSize = Enum.AutomaticSize.None
-		cap.Position = UDim2.fromOffset(78, 8)
-		cap.Size = UDim2.fromOffset(TILE_W - 82, 22)
+		cap.Position = UDim2.fromOffset(108, 10)
+		cap.Size = UDim2.fromOffset(TILE_W - 112, 22)
 		cap.TextWrapped = true
 		cap.TextYAlignment = Enum.TextYAlignment.Top
-		local value = MenuKit.label(f, "—", 22, Theme.Colors.Text, true)
+		local value = MenuKit.label(f, "—", 26, Theme.Colors.Text, true)
 		value.FontFace = Theme.FontHeavy
-		value.Position = UDim2.fromOffset(78, 30)
+		value.Position = UDim2.fromOffset(108, 34)
 		return value
 	end
 	local placeValue = tile(1, "results.place", Strings.get("result.tile.place", lang))
@@ -215,7 +216,7 @@ function ResultsPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, o
 	local rewardRow = Instance.new("Frame")
 	rewardRow.Name = "Reward"
 	rewardRow.LayoutOrder = 4
-	rewardRow.Size = UDim2.fromOffset(TILES_W, 60)
+	rewardRow.Size = UDim2.fromOffset(TILES_W, 64)
 	rewardRow.BackgroundColor3 = Theme.Colors.Backdrop
 	rewardRow.BorderSizePixel = 0
 	rewardRow.Parent = panel
@@ -227,7 +228,7 @@ function ResultsPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, o
 	rewardInfo.Size = UDim2.fromScale(0, 1)
 	rewardInfo.AutomaticSize = Enum.AutomaticSize.X
 	MenuKit.list(rewardInfo, 12, true)
-	local rewardText = MenuKit.label(rewardInfo, "", 17, Theme.Colors.Sky, true, 1)
+	local rewardText = MenuKit.label(rewardInfo, "", 20, Theme.Colors.Sky, true, 1)
 	local levelUp = MenuKit.label(rewardInfo, "", 14, Theme.color("Ink"), true, 2)
 	levelUp.BackgroundTransparency = 0
 	levelUp.BackgroundColor3 = Theme.Colors.Gold
@@ -235,7 +236,7 @@ function ResultsPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, o
 	local levelRow = MenuKit.box(panel, "Level", 5)
 	MenuKit.list(levelRow, 10, true)
 	local rankIcon = MenuKit.rankIcon(levelRow, 1, 2, 1)
-	local levelText = MenuKit.label(levelRow, "", 13, Theme.Colors.Gold, true, 2)
+	local levelText = MenuKit.label(levelRow, "", 15, Theme.Colors.Gold, true, 2)
 	local levelBarHost = Instance.new("Frame")
 	levelBarHost.BackgroundTransparency = 1
 	levelBarHost.Size = UDim2.fromOffset(200, 6)
@@ -273,8 +274,10 @@ function ResultsPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, o
 	chartStroke.Thickness = Theme.BorderPx
 	chartStroke.Parent = chart
 	-- Большая «В МЕНЮ» во всю ширину карточки, под ней — отсчёт, «Смотреть карту», «Подробнее».
-	local menuButton = MenuKit.button(panel, Strings.get("result.menu", lang), "good", 52, 6)
-	menuButton.Size = UDim2.fromOffset(TILES_W, 52)
+	-- §15ц Ц5б: «В МЕНЮ» — золотая главная кнопка, как в окнах шаблона.
+	local menuButton = MenuKit.button(panel, Strings.get("result.menu", lang), "primary", 56, 6)
+	menuButton.Size = UDim2.fromOffset(TILES_W, 56)
+	menuButton.TextSize = 20
 	Session.connect(menuButton.Activated, onMenu)
 	local footer = Instance.new("Frame")
 	footer.BackgroundTransparency = 1

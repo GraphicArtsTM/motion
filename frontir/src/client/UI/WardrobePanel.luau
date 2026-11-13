@@ -93,8 +93,9 @@ function WardrobePanel.new(
 		{ key = "capture", label = t("wardrobe.captures") },
 		{ key = "title", label = t("wardrobe.titles") },
 		{ key = "flag", label = t("wardrobe.flag") },
-	}, { flag = "list" })
-	local window = win.frame
+	}, { flag = "list" }, true)
+	local window = win.frame; -- §15ц Ц5а: низ витрины — где взять медали (кнопки — на карточках).
+	(win.footer :: CardKit.Footer).set("", false, t("wardrobe.hint"))
 	local medalsChip = CardKit.chip(win.chips, "money", 1)
 
 	-- Узоры, вспышки, титулы.

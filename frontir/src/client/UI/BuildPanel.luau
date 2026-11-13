@@ -28,6 +28,7 @@ local Types = require(Shared:WaitForChild("Types"))
 local CardKit = require(script.Parent:WaitForChild("CardKit"))
 local MenuKit = require(script.Parent:WaitForChild("MenuKit"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local UiScale = require(script.Parent:WaitForChild("UiScale"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
 local BuildGhost = require(script.Parent.Parent:WaitForChild("Render"):WaitForChild("BuildGhost"))
 
@@ -292,7 +293,7 @@ function BuildPanel.new(
 	local main = button(gui, 200, BUTTON)
 	main.Name = "BuildButton"
 	local function placeMain()
-		if gui.AbsoluteSize.X < Config.Render.NarrowScreenPx then
+		if UiScale.size(gui).X < Config.Render.NarrowScreenPx then
 			main.AnchorPoint = Vector2.new(1, 1)
 			main.Position = UDim2.new(1, -20 - Config.Render.MinimapSide, 1, -12 - 2 * 56 - 12)
 		else
@@ -300,7 +301,7 @@ function BuildPanel.new(
 			main.Position = UDim2.new(0.5, 0, 1, -12 - 56 - 6)
 		end
 	end
-	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), placeMain)
+	UiScale.onResize(gui, placeMain)
 	placeMain()
 
 	-- §15л ч.10: меню стройки — карточки зданий (картинка ItemArt, название, цена, подсказка, клавиша).
@@ -323,9 +324,9 @@ function BuildPanel.new(
 	local menuScale = Instance.new("UIScale")
 	menuScale.Parent = menu
 	local function fitMenu()
-		menuScale.Scale = math.clamp((gui.AbsoluteSize.X - 24) / MENU_W, 0.45, 1)
+		menuScale.Scale = math.clamp((UiScale.size(gui).X - 24) / MENU_W, 0.45, 1)
 	end
-	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fitMenu)
+	UiScale.onResize(gui, fitMenu)
 	fitMenu()
 	local menuHead = Instance.new("Frame")
 	menuHead.BackgroundTransparency = 1

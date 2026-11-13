@@ -20,6 +20,7 @@ local Types = require(Shared:WaitForChild("Types"))
 local CardKit = require(script.Parent:WaitForChild("CardKit"))
 local MenuKit = require(script.Parent:WaitForChild("MenuKit"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local UiScale = require(script.Parent:WaitForChild("UiScale"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
@@ -102,7 +103,7 @@ function TechPanel.new(
 	stroke(main, Theme.Colors.PanelBorder)
 	main.Parent = gui
 	local function place()
-		if gui.AbsoluteSize.X < Config.Render.NarrowScreenPx then
+		if UiScale.size(gui).X < Config.Render.NarrowScreenPx then
 			main.AnchorPoint = Vector2.new(1, 1)
 			main.Position = UDim2.new(1, -20 - Config.Render.MinimapSide, 1, -12 - 4 * 56 - 24)
 		else
@@ -110,14 +111,28 @@ function TechPanel.new(
 			main.Position = UDim2.new(0.5, 108, 1, -12 - 2 * 56 - 12)
 		end
 	end
-	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), place)
+	UiScale.onResize(gui, place)
 	place()
 
 	-- Окно (§15л ч.9): витрина CardKit — три ветки столбцами, уровень — карточка с картинкой ItemArt, между — стрелки.
 	local function t(key: string): string
 		return Strings.get(key, lang)
 	end
-	local win = CardKit.window(gui, "Tech", t("tech.titleBig"), t("tech.subtitle"), 940, 640, {}, { main = "list" })
+	local win = CardKit.window(
+		gui,
+		"Tech",
+		t("tech.titleBig"),
+		t("tech.subtitle"),
+		940,
+		640,
+		{},
+		{ main = "list" },
+		true
+	)
+	-- §15ц Ц4б: нажатие на уровень — выбор, изучает главная кнопка внизу.
+	local foot = win.footer :: CardKit.Footer
+	local picked: string? = nil -- ветка .. уровень
+	local draw: () -> ()
 	local window = win.frame
 	window.ZIndex = 5
 	local moneyChip = CardKit.chip(win.chips, "money", 1)
@@ -235,12 +250,10 @@ function TechPanel.new(
 			cells[branch .. level] =
 				{ button = b, name = name, desc = desc, info = info, bar = bar, edge = edge, dim = dim, tag = tag }
 			Session.connect(b.Activated, function()
-				if not playing() then
-					return
-				end
 				local have = (cs.tech.levels :: any)[branch] :: number
-				if level == have + 1 and cs.tech.research == nil and not locked(branch, level) then
-					send("research", { branch = branch })
+				if playing() and level > have then
+					picked = branch .. level
+					draw()
 				end
 			end)
 		end
@@ -256,7 +269,82 @@ function TechPanel.new(
 		return string.format(Strings.get("tech.progress", lang), name, r.left)
 	end
 
-	local function draw()
+	-- Выбранный уровень: ветка, уровень (nil — ничего не выбрано или уже изучено).
+	local function pickedLevel(): (string?, number)
+		local key = picked
+		if key == nil then
+			return nil, 0
+		end
+		for _, b in BRANCHES do
+			local branch: string = b
+			for level = 1, #cfg.Cost do
+				if branch .. level == key then
+					local have = (cs.tech.levels :: any)[branch] :: number
+					if level <= have then
+						return nil, level
+					end
+					return branch, level
+				end
+			end
+		end
+		return nil, 0
+	end
+	-- Первый доступный уровень (следующий в ветке, не закрыт) — выбирается сам, пока игрок ничего не выбрал.
+	local function firstAvailable(): string?
+		for _, branch in BRANCHES do
+			local have = (cs.tech.levels :: any)[branch] :: number
+			local level = have + 1
+			if level <= #cfg.Cost and not locked(branch, level) then
+				return branch .. level
+			end
+		end
+		return nil
+	end
+
+	-- Низ окна: «Изучить: … — $N, N с» или почему нельзя.
+	local function drawFooter(money: number)
+		local branch, level = pickedLevel()
+		local r = cs.tech.research
+		if r ~= nil then
+			foot.set(t("tech.busy"), false, researchLine() or "")
+			return
+		end
+		if branch == nil then
+			foot.set("", false, t("tech.allDone"))
+			return
+		end
+		local name = t("tech." .. branch .. "." .. level)
+		local cost = cfg.Cost[level]
+		local text = string.format(t("tech.study"), name, Strings.formatInt(cost), cfg.Sec[level])
+		local have = (cs.tech.levels :: any)[branch] :: number
+		if locked(branch, level) then
+			foot.set(text, false, t("tech.locked"))
+		elseif level > have + 1 then
+			foot.set(text, false, t("tech.needPrev"))
+		elseif money < cost then
+			foot.set(text, false, string.format(t("tech.noMoney"), Strings.formatInt(cost - money)))
+		else
+			foot.set(text, true, t("tech.pickHint"))
+		end
+	end
+	Session.connect(foot.main.Activated, function()
+		local branch, level = pickedLevel()
+		local have = if branch ~= nil then (cs.tech.levels :: any)[branch] :: number else 0
+		if
+			playing()
+			and branch ~= nil
+			and level == have + 1
+			and cs.tech.research == nil
+			and not locked(branch, level)
+		then
+			send("research", { branch = branch })
+		end
+	end)
+
+	draw = function()
+		if pickedLevel() == nil then
+			picked = firstAvailable()
+		end
 		local r = cs.tech.research
 		local money = if cs.myForces ~= nil then cs.myForces.economy.money else 0
 		for _, branch in BRANCHES do
@@ -288,6 +376,12 @@ function TechPanel.new(
 				if available then
 					c.edge.Color = Theme.Colors.Good
 				end
+				-- Выбранный уровень — толстая голубая рамка.
+				local isPicked = picked == branch .. level and not done
+				c.edge.Thickness = if isPicked then 4 else 2
+				if isPicked then
+					c.edge.Color = Theme.Colors.Sky
+				end
 				if done then
 					c.info.Text = Strings.get("tech.done", lang)
 					c.info.TextColor3 = Theme.Colors.Gold
@@ -316,6 +410,7 @@ function TechPanel.new(
 			statusBar.set(1 - r.left / math.max(1, r.total))
 		end
 		moneyChip.Text = "$" .. Strings.formatInt(money)
+		drawFooter(money)
 		for _, branch in BRANCHES do
 			local have = (cs.tech.levels :: any)[branch] :: number
 			heads[branch].Text = string.format(t("tech.branchLevel"), t("tech.branch." .. branch), have, #cfg.Cost)

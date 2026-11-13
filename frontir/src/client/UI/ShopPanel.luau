@@ -154,8 +154,9 @@ function ShopPanel.new(
 		{ key = "season", label = t("shop.tabSeason") },
 		{ key = "passes", label = t("shop.passes") },
 		{ key = "packs", label = t("shop.packs") },
-	}, { season = "list" })
-	local window = win.frame
+	}, { season = "list" }, true)
+	local window = win.frame; -- §15ц Ц5а: низ витрины — где взять медали и жетоны (кнопки — на карточках).
+	(win.footer :: CardKit.Footer).set("", false, t("shop.hint"))
 	local medalsChip = CardKit.chip(win.chips, "money", 1)
 	local tokensChip = CardKit.chip(win.chips, "hint", 2)
 	local function prompt(kind: "pass" | "product", id: number)

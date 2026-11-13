@@ -63,6 +63,8 @@ export type Context = {
 	weariness: (nation: number) -> number, -- 0..0.5 (Wars.weariness)
 	traitor: (nation: number) -> boolean,
 	bonus: ((nation: number) -> number)?, -- прибавка к целевой (технология «Порядок», §6.14)
+	-- §15ч Ч1: в провинции станция, связанная дорогой со столицей, — штраф за удалённость × Rail.ConnectedDistanceMul.
+	railConnected: ((province: number, owner: number) -> boolean)?,
 }
 
 export type Revolt = { province: number, owner: number }
@@ -119,7 +121,12 @@ function Stability.target(ctx: Context, p: number, owner: number, capturedAt: nu
 			value += cfg.Capital
 		else
 			local d = distance(ctx.grid, capital, province.center)
-			value -= math.min(cfg.DistanceMax, cfg.DistancePenalty * d / cfg.DistanceCells)
+			local penalty = math.min(cfg.DistanceMax, cfg.DistancePenalty * d / cfg.DistanceCells)
+			local connected = ctx.railConnected
+			if connected ~= nil and connected(p, owner) then
+				penalty *= Config.Rail.ConnectedDistanceMul -- дорога до столицы (§15ч Ч1)
+			end
+			value -= penalty
 		end
 	end
 	if ctx.atWar(owner) then

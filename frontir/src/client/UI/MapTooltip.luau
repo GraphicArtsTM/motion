@@ -368,7 +368,31 @@ function MapTooltip.new(
 				)
 			end
 		end
+		-- §15ч Ч1: своя станция — есть ли дорога до столицы.
+		local me = cs.myNation
+		if me ~= nil and table.find(Config.Rail.Stations, kind) ~= nil and ClientState.ownerAt(cs, cell) == me then
+			local onNet = ClientState.railConnected(cs, me, cell)
+			line ..= string.format(
+				'\n<font color="%s">%s</font>',
+				if onNet then sky else alert,
+				Strings.get(if onNet then "rail.connected" else "rail.notConnected", lang)
+			)
+		end
 		return line
+	end
+
+	-- §15ч Ч1: клетка железной дороги или моста.
+	local function railLine(cell: number): string?
+		local kind = cs.rails.cells[cell]
+		if kind == nil then
+			return nil
+		end
+		return string.format(
+			'<font color="%s"><b>%s</b></font>  %s',
+			gold,
+			Strings.get(if kind == 3 then "rail.bridge" else "rail.track", lang),
+			Strings.get("rail.trackHint", lang)
+		)
 	end
 
 	-- §15х ч.8: строка о державе под курсором — сила войск («?» — скрыта), доля суши, отношение к вам.
@@ -458,6 +482,10 @@ function MapTooltip.new(
 		local building = if cs.phase == "Play" then buildingLine(cell) else nil
 		if building ~= nil then
 			head ..= "\n" .. building
+		end
+		local rail = if cs.phase == "Play" and building == nil then railLine(cell) else nil
+		if rail ~= nil then
+			head ..= "\n" .. rail
 		end
 		-- Что сделает клик (как MatchHud.tapCell).
 		local action: string? = nil

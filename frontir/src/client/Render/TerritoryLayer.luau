@@ -32,6 +32,7 @@ export type TerritoryLayer = {
 	cellsChanged: (cells: { number }, now: number, flash: boolean?) -> (),
 	-- Провинции целиком (повстанцы появились или ушли).
 	provincesChanged: (ids: { number }) -> (),
+	railsChanged: (cells: { number }) -> (), -- §15ч Ч1: рельсы появились или исчезли
 	setStabilityMode: (on: boolean) -> (),
 	stabilityMode: () -> boolean,
 	stabilityChanged: () -> (), -- пришла новая стабильность своих провинций
@@ -74,6 +75,7 @@ function TerritoryLayer.new(
 		local cosmetic = if info ~= nil then info.cosmetic else nil
 		extra.pattern = if cosmetic ~= nil then cosmetic.pattern else nil
 		extra.flashColor = if cosmetic ~= nil then cosmetic.capture else nil
+		extra.rail = cs.rails.cells[i] -- §15ч Ч1
 		extra.stability = if stabilityOn
 				and owner ~= 0
 				and owner == cs.myNation
@@ -151,6 +153,12 @@ function TerritoryLayer.new(
 				end
 			end
 		end
+		-- Мосты (§15ч Ч1) — на ничьих клетках реки.
+		for i in cs.rails.cells do
+			if buffer.readu16(known, i * 2) == 0 then
+				paint(i, 0)
+			end
+		end
 	end
 
 	local function cellsChanged(cells: { number }, now: number, flash: boolean?)
@@ -161,6 +169,13 @@ function TerritoryLayer.new(
 				flashStart[i] = now
 				flashLevel[i] = -1
 			end
+		end
+	end
+
+	-- §15ч Ч1: рельсы появились или исчезли — перерисовать эти клетки (без вспышки).
+	local function railsChanged(cells: { number })
+		for _, i in cells do
+			markDirty(i)
 		end
 	end
 
@@ -259,6 +274,7 @@ function TerritoryLayer.new(
 		repaintAll = repaintAll,
 		cellsChanged = cellsChanged,
 		provincesChanged = provincesChanged,
+		railsChanged = railsChanged,
 		setStabilityMode = setStabilityMode,
 		stabilityMode = function(): boolean
 			return stabilityOn

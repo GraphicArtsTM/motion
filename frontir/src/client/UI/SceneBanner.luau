@@ -16,6 +16,7 @@ local Palette = require(Shared:WaitForChild("Palette"))
 local SceneArt = require(Shared:WaitForChild("SceneArt"))
 
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
+local UiScale = require(script.Parent:WaitForChild("UiScale"))
 
 export type Banner = { frame: ImageLabel, setKey: (key: string) -> () }
 
@@ -99,7 +100,9 @@ function SceneBanner.attach(window: GuiObject, key: string): Banner?
 		if not shown then
 			return
 		end
-		local size, pos = window.AbsoluteSize, window.AbsolutePosition - (gui :: ScreenGui).AbsolutePosition
+		-- §15ц: слой в масштабе экрана — настоящие пиксели переводим в условные.
+		local f = UiScale.factor()
+		local size, pos = window.AbsoluteSize / f, (window.AbsolutePosition - (gui :: ScreenGui).AbsolutePosition) / f
 		-- Высота — по ширине окна (не выше MaxPx и места над окном); места меньше MinPx — шапки нет.
 		local h = math.floor(math.min(maxH, size.X * SceneArt.H / SceneArt.W, pos.Y - 2))
 		if h < Config.Render.Banner.MinPx then

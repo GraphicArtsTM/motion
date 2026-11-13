@@ -4,18 +4,23 @@
 	Слева направо: держава (цвет, имя, «N% мира»); люди «N / максимум», прирост и столбик с зелёной зоной лучшего
 	роста (Render.PeopleZone); атака — кнопки долей (Render.CommandBar.Percents) и «пошлёт N людей»; деньги и нефть
 	с приростом; найм Z / X / C / V (значок юнита, цена, очередь, замок без казарм); стройка — клетки всех зданий
-	(значок цветом державы, цена, клавиши 1–0; блёкло — не хватает денег или технологии); магазин.
+	(цена, клавиши 1–0; блёкло — не хватает денег или технологии); магазин.
+	§15ц Ц3: у каждой группы заголовок (ДЕРЖАВА · ЛЮДИ · АТАКА · ДЕНЬГИ · ВОЙСКА · СТРОЙКА), в заголовке ВОЙСК
+	справа — «в армии N» / красное «нет войск»; значки найма и стройки — своим цветом вида
+	(Render.CommandBar.KindColors / UnitColors), под значком — короткое название.
 	Подсказка при наведении на клетку — над ней. Числа берёт у MatchHud (values), найм — у ForcesPanel,
 	стройку — у BuildPanel: логика окон не дублируется. Узкий экран — полоса ужимается (UIScale) до MinScale,
 	дальше переносится в два ряда.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local ClientState = require(Shared:WaitForChild("ClientState"))
 local Config = require(Shared:WaitForChild("Config"))
 local NationColors = require(Shared:WaitForChild("NationColors"))
+local PhoneLayout = require(Shared:WaitForChild("PhoneLayout"))
 local Strings = require(Shared:WaitForChild("Strings"))
 local Types = require(Shared:WaitForChild("Types"))
 local UnitSprites = require(Shared:WaitForChild("UnitSprites"))
@@ -23,6 +28,7 @@ local UnitSprites = require(Shared:WaitForChild("UnitSprites"))
 local MenuKit = require(script.Parent:WaitForChild("MenuKit"))
 local ResourceBar = require(script.Parent:WaitForChild("ResourceBar"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local UiScale = require(script.Parent:WaitForChild("UiScale"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
@@ -43,6 +49,8 @@ export type Deps = {
 	setPercent: (p: number) -> (),
 	hire: (k: number) -> (),
 	hireInfo: (k: number) -> HireInfo,
+	army: () -> (number, number), -- §15ц Ц3: войска дома и на фронтах
+	armyTip: () -> string, -- состав войск (подсказка заголовка ВОЙСКА)
 	build: {
 		pick: (kind: Types.BuildingKind) -> (),
 		price: (kind: Types.BuildingKind) -> number?,
@@ -87,8 +95,8 @@ end
 
 function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, deps: Deps): CommandBar
 	local cfg = Config.Render.CommandBar
-	local slot = cfg.SlotPx
-	local contentH = cfg.HeightPx - 2 * PAD
+	local slotW, slotH = cfg.SlotW, cfg.SlotH
+	local contentH = math.max(cfg.HeightPx - 2 * PAD, 17 + slotH)
 	local function t(key: string): string
 		return Strings.get(key, lang)
 	end
@@ -126,7 +134,7 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 		MenuKit.list(f, 3)
 		return f
 	end
-	local function divider(order: number)
+	local function divider(order: number): Frame
 		local d = Instance.new("Frame")
 		d.Name = "Divider"
 		d.LayoutOrder = order
@@ -134,6 +142,7 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 		d.BackgroundColor3 = Theme.Colors.Slate
 		d.BorderSizePixel = 0
 		d.Parent = root
+		return d
 	end
 
 	-- Подсказка над клеткой.
@@ -171,6 +180,7 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 
 	-- 1. Держава.
 	local nation = section("Nation", NATION_W, 1)
+	caption(nation, t("bar.nation"))
 	local nameRow = MenuKit.box(nation, "Name", 1)
 	MenuKit.list(nameRow, 6, true)
 	local swatch = Instance.new("Frame")
@@ -255,16 +265,19 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 	local _, incomeLabel = caption(money, t("bar.money"))
 	local moneyLabel = MenuKit.label(money, "", 18, Theme.Colors.Gold, true, 1)
 	local oilLabel = MenuKit.label(money, "", 11, Theme.Colors.Muted, false, 2)
-	divider(8)
+	-- §15ц Ц5в: на узком экране этот разделитель — линия во всю ширину: дальше вторая строка полосы.
+	local rowBreak = divider(8)
 
-	-- Клетка: квадратная кнопка, значок по центру, клавиша в уголке, цена снизу.
-	type Slot = { button: TextButton, icon: Frame?, price: TextLabel, badge: TextLabel, edge: UIStroke, color: Color3? }
-	local function makeSlot(parent: Instance, name: string, order: number, key: string?): Slot
+	-- §15ц Ц3 клетка: значок своим цветом вида, под ним короткое название; клавиша — в левом верхнем уголке,
+	-- цена — в правом; не хватает денег — блёкло, нет технологии или казарм — замок вместо цены.
+	type Slot =
+		{ button: TextButton, icon: Frame?, price: TextLabel, badge: TextLabel, name: TextLabel, edge: UIStroke }
+	local function makeSlot(parent: Instance, name: string, order: number, key: string?, short: string): Slot
 		local b = Instance.new("TextButton")
 		b.Name = name
 		b.Text = ""
 		b.LayoutOrder = order
-		b.Size = UDim2.fromOffset(slot, slot)
+		b.Size = UDim2.fromOffset(slotW, slotH)
 		b.BackgroundColor3 = Theme.Colors.PanelBg
 		b.BorderSizePixel = 0
 		b.AutoButtonColor = true
@@ -272,17 +285,33 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 		MenuKit.corner(b, 6)
 		local edge = MenuKit.stroke(b, Theme.Colors.Slate, 2)
 		local price = MenuKit.label(b, "", 10, Theme.Colors.Gold, true)
-		price.AnchorPoint = Vector2.new(0.5, 1)
-		price.Position = UDim2.new(0.5, 0, 1, -1)
-		price.TextXAlignment = Enum.TextXAlignment.Center
+		price.AnchorPoint = Vector2.new(1, 0)
+		price.Position = UDim2.new(1, -3, 0, 1)
+		price.TextXAlignment = Enum.TextXAlignment.Right
 		price.TextStrokeTransparency = 0.3
 		price.ZIndex = 3
-		local badge = MenuKit.label(b, key or "", 10, Theme.Colors.Gold, true)
-		badge.Position = UDim2.fromOffset(3, 1)
+		local badge = MenuKit.label(b, key or "", 11, Theme.Colors.Gold, true)
+		badge.Position = UDim2.fromOffset(4, 1)
 		badge.TextStrokeTransparency = 0.3
 		badge.ZIndex = 3
 		badge.Visible = key ~= nil
-		return { button = b, icon = nil, price = price, badge = badge, edge = edge, color = nil }
+		local caption2 = Instance.new("TextLabel")
+		caption2.Name = "Short"
+		caption2.BackgroundTransparency = 1
+		caption2.AnchorPoint = Vector2.new(0.5, 1)
+		caption2.Position = UDim2.new(0.5, 0, 1, -2)
+		caption2.Size = UDim2.new(1, -4, 0, 12)
+		caption2.FontFace = Theme.FontBold
+		caption2.Text = short
+		caption2.TextColor3 = Theme.Colors.Text
+		caption2.TextScaled = true
+		caption2.ZIndex = 3
+		caption2.Parent = b
+		local limit = Instance.new("UITextSizeConstraint")
+		limit.MaxTextSize = 11
+		limit.MinTextSize = 7
+		limit.Parent = caption2
+		return { button = b, icon = nil, price = price, badge = badge, name = caption2, edge = edge }
 	end
 	local function dim(s: Slot, on: boolean)
 		local icon = s.icon
@@ -294,6 +323,16 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 			end
 		end
 		s.price.TextColor3 = if on then Theme.Colors.Muted else Theme.Colors.Gold
+		s.name.TextColor3 = if on then Theme.Colors.Muted else Theme.Colors.Text
+	end
+	-- Значок (¾ размера) по центру клетки: сверху строка «клавиша · цена», под значком — название.
+	local function placeIcon(s: Slot, icon: Frame)
+		icon.AnchorPoint = Vector2.new(0.5, 0)
+		icon.Position = UDim2.new(0.5, 0, 0, 14)
+		local fit = Instance.new("UIScale")
+		fit.Scale = 0.75
+		fit.Parent = icon
+		s.icon = icon
 	end
 	local function slotsRow(parent: Instance, name: string): Frame
 		local row = MenuKit.box(parent, name, 1)
@@ -324,17 +363,21 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 		return root2
 	end
 
-	-- 5. Найм Z / X / C / V.
-	local hire = section("Hire", 4 * slot + 3 * 4, 9)
-	caption(hire, t("bar.hire"))
+	-- 5. Войска: найм Z / X / C / V; в заголовке справа — «в армии N» (без войск — красное «нет войск»).
+	local hire = section("Hire", 4 * slotW + 3 * 4, 9)
+	local _, armyLabel = caption(hire, t("bar.forces"))
+	withTip(armyLabel.Parent :: Frame, function(): string
+		return deps.armyTip()
+	end)
 	local hireRow = slotsRow(hire, "Slots")
 	local hireSlots: { Slot } = {}
 	local queueBadges: { TextLabel } = {}
 	for k, unit in Types.LandUnits do
-		local s = makeSlot(hireRow, "Hire" .. unit, k, KEY_HIRE[k])
-		local q = MenuKit.label(s.button, "", 10, Theme.Colors.Sky, true)
-		q.AnchorPoint = Vector2.new(1, 0)
-		q.Position = UDim2.new(1, -3, 0, 1)
+		local s = makeSlot(hireRow, "Hire" .. unit, k, KEY_HIRE[k], t("unit." .. unit .. ".short"))
+		placeIcon(s, unitIcon(s.button, unit, Theme.color(cfg.UnitColors[unit])))
+		local q = MenuKit.label(s.button, "", 11, Theme.Colors.Sky, true)
+		q.AnchorPoint = Vector2.new(1, 1)
+		q.Position = UDim2.new(1, -3, 1, -14)
 		q.TextStrokeTransparency = 0.3
 		q.ZIndex = 3
 		table.insert(queueBadges, q)
@@ -368,13 +411,15 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 		local kind: Types.BuildingKind = raw :: any
 		table.insert(buildKinds, kind)
 	end
-	local build = section("Build", #buildKinds * slot + (#buildKinds - 1) * 4, 11)
+	local build = section("Build", #buildKinds * slotW + (#buildKinds - 1) * 4, 11)
 	caption(build, t("bar.build"))
 	local buildRow = slotsRow(build, "Slots")
 	local buildSlots: { Slot } = {}
 	for k, kind: Types.BuildingKind in buildKinds do
 		local key = if k <= 9 then tostring(k) elseif k == 10 then "0" else nil
-		local s = makeSlot(buildRow, "Build" .. kind, k, key)
+		local s = makeSlot(buildRow, "Build" .. kind, k, key, t("building." .. kind .. ".short"))
+		local kindColor: string = (cfg.KindColors :: { [string]: string })[kind] or "Mist"
+		placeIcon(s, deps.buildIcon(s.button, kind, Theme.color(kindColor)))
 		Session.connect(s.button.Activated, function()
 			deps.build.pick(kind)
 		end)
@@ -415,31 +460,37 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 	MenuKit.center(shopIcon)
 	Session.connect(shopButton.Activated, deps.shop)
 
-	-- Ширина: всё в один ряд, ужимаем до MinScale; дальше — два ряда.
+	-- Ширина: всё в один ряд, ужимаем до MinScale; дальше (и на узком экране) — две строки (PhoneLayout.bar).
 	local natural = NATION_W
 		+ PEOPLE_W
 		+ ATTACK_W
 		+ MONEY_W
-		+ (4 * slot + 12)
-		+ (#buildKinds * slot + (#buildKinds - 1) * 4)
+		+ (4 * slotW + 12)
+		+ (#buildKinds * slotW + (#buildKinds - 1) * 4)
 		+ 2 * SHOP_W -- арсенал и магазин
 		+ GAP
 		+ 6 -- шесть разделителей по 1 px
 		+ 12 * GAP
 		+ 2 * PAD
 		+ 4
+	-- §15ц Ц5в: нижняя строка на узком экране — войска, стройка, арсенал, магазин.
+	local second = (4 * slotW + 12)
+		+ (#buildKinds * slotW + (#buildKinds - 1) * 4)
+		+ 2 * SHOP_W
+		+ 2 -- два разделителя
+		+ 4 * GAP
+		+ 2 * PAD
+		+ 4
 	local function fit()
-		local avail = gui.AbsoluteSize.X - 24
-		local s = math.min(1, avail / natural)
-		if s >= cfg.MinScale then
-			scale.Scale = s
-			root.Size = UDim2.fromOffset(natural, 0)
-		else
-			scale.Scale = cfg.MinScale
-			root.Size = UDim2.fromOffset(math.floor(avail / cfg.MinScale), 0)
-		end
+		local size = UiScale.size(gui)
+		local narrow = PhoneLayout.narrow(size.X, RunService:IsStudio() and Config.Dev.PhoneLayout)
+		local layout = PhoneLayout.bar(natural, second, size.X - 24, narrow)
+		scale.Scale = layout.scale
+		root.Size = UDim2.fromOffset(layout.width, 0)
+		-- Две строки: разделитель после «Деньги» — линия во всю ширину (перенос), одна — обычная черта.
+		rowBreak.Size = if layout.rows == 2 then UDim2.new(1, 0, 0, 1) else UDim2.fromOffset(1, contentH - 8)
 	end
-	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fit)
+	UiScale.onResize(gui, fit)
 	fit()
 
 	local function myColor(): Color3
@@ -472,8 +523,10 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 		if hovered ~= nil and hovered.Visible then
 			local textFn = tipText[hovered]
 			tip.Text = if textFn ~= nil then textFn() else ""
-			local p = hovered.AbsolutePosition - gui.AbsolutePosition
-			tip.Position = UDim2.fromOffset(p.X + hovered.AbsoluteSize.X / 2, p.Y - 8)
+			-- §15ц: слой в масштабе экрана — настоящие пиксели переводим в условные.
+			local f = UiScale.factor()
+			local p = (hovered.AbsolutePosition - gui.AbsolutePosition) / f
+			tip.Position = UDim2.fromOffset(p.X + hovered.AbsoluteSize.X / f / 2, p.Y - 8)
 			tip.Visible = tip.Text ~= ""
 		else
 			tip.Visible = false
@@ -514,14 +567,11 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 		incomeLabel.TextColor3 = if v.income >= 0 then Theme.Colors.Sky else Theme.Colors.Alert
 		oilLabel.Text = string.format(t("bar.oil"), Strings.formatInt(v.oil)) .. "  " .. signed(v.oilIncome)
 
+		local home, front = deps.army()
+		local total = math.floor(home + front)
+		armyLabel.Text = if total >= 1 then string.format(t("bar.army"), Strings.formatInt(total)) else t("bar.noArmy")
+		armyLabel.TextColor3 = if total >= 1 then Theme.Colors.Sky else Theme.Colors.Alert
 		for k, s in hireSlots do
-			if s.color ~= color then
-				s.color = color
-				if s.icon ~= nil then
-					(s.icon :: Frame):Destroy()
-				end
-				s.icon = unitIcon(s.button, Types.LandUnits[k], color)
-			end
 			local info = deps.hireInfo(k)
 			s.price.Text = if info.needLevel ~= nil then "🔒" else "$" .. Strings.formatInt(info.cost)
 			queueBadges[k].Text = if info.queued > 0 then string.format(t("bar.queued"), info.queued) else ""
@@ -530,16 +580,6 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 		local selected = deps.build.selected()
 		for k, s in buildSlots do
 			local kind: Types.BuildingKind = buildKinds[k]
-			if s.color ~= color then
-				s.color = color
-				if s.icon ~= nil then
-					(s.icon :: Frame):Destroy()
-				end
-				local icon = deps.buildIcon(s.button, kind, color)
-				icon.AnchorPoint = Vector2.new(0.5, 0)
-				icon.Position = UDim2.new(0.5, 0, 0, 1)
-				s.icon = icon
-			end
 			local price = deps.build.price(kind)
 			local unlocked = deps.build.unlocked(kind)
 			s.price.Text = if not unlocked then "🔒" elseif price ~= nil then "$" .. Strings.formatInt(price) else ""

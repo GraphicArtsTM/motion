@@ -17,6 +17,7 @@ local NationColors = require(Shared:WaitForChild("NationColors"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local UiScale = require(script.Parent:WaitForChild("UiScale"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
@@ -81,13 +82,13 @@ function Pings.new(
 	main.Name = "PingButton"
 	local function placeMain()
 		main.AnchorPoint = Vector2.new(1, 1)
-		if gui.AbsoluteSize.X < Config.Render.NarrowScreenPx then
+		if UiScale.size(gui).X < Config.Render.NarrowScreenPx then
 			main.Position = UDim2.new(1, -20 - Config.Render.MinimapSide - 208, 1, -12 - 3 * 56 - 18)
 		else
 			main.Position = UDim2.new(0.5, -296, 1, -12 - 56 - 6)
 		end
 	end
-	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), placeMain)
+	UiScale.onResize(gui, placeMain)
 	placeMain()
 
 	-- Меню фраз над кнопкой.

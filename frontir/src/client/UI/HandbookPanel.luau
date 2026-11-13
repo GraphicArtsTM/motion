@@ -1,7 +1,7 @@
 --!strict
 --[[
-	HandbookPanel — «Справочник механик» (§15х ч.5): окно-витрина CardKit с шестью вкладками («Удары и защита»,
-	«Войска и фронт», «Стройка и экономика», «Флот и авиация», «Дипломатия», «Мир и события»). У каждой механики —
+	HandbookPanel — «Справочник механик» (§15х ч.5): окно-витрина CardKit; §15ц Ц4б — три вкладки ВОЙНА · ДЕРЖАВА ·
+	МИР, внутри — разделы с заголовком (Handbook.Sections). У каждой механики —
 	строка-карточка: картинка ItemArt слева, справа название и три строки «Что это · Как запустить · Чем защититься»
 	(или «Как помешать»). Список, вкладки и картинки — чистый Shared.Handbook, тексты — Strings «handbook.*».
 	Открывается кнопкой «Справочник механик» в окне «Как играть» (H); закрывается «×» и Esc.
@@ -92,6 +92,12 @@ function HandbookPanel.new(gui: ScreenGui, lang: Strings.Lang): HandbookPanel
 		end
 	end
 
+	-- §15ц Ц4б: заголовок раздела внутри вкладки-группы.
+	local function sectionHead(page: Instance, section: string, order: number)
+		local head = MenuKit.label(page, t("handbook.section." .. section), 18, Theme.Colors.Sky, true, order)
+		head.Name = "Section_" .. section
+	end
+
 	local built = false
 	local function build()
 		if built then
@@ -100,8 +106,14 @@ function HandbookPanel.new(gui: ScreenGui, lang: Strings.Lang): HandbookPanel
 		built = true
 		for _, tab in Handbook.Tabs do
 			local page = win.page(tab)
-			for k, e in Handbook.of(tab) do
-				row(page, e, k)
+			local order = 0
+			for _, section in Handbook.Sections[tab] do
+				order += 1
+				sectionHead(page, section, order)
+				for _, e in Handbook.inSection(tab, section) do
+					order += 1
+					row(page, e, order)
+				end
 			end
 		end
 	end

@@ -21,8 +21,8 @@ local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
 
--- Кнопка окна из прежнего дока (visible nil — всегда видна).
-export type MenuItem = { label: string, action: () -> (), visible: (() -> boolean)? }
+-- Кнопка окна из прежнего дока (visible nil — всегда видна; text — подпись, которая меняется: «Пауза» / «Продолжить»).
+export type MenuItem = { label: string, action: () -> (), visible: (() -> boolean)?, text: (() -> string)? }
 
 export type Actions = {
 	help: () -> (),
@@ -114,7 +114,7 @@ function GameMenu.new(
 	local help = MenuKit.button(grid, "?  " .. t("gamemenu.help"), "normal", nil, 1)
 	local sound = MenuKit.button(grid, "♪  " .. t("gamemenu.sound"), "normal", nil, 2)
 	local shop = MenuKit.button(grid, "$  " .. t("gamemenu.shop"), "normal", nil, 3)
-	type Extra = { button: TextButton, visible: (() -> boolean)? }
+	type Extra = { button: TextButton, visible: (() -> boolean)?, text: (() -> string)? }
 	local extras: { Extra } = {}
 	local line2 = line:Clone()
 	line2.LayoutOrder = 8
@@ -133,7 +133,7 @@ function GameMenu.new(
 			close()
 			e.action()
 		end)
-		table.insert(extras, { button = b, visible = e.visible })
+		table.insert(extras, { button = b, visible = e.visible, text = e.text })
 	end
 	local function toggle()
 		window.Visible = not window.Visible
@@ -141,6 +141,10 @@ function GameMenu.new(
 			for _, e in extras do
 				local fn = e.visible
 				e.button.Visible = fn == nil or fn()
+				local textFn = e.text
+				if textFn ~= nil then
+					e.button.Text = textFn()
+				end
 			end
 			-- §15л ч.3: на сервере матча «Главное меню» — переход в хаб, держава уходит из матча.
 			note.Text = t(if cs.place == "match" then "gamemenu.noteLeave" else "gamemenu.note")

@@ -49,6 +49,8 @@ local Naval = require("./Naval")
 local Passage = require("./Passage")
 local Pockets = require("./Pockets")
 local Provinces = require("./Provinces")
+local Rails = require("./Rails")
+local Trains = require("./Trains")
 local Rng = require("./Rng")
 local ServerSettings = require("./ServerSettings")
 local Shop = require("./Shop")
@@ -163,6 +165,10 @@ export type MatchEvent =
 	-- Торговые суда (§15е): доставка (деньги обоим) и пиратство (эсминец врага забрал часть груза)
 	| { kind: "tradeDelivered", nation: number, target: number, amount: number, cell: number }
 	| { kind: "merchantSunk", nation: number, by: number, amount: number, x: number, y: number }
+	-- §15ч Ч2 Поезда: отправлен (маршрут строкой направлений — клиент двигает сам), остановка с платой, прибыл / пропал
+	| { kind: "trainStarted", nation: number, id: number, s: number, d: string, start: number, speed: number }
+	| { kind: "trainStop", nation: number, id: number, cell: number, amount: number }
+	| { kind: "trainGone", nation: number, id: number, lost: boolean, cell: number? }
 	-- Авиация (§6.13, этап 7б-2)
 	| { kind: "planeBuilt", nation: number, plane: Types.PlaneKind }
 	| { kind: "planeShot", nation: number, by: number, plane: Types.PlaneKind }
@@ -196,6 +202,23 @@ export type BotRngs = {
 	intel: Rng,
 }
 
+-- §15ч Ч1: сети держав, когда проверять, с какой державы начать, версия (клиентам), какие сети сменились,
+-- станции главных сетей (снабжают фронт, как города), провинции со станцией главной сети (стабильность).
+export type RailState = {
+	nets: { [number]: Rails.Net },
+	nextAt: number,
+	cursor: number,
+	version: number,
+	changed: { [number]: boolean },
+	supply: { number },
+	provinces: { [number]: { [number]: boolean } },
+	-- §15ч Ч2: поезда в пути, следующий номер, когда завод отправит следующий, доп. нефть вышек главной сети.
+	trains: { [number]: Trains.Train },
+	nextTrainId: number,
+	spawnAt: { [number]: number },
+	rigBonus: { [number]: number },
+}
+
 export type Match = {
 	map: MapData,
 	grid: Grid,
@@ -222,6 +245,7 @@ export type Match = {
 	wars: Wars.WarSet,
 	diplo: Diplomacy.DiploSet, -- договоры (§8.1)
 	frontCache: Expansion.FrontCache, -- линии фронтов между тиками (обновляются по журналу смен владельца)
+	rails: RailState, -- §15ч Ч1: железные дороги держав
 	-- Отдельные потоки случайных чисел по системам (§12): новая механика одной системы не меняет ход других.
 	-- m.rng — только расстановка (уровни ботов, имена, автостарт).
 	councilRng: Rng,
@@ -245,6 +269,7 @@ export type Match = {
 	worldRng: Rng, -- поток событий
 	missileRng: Rng, -- поток сети ПВО (перехват ракет)
 	tradeRng: Rng, -- поток торговых судов (§15е): куда плыть
+	trainRng: Rng, -- §15ч Ч2: поезда — куда ехать
 	tradeAt: { [number]: number }, -- клетка порта → simTime следующего торгового судна
 	tradeCheckAt: number, -- торговля проверяется раз в секунду (не каждый тик)
 	missiles: { Missile }, -- ракеты в полёте (§6.9)
@@ -361,6 +386,19 @@ function MatchSim.new(map: MapData, seed: number): Match
 		wars = Wars.new(),
 		diplo = Diplomacy.new(),
 		frontCache = Expansion.newCache(),
+		rails = {
+			nets = {},
+			nextAt = 0,
+			cursor = 0,
+			version = 0,
+			changed = {},
+			supply = {},
+			provinces = {},
+			trains = {},
+			nextTrainId = 1,
+			spawnAt = {},
+			rigBonus = {},
+		},
 		councilRng = Rng.stream(seed, 101),
 		stabilityRng = Rng.stream(seed, 102),
 		botRngs = {},
@@ -383,6 +421,7 @@ function MatchSim.new(map: MapData, seed: number): Match
 		worldRng = Rng.stream(seed, 300),
 		missileRng = Rng.stream(seed, 301),
 		tradeRng = Rng.stream(seed, 302),
+		trainRng = Rng.stream(seed, 303),
 		tradeAt = {},
 		tradeCheckAt = 0,
 		missiles = {},
@@ -2789,6 +2828,10 @@ end
 local function stepAttacks(m: Match, simDt: number): number
 	local g = m.grid
 	local cities = MatchSim.cities(m)
+	-- §15ч Ч1: станции главных сетей (дорога до столицы) снабжают фронт, как города.
+	for _, cell in m.rails.supply do
+		table.insert(cities, cell)
+	end
 	local captured = 0
 
 	-- Фронты против держав: длины фронтов нужны, чтобы делить гарнизон защитника.
@@ -3196,7 +3239,8 @@ local function stepEconomy(m: Match, n: Nation, simDt: number)
 		-- Генералу +10% дохода — единственное послабление ботам (§9).
 		income = Economy.income(math.max(0, cells), math.max(0, cityLevels), owned.factoryIncome, owned.incomeBonus)
 			* (1 + (if n.isBot then profileOf(m, n.id).level.incomeBonus else 0)),
-		oilIncome = Economy.oilIncome(owned.rigOil),
+		-- §15ч Ч2: вышки главной сети — нефти больше (Rail.OilConnectedMul).
+		oilIncome = Economy.oilIncome(owned.rigOil + (m.rails.rigBonus[n.id] or 0)),
 		upkeep = Economy.upkeep(strength) + owned.upkeep, -- войска и здания (§15д)
 	}
 	-- Технологии (§6.14): «Налоги» — доход, «Нефтедобыча» — нефть, «Торговые пути» — бонус соглашений.
@@ -5983,6 +6027,286 @@ local function stepAir(m: Match, simDt: number)
 	end)
 end
 
+-- Железные дороги (§15ч Ч1) -------------------------------------------------------------------------------
+
+-- Станции державы: свои города (и столица), заводы и порты (Config.Rail.Stations).
+function MatchSim.railStations(m: Match, id: number): { Rails.Station }
+	local out: { Rails.Station } = {}
+	for _, kind in Config.Rail.Stations do
+		if kind == "City" then
+			for _, cell in m.cityOf do
+				if Grid.getOwner(m.grid, cell) == id then
+					table.insert(out, { cell = cell, kind = "City" })
+				end
+			end
+		else
+			for _, b in MatchSim.buildingsOf(m, kind :: Types.BuildingKind) do
+				if b.owner == id then
+					table.insert(out, { cell = b.cell, kind = kind })
+				end
+			end
+		end
+	end
+	return out
+end
+
+-- Проходимость для дороги державы id: своя земля — 1, клетка реки — мост, остальное — нельзя.
+function MatchSim.railContext(m: Match, id: number): Rails.Context
+	local g, map = m.grid, m.map
+	local riverId = Types.Terrain.River
+	local function river(cell: number): boolean
+		return MapData.getTerrain(map, cell) == riverId
+	end
+	return {
+		width = g.width,
+		height = g.height,
+		now = m.simTime,
+		river = river,
+		passable = function(cell: number): number?
+			if Grid.getOwner(g, cell) == id then
+				return 1
+			end
+			if river(cell) then
+				return Config.Rail.BridgeCost
+			end
+			return nil
+		end,
+	}
+end
+
+-- Станции главных сетей (снабжают фронт) и провинции с ними (стабильность), доп. нефть вышек (§15ч Ч2) —
+-- после смены сетей.
+local function railDerived(m: Match)
+	local rs = m.rails
+	table.clear(rs.supply)
+	table.clear(rs.provinces)
+	table.clear(rs.rigBonus)
+	local rigCfg = Config.Buildings.OilRig
+	for id, net in rs.nets do
+		local provinces: { [number]: boolean } = {}
+		local bonus = 0
+		for cell in net.connected do
+			if not Grid.isCity(m.grid, cell) then
+				table.insert(rs.supply, cell) -- города и так снабжают
+			end
+			local p = MapData.getProvince(m.map, cell)
+			if p ~= 0 then
+				provinces[p] = true
+			end
+			if net.kinds[cell] == "OilRig" then
+				local b = m.buildings.byCell[cell]
+				local level = if b ~= nil then b.level else 1
+				bonus += (rigCfg.oilByLevel[level] or 1) * (Config.Rail.OilConnectedMul - 1)
+			end
+		end
+		rs.provinces[id] = provinces
+		rs.rigBonus[id] = bonus
+	end
+end
+
+-- Поезда (§15ч Ч2): едут и платят на остановках; путь впереди перерезан — поезд пропадает; заводы на дорогах
+-- отправляют новые (раз в Rail.TrainEverySec / уровень, не больше Rail.MaxTrains у державы).
+local function stepTrains(m: Match, simDt: number)
+	local rs = m.rails
+	local g = m.grid
+	local riverId = Types.Terrain.River
+	local count: { [number]: number } = {}
+	local ids: { number } = {}
+	for id in rs.trains do
+		table.insert(ids, id)
+	end
+	table.sort(ids)
+	for _, id in ids do
+		local tr = rs.trains[id]
+		local n = m.nations[tr.owner]
+		if n == nil or not n.alive then
+			rs.trains[id] = nil
+			table.insert(m.events, { kind = "trainGone", nation = tr.owner, id = id, lost = true })
+			continue
+		end
+		local reached, done = Trains.advance(tr, simDt)
+		for _, stop in reached do
+			if Grid.getOwner(g, stop.cell) == tr.owner then
+				n.money += stop.money
+				table.insert(
+					m.events,
+					{ kind = "trainStop", nation = tr.owner, id = id, cell = stop.cell, amount = stop.money }
+				)
+			end
+		end
+		if done then
+			rs.trains[id] = nil
+			table.insert(m.events, { kind = "trainGone", nation = tr.owner, id = id, lost = false })
+			continue
+		end
+		if m.simTime >= tr.checkAt then
+			tr.checkAt = m.simTime + Config.Rail.CheckRouteSec
+			for k = math.max(1, math.floor(tr.pos)), #tr.cells do
+				local cell = tr.cells[k]
+				if Grid.getOwner(g, cell) ~= tr.owner and MapData.getTerrain(m.map, cell) ~= riverId then
+					rs.trains[id] = nil
+					table.insert(m.events, { kind = "trainGone", nation = tr.owner, id = id, lost = true, cell = cell })
+					break
+				end
+			end
+		end
+		if rs.trains[id] ~= nil then
+			count[tr.owner] = (count[tr.owner] or 0) + 1
+		end
+	end
+	-- Отправка: заводы главной и других сетей, по порядку клеток (детерминированно).
+	local owners: { number } = {}
+	for owner in rs.nets do
+		table.insert(owners, owner)
+	end
+	table.sort(owners)
+	local w = g.width
+	for _, owner in owners do
+		local net = rs.nets[owner]
+		local factories: { number } = {}
+		for cell, kind in net.kinds do
+			if kind == "Factory" then
+				table.insert(factories, cell)
+			end
+		end
+		table.sort(factories)
+		for _, cell in factories do
+			local b = m.buildings.byCell[cell]
+			local level = if b ~= nil then b.level else 1
+			local every = Config.Rail.TrainEverySec / math.max(1, level)
+			local at = rs.spawnAt[cell]
+			if at == nil then
+				rs.spawnAt[cell] = m.simTime + every
+			elseif m.simTime >= at then
+				rs.spawnAt[cell] = m.simTime + every
+				local dests = Trains.destinations(net, cell)
+				if (count[owner] or 0) < Config.Rail.MaxTrains and #dests > 0 then
+					local to = dests[Rng.range(m.trainRng, 1, #dests)]
+					local cells, stops = Trains.plan(net, cell, to, function(c: number): number
+						return Buildings.cityLevel(m.buildings, c)
+					end)
+					if cells ~= nil and stops ~= nil then
+						local id = rs.nextTrainId
+						rs.nextTrainId += 1
+						local speed = Trains.speed(w)
+						rs.trains[id] = {
+							id = id,
+							owner = owner,
+							cells = cells,
+							stops = stops,
+							nextStop = 1,
+							pos = 1,
+							speed = speed,
+							start = m.simTime,
+							checkAt = m.simTime + Config.Rail.CheckRouteSec,
+						}
+						count[owner] = (count[owner] or 0) + 1
+						local s, d = Rails.encode(cells, w)
+						table.insert(m.events, {
+							kind = "trainStarted",
+							nation = owner,
+							id = id,
+							s = s,
+							d = d,
+							start = m.simTime,
+							speed = speed,
+						})
+					end
+				end
+			end
+		end
+	end
+end
+
+-- Раз в Rail.RecomputeSec: у каждой живой державы — те ли станции и целы ли дороги; перестраивается не больше
+-- Rail.NationsPerStep держав (по кругу, с cursor).
+local function stepRails(m: Match)
+	local rs = m.rails
+	if m.simTime < rs.nextAt then
+		return
+	end
+	rs.nextAt = m.simTime + Config.Rail.RecomputeSec
+	local ids: { number } = {}
+	for id, n in m.nations do
+		if n.alive then
+			table.insert(ids, id)
+		elseif rs.nets[id] ~= nil then
+			rs.nets[id] = nil
+			rs.changed[id] = true
+			rs.version += 1
+		end
+	end
+	table.sort(ids)
+	local rebuilt = 0
+	local any = false
+	for k = 1, #ids do
+		local id = ids[(rs.cursor + k - 1) % #ids + 1]
+		local n = m.nations[id]
+		local stations = MatchSim.railStations(m, id)
+		local net = rs.nets[id]
+		local ctx = MatchSim.railContext(m, id)
+		local sig = Rails.signature(stations, n.capital)
+		if net == nil or net.signature ~= sig or not Rails.allIntact(ctx, net) then
+			if rebuilt >= Config.Rail.NationsPerStep then
+				rs.cursor = (rs.cursor + k - 1) % #ids -- отсюда — в следующий раз
+				break
+			end
+			rebuilt += 1
+			rs.nets[id] = if #stations > 0 then Rails.build(stations, n.capital, ctx, net) else Rails.empty()
+			rs.changed[id] = true
+			rs.version += 1
+			any = true
+		end
+	end
+	if any then
+		railDerived(m)
+	end
+end
+
+-- Сообщение клиентам: full — все сети, иначе — сменившиеся с прошлого раза (и список сменившихся очищается).
+function MatchSim.railsMessage(m: Match, full: boolean): { [string]: any }
+	local rs = m.rails
+	local w = m.grid.width
+	local nations: { [string]: any } = {}
+	local function encode(net: Rails.Net): { [string]: any }
+		local links: { { s: number, d: string } } = {}
+		for _, link in net.links do
+			local s, d = Rails.encode(link.path, w)
+			table.insert(links, { s = s, d = d })
+		end
+		local connected: { number } = {}
+		for cell in net.connected do
+			table.insert(connected, cell)
+		end
+		return { links = links, connected = connected }
+	end
+	if full then
+		for id, net in rs.nets do
+			nations[tostring(id)] = encode(net)
+		end
+		-- §15ч Ч2: поезда в пути — вошедшему в матч (дальше двигает сам по маршруту).
+		local trains: { { [string]: any } } = {}
+		for id, tr in rs.trains do
+			local s, d = Rails.encode(tr.cells, w)
+			table.insert(trains, { nation = tr.owner, id = id, s = s, d = d, start = tr.start, speed = tr.speed })
+		end
+		return { kind = "rails", full = true, nations = nations, trains = trains, now = m.simTime }
+	else
+		for id in rs.changed do
+			local net = rs.nets[id]
+			nations[tostring(id)] = if net ~= nil then encode(net) else false
+		end
+		table.clear(rs.changed)
+	end
+	return { kind = "rails", full = full, nations = nations }
+end
+
+-- Станция державы id — в её главной сети (дорога до столицы).
+function MatchSim.railConnected(m: Match, id: number, cell: number): boolean
+	local net = m.rails.nets[id]
+	return net ~= nil and net.connected[cell] == true
+end
+
 -- Что Stability знает о матче (§6.10).
 function MatchSim.stabilityContext(m: Match): Stability.Context
 	return {
@@ -6023,6 +6347,11 @@ function MatchSim.stabilityContext(m: Match): Stability.Context
 		end,
 		bonus = function(id: number): number
 			return if Tech.has(m.tech, id, "Economy", 4) then Config.Tech.OrderStability else 0
+		end,
+		-- §15ч Ч1: в провинции станция главной сети — штраф за удалённость меньше.
+		railConnected = function(p: number, owner: number): boolean
+			local set = m.rails.provinces[owner]
+			return set ~= nil and set[p] == true
 		end,
 	}
 end
@@ -6414,6 +6743,8 @@ function MatchSim.step(m: Match, dt: number)
 	m.lastCaptured = stepAttacks(m, simDt)
 	stepPockets(m)
 	stepCaptures(m) -- захват здания: −1 уровень (§15д ч.3)
+	stepRails(m) -- §15ч Ч1: железные дороги
+	stepTrains(m, simDt) -- §15ч Ч2: поезда и грузы
 	stepStability(m)
 
 	-- Столицы и выбывание: держава живёт, пока у неё есть хоть один город.

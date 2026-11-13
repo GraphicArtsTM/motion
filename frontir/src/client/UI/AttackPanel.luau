@@ -27,6 +27,7 @@ type ClientState = ClientState.ClientState
 export type AttackPanel = {
 	update: (now: number) -> (),
 	setBlocked: (blocked: boolean) -> (), -- снизу открыто окно — фишки прячем
+	setCollapsed: (collapsed: boolean) -> (), -- §15ц Ц5в: на узком экране панель стартует свёрнутой
 	list: Frame, -- «Attacks» (справа, в столбике TopRight)
 	chips: Frame, -- «AttackChips» (над полосой, ставит aboveBar)
 }
@@ -310,6 +311,12 @@ function AttackPanel.new(
 		setBlocked = function(b: boolean)
 			if blocked ~= b then
 				blocked = b
+				nextAt = 0
+			end
+		end,
+		setCollapsed = function(c: boolean)
+			if collapsed ~= c then
+				collapsed = c
 				nextAt = 0
 			end
 		end,

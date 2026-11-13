@@ -17,6 +17,7 @@ local UserInputService = game:GetService("UserInputService")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local ClientState = require(Shared:WaitForChild("ClientState"))
 local Config = require(Shared:WaitForChild("Config"))
+local DiploMain = require(Shared:WaitForChild("DiploMain"))
 local MapData = require(Shared:WaitForChild("MapData"))
 local NationColors = require(Shared:WaitForChild("NationColors"))
 local Provinces = require(Shared:WaitForChild("Provinces"))
@@ -25,6 +26,7 @@ local Strings = require(Shared:WaitForChild("Strings"))
 local CardKit = require(script.Parent:WaitForChild("CardKit"))
 local MenuKit = require(script.Parent:WaitForChild("MenuKit"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local UiScale = require(script.Parent:WaitForChild("UiScale"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
@@ -182,7 +184,7 @@ function DiplomacyPanel.new(
 	local mainButton = button(gui, Strings.get("diplo.button", lang), 180)
 	mainButton.Name = "DiplomacyButton"
 	local function placeMain()
-		if gui.AbsoluteSize.X < Config.Render.NarrowScreenPx then
+		if UiScale.size(gui).X < Config.Render.NarrowScreenPx then
 			mainButton.AnchorPoint = Vector2.new(1, 1)
 			mainButton.Position = UDim2.new(1, -20 - Config.Render.MinimapSide - 208, 1, -12 - 2 * 56 - 12)
 		else
@@ -190,7 +192,7 @@ function DiplomacyPanel.new(
 			mainButton.Position = UDim2.new(0.5, -108, 1, -12 - 56 - 6)
 		end
 	end
-	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), placeMain)
+	UiScale.onResize(gui, placeMain)
 	placeMain()
 
 	-- Окно.
@@ -207,15 +209,19 @@ function DiplomacyPanel.new(
 		960,
 		660,
 		{},
-		{ main = "list" }
+		{ main = "list" },
+		true
 	)
+	-- §15ц Ц4б: главная кнопка — самое полезное с выбранной державой (DiploMain).
+	local foot = win.footer :: CardKit.Footer
+	local mainAction: DiploMain.Action = "pick"
 	local window = win.frame
 	window.ZIndex = 5
 	local closeButton = win.close
 	local page = win.page("main")
 	local cols = Instance.new("Frame")
 	cols.BackgroundTransparency = 1
-	cols.Size = UDim2.new(1, 0, 0, 560)
+	cols.Size = UDim2.new(1, 0, 0, 500) -- §15ц Ц4б: ниже — главная кнопка
 	cols.Parent = page
 	local list = Instance.new("ScrollingFrame")
 	list.Name = "Nations"
@@ -229,8 +235,14 @@ function DiplomacyPanel.new(
 	list.Parent = cols
 	MenuKit.list(list, 6)
 	MenuKit.pad(list, 2, 2)
-	local detail = Instance.new("Frame")
+	-- §15ц Ц4б: под окном — главная кнопка, карточка ниже; действия держав прокручиваются.
+	local detail = Instance.new("ScrollingFrame")
 	detail.Name = "Detail"
+	detail.CanvasSize = UDim2.new()
+	detail.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	detail.ScrollingDirection = Enum.ScrollingDirection.Y
+	detail.ScrollBarThickness = 6
+	detail.ScrollBarImageColor3 = Theme.Colors.PanelBorder
 	detail.AnchorPoint = Vector2.new(1, 0)
 	detail.Position = UDim2.fromScale(1, 0)
 	detail.Size = UDim2.new(0.6, -8, 1, 0)
@@ -238,6 +250,9 @@ function DiplomacyPanel.new(
 	detail.BorderSizePixel = 0
 	detail.Parent = cols
 	MenuKit.stroke(detail, Theme.Colors.PanelBorder, 2)
+	local detailPad = Instance.new("UIPadding")
+	detailPad.PaddingBottom = UDim.new(0, 12)
+	detailPad.Parent = detail
 	local portraitHost = Instance.new("Frame")
 	portraitHost.BackgroundTransparency = 1
 	portraitHost.Position = UDim2.fromOffset(12, 12)
@@ -368,6 +383,17 @@ function DiplomacyPanel.new(
 			send("rebel", {})
 		end
 	end, warGroup, "primary")
+
+	Session.connect(foot.main.Activated, function()
+		if not foot.main.Active then
+			return
+		end
+		if mainAction == "alliance" then
+			offer("alliance")
+		elseif mainAction == "trust" then
+			offer("trust")
+		end
+	end)
 
 	-- Карточки держав в списке (по одной на державу, переиспользуются).
 	type NationRow = {
@@ -640,6 +666,34 @@ function DiplomacyPanel.new(
 						.. if left > 0 then string.format(" %s", clock(left)) else ""
 				end
 			end
+		end
+		-- §15ц Ц4б: главная кнопка внизу окна.
+		local trustWait = 0
+		if t ~= nil and t.kind == "alliance" then
+			local age = (t.age or 0) + (now - cs.diploAt) * ClientState.simRate(cs)
+			trustWait = (Config.Alliance.TrustAfterSec - age) / cs.speed
+		end
+		local pick = DiploMain.pick({
+			valid = valid,
+			atWar = valid and me ~= nil and target ~= nil and ClientState.warBetween(cs, me, target) ~= nil,
+			treaty = if t ~= nil then t.kind else nil,
+			breaking = t ~= nil and t.breakLeft ~= nil,
+			trust = t ~= nil and t.trust == true,
+			trustWait = trustWait,
+		})
+		mainAction = pick.action
+		if pick.action == "pick" then
+			foot.set(Strings.get("diplo.main.pick", lang), false, Strings.get("diplo.main.pickHint", lang))
+		elseif pick.action == "war" then
+			foot.set("", false, Strings.get("diplo.main.war", lang))
+		elseif pick.action == "alliance" then
+			foot.set(Strings.get("diplo.act.alliance", lang), true, Strings.get("diplo.main.allianceHint", lang))
+		elseif pick.action == "trust" then
+			local text = Strings.get("diplo.act.trust", lang)
+				.. if trustWait > 0 then string.format(" %s", clock(trustWait)) else ""
+			foot.set(text, pick.enabled, Strings.get("diplo.main.trustHint", lang))
+		else
+			foot.set("", false, "")
 		end
 		-- История договоров (последние сверху).
 		local lines = { string.format('<font color="%s"><b>%s</b></font>', muted, Strings.get("diplo.history", lang)) }

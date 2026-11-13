@@ -30,6 +30,7 @@ local Config = require(Shared:WaitForChild("Config"))
 local DevTools = require(Shared:WaitForChild("DevTools"))
 local Grid = require(Shared:WaitForChild("Grid"))
 local Intents = require(Shared:WaitForChild("Intents"))
+local Lobbies = require(Shared:WaitForChild("Lobbies"))
 local MapDataModule = require(Shared:WaitForChild("MapData"))
 local MatchSim = require(Shared:WaitForChild("MatchSim"))
 local MatchStats = require(Shared:WaitForChild("Net"):WaitForChild("MatchStats"))
@@ -81,12 +82,21 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 	-- записи в MemoryStore). До проверки о себе в общий список не пишет.
 	local privateCode: string? = nil
 	local privateState: string = if role == "match" and game.PrivateServerId ~= "" then "pending" else "public"
+	-- §15ц Ц2: карта и режим сервера, выбранные первым игроком (строка плейлиста, «Играть одному», «Свой матч»);
+	-- сервер держит их и после итогов. soloServer — «одному»: в общий список не пишет, ботам — выбранная сила.
+	local serverMap: string? = nil
+	local serverMode: Types.ModeId? = nil
+	local soloServer = false
+	local soloLevel: Types.BotLevel? = nil
 	local function newMatch(): MatchSim.Match
 		local realMap = (Config.RealMaps :: any)[map.name] :: Types.RealMapParams?
 		local match = MatchSim.new(map, seedRng:NextInteger(1, 2 ^ 31 - 1))
 		match.settings = settings
 		if settings ~= nil and settings.mode ~= nil then
 			match.forcedMode = settings.mode
+		end
+		if serverMode ~= nil then
+			match.forcedMode = serverMode
 		end
 		if devMode ~= nil then
 			match.forcedMode = devMode
@@ -190,6 +200,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 
 	-- Договоры (§8.1) — всем, когда что-то поменялось (и новому игроку при входе).
 	local diploVersion, diploAt = -1, -math.huge
+	local railsVersion, railsAt = -1, -math.huge -- §15ч Ч1
 	local infoPhase, infoAt = "", -math.huge
 	local function sendDiplo(player: Player?)
 		local msg = MatchStats.diplo(m)
@@ -215,6 +226,13 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			else
 				matchEvent:FireAllClients(part)
 			end
+		end
+		-- §15ч Ч1: вместе с сеткой — все железные дороги.
+		local rails = MatchSim.railsMessage(m, true)
+		if player then
+			matchEvent:FireClient(player, rails)
+		else
+			matchEvent:FireAllClients(rails)
 		end
 	end
 
@@ -529,34 +547,69 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 
 	-- Хаб: список матчей (раз в ListRefreshSec всем) и быстрый вход.
 	local matches: { Places.Entry } = {}
-	local batch: { Player } = {} -- «В БОЙ» без свободного матча: вместе на один новый сервер
-	local function sendServers(player: Player?)
-		local rows: { { [string]: any } } = {}
-		for k, e in Places.sorted(matches) do
-			if k > Config.Places.ListMax then
-				break
-			end
-			table.insert(rows, {
-				id = e.id,
-				map = e.map,
-				mode = e.mode,
-				phase = e.phase,
-				players = e.players,
-				max = e.max,
-				left = e.left,
-				action = Places.action(e),
-			})
+	-- «В БОЙ» / «Новое лобби» без свободного матча: кто нажал за BatchSec, едут вместе на один новый сервер пары.
+	local batches: { [string]: { Player } } = {}
+	-- §15ц Ц2: «как раньше» (Studio, частный сервер) — один сервер, один матч: другой строкой можно перезапустить
+	-- матч, только если на нём нет других вступивших игроков.
+	local function freeFor(player: Player): boolean
+		if demoRunning then
+			return true
 		end
-		local msg = { kind = "servers", list = rows }
-		if player ~= nil then
-			matchEvent:FireClient(player, msg)
-		else
-			for _, p in Players:GetPlayers() do
-				matchEvent:FireClient(p, msg)
+		for p in joined do
+			if p ~= player and p.Parent ~= nil then
+				return false
 			end
+		end
+		return true
+	end
+	local function hereEntry(): Places.Entry?
+		if demoRunning then
+			return nil
+		end
+		local humans = 0
+		for p in joined do
+			if p.Parent ~= nil then
+				humans += 1
+			end
+		end
+		local mode: string = if m.phase == "Waiting" or m.phase == "Lobby" then MatchSim.lobbyMode(m) else m.mode
+		local max: number = Players.MaxPlayers
+		local entry: Places.Entry = {
+			id = "here",
+			psid = "",
+			map = map.name,
+			mode = mode,
+			phase = m.phase :: string,
+			players = humans,
+			max = max,
+			left = if m.phase == "Play" then math.max(0, math.floor(m.time)) else math.max(0, math.ceil(m.phaseLeft)),
+			at = os.time(),
+		}
+		return entry
+	end
+	local function rowsFor(player: Player): { Lobbies.Row }
+		local slots = Lobbies.slots(os.time())
+		if isHub then
+			return Lobbies.board(matches, slots, Config.Lobbies.Rows)
+		end
+		local here = hereEntry()
+		local rows = Lobbies.board(if here ~= nil then { here } else {}, slots, Config.Lobbies.Rows)
+		if not freeFor(player) then
+			for _, r in rows do
+				if r.id == "" then
+					r.action = "busy"
+				end
+			end
+		end
+		return rows
+	end
+	local function sendServers(player: Player?)
+		local list = if player ~= nil then { player } else Players:GetPlayers()
+		for _, p in list do
+			matchEvent:FireClient(p, { kind = "servers", list = rowsFor(p) })
 		end
 	end
-	function travelToMatch(player: Player, serverId: string?)
+	function travelToMatch(player: Player, serverId: string?, req: Lobbies.Request?)
 		local since = travelling[player]
 		if since ~= nil and os.clock() - since < Config.Places.RetrySec then
 			return
@@ -574,8 +627,18 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				travelFailed(player)
 				return
 			end
+		elseif req ~= nil then
+			-- Строка плейлиста: открытый сервер той же пары; «одному» — всегда свой новый сервер.
+			if not req.solo then
+				for _, x in Places.sorted(matches) do
+					if x.map == req.map and x.mode == req.mode and Places.action(x) == "join" then
+						e = x
+						break
+					end
+				end
+			end
 		else
-			e = Places.pick(matches)
+			e, req = Lobbies.quick(matches, Lobbies.slots(os.time()))
 		end
 		task.spawn(function()
 			if e ~= nil and list ~= nil then
@@ -593,19 +656,35 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				travel({ player }, Config.Places.Match, options)
 				return
 			end
-			-- Свободного матча нет — новый резервный сервер; кто нажал за BatchSec, едут вместе.
-			table.insert(batch, player)
-			matchEvent:FireClient(player, { kind = "travel", state = "going" })
-			if #batch > 1 then
-				return
+			-- Свободного матча нет — новый резервный сервер пары (карта и режим — в данных перехода); кто нажал за
+			-- BatchSec, едут вместе. «Одному» — сразу и без попутчиков.
+			local lobby = if req ~= nil
+				then { map = req.map, mode = req.mode, solo = req.solo, level = req.level }
+				else nil
+			local key = if req == nil
+				then ""
+				elseif req.solo then "solo:" .. player.UserId
+				else req.map .. "|" .. req.mode
+			local group: { Player } = { player }
+			if req == nil or not req.solo then
+				local waiting = batches[key]
+				if waiting ~= nil then
+					table.insert(waiting, player)
+					matchEvent:FireClient(player, { kind = "travel", state = "going" })
+					return
+				end
+				batches[key] = group
+				matchEvent:FireClient(player, { kind = "travel", state = "going" })
+				task.wait(Config.Places.BatchSec)
+				batches[key] = nil
 			end
-			task.wait(Config.Places.BatchSec)
-			local group = batch
-			batch = {}
 			local options = Instance.new("TeleportOptions")
 			options.ShouldReserveServer = true
+			if lobby ~= nil then
+				options:SetTeleportData({ lobby = lobby })
+			end
 			local result = travel(group, Config.Places.Match, options)
-			if result ~= nil and list ~= nil then
+			if result ~= nil and list ~= nil and (req == nil or not req.solo) then
 				list.remember(result.PrivateServerId, result.ReservedServerAccessCode)
 			end
 		end)
@@ -616,7 +695,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		local since = travelling[player]
 		return since ~= nil and os.clock() - since < Config.Places.RetrySec
 	end
-	local function privateCreate(player: Player)
+	local function privateCreate(player: Player, req: Lobbies.Request?)
 		local list = serverList
 		if list == nil or busy(player) then
 			return
@@ -633,7 +712,10 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			end
 			local options = Instance.new("TeleportOptions")
 			options.ShouldReserveServer = true
-			options:SetTeleportData({ code = code })
+			options:SetTeleportData({
+				code = code,
+				lobby = if req ~= nil then { map = req.map, mode = req.mode } else nil,
+			})
 			local result = travel({ player }, Config.Places.Match, options)
 			if result ~= nil then
 				list.savePrivate(code, {
@@ -692,6 +774,11 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 					isPrivate = true
 					ownerId = rec.owner
 					local s0 = ServerSettings.defaults(map.name)
+					-- §15ц Ц2: карта и режим, выбранные при создании, — настройки по умолчанию своего матча.
+					if serverMap ~= nil then
+						s0.map = serverMap
+						s0.mode = serverMode
+					end
 					settings = s0
 					if m.phase == "Waiting" or m.phase == "Lobby" then
 						m.settings = s0
@@ -721,6 +808,13 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				task.wait(Config.Places.ListRefreshSec)
 			end
 		end)
+	elseif role == "combined" then
+		task.spawn(function()
+			while true do
+				task.wait(Config.Places.ListRefreshSec)
+				sendServers(nil)
+			end
+		end)
 	end
 
 	-- Сервер матча: раз в PublishSec — о себе в список (режим в лобби — лидер голосования).
@@ -729,7 +823,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		task.spawn(function()
 			while true do
 				-- Свой матч (§15л ч.4) и сервер, который ещё проверяет код, в общий список не пишут.
-				if privateState ~= "public" then
+				if privateState ~= "public" or soloServer then
 					task.wait(Config.Places.PublishSec)
 					continue
 				end
@@ -776,6 +870,29 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		end
 		m.infoDirty = true
 	end
+	-- §15ц Ц2: матч с выбранной картой и режимом (первый игрок сервера матча; строка списка в «как раньше»).
+	local function startRequested(req: Lobbies.Request)
+		serverMap, serverMode = req.map, req.mode
+		soloServer, soloLevel = req.solo, req.level
+		startNewMatch(req.map)
+	end
+	-- После того как игрок вступил: «одному» — выбранная сила ботов и короткое лобби.
+	local function soloSetup()
+		if soloServer and (m.phase == "Waiting" or m.phase == "Lobby") and MatchSim.humans(m) == 1 then
+			m.difficulty = soloLevel or Config.Lobbies.SoloLevel :: Types.BotLevel
+			m.phaseLeft = math.min(m.phaseLeft, Config.Lobbies.SoloLobbySec)
+			m.infoDirty = true
+		end
+	end
+	local requestTaken = false
+	local function joinRequest(player: Player): Lobbies.Request?
+		local okJoin, join = pcall(function(): any
+			return player:GetJoinData()
+		end)
+		local data = if okJoin and type(join) == "table" then join.TeleportData else nil
+		return if type(data) == "table" then Lobbies.request(data.lobby) else nil
+	end
+
 	-- «В БОЙ» на сервере «как раньше»: идёт показательный бой — настоящий матч с лобби; иначе — в текущий.
 	local function joinMatch(player: Player)
 		if nationOf[player] ~= nil then
@@ -820,15 +937,27 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		-- §15л ч.7: на сервере матча (пришли из хаба «В БОЙ») — сразу в матч; в хабе и «как раньше» — в меню,
 		-- держава — только по «В БОЙ» (намерение joinMatch).
 		if role == "match" then
+			-- §15ц Ц2: первый игрок нового сервера приносит карту и режим (строка плейлиста, «одному», свой матч).
+			if not requestTaken then
+				requestTaken = true
+				local req = joinRequest(player)
+				if req ~= nil and (m.phase == "Waiting" or m.phase == "Lobby") then
+					if req.solo then
+						privateState = "solo" -- свой сервер одного игрока: не «свой матч» и не в общий список
+					end
+					startRequested(req)
+				end
+			end
 			joined[player] = true
 			addToMatch(player)
+			soloSetup()
 		end
 		matchEvent:FireClient(player, infoFor(player))
 		sendDiplo(player)
 		if m.phase == "Play" then
 			sendSnapshot(player) -- опоздавший — зритель: видит всю карту
 		end
-		if isHub then
+		if isHub or role == "combined" then
 			sendServers(player)
 		end
 		checkPrivate(player)
@@ -1028,6 +1157,8 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				if (m.phase == "Waiting" or m.phase == "Lobby") and MatchSim.humans(m) == 1 then
 					m.forcedMode = "Tutorial"
 					m.mode = "Tutorial"
+					-- §15ц Ц5б: обучение — одному, ждать некого: короткое лобби, как у «Играть одному».
+					m.phaseLeft = math.min(m.phaseLeft, Config.Lobbies.SoloLobbySec)
 					m.infoDirty = true
 				end
 			end
@@ -1066,6 +1197,11 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		if kind == "sync" then
 			matchEvent:FireClient(player, infoFor(player))
 			sendDiplo(player)
+			-- §15ц Ц2: новая сессия клиента (смена карты) — профиль и список матчей заново.
+			sendProfile(player)
+			if isHub or role == "combined" then
+				sendServers(player)
+			end
 			if m.phase == "Play" then
 				sendSnapshot(player)
 			end
@@ -1073,11 +1209,23 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		end
 		-- §15л ч.3: «В БОЙ» в хабе и «Главное меню» на сервере матча — переходы между местами.
 		if kind == "play" then
+			local server = if type(payload) == "table" and type(payload.server) == "string" then payload.server else nil
+			local req = if server == nil then Lobbies.request(payload) else nil
 			if isHub then
-				local server = if type(payload) == "table" and type(payload.server) == "string"
-					then payload.server
-					else nil
-				travelToMatch(player, server)
+				travelToMatch(player, server, req)
+			elseif role == "combined" then
+				-- §15ц Ц2: один сервер — один матч. Своя строка или «В БОЙ» — вступить; другая пара — перезапустить
+				-- матч сервера с ней, если на нём нет других вступивших.
+				if req == nil then
+					joinMatch(player)
+				elseif not freeFor(player) then
+					matchEvent:FireClient(player, { kind = "travel", state = "failed", reason = "busy" })
+				else
+					joined[player] = true
+					startRequested(req)
+					soloSetup()
+				end
+				sendServers(nil)
 			end
 			return
 		end
@@ -1090,7 +1238,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		if kind == "privateCreate" or kind == "privateJoin" then
 			if isHub then
 				if kind == "privateCreate" then
-					privateCreate(player)
+					privateCreate(player, Lobbies.request(payload))
 				else
 					privateJoin(player, if type(payload) == "table" then payload.code else nil)
 				end
@@ -1312,6 +1460,9 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				map = loadMap(mapId)
 			end
 		end
+		if role == "combined" then
+			serverMap, serverMode, soloServer, soloLevel = nil, nil, false, nil
+		end
 		demoRunning = true
 		demoSpeed = Config.Hub.DemoSpeed
 		m = newMatch()
@@ -1480,6 +1631,12 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			if #built > 0 then
 				matchEvent:FireAllClients({ kind = "buildings", list = built })
 			end
+			-- §15ч Ч1: сменившиеся железные дороги — не чаще Net.RailsMinSec.
+			if m.rails.version ~= railsVersion and os.clock() >= railsAt + Config.Net.RailsMinSec then
+				railsVersion = m.rails.version
+				railsAt = os.clock()
+				matchEvent:FireAllClients(MatchSim.railsMessage(m, false))
+			end
 			-- Изменения договоров за Net.DiploMinSec уходят одним сообщением.
 			local version = m.diplo.version + m.council.version * 65536 -- договоры и Совет — одним сообщением
 			if version ~= diploVersion and os.clock() >= diploAt + Config.Net.DiploMinSec then
@@ -1528,6 +1685,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			else
 				-- §15ф Ф1: без голосований — следующая карта по кругу пула.
 				local nextMap = devMap
+					or serverMap
 					or (if settings ~= nil then settings.map else nil)
 					or (if m.lobbyVotes then map.name else Modes.nextMap(map.name))
 				devMap = nil

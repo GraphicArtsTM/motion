@@ -21,6 +21,7 @@ local Types = require(Shared:WaitForChild("Types"))
 local CardKit = require(script.Parent:WaitForChild("CardKit"))
 local MenuKit = require(script.Parent:WaitForChild("MenuKit"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local UiScale = require(script.Parent:WaitForChild("UiScale"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
@@ -67,9 +68,9 @@ function BuildingInfo.new(
 	local scale = Instance.new("UIScale")
 	scale.Parent = card
 	local function fit()
-		scale.Scale = math.clamp((gui.AbsoluteSize.X - 16) / WIDTH, 0.5, 1)
+		scale.Scale = math.clamp((UiScale.size(gui).X - 16) / WIDTH, 0.5, 1)
 	end
-	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fit)
+	UiScale.onResize(gui, fit)
 	fit()
 
 	local head = MenuKit.box(card, "Head", 1)
@@ -97,22 +98,28 @@ function BuildingInfo.new(
 	close.Size = UDim2.fromOffset(BUTTON, BUTTON)
 	close.TextSize = 24
 
+	-- §15ц Ц4а (шаблон окна у здания): строка сведений — район, содержание и маленькая «Снести» справа;
+	-- одна главная кнопка «Улучшить» — во всю ширину.
 	local infoRow = MenuKit.box(card, "Info", 2)
-	MenuKit.list(infoRow, 14, true)
+	infoRow.AutomaticSize = Enum.AutomaticSize.None
+	infoRow.Size = UDim2.new(1, 0, 0, 30)
+	local infoList = MenuKit.list(infoRow, 14, true)
+	infoList.VerticalAlignment = Enum.VerticalAlignment.Center
 	local district = MenuKit.label(infoRow, "", 13, Theme.Colors.Sky, true, 1)
 	local upkeep = MenuKit.label(infoRow, "", 13, Theme.Colors.Muted, false, 2)
+	local demolish = MenuKit.button(infoRow, "", "danger", 30, 3)
+	demolish.AnchorPoint = Vector2.new(1, 0.5)
+	demolish.Size = UDim2.fromOffset(0, 30)
+	demolish.AutomaticSize = Enum.AutomaticSize.X
+	demolish.TextSize = 13
+	MenuKit.pad(demolish, 10, 0)
+	local spacer = Instance.new("UIFlexItem")
+	spacer.FlexMode = Enum.UIFlexMode.Grow
+	spacer.Parent = upkeep
 
-	local row = MenuKit.box(card, "Buttons", 3)
-	row.AutomaticSize = Enum.AutomaticSize.None
-	row.Size = UDim2.new(1, 0, 0, BUTTON)
-	local rowList = MenuKit.list(row, 8, true)
-	rowList.HorizontalFlex = Enum.UIFlexAlignment.Fill
-	local upgrade = MenuKit.button(row, "", "primary", BUTTON, 1)
-	upgrade.Size = UDim2.new(0, 220, 1, 0)
+	local upgrade = MenuKit.button(card, "", "primary", BUTTON, 3)
+	upgrade.Size = UDim2.new(1, 0, 0, BUTTON)
 	upgrade.TextSize = 15
-	local demolish = MenuKit.button(row, "", "danger", BUTTON, 2)
-	demolish.Size = UDim2.new(0, 150, 1, 0)
-	demolish.TextSize = 15
 
 	local function setLevel(level: number, max: number)
 		for k = #pipFrames + 1, max do
@@ -215,7 +222,7 @@ function BuildingInfo.new(
 		upkeep.Visible = b.kind ~= "City"
 		upkeep.Text =
 			string.format(Strings.get("build.upkeep", lang), string.format("%.1f", Buildings.upkeepOf(b.kind, b.level)))
-		infoRow.Visible = district.Visible or upkeep.Visible
+		infoRow.Visible = district.Visible or upkeep.Visible or b.kind ~= "City"
 		local cost = myPrice(b.kind, cell)
 		if cost == nil then
 			upgrade.Text = Strings.get("build.maxed", lang)

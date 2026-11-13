@@ -83,6 +83,21 @@ local TABLE: { [string]: Entry } = {
 		ru = "корабли; снабжает фронты на берегу (по воде, круг примерный)",
 		en = "ships; supplies fronts on the coast (by sea, circle is approximate)",
 	},
+	-- §15ч Ч1 Железные дороги
+	["rail.connected"] = {
+		ru = "🚂 Дорога до столицы есть: снабжает фронт, провинция спокойнее",
+		en = "🚂 Rail to the capital: supplies fronts, the province is calmer",
+	},
+	["rail.notConnected"] = {
+		ru = "Нет дороги до столицы: поставьте город, завод или порт ближе — дорога проложится сама",
+		en = "No rail to the capital: put a city, factory or port closer — the rail builds itself",
+	},
+	["rail.track"] = { ru = "Железная дорога", en = "Railway" },
+	["rail.bridge"] = { ru = "Мост", en = "Bridge" },
+	["rail.trackHint"] = {
+		ru = "соединяет станции; захват земли под ней рвёт дорогу",
+		en = "links stations; losing the land under it cuts the line",
+	},
 	["range.City"] = {
 		ru = "снабжает ваши фронты в круге",
 		en = "supplies your fronts in the circle",
@@ -412,6 +427,60 @@ local TABLE: { [string]: Entry } = {
 	["council.res.superweaponBan"] = { ru = "Запрет супероружия", en = "Superweapon ban" },
 	["council.res.superweaponBan.hint"] = { ru = "3 мин без ракет", en = "no missiles for 3 min" },
 	["council.active"] = { ru = "Действует: %s (%s)", en = "In force: %s (%s)" },
+	-- §15ц Ц4б главная кнопка Дипломатии (DiploMain)
+	["diplo.main.pick"] = { ru = "Выберите державу", en = "Pick a nation" },
+	["diplo.main.pickHint"] = {
+		ru = "Нажмите державу слева: договоры, помощь и война — в её карточке.",
+		en = "Tap a nation on the left: treaties, aid and war are in its card.",
+	},
+	["diplo.main.war"] = {
+		ru = "Идёт война. Мир предлагают в окне войны сверху («Мир»).",
+		en = "You are at war. Offer peace in the war panel at the top (“Peace”).",
+	},
+	["diplo.main.allianceHint"] = {
+		ru = "Союз: общее снабжение, союзник видит ваши войска. Остальное — в карточке державы.",
+		en = "Alliance: shared supply, your ally sees your troops. Everything else is in the nation's card.",
+	},
+	["diplo.main.trustHint"] = {
+		ru = "Полное доверие: можно наступать через землю союзника.",
+		en = "Full trust: you can attack through your ally's land.",
+	},
+	-- §15ц Ц4б главная кнопка Технологий
+	["tech.study"] = { ru = "Изучить: %s — $%s, %d с", en = "Research: %s — $%s, %d s" },
+	["tech.busy"] = { ru = "Идёт исследование", en = "Researching" },
+	["tech.allDone"] = {
+		ru = "Все доступные технологии изучены.",
+		en = "All available technologies are researched.",
+	},
+	["tech.needPrev"] = {
+		ru = "Сначала — предыдущий уровень этой ветки.",
+		en = "Research the previous level first.",
+	},
+	["tech.noMoney"] = { ru = "Не хватает $%s.", en = "Not enough money: $%s short." },
+	["tech.pickHint"] = {
+		ru = "Нажмите на уровень, чтобы выбрать; изучение идёт по одному за раз.",
+		en = "Tap a level to pick it; one research at a time.",
+	},
+	-- §15ц Ц4а окно Совета
+	["council.titleBig"] = { ru = "СОВЕТ ДЕРЖАВ", en = "COUNCIL OF NATIONS" },
+	["council.subtitle"] = {
+		ru = "Время от времени державы голосуют за одно правило для всех — на несколько минут.",
+		en = "Now and then nations vote for one rule for everyone — for a few minutes.",
+	},
+	["council.tab.vote"] = { ru = "Голосование", en = "Vote" },
+	["council.tab.active"] = { ru = "Действуют", en = "In force" },
+	["council.pick"] = { ru = "Выберите резолюцию", en = "Pick a resolution" },
+	["council.voteFor"] = { ru = "Голосовать: %s", en = "Vote: %s" },
+	["council.timer"] = {
+		ru = "Голосование: %s · голосов всего %d",
+		en = "Voting: %s · %d votes in total",
+	},
+	["council.noVote"] = { ru = "Сейчас голосования нет.", en = "No vote right now." },
+	["council.noneActive"] = {
+		ru = "Сейчас ничего не действует.",
+		en = "Nothing is in force right now.",
+	},
+	["council.activeRow"] = { ru = "<b>%s</b> — осталось %s", en = "<b>%s</b> — %s left" },
 	["event.councilOpened"] = {
 		ru = "Совет держав собрался — голосуйте!",
 		en = "The Council of Nations is in session — vote!",
@@ -669,8 +738,8 @@ local TABLE: { [string]: Entry } = {
 	},
 	-- Подсказки «что делать дальше» (§15д ч.5)
 	["hint.expand"] = {
-		ru = "Расширяйтесь: нажмите на ничью землю рядом. Ползунок «Атака» — сколько людей идёт.",
-		en = "Expand: tap neutral land nearby. The Attack slider sets how many people go.",
+		ru = "Расширяйтесь: нажмите на ничью землю рядом. Кнопки АТАКА внизу — сколько людей идёт.",
+		en = "Expand: tap neutral land nearby. The ATTACK buttons below set how many people go.",
 	},
 	["hint.barracks"] = {
 		ru = "Постройте Казармы (B → 2): больше линий найма — войска быстрее.",
@@ -776,6 +845,25 @@ local TABLE: { [string]: Entry } = {
 	-- Этап 7а: стабильность, восстания, туман
 	["hud.stability"] = { ru = "Стабильность: %s", en = "Stability: %s" },
 	["hud.lowIncome"] = { ru = "(½ дохода: %s кл.)", en = "(½ income: %s cells)" },
+	-- §15ц Ц4а окно «Стабильность»
+	["stability.titleBig"] = { ru = "СТАБИЛЬНОСТЬ", en = "STABILITY" },
+	["stability.subtitle"] = {
+		ru = "Ниже %d — доход провинции вдвое меньше, ниже %d — восстание. Карта — в цветах стабильности.",
+		en = "Below %d a province earns half, below %d it revolts. The map shows stability colours.",
+	},
+	["stability.summary"] = {
+		ru = "Средняя: <b>%d</b>  ·  провинций: <b>%d</b>  ·  на грани восстания: <b>%d</b>  ·  с половинным доходом: <b>%d</b>",
+		en = "Average: <b>%d</b>  ·  provinces: <b>%d</b>  ·  close to revolt: <b>%d</b>  ·  half income: <b>%d</b>",
+	},
+	["stability.tag.revolt"] = { ru = "ВОССТАНИЕ", en = "REVOLT" },
+	["stability.tag.low"] = { ru = "доход ×0.5", en = "income ×0.5" },
+	["stability.tag.ok"] = { ru = "спокойно", en = "calm" },
+	["stability.worst"] = { ru = "К самой слабой провинции", en = "To the weakest province" },
+	["stability.hint"] = {
+		ru = "Нажмите провинцию — камера к ней. Выше: мир, город или укрепление в провинции, технология «Порядок».",
+		en = "Tap a province to move the camera. Higher: peace, a city or fort there, the Order technology.",
+	},
+	["stability.none"] = { ru = "Своих провинций пока нет.", en = "You have no provinces yet." },
 	["stability.button"] = { ru = "Стабильность (N)", en = "Stability (N)" },
 	["stability.buttonOn"] = { ru = "Стабильность (N) ✓", en = "Stability (N) ✓" },
 	["event.revolt"] = { ru = "Восстание в провинции %s (%s)", en = "Revolt in province %s (%s)" },
@@ -830,8 +918,8 @@ local TABLE: { [string]: Entry } = {
 	},
 	["naval.blocked"] = { ru = "Порт заблокирован!", en = "Port is blockaded!" },
 	["naval.pickCoast"] = {
-		ru = "Высадка: нажмите берег (ползунок «Атака» — сколько войск)",
-		en = "Landing: tap a coast (the Attack slider sets how many troops)",
+		ru = "Высадка: нажмите берег (кнопки АТАКА внизу — сколько войск)",
+		en = "Landing: tap a coast (the ATTACK buttons below set how many troops)",
 	},
 	["naval.pickSea"] = { ru = "Патруль: нажмите море", en = "Patrol: tap the sea" },
 	["naval.cancel"] = { ru = "Отмена (Esc)", en = "Cancel (Esc)" },
@@ -1281,8 +1369,8 @@ local TABLE: { [string]: Entry } = {
 		en = "<b>Expand.</b> Tap empty land — your people move in. People grow fastest around half of the maximum.",
 	},
 	["help.war"] = {
-		ru = "<b>Война.</b> Правая кнопка (или долгое нажатие) по соседу → «Объявить войну». Через 5 с — бой: нажмите на врага, ползунок — доля войск. Найм — Z/X/C/V.",
-		en = "<b>War.</b> Right-click (or long-press) a neighbour → “Declare war”. Fighting starts in 5 s: tap the enemy, the slider sets the troop share. Hire — Z/X/C/V.",
+		ru = "<b>Война.</b> Правая кнопка (или долгое нажатие) по соседу → «Объявить войну». Через 5 с — бой: нажмите на врага, доля людей — кнопки АТАКИ внизу. Найм — Z/X/C/V.",
+		en = "<b>War.</b> Right-click (or long-press) a neighbour → “Declare war”. Fighting starts in 5 s: tap the enemy, the ATTACK buttons below set the share of people. Hire — Z/X/C/V.",
 	},
 	["help.build"] = {
 		ru = "<b>Стройка (B).</b> Завод — деньги, Казармы — войска, Жилой квартал — люди, Порт — торговые суда, ПВО — защита от ударов.",
@@ -1296,10 +1384,57 @@ local TABLE: { [string]: Entry } = {
 		ru = "<b>Часы судного дня.</b> С 14-й минуты растёт обязательная доля суши: кто ниже — распадается через 30 с.",
 		en = "<b>Doomsday clock.</b> From minute 14 the required land share rises: anyone below collapses in 30 s.",
 	},
-	["help.keys"] = {
-		ru = "Клавиши: Z/X/C/V — найм · B — стройка · Y — технологии · T — дипломатия · Q/E — способности · R — ракеты · G — метки · M — магазин · H — эта подсказка · Space — к столице",
-		en = "Keys: Z/X/C/V — hire · B — build · Y — technology · T — diplomacy · Q/E — abilities · R — missiles · G — pings · M — shop · H — this help · Space — to capital",
+	-- §15ц Ц4б «Как играть» по группам
+	["help.subtitle"] = {
+		ru = "Начало — первые минуты матча; дальше три группы механик: Война, Держава, Мир.",
+		en = "Start — the first minutes; then three groups of mechanics: War, Nation, World.",
 	},
+	["help.tab.start"] = { ru = "НАЧАЛО", en = "START" },
+	["help.strikes"] = {
+		ru = "<b>Удары.</b> Панель «УДАРЫ» слева: Q/E — способности генерала, R — ракета (нужна шахта и война), налёт — с аэродрома. Защита — ПВО.",
+		en = "<b>Strikes.</b> The STRIKES panel on the left: Q/E — commander abilities, R — missile (needs a silo and a war), raids — from an airfield. Defence — air defence.",
+	},
+	["help.navy"] = {
+		ru = "<b>Флот и авиация.</b> Нажмите на врага за морем — десант поплывёт с вашего берега. Порт — эсминцы, аэродром — истребители и бомбардировщики.",
+		en = "<b>Navy & air.</b> Tap an enemy across the sea — a landing sails from your coast. Port — destroyers, airfield — fighters and bombers.",
+	},
+	["help.stability"] = {
+		ru = "<b>Стабильность (N).</b> Ниже 30 — провинция даёт вдвое меньше, ниже 15 — восстаёт. Выше: мир, город или укрепление в провинции.",
+		en = "<b>Stability (N).</b> Below 30 a province earns half, below 15 it revolts. Higher: peace, a city or fort in the province.",
+	},
+	["help.tech"] = {
+		ru = "<b>Технологии (Y).</b> Три ветки: войска, экономика, флот. Открывают здания и уровни, дают доход и силу.",
+		en = "<b>Technology (Y).</b> Three branches: army, economy, fleet. They unlock buildings and levels, add income and strength.",
+	},
+	["help.diplo"] = {
+		ru = "<b>Дипломатия (T).</b> Пакт — нельзя напасть, союз — общее снабжение, полное доверие — удар через землю союзника.",
+		en = "<b>Diplomacy (T).</b> A pact forbids attacks, an alliance shares supply, full trust lets you strike through an ally's land.",
+	},
+	["help.council"] = {
+		ru = "<b>Совет держав.</b> Время от времени все голосуют за одно правило на несколько минут: перемирие, санкции, помощь слабым.",
+		en = "<b>Council of Nations.</b> Now and then everyone votes for one rule for a few minutes: truce, sanctions, aid to the weak.",
+	},
+	["help.trade"] = {
+		ru = "<b>Торговля.</b> Порты отправляют торговые суда — это доход; торговые соглашения и эмбарго — в Дипломатии.",
+		en = "<b>Trade.</b> Ports send trade ships — that is income; trade deals and embargoes are in Diplomacy.",
+	},
+	["help.keys.start"] = {
+		ru = "Space — к столице · колесо мыши или «+» «−» — масштаб · H — эта подсказка · P — пауза (одному)",
+		en = "Space — to capital · mouse wheel or «+» «−» — zoom · H — this help · P — pause (solo)",
+	},
+	["help.keys.war"] = {
+		ru = "Z X C V — найм · Q E — способности · R — ракеты · L — карта угроз",
+		en = "Z X C V — hire · Q E — abilities · R — missiles · L — threat map",
+	},
+	["help.keys.nation"] = {
+		ru = "1–0 — стройка · Y — технологии · N — стабильность",
+		en = "1–0 — build · Y — technology · N — stability",
+	},
+	["help.keys.peace"] = {
+		ru = "T — дипломатия · G — метки на карте · Tab — меню",
+		en = "T — diplomacy · G — map pings · Tab — menu",
+	},
+	["help.toHandbook"] = { ru = "Справочник: %s", en = "Handbook: %s" },
 	["help.close"] = { ru = "Понятно!", en = "Got it!" },
 	-- §15х ч.5 Справочник механик (Shared.Handbook, UI/HandbookPanel): «Что это · Как запустить · Чем защититься».
 	["handbook.open"] = { ru = "Справочник механик", en = "Mechanics handbook" },
@@ -1308,12 +1443,17 @@ local TABLE: { [string]: Entry } = {
 		ru = "Каждая механика: что это, как запустить и чем от неё защититься",
 		en = "Every mechanic: what it is, how to use it and how to defend against it",
 	},
-	["handbook.tab.strikes"] = { ru = "Удары и защита", en = "Strikes & defence" },
-	["handbook.tab.army"] = { ru = "Войска и фронт", en = "Troops & front" },
-	["handbook.tab.build"] = { ru = "Стройка и экономика", en = "Building & economy" },
-	["handbook.tab.air"] = { ru = "Флот и авиация", en = "Navy & air" },
-	["handbook.tab.diplo"] = { ru = "Дипломатия", en = "Diplomacy" },
-	["handbook.tab.world"] = { ru = "Мир и события", en = "World & events" },
+	-- §15ц Ц4б: три группы — вкладки, внутри — разделы.
+	["handbook.tab.war"] = { ru = "ВОЙНА", en = "WAR" },
+	["handbook.tab.nation"] = { ru = "ДЕРЖАВА", en = "NATION" },
+	["handbook.tab.peace"] = { ru = "МИР", en = "WORLD" },
+	["handbook.section.strikes"] = { ru = "Удары и защита", en = "Strikes & defence" },
+	["handbook.section.army"] = { ru = "Войска и фронт", en = "Troops & front" },
+	["handbook.section.build"] = { ru = "Стройка и экономика", en = "Building & economy" },
+	["handbook.section.air"] = { ru = "Флот и авиация", en = "Navy & air" },
+	["handbook.section.order"] = { ru = "Стабильность и победа", en = "Stability & victory" },
+	["handbook.section.diplo"] = { ru = "Дипломатия", en = "Diplomacy" },
+	["handbook.section.world"] = { ru = "Торговля и события", en = "Trade & events" },
 	["handbook.what"] = { ru = "Что это", en = "What it is" },
 	["handbook.how"] = { ru = "Как запустить", en = "How to use" },
 	["handbook.defense"] = { ru = "Чем защититься", en = "How to defend" },
@@ -1423,8 +1563,8 @@ local TABLE: { [string]: Entry } = {
 		en = "Attacking a nation opens a front: a share of troops pushes forward. Speed depends on odds: ×1 or less — stalled, ×2 — full speed, ×3+ — “BREAKTHROUGH”. The badge over the arrows shows odds and forecast.",
 	},
 	["handbook.front.how"] = {
-		ru = "В войне нажмите на врага; ползунок задаёт долю войск. Подсказка у курсора до атаки пишет перевес.",
-		en = "At war, tap the enemy; the slider sets the troop share. The cursor hint shows the odds before you attack.",
+		ru = "В войне нажмите на врага; кнопки АТАКА внизу задают долю войск. Подсказка у курсора до атаки пишет перевес.",
+		en = "At war, tap the enemy; the ATTACK buttons below set the troop share. The cursor hint shows the odds before you attack.",
 	},
 	["handbook.front.defense"] = {
 		ru = "Держите гарнизон и стройте укрепления (×1.5 защиты в провинции); фронт, что долго стоит, ещё сильнее. Встречный фронт сбивает перевес.",
@@ -1736,13 +1876,57 @@ local TABLE: { [string]: Entry } = {
 	["menu.row.join"] = { ru = "Войти", en = "Join" },
 	["menu.row.watch"] = { ru = "Смотреть", en = "Watch" },
 	["menu.row.full"] = { ru = "Полон", en = "Full" },
+	-- §15ц Ц2 матчи как серверы: строки плейлиста, «одному», «свой матч»
+	["menu.row.teams"] = { ru = "В команду", en = "Join team" },
+	["menu.row.new"] = { ru = "Войти", en = "Join" },
+	["menu.row.busy"] = { ru = "Занят", en = "Busy" },
+	["menu.row.back"] = { ru = "Вернуться", en = "Back" },
+	["menu.status.New"] = { ru = "Новое лобби — начнёте вы", en = "New lobby — you start it" },
+	["menu.nations"] = { ru = "до %d держав", en = "up to %d nations" },
+	["menu.matchesHead"] = { ru = "открыто %d  ·  идёт %d", en = "%d open  ·  %d live" },
+	["menu.solo"] = { ru = "Играть одному", en = "Play solo" },
+	["menu.own"] = { ru = "Свой матч", en = "Own match" },
+	["menu.busy"] = {
+		ru = "На этом сервере уже идёт матч других игроков — войдите в его строку.",
+		en = "Other players are already in a match on this server — join its row.",
+	},
+	["menu.tile.sound"] = { ru = "ЗВУК", en = "SOUND" },
+	["setup.map"] = { ru = "КАРТА", en = "MAP" },
+	["setup.mode"] = { ru = "РЕЖИМ", en = "MODE" },
+	["setup.bots"] = { ru = "СИЛА БОТОВ", en = "BOT STRENGTH" },
+	["setup.title.solo"] = { ru = "Играть одному", en = "Play solo" },
+	["setup.title.own"] = { ru = "Свой матч", en = "Own match" },
+	["setup.sub.solo"] = {
+		ru = "Вы против ботов: выберите карту, режим и силу ботов.",
+		en = "You versus bots: pick a map, a mode and bot strength.",
+	},
+	["setup.sub.own"] = {
+		ru = "Матч для вас и друзей: выберите карту и режим.",
+		en = "A match for you and your friends: pick a map and a mode.",
+	},
+	["setup.play"] = { ru = "ИГРАТЬ", en = "PLAY" },
+	["setup.create"] = { ru = "СОЗДАТЬ МАТЧ", en = "CREATE MATCH" },
+	["setup.here"] = { ru = "НАЧАТЬ МАТЧ", en = "START MATCH" },
+	["setup.code"] = { ru = "Есть код от друга?", en = "Got a code from a friend?" },
+	["setup.note.solo"] = {
+		ru = "Сервер только для вас; пауза и ×2 — в меню игры.",
+		en = "A server just for you; pause and ×2 are in the game menu.",
+	},
+	["setup.note.own"] = {
+		ru = "Вы получите код — отправьте его друзьям, они войдут по нему.",
+		en = "You will get a code — send it to friends, they join with it.",
+	},
+	["setup.note.here"] = {
+		ru = "Здесь один сервер: матч начнётся на нём с этой картой и режимом.",
+		en = "There is one server here: the match starts on it with this map and mode.",
+	},
 	["menu.matchesEmpty"] = {
 		ru = "Открытых матчей пока нет — «В БОЙ» создаст новый.",
 		en = "No open matches yet — «TO BATTLE» starts a new one.",
 	},
 	["menu.quickHint"] = {
-		ru = "Быстрый вход: лобби с игроками, а если его нет — новый матч.",
-		en = "Quick join: a lobby with players, or a new match if there is none.",
+		ru = "Быстрый вход: лобби с игроками, а если его нет — новый матч. Или выберите матч ниже.",
+		en = "Quick join: a lobby with players, or a new match if there is none. Or pick a match below.",
 	},
 	["menu.connecting"] = { ru = "Подключение…", en = "Connecting…" },
 	["menu.connectingHint"] = {
@@ -1882,6 +2066,28 @@ local TABLE: { [string]: Entry } = {
 		ru = "Люди растут быстрее всего в зелёной зоне. Выше неё — пора в атаку.",
 		en = "People grow fastest in the green zone. Above it — time to attack.",
 	},
+
+	-- §15ц Ц3 Экран матча: группы полосы, короткие названия, кнопки у мини-карты, пауза
+	["bar.nation"] = { ru = "ДЕРЖАВА", en = "NATION" },
+	["bar.forces"] = { ru = "ВОЙСКА", en = "TROOPS" },
+	["bar.army"] = { ru = "в армии %s", en = "army %s" },
+	["bar.noArmy"] = { ru = "нет войск", en = "no troops" },
+	["building.City.short"] = { ru = "Город", en = "City" },
+	["building.Barracks.short"] = { ru = "Казармы", en = "Barracks" },
+	["building.Factory.short"] = { ru = "Завод", en = "Factory" },
+	["building.Housing.short"] = { ru = "Жильё", en = "Housing" },
+	["building.OilRig.short"] = { ru = "Вышка", en = "Oil rig" },
+	["building.Fort.short"] = { ru = "Форт", en = "Fort" },
+	["building.Port.short"] = { ru = "Порт", en = "Port" },
+	["building.Airfield.short"] = { ru = "Аэродром", en = "Airfield" },
+	["building.AirDefense.short"] = { ru = "ПВО", en = "Air def." },
+	["building.MissileSilo.short"] = { ru = "Шахта", en = "Silo" },
+	["unit.Infantry.short"] = { ru = "Пехота", en = "Infantry" },
+	["unit.Tanks.short"] = { ru = "Танки", en = "Tanks" },
+	["unit.Artillery.short"] = { ru = "Артиллерия", en = "Artillery" },
+	["unit.AntiAir.short"] = { ru = "ПВО", en = "Anti-air" },
+	["mapbtn.menu"] = { ru = "Меню", en = "Menu" },
+	["solo.paused"] = { ru = "ПАУЗА · P — продолжить", en = "PAUSED · P — resume" },
 
 	-- §15л Меню игры (≡)
 	["gamemenu.title"] = { ru = "МЕНЮ", en = "MENU" },
@@ -2407,25 +2613,26 @@ local TABLE: { [string]: Entry } = {
 		en = "Tap free land — your capital goes there.",
 	},
 	["tutorial.hint.expand"] = {
-		ru = "Ползунок атаки слева снизу, затем нажмите на ничью землю рядом с собой.",
-		en = "Use the attack slider bottom-left, then tap neutral land next to you.",
+		ru = "Выберите долю в АТАКЕ на нижней полосе, затем нажмите на ничью землю рядом с собой.",
+		en = "Pick a share in ATTACK on the bottom bar, then tap neutral land next to you.",
 	},
 	["tutorial.hint.hire"] = {
-		ru = "Нажмите Z (пехота) или кнопку найма в панели войск.",
-		en = "Press Z (infantry) or the hire button in the forces panel.",
+		ru = "Нажмите Z или клетку «Пехота» в группе ВОЙСКА внизу.",
+		en = "Press Z or the Infantry slot in the TROOPS group below.",
 	},
 	["tutorial.hint.city"] = {
-		ru = "T → выберите соседа → «Объявить войну», затем нажмите на его землю, чтобы начать фронт.",
-		en = "T → pick a neighbour → Declare war, then tap their land to open a front.",
+		ru = "«Дипломатия» у мини-карты (T) → сосед → «Объявить войну», затем нажмите на его землю, чтобы начать фронт.",
+		en = "Diplomacy by the minimap (T) → a neighbour → Declare war, then tap their land to open a front.",
 	},
 	["tutorial.hint.build"] = {
-		ru = "B → выберите здание и нажмите на свою землю: зелёный значок — можно строить.",
-		en = "B → pick a building and tap your land: a green icon means you can build.",
+		ru = "Клетка здания в группе СТРОЙКА внизу (клавиши 1–0), затем нажмите на свою землю: зелёный значок — можно строить.",
+		en = "A building slot in the BUILD group below (keys 1–0), then tap your land: a green icon means you can build.",
 	},
 	["tutorial.hint.alliance"] = {
-		ru = "T → выберите второго соседа → «Союз». В обучении он согласится.",
-		en = "T → pick the other neighbour → Alliance. In the tutorial they agree.",
+		ru = "«Дипломатия» (T) → второй сосед → главная кнопка «Союз» внизу окна. В обучении он согласится.",
+		en = "Diplomacy (T) → the other neighbour → the main Alliance button at the bottom. In the tutorial they agree.",
 	},
+	["tutorial.head"] = { ru = "ОБУЧЕНИЕ · шаг %d из %d", en = "TUTORIAL · step %d of %d" },
 	["tutorial.stepDone"] = { ru = "Шаг пройден: %s", en = "Step done: %s" },
 	["tutorial.finished"] = {
 		ru = "Обучение пройдено! Играйте дальше или вернитесь в лобби.",
@@ -2459,6 +2666,27 @@ local TABLE: { [string]: Entry } = {
 	["arsenal.inBattle"] = { ru = "в бою ✓", en = "in battle ✓" },
 	["arsenal.inBattleBtn"] = { ru = "В бою ✓ (снять)", en = "In battle ✓ (remove)" },
 	["arsenal.owned"] = { ru = "открыто", en = "unlocked" },
+	-- §15ц Ц5а: Арсенал — витрина шаблона
+	["arsenal.tab.items"] = { ru = "Оружие", en = "Weapons" },
+	["arsenal.tab.generals"] = { ru = "Генералы", en = "Generals" },
+	["arsenal.hint"] = {
+		ru = "Медали — за матчи, задания дня и звания. Предмет — навсегда, в бой — один, раз за матч.",
+		en = "Medals come from matches, daily quests and ranks. Items are forever; take one into battle, once per match.",
+	},
+	["arsenal.generalsHint"] = {
+		ru = "Выбранный генерал будет в каждом матче. Новые генералы открываются с уровнем.",
+		en = "Your chosen general joins every match. New generals unlock as you level up.",
+	},
+	["arsenal.generalPick"] = { ru = "Генерал в бой", en = "Take into battle" },
+	["arsenal.generalOn"] = { ru = "В бою ✓", en = "In battle ✓" },
+	["shop.hint"] = {
+		ru = "Медали — за матчи и задания, жетоны штаба — за уровни. Robux — по желанию: у каждого буста есть бесплатный путь.",
+		en = "Medals come from matches and quests, HQ tokens from levels. Robux is optional: every boost has a free path.",
+	},
+	["wardrobe.hint"] = {
+		ru = "Медали — за матчи и задания дня. Вид не влияет на силу державы.",
+		en = "Medals come from matches and daily quests. Looks never change your nation's power.",
+	},
 	["arsenal.item.Reinforce"] = { ru = "Подкрепление", en = "Reinforcements" },
 	["arsenal.item.Convoy"] = { ru = "Конвой", en = "Convoy" },
 	["arsenal.item.HqReserve"] = { ru = "Резерв штаба", en = "HQ Reserve" },

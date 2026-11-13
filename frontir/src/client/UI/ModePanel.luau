@@ -18,6 +18,7 @@ local Strings = require(Shared:WaitForChild("Strings"))
 local Types = require(Shared:WaitForChild("Types"))
 
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local UiScale = require(script.Parent:WaitForChild("UiScale"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
@@ -26,6 +27,12 @@ export type ModePanel = {
 	refresh: () -> (), -- пришло info
 	voteFrame: Frame, -- §15и: на время лобби переезжает в экран лобби
 	mapVoteFrame: Frame, -- §15к: голосование за карту — тоже в экране лобби
+	-- §15ц Ц3: пауза и ×2 «одному» — пунктами меню игры (Tab); P — пауза.
+	soloOn: () -> boolean,
+	togglePause: () -> (),
+	toggleFast: () -> (),
+	pauseText: () -> string,
+	fastText: () -> string,
 }
 
 local ModePanel = {}
@@ -91,9 +98,9 @@ function ModePanel.new(
 	local scale = Instance.new("UIScale")
 	scale.Parent = vote
 	local function fit()
-		scale.Scale = math.clamp((gui.AbsoluteSize.X - 24) / (MAX_CARDS * CARD_W + (MAX_CARDS - 1) * GAP), 0.5, 1)
+		scale.Scale = math.clamp((UiScale.size(gui).X - 24) / (MAX_CARDS * CARD_W + (MAX_CARDS - 1) * GAP), 0.5, 1)
 	end
-	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fit)
+	UiScale.onResize(gui, fit)
 	fit()
 	local title = text(vote, 15, true)
 	title.Size = UDim2.new(1, 0, 0, 20)
@@ -164,9 +171,9 @@ function ModePanel.new(
 	local mapScale = Instance.new("UIScale")
 	mapScale.Parent = mapVote
 	local function fitMap()
-		mapScale.Scale = math.clamp((gui.AbsoluteSize.X - 24) / (MAP_CARDS * CARD_W + (MAP_CARDS - 1) * GAP), 0.5, 1)
+		mapScale.Scale = math.clamp((UiScale.size(gui).X - 24) / (MAP_CARDS * CARD_W + (MAP_CARDS - 1) * GAP), 0.5, 1)
 	end
-	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fitMap)
+	UiScale.onResize(gui, fitMap)
 	fitMap()
 	local mapTitle = text(mapVote, 15, true)
 	mapTitle.Size = UDim2.new(1, 0, 0, 20)
@@ -199,29 +206,45 @@ function ModePanel.new(
 		mapCards[k] = { button = b, edge = edge, name = name, body = body, count = count }
 	end
 
-	-- Пауза и ×2 («Против ботов», игра).
-	local solo = Instance.new("Frame")
+	-- Пауза и ×2 («Против ботов», игра). §15ц Ц3: кнопки — пунктами меню игры (Tab) и клавишей P; на паузе
+	-- сверху по центру — плашка «ПАУЗА · P — продолжить» (нажатие — продолжить).
+	local solo = Instance.new("TextButton")
 	solo.Name = "Solo"
 	solo.AnchorPoint = Vector2.new(0.5, 0)
 	solo.Position = UDim2.new(0.5, 0, 0, TOP)
-	solo.Size = UDim2.fromOffset(2 * 150 + GAP, BUTTON)
-	solo.BackgroundTransparency = 1
+	solo.Size = UDim2.fromOffset(0, BUTTON)
+	solo.AutomaticSize = Enum.AutomaticSize.X
+	solo.BackgroundColor3 = Theme.Colors.PanelBg
+	solo.BorderSizePixel = 0
+	solo.FontFace = Theme.FontBold
+	solo.TextSize = 18
+	solo.TextColor3 = Theme.Colors.Gold
 	solo.Visible = false
 	solo.Parent = gui
-	local pause = button(solo, 150, BUTTON)
-	local fast = button(solo, 150, BUTTON)
-	fast.Position = UDim2.fromOffset(150 + GAP, 0)
+	local soloPad = Instance.new("UIPadding")
+	soloPad.PaddingLeft = UDim.new(0, 18)
+	soloPad.PaddingRight = UDim.new(0, 18)
+	soloPad.Parent = solo
+	local soloEdge = Instance.new("UIStroke")
+	soloEdge.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	soloEdge.Color = Theme.Colors.Gold
+	soloEdge.Thickness = 2
+	soloEdge.Parent = solo
+	local function soloOn(): boolean
+		local me = if cs.myNation ~= nil then cs.nations[cs.myNation] else nil
+		return cs.mode.solo and cs.phase == "Play" and me ~= nil
+	end
 	local function togglePause()
 		if cs.mode.solo and cs.phase == "Play" then
 			send("solo", { pause = not cs.mode.paused, fast = cs.mode.fast })
 		end
 	end
-	Session.connect(pause.Activated, togglePause)
-	Session.connect(fast.Activated, function()
+	local function toggleFast()
 		if cs.mode.solo and cs.phase == "Play" then
 			send("solo", { pause = false, fast = not cs.mode.fast })
 		end
-	end)
+	end
+	Session.connect(solo.Activated, togglePause)
 	Session.connect(UserInputService.InputBegan, function(input: InputObject, gameProcessed: boolean)
 		if gameProcessed or UserInputService:GetFocusedTextBox() ~= nil then
 			return
@@ -279,12 +302,24 @@ function ModePanel.new(
 				end
 			end
 		end
-		solo.Visible = info.solo and cs.phase == "Play" and me ~= nil
-		pause.Text = Strings.get(if info.paused then "solo.resume" else "solo.pause", lang)
-		fast.Text = Strings.get(if info.fast then "solo.normal" else "solo.fast", lang)
+		solo.Visible = soloOn() and info.paused
+		solo.Text = Strings.get("solo.paused", lang)
 	end
 
-	return { refresh = refresh, voteFrame = vote, mapVoteFrame = mapVote }
+	return {
+		refresh = refresh,
+		voteFrame = vote,
+		mapVoteFrame = mapVote,
+		soloOn = soloOn,
+		togglePause = togglePause,
+		toggleFast = toggleFast,
+		pauseText = function(): string
+			return Strings.get(if cs.mode.paused then "solo.resume" else "solo.pause", lang)
+		end,
+		fastText = function(): string
+			return Strings.get(if cs.mode.fast then "solo.normal" else "solo.fast", lang)
+		end,
+	}
 end
 
 return table.freeze(ModePanel)

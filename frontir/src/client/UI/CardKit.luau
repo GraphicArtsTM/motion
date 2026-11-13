@@ -16,9 +16,16 @@ local ItemArt = require(Shared:WaitForChild("ItemArt"))
 
 local MenuKit = require(script.Parent:WaitForChild("MenuKit"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local UiScale = require(script.Parent:WaitForChild("UiScale"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 export type Page = ScrollingFrame
+-- §15ц Ц4а: низ окна — подсказка слева и одна главная кнопка справа.
+export type Footer = {
+	hint: TextLabel,
+	main: TextButton,
+	set: (text: string, enabled: boolean, hint: string?) -> (),
+}
 export type Window = {
 	frame: Frame,
 	chips: Frame,
@@ -27,6 +34,7 @@ export type Window = {
 	setTab: (key: string) -> (),
 	tab: () -> string,
 	onTab: (fn: (key: string) -> ()) -> (),
+	footer: Footer?, -- есть, если окно создано с footer = true
 }
 export type Card = {
 	frame: Frame,
@@ -45,6 +53,7 @@ local CardKit = {}
 CardKit.CardW = 184
 CardKit.CardH = 280
 CardKit.Gap = 10
+CardKit.MainW = 300 -- §15ц Ц4а: главная кнопка внизу окна
 
 -- Картинки, которые можно перерисовать (repaint): ImageLabel → EditableImage.
 local editables: { [ImageLabel]: EditableImage } = setmetatable({}, { __mode = "k" }) :: any
@@ -108,7 +117,8 @@ function CardKit.chip(parent: Instance, icon: string, order: number): TextLabel
 	return text
 end
 
--- Окно: tabs — { { key, label } } (пусто — одна страница "main"); kinds — "grid" (по умолчанию) или "list".
+-- Окно: tabs — { { key, label } } (пусто — одна страница "main"); kinds — "grid" (по умолчанию) или "list";
+-- footer — §15ц Ц4а: низ окна с подсказкой и одной главной кнопкой (win.footer).
 function CardKit.window(
 	gui: ScreenGui,
 	name: string,
@@ -117,7 +127,8 @@ function CardKit.window(
 	width: number,
 	height: number,
 	tabs: { { key: string, label: string } },
-	kinds: { [string]: string }?
+	kinds: { [string]: string }?,
+	footer: boolean?
 ): Window
 	local frame = Instance.new("Frame")
 	frame.Name = name
@@ -133,11 +144,23 @@ function CardKit.window(
 	local scale = Instance.new("UIScale")
 	scale.Parent = frame
 	local function fit()
-		local s = gui.AbsoluteSize
+		-- §15ц Ц5а: по слою, где окно лежит сейчас (Main.client переносит окна из HUD в слой окон; HUD под главным
+		-- меню выключен — его размер в этот момент не тот).
+		local layer = frame:FindFirstAncestorWhichIsA("ScreenGui") or gui
+		local s = UiScale.size(layer)
+		if s.X <= 0 or s.Y <= 0 then
+			return
+		end
 		-- Место сверху — под картинку-шапку (SceneBanner).
 		scale.Scale = math.clamp(math.min((s.X - 24) / width, (s.Y - 140) / height), 0.4, 1)
 	end
-	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fit)
+	UiScale.onResize(gui, fit)
+	-- Пересчёт при каждом открытии: размер слоя мог смениться, пока окно было закрыто или переезжало.
+	Session.connect(frame:GetPropertyChangedSignal("Visible"), function()
+		if frame.Visible then
+			fit()
+		end
+	end)
 	fit()
 
 	local head = Instance.new("Frame")
@@ -168,6 +191,54 @@ function CardKit.window(
 		tabBar = bar
 		top += 52
 	end
+	-- Низ окна: подсказка и главная кнопка (страницы кончаются над ним).
+	local bottom = 0
+	local foot: Footer? = nil
+	if footer then
+		bottom = MenuKit.Touch + 16
+		local f = Instance.new("Frame")
+		f.Name = "Footer"
+		f.BackgroundTransparency = 1
+		f.AnchorPoint = Vector2.new(0, 1)
+		f.Position = UDim2.new(0, 16, 1, -12)
+		f.Size = UDim2.new(1, -32, 0, MenuKit.Touch)
+		f.Parent = frame
+		local line = Instance.new("Frame")
+		line.Name = "Line"
+		line.BorderSizePixel = 0
+		line.BackgroundColor3 = Theme.Colors.Slate
+		line.Position = UDim2.fromOffset(0, -8)
+		line.Size = UDim2.new(1, 0, 0, 1)
+		line.Parent = f
+		local hint = MenuKit.label(f, "", 13, Theme.Colors.Muted)
+		hint.AutomaticSize = Enum.AutomaticSize.None
+		hint.AnchorPoint = Vector2.new(0, 0.5)
+		hint.Position = UDim2.fromScale(0, 0.5)
+		hint.Size = UDim2.new(1, -(CardKit.MainW + 16), 1, 0)
+		hint.TextWrapped = true
+		hint.RichText = true
+		local main = CardKit.button(f, "", "primary")
+		main.Name = "Main"
+		main.AnchorPoint = Vector2.new(1, 0)
+		main.Position = UDim2.fromScale(1, 0)
+		main.Size = UDim2.fromOffset(CardKit.MainW, MenuKit.Touch)
+		main.TextSize = 15
+		foot = {
+			hint = hint,
+			main = main,
+			set = function(text: string, enabled: boolean, hintText: string?)
+				main.Text = text
+				main.Visible = text ~= ""
+				main.Active = enabled
+				main.AutoButtonColor = enabled
+				main.TextTransparency = if enabled then 0 else 0.45
+				main.BackgroundTransparency = if enabled then 0 else 0.5
+				if hintText ~= nil then
+					hint.Text = hintText
+				end
+			end,
+		}
+	end
 	local pages: { [string]: Page } = {}
 	local tabButtons: { [string]: TextButton } = {}
 	local current = if #tabs > 0 then tabs[1].key else "main"
@@ -178,7 +249,7 @@ function CardKit.window(
 		p.BackgroundTransparency = 1
 		p.BorderSizePixel = 0
 		p.Position = UDim2.fromOffset(16, top)
-		p.Size = UDim2.new(1, -32, 1, -(top + 14))
+		p.Size = UDim2.new(1, -32, 1, -(top + 14 + bottom))
 		p.ScrollBarThickness = 8
 		p.ScrollBarImageColor3 = Theme.Colors.PanelBorder
 		p.ScrollingDirection = Enum.ScrollingDirection.Y
@@ -256,6 +327,7 @@ function CardKit.window(
 		onTab = function(fn: (string) -> ())
 			table.insert(listeners, fn)
 		end,
+		footer = foot,
 	}
 end
 
@@ -294,6 +366,12 @@ function CardKit.card(parent: Instance, artKey: string, title: string, desc: str
 	price.Position = UDim2.fromOffset(8, artH + 86)
 	price.Size = UDim2.fromOffset(w - 16, 16)
 	price.AutomaticSize = Enum.AutomaticSize.None
+	-- §15ц Ц5а: длинная строка цены («только в матче (купленное — в запас)») ужимается по ширине карточки.
+	price.TextScaled = true
+	local priceFit = Instance.new("UITextSizeConstraint")
+	priceFit.MaxTextSize = 13
+	priceFit.MinTextSize = 8
+	priceFit.Parent = price
 	local actions = Instance.new("Frame")
 	actions.Name = "Actions"
 	actions.BackgroundTransparency = 1
@@ -394,9 +472,9 @@ function CardKit.dock(gui: ScreenGui, name: string, artKey: string, hireKeys: { 
 	local scale = Instance.new("UIScale")
 	scale.Parent = frame
 	local function fit()
-		scale.Scale = math.clamp((gui.AbsoluteSize.X - 16) / width, 0.5, 1)
+		scale.Scale = math.clamp((UiScale.size(gui).X - 16) / width, 0.5, 1)
 	end
-	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fit)
+	UiScale.onResize(gui, fit)
 	fit()
 
 	local head = MenuKit.box(frame, "Head", 1)
@@ -420,6 +498,7 @@ function CardKit.dock(gui: ScreenGui, name: string, artKey: string, hireKeys: { 
 	local row = MenuKit.box(frame, "Hires", 2)
 	row.AutomaticSize = Enum.AutomaticSize.None
 	row.Size = UDim2.new(1, 0, 0, 84)
+	row.Visible = #hireKeys > 0
 	local rowList = MenuKit.list(row, 8, true)
 	rowList.HorizontalFlex = Enum.UIFlexAlignment.Fill
 	local hires: { HireTile } = {}

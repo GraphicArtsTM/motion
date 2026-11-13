@@ -5,6 +5,8 @@
 	все случайные события, ракета, две смены карты. После каждого шага в Output — PASS / FAIL с причиной (SKIP —
 	шаг здесь невозможен, в итог не входит), в конце «Итог: N из M». Ошибки скриптов клиента и сервера за время
 	проверки тоже считаются как FAIL.
+	§15ц Ц5г: окна ещё проверяются на «влезает в экран» (frame), блок «Экран матча» — заголовки групп полосы, кнопки
+	у мини-карты, без наложений главных рамок HUD, одно окно за раз.
 
 	Модуль живёт над сессиями (смена карты пересоздаёт сессию): каждая сессия зовёт attach со своими окнами.
 	Только Studio: действия идут через Remotes.Dev, которого в опубликованной игре нет.
@@ -21,7 +23,8 @@ local WorldEvents = require(Shared:WaitForChild("WorldEvents"))
 
 type ClientState = ClientState.ClientState
 
-export type Window = { name: string, toggle: () -> (), isOpen: () -> boolean, skip: (() -> string?)? }
+-- frame — имя рамки окна в слое (FrontirHud / FrontirWindows): §15ц Ц5г «влезает в экран».
+export type Window = { name: string, toggle: () -> (), isOpen: () -> boolean, skip: (() -> string?)?, frame: string? }
 export type Menu = { tap: (cell: number, zoom: number) -> boolean, close: () -> (), isOpen: () -> boolean }
 
 export type Context = {
@@ -32,6 +35,7 @@ export type Context = {
 	air: Menu,
 	naval: Menu,
 	zoom: () -> number,
+	hud: ScreenGui, -- §15ц Ц5г: экран матча (полоса, кнопки, наложения)
 }
 
 local SelfCheck = {}
@@ -100,6 +104,60 @@ local function myBuilding(cs: ClientState, kind: string): number?
 		end
 	end
 	return nil
+end
+
+-- §15ц Ц5г: рамка окна по имени среди окон слоёв игрока.
+local function findFrame(hud: ScreenGui, name: string): GuiObject?
+	local pg = hud.Parent
+	if pg == nil then
+		return nil
+	end
+	for _, layer in pg:GetChildren() do
+		if layer:IsA("ScreenGui") then
+			local f = layer:FindFirstChild(name)
+			if f ~= nil and f:IsA("GuiObject") then
+				return f
+			end
+		end
+	end
+	return nil
+end
+
+-- Рамка целиком в своём слое (±2 px); иначе — что вылезло.
+local function insideLayer(g: GuiObject): (boolean, string?)
+	local layer = g:FindFirstAncestorWhichIsA("ScreenGui")
+	if layer == nil then
+		return false, "нет слоя"
+	end
+	local p, s, area = g.AbsolutePosition - layer.AbsolutePosition, g.AbsoluteSize, layer.AbsoluteSize
+	if p.X < -2 or p.Y < -2 or p.X + s.X > area.X + 2 or p.Y + s.Y > area.Y + 2 then
+		return false,
+			string.format("рамка %dx%d в (%d, %d), экран %dx%d", s.X, s.Y, p.X, p.Y, area.X, area.Y)
+	end
+	return true, nil
+end
+
+-- Пересекаются ли две видимые рамки больше чем на 2 px по каждой оси.
+local function overlaps(a: GuiObject, b: GuiObject): boolean
+	local pa, sa, pb, sb = a.AbsolutePosition, a.AbsoluteSize, b.AbsolutePosition, b.AbsoluteSize
+	local w = math.min(pa.X + sa.X, pb.X + sb.X) - math.max(pa.X, pb.X)
+	local h = math.min(pa.Y + sa.Y, pb.Y + sb.Y) - math.max(pa.Y, pb.Y)
+	return w > 2 and h > 2
+end
+
+-- Видна ли рамка на экране (и все её предки).
+local function shown(g: GuiObject): boolean
+	if g.AbsoluteSize.X <= 0 or g.AbsoluteSize.Y <= 0 then
+		return false
+	end
+	local node: Instance? = g
+	while node ~= nil and not node:IsA("ScreenGui") do
+		if node:IsA("GuiObject") and not node.Visible then
+			return false
+		end
+		node = node.Parent
+	end
+	return node ~= nil and (node :: ScreenGui).Enabled
 end
 
 local function anyBot(cs: ClientState): number?
@@ -184,6 +242,20 @@ local function run()
 				if not w.isOpen() then
 					return false, "не открылось"
 				end
+				-- §15ц Ц5г: окно влезает в экран.
+				local frameName = w.frame
+				if frameName ~= nil then
+					local f = findFrame(c.hud, frameName)
+					if f == nil then
+						w.toggle()
+						return false, "нет рамки " .. frameName
+					end
+					local inside, why2 = insideLayer(f)
+					if not inside then
+						w.toggle()
+						return false, "не влезает в экран: " .. tostring(why2)
+					end
+				end
 				w.toggle()
 				task.wait(0.3)
 				if w.isOpen() then
@@ -196,8 +268,112 @@ local function run()
 			return c.commanderOpen(), "нет кнопок способностей"
 		end)
 
+		-- 1а. Экран матча (§15ц Ц3–Ц5).
+		local hud = c.hud
+		step("полоса: шесть групп с заголовками", function(): (boolean?, string?)
+			local bar = hud:FindFirstChild("CommandBar")
+			if bar == nil or not bar:IsA("GuiObject") or not shown(bar) then
+				return false, "полосы нет на экране"
+			end
+			for _, group in { "Nation", "People", "Attack", "Money", "Hire", "Build" } do
+				local g = bar:FindFirstChild(group)
+				local caption = if g ~= nil then g:FindFirstChild("Caption") else nil
+				if caption == nil then
+					return false, "нет заголовка у группы " .. group
+				end
+			end
+			return true, nil
+		end)
+		step("кнопки окон и зум у мини-карты", function(): (boolean?, string?)
+			local buttons = hud:FindFirstChild("MapButtons")
+			local zoom = hud:FindFirstChild("ZoomButtons")
+			if buttons == nil or not buttons:IsA("GuiObject") or not shown(buttons) then
+				return false, "кнопок окон нет на экране"
+			end
+			if zoom == nil or not zoom:IsA("GuiObject") or not shown(zoom) then
+				return false, "кнопок зума нет на экране"
+			end
+			local n = 0
+			for _, b in buttons:GetChildren() do
+				if b:IsA("GuiButton") and b.Visible then
+					n += 1
+				end
+			end
+			return n >= 4, string.format("видно кнопок %d из 4", n)
+		end)
+		step(
+			"без наложений: полоса, мини-карта, столбики, «УДАРЫ», лента",
+			function(): (boolean?, string?)
+				local names = {
+					"CommandBar",
+					"MapButtons",
+					"ZoomButtons",
+					"Minimap",
+					"TopCenter",
+					"TopRight",
+					"Abilities",
+					"AttackArea",
+					"AttackChips",
+					"MenuButton",
+				}
+				local frames: { GuiObject } = {}
+				for _, name in names do
+					local g = hud:FindFirstChild(name)
+					if g ~= nil and g:IsA("GuiObject") and shown(g) then
+						table.insert(frames, g)
+					end
+				end
+				local bad: { string } = {}
+				for i = 1, #frames do
+					for j = i + 1, #frames do
+						if overlaps(frames[i], frames[j]) then
+							table.insert(bad, frames[i].Name .. " × " .. frames[j].Name)
+						end
+					end
+				end
+				return #bad == 0, table.concat(bad, ", ")
+			end
+		)
+		step(
+			"одно окно за раз: Дипломатия → Технологии",
+			function(): (boolean?, string?)
+				local diplo: Window? = nil
+				local tech: Window? = nil
+				for _, w in c.windows do
+					if w.name == "дипломатия" then
+						diplo = w
+					elseif w.name == "технологии" then
+						tech = w
+					end
+				end
+				if diplo == nil or tech == nil then
+					return nil, "нет окон в списке"
+				end
+				local d, t = diplo :: Window, tech :: Window
+				if not d.isOpen() then
+					d.toggle()
+				end
+				task.wait(0.3)
+				t.toggle()
+				task.wait(0.4)
+				local ok = t.isOpen() and not d.isOpen()
+				if t.isOpen() then
+					t.toggle()
+				end
+				if d.isOpen() then
+					d.toggle()
+				end
+				return ok,
+					"Дипломатия не закрылась, когда открылись Технологии"
+			end
+		)
+
 		-- 2. Действия F4 (основные кнопки).
 		local bot = anyBot(cs)
+		-- §15ц Ц5г: сначала земля — со стартом в одну провинцию внутри материка нет берега (порт, десант), провинции
+		-- для восстания и места под шахту и аэродром: такие шаги падали не из-за игры, а из-за старта.
+		f4("сверхдержава (земля для проверок)", "giant", nil, { "noLand" })
+		task.wait(1)
 		f4("+войска", "grant", "forces")
 		f4("+люди", "grant", "people")
 		f4("+деньги", "grant", "money")

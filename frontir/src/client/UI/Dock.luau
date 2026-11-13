@@ -16,6 +16,7 @@ local PixelIcons = require(Shared:WaitForChild("PixelIcons"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local UiScale = require(script.Parent:WaitForChild("UiScale"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 export type Item = {
@@ -237,16 +238,17 @@ function Dock.new(gui: ScreenGui, lang: Strings.Lang, items: { Item }): Dock
 			end
 			frame.Visible = any
 			-- Не шире половины экрана: длинная строка ужимается (телефон, маленький экран).
-			local natural = frame.AbsoluteSize.X / math.max(0.01, dockScale.Scale)
-			local room = gui.AbsoluteSize.X * 0.5 - cfg.LeftPx
+			local natural = UiScale.units(frame.AbsoluteSize.X) / math.max(0.01, dockScale.Scale)
+			local room = UiScale.size(gui).X * 0.5 - cfg.LeftPx
 			dockScale.Scale = math.clamp(room / math.max(1, natural), 0.5, 1)
 		end
 		local h = hovered
 		if h ~= nil and h.root.Visible and frame.Visible then
 			tip.Visible = true
 			tip.Text = tipText(h.item)
-			local p = h.root.AbsolutePosition - gui.AbsolutePosition
-			tip.Position = UDim2.fromOffset(p.X, p.Y + h.root.AbsoluteSize.Y + 8)
+			local f = UiScale.factor()
+			local p = (h.root.AbsolutePosition - gui.AbsolutePosition) / f
+			tip.Position = UDim2.fromOffset(p.X, p.Y + h.root.AbsoluteSize.Y / f + 8)
 		else
 			tip.Visible = false
 		end

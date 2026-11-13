@@ -44,8 +44,9 @@ T.describe("Справочник механик (§15х ч.5)", function()
 				local other = if e.hinder then "defense" else "hinder"
 				T.expect(Strings.Table["handbook." .. e.key .. "." .. other]).toBe(nil)
 			end
-			T.expect(Handbook.counter({ key = "x", tab = "army", art = "a" })).toBe("defense")
-			T.expect(Handbook.counter({ key = "x", tab = "army", art = "a", hinder = true })).toBe("hinder")
+			T.expect(Handbook.counter({ key = "x", tab = "war", section = "army", art = "a" })).toBe("defense")
+			T.expect(Handbook.counter({ key = "x", tab = "war", section = "army", art = "a", hinder = true }))
+				.toBe("hinder")
 			T.expect(filled("handbook.defense")).toBeTruthy()
 			T.expect(filled("handbook.hinder")).toBeTruthy()
 			T.expect(filled("handbook.what")).toBeTruthy()
@@ -54,34 +55,42 @@ T.describe("Справочник механик (§15х ч.5)", function()
 	)
 
 	T.it(
-		"вкладки: шесть, у каждой название и хотя бы одна механика; ключи не повторяются",
+		"§15ц Ц4б: три вкладки ВОЙНА · ДЕРЖАВА · МИР, у каждой разделы с названием и механиками; ключи не повторяются",
 		function()
-			T.expect(#Handbook.Tabs).toBe(6)
+			T.expect(#Handbook.Tabs).toBe(3)
+			local total = 0
 			for _, tab in Handbook.Tabs do
 				T.expect(filled("handbook.tab." .. tab)).toBeTruthy()
-				T.expect(#Handbook.of(tab) > 0).toBeTruthy()
+				local sections = Handbook.Sections[tab]
+				T.expect(sections ~= nil and #sections > 0).toBeTruthy()
+				for _, section in sections do
+					T.expect(filled("handbook.section." .. section)).toBeTruthy()
+					T.expect(#Handbook.inSection(tab, section) > 0).toBeTruthy()
+				end
+				total += #Handbook.of(tab)
 			end
 			local seen: { [string]: boolean } = {}
-			local total = 0
 			for _, e in Handbook.Entries do
 				T.expect(seen[e.key]).toBe(nil)
 				seen[e.key] = true
 				T.expect(table.find(Handbook.Tabs, e.tab) ~= nil).toBeTruthy()
+				T.expect(table.find(Handbook.Sections[e.tab], e.section) ~= nil).toBeTruthy()
 			end
-			for _, tab in Handbook.Tabs do
-				total += #Handbook.of(tab)
-			end
+			-- Каждая механика — ровно в одном разделе одной вкладки.
 			T.expect(total).toBe(#Handbook.Entries)
 		end
 	)
 
-	T.it("удары из таблицы §15х есть в справочнике", function()
-		local keys: { [string]: boolean } = {}
-		for _, e in Handbook.of("strikes") do
-			keys[e.key] = true
+	T.it(
+		"удары из таблицы §15х — во вкладке ВОЙНА, раздел «Удары и защита»",
+		function()
+			local keys: { [string]: boolean } = {}
+			for _, e in Handbook.inSection("war", "strikes") do
+				keys[e.key] = true
+			end
+			for _, k in { "missile", "nukes", "raid", "ability", "defense" } do
+				T.expect(keys[k]).toBe(true)
+			end
 		end
-		for _, k in { "missile", "nukes", "raid", "ability", "defense" } do
-			T.expect(keys[k]).toBe(true)
-		end
-	end)
+	)
 end)

@@ -23,6 +23,7 @@ local Types = require(Shared:WaitForChild("Types"))
 local CardKit = require(script.Parent:WaitForChild("CardKit"))
 local StrikeStatus = require(script.Parent:WaitForChild("StrikeStatus"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local UiScale = require(script.Parent:WaitForChild("UiScale"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
@@ -119,9 +120,9 @@ function CommanderPanel.new(
 	local pickScale = Instance.new("UIScale")
 	pickScale.Parent = picker
 	local function fit()
-		pickScale.Scale = math.clamp((gui.AbsoluteSize.X - 24) / (4 * CARD_W + 18), 0.5, 1)
+		pickScale.Scale = math.clamp((UiScale.size(gui).X - 24) / (4 * CARD_W + 18), 0.5, 1)
 	end
-	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fit)
+	UiScale.onResize(gui, fit)
 	fit()
 	local pickTitle = text(picker, 15, true)
 	pickTitle.Size = UDim2.new(1, 0, 0, 20)
@@ -197,9 +198,9 @@ function CommanderPanel.new(
 	local barScale = Instance.new("UIScale")
 	barScale.Parent = bar
 	local function fitBar()
-		barScale.Scale = math.clamp(gui.AbsoluteSize.X * cfgS.MaxScreenShare / bar.Size.X.Offset, 0.6, 1)
+		barScale.Scale = math.clamp(UiScale.size(gui).X * cfgS.MaxScreenShare / bar.Size.X.Offset, 0.6, 1)
 	end
-	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fitBar)
+	UiScale.onResize(gui, fitBar)
 	fitBar()
 	local header = text(bar, 14, true)
 	header.Position = UDim2.fromOffset(PAD, PAD)

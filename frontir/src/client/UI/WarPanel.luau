@@ -25,6 +25,7 @@ local Strings = require(Shared:WaitForChild("Strings"))
 local CardKit = require(script.Parent:WaitForChild("CardKit"))
 local MenuKit = require(script.Parent:WaitForChild("MenuKit"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local UiScale = require(script.Parent:WaitForChild("UiScale"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
@@ -179,9 +180,9 @@ function WarPanel.new(
 	banner.Position = UDim2.new(0.5, 0, 0, 58)
 	banner.AutomaticSize = Enum.AutomaticSize.Y
 	local function fitWidth()
-		banner.Size = UDim2.fromOffset(math.min(WIDTH, gui.AbsoluteSize.X - 24), 0)
+		banner.Size = UDim2.fromOffset(math.min(WIDTH, UiScale.size(gui).X - 24), 0)
 	end
-	Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fitWidth)
+	UiScale.onResize(gui, fitWidth)
 	fitWidth()
 	local titleRow = Instance.new("Frame")
 	titleRow.BackgroundTransparency = 1
@@ -241,9 +242,9 @@ function WarPanel.new(
 		local scale = Instance.new("UIScale")
 		scale.Parent = f
 		local function fit()
-			scale.Scale = math.clamp((gui.AbsoluteSize.X - 16) / width, 0.45, 1)
+			scale.Scale = math.clamp((UiScale.size(gui).X - 16) / width, 0.45, 1)
 		end
-		Session.connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fit)
+		UiScale.onResize(gui, fit)
 		fit()
 		return f
 	end

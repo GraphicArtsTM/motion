@@ -9,6 +9,19 @@
 **§15л части 1–11** (главное меню, звания, меню игры, итоги, интерфейс без наложений, командная полоса, док слева, хаб и матч — разные места, свой матч по коду, пиксельный вид, логотип, живой фон хаба, верх матча, Арсенал, миниатюры карт, матч только по «В БОЙ», картинки у окон, окна-витрины с карточками, Дипломатия, Совет и стройка карточками, порт, аэродром, здание, война и мир, итоги карточками) и **§15м** (живой фронт: скорость от перевеса, «Сверхдержава», зрелищный матч), **§15н ч.1** (прогноз фронта на плашке), **§15у** (два уровня союза, удар через союзника), **§15ф** (редизайн, Ф1 и Ф2), **§15х ч.1–6** (понятные удары и
 защита, сирена, удары под рукой, панель «УДАРЫ», справочник механик, 10 зданий вместо 13) — ветка
 `claude/vibrant-curie-ef1e6e`.
+**§15ц Ц1** (масштаб интерфейса под экран), **Ц2** (матчи как серверы, выбор карты и режима), **Ц3** (экран
+матча) и **Ц4** (окна механик: шаблон, одно окно за раз, Совет и Стабильность, Дипломатия и Технологии с главной
+кнопкой, «Как играть» и справочник по группам), **Ц5а** (Магазин, Арсенал, Гардероб в одном виде) и **Ц5б** (Итоги
+и «Обучение» под новый экран), **Ц5в** (телефон), **Ц5г** (самопроверка и чек-лист) — **§15ц сделан целиком**, ждёт
+проверки в Studio. **§15ч Логистика:** Ч1 (железные дороги) и Ч2 (поезда и грузы) сделаны; дальше Ч3 (союзники, война и логистика).
+- §15ц Ц5г: окно в списке самопроверки (`windows` в `Main.client`) — с `frame` (имя рамки: проверка «влезает в
+  экран»); блок «Экран матча» в `SelfCheck` (заголовки полосы, кнопки у мини-карты, наложения, одно окно за раз) —
+  новую рамку HUD снизу или справа добавить в его список наложений.
+- §15ц Ц5в: узкий экран — чистый `PhoneLayout` (`narrow`, `bar`); в Studio — `Config.Dev.PhoneLayout` (проверка телефона
+  на мониторе, после — вернуть false). Полоса: разделитель `rowBreak` во всю ширину = перенос строки; «АТАКИ» —
+  `AttackPanel.setCollapsed`, кнопки у мини-карты — `MapButtons.setCompact` (применяет `applyNarrow` в `Main.client`).
+- §15ц Ц5б: подсветка шага обучения — `TutorialPanel.update` (рамка `TutorialFocus` поверх рамки из
+  `Config.Tutorial.Focus`, путь от FrontirHud); переименовали рамку из этого списка — поправить путь.
 **10а** (обучение) готов и ждёт проверки в Studio; **10б** (звук и музыка) и **10в** (телефон, аналитика, отчёт баланса) — тоже
 (см. «Статус» в начале GDD §15). Обновляй «Статус» в GDD и этот раздел в конце каждого этапа.
 
@@ -493,6 +506,34 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   «strike.<missile|raid|способность>», размеры — `Config.Render.Strikes`). Перепись зданий — `tools/building_census`.
   Наведение на здание — `MapTooltip` (`range.*`, `rangeAt`) + `MarkerLayer.range` (`Buildings.rangeOf`, город и порт —
   снабжение). «Сирена» — `UI/SirenPanel` (в столбике `TopCenter`), цвет летящих ударов — `MarkerLayer.strikeColor`.
+- §15ц Ц1 (редизайн 2, план этапов Ц1–Ц5 — GDD §15ц): интерфейс растёт с экраном — чистый `UiFit.scale(w, h)`
+  (`Config.Render.UiScale`), клиент `UI/UiScale`: `attach(gui)` ставит UIScale в слой (HUD, меню, окна — в
+  `Main.client`), размеры в коде — **условные пиксели** (экран высотой 900). В окнах — не `gui.AbsoluteSize`, а
+  `UiScale.size(gui)`; не `gui:GetPropertyChangedSignal("AbsoluteSize")`, а `UiScale.onResize(gui, fn)`; точку из
+  настоящих пикселей (курсор, `AbsolutePosition` другого окна) перед `UDim2.fromOffset` делить на `UiScale.factor()`
+  (`UiScale.units(px)`). Отношения пикселей (ползунок, мини-карта) и холст карты — без пересчёта.
+- §15ц Ц2 матчи как серверы: плейлист `Config.Lobbies` («карта · режим»), строки списка — чистый `Lobbies.board`
+  (сервер шлёт `servers` и в хабе, и «как раньше»: `rowsFor` / `hereEntry`, id "here" — свой сервер, "" — новое
+  лобби), выбор — `Lobbies.request` (намерения `play` и `privateCreate` с `map` / `mode` / `solo` / `level`).
+  Хаб: новый резервный сервер с данными перехода `{ lobby = ... }`; сервер матча берёт их у первого игрока
+  (`startRequested`, `serverMap` / `serverMode` держатся до конца жизни сервера, «одному» — `soloSetup`,
+  `privateState = "solo"`). Клиент: `UI/MainMenu` (центр — карточка «ИГРАТЬ»), окно выбора — `UI/MatchSetup`.
+- §15ц Ц3 экран матча: полоса — группы с заголовками (`CommandBar`, «в армии N» ← `ForcesPanel.army`, подсказка —
+  `ForcesPanel.summary`; панель «Войска» — в `FrontirStash`), клетки 56×56 (`Render.CommandBar.SlotW/SlotH`), цвета
+  видов — `KindColors / UnitColors` (имена палитры), названия — `building.<вид>.short` / `unit.<юнит>.short`.
+  Над мини-картой — `UI/MapButtons` (рамки `MapButtons` и `ZoomButtons` ставит `aboveBar`), пауза и ×2 — пункты
+  меню игры (`GameMenu.MenuItem.text`, `ModePanel.togglePause / toggleFast`), рамка `Solo` — плашка «ПАУЗА».
+  F3 закрыт при входе и в Studio.
+- §15ц Ц4а окна механик: шаблон — `CardKit.window(..., footer = true)` → `win.footer` (`hint`, `main`, `set(text,
+  enabled, hint)`), окно у здания — `CardKit.dock` (без найма — `hireKeys = {}`). Одно окно за раз — список `sheets` в
+  `Main.client` (там и окна по центру; новое окно механики — добавить туда), `anyWindowOpen()`. Совет —
+  `UI/CouncilPanel` (окно «Council», вкладки vote / active, созыв открывает окно через `canOpen`), Стабильность —
+  `UI/StabilityPanel` (окно «StabilityWindow»; открыто ⇔ карта в цветах стабильности), список — чистый `StabilityList`.
+  Esc в Roblox открывает системное меню — закрывать окна «×» и своей клавишей.
+- §15ц Ц4б: группы ВОЙНА · ДЕРЖАВА · МИР — вкладки справочника (`Handbook.Tabs`, разделы — `Handbook.Sections`,
+  `inSection`, строки `handbook.tab.*` / `handbook.section.*`) и «Как играть» (`UI/HowToPlay`, `Config.Render.Help`:
+  вкладки, шаги `help.<шаг>`, клавиши `help.keys.<вкладка>`; на группе главная кнопка — справочник на ней же).
+  Технологии — выбор уровня + главная кнопка «Изучить» (`TechPanel`), Дипломатия — главная кнопка по `DiploMain.pick`.
 - Шаблоны строк для `string.format`: знак процента — только «%%» (тест `Strings.spec`).
 - Studio MCP подключён в `.mcp.json` (`Roblox_Studio`): клик мышью — в координатах без верхнего отступа
   (`AbsolutePosition`, без `GuiInset`); кнопки с одинаковым именем — по `AbsolutePosition`, не по пути.
@@ -531,6 +572,19 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   (7 метрик по уровням); итоги — `docs/BALANCE.md` «Боеголовки» и «Метрики ботов».
 - Арена (`tools/bot_arena`) — инструмент для отчёта, **не проверка CI** (решение геймдизайнера): полоса против
   Генералов 2.0 < среднее место ≤ 3.5, против Новичков первый ≥ 80% партий.
+
+## Логистика (§15ч)
+- Ч1 железные дороги: чистый `Rails` (`path` — A* со своими клетками и мостами, `build` — сеть с переиспользованием
+  путей, `encode/decode` — путь строкой направлений), числа — `Config.Rail`, вид — `Config.Render.Rail`. В матче —
+  `m.rails` (`MatchSim.stepRails`, `railStations`, `railContext`, `railConnected`, `railsMessage`): станции главной
+  сети — в снабжение (`m.rails.supply` в `stepAttacks`), провинции — в стабильность (`Stability.Context.railConnected`).
+  Клиент: сообщение `rails` → `ClientState.applyRails` → `TerritoryLayer.railsChanged` (рельсы — в картинке
+  территории через `TerritoryPaint.Extra.rail`), подсказка — `MapTooltip`.
+- Ч2 поезда: чистый `Trains` (`destinations`, `route` — BFS по дорогам, `plan` — остановки с платой, `advance`,
+  `at` — точка на маршруте); в матче — `stepTrains` (`m.rails.trains`, `spawnAt`, `m.trainRng`), события
+  `trainStarted` (маршрут строкой) / `trainStop` / `trainGone`; нефть вышек главной сети — `m.rails.rigBonus` в
+  `stepEconomy`. Клиент: `Render/RailLayer` — линии дорог вдали (`Render.Rail.LineBelowZoom`) и поезда (сам двигает по
+  маршруту, время — `ClientState.simRate`), «+$» — `WarFxLayer` по `trainStop`.
 
 ## Require
 Внутри `src/shared` модули подключают друг друга строкой: `require("./Types")` — так работает и в Roblox (`./` = `script.Parent`), и в Lune.
