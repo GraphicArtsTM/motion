@@ -24,6 +24,8 @@ onPointEnd` → `pointAt` в `Main.client` (общий для мыши и пал
 Ш5: иконки зданий и юнитов — PNG в `assets/icons` → `lune run tools/icon_pack` → `IconData` (не править руками);
 чистый `IconArt.forKey / paint`, клиент `UI/IconImage` (EditableImage, кеш на сессию); стоят в `CommandBar` и `CardKit.art`. Ш7: значки интерфейса — `assets/icons/ui/<имя PixelIcons>.png` → тот же
 `IconData`; `MenuKit.icon` рисует картинку (нет — пиксели), «strike.*» и «arsenal.*» — в `IconArt.forKey`.
+Ш8: карточки ударов — гладкие, полный цвет (исключение из палитры): `assets/cards` → `lune run tools/card_pack` →
+`CardData` (не править руками) → чистый `CardArt` → `IconImage.card`; в `CardKit.art` карточка главнее значка.
 - §15ц Ц5г: окно в списке самопроверки (`windows` в `Main.client`) — с `frame` (имя рамки: проверка «влезает в
   экран»); блок «Экран матча» в `SelfCheck` (заголовки полосы, кнопки у мини-карты, наложения, одно окно за раз) —
   новую рамку HUD снизу или справа добавить в его список наложений.
@@ -86,6 +88,7 @@ lune run tools/realmap all     # пересоздать реальные кар�
 lune run tools/maps_preview    # лист всех карт → build/maps.png
 lune run tools/map_thumbs      # миниатюры карт для хаба → src/shared/MapThumbs.luau
 lune run tools/icon_pack       # иконки зданий и юнитов assets/icons → src/shared/IconData.luau (превью build/icons_pack.png)
+lune run tools/card_pack       # карточки ударов assets/cards → src/shared/CardData.luau (превью build/cards_pack.png)
 lune run tools/bench World 60 180  # нагрузка: время тика и трафик на 60 ботах
 lune run tools/genmap Pangea   # пересоздать тестовую maps/Pangea.luau (+ превью build/Pangea.bmp)
 lune run tools/palette_preview # пересоздать docs/palette.png после правки цветов

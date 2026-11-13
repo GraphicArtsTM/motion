@@ -1,5 +1,9 @@
 # Список арта
 
+## Карточки ударов (подключены, §15ш Ш8)
+`assets/cards/<strike_missile | strike_raid | ability_<способность>>.png` — 432×288 (3:2), гладкий стиль (не пиксель),
+полный цвет — исключение из палитры (GDD §15ш Ш8). В игру — `lune run tools/card_pack` → `src/shared/CardData.luau`.
+
 ## Иконки зданий и юнитов (подключены, §15ш Ш5)
 `assets/icons/buildings/*.png` (10 зданий + `MissileSilo_alt`) и `assets/icons/units/*.png` (9 юнитов) — PNG 512×512
 с прозрачным фоном (исходники, превью — `docs/previews/icons.png`). В игру — без загрузки в Roblox:

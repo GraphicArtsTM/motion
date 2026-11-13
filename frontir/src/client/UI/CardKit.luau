@@ -12,6 +12,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local CardArt = require(Shared:WaitForChild("CardArt"))
 local IconArt = require(Shared:WaitForChild("IconArt"))
 local ItemArt = require(Shared:WaitForChild("ItemArt"))
 
@@ -63,6 +64,16 @@ local editables: { [ImageLabel]: EditableImage } = setmetatable({}, { __mode = "
 -- Картинка предмета: EditableImage на сессию.
 -- §15ш Ш5: здание, юнит, корабль, самолёт — иконка IconArt (вписана, на тёмном фоне); остальное — сцена ItemArt.
 local function paintArt(img: ImageLabel, key: string)
+	-- §15ш Ш8: карточка удара в полном цвете — главнее пиксельного значка того же удара.
+	local cardName = CardArt.forKey(key)
+	local card = if cardName ~= nil then IconImage.card(cardName) else nil
+	if card ~= nil then
+		img.ImageContent = card
+		img.ScaleType = Enum.ScaleType.Crop
+		img.ResampleMode = Enum.ResamplerMode.Default -- гладкая картинка, не пиксели
+		return
+	end
+	img.ResampleMode = Enum.ResamplerMode.Pixelated
 	local icon = IconArt.forKey(key)
 	local content = if icon ~= nil then IconImage.content(icon) else nil
 	if content ~= nil then

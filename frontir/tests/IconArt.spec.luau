@@ -78,3 +78,41 @@ T.describe("Иконки зданий и юнитов (§15ш Ш5)", function()
 		end
 	)
 end)
+
+-- §15ш Ш8: карточки ударов в полном цвете (tools/card_pack).
+local CardArt = require("../src/shared/CardArt")
+T.describe("Карточки ударов (§15ш Ш8)", function()
+	T.it(
+		"у ракеты, налёта и всех 8 способностей генералов есть карточка",
+		function()
+			for _, k in
+				{
+					"missile",
+					"raid",
+					"Airstrike",
+					"Surge",
+					"SeaLanding",
+					"Blockade",
+					"Reveal",
+					"Propaganda",
+					"Fortify",
+					"Airdrop",
+				}
+			do
+				local name = CardArt.forKey("strike." .. k)
+				T.expect(name ~= nil).toBe(true)
+				local px = CardArt.paint(name :: string) :: buffer
+				T.expect(buffer.len(px)).toBe(CardArt.W * CardArt.H * 4)
+				-- Картинка не однотонная: в ней есть и тёмное небо, и яркий свет.
+				local lo, hi = 255, 0
+				for i = 0, CardArt.W * CardArt.H - 1, 7 do
+					local v = buffer.readu8(px, i * 4) + buffer.readu8(px, i * 4 + 1) + buffer.readu8(px, i * 4 + 2)
+					lo, hi = math.min(lo, v // 3), math.max(hi, v // 3)
+				end
+				T.expect(hi - lo > 100).toBe(true)
+			end
+			T.expect(CardArt.forKey("building.City")).toBe(nil)
+			T.expect(CardArt.paint("nope")).toBe(nil)
+		end
+	)
+end)

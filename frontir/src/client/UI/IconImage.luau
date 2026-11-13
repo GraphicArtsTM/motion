@@ -9,6 +9,7 @@ local AssetService = game:GetService("AssetService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local CardArt = require(Shared:WaitForChild("CardArt"))
 local IconArt = require(Shared:WaitForChild("IconArt"))
 
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
@@ -18,18 +19,17 @@ local IconImage = {}
 local cache: { [string]: Content } = {}
 local tracked = false
 
-function IconImage.content(name: string): Content?
-	local hit = cache[name]
+-- Пиксели (w × h) → EditableImage на сессию, в кеш под ключом; без памяти — nil.
+local function make(key: string, pixels: buffer?, w: number, h: number): Content?
+	local hit = cache[key]
 	if hit then
 		return hit
 	end
-	local pixels = IconArt.paint(name)
 	if pixels == nil then
 		return nil
 	end
-	local n = IconArt.Size
 	local ok, image = pcall(function(): EditableImage?
-		return AssetService:CreateEditableImage({ Size = Vector2.new(n, n) })
+		return AssetService:CreateEditableImage({ Size = Vector2.new(w, h) })
 	end)
 	if not ok or image == nil then
 		return nil
@@ -46,10 +46,26 @@ function IconImage.content(name: string): Content?
 		})
 	end
 	Session.track(editable)
-	editable:WritePixelsBuffer(Vector2.zero, Vector2.new(n, n), pixels)
+	editable:WritePixelsBuffer(Vector2.zero, Vector2.new(w, h), pixels)
 	local content = Content.fromObject(editable)
-	cache[name] = content
+	cache[key] = content
 	return content
+end
+
+function IconImage.content(name: string): Content?
+	if cache[name] then
+		return cache[name]
+	end
+	return make(name, IconArt.paint(name), IconArt.Size, IconArt.Size)
+end
+
+-- §15ш Ш8: карточка удара (CardArt, полный цвет, W × H).
+function IconImage.card(name: string): Content?
+	local key = "card:" .. name
+	if cache[key] then
+		return cache[key]
+	end
+	return make(key, CardArt.paint(name), CardArt.W, CardArt.H)
 end
 
 -- Картинка-иконка: ImageLabel по центру родителя (size — сторона, условные px); nil — иконки нет.
