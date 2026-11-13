@@ -302,6 +302,21 @@ Config.Season = {
 	EndsUnix = 0,
 	Tiers = 30,
 	XpPerTier = 400,
+	-- §15э Э2: две дороги, награды забирает игрок. Бесплатная — медали Medals, каждая TokenEvery-я — жетон,
+	-- каждая CrateEvery-я — ящик (вместо медалей).
+	Free = { Medals = 150, TokenEvery = 4, CrateEvery = 10 },
+	-- Премиум (SeasonPass) — щедрая: на каждой ступени медали MedalsBase + MedalsPerTier × ступень, плюс каждая
+	-- StockEvery-я — платная часть в запас, CrateEvery-я — ящик, TokensEvery-я — Tokens жетонов. Последняя — Final
+	-- (и титул «Легенда», Cosmetics.Titles.seasonTier).
+	Premium = {
+		MedalsBase = 300,
+		MedalsPerTier = 20,
+		StockEvery = 2,
+		CrateEvery = 3,
+		TokensEvery = 5,
+		Tokens = 2,
+		Final = { medals = 5000, tokens = 5, crates = 5 },
+	},
 }
 
 -- §11.3 Ящики снабжения: веса наград (шансы видны в окне до покупки) и гарантия джекпота.

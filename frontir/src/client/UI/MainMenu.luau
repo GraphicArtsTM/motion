@@ -648,8 +648,8 @@ function MainMenu.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, mapNa
 		end
 		local badge = tileBadge
 		if badge ~= nil then
-			local claimed = if p ~= nil and p.path ~= nil then p.path.claimed else 1
-			local n = math.max(0, level - claimed)
+			local path, free, paid = ClientState.rewardsPending(cs) -- §15э Э3: путь + обе дороги пропуска
+			local n = path + free + paid
 			badge.Visible = n > 0
 			badge.Text = if n > 99 then "99+" else tostring(n)
 		end

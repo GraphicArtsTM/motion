@@ -284,6 +284,8 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				xp = d.seasonXp % per,
 				per = per,
 				premium = d.seasonPremium,
+				free = d.seasonFree, -- §15э Э2: до какой ступени забраны бесплатные / премиум-награды
+				paid = d.seasonPaid,
 				-- nil — сезон без срока (§11.3).
 				left = if Config.Season.EndsUnix > 0 then math.max(0, Config.Season.EndsUnix - now) else nil,
 			},
@@ -1192,6 +1194,21 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				return
 			end
 			matchEvent:FireClient(player, { kind = "pathClaimed", got = got })
+			sendProfile(player)
+			return
+		end
+		-- §15э Э2: забрать награды боевого пропуска (обе дороги, по порядку).
+		if kind == "seasonClaim" then
+			local session = profiles.get(player.UserId)
+			if session == nil then
+				return
+			end
+			local got = Profile.claimSeason(session.data)
+			if #got == 0 then
+				matchEvent:FireClient(player, { kind = "rejected", reason = "nothingToClaim", intent = "seasonClaim" })
+				return
+			end
+			matchEvent:FireClient(player, { kind = "seasonClaimed", got = got })
 			sendProfile(player)
 			return
 		end

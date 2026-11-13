@@ -716,7 +716,7 @@ local function runSession(mapId: string, resync: boolean)
 			end
 		end
 	end
-	local ranksPanel = RanksPanel.new(windowsGui, cs, lang, send) -- §15щ Щ3: лента наград, забрать — pathClaim
+	local ranksPanel = RanksPanel.new(windowsGui, cs, lang, send, hud.toast) -- §15щ Щ3: лента наград, забрать — pathClaim
 	-- §15х ч.5: справочник механик — из окна «Как играть» (окно «Как играть» закрывается, справочник — поверх).
 	local handbook = HandbookPanel.new(windowsGui, lang)
 	table.insert(sheets, { -- §15ц Ц4а: справочник — тоже «одно окно за раз»
@@ -1388,8 +1388,8 @@ local function runSession(mapId: string, resync: boolean)
 			questsPanel.refresh()
 		end,
 		onShopEvent = function(msg: any)
-			if msg.kind == "pathClaimed" then
-				ranksPanel.onClaimed(msg) -- §15щ Щ3: анимация забора наград
+			if msg.kind == "pathClaimed" or msg.kind == "seasonClaimed" then
+				ranksPanel.onClaimed(msg) -- §15щ Щ3 / §15э Э3: анимация забора наград (путь или пропуск)
 				return
 			end
 			if msg.kind == "quests" then

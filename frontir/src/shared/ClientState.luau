@@ -94,7 +94,8 @@ export type ProfileInfo = {
 	-- Этап 9б (§11.3)
 	crates: number,
 	pityLeft: number, -- через сколько ящиков гарантированный джекпот
-	season: { tier: number, xp: number, per: number, premium: boolean, left: number? }, -- left nil — без срока
+	-- left nil — без срока; free / paid — до какой ступени забраны награды дорог (§15э Э2)
+	season: { tier: number, xp: number, per: number, premium: boolean, free: number?, paid: number?, left: number? },
 	path: { claimed: number }?, -- §15щ Щ1: награды «Пути командира» забраны до этого уровня
 	unitUnlocks: { [string]: boolean }?, -- §15э Э1: открытая техника (Tanks / Artillery / AntiAir / Missile)
 	weekly: { offer: { stock: { [string]: number }, crates: number, tokens: number, medals: number? }, left: number },
@@ -558,7 +559,6 @@ function ClientState.applyCommander(cs: ClientState, msg: any, now: number)
 	cs.commanderAt = now
 end
 
--- Мой генерал: из сообщения commander в игре, до неё — из info (выбор в лобби).
 -- §15э Э1: открыта ли игроку техника (Tanks / Artillery / AntiAir / Missile). Дуэль — всё открыто; профиль ещё не
 -- пришёл — не прячем (сервер всё равно проверит). Возвращает открыто ли и с какого уровня «Пути» откроется.
 function ClientState.unitOpen(cs: ClientState, key: string): (boolean, number?)
@@ -574,6 +574,21 @@ function ClientState.unitOpen(cs: ClientState, key: string): (boolean, number?)
 	return false, item.level
 end
 
+-- §15э Э3: сколько наград ждёт — «Путь командира», бесплатная и премиум-дорога пропуска (метки окна и меню).
+-- Старый сервер без free / paid — пропуск выдал всё сам, ничего не ждёт.
+function ClientState.rewardsPending(cs: ClientState): (number, number, number)
+	local p = cs.profile
+	if p == nil then
+		return 0, 0, 0
+	end
+	local path = math.max(0, p.level - (if p.path ~= nil then p.path.claimed else p.level))
+	local s = p.season
+	local free = math.max(0, s.tier - (s.free or s.tier))
+	local paid = if s.premium then math.max(0, s.tier - (s.paid or s.tier)) else 0
+	return path, free, paid
+end
+
+-- Мой генерал: из сообщения commander в игре, до неё — из info (выбор в лобби).
 function ClientState.myCommander(cs: ClientState): Types.CommanderId
 	local me = if cs.myNation ~= nil then cs.nations[cs.myNation] else nil
 	if cs.phase ~= "Play" and me ~= nil and me.commander ~= nil then

@@ -271,26 +271,38 @@ end
 
 -- Боевой пропуск (§11.3) ---------------------------------------------------------------------------
 
--- Награда ступени tier: бесплатная или премиум.
+-- Награда ступени tier (§15э Э2): бесплатная дорога или премиум (щедрая, Config.Season.Premium).
 function Profile.seasonReward(tier: number, premium: boolean): Reward
 	local r = emptyReward()
+	if tier < 1 or tier > Config.Season.Tiers then
+		return r
+	end
 	if not premium then
-		if tier % 5 == 0 then
+		local f = Config.Season.Free
+		if tier % f.CrateEvery == 0 then
 			r.crates = 1
-		elseif tier % 2 == 0 then
+		elseif tier % f.TokenEvery == 0 then
 			r.tokens = 1
 		else
-			r.medals = 150
+			r.medals = f.Medals
 		end
-	elseif tier == Config.Season.Tiers then
-		r.crates, r.tokens = 3, 3
-	elseif tier % 3 == 0 then
-		r.crates = 1
-	elseif tier % 3 == 1 then
+		return r
+	end
+	local p = Config.Season.Premium
+	if tier == Config.Season.Tiers then
+		r.medals, r.tokens, r.crates = p.Final.medals, p.Final.tokens, p.Final.crates
+		return r
+	end
+	r.medals = p.MedalsBase + p.MedalsPerTier * tier
+	if tier % p.StockEvery == 0 then
 		local units = Shop.UnitKeys
-		r.stock[units[(tier // 3) % #units + 1]] = 1
-	else
-		r.medals = 400
+		r.stock[units[(tier // p.StockEvery - 1) % #units + 1]] = 1
+	end
+	if tier % p.CrateEvery == 0 then
+		r.crates = 1
+	end
+	if tier % p.TokensEvery == 0 then
+		r.tokens = p.Tokens
 	end
 	return r
 end
@@ -307,36 +319,62 @@ function Profile.seasonTier(d: Data): number
 	return math.min(Config.Season.Tiers, d.seasonXp // Config.Season.XpPerTier)
 end
 
--- Выдать награды пройденных ступеней (бесплатные и, если куплен, премиум). Возвращает выданное.
-function Profile.grantSeason(d: Data): { Reward }
-	local out: { Reward } = {}
+-- §15э Э2: сколько наград ждёт на дорогах (пройденные ступени, ещё не забранные): бесплатная, премиум.
+-- Премиум не куплен — его награды не ждут (на дороге они под замком; купил — все пройденные сразу ждут).
+function Profile.seasonClaimable(d: Data): (number, number)
+	local tier = Profile.seasonTier(d)
+	local free = math.max(0, tier - d.seasonFree)
+	local paid = if d.seasonPremium then math.max(0, tier - d.seasonPaid) else 0
+	return free, paid
+end
+
+export type SeasonGot = { tier: number, premium: boolean, reward: Reward }
+
+-- Забрать по порядку все ждущие награды обеих дорог. Возвращает забранное (пусто — нечего).
+function Profile.claimSeason(d: Data): { SeasonGot }
+	Profile.syncSeason(d)
+	local out: { SeasonGot } = {}
 	local tier = Profile.seasonTier(d)
 	for t = d.seasonFree + 1, tier do
 		local r = Profile.seasonReward(t, false)
 		Profile.give(d, r)
-		table.insert(out, r)
+		table.insert(out, { tier = t, premium = false, reward = r })
+		if d.seasonPremium and t > d.seasonPaid then
+			local p = Profile.paidReward(Profile.seasonReward(t, true), d.noPaidRandom)
+			Profile.give(d, p)
+			table.insert(out, { tier = t, premium = true, reward = p })
+		end
 	end
-	d.seasonFree = math.max(d.seasonFree, tier)
 	if d.seasonPremium then
-		for t = d.seasonPaid + 1, tier do
-			local r = Profile.paidReward(Profile.seasonReward(t, true), d.noPaidRandom)
-			Profile.give(d, r)
-			table.insert(out, r)
+		-- Премиум куплен позже: бесплатные прошлых ступеней уже забраны, премиум — ещё нет.
+		for t = d.seasonPaid + 1, math.min(d.seasonFree, tier) do
+			local p = Profile.paidReward(Profile.seasonReward(t, true), d.noPaidRandom)
+			Profile.give(d, p)
+			table.insert(out, { tier = t, premium = true, reward = p })
 		end
 		d.seasonPaid = math.max(d.seasonPaid, tier)
 	end
+	d.seasonFree = math.max(d.seasonFree, tier)
+	table.sort(out, function(a: SeasonGot, b: SeasonGot): boolean
+		if a.tier ~= b.tier then
+			return a.tier < b.tier
+		end
+		return (not a.premium) and b.premium
+	end)
 	return out
 end
 
--- Опыт в пропуск (после конца сезона — нет).
-function Profile.addSeasonXp(d: Data, xp: number, now: number): { Reward }
+-- Опыт в пропуск (после конца сезона — нет). Награды не выдаются сами — ждут на дороге (§15э Э2).
+-- Возвращает, сколько ступеней пройдено этим опытом.
+function Profile.addSeasonXp(d: Data, xp: number, now: number): number
 	Profile.syncSeason(d)
 	local ends = Config.Season.EndsUnix
 	if ends > 0 and now >= ends then
-		return {}
+		return 0
 	end
+	local before = Profile.seasonTier(d)
 	d.seasonXp += math.max(0, math.floor(xp))
-	return Profile.grantSeason(d)
+	return Profile.seasonTier(d) - before
 end
 
 -- Ящики снабжения (§11.3) ---------------------------------------------------------------------------
@@ -666,8 +704,7 @@ function Profile.grantProduct(d: Data, kind: string, key: string, purchaseId: st
 		)
 		if pack.season then
 			Profile.syncSeason(d)
-			d.seasonPremium = true
-			Profile.grantSeason(d) -- премиум-награды уже пройденных ступеней — сразу
+			d.seasonPremium = true -- §15э Э2: премиум пройденных ступеней ждёт на дороге («Забрать всё»)
 		end
 		if pack.weekly then
 			local offer = Shop.weeklyOffer(now or 0)
