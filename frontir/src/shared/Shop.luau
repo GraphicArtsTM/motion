@@ -70,6 +70,15 @@ function Shop.productById(id: number): (string?, string?)
 			return "pack", key
 		end
 	end
+	-- §15э Э1: техника навсегда.
+	for key, u in Config.Unlocks.Items do
+		if u.id == id then
+			return "unlock", key
+		end
+	end
+	if Config.Unlocks.All.id == id then
+		return "unlock", "All"
+	end
 	return nil, nil
 end
 

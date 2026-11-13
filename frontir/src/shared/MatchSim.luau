@@ -328,6 +328,7 @@ export type Match = {
 	arsenal: { [number]: string }, -- §15л ч.6: предмет Арсенала, взятый державой в бой
 	arsenalUsed: { [number]: boolean }, -- …и применён ли он в этом матче
 	unlocked: { [number]: { [string]: boolean } }, -- держава игрока → открытые генералы (нет записи — все)
+	unitUnlocks: { [number]: { [string]: boolean } }, -- §15э Э1: держава игрока → открытая техника (нет — вся)
 	intel: { [number]: { [number]: number } }, -- разведчик → цель → до какого simTime
 	radarIntel: { [number]: { [number]: boolean } }, -- держава → державы в радиусе её радаров
 	nextRadarIntelAt: number,
@@ -473,6 +474,7 @@ function MatchSim.new(map: MapData, seed: number): Match
 		arsenal = {},
 		arsenalUsed = {},
 		unlocked = {},
+		unitUnlocks = {},
 		intel = {},
 		radarIntel = {},
 		nextRadarIntelAt = 0,
@@ -528,6 +530,20 @@ end
 -- Открытые генералы игрока (по уровню профиля, §11.2); nil — все.
 function MatchSim.setUnlocked(m: Match, id: number, set: { [string]: boolean }?)
 	(m.unlocked :: any)[id] = set
+end
+
+-- §15э Э1: техника, открытая в профиле игрока (Profile.unlockedUnits); nil — без ограничений (боты, тесты).
+function MatchSim.setUnitUnlocks(m: Match, id: number, set: { [string]: boolean }?)
+	(m.unitUnlocks :: any)[id] = set
+end
+
+-- Можно ли державе id эту технику (Tanks / Artillery / AntiAir / Missile): в дуэли — всем всё.
+function MatchSim.unitAllowed(m: Match, id: number, key: string): boolean
+	if Config.Unlocks.Items[key] == nil or m.rules.duel then
+		return true
+	end
+	local set = m.unitUnlocks[id]
+	return set == nil or set[key] == true
 end
 
 -- Буст в матче (§11.1): один каждого вида за матч, только в игре и где бусты разрешены. Оплату (Robux или жетон)
@@ -1582,6 +1598,10 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 			return false, "noCapital"
 		end
 		local kind = Forces.kindIndex(intent.unit) :: number
+		-- §15э Э1: техника закрыта в профиле — открыть на «Пути командира» или в магазине.
+		if not MatchSim.unitAllowed(m, nationId, intent.unit) then
+			return false, "unitLocked"
+		end
 		local stats = Forces.stats(kind)
 		local owned = MatchSim.ownedOf(m, nationId)
 		-- Танки и артиллерия — Казармы ур. 2, ПВО — ур. 3 (§15д).
@@ -1610,6 +1630,9 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 	end
 
 	if intent.kind == "build" then
+		if intent.building == "MissileSilo" and not MatchSim.unitAllowed(m, nationId, "Missile") then
+			return false, "siloLocked" -- §15э Э1
+		end
 		local spot, reason = MatchSim.checkBuild(m, nationId, intent.building, intent.cell)
 		if spot == nil then
 			return false, reason

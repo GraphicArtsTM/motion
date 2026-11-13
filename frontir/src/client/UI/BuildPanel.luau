@@ -49,6 +49,7 @@ export type BuildPanel = {
 	pick: (kind: Types.BuildingKind) -> (),
 	price: (kind: Types.BuildingKind) -> number?,
 	unlocked: (kind: Types.BuildingKind) -> boolean, -- технология открыта
+	pathLevel: (kind: Types.BuildingKind) -> number?, -- §15э Э1: закрыто в профиле до уровня «Пути»
 	selected: () -> Types.BuildingKind?,
 	canBuild: () -> boolean,
 	color: () -> Color3, -- цвет своей державы (значки)
@@ -359,7 +360,20 @@ function BuildPanel.new(
 		main.Text = Strings.get("build.button", lang)
 	end
 
+	-- §15э Э1: Ракетная шахта закрыта в профиле — уровень «Пути командира», с которого откроется (иначе nil).
+	local function pathLevel(kind: Types.BuildingKind): number?
+		if kind ~= "MissileSilo" then
+			return nil
+		end
+		local open, level = ClientState.unitOpen(cs, "Missile")
+		return if open then nil else level
+	end
 	local function pick(kind: Types.BuildingKind)
+		local lock = pathLevel(kind)
+		if lock ~= nil then
+			toast(string.format(Strings.get("hire.lockPath", lang), lock))
+			return
+		end
 		local open, need = techOpen(kind)
 		if not open then
 			toast(
@@ -596,6 +610,7 @@ function BuildPanel.new(
 		unlocked = function(kind: Types.BuildingKind): boolean
 			return (techOpen(kind))
 		end,
+		pathLevel = pathLevel,
 		selected = function(): Types.BuildingKind?
 			return selected
 		end,

@@ -151,6 +151,7 @@ function ShopPanel.new(
 	end
 	local win = CardKit.window(gui, "Shop", t("shop.title"), t("shop.note"), 860, 720, {
 		{ key = "boosts", label = t("shop.boosts") },
+		{ key = "units", label = t("shop.tabUnits") }, -- §15э Э1: закрытая техника
 		{ key = "season", label = t("shop.tabSeason") },
 		{ key = "passes", label = t("shop.passes") },
 		{ key = "packs", label = t("shop.packs") },
@@ -255,6 +256,40 @@ function ShopPanel.new(
 		table.insert(passCards, { key = key, card = card, buy = buy })
 	end
 
+	-- §15э Э1: «Техника» — открыть сразу навсегда (иначе бесплатно на уровне «Пути командира»).
+	local unitCards: { BuyCard } = {}
+	local function unitTitle(key: string): string
+		return if key == "Missile"
+			then t("building.MissileSilo")
+			elseif key == "All" then t("shop.unlockAll")
+			else t("unit." .. key)
+	end
+	local unitKeys = table.clone(Config.Unlocks.Order)
+	table.insert(unitKeys, "All")
+	for k, key in unitKeys do
+		local item = if key == "All" then Config.Unlocks.All else Config.Unlocks.Items[key]
+		local card = CardKit.card(win.page("units"), "unlock." .. key, unitTitle(key), "", k)
+		local buy = CardKit.button(card.actions, string.format(t("shop.robux"), item.price), "primary", 1)
+		Session.connect(buy.Activated, function()
+			local p = cs.profile
+			local opened = p ~= nil
+				and p.unitUnlocks ~= nil
+				and (
+						if key == "All"
+							then p.unitUnlocks.Tanks
+								and p.unitUnlocks.Artillery
+								and p.unitUnlocks.AntiAir
+								and p.unitUnlocks.Missile
+							else p.unitUnlocks[key]
+					)
+					== true
+			if not opened then
+				prompt("product", item.id)
+			end
+		end)
+		table.insert(unitCards, { key = key, card = card, buy = buy })
+	end
+
 	-- Наборы.
 	local packCards: { BuyCard } = {}
 	for k, key in Shop.PackKeys do
@@ -310,6 +345,29 @@ function ShopPanel.new(
 			row.card.tag.Text = t("shop.tagOwned")
 			row.card.edge.Color = if owned then Theme.Colors.Good else Theme.Colors.PanelBorder
 			row.card.price.Text = t("shop.forever")
+		end
+		-- §15э Э1: техника — открыто / откроется на ур. N «Пути» / купить.
+		local opens = p.unitUnlocks or {}
+		local allOpen = true
+		for _, key in Config.Unlocks.Order do
+			allOpen = allOpen and opens[key] == true
+		end
+		for _, row in unitCards do
+			local opened = if row.key == "All" then allOpen else opens[row.key] == true
+			local item = if row.key == "All" then Config.Unlocks.All else Config.Unlocks.Items[row.key]
+			row.card.desc.Text = if row.key == "All"
+				then t("shop.unlockAllDesc")
+				else string.format(t("shop.unlockDesc"), (Config.Unlocks.Items[row.key] :: any).level)
+			row.card.price.Text = if opened
+				then t("shop.unlockOpen")
+				elseif row.key == "All" then t("shop.forever")
+				else string.format(t("shop.unlockAt"), (Config.Unlocks.Items[row.key] :: any).level, p.level)
+			row.card.price.TextColor3 = if opened then Theme.Colors.Good else Theme.Colors.Gold
+			row.buy.Visible = not opened
+			row.buy.Text = string.format(t("shop.robux"), item.price)
+			row.card.tag.Visible = opened
+			row.card.tag.Text = t("shop.tagOpen")
+			row.card.edge.Color = if opened then Theme.Colors.Good else Theme.Colors.PanelBorder
 		end
 		-- Пропуск и ящики.
 		local season = p.season

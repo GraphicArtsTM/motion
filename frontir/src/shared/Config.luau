@@ -212,6 +212,20 @@ Config.Cosmetics = {
 	VipNameColor = "Gold",
 }
 
+-- §15э Э1: техника в блоке. Открывается навсегда — бесплатно с уровня level «Пути командира» (ступени званий) или
+-- покупкой (продукт разработчика: id — на сайте Roblox, 0 — ещё не создан; price — Robux для подписи). Missile —
+-- Ракетная шахта. All — «Вся техника» (дешевле, чем по одной). В дуэли и у ботов ограничений нет.
+Config.Unlocks = {
+	Order = { "Tanks", "Artillery", "AntiAir", "Missile" },
+	Items = {
+		Tanks = { level = 4, id = 0, price = 99 },
+		Artillery = { level = 8, id = 0, price = 99 },
+		AntiAir = { level = 13, id = 0, price = 79 },
+		Missile = { level = 19, id = 0, price = 149 },
+	} :: { [string]: { level: number, id: number, price: number } },
+	All = { id = 0, price = 299 },
+}
+
 -- §15щ Щ1 «Путь командира»: награда за каждый уровень 2…Profile.MaxLevel (забирает игрок). Медали —
 -- MedalsBase + MedalsPerLevel × уровень; каждый TokenEvery-й уровень — жетон штаба вместо медалей; каждый
 -- CrateEvery-й — ещё и ящик снабжения (бесплатный). Ступень звания и последний уровень — Milestones (поверх правила;

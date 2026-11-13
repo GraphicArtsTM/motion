@@ -845,6 +845,18 @@ local TABLE: { [string]: Entry } = {
 		en = "You need higher-level barracks",
 	},
 	["hire.needBarracks"] = { ru = "нужны казармы ур. %d", en = "needs barracks lv %d" },
+	["hire.lockPath"] = { -- §15э Э1
+		ru = "Закрыто: откроется на ур. %d «Пути командира» или в магазине (вкладка «Техника»)",
+		en = "Locked: unlocks at Commander Path level %d or in the shop («Vehicles» tab)",
+	},
+	["reject.unitLocked"] = {
+		ru = "Техника закрыта — откройте на «Пути командира» или в магазине",
+		en = "Locked — unlock on the Commander Path or in the shop",
+	},
+	["reject.siloLocked"] = {
+		ru = "Ракетная шахта закрыта — откройте на «Пути командира» или в магазине",
+		en = "Missile silo is locked — unlock it on the Commander Path or in the shop",
+	},
 	["building.Fort"] = { ru = "Укрепление", en = "Fortification" },
 	["building.Fort.hint"] = { ru = "защита провинции ×1.5", en = "province defence ×1.5" },
 	-- Этап 7а: стабильность, восстания, туман
@@ -2117,6 +2129,7 @@ local TABLE: { [string]: Entry } = {
 	["bar.noArmy"] = { ru = "нет войск", en = "no troops" },
 	["bar.lockLevel"] = { ru = "🔒каз.%d", en = "🔒bar.%d" }, -- §15ш Ш2: нужны Казармы ур. N
 	["bar.lockTech"] = { ru = "🔒тех.", en = "🔒tech" }, -- §15ш Ш2: нужна технология
+	["bar.lockPath"] = { ru = "🔒ур.%d", en = "🔒lv%d" }, -- §15э Э1: закрыто в профиле до уровня «Пути»
 	["building.City.short"] = { ru = "Город", en = "City" },
 	["building.Barracks.short"] = { ru = "Казармы", en = "Barracks" },
 	["building.Factory.short"] = { ru = "Завод", en = "Factory" },
@@ -2336,6 +2349,26 @@ local TABLE: { [string]: Entry } = {
 	-- §15л ч.9 витрины
 	["shop.title"] = { ru = "МАГАЗИН", en = "SHOP" },
 	["shop.tabSeason"] = { ru = "Сезон и ящики", en = "Season & crates" },
+	-- §15э Э1: закрытая техника.
+	["shop.tabUnits"] = { ru = "Техника", en = "Vehicles" },
+	["shop.unlockAll"] = { ru = "Вся техника", en = "All vehicles" },
+	["shop.unlockDesc"] = {
+		ru = "Бесплатно откроется на ур. %d «Пути командира». Или откройте сразу — навсегда.",
+		en = "Unlocks free at Commander Path level %d. Or unlock it now — forever.",
+	},
+	["shop.unlockAllDesc"] = {
+		ru = "Танки, артиллерия, ПВО и ракетная шахта — сразу и навсегда. Дешевле, чем по отдельности.",
+		en = "Tanks, artillery, anti-air and the missile silo — now and forever. Cheaper than one by one.",
+	},
+	["shop.unlockAt"] = {
+		ru = "откроется на ур. %d · у вас ур. %d",
+		en = "unlocks at lv %d · you are lv %d",
+	},
+	["shop.unlockOpen"] = {
+		ru = "Открыто ✔ — можно нанимать в матче",
+		en = "Unlocked ✔ — available in matches",
+	},
+	["shop.tagOpen"] = { ru = "ОТКРЫТО ✔", en = "UNLOCKED ✔" },
 	["shop.stockBtn"] = { ru = "×%d", en = "×%d" },
 	["shop.stockHave"] = { ru = "в запасе %d · жетонов %d", en = "in stock %d · tokens %d" },
 	["shop.tagUsed"] = { ru = "ВЗЯТ", en = "USED" },

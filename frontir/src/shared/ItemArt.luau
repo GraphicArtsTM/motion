@@ -669,6 +669,38 @@ ITEMS["strike.Airdrop"] = function(c)
 	end
 end
 
+-- §15э Э1: закрытая техника — вкладка «Техника» магазина и вехи «Пути командира».
+ITEMS["unlock.Tanks"] = function(c)
+	stage(c, { "Night", "Slate", "Orange" }, "Basalt")
+	unit(c, "Tanks", 12, 7, 2, nation(1))
+	spark(c, 42, 5, "Gold")
+end
+ITEMS["unlock.Artillery"] = function(c)
+	stage(c, { "Night", "Plum", "Orange" }, "Grass")
+	unit(c, "Artillery", 12, 7, 2, nation(1))
+	burst(c, 40, 7, 3, "Orange", "Gold")
+end
+ITEMS["unlock.AntiAir"] = function(c)
+	stage(c, { "Ink", "Night", "Sea" }, "Basalt")
+	unit(c, "AntiAir", 12, 7, 2, nation(1))
+	plane(c, "Bomber", 32, 1, 1, rgb("Steel"))
+	burst(c, 30, 5, 2, "Orange", "Gold")
+end
+ITEMS["unlock.Missile"] = function(c)
+	stage(c, { "Ink", "Night", "Plum" }, "Basalt")
+	building(c, "MissileSilo", 12, 3, 2, nation(1))
+	spark(c, 42, 5, "Gold")
+end
+ITEMS["unlock.All"] = function(c)
+	stage(c, { "Night", "Plum", "Orange" }, "Basalt")
+	building(c, "MissileSilo", 26, 3, 1, nation(1))
+	unit(c, "Tanks", 2, 15, 1, nation(1))
+	unit(c, "Artillery", 14, 15, 1, nation(1))
+	unit(c, "AntiAir", 36, 15, 1, nation(1))
+	spark(c, 6, 5, "Gold")
+	spark(c, 44, 5, "Gold")
+end
+
 ItemArt.Keys = (function(): { string }
 	local out: { string } = {}
 	for key in ITEMS do

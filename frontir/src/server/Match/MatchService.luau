@@ -278,6 +278,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			crates = d.crates,
 			pityLeft = Config.Crates.Pity - d.pity,
 			path = { claimed = d.pathClaimed }, -- §15щ Щ1
+			unitUnlocks = Profile.unlockedUnits(d), -- §15э Э1
 			season = {
 				tier = Profile.seasonTier(d),
 				xp = d.seasonXp % per,
@@ -365,6 +366,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		MatchSim.setArsenal(m, id, session.data.loadout) -- §15л ч.6: предмет Арсенала в этот матч
 		local open = Profile.unlockedCommanders(session.data, passes.AllCommanders == true)
 		MatchSim.setUnlocked(m, id, open)
+		MatchSim.setUnitUnlocks(m, id, Profile.unlockedUnits(session.data)) -- §15э Э1
 		local chosen = Commanders.of(m.commanders, id)
 		if chosen ~= nil and not open[chosen] and m.phase ~= "Play" then
 			Commanders.choose(m.commanders, id, "Marshal")

@@ -29,6 +29,8 @@ onPointEnd` → `pointAt` в `Main.client` (общий для мыши и пал
 **§15щ Путь командира 2.0:** Щ1 — линейная кривая опыта (`Profile.XpStep`), награда за уровень `Profile.pathReward`
 (`Config.Path`), забрать — намерение `pathClaim` → `Profile.pathClaim` (событие `pathClaimed`, `pathClaimed` в профиле);
 Щ2 — погоны в `Ranks.icon` (превью `tools/epaulette_preview`); Щ3 — окно с лентой наград и анимациями.
+**§15э:** Э1 — техника в блоке: `Config.Unlocks`, `Profile.unitUnlocked`, `MatchSim.unitAllowed` (`unitLocked` /
+`siloLocked`; дуэль и боты — без ограничений), `ClientState.unitOpen`, вкладка «Техника» в магазине.
 - §15ц Ц5г: окно в списке самопроверки (`windows` в `Main.client`) — с `frame` (имя рамки: проверка «влезает в
   экран»); блок «Экран матча» в `SelfCheck` (заголовки полосы, кнопки у мини-карты, наложения, одно окно за раз) —
   новую рамку HUD снизу или справа добавить в его список наложений.

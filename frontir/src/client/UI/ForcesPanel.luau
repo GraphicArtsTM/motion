@@ -34,6 +34,7 @@ export type HireInfo = {
 	sec: number, -- время найма
 	queued: number, -- в очереди
 	needLevel: number?, -- нужны казармы этого уровня (иначе nil)
+	pathLevel: number?, -- §15э Э1: техника закрыта в профиле — откроется на этом уровне «Пути командира»
 	affordable: boolean,
 }
 
@@ -212,6 +213,8 @@ function ForcesPanel.new(
 		local needLevel = stats.requiresLevel or 1
 		local barracks = if economy ~= nil then economy.barracks else 0
 		local needs = stats.requires == "Barracks" and barracks < needLevel
+		-- §15э Э1: техника закрыта в профиле — откроется на уровне «Пути командира» (или в магазине).
+		local open, pathLevel = ClientState.unitOpen(cs, Types.LandUnits[k])
 		local cost = costOf(k)
 		return {
 			cost = cost,
@@ -220,7 +223,9 @@ function ForcesPanel.new(
 			sec = stats.recruitSec,
 			queued = queuedK,
 			needLevel = if needs then needLevel else nil,
-			affordable = myStats ~= nil
+			pathLevel = if open then nil else pathLevel,
+			affordable = open
+				and myStats ~= nil
 				and economy ~= nil
 				and myStats.people >= stats.people
 				and economy.money >= cost

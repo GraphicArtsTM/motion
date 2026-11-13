@@ -96,6 +96,7 @@ export type ProfileInfo = {
 	pityLeft: number, -- через сколько ящиков гарантированный джекпот
 	season: { tier: number, xp: number, per: number, premium: boolean, left: number? }, -- left nil — без срока
 	path: { claimed: number }?, -- §15щ Щ1: награды «Пути командира» забраны до этого уровня
+	unitUnlocks: { [string]: boolean }?, -- §15э Э1: открытая техника (Tanks / Artillery / AntiAir / Missile)
 	weekly: { offer: { stock: { [string]: number }, crates: number, tokens: number, medals: number? }, left: number },
 	noPaidRandom: boolean?, -- сводная правка ч.4: в стране игрока ящики за Robux не продаются (PolicyService)
 	dailyStreak: number,
@@ -558,6 +559,21 @@ function ClientState.applyCommander(cs: ClientState, msg: any, now: number)
 end
 
 -- Мой генерал: из сообщения commander в игре, до неё — из info (выбор в лобби).
+-- §15э Э1: открыта ли игроку техника (Tanks / Artillery / AntiAir / Missile). Дуэль — всё открыто; профиль ещё не
+-- пришёл — не прячем (сервер всё равно проверит). Возвращает открыто ли и с какого уровня «Пути» откроется.
+function ClientState.unitOpen(cs: ClientState, key: string): (boolean, number?)
+	local item = Config.Unlocks.Items[key]
+	if item == nil or cs.mode.mode == "Duel" then
+		return true, nil
+	end
+	local p = cs.profile
+	local set = if p ~= nil then p.unitUnlocks else nil
+	if set == nil or set[key] == true then
+		return true, nil
+	end
+	return false, item.level
+end
+
 function ClientState.myCommander(cs: ClientState): Types.CommanderId
 	local me = if cs.myNation ~= nil then cs.nations[cs.myNation] else nil
 	if cs.phase ~= "Play" and me ~= nil and me.commander ~= nil then

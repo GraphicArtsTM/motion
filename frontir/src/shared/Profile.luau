@@ -54,6 +54,7 @@ export type Data = {
 	loadout: string?,
 	commander: string?, -- §15ф Ф1: генерал по умолчанию (выбор в Арсенале, не в лобби)
 	pathClaimed: number, -- §15щ Щ1: награды «Пути командира» забраны до этого уровня включительно (1 — ни одной)
+	unlocks: { [string]: boolean }, -- §15э Э1: техника, купленная навсегда (Config.Unlocks; по уровню — само)
 }
 
 -- Награда (пропуск, ящик, ежедневная, набор).
@@ -98,6 +99,7 @@ function Profile.new(): Data
 		loadout = nil,
 		commander = nil,
 		pathClaimed = 1,
+		unlocks = {},
 	}
 end
 
@@ -139,6 +141,13 @@ function Profile.migrate(raw: any): Data
 	end
 	d.xp = num(raw.xp)
 	d.pathClaimed = math.max(1, num(raw.pathClaimed))
+	if type(raw.unlocks) == "table" then
+		for key in Config.Unlocks.Items do
+			if raw.unlocks[key] == true then
+				d.unlocks[key] = true
+			end
+		end
+	end
 	d.medals = num(raw.medals)
 	d.tokens = num(raw.tokens)
 	d.matches = num(raw.matches)
@@ -465,15 +474,27 @@ export type PathReward = {
 	crates: number,
 	stock: { [string]: number },
 	cosmetic: string?,
+	unit: string?, -- §15э Э1: на этом уровне открывается техника (ключ Config.Unlocks.Order); открывает сам уровень
 }
+
+-- Техника, которая открывается на уровне level (или nil).
+local function unitAt(level: number): string?
+	for _, key in Config.Unlocks.Order do
+		if Config.Unlocks.Items[key].level == level then
+			return key
+		end
+	end
+	return nil
+end
 
 -- Награда уровня (2…MaxLevel): правило Config.Path, ступени званий и последний уровень — Milestones.
 function Profile.pathReward(level: number): PathReward
 	local cfg = Config.Path
-	local r: PathReward = { medals = 0, tokens = 0, crates = 0, stock = {}, cosmetic = nil }
+	local r: PathReward = { medals = 0, tokens = 0, crates = 0, stock = {}, cosmetic = nil, unit = nil }
 	if level < 2 or level > Config.Profile.MaxLevel then
 		return r
 	end
+	r.unit = unitAt(level)
 	local ms = cfg.Milestones[level]
 	if ms ~= nil then
 		r.medals, r.tokens, r.crates, r.cosmetic = ms.medals, ms.tokens, ms.crates, ms.cosmetic
@@ -575,6 +596,26 @@ function Profile.unlockedCommanders(d: Data, allPass: boolean): { [string]: bool
 	return out
 end
 
+-- §15э Э1: открыта ли техника (Tanks / Artillery / AntiAir / Missile): куплена или уровень «Пути» не ниже нужного.
+-- Ключа нет в Config.Unlocks — не закрыта.
+function Profile.unitUnlocked(d: Data, key: string): boolean
+	local item = Config.Unlocks.Items[key]
+	if item == nil or d.unlocks[key] then
+		return true
+	end
+	return (Profile.levelOf(d.xp)) >= item.level
+end
+
+function Profile.unlockedUnits(d: Data): { [string]: boolean }
+	local out: { [string]: boolean } = {}
+	for _, key in Config.Unlocks.Order do
+		if Profile.unitUnlocked(d, key) then
+			out[key] = true
+		end
+	end
+	return out
+end
+
 -- Покупка уже начислена?
 function Profile.hasPurchase(d: Data, purchaseId: string): boolean
 	return table.find(d.purchases, purchaseId) ~= nil
@@ -595,6 +636,17 @@ function Profile.grantProduct(d: Data, kind: string, key: string, purchaseId: st
 	end
 	if kind == "boost" and Shop.isBoost(key) then
 		d.stock[key] = (d.stock[key] or 0) + 1
+	elseif kind == "unlock" then
+		-- §15э Э1: техника навсегда; «All» — вся.
+		if key == "All" then
+			for _, k in Config.Unlocks.Order do
+				d.unlocks[k] = true
+			end
+		elseif Config.Unlocks.Items[key] ~= nil then
+			d.unlocks[key] = true
+		else
+			return false
+		end
 	elseif kind == "pack" then
 		local pack = (Config.Shop.Packs :: any)[key]
 		if pack == nil then

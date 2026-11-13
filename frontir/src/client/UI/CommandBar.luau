@@ -41,6 +41,7 @@ export type HireInfo = {
 	sec: number,
 	queued: number,
 	needLevel: number?,
+	pathLevel: number?, -- §15э Э1: закрыта в профиле до этого уровня «Пути командира»
 	affordable: boolean,
 }
 
@@ -56,6 +57,7 @@ export type Deps = {
 		pick: (kind: Types.BuildingKind) -> (),
 		price: (kind: Types.BuildingKind) -> number?,
 		unlocked: (kind: Types.BuildingKind) -> boolean,
+		pathLevel: (kind: Types.BuildingKind) -> number?, -- §15э Э1: шахта закрыта в профиле до уровня «Пути»
 		selected: () -> Types.BuildingKind?,
 		canBuild: () -> boolean,
 		color: () -> Color3,
@@ -421,8 +423,9 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 			if info.oil > 0 then
 				line ..= " · " .. string.format(t("hire.oil"), Strings.formatInt(info.oil))
 			end
-			local second = if info.needLevel ~= nil
-				then string.format(t("hire.needBarracks"), info.needLevel)
+			local second = if info.pathLevel ~= nil
+				then string.format(t("hire.lockPath"), info.pathLevel)
+				elseif info.needLevel ~= nil then string.format(t("hire.needBarracks"), info.needLevel)
 				else string.format(t("hire.cost"), Strings.formatInt(info.people), info.sec)
 			return string.format(
 				"<b>%s</b> [%s]\n%s · %s",
@@ -464,8 +467,10 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 				if key ~= nil then " [" .. key .. "]" else "",
 				Strings.formatInt(price or 0)
 			)
-			local hint = if deps.build.unlocked(kind)
-				then Strings.get("building." .. kind .. ".hint", lang)
+			local pathLock = deps.build.pathLevel(kind)
+			local hint = if pathLock ~= nil
+				then string.format(t("hire.lockPath"), pathLock)
+				elseif deps.build.unlocked(kind) then Strings.get("building." .. kind .. ".hint", lang)
 				else t("build.locked")
 			return head .. "\n" .. hint
 		end)
@@ -612,8 +617,9 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 		for k, s in hireSlots do
 			local info = deps.hireInfo(k)
 			-- §15ш Ш2: причина замка — на клетке (на телефоне подсказки по наведению нет).
-			s.price.Text = if info.needLevel ~= nil
-				then string.format(t("bar.lockLevel"), info.needLevel :: number)
+			s.price.Text = if info.pathLevel ~= nil
+				then string.format(t("bar.lockPath"), info.pathLevel :: number)
+				elseif info.needLevel ~= nil then string.format(t("bar.lockLevel"), info.needLevel :: number)
 				else "$" .. Strings.formatInt(info.cost)
 			queueBadges[k].Text = if info.queued > 0 then string.format(t("bar.queued"), info.queued) else ""
 			dim(s, not info.affordable)
@@ -623,11 +629,13 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 			local kind: Types.BuildingKind = buildKinds[k]
 			local price = deps.build.price(kind)
 			local unlocked = deps.build.unlocked(kind)
-			s.price.Text = if not unlocked
-				then t("bar.lockTech")
+			local pathLock = deps.build.pathLevel(kind)
+			s.price.Text = if pathLock ~= nil
+				then string.format(t("bar.lockPath"), pathLock)
+				elseif not unlocked then t("bar.lockTech")
 				elseif price ~= nil then "$" .. Strings.formatInt(price)
 				else ""
-			dim(s, not unlocked or price == nil or v.money < price)
+			dim(s, pathLock ~= nil or not unlocked or price == nil or v.money < price)
 			s.edge.Color = if selected == kind then Theme.Colors.Gold else Theme.Colors.Slate
 		end
 	end
