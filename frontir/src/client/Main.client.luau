@@ -716,7 +716,7 @@ local function runSession(mapId: string, resync: boolean)
 			end
 		end
 	end
-	local ranksPanel = RanksPanel.new(windowsGui, cs, lang)
+	local ranksPanel = RanksPanel.new(windowsGui, cs, lang, send) -- §15щ Щ3: лента наград, забрать — pathClaim
 	-- §15х ч.5: справочник механик — из окна «Как играть» (окно «Как играть» закрывается, справочник — поверх).
 	local handbook = HandbookPanel.new(windowsGui, lang)
 	table.insert(sheets, { -- §15ц Ц4а: справочник — тоже «одно окно за раз»
@@ -924,7 +924,16 @@ local function runSession(mapId: string, resync: boolean)
 		{ label = Strings.get("dock.quests", lang) .. "  [J]", action = questsPanel.toggle },
 		{ label = Strings.get("dock.wardrobe", lang) .. "  [K]", action = wardrobe.toggle },
 		{ label = Strings.get("dock.arsenal", lang) .. "  [U]", action = arsenalPanel.toggle },
-		{ label = Strings.get("menu.nav.ranks", lang), action = ranksPanel.toggle },
+		{
+			label = Strings.get("menu.nav.ranks", lang),
+			action = ranksPanel.toggle,
+			-- §15щ Щ3: сколько наград ждёт — прямо на пункте меню.
+			text = function(): string
+				local label = Strings.get("menu.nav.ranks", lang)
+				local n = ranksPanel.pending()
+				return if n > 0 then string.format(Strings.get("path.pending", lang), label, n) else label
+			end,
+		},
 		{
 			label = Strings.get("dock.server", lang) .. "  [O]",
 			action = serverPanel.toggle,
@@ -1379,6 +1388,10 @@ local function runSession(mapId: string, resync: boolean)
 			questsPanel.refresh()
 		end,
 		onShopEvent = function(msg: any)
+			if msg.kind == "pathClaimed" then
+				ranksPanel.onClaimed(msg) -- §15щ Щ3: анимация забора наград
+				return
+			end
 			if msg.kind == "quests" then
 				questsPanel.onQuests(msg)
 				return
@@ -1387,6 +1400,7 @@ local function runSession(mapId: string, resync: boolean)
 		end,
 		onProfile = function()
 			soundPanel.refresh()
+			ranksPanel.refresh()
 			local reward = if cs.profile ~= nil then cs.profile.reward else nil
 			if reward ~= nil and reward ~= lastReward then
 				sound("Coin")

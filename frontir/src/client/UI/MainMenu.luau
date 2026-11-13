@@ -418,6 +418,7 @@ function MainMenu.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, mapNa
 	MenuKit.list(tiles, 10, true)
 	local serverTile: TextButton? = nil
 	local tileRank: Frame? = nil
+	local tileBadge: TextLabel? = nil -- §15щ Щ3: «N» — сколько наград «Пути командира» ждёт
 	local tileDefs: { { key: string, icon: string, action: () -> () } } = {
 		{ key = "arsenal", icon = "arsenal", action = act.arsenal },
 		{ key = "shop", icon = "shop", action = act.shop },
@@ -434,6 +435,19 @@ function MainMenu.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, mapNa
 		MenuKit.center(icon)
 		if def.icon == "" then
 			tileRank = icon
+			local badge = MenuKit.label(b, "", 14, Theme.color("White"), true)
+			badge.Name = "PathBadge"
+			badge.AnchorPoint = Vector2.new(1, 0)
+			badge.Position = UDim2.new(1, -4, 0, 4)
+			badge.AutomaticSize = Enum.AutomaticSize.None
+			badge.Size = UDim2.fromOffset(26, 22)
+			badge.TextXAlignment = Enum.TextXAlignment.Center
+			badge.BackgroundColor3 = Theme.Colors.Alert
+			badge.BackgroundTransparency = 0
+			badge.ZIndex = 5
+			badge.Visible = false
+			MenuKit.corner(badge, 11)
+			tileBadge = badge
 		end
 		Session.connect(b.Activated, def.action)
 		if def.key == "server" then
@@ -631,6 +645,13 @@ function MainMenu.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, mapNa
 		local tr = tileRank
 		if tr ~= nil then
 			MenuKit.setRank(tr, rank, 2)
+		end
+		local badge = tileBadge
+		if badge ~= nil then
+			local claimed = if p ~= nil and p.path ~= nil then p.path.claimed else 1
+			local n = math.max(0, level - claimed)
+			badge.Visible = n > 0
+			badge.Text = if n > 99 then "99+" else tostring(n)
 		end
 		nameLabel.Text = player.DisplayName
 		rankLabel.Text = Strings.get("rank." .. rank, lang) .. "  ·  " .. string.format(t("menu.level"), level)

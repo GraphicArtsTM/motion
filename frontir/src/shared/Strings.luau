@@ -1865,6 +1865,22 @@ local TABLE: { [string]: Entry } = {
 
 	-- §15ф Путь командира (окно RanksPanel)
 	["ranks.title"] = { ru = "ПУТЬ КОМАНДИРА", en = "COMMANDER PATH" },
+	-- §15щ Щ3: «Путь командира» 2.0 — награда за каждый уровень.
+	["path.subtitle"] = {
+		ru = "Каждый уровень — награда. Звание растёт с опытом, забирайте призы.",
+		en = "Every level brings a reward. Your rank grows with XP — claim your prizes.",
+	},
+	["path.claim"] = { ru = "ЗАБРАТЬ", en = "CLAIM" },
+	["path.claimAll"] = { ru = "ЗАБРАТЬ ВСЁ (%d)", en = "CLAIM ALL (%d)" },
+	["path.nothing"] = { ru = "Новых наград нет", en = "No new rewards" },
+	["path.claimed"] = { ru = "получено", en = "claimed" },
+	["path.crates"] = { ru = "+%d ящ.", en = "+%d crate" },
+	["path.tokens"] = { ru = "+%d жет.", en = "+%d token" },
+	["path.general"] = { ru = "Генерал: %s", en = "Commander: %s" },
+	["path.cosmetic.pattern"] = { ru = "Узор", en = "Pattern" },
+	["path.cosmetic.capture"] = { ru = "Вспышка", en = "Capture flash" },
+	["path.newRank"] = { ru = "НОВОЕ ЗВАНИЕ", en = "NEW RANK" },
+	["path.pending"] = { ru = "%s  ·  наград: %d", en = "%s  ·  rewards: %d" },
 	["ranks.subtitle"] = {
 		ru = "Ваш уровень — это часть, которой вы командуете. Растёт с каждым матчем.",
 		en = "Your level is the unit you command. It grows with every match.",
@@ -2313,8 +2329,8 @@ local TABLE: { [string]: Entry } = {
 		en = "Lv %d · %d/%d XP · medals %s · tokens %d",
 	},
 	["shop.note"] = {
-		ru = "Бусты — по одному каждого вида за матч: за жетон штаба (жетоны дают уровни) или за Robux. В дуэли бустов нет.",
-		en = "Boosts: one of each kind per match, for a HQ token (earned by levelling) or Robux. No boosts in duels.",
+		ru = "Бусты — по одному каждого вида за матч: за жетон штаба (жетоны — награды «Пути командира») или за Robux. В дуэли бустов нет.",
+		en = "Boosts: one of each kind per match, for a HQ token (Commander Path rewards) or Robux. No boosts in duels.",
 	},
 	["shop.boosts"] = { ru = "Бусты в матче", en = "Match boosts" },
 	-- §15л ч.9 витрины
@@ -2713,8 +2729,8 @@ local TABLE: { [string]: Entry } = {
 	["arsenal.generalPick"] = { ru = "Генерал в бой", en = "Take into battle" },
 	["arsenal.generalOn"] = { ru = "В бою ✔", en = "In battle ✔" },
 	["shop.hint"] = {
-		ru = "Медали — за матчи и задания, жетоны штаба — за уровни. Robux — по желанию: у каждого буста есть бесплатный путь.",
-		en = "Medals come from matches and quests, HQ tokens from levels. Robux is optional: every boost has a free path.",
+		ru = "Медали — за матчи и задания, жетоны штаба — награды уровней на «Пути командира». Robux — по желанию: у каждого буста есть бесплатный путь.",
+		en = "Medals come from matches and quests, HQ tokens from Commander Path level rewards. Robux is optional: every boost has a free path.",
 	},
 	["wardrobe.hint"] = {
 		ru = "Медали — за матчи и задания дня. Вид не влияет на силу державы.",
