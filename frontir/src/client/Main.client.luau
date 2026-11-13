@@ -1855,6 +1855,7 @@ local function runSession(mapId: string, resync: boolean)
 		airLayer.update(now, camera.state)
 		railLayer.update(now, math.clamp(now - railAt, 0, 0.25), camera.state) -- §15ч Ч2: дороги вдали и поезда
 		railAt = now
+		tooltip.tick(hud.percent()) -- §15ш Ш1: числа в подсказке живые и без движения мыши
 		-- §15х: целимся — круги защиты врага, которые накрывают клетку под курсором.
 		local ac = aimCell
 		if ac ~= nil then

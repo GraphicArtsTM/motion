@@ -742,20 +742,20 @@ local TABLE: { [string]: Entry } = {
 		en = "Expand: tap neutral land nearby. The ATTACK buttons below set how many people go.",
 	},
 	["hint.barracks"] = {
-		ru = "Постройте Казармы (B → 2): больше линий найма — войска быстрее.",
-		en = "Build Barracks (B → 2): more hiring lines — troops faster.",
+		ru = "Постройте Казармы (клавиша 2): больше линий найма — войска быстрее.",
+		en = "Build Barracks (key 2): more hiring lines — troops faster.",
 	},
 	["hint.factory"] = {
-		ru = "Постройте Завод (B → 3): +$15 в секунду. Рядом с городом — ещё больше.",
-		en = "Build a Factory (B → 3): +$15 per second. Next to a city — even more.",
+		ru = "Постройте Завод (клавиша 3): +$15 в секунду. Рядом с городом — ещё больше.",
+		en = "Build a Factory (key 3): +$15 per second. Next to a city — even more.",
 	},
 	["hint.hire"] = {
 		ru = "Нанимайте войска: Z — пехота. Без войск страну не взять.",
 		en = "Hire troops: Z — infantry. You can't take a country without troops.",
 	},
 	["hint.city"] = {
-		ru = "Улучшите город (B → 1, нажмите на свой город): доход, люди и линия найма.",
-		en = "Upgrade a city (B → 1, tap your city): income, people and a hiring line.",
+		ru = "Улучшите город (клавиша 1, нажмите на свой город): доход, люди и линия найма.",
+		en = "Upgrade a city (key 1, tap your city): income, people and a hiring line.",
 	},
 	["hint.tanks"] = {
 		ru = "Идёт война: улучшите Казармы до ур. 2 — откроются танки и пушки.",
@@ -1254,20 +1254,20 @@ local TABLE: { [string]: Entry } = {
 	},
 	["strikeHow.cooldown"] = { ru = "Перезарядка: ещё %d с.", en = "Reloading: %d s left." },
 	["strikeHow.missile.needTech"] = {
-		ru = "Ракета: изучите «Ракетная шахта» (технологии Y → Войска, ур. 3), потом постройте шахту (B).",
-		en = "Missile: research «Missile silo» (tech Y → Army, lv 3), then build a silo (B).",
+		ru = "Ракета: изучите «Ракетная шахта» (технологии Y → Войска, ур. 3), потом постройте шахту (клавиша 0).",
+		en = "Missile: research «Missile silo» (tech Y → Army, lv 3), then build a silo (key 0).",
 	},
 	["strikeHow.missile.needSilo"] = {
-		ru = "Ракета: постройте ракетную шахту (B → «Ракетная шахта») — ракеты долетают по всей карте.",
-		en = "Missile: build a missile silo (B → «Missile silo») — missiles reach anywhere on the map.",
+		ru = "Ракета: постройте ракетную шахту (клавиша 0) — ракеты долетают по всей карте.",
+		en = "Missile: build a missile silo (key 0) — missiles reach anywhere on the map.",
 	},
 	["strikeHow.raid.needAirfieldTech"] = {
-		ru = "Налёт: изучите «Авиация» (технологии Y → Флот, ур. 2), постройте аэродром (B) и наймите бомбардировщик.",
-		en = "Air raid: research «Aviation» (tech Y → Fleet, lv 2), build an airfield (B) and hire a bomber.",
+		ru = "Налёт: изучите «Авиация» (технологии Y → Флот, ур. 2), постройте аэродром (клавиша 8) и наймите бомбардировщик.",
+		en = "Air raid: research «Aviation» (tech Y → Fleet, lv 2), build an airfield (key 8) and hire a bomber.",
 	},
 	["strikeHow.raid.needAirfield"] = {
-		ru = "Налёт: постройте аэродром (B), нажмите на него и наймите бомбардировщик.",
-		en = "Air raid: build an airfield (B), tap it and hire a bomber.",
+		ru = "Налёт: постройте аэродром (клавиша 8), нажмите на него и наймите бомбардировщик.",
+		en = "Air raid: build an airfield (key 8), tap it and hire a bomber.",
 	},
 	["strikeHow.raid.needBomber"] = {
 		ru = "Налёт: нажмите на свой аэродром и наймите бомбардировщик.",
@@ -1328,6 +1328,8 @@ local TABLE: { [string]: Entry } = {
 	-- §15о: доля к победе — вместе с союзниками и вассалами (вассалы наполовину)
 	["hud.withBloc"] = { ru = "с союзом", en = "with bloc" },
 	["hud.youShare"] = { ru = "Вы %.1f%%", en = "You %.1f%%" },
+	["hud.leaderLabel"] = { ru = "· Лидер:", en = "· Leader:" }, -- §15ш Ш1
+	["hud.youLead"] = { ru = "— вы лидер", en = "— you lead" },
 	["hud.place"] = { ru = "#%d · %.1f%%", en = "#%d · %.1f%%" },
 	-- §15к подсказка при наведении на карту
 	["tip.neutral"] = { ru = "Ничья земля", en = "Unclaimed land" },
@@ -1373,8 +1375,8 @@ local TABLE: { [string]: Entry } = {
 		en = "<b>War.</b> Right-click (or long-press) a neighbour → “Declare war”. Fighting starts in 5 s: tap the enemy, the ATTACK buttons below set the share of people. Hire — Z/X/C/V.",
 	},
 	["help.build"] = {
-		ru = "<b>Стройка (B).</b> Завод — деньги, Казармы — войска, Жилой квартал — люди, Порт — торговые суда, ПВО — защита от ударов.",
-		en = "<b>Build (B).</b> Factory — money, Barracks — troops, Housing — people, Port — trade ships, AA — strike defence.",
+		ru = "<b>Стройка (1–0).</b> Завод — деньги, Казармы — войска, Жилой квартал — люди, Порт — торговые суда, ПВО — защита от ударов.",
+		en = "<b>Build (1–0).</b> Factory — money, Barracks — troops, Housing — people, Port — trade ships, AA — strike defence.",
 	},
 	["help.goal"] = {
 		ru = "<b>Цель.</b> 60% суши (в «Командах» — 70%) или больше всех к концу лимита времени.",
@@ -1523,8 +1525,8 @@ local TABLE: { [string]: Entry } = {
 		en = "The strike defence building. Lv 1–2 — short range: stops raid bombs, missiles and warheads, fires at planes. Lv 3 adds a long-range circle against missiles.",
 	},
 	["handbook.defense.how"] = {
-		ru = "Стройка (B) → «ПВО» рядом с городами и шахтой. Заряды = уровень (+1 с «Сетью ПВО»), каждый восстанавливается 30 с. Ур. 3 — после технологии «Дальняя ПВО».",
-		en = "Build (B) → “AA” next to cities and the silo. Charges = level (+1 with “Air defense grid”), each recharges in 30 s. Lv 3 needs “Long-range AA”.",
+		ru = "Стройка: «ПВО» (клавиша 9) рядом с городами и шахтой. Заряды = уровень (+1 с «Сетью ПВО»), каждый восстанавливается 30 с. Ур. 3 — после технологии «Дальняя ПВО».",
+		en = "Build: “AA” (key 9) next to cities and the silo. Charges = level (+1 with “Air defense grid”), each recharges in 30 s. Lv 3 needs “Long-range AA”.",
 	},
 	["handbook.defense.hinder"] = {
 		ru = "Бейте залпом: удары сверх запаса зарядов проходят. Глушилка из Арсенала выключает ПВО в круге на 20 с.",
@@ -1616,8 +1618,8 @@ local TABLE: { [string]: Entry } = {
 		en = "10 buildings, each with one role: Factory — money, Barracks — hiring, Housing — people, City — supply and stability, plus Oil rig, Fort, Port, Airfield, AA, Silo.",
 	},
 	["handbook.buildings.how"] = {
-		ru = "B → выберите здание (клавиши 1–9, 0) → нажмите свою землю. То же здание рядом со своим — улучшение; нажмите своё здание — что оно делает и снос.",
-		en = "B → pick a building (keys 1–9, 0) → tap your land. The same building next to your own upgrades it; tap your building to see what it does or demolish it.",
+		ru = "Выберите здание в СТРОЙКЕ внизу (клавиши 1–9, 0) → нажмите свою землю. То же здание рядом со своим — улучшение; нажмите своё здание — что оно делает и снос.",
+		en = "Pick a building in BUILD below (keys 1–9, 0) → tap your land. The same building next to your own upgrades it; tap your building to see what it does or demolish it.",
 	},
 	["handbook.buildings.defense"] = {
 		ru = "Ракеты и налёты снимают уровень здания — прикройте ПВО. Город и здания на захваченной земле переходят врагу.",
@@ -1642,8 +1644,8 @@ local TABLE: { [string]: Entry } = {
 		en = "Oil fuels vehicles, ships, planes and bombs. Oil rigs on oil fields produce it.",
 	},
 	["handbook.oil.how"] = {
-		ru = "Стройка (B) → «Нефтевышка» в провинции с нефтяным полем. «Нефтедобыча» (Y) даёт +30%; событие «Нефтяная лихорадка» открывает новое поле.",
-		en = "Build (B) → “Oil rig” in a province with an oil field. “Oil drilling” (Y) gives +30%; the “Oil rush” event opens a new field.",
+		ru = "Стройка: «Нефтевышка» (клавиша 5) в провинции с нефтяным полем. «Нефтедобыча» (Y) даёт +30%; событие «Нефтяная лихорадка» открывает новое поле.",
+		en = "Build: “Oil rig” (key 5) in a province with an oil field. “Oil drilling” (Y) gives +30%; the “Oil rush” event opens a new field.",
 	},
 	["handbook.oil.defense"] = {
 		ru = "Вышки — частая цель налётов: прикройте их ПВО и держите поля подальше от фронта.",

@@ -30,6 +30,8 @@ type ClientState = ClientState.ClientState
 
 export type MapTooltip = {
 	show: (cell: number?, x: number, y: number, percent: number) -> (), -- cell nil — спрятать
+	-- §15ш Ш1: каждый кадр — перерисовать открытую подсказку без движения мыши (не чаще PreviewRefreshSec).
+	tick: (percent: number) -> (),
 	-- §15х: чем целимся сейчас (nil — ничем): подсказка показывает прогноз «собьют / дойдёт».
 	setAiming: (aiming: () -> StrikeForecast.Kind?) -> (),
 	-- §15х: прогноз удара по клетке (nil — не целимся или нечего показать) — для кругов защиты на карте.
@@ -440,7 +442,7 @@ function MapTooltip.new(
 		local owner = ClientState.ownerAt(cs, cell)
 		local who = if owner == 0 then Strings.get("tip.neutral", lang) else nationName(owner)
 		local p = provinces.list[MapDataModule.getProvince(map, cell)]
-		local where = if p ~= nil then (if lang == "en" then p.nameEn else p.name) else ""
+		local where = if p ~= nil then Provinces.shortName(if lang == "en" then p.nameEn else p.name) else ""
 		local head = string.format("<b>%s</b> · %s", who, terrain)
 		if where ~= "" then
 			head ..= string.format(' <font color="%s">· %s</font>', muted, where)
@@ -529,6 +531,7 @@ function MapTooltip.new(
 	end
 
 	local lastCell, lastPercent, lastAt = -1, -1, 0
+	local lastX, lastY = 0, 0
 	local function show(cell: number?, x: number, y: number, percent: number)
 		if cell == nil then
 			box.Visible = false
@@ -541,12 +544,24 @@ function MapTooltip.new(
 			lastCell, lastPercent, lastAt = cell, percent, now
 			text.Text = describe(cell, percent)
 		end
+		lastX, lastY = x, y
 		box.Position = UDim2.fromOffset(x + 18, y + 18)
 		box.Visible = true
 	end
 
 	return {
 		show = show,
+		-- §15ш Ш1: мышь стоит — подсказка всё равно обновляется (доля, сила, прогноз), не держит старое число.
+		tick = function(percent: number)
+			if not box.Visible or lastCell < 0 then
+				return
+			end
+			if cs.phase ~= "Play" and cs.phase ~= "Pick" then
+				show(nil, 0, 0, 0) -- матч кончился, пока мышь стояла
+			else
+				show(lastCell, lastX, lastY, percent)
+			end
+		end,
 		setAiming = function(fn: () -> StrikeForecast.Kind?)
 			aimingFn = fn
 		end,

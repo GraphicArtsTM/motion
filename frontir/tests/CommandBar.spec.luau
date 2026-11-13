@@ -48,4 +48,42 @@ T.describe("Нижняя полоса (§15ц Ц3)", function()
 			T.expect(cfg.SlotW >= 36 + 8).toBe(true)
 		end
 	)
+
+	-- §15ш Ш1: на снимке атака была 30%, а кнопки — 10/25/35/50/75, ни одна не горела.
+	T.it("доля атаки по умолчанию — одна из кнопок полосы", function()
+		local found = false
+		for _, p in cfg.Percents do
+			if math.abs(p - Config.Expansion.DefaultPercent) < 1e-6 then
+				found = true
+			end
+		end
+		T.expect(found).toBe(true)
+	end)
+
+	-- §15ш Ш1: подсказки называют клавишу клетки СТРОЙКИ («клавиша 2»), номер — место в Config.Buildable (10-я — 0).
+	T.it(
+		"номера клавиш в подсказках стройки совпадают с клетками полосы",
+		function()
+			local said: { { string } } = {
+				{ "hint.barracks", "Barracks" },
+				{ "hint.factory", "Factory" },
+				{ "hint.city", "City" },
+				{ "strikeHow.missile.needTech", "MissileSilo" },
+				{ "strikeHow.missile.needSilo", "MissileSilo" },
+				{ "strikeHow.raid.needAirfieldTech", "Airfield" },
+				{ "strikeHow.raid.needAirfield", "Airfield" },
+				{ "handbook.defense.how", "AirDefense" },
+				{ "handbook.oil.how", "OilRig" },
+			}
+			for _, pair in said do
+				local index = table.find(Config.Buildable, pair[2])
+				T.expect(index ~= nil).toBe(true)
+				local key = tostring((index :: number) % 10)
+				local entry = Strings.Table[pair[1]]
+				T.expect(entry ~= nil).toBe(true)
+				T.expect(string.find(entry.ru, "клавиша " .. key, 1, true) ~= nil).toBe(true)
+				T.expect(string.find(entry.en, "key " .. key, 1, true) ~= nil).toBe(true)
+			end
+		end
+	)
 end)

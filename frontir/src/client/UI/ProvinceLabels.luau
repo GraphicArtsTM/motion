@@ -70,7 +70,7 @@ function ProvinceLabels.new(
 				if cx >= x0 and cx <= x1 and cy >= y0 and cy <= y1 and n < cfg.ProvinceNameMax then
 					n += 1
 					local l = label(n)
-					l.Text = if lang == "en" then p.nameEn else p.name
+					l.Text = Provinces.shortName(if lang == "en" then p.nameEn else p.name)
 					l.Position = UDim2.fromOffset(
 						CameraMath.cellEdge(state.zoom, cx + 0.5),
 						CameraMath.cellEdge(state.zoom, cy + 0.5) + 14 -- под городом и столицей

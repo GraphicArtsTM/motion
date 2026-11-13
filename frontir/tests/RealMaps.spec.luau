@@ -84,3 +84,27 @@ T.describe("Карты с реальной географией", function()
 		)
 	end
 end)
+
+-- §15ш Ш1: на карте и в подсказке — имя провинции без номера «-N».
+T.describe("Имена провинций на карте (§15ш)", function()
+	T.it("shortName убирает только хвост «-число»", function()
+		T.expect(Provinces.shortName("Карпаты-3")).toBe("Карпаты")
+		T.expect(Provinces.shortName("Pontic-Caspian steppe-12")).toBe("Pontic-Caspian steppe")
+		T.expect(Provinces.shortName("Pontic-Caspian steppe")).toBe("Pontic-Caspian steppe")
+		T.expect(Provinces.shortName("Ulmirana")).toBe("Ulmirana")
+		T.expect(Provinces.shortName("-5")).toBe("-5")
+	end)
+
+	T.it(
+		"на реальных картах после shortName у каждой провинции остаётся непустое имя",
+		function()
+			for _, name in Config.RealMapOrder do
+				local set = Provinces.build(load(name))
+				for _, p in set.list do
+					T.expect(#Provinces.shortName(p.name) > 0).toBe(true)
+					T.expect(#Provinces.shortName(p.nameEn) > 0).toBe(true)
+				end
+			end
+		end
+	)
+end)

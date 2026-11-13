@@ -45,6 +45,13 @@ function Provinces.cityName(set: ProvinceSet, map: MapData, cell: number): MapDa
 	return set.cityNames[cell] or Provinces.foundedName(map, cell)
 end
 
+-- §15ш Ш1: имя на карте — без хвоста «-N», которым карта различает соседние провинции одной подписи
+-- («Карпаты-3» → «Карпаты»). Где провинции нужно отличать (списки), — полное имя.
+function Provinces.shortName(name: string): string
+	local base = string.match(name, "^(.-)%-%d+$")
+	return if base ~= nil and base ~= "" then base else name
+end
+
 function Provinces.idAt(map: MapData, i: number): number
 	return MapData.getProvince(map, i)
 end

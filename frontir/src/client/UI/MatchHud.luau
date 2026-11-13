@@ -782,10 +782,13 @@ function MatchHud.new(
 						.. (if myWithBloc then " " .. Strings.get("hud.withBloc", lang) else "")
 				)
 				else ""
-			controlText.Text = you
-				.. string.format(
-					'<font color="%s">♛</font> <font color="%s">■</font> %s %.1f%%%s',
+			-- §15ш Ш1: лидер словами — знака короны нет в шрифте интерфейса (был пустой квадрат).
+			controlText.Text = if mine ~= nil and best == cs.myNation
+				then you .. string.format('<font color="%s">%s</font>', gold, Strings.get("hud.youLead", lang))
+				else you .. string.format(
+					'<font color="%s">%s</font> <font color="%s">■</font> %s %.1f%%%s',
 					gold,
+					Strings.get("hud.leaderLabel", lang),
 					nationHex(best),
 					escape(nationName(best)),
 					share * 100,

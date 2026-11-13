@@ -344,7 +344,7 @@ Config.Expansion = {
 	MinTroops = 5, -- меньше — атака не начинается / заканчивается
 	MinPercent = 0.05, -- ползунок «Атака N%»
 	MaxPercent = 1.0,
-	DefaultPercent = 0.3,
+	DefaultPercent = 0.25, -- §15ш Ш1: одна из кнопок полосы (Render.CommandBar.Percents)
 	PercentStep = 0.05,
 	-- Форма фронта: идёт вся граница (каждая клетка — с вероятностью по скорости), сторона клика быстрее.
 	-- Плавный шум делает границу живой («языки» размером ~BorderNoiseScale клеток).
