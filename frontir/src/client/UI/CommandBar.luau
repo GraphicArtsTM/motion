@@ -82,11 +82,11 @@ local function caption(parent: Instance, text: string): (TextLabel, TextLabel)
 	local row = Instance.new("Frame")
 	row.Name = "Caption"
 	row.BackgroundTransparency = 1
-	row.Size = UDim2.new(1, 0, 0, 14)
+	row.Size = UDim2.new(1, 0, 0, 15) -- §15ш Ш4: заголовки групп — 12 (было 11)
 	row.LayoutOrder = 0
 	row.Parent = parent
-	local left = MenuKit.label(row, text, 11, Theme.Colors.Muted, true)
-	local right = MenuKit.label(row, "", 11, Theme.Colors.Sky, true)
+	local left = MenuKit.label(row, text, 12, Theme.Colors.Muted, true)
+	local right = MenuKit.label(row, "", 12, Theme.Colors.Sky, true)
 	right.AnchorPoint = Vector2.new(1, 0)
 	right.Position = UDim2.fromScale(1, 0)
 	right.TextXAlignment = Enum.TextXAlignment.Right
@@ -96,7 +96,7 @@ end
 function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, deps: Deps): CommandBar
 	local cfg = Config.Render.CommandBar
 	local slotW, slotH = cfg.SlotW, cfg.SlotH
-	local contentH = math.max(cfg.HeightPx - 2 * PAD, 17 + slotH)
+	local contentH = math.max(cfg.HeightPx - 2 * PAD, 18 + slotH)
 	local function t(key: string): string
 		return Strings.get(key, lang)
 	end
@@ -166,10 +166,18 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 	MenuKit.pad(tip, 10, 6)
 	local tipFor: GuiObject? = nil
 	local tipText: { [GuiObject]: () -> string } = {}
+	local touchTipUntil: number? = nil -- §15ш Ш4: подсказка, открытая касанием (на телефоне нет наведения)
 	local function withTip(g: GuiObject, text: () -> string)
 		tipText[g] = text
 		Session.connect(g.MouseEnter, function()
 			tipFor = g
+			touchTipUntil = nil
+		end)
+		Session.connect(g.InputBegan, function(input: InputObject)
+			if input.UserInputType == Enum.UserInputType.Touch then
+				tipFor = g
+				touchTipUntil = os.clock() + Config.Render.TouchTipSec
+			end
 		end)
 		Session.connect(g.MouseLeave, function()
 			if tipFor == g then
@@ -257,14 +265,14 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 		end)
 		table.insert(percentButtons, { button = b, value = value })
 	end
-	local sendsLabel = MenuKit.label(attack, "", 11, Theme.Colors.Muted, false, 2)
+	local sendsLabel = MenuKit.label(attack, "", 13, Theme.Colors.Muted, false, 2)
 	divider(6)
 
 	-- 4. Деньги и нефть.
 	local money = section("Money", MONEY_W, 7)
 	local _, incomeLabel = caption(money, t("bar.money"))
 	local moneyLabel = MenuKit.label(money, "", 18, Theme.Colors.Gold, true, 1)
-	local oilLabel = MenuKit.label(money, "", 11, Theme.Colors.Muted, false, 2)
+	local oilLabel = MenuKit.label(money, "", 13, Theme.Colors.Muted, false, 2)
 	-- §15ц Ц5в: на узком экране этот разделитель — линия во всю ширину: дальше вторая строка полосы.
 	local rowBreak = divider(8)
 
@@ -284,13 +292,13 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 		b.Parent = parent
 		MenuKit.corner(b, 6)
 		local edge = MenuKit.stroke(b, Theme.Colors.Slate, 2)
-		local price = MenuKit.label(b, "", 10, Theme.Colors.Gold, true)
+		local price = MenuKit.label(b, "", 11, Theme.Colors.Gold, true) -- §15ш Ш4: было 10
 		price.AnchorPoint = Vector2.new(1, 0)
 		price.Position = UDim2.new(1, -3, 0, 1)
 		price.TextXAlignment = Enum.TextXAlignment.Right
 		price.TextStrokeTransparency = 0.3
 		price.ZIndex = 3
-		local badge = MenuKit.label(b, key or "", 11, Theme.Colors.Gold, true)
+		local badge = MenuKit.label(b, key or "", 12, Theme.Colors.Gold, true)
 		badge.Position = UDim2.fromOffset(4, 1)
 		badge.TextStrokeTransparency = 0.3
 		badge.ZIndex = 3
@@ -300,7 +308,7 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 		caption2.BackgroundTransparency = 1
 		caption2.AnchorPoint = Vector2.new(0.5, 1)
 		caption2.Position = UDim2.new(0.5, 0, 1, -2)
-		caption2.Size = UDim2.new(1, -4, 0, 12)
+		caption2.Size = UDim2.new(1, -4, 0, 13)
 		caption2.FontFace = Theme.FontBold
 		caption2.Text = short
 		caption2.TextColor3 = Theme.Colors.Text
@@ -308,7 +316,7 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 		caption2.ZIndex = 3
 		caption2.Parent = b
 		local limit = Instance.new("UITextSizeConstraint")
-		limit.MaxTextSize = 11
+		limit.MaxTextSize = 12
 		limit.MinTextSize = 7
 		limit.Parent = caption2
 		return { button = b, icon = nil, price = price, badge = badge, name = caption2, edge = edge }
@@ -519,6 +527,11 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 			return
 		end
 		-- Подсказка — каждый кадр (идёт за наведённой клеткой).
+		local tipEnd = touchTipUntil
+		if tipEnd ~= nil and os.clock() > tipEnd then
+			touchTipUntil = nil
+			tipFor = nil
+		end
 		local hovered = tipFor
 		if hovered ~= nil and hovered.Visible then
 			local textFn = tipText[hovered]

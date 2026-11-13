@@ -1070,7 +1070,27 @@ local function runSession(mapId: string, resync: boolean)
 	}, function(dir: number)
 		local s = camera.state
 		camera.zoomTo(CameraMath.wheelTarget(s, camera.targetZoom(), dir), s.viewW / 2, s.viewH / 2)
-	end)
+	end, {
+		-- §15ш Ш4: Угрозы и Метки — на виду, квадратами над зумом.
+		{
+			icon = "threat",
+			name = "dock.threat",
+			key = "L",
+			toggle = threat.toggle,
+			isOpen = threat.isOpen,
+			visible = threat.visible,
+		},
+		{
+			icon = "ping",
+			name = "dock.ping",
+			key = "G",
+			toggle = pings.toggle,
+			isOpen = pings.isOpen,
+			visible = function(): boolean
+				return pings.button.Visible
+			end,
+		},
+	})
 	-- Над полосой: слева атаки и лента, справа мини-карта, по центру окна стройки, меток, здания, порта,
 	-- аэродрома, «Объявить войну». Полоса скрыта (лобби, выбор, итоги) — всё на прежней высоте от края.
 	local function aboveBar()

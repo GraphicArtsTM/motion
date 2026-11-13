@@ -36,7 +36,13 @@ export type MapButtons = {
 
 local MapButtons = {}
 
-function MapButtons.new(gui: ScreenGui, lang: Strings.Lang, items: { Item }, zoomBy: (dir: number) -> ()): MapButtons
+function MapButtons.new(
+	gui: ScreenGui,
+	lang: Strings.Lang,
+	items: { Item },
+	zoomBy: (dir: number) -> (),
+	tools: { Item }? -- §15ш Ш4: квадратные кнопки над «+ / −» (значок и клавиша): Угрозы, Метки
+): MapButtons
 	local cfg = Config.Render.MapButtons
 
 	local frame = Instance.new("Frame")
@@ -102,6 +108,32 @@ function MapButtons.new(gui: ScreenGui, lang: Strings.Lang, items: { Item }, zoo
 	zoom.AutomaticSize = Enum.AutomaticSize.Y
 	zoom.Parent = gui
 	MenuKit.list(zoom, cfg.GapPx)
+	type Tool = { button: TextButton, edge: UIStroke, item: Item }
+	local toolRows: { Tool } = {}
+	local toolItems: { Item } = tools or {}
+	for k, item in toolItems do
+		local b = Instance.new("TextButton")
+		b.Name = "Tool" .. item.icon
+		b.Text = ""
+		b.LayoutOrder = k - 100 -- над «+» и «−»
+		b.Size = UDim2.fromOffset(cfg.ZoomPx, cfg.ZoomPx)
+		b.BackgroundColor3 = Theme.Colors.PanelBg
+		b.BackgroundTransparency = 0.05
+		b.BorderSizePixel = 0
+		b.AutoButtonColor = true
+		b.Parent = zoom
+		MenuKit.corner(b, 6)
+		local edge = MenuKit.stroke(b, Theme.Colors.PanelBorder, 2)
+		local icon = MenuKit.icon(b, item.icon, 2)
+		icon.AnchorPoint = Vector2.new(0.5, 0.5)
+		icon.Position = UDim2.fromScale(0.5, 0.42)
+		local key = MenuKit.label(b, item.key, 11, Theme.Colors.Gold, true)
+		key.AnchorPoint = Vector2.new(1, 1)
+		key.Position = UDim2.new(1, -3, 1, -1)
+		key.TextXAlignment = Enum.TextXAlignment.Right
+		Session.connect(b.Activated, item.toggle)
+		table.insert(toolRows, { button = b, edge = edge, item = item })
+	end
 	type ZoomSpec = { text: string, dir: number }
 	local specs: { ZoomSpec } = { { text = "+", dir = 1 }, { text = "−", dir = -1 } }
 	for k, spec in specs do
@@ -130,6 +162,11 @@ function MapButtons.new(gui: ScreenGui, lang: Strings.Lang, items: { Item }, zoo
 			r.button.Visible = fn == nil or fn()
 			local open = r.item.isOpen()
 			r.edge.Color = if open then Theme.Colors.Gold else Theme.Colors.PanelBorder
+		end
+		for _, t in toolRows do
+			local fn = t.item.visible
+			t.button.Visible = fn == nil or fn()
+			t.edge.Color = if t.item.isOpen() then Theme.Colors.Gold else Theme.Colors.PanelBorder
 		end
 	end
 	update()

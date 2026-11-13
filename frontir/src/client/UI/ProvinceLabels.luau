@@ -14,6 +14,7 @@ local Provinces = require(Shared:WaitForChild("Provinces"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local UiScale = require(script.Parent:WaitForChild("UiScale"))
 
 type CameraState = CameraMath.CameraState
 
@@ -71,9 +72,13 @@ function ProvinceLabels.new(
 					n += 1
 					local l = label(n)
 					l.Text = Provinces.shortName(if lang == "en" then p.nameEn else p.name)
+					-- §15ш Ш4: текст растёт вместе с интерфейсом.
+					local f = UiScale.factor()
+					l.TextSize = math.round(12 * f)
+					l.Size = UDim2.fromOffset(160 * f, 16 * f)
 					l.Position = UDim2.fromOffset(
 						CameraMath.cellEdge(state.zoom, cx + 0.5),
-						CameraMath.cellEdge(state.zoom, cy + 0.5) + 14 -- под городом и столицей
+						CameraMath.cellEdge(state.zoom, cy + 0.5) + 14 * f -- под городом и столицей
 					)
 					l.Visible = true
 				end

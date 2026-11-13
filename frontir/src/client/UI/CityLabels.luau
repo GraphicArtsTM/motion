@@ -17,6 +17,7 @@ local Provinces = require(Shared:WaitForChild("Provinces"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local UiScale = require(script.Parent:WaitForChild("UiScale"))
 
 type CameraState = CameraMath.CameraState
 type ClientState = ClientState.ClientState
@@ -81,7 +82,10 @@ function CityLabels.new(
 				local l = label(n)
 				local name = Provinces.cityName(provinces, map, cell)
 				l.Text = if lang == "en" then name.en else name.ru
-				l.TextSize = cfg.CityLabelSize + 2 * (level - 1)
+				-- §15ш Ш4: текст растёт вместе с интерфейсом (на большом мониторе подписи были мелкими).
+				local f = UiScale.factor()
+				l.TextSize = math.round((cfg.CityLabelSize + 2 * (level - 1)) * f)
+				l.Size = UDim2.fromOffset(200 * f, 18 * f)
 				-- Город игрока — его цветом нет смысла (подпись поверх его земли); столица — золотом.
 				local owner = ClientState.ownerAt(cs, cell)
 				local capital = false

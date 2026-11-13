@@ -42,9 +42,9 @@ T.describe("Нижняя полоса (§15ц Ц3)", function()
 		"клетка с подписью помещается в полосу: заголовок группы + клетка не выше полосы",
 		function()
 			local pad = 10
-			T.expect(14 + 3 + cfg.SlotH <= cfg.HeightPx - 2 * pad).toBe(true)
+			T.expect(15 + 3 + cfg.SlotH <= cfg.HeightPx - 2 * pad).toBe(true)
 			-- Строка «клавиша · цена», значок 12×12 ×3 ×0.75 и строка названия.
-			T.expect(cfg.SlotH >= 14 + 27 + 12).toBe(true)
+			T.expect(cfg.SlotH >= 14 + 27 + 13).toBe(true)
 			T.expect(cfg.SlotW >= 36 + 8).toBe(true)
 		end
 	)

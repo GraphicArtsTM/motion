@@ -785,6 +785,11 @@ function MatchHud.new(
 					end
 				end
 				placeText.Text = string.format(Strings.get("hud.place", lang), place, myShare * 100)
+				-- §15ш Ш4: «доля мира» на полосе — то же число в тот же момент, что «#N · доля».
+				local values = lastValues
+				if values ~= nil then
+					values.land = myShare * 100
+				end
 			end
 			myMark.Visible = mine ~= nil
 			myMark.Position = UDim2.fromScale(math.clamp(myVictory / cs.rules.victoryShare, 0, 1), 0.5)
