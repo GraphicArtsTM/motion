@@ -205,19 +205,20 @@ function ShopPanel.new(
 
 	-- Сезон и ящики: широкие строки.
 	local seasonPage = win.page("season")
-	local _, seasonBody = CardKit.row(seasonPage, "shop.SeasonPass", 240, 176, 1)
+	-- §15ю Ю1: премиум-дорога «Пути командира» (навсегда) — что даёт и сколько наград ждёт.
+	local _, seasonBody = CardKit.row(seasonPage, "shop.PathPremium", 240, 176, 1)
 	MenuKit.list(seasonBody, 6)
-	MenuKit.label(seasonBody, t("shop.season"), 20, Theme.Colors.Gold, true, 1)
+	MenuKit.label(seasonBody, t("shop.PathPremium"), 20, Theme.Colors.Gold, true, 1)
 	local seasonLine = MenuKit.wrapLabel(seasonBody, "", 14, Theme.Colors.Text, 2)
-	local seasonBar = MenuKit.bar(seasonBody, 10, Theme.Colors.Sky, 3)
 	local seasonNext = MenuKit.wrapLabel(seasonBody, "", 12, Theme.Colors.Muted, 4)
 	local seasonBuy =
-		CardKit.button(seasonBody, string.format(t("shop.robux"), Config.Shop.Packs.SeasonPass.price), "primary", 5)
+		CardKit.button(seasonBody, string.format(t("shop.robux"), Config.Shop.Packs.PathPremium.price), "primary", 5)
 	seasonBuy.Size = UDim2.fromOffset(200, MenuKit.Touch)
 	Session.connect(seasonBuy.Activated, function()
 		local p = cs.profile
-		if p ~= nil and not p.season.premium then
-			prompt("product", Config.Shop.Packs.SeasonPass.id)
+		local premium = p ~= nil and p.path ~= nil and p.path.premium == true
+		if p ~= nil and not premium then
+			prompt("product", Config.Shop.Packs.PathPremium.id)
 		end
 	end)
 	local _, crateBody = CardKit.row(seasonPage, "shop.Crates", 240, 176, 2)
@@ -369,29 +370,21 @@ function ShopPanel.new(
 			row.card.tag.Text = t("shop.tagOpen")
 			row.card.edge.Color = if opened then Theme.Colors.Good else Theme.Colors.PanelBorder
 		end
-		-- Пропуск и ящики.
-		local season = p.season
-		local left = season.left
-		seasonLine.Text = if left ~= nil
-			then string.format(
-				t("shop.seasonLine"),
-				season.tier,
-				Config.Season.Tiers,
-				season.xp,
-				season.per,
-				daysHours(left, lang)
-			)
-			else string.format(t("shop.seasonLineOpen"), season.tier, Config.Season.Tiers, season.xp, season.per)
-		seasonBar.set(season.xp / math.max(1, season.per))
-		seasonBuy.Text = if season.premium
+		-- Премиум-дорога и ящики.
+		local premium = p.path ~= nil and p.path.premium == true
+		local _, paidWaiting = ClientState.rewardsPending(cs)
+		seasonLine.Text = if premium
+			then string.format(t("shop.premiumOn"), paidWaiting)
+			else string.format(t("shop.premiumWaits"), math.max(0, p.level - 1))
+		seasonBuy.Text = if premium
 			then t("shop.owned")
-			else string.format(t("shop.robux"), Config.Shop.Packs.SeasonPass.price)
-		local nextTier = math.min(Config.Season.Tiers, season.tier + 1)
+			else string.format(t("shop.robux"), Config.Shop.Packs.PathPremium.price)
+		local nextLevel = math.min(Config.Profile.MaxLevel, p.level + 1)
 		seasonNext.Text = string.format(
 			t("shop.seasonNext"),
-			nextTier,
-			rewardText(Profile.seasonReward(nextTier, false), lang),
-			rewardText(Profile.paidReward(Profile.seasonReward(nextTier, true), p.noPaidRandom == true), lang)
+			nextLevel,
+			rewardText(Profile.pathReward(nextLevel), lang),
+			rewardText(Profile.premiumReward(nextLevel), lang)
 		)
 		crateLine.Text = string.format(t("shop.crateLine"), p.crates, p.pityLeft)
 		openCrate.Visible = p.crates > 0

@@ -57,7 +57,7 @@ T.describe("Ежедневные задания (§11.5)", function()
 			T.expect(#done).toBe(3)
 			T.expect(tokens).toBe(Config.Quests.AllDoneTokens)
 			T.expect(d.medals > medals).toBe(true)
-			T.expect(d.seasonXp > 0).toBe(true)
+			T.expect(d.xp > 0).toBe(true) -- §15ю Ю1: опыт заданий — в «Путь командира»
 			-- Повторно жетон не дают.
 			done, tokens = Quests.onMatch(d, outcome(1, true, 9, 22), DAY, 42, NOW)
 			T.expect(#done).toBe(0)

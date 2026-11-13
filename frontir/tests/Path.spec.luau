@@ -57,10 +57,10 @@ T.describe("Путь командира: награды (§15щ Щ1)", function(
 		"забрать: только пройденные, по порядку, один раз; узор, который уже есть, — медалями",
 		function()
 			local d = Profile.new()
-			T.expect(Profile.pathClaimable(d)).toBe(0)
+			T.expect((Profile.pathClaimable(d))).toBe(0)
 			T.expect(#Profile.pathClaim(d)).toBe(0)
 			Profile.addXp(d, totalTo(8))
-			T.expect(Profile.pathClaimable(d)).toBe(7) -- уровни 2…8
+			T.expect((Profile.pathClaimable(d))).toBe(7) -- уровни 2…8
 			d.cosmetics["pattern:Dots"] = true -- уровень 8 даёт «Dots» — уже куплен
 			local medals0 = d.medals
 			local got = Profile.pathClaim(d)
@@ -79,6 +79,157 @@ T.describe("Путь командира: награды (§15щ Щ1)", function(
 			local migrated = Profile.migrate({ xp = d.xp, pathClaimed = 8 })
 			T.expect(migrated.pathClaimed).toBe(8)
 			T.expect(Profile.migrate({ xp = 10 }).pathClaimed).toBe(1)
+		end
+	)
+end)
+
+T.describe("Единый путь: премиум-дорога (§15ю)", function()
+	local Shop = require("../src/shared/Shop")
+
+	T.it(
+		"на каждом уровне премиум есть медали; бусты, ящики и жетоны по правилу; премиум богаче бесплатной",
+		function()
+			local paidMedals, freeMedals, stock, passes, cosmetics = 0, 0, 0, 0, 0
+			local boostsSeen: { [string]: boolean } = {}
+			for lv = 2, Config.Profile.MaxLevel do
+				local p = Profile.premiumReward(lv)
+				local f = Profile.pathReward(lv)
+				T.expect(p.medals > 0).toBe(true)
+				paidMedals += p.medals
+				freeMedals += f.medals
+				for key, n in p.stock do
+					T.expect(Shop.isBoost(key)).toBe(true)
+					boostsSeen[key] = true
+					stock += n
+				end
+				if p.pass ~= nil then
+					T.expect((Config.Shop.Passes :: any)[p.pass] ~= nil).toBe(true)
+					passes += 1
+				end
+				if p.cosmetic ~= nil then
+					cosmetics += 1
+				end
+			end
+			T.expect(paidMedals >= freeMedals * 3).toBe(true)
+			T.expect(stock >= 40).toBe(true)
+			for _, key in Shop.BoostKeys do
+				T.expect(boostsSeen[key]).toBe(true) -- все товары-бусты магазина есть на дороге
+			end
+			T.expect(passes).toBe(4)
+			T.expect(cosmetics).toBe(19)
+			T.expect(Profile.premiumReward(Config.Profile.MaxLevel).cosmetic).toBe("title:Legend")
+		end
+	)
+
+	T.it(
+		"эксклюзивная косметика: у каждой есть картинка и место на дороге, за медали не продаётся",
+		function()
+			local Cosmetics = require("../src/shared/Cosmetics")
+			local ItemArt = require("../src/shared/ItemArt")
+			for _, kind in { "pattern", "capture", "title" } do
+				for _, it in Cosmetics.list(kind :: any) do
+					T.expect(ItemArt.has(kind .. "." .. it.id)).toBe(true)
+					if it.price == nil and it.level == nil then
+						local lv = Cosmetics.pathSource(kind :: any, it.id)
+						T.expect(lv ~= nil).toBe(true)
+					end
+				end
+			end
+		end
+	)
+
+	T.it(
+		"техника: бесплатно позже, с премиумом раньше; улучшения навсегда — только с премиумом",
+		function()
+			local d = Profile.new()
+			d.xp = totalTo(Config.Unlocks.Items.Tanks.premiumLevel)
+			T.expect(Profile.unitUnlocked(d, "Tanks")).toBe(false)
+			d.pathPremium = true
+			T.expect(Profile.unitUnlocked(d, "Tanks")).toBe(true)
+			for _, key in Config.Unlocks.Order do
+				local item = Config.Unlocks.Items[key]
+				T.expect(item.premiumLevel < item.level).toBe(true)
+				T.expect(Profile.pathReward(item.level).unit).toBe(key)
+				T.expect(Profile.premiumReward(item.premiumLevel).unit).toBe(key)
+			end
+			T.expect(Config.Unlocks.Items.Tanks.level >= 10).toBe(true) -- не так легко (§15ю Ю2)
+			d.xp = totalTo(30)
+			T.expect(Profile.pathPasses(d).AllCommanders).toBe(true)
+			T.expect(Profile.pathPasses(d).HQ).toBe(nil)
+			T.expect(Profile.passesWith(d, { Intel = true }).Intel).toBe(true)
+			d.pathPremium = false
+			T.expect((next(Profile.pathPasses(d)))).toBe(nil)
+		end
+	)
+
+	T.it(
+		"забор: обе дороги по порядку; премиум куплен позже — его награды ждут; повтор — ничего",
+		function()
+			local d = Profile.new()
+			d.xp = totalTo(6)
+			local got = Profile.pathClaim(d)
+			T.expect(#got).toBe(5)
+			local free, paid = Profile.pathClaimable(d)
+			T.expect(free + paid).toBe(0)
+			T.expect(Profile.grantProduct(d, "pack", "PathPremium", "pp", 0)).toBe(true)
+			T.expect(Profile.packAvailable(d, "PathPremium", 0)).toBe(false)
+			free, paid = Profile.pathClaimable(d)
+			T.expect(paid).toBe(5)
+			local medals = d.medals
+			got = Profile.pathClaim(d)
+			T.expect(#got).toBe(5)
+			for _, item in got do
+				T.expect(item.premium).toBe(true)
+			end
+			T.expect(d.medals > medals).toBe(true)
+			T.expect(d.cosmetics["capture:Orange"]).toBe(true) -- ур. 6 премиум
+			T.expect(#Profile.pathClaim(d)).toBe(0)
+			d.xp = totalTo(8)
+			got = Profile.pathClaim(d)
+			T.expect(#got).toBe(4)
+			T.expect(got[1].level).toBe(7)
+			T.expect(got[1].premium).toBe(false)
+			T.expect(got[2].level).toBe(7)
+			T.expect(got[2].premium).toBe(true)
+		end
+	)
+
+	T.it(
+		"после 100-го — бонусы каждые BonusXp опыта; опыт не пропадает",
+		function()
+			local d = Profile.new()
+			d.pathPremium = true
+			d.xp = Profile.xpToMax() + Config.Path.BonusXp * 2 + 10
+			local earned, into, per = Profile.bonusEarned(d)
+			T.expect(earned).toBe(2)
+			T.expect(into).toBe(10)
+			T.expect(per).toBe(Config.Path.BonusXp)
+			local _, _, bonus = Profile.pathClaimable(d)
+			T.expect(bonus).toBe(4) -- 2 бесплатных + 2 премиум
+			local crates = d.crates
+			local got = Profile.pathClaim(d)
+			local bonuses = 0
+			for _, item in got do
+				if item.bonus then
+					bonuses += 1
+					T.expect(item.level > Config.Profile.MaxLevel).toBe(true)
+				end
+			end
+			T.expect(bonuses).toBe(4)
+			T.expect(d.crates > crates).toBe(true)
+			T.expect(select(3, Profile.pathClaimable(d))).toBe(0)
+		end
+	)
+
+	T.it(
+		"старое сохранение: купивший пропуск сезона — премиум-дорога; 30-я ступень — «Легенда»",
+		function()
+			local back = Profile.migrate({ xp = 0, seasonPremium = true, seasonXp = 30 * 400 })
+			T.expect(back.pathPremium).toBe(true)
+			T.expect(back.cosmetics["title:Legend"]).toBe(true)
+			local plain = Profile.migrate({ xp = 0, seasonPremium = false, seasonXp = 99999 })
+			T.expect(plain.pathPremium).toBe(false)
+			T.expect(plain.pathPaid).toBe(1)
 		end
 	)
 end)

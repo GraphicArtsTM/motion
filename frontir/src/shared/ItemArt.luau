@@ -129,6 +129,16 @@ local function swatch(c: Canvas, kind: string)
 				hit = u % 6 == 0 or v % 6 == 0
 			elseif kind == "Waves" then
 				hit = (v + math.floor(2 * math.sin(u * 0.6))) % 6 == 0
+			elseif kind == "Diamonds" then -- §15ю Ю4: эксклюзив премиум-дороги
+				hit = (math.abs(u % 8 - 4) + math.abs(v % 8 - 4)) == 3
+			elseif kind == "Chevron" then
+				hit = (v + math.abs(u % 8 - 4)) % 6 < 2
+			elseif kind == "Camo" then
+				hit = ((u * 7 + (v // 2) * 13) % 11 < 4) and ((u // 3 + v // 3) % 3 ~= 0)
+			elseif kind == "Cross" then
+				hit = (u % 8 == 4 and v % 8 >= 2 and v % 8 <= 6) or (v % 8 == 4 and u % 8 >= 2 and u % 8 <= 6)
+			elseif kind == "Bricks" then
+				hit = v % 4 == 0 or (u + (if (v // 4) % 2 == 0 then 0 else 4)) % 8 == 0
 			end
 			if hit then
 				put(c, x, y, mark.r, mark.g, mark.b)
@@ -256,12 +266,14 @@ ITEMS["shop.Crates"] = function(c)
 	crate(c, 12, 6, 3)
 	burst(c, 24, 6, 5, "Gold", "White")
 end
-ITEMS["shop.SeasonPass"] = function(c)
-	stage(c, { "Violet", "Plum" }, nil)
-	icon(c, "quests", 6, 4, 3)
-	spark(c, 38, 8, "Gold")
-	spark(c, 34, 20, "Gold")
-	spark(c, 42, 24, "White")
+-- §15ю Ю1: премиум-дорога «Пути командира» — золотой погон-корона и искры.
+ITEMS["shop.PathPremium"] = function(c)
+	stage(c, { "Violet", "Plum", "Orange" }, nil)
+	crown(c, 15, 9)
+	spark(c, 8, 6, "Gold")
+	spark(c, 40, 7, "Gold")
+	spark(c, 36, 24, "White")
+	spark(c, 10, 24, "White")
 end
 ITEMS["shop.Weekly"] = function(c)
 	stage(c, { "Plum", "Orange" }, "Dune")
@@ -551,7 +563,7 @@ for place, disk in { "Gold", "Mist", "Orange" } do
 end
 
 -- Вспышки захвата и титулы — по цвету / по списку.
-local CAPTURE = { "Gold", "Sky", "Red", "Lime", "Violet" }
+local CAPTURE = { "Gold", "Sky", "Red", "Lime", "Violet", "Orange", "Teal", "Rose", "Sea", "Plum" }
 for _, name in CAPTURE do
 	ITEMS["capture." .. name] = function(c)
 		stage(c, { "Night", "Slate" }, "Grass")
@@ -566,6 +578,15 @@ local TITLE_COLORS: { [string]: string } = {
 	Veteran = "Forest",
 	Conqueror = "Red",
 	Legend = "Plum",
+	-- §15ю Ю4: титулы премиум-дороги.
+	Vanguard = "Orange",
+	Tactician = "Sky",
+	Ironclad = "Steel",
+	Eagle = "Gold",
+	Warlord = "Rose",
+	Unbreakable = "Slate",
+	Hero = "Lime",
+	Emperor = "Violet",
 }
 for id, color in TITLE_COLORS do
 	ITEMS["title." .. id] = function(c)
@@ -573,7 +594,7 @@ for id, color in TITLE_COLORS do
 		ribbon(c, color)
 	end
 end
-for _, id in { "Stripes", "Checker", "Dots", "Grid", "Waves" } do
+for _, id in { "Stripes", "Checker", "Dots", "Grid", "Waves", "Diamonds", "Chevron", "Camo", "Cross", "Bricks" } do
 	ITEMS["pattern." .. id] = function(c)
 		stage(c, { "Night", "Slate" }, nil)
 		swatch(c, id)

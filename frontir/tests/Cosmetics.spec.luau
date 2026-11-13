@@ -12,7 +12,7 @@ T.describe("Косметика и флаг (§11.4)", function()
 			T.expect(select(2, Cosmetics.buy(d, "pattern", "Stripes"))).toBe("noMedals")
 			d.medals = 1000
 			T.expect((Cosmetics.buy(d, "pattern", "Stripes"))).toBe(true)
-			T.expect(d.medals).toBe(1000 - Config.Cosmetics.Patterns[1].price)
+			T.expect(d.medals).toBe(1000 - (Config.Cosmetics.Patterns[1].price :: number))
 			T.expect(select(2, Cosmetics.buy(d, "pattern", "Stripes"))).toBe("already")
 			T.expect(select(2, Cosmetics.buy(d, "pattern", "Lasers"))).toBe("target")
 			T.expect((Cosmetics.equip(d, "pattern", "Stripes"))).toBe(true)
@@ -24,7 +24,7 @@ T.describe("Косметика и флаг (§11.4)", function()
 	)
 
 	T.it(
-		"титулы за уровень и за 30-ю ступень премиум-пропуска; не продаются за медали",
+		"титулы за уровень и с премиум-дороги «Пути»; не продаются за медали",
 		function()
 			local d = Profile.new()
 			d.medals = 99999
@@ -33,9 +33,25 @@ T.describe("Косметика и флаг (§11.4)", function()
 			Profile.addXp(d, 10 ^ 6)
 			T.expect(Cosmetics.owns(d, "title", "Veteran")).toBe(true)
 			T.expect(Cosmetics.owns(d, "title", "Legend")).toBe(false)
-			d.seasonPremium = true
-			d.seasonXp = Config.Season.XpPerTier * Config.Season.Tiers
+			T.expect(select(2, Cosmetics.buy(d, "title", "Legend"))).toBe("target") -- эксклюзив (§15ю Ю4)
+			d.pathPremium = true
+			Profile.pathClaim(d)
 			T.expect(Cosmetics.owns(d, "title", "Legend")).toBe(true)
+			T.expect(Cosmetics.owns(d, "pattern", "Diamonds")).toBe(true)
+			-- Узоры премиум-дороги рисуются, где их ждёт гардероб.
+			for _, id in { "Diamonds", "Chevron", "Camo", "Cross", "Bricks" } do
+				local hits = 0
+				for y = 0, 15 do
+					for x = 0, 15 do
+						if Cosmetics.patternHit(id, x, y) then
+							hits += 1
+						end
+					end
+				end
+				T.expect(hits > 0 and hits < 256).toBe(true)
+				local lv, premium = Cosmetics.pathSource("pattern", id)
+				T.expect(lv ~= nil and premium).toBe(true)
+			end
 		end
 	)
 

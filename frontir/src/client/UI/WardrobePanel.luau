@@ -220,7 +220,13 @@ function WardrobePanel.new(
 				then t(if worn then "wardrobe.unequip" else "wardrobe.equip")
 				elseif it ~= nil and it.price ~= nil then string.format(t("wardrobe.buy"), it.price)
 				elseif it ~= nil and it.level ~= nil then string.format(t("wardrobe.level"), it.level)
-				else t("wardrobe.pass")
+				else (function(): string
+					-- §15ю Ю4: эксклюзив «Пути командира» — уровень и дорога.
+					local lv, premium = Cosmetics.pathSource(row.kind, row.id)
+					return if lv ~= nil
+						then string.format(t(if premium then "wardrobe.pathPremium" else "wardrobe.pathFree"), lv)
+						else t("wardrobe.pass")
+				end)()
 			local canBuy = not owned and it ~= nil and it.price ~= nil and p.medals >= (it.price :: number)
 			row.action.BackgroundColor3 =
 				Theme.color(if worn then "Slate" elseif owned then "Forest" elseif canBuy then "Gold" else "Basalt")

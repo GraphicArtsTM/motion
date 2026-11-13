@@ -23,11 +23,6 @@ export type Data = {
 	-- Этап 9б (§11.3): ящики, пропуск сезона, ежедневная награда, первая победа дня, предложение недели.
 	crates: number,
 	pity: number, -- ящиков подряд без джекпота
-	seasonId: number,
-	seasonXp: number,
-	seasonPremium: boolean,
-	seasonFree: number, -- до какой ступени выданы бесплатные награды
-	seasonPaid: number, -- … премиум-награды
 	dailyDay: number, -- день (unix / 86400) последней ежедневной награды
 	dailyStreak: number,
 	firstWinDay: number,
@@ -54,6 +49,11 @@ export type Data = {
 	loadout: string?,
 	commander: string?, -- §15ф Ф1: генерал по умолчанию (выбор в Арсенале, не в лобби)
 	pathClaimed: number, -- §15щ Щ1: награды «Пути командира» забраны до этого уровня включительно (1 — ни одной)
+	-- §15ю: премиум-дорога (навсегда), её награды забраны до уровня; бонусы после MaxLevel — забрано бесплатных / премиум.
+	pathPremium: boolean,
+	pathPaid: number,
+	pathBonus: number,
+	pathBonusPaid: number,
 	unlocks: { [string]: boolean }, -- §15э Э1: техника, купленная навсегда (Config.Unlocks; по уровню — само)
 }
 
@@ -75,11 +75,6 @@ function Profile.new(): Data
 		purchases = {},
 		crates = 0,
 		pity = 0,
-		seasonId = Config.Season.Id,
-		seasonXp = 0,
-		seasonPremium = false,
-		seasonFree = 0,
-		seasonPaid = 0,
 		dailyDay = 0,
 		dailyStreak = 0,
 		firstWinDay = 0,
@@ -99,6 +94,10 @@ function Profile.new(): Data
 		loadout = nil,
 		commander = nil,
 		pathClaimed = 1,
+		pathPremium = false,
+		pathPaid = 1,
+		pathBonus = 0,
+		pathBonusPaid = 0,
 		unlocks = {},
 	}
 end
@@ -141,6 +140,14 @@ function Profile.migrate(raw: any): Data
 	end
 	d.xp = num(raw.xp)
 	d.pathClaimed = math.max(1, num(raw.pathClaimed))
+	d.pathPaid = math.max(1, num(raw.pathPaid))
+	d.pathBonus = num(raw.pathBonus)
+	d.pathBonusPaid = num(raw.pathBonusPaid)
+	-- §15ю: купивший пропуск сезона — премиум-дорога; дошедший до 30-й ступени премиума — «Легенда».
+	d.pathPremium = raw.pathPremium == true or raw.seasonPremium == true
+	if raw.seasonPremium == true and num(raw.seasonXp) >= 30 * 400 then
+		d.cosmetics["title:Legend"] = true
+	end
 	if type(raw.unlocks) == "table" then
 		for key in Config.Unlocks.Items do
 			if raw.unlocks[key] == true then
@@ -176,11 +183,6 @@ function Profile.migrate(raw: any): Data
 	end
 	d.crates = num(raw.crates)
 	d.pity = num(raw.pity)
-	d.seasonId = if type(raw.seasonId) == "number" then raw.seasonId else Config.Season.Id
-	d.seasonXp = num(raw.seasonXp)
-	d.seasonPremium = raw.seasonPremium == true
-	d.seasonFree = num(raw.seasonFree)
-	d.seasonPaid = num(raw.seasonPaid)
 	d.dailyDay = num(raw.dailyDay)
 	d.dailyStreak = num(raw.dailyStreak)
 	d.firstWinDay = num(raw.firstWinDay)
@@ -234,7 +236,6 @@ function Profile.migrate(raw: any): Data
 	if type(raw.commander) == "string" and table.find(Types.CommanderIds, raw.commander) ~= nil then
 		d.commander = raw.commander
 	end
-	Profile.syncSeason(d)
 	return d
 end
 
@@ -267,114 +268,6 @@ function Profile.give(d: Data, r: Reward)
 			d.stock[key] = (d.stock[key] or 0) + n
 		end
 	end
-end
-
--- Боевой пропуск (§11.3) ---------------------------------------------------------------------------
-
--- Награда ступени tier (§15э Э2): бесплатная дорога или премиум (щедрая, Config.Season.Premium).
-function Profile.seasonReward(tier: number, premium: boolean): Reward
-	local r = emptyReward()
-	if tier < 1 or tier > Config.Season.Tiers then
-		return r
-	end
-	if not premium then
-		local f = Config.Season.Free
-		if tier % f.CrateEvery == 0 then
-			r.crates = 1
-		elseif tier % f.TokenEvery == 0 then
-			r.tokens = 1
-		else
-			r.medals = f.Medals
-		end
-		return r
-	end
-	local p = Config.Season.Premium
-	if tier == Config.Season.Tiers then
-		r.medals, r.tokens, r.crates = p.Final.medals, p.Final.tokens, p.Final.crates
-		return r
-	end
-	r.medals = p.MedalsBase + p.MedalsPerTier * tier
-	if tier % p.StockEvery == 0 then
-		local units = Shop.UnitKeys
-		r.stock[units[(tier // p.StockEvery - 1) % #units + 1]] = 1
-	end
-	if tier % p.CrateEvery == 0 then
-		r.crates = 1
-	end
-	if tier % p.TokensEvery == 0 then
-		r.tokens = p.Tokens
-	end
-	return r
-end
-
--- Новый сезон — пропуск с нуля.
-function Profile.syncSeason(d: Data)
-	if d.seasonId ~= Config.Season.Id then
-		d.seasonId = Config.Season.Id
-		d.seasonXp, d.seasonPremium, d.seasonFree, d.seasonPaid = 0, false, 0, 0
-	end
-end
-
-function Profile.seasonTier(d: Data): number
-	return math.min(Config.Season.Tiers, d.seasonXp // Config.Season.XpPerTier)
-end
-
--- §15э Э2: сколько наград ждёт на дорогах (пройденные ступени, ещё не забранные): бесплатная, премиум.
--- Премиум не куплен — его награды не ждут (на дороге они под замком; купил — все пройденные сразу ждут).
-function Profile.seasonClaimable(d: Data): (number, number)
-	local tier = Profile.seasonTier(d)
-	local free = math.max(0, tier - d.seasonFree)
-	local paid = if d.seasonPremium then math.max(0, tier - d.seasonPaid) else 0
-	return free, paid
-end
-
-export type SeasonGot = { tier: number, premium: boolean, reward: Reward }
-
--- Забрать по порядку все ждущие награды обеих дорог. Возвращает забранное (пусто — нечего).
-function Profile.claimSeason(d: Data): { SeasonGot }
-	Profile.syncSeason(d)
-	local out: { SeasonGot } = {}
-	local tier = Profile.seasonTier(d)
-	for t = d.seasonFree + 1, tier do
-		local r = Profile.seasonReward(t, false)
-		Profile.give(d, r)
-		table.insert(out, { tier = t, premium = false, reward = r })
-		if d.seasonPremium and t > d.seasonPaid then
-			local p = Profile.paidReward(Profile.seasonReward(t, true), d.noPaidRandom)
-			Profile.give(d, p)
-			table.insert(out, { tier = t, premium = true, reward = p })
-		end
-	end
-	if d.seasonPremium then
-		-- Премиум куплен позже: бесплатные прошлых ступеней уже забраны, премиум — ещё нет.
-		for t = d.seasonPaid + 1, math.min(d.seasonFree, tier) do
-			local p = Profile.paidReward(Profile.seasonReward(t, true), d.noPaidRandom)
-			Profile.give(d, p)
-			table.insert(out, { tier = t, premium = true, reward = p })
-		end
-		d.seasonPaid = math.max(d.seasonPaid, tier)
-	end
-	d.seasonFree = math.max(d.seasonFree, tier)
-	table.sort(out, function(a: SeasonGot, b: SeasonGot): boolean
-		if a.tier ~= b.tier then
-			return a.tier < b.tier
-		end
-		return (not a.premium) and b.premium
-	end)
-	return out
-end
-
--- Опыт в пропуск (после конца сезона — нет). Награды не выдаются сами — ждут на дороге (§15э Э2).
--- Возвращает, сколько ступеней пройдено этим опытом.
-function Profile.addSeasonXp(d: Data, xp: number, now: number): number
-	Profile.syncSeason(d)
-	local ends = Config.Season.EndsUnix
-	if ends > 0 and now >= ends then
-		return 0
-	end
-	local before = Profile.seasonTier(d)
-	d.seasonXp += math.max(0, math.floor(xp))
-	return Profile.seasonTier(d) - before
 end
 
 -- Ящики снабжения (§11.3) ---------------------------------------------------------------------------
@@ -501,7 +394,8 @@ function Profile.addXp(d: Data, xp: number): (number, number)
 	local before = Profile.levelOf(d.xp)
 	d.xp += math.max(0, math.floor(xp))
 	local after = Profile.levelOf(d.xp)
-	return after - before, Profile.pathClaimable(d)
+	local free, paid, bonus = Profile.pathClaimable(d)
+	return after - before, free + paid + bonus
 end
 
 -- «Путь командира» (§15щ Щ1) -------------------------------------------------------------------------
@@ -511,28 +405,36 @@ export type PathReward = {
 	tokens: number,
 	crates: number,
 	stock: { [string]: number },
-	cosmetic: string?,
-	unit: string?, -- §15э Э1: на этом уровне открывается техника (ключ Config.Unlocks.Order); открывает сам уровень
+	cosmetic: string?, -- «вид:id» (Cosmetics)
+	unit: string?, -- §15э Э1: на этом уровне дорога открывает технику (открывает сам уровень)
+	pass: string?, -- §15ю Ю4: улучшение навсегда (как геймпасс Config.Shop.Passes; открывает сам уровень)
+	title: string?, -- титул за уровень (Cosmetics.Titles.level) — только показать, он и так открыт
 }
 
--- Техника, которая открывается на уровне level (или nil).
-local function unitAt(level: number): string?
-	for _, key in Config.Unlocks.Order do
-		if Config.Unlocks.Items[key].level == level then
-			return key
-		end
-	end
-	return nil
+-- Что из забранного: уровень (после MaxLevel — бонус), дорога, награда.
+export type PathGot = { level: number, premium: boolean, bonus: boolean, reward: PathReward }
+
+local function emptyPath(): PathReward
+	return { medals = 0, tokens = 0, crates = 0, stock = {}, cosmetic = nil, unit = nil, pass = nil, title = nil }
 end
 
--- Награда уровня (2…MaxLevel): правило Config.Path, ступени званий и последний уровень — Milestones.
+-- Награда бесплатной дороги уровня (2…MaxLevel): правило Config.Path, ступени званий и последний — Milestones.
 function Profile.pathReward(level: number): PathReward
 	local cfg = Config.Path
-	local r: PathReward = { medals = 0, tokens = 0, crates = 0, stock = {}, cosmetic = nil, unit = nil }
+	local r = emptyPath()
 	if level < 2 or level > Config.Profile.MaxLevel then
 		return r
 	end
-	r.unit = unitAt(level)
+	for _, key in Config.Unlocks.Order do
+		if Config.Unlocks.Items[key].level == level then
+			r.unit = key
+		end
+	end
+	for _, it in Config.Cosmetics.Titles do
+		if it.level == level then
+			r.title = it.id
+		end
+	end
 	local ms = cfg.Milestones[level]
 	if ms ~= nil then
 		r.medals, r.tokens, r.crates, r.cosmetic = ms.medals, ms.tokens, ms.crates, ms.cosmetic
@@ -546,44 +448,177 @@ function Profile.pathReward(level: number): PathReward
 	if level % cfg.CrateEvery == 0 then
 		r.crates = 1
 	end
+	local fs = cfg.FreeStock
+	if level % fs.Every == 0 then
+		r.stock[fs.Keys[(level // fs.Every - 1) % #fs.Keys + 1]] = 1
+	end
 	return r
 end
 
--- Сколько наград ждёт (пройденные уровни, ещё не забранные).
-function Profile.pathClaimable(d: Data): number
-	local level = Profile.levelOf(d.xp)
-	return math.max(0, level - d.pathClaimed)
+-- §15ю Ю4: награда премиум-дороги уровня (2…MaxLevel): база + Specials.
+function Profile.premiumReward(level: number): PathReward
+	local cfg = Config.Path.Premium
+	local r = emptyPath()
+	if level < 2 or level > Config.Profile.MaxLevel then
+		return r
+	end
+	r.medals = cfg.MedalsBase + cfg.MedalsPerLevel * level
+	if level % cfg.StockEvery == 0 then
+		r.stock[cfg.StockKeys[(level // cfg.StockEvery - 1) % #cfg.StockKeys + 1]] = 1
+	end
+	if level % cfg.CrateEvery == 0 then
+		r.crates += 1
+	end
+	if level % cfg.TokensEvery == 0 then
+		r.tokens += cfg.Tokens
+	end
+	local sp = cfg.Specials[level]
+	if sp ~= nil then
+		r.unit, r.pass, r.cosmetic = sp.unit, sp.pass, sp.cosmetic
+		r.medals += sp.medals or 0
+		r.crates += sp.crates or 0
+		r.tokens += sp.tokens or 0
+	end
+	return r
 end
 
--- Забрать по порядку все награды до текущего уровня. Возвращает забранное: { level, reward } (пусто — нечего).
--- Узор или вспышка, которые уже есть, — вместо них медали по их цене.
-function Profile.pathClaim(d: Data): { { level: number, reward: PathReward } }
-	local out: { { level: number, reward: PathReward } } = {}
+-- §15ю Ю5: бонус после последнего уровня.
+function Profile.bonusReward(premium: boolean): PathReward
+	local b = if premium then Config.Path.Bonus.premium else Config.Path.Bonus.free
+	local r = emptyPath()
+	r.medals, r.crates = b.medals, b.crates
+	return r
+end
+
+-- Опыт, нужный до последнего уровня (всё, что сверх, — к бонусам).
+local xpToMaxCache: number? = nil
+function Profile.xpToMax(): number
+	local cached = xpToMaxCache
+	if cached ~= nil then
+		return cached
+	end
+	local sum = 0
+	for lv = 1, Config.Profile.MaxLevel - 1 do
+		sum += Profile.xpNeeded(lv)
+	end
+	xpToMaxCache = sum
+	return sum
+end
+
+-- Сколько бонусов заработано и опыт к следующему: (заработано, в текущем, нужно).
+function Profile.bonusEarned(d: Data): (number, number, number)
+	local over = math.max(0, d.xp - Profile.xpToMax())
+	local per = Config.Path.BonusXp
+	if (Profile.levelOf(d.xp)) < Config.Profile.MaxLevel then
+		return 0, 0, per
+	end
+	return over // per, over % per, per
+end
+
+-- Сколько наград ждёт: (бесплатная, премиум, бонусы обеих дорог).
+function Profile.pathClaimable(d: Data): (number, number, number)
 	local level = Profile.levelOf(d.xp)
-	for lv = d.pathClaimed + 1, level do
-		local r = Profile.pathReward(lv)
-		local cosmetic = r.cosmetic
-		if cosmetic ~= nil then
-			if d.cosmetics[cosmetic] then
-				local kind, id = string.match(cosmetic, "^(%a+):(%a+)$")
-				local price = 0
-				for _, list in { Config.Cosmetics.Patterns, Config.Cosmetics.Captures } do
-					for _, it in list :: { { id: string, price: number } } do
-						if (kind == "pattern" or kind == "capture") and it.id == id then
-							price = it.price
-						end
-					end
-				end
-				r.medals += price
-				r.cosmetic = nil
-			else
-				d.cosmetics[cosmetic] = true
-			end
+	local free = math.max(0, level - d.pathClaimed)
+	local paid = if d.pathPremium then math.max(0, level - d.pathPaid) else 0
+	local earned = Profile.bonusEarned(d)
+	local bonus = math.max(0, earned - d.pathBonus)
+		+ (if d.pathPremium then math.max(0, earned - d.pathBonusPaid) else 0)
+	return free, paid, bonus
+end
+
+-- Цена косметики в медалях (для повтора); эксклюзив без цены — DuplicateMedals.
+local function cosmeticRefund(key: string): number
+	local kind, id = string.match(key, "^(%a+):(%a+)$")
+	local list: { { id: string, price: number? } } = if kind == "pattern"
+		then Config.Cosmetics.Patterns
+		elseif kind == "capture" then Config.Cosmetics.Captures
+		else Config.Cosmetics.Titles :: any
+	for _, it in list do
+		if it.id == id then
+			return it.price or Config.Path.Premium.DuplicateMedals
 		end
-		Profile.give(d, { medals = r.medals, tokens = r.tokens, crates = r.crates, stock = r.stock })
-		table.insert(out, { level = lv, reward = r })
+	end
+	return Config.Path.Premium.DuplicateMedals
+end
+
+local function grant(d: Data, r: PathReward, paid: boolean)
+	local cosmetic = r.cosmetic
+	if cosmetic ~= nil then
+		if d.cosmetics[cosmetic] then
+			r.medals += cosmeticRefund(cosmetic)
+			r.cosmetic = nil
+		else
+			d.cosmetics[cosmetic] = true
+		end
+	end
+	local give: Reward = { medals = r.medals, tokens = r.tokens, crates = r.crates, stock = r.stock }
+	if paid then
+		give = Profile.paidReward(give, d.noPaidRandom)
+		r.medals, r.tokens, r.crates = give.medals, give.tokens, give.crates
+	end
+	Profile.give(d, give)
+end
+
+-- Забрать по порядку все награды обеих дорог (и бонусы после последнего уровня). Возвращает забранное (пусто —
+-- нечего). Повтор косметики — медали. Премиум куплен позже — премиум пройденных уровней тоже забирается.
+function Profile.pathClaim(d: Data): { PathGot }
+	local out: { PathGot } = {}
+	local level = Profile.levelOf(d.xp)
+	for lv = 2, level do
+		if lv > d.pathClaimed then
+			local r = Profile.pathReward(lv)
+			grant(d, r, false)
+			table.insert(out, { level = lv, premium = false, bonus = false, reward = r })
+		end
+		if d.pathPremium and lv > d.pathPaid then
+			local r = Profile.premiumReward(lv)
+			grant(d, r, true)
+			table.insert(out, { level = lv, premium = true, bonus = false, reward = r })
+		end
 	end
 	d.pathClaimed = math.max(d.pathClaimed, level)
+	if d.pathPremium then
+		d.pathPaid = math.max(d.pathPaid, level)
+	end
+	local earned = Profile.bonusEarned(d)
+	local maxLevel = Config.Profile.MaxLevel
+	for k = d.pathBonus + 1, earned do
+		local r = Profile.bonusReward(false)
+		grant(d, r, false)
+		table.insert(out, { level = maxLevel + k, premium = false, bonus = true, reward = r })
+	end
+	d.pathBonus = math.max(d.pathBonus, earned)
+	if d.pathPremium then
+		for k = d.pathBonusPaid + 1, earned do
+			local r = Profile.bonusReward(true)
+			grant(d, r, true)
+			table.insert(out, { level = maxLevel + k, premium = true, bonus = true, reward = r })
+		end
+		d.pathBonusPaid = math.max(d.pathBonusPaid, earned)
+	end
+	return out
+end
+
+-- §15ю Ю4: улучшения навсегда с премиум-дороги (как геймпассы; к купленным — Profile.passesWith).
+function Profile.pathPasses(d: Data): { [string]: boolean }
+	local out: { [string]: boolean } = {}
+	if not d.pathPremium then
+		return out
+	end
+	local level = Profile.levelOf(d.xp)
+	for lv, sp in Config.Path.Premium.Specials do
+		if sp.pass ~= nil and level >= lv then
+			out[sp.pass] = true
+		end
+	end
+	return out
+end
+
+function Profile.passesWith(d: Data, owned: { [string]: boolean }): { [string]: boolean }
+	local out = table.clone(owned)
+	for key in Profile.pathPasses(d) do
+		out[key] = true
+	end
 	return out
 end
 
@@ -601,9 +636,6 @@ function Profile.applyMatch(
 	if won and now ~= nil and d.firstWinDay ~= Profile.dayOf(now) then
 		d.firstWinDay = Profile.dayOf(now)
 		xp = math.floor(xp * Config.Daily.FirstWinMul)
-	end
-	if now ~= nil then
-		Profile.addSeasonXp(d, xp, now)
 	end
 	d.matches += 1
 	if won then
@@ -641,7 +673,8 @@ function Profile.unitUnlocked(d: Data, key: string): boolean
 	if item == nil or d.unlocks[key] then
 		return true
 	end
-	return (Profile.levelOf(d.xp)) >= item.level
+	local level = Profile.levelOf(d.xp)
+	return level >= item.level or (d.pathPremium and level >= item.premiumLevel) -- §15ю Ю2
 end
 
 function Profile.unlockedUnits(d: Data): { [string]: boolean }
@@ -702,9 +735,8 @@ function Profile.grantProduct(d: Data, kind: string, key: string, purchaseId: st
 				d.noPaidRandom
 			)
 		)
-		if pack.season then
-			Profile.syncSeason(d)
-			d.seasonPremium = true -- §15э Э2: премиум пройденных ступеней ждёт на дороге («Забрать всё»)
+		if pack.premiumPath then
+			d.pathPremium = true -- §15ю Ю1: премиум пройденных уровней ждёт на дороге («Забрать всё»)
 		end
 		if pack.weekly then
 			local offer = Shop.weeklyOffer(now or 0)
@@ -733,7 +765,7 @@ function Profile.packAvailable(d: Data, key: string, now: number?): boolean
 	if pack.once and d.packs[key] then
 		return false
 	end
-	if pack.season and d.seasonPremium then
+	if pack.premiumPath and d.pathPremium then
 		return false
 	end
 	if pack.maxLevel ~= nil and (Profile.levelOf(d.xp)) > pack.maxLevel then

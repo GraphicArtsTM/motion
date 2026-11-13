@@ -537,9 +537,10 @@ function MatchSim.setUnitUnlocks(m: Match, id: number, set: { [string]: boolean 
 	(m.unitUnlocks :: any)[id] = set
 end
 
--- Можно ли державе id эту технику (Tanks / Artillery / AntiAir / Missile): в дуэли — всем всё.
+-- Можно ли державе id эту технику (Tanks / Artillery / AntiAir / Missile). §15ю Ю2: в дуэли тоже закрыто
+-- (Config.Unlocks.OpenInDuel); без набора (бот) — всё.
 function MatchSim.unitAllowed(m: Match, id: number, key: string): boolean
-	if Config.Unlocks.Items[key] == nil or m.rules.duel then
+	if Config.Unlocks.Items[key] == nil or (m.rules.duel and Config.Unlocks.OpenInDuel) then
 		return true
 	end
 	local set = m.unitUnlocks[id]

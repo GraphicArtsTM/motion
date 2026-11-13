@@ -58,116 +58,6 @@ T.describe("Платные части (§11.3)", function()
 	)
 end)
 
-T.describe("Боевой пропуск (§11.3)", function()
-	T.it(
-		"опыт → ступени; награды ждут на дороге; премиум позже — награды пройденных ступеней ждут тоже",
-		function()
-			local d = Profile.new()
-			local per = Config.Season.XpPerTier
-			T.expect(Profile.addSeasonXp(d, per * 5, NOW)).toBe(5)
-			T.expect(Profile.seasonTier(d)).toBe(5)
-			-- §15э Э2: сами не выдаются — ждут «Забрать».
-			T.expect(d.medals).toBe(0)
-			local waitFree, waitPaid = Profile.seasonClaimable(d)
-			T.expect(waitFree).toBe(5)
-			T.expect(waitPaid).toBe(0) -- премиум не куплен — не ждёт
-			local got = Profile.claimSeason(d)
-			T.expect(#got).toBe(5)
-			T.expect(d.medals > 0).toBe(true)
-			T.expect(#Profile.claimSeason(d)).toBe(0) -- второй раз — нечего
-			local medals = d.medals
-			T.expect(Profile.grantProduct(d, "pack", "SeasonPass", "s1", NOW)).toBe(true)
-			T.expect(d.seasonPremium).toBe(true)
-			T.expect(d.seasonPaid).toBe(0)
-			waitFree, waitPaid = Profile.seasonClaimable(d)
-			T.expect(waitFree).toBe(0)
-			T.expect(waitPaid).toBe(5)
-			local paid = Profile.claimSeason(d)
-			T.expect(#paid).toBe(5)
-			for _, item in paid do
-				T.expect(item.premium).toBe(true)
-			end
-			T.expect(d.seasonPaid).toBe(5)
-			T.expect(d.medals > medals).toBe(true)
-			T.expect(d.crates >= 1).toBe(true) -- премиум: ступень 3 — ящик
-			T.expect(Profile.packAvailable(d, "SeasonPass", NOW)).toBe(false)
-			-- Дальше обе дороги — вместе, по порядку: бесплатная, потом премиум той же ступени.
-			Profile.addSeasonXp(d, per * 2, NOW)
-			local both = Profile.claimSeason(d)
-			T.expect(#both).toBe(4)
-			T.expect(both[1].tier).toBe(6)
-			T.expect(both[1].premium).toBe(false)
-			T.expect(both[2].tier).toBe(6)
-			T.expect(both[2].premium).toBe(true)
-			-- Больше 30 ступеней не бывает; после конца сезона опыт не идёт.
-			Profile.addSeasonXp(d, per * 100, NOW)
-			T.expect(Profile.seasonTier(d)).toBe(Config.Season.Tiers)
-			-- Сезон без срока (EndsUnix = 0): опыт идёт в любое время.
-			T.expect(Config.Season.EndsUnix).toBe(0)
-			local xp = d.seasonXp
-			Profile.addSeasonXp(d, 1000, NOW + 10 * 365 * 86400)
-			T.expect(d.seasonXp).toBe(xp + 1000)
-			-- Новый сезон — с нуля.
-			d.seasonId = Config.Season.Id - 1
-			Profile.syncSeason(d)
-			T.expect(d.seasonXp).toBe(0)
-			T.expect(d.seasonPremium).toBe(false)
-		end
-	)
-end)
-
-T.describe("Боевой пропуск: две дороги (§15э Э2)", function()
-	T.it(
-		"награда на каждой ступени обеих дорог; премиум щедрее бесплатной во много раз",
-		function()
-			local free, paid = 0, 0
-			local paidCrates, freeCrates, paidStock = 0, 0, 0
-			for tier = 1, Config.Season.Tiers do
-				local f = Profile.seasonReward(tier, false)
-				local p = Profile.seasonReward(tier, true)
-				T.expect(f.medals + f.tokens + f.crates > 0).toBe(true)
-				T.expect(p.medals > 0).toBe(true) -- премиум: медали на каждой ступени
-				T.expect(p.medals >= f.medals).toBe(true)
-				free += f.medals
-				paid += p.medals
-				freeCrates += f.crates
-				paidCrates += p.crates
-				for _, n in p.stock do
-					paidStock += n
-				end
-			end
-			T.expect(paid >= free * 4).toBe(true)
-			T.expect(paidCrates >= freeCrates * 3).toBe(true)
-			T.expect(paidStock > 0).toBe(true)
-			-- Вне сезона — пусто.
-			T.expect(Profile.seasonReward(0, true).medals).toBe(0)
-			T.expect(Profile.seasonReward(Config.Season.Tiers + 1, false).medals).toBe(0)
-			-- Последняя ступень премиума — большой приз и титул «Легенда».
-			local final = Profile.seasonReward(Config.Season.Tiers, true)
-			T.expect(final.crates).toBe(Config.Season.Premium.Final.crates)
-			local legend = false
-			for _, it in Config.Cosmetics.Titles do
-				legend = legend or it.seasonTier == Config.Season.Tiers
-			end
-			T.expect(legend).toBe(true)
-		end
-	)
-
-	T.it(
-		"старое сохранение (пропуск выдавал сам) — ничего не ждёт и не выдаётся дважды",
-		function()
-			local d = Profile.new()
-			d.seasonXp = Config.Season.XpPerTier * 7
-			d.seasonFree, d.seasonPaid, d.seasonPremium = 7, 7, true
-			local back = Profile.migrate(d :: any)
-			local f, p = Profile.seasonClaimable(back)
-			T.expect(f).toBe(0)
-			T.expect(p).toBe(0)
-			T.expect(#Profile.claimSeason(back)).toBe(0)
-		end
-	)
-end)
-
 T.describe("Ящики снабжения (§11.3)", function()
 	T.it(
 		"шансы в сумме 100%; гарантия джекпота не позже Pity-го ящика; часть — в запас",
@@ -237,7 +127,7 @@ T.describe(
 				local first = Profile.applyMatch(d, 1, 0, true, 1, NOW)
 				local second = Profile.applyMatch(d, 1, 0, true, 1, NOW)
 				T.expect(first).toBe(second * Config.Daily.FirstWinMul)
-				T.expect(d.seasonXp).toBe(first + second)
+				T.expect(d.xp).toBe(first + second)
 				T.expect(Profile.packAvailable(d, "Weekly", NOW)).toBe(true)
 				T.expect(Profile.grantProduct(d, "pack", "Weekly", "w1", NOW)).toBe(true)
 				local offer = Shop.weeklyOffer(NOW)
@@ -269,18 +159,15 @@ T.describe(
 				T.expect(d.crates).toBe(0)
 				T.expect(d.medals).toBe(5 * c.medals)
 				T.expect(d.tokens).toBe(5 * c.tokens)
-				-- Премиум-пропуск: ящиков нет ни на одной ступени; бесплатные ящики пропуска остаются.
-				T.expect(Profile.grantProduct(d, "pack", "SeasonPass", "sp", NOW)).toBe(true)
-				local paid = 0
-				for t = 1, Config.Season.Tiers do
-					paid += Profile.seasonReward(t, true).crates
+				-- Премиум-дорога: ящиков нет ни на одном уровне (вместо них медали); бесплатные ящики пути остаются.
+				T.expect(Profile.grantProduct(d, "pack", "PathPremium", "sp", NOW)).toBe(true)
+				local paid, free = 0, 0
+				for lv = 2, Config.Profile.MaxLevel do
+					paid += Profile.premiumReward(lv).crates
+					free += Profile.pathReward(lv).crates
 				end
-				local free = 0
-				for t = 1, Config.Season.Tiers do
-					free += Profile.seasonReward(t, false).crates
-				end
-				Profile.addSeasonXp(d, Config.Season.XpPerTier * Config.Season.Tiers, NOW)
-				Profile.claimSeason(d)
+				Profile.addXp(d, Profile.xpToMax())
+				Profile.pathClaim(d)
 				T.expect(paid > 0).toBe(true)
 				T.expect(d.crates).toBe(free)
 			end

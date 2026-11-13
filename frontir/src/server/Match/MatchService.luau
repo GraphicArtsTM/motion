@@ -242,6 +242,13 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 	local rewards: { [Player]: { xp: number, medals: number, levels: number } } = {} -- итог последнего матча
 	local crateRng = Random.new() -- ящики (§11.3): только сервер
 
+	-- §15ю Ю4: купленные геймпассы + улучшения навсегда с премиум-дороги «Пути командира».
+	local function passesOf(player: Player): { [string]: boolean }
+		local owned = shop.passes(player)
+		local session = profiles.get(player.UserId)
+		return if session ~= nil then Profile.passesWith(session.data, owned) else owned
+	end
+
 	local function profileMessage(player: Player): { [string]: any }?
 		local session = profiles.get(player.UserId)
 		if session == nil then
@@ -249,14 +256,14 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		end
 		local d = session.data
 		local level, into, need = Profile.levelOf(d.xp)
-		local passes = shop.passes(player)
+		local passes = passesOf(player)
 		local id = nationOf[player]
 		local now = os.time()
 		local packs: { [string]: boolean } = {}
 		for _, key in Shop.PackKeys do
 			packs[key] = Profile.packAvailable(d, key, now)
 		end
-		local per = Config.Season.XpPerTier
+		local bonusEarned, bonusXp, bonusPer = Profile.bonusEarned(d)
 		return {
 			kind = "profile",
 			level = level,
@@ -277,18 +284,18 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			-- Этап 9б (§11.3): ящики, пропуск, предложение недели — сроки настоящие (секунды до конца).
 			crates = d.crates,
 			pityLeft = Config.Crates.Pity - d.pity,
-			path = { claimed = d.pathClaimed }, -- §15щ Щ1
-			unitUnlocks = Profile.unlockedUnits(d), -- §15э Э1
-			season = {
-				tier = Profile.seasonTier(d),
-				xp = d.seasonXp % per,
-				per = per,
-				premium = d.seasonPremium,
-				free = d.seasonFree, -- §15э Э2: до какой ступени забраны бесплатные / премиум-награды
-				paid = d.seasonPaid,
-				-- nil — сезон без срока (§11.3).
-				left = if Config.Season.EndsUnix > 0 then math.max(0, Config.Season.EndsUnix - now) else nil,
+			-- §15щ Щ1 / §15ю: обе дороги «Пути командира» и бонусы после последнего уровня.
+			path = {
+				claimed = d.pathClaimed,
+				premium = d.pathPremium,
+				paid = d.pathPaid,
+				bonusEarned = bonusEarned,
+				bonus = d.pathBonus,
+				bonusPaid = d.pathBonusPaid,
+				bonusXp = bonusXp,
+				bonusPer = bonusPer,
 			},
+			unitUnlocks = Profile.unlockedUnits(d), -- §15э Э1
 			weekly = {
 				offer = (function(): { [string]: any }
 					local o = Shop.weeklyOffer(now)
@@ -355,7 +362,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 	local function applyProfile(player: Player)
 		local s0 = profiles.get(player.UserId)
 		if s0 ~= nil then
-			cosmeticOf[player.UserId] = Cosmetics.public(s0.data, shop.passes(player).Vip == true)
+			cosmeticOf[player.UserId] = Cosmetics.public(s0.data, passesOf(player).Vip == true)
 			m.infoDirty = true
 		end
 		local id = nationOf[player]
@@ -363,7 +370,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		if id == nil or session == nil then
 			return
 		end
-		local passes = shop.passes(player)
+		local passes = passesOf(player)
 		MatchSim.setPerks(m, id, Shop.perks(passes))
 		MatchSim.setArsenal(m, id, session.data.loadout) -- §15л ч.6: предмет Арсенала в этот матч
 		local open = Profile.unlockedCommanders(session.data, passes.AllCommanders == true)
@@ -1134,7 +1141,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				return
 			end
 			local ok, why =
-				Profile.setCommander(session.data, payload.commander, shop.passes(player).AllCommanders == true)
+				Profile.setCommander(session.data, payload.commander, passesOf(player).AllCommanders == true)
 			if not ok then
 				matchEvent:FireClient(player, { kind = "rejected", reason = why or "?", intent = kind })
 				return
@@ -1194,21 +1201,6 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				return
 			end
 			matchEvent:FireClient(player, { kind = "pathClaimed", got = got })
-			sendProfile(player)
-			return
-		end
-		-- §15э Э2: забрать награды боевого пропуска (обе дороги, по порядку).
-		if kind == "seasonClaim" then
-			local session = profiles.get(player.UserId)
-			if session == nil then
-				return
-			end
-			local got = Profile.claimSeason(session.data)
-			if #got == 0 then
-				matchEvent:FireClient(player, { kind = "rejected", reason = "nothingToClaim", intent = "seasonClaim" })
-				return
-			end
-			matchEvent:FireClient(player, { kind = "seasonClaimed", got = got })
 			sendProfile(player)
 			return
 		end

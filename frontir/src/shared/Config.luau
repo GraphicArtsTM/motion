@@ -152,7 +152,8 @@ Config.Shop = {
 		-- Этап 9б (§11.3): ящики, пропуск сезона, предложение недели.
 		Crate1 = { id = 0, price = 49, crates = 1, tokens = 0, medals = 0 },
 		Crate5 = { id = 0, price = 199, crates = 5, tokens = 0, medals = 0 },
-		SeasonPass = { id = 0, price = 499, season = true, tokens = 0, medals = 0 },
+		-- §15ю Ю1: премиум-дорога «Пути командира» — навсегда (заменила пропуск сезона).
+		PathPremium = { id = 0, price = 499, premiumPath = true, tokens = 0, medals = 0 },
 		Weekly = { id = 0, price = 149, weekly = true, tokens = 0, medals = 0 },
 	},
 	-- Предложение недели (§11.3): по номеру недели UTC по кругу; дешевле, чем по отдельности.
@@ -186,22 +187,42 @@ Config.Cosmetics = {
 		{ id = "Dots", price = 600 },
 		{ id = "Grid", price = 1000 },
 		{ id = "Waves", price = 1500 },
-	},
+		-- §15ю Ю4: эксклюзив премиум-дороги (без цены — не продаются; уровень — Config.Path.Premium.Specials).
+		{ id = "Diamonds" },
+		{ id = "Chevron" },
+		{ id = "Camo" },
+		{ id = "Cross" },
+		{ id = "Bricks" },
+	} :: { { id: string, price: number? } },
 	Captures = { -- цвет вспышки захвата (имена — палитра)
 		{ id = "Gold", price = 500 },
 		{ id = "Sky", price = 500 },
 		{ id = "Red", price = 700 },
 		{ id = "Lime", price = 700 },
 		{ id = "Violet", price = 900 },
-	},
-	Titles = { -- price — за медали; level — за уровень; seasonTier — премиум-пропуск
+		-- §15ю Ю4: эксклюзив премиум-дороги.
+		{ id = "Orange" },
+		{ id = "Teal" },
+		{ id = "Rose" },
+		{ id = "Sea" },
+		{ id = "Plum" },
+	} :: { { id: string, price: number? } },
+	Titles = { -- price — за медали; level — за уровень; без обоих — премиум-дорога «Пути» (§15ю Ю4)
 		{ id = "Strategist", price = 300 },
 		{ id = "Diplomat", price = 300 },
 		{ id = "Seawolf", price = 400 },
 		{ id = "Veteran", level = 10 },
 		{ id = "Conqueror", level = 20 },
-		{ id = "Legend", seasonTier = 30 },
-	} :: { { id: string, price: number?, level: number?, seasonTier: number? } },
+		{ id = "Vanguard" },
+		{ id = "Tactician" },
+		{ id = "Ironclad" },
+		{ id = "Eagle" },
+		{ id = "Warlord" },
+		{ id = "Unbreakable" },
+		{ id = "Hero" },
+		{ id = "Emperor" },
+		{ id = "Legend" },
+	} :: { { id: string, price: number?, level: number? } },
 	Flag = {
 		Colors = { "Red", "Gold", "White", "Sky", "Forest", "Ink", "Violet", "Orange", "Teal", "Rose", "Sea", "Lime" },
 		Layouts = { "Plain", "HStripe", "VStripe", "Cross", "Diagonal", "Border" },
@@ -215,15 +236,17 @@ Config.Cosmetics = {
 -- §15э Э1: техника в блоке. Открывается навсегда — бесплатно с уровня level «Пути командира» (ступени званий) или
 -- покупкой (продукт разработчика: id — на сайте Roblox, 0 — ещё не создан; price — Robux для подписи). Missile —
 -- Ракетная шахта. All — «Вся техника» (дешевле, чем по одной). В дуэли и у ботов ограничений нет.
+-- §15ю Ю2: без смягчений — бесплатно позже (level), премиум-дорога раньше (premiumLevel), в дуэли тоже закрыто.
 Config.Unlocks = {
 	Order = { "Tanks", "Artillery", "AntiAir", "Missile" },
 	Items = {
-		Tanks = { level = 4, id = 0, price = 99 },
-		Artillery = { level = 8, id = 0, price = 99 },
-		AntiAir = { level = 13, id = 0, price = 79 },
-		Missile = { level = 19, id = 0, price = 149 },
-	} :: { [string]: { level: number, id: number, price: number } },
+		Tanks = { level = 10, premiumLevel = 3, id = 0, price = 99 },
+		Artillery = { level = 25, premiumLevel = 8, id = 0, price = 99 },
+		AntiAir = { level = 40, premiumLevel = 15, id = 0, price = 79 },
+		Missile = { level = 55, premiumLevel = 25, id = 0, price = 149 },
+	} :: { [string]: { level: number, premiumLevel: number, id: number, price: number } },
 	All = { id = 0, price = 299 },
+	OpenInDuel = false,
 }
 
 -- §15щ Щ1 «Путь командира»: награда за каждый уровень 2…Profile.MaxLevel (забирает игрок). Медали —
@@ -248,6 +271,64 @@ Config.Path = {
 		[86] = { cosmetic = "pattern:Waves", medals = 1500, tokens = 4, crates = 3 },
 		[100] = { medals = 3000, tokens = 5, crates = 3 },
 	} :: { [number]: { cosmetic: string?, medals: number, tokens: number, crates: number } },
+	-- §15ю Ю3: каждый Every-й уровень бесплатной дороги — буст в запас (Keys по кругу).
+	FreeStock = { Every = 10, Keys = { "Mobilize", "Loan", "Research", "Reserve" } },
+	-- §15ю Ю5: после последнего уровня — бонус каждые BonusXp опыта (бесплатно / премиум).
+	BonusXp = 6000,
+	Bonus = { free = { medals = 300, crates = 1 }, premium = { medals = 1000, crates = 2 } },
+	-- §15ю Ю4: премиум-дорога. На каждом уровне MedalsBase + MedalsPerLevel × уровень; каждый StockEvery-й — буст или
+	-- платная часть (StockKeys по кругу); CrateEvery-й — ящик; TokensEvery-й — Tokens жетонов. Specials — поверх:
+	-- техника раньше (unit), улучшение навсегда (pass — как геймпасс), эксклюзивная косметика, большие призы.
+	-- Уже есть такая косметика — вместо неё DuplicateMedals.
+	Premium = {
+		MedalsBase = 300,
+		MedalsPerLevel = 15,
+		StockEvery = 2,
+		StockKeys = { "Guards", "Mobilize", "Airstrike", "Loan", "Squadron", "Research", "AirWing", "Reserve" },
+		CrateEvery = 3,
+		TokensEvery = 5,
+		Tokens = 2,
+		DuplicateMedals = 500,
+		Specials = {
+			[3] = { unit = "Tanks" },
+			[6] = { cosmetic = "capture:Orange" },
+			[8] = { unit = "Artillery" },
+			[11] = { cosmetic = "pattern:Diamonds" },
+			[13] = { cosmetic = "title:Vanguard" },
+			[15] = { unit = "AntiAir" },
+			[18] = { cosmetic = "capture:Teal" },
+			[22] = { cosmetic = "title:Tactician" },
+			[25] = { unit = "Missile" },
+			[28] = { cosmetic = "pattern:Chevron" },
+			[30] = { pass = "AllCommanders" },
+			[33] = { cosmetic = "title:Ironclad" },
+			[37] = { cosmetic = "capture:Rose" },
+			[42] = { cosmetic = "title:Eagle" },
+			[45] = { pass = "Vip" },
+			[48] = { cosmetic = "pattern:Camo" },
+			[50] = { crates = 5 },
+			[55] = { cosmetic = "title:Warlord" },
+			[57] = { cosmetic = "capture:Sea" },
+			[62] = { cosmetic = "title:Unbreakable" },
+			[65] = { pass = "Intel" },
+			[68] = { cosmetic = "pattern:Cross" },
+			[76] = { cosmetic = "capture:Plum" },
+			[79] = { cosmetic = "title:Hero" },
+			[85] = { pass = "HQ" },
+			[90] = { cosmetic = "pattern:Bricks" },
+			[95] = { cosmetic = "title:Emperor" },
+			[100] = { cosmetic = "title:Legend", medals = 10000, crates = 10, tokens = 10 },
+		} :: {
+			[number]: {
+				unit: string?,
+				pass: string?,
+				cosmetic: string?,
+				medals: number?,
+				crates: number?,
+				tokens: number?,
+			},
+		},
+	},
 }
 
 -- §15л Звания по уровню профиля (только вид); §15ф — ступени «Путь командира» (Ranks).
@@ -292,30 +373,6 @@ Config.Tutorial = {
 		city = "MapButtons.Opendiplomacy",
 		build = "CommandBar.Build",
 		alliance = "MapButtons.Opendiplomacy",
-	},
-}
-
--- §11.3 Боевой пропуск сезона (этап 9б): опыт за матчи → ступени; бесплатная и премиум-дорожки (Season.reward).
-Config.Season = {
-	Id = 1,
-	-- Конец сезона (unix UTC); 0 — без срока (решение геймдизайнера: сезон 1 без даты окончания).
-	EndsUnix = 0,
-	Tiers = 30,
-	XpPerTier = 400,
-	-- §15э Э2: две дороги, награды забирает игрок. Бесплатная — медали Medals, каждая TokenEvery-я — жетон,
-	-- каждая CrateEvery-я — ящик (вместо медалей).
-	Free = { Medals = 150, TokenEvery = 4, CrateEvery = 10 },
-	-- Премиум (SeasonPass) — щедрая: на каждой ступени медали MedalsBase + MedalsPerTier × ступень, плюс каждая
-	-- StockEvery-я — платная часть в запас, CrateEvery-я — ящик, TokensEvery-я — Tokens жетонов. Последняя — Final
-	-- (и титул «Легенда», Cosmetics.Titles.seasonTier).
-	Premium = {
-		MedalsBase = 300,
-		MedalsPerTier = 20,
-		StockEvery = 2,
-		CrateEvery = 3,
-		TokensEvery = 5,
-		Tokens = 2,
-		Final = { medals = 5000, tokens = 5, crates = 5 },
 	},
 }
 

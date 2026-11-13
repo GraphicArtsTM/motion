@@ -94,9 +94,18 @@ export type ProfileInfo = {
 	-- Этап 9б (§11.3)
 	crates: number,
 	pityLeft: number, -- через сколько ящиков гарантированный джекпот
-	-- left nil — без срока; free / paid — до какой ступени забраны награды дорог (§15э Э2)
-	season: { tier: number, xp: number, per: number, premium: boolean, free: number?, paid: number?, left: number? },
-	path: { claimed: number }?, -- §15щ Щ1: награды «Пути командира» забраны до этого уровня
+	-- §15щ Щ1 / §15ю: «Путь командира» — забрано до уровня (бесплатная / премиум), премиум-дорога, бонусы после 100-го
+	-- (заработано, забрано бесплатных / премиум, опыт к следующему). Старый сервер — только claimed.
+	path: {
+		claimed: number,
+		premium: boolean?,
+		paid: number?,
+		bonusEarned: number?,
+		bonus: number?,
+		bonusPaid: number?,
+		bonusXp: number?,
+		bonusPer: number?,
+	}?,
 	unitUnlocks: { [string]: boolean }?, -- §15э Э1: открытая техника (Tanks / Artillery / AntiAir / Missile)
 	weekly: { offer: { stock: { [string]: number }, crates: number, tokens: number, medals: number? }, left: number },
 	noPaidRandom: boolean?, -- сводная правка ч.4: в стране игрока ящики за Robux не продаются (PolicyService)
@@ -559,11 +568,11 @@ function ClientState.applyCommander(cs: ClientState, msg: any, now: number)
 	cs.commanderAt = now
 end
 
--- §15э Э1: открыта ли игроку техника (Tanks / Artillery / AntiAir / Missile). Дуэль — всё открыто; профиль ещё не
+-- §15э Э1: открыта ли игроку техника (Tanks / Artillery / AntiAir / Missile). §15ю Ю2: дуэль — как везде; профиль ещё не
 -- пришёл — не прячем (сервер всё равно проверит). Возвращает открыто ли и с какого уровня «Пути» откроется.
 function ClientState.unitOpen(cs: ClientState, key: string): (boolean, number?)
 	local item = Config.Unlocks.Items[key]
-	if item == nil or cs.mode.mode == "Duel" then
+	if item == nil or (cs.mode.mode == "Duel" and Config.Unlocks.OpenInDuel) then
 		return true, nil
 	end
 	local p = cs.profile
@@ -571,21 +580,24 @@ function ClientState.unitOpen(cs: ClientState, key: string): (boolean, number?)
 	if set == nil or set[key] == true then
 		return true, nil
 	end
-	return false, item.level
+	local premium = p ~= nil and p.path ~= nil and p.path.premium == true
+	return false, if premium then item.premiumLevel else item.level
 end
 
--- §15э Э3: сколько наград ждёт — «Путь командира», бесплатная и премиум-дорога пропуска (метки окна и меню).
--- Старый сервер без free / paid — пропуск выдал всё сам, ничего не ждёт.
+-- §15ю: сколько наград «Пути командира» ждёт — бесплатная дорога, премиум, бонусы после 100-го (метки окна и меню).
 function ClientState.rewardsPending(cs: ClientState): (number, number, number)
 	local p = cs.profile
-	if p == nil then
+	local path = if p ~= nil then p.path else nil
+	if p == nil or path == nil then
 		return 0, 0, 0
 	end
-	local path = math.max(0, p.level - (if p.path ~= nil then p.path.claimed else p.level))
-	local s = p.season
-	local free = math.max(0, s.tier - (s.free or s.tier))
-	local paid = if s.premium then math.max(0, s.tier - (s.paid or s.tier)) else 0
-	return path, free, paid
+	local free = math.max(0, p.level - path.claimed)
+	local premium = path.premium == true
+	local paid = if premium then math.max(0, p.level - (path.paid or p.level)) else 0
+	local earned = path.bonusEarned or 0
+	local bonus = math.max(0, earned - (path.bonus or earned))
+		+ (if premium then math.max(0, earned - (path.bonusPaid or earned)) else 0)
+	return free, paid, bonus
 end
 
 -- Мой генерал: из сообщения commander в игре, до неё — из info (выбор в лобби).

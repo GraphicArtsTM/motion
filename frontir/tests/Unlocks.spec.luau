@@ -131,13 +131,18 @@ T.describe("Закрытая техника: матч (§15э Э1)", function()
 		end
 	)
 
-	T.it("в «Дуэли» блокировок нет — равные условия", function()
-		local m = match()
-		m.rules = Modes.rules("Duel")
-		MatchSim.setUnitUnlocks(m, 1, {})
-		T.expect(MatchSim.unitAllowed(m, 1, "Tanks")).toBe(true)
-		T.expect(MatchSim.unitAllowed(m, 1, "Missile")).toBe(true)
-	end)
+	T.it(
+		"§15ю Ю2: в «Дуэли» тоже закрыто (без смягчений); боты — всё",
+		function()
+			local m = match()
+			m.rules = Modes.rules("Duel")
+			MatchSim.setUnitUnlocks(m, 1, {})
+			T.expect(Config.Unlocks.OpenInDuel).toBe(false)
+			T.expect(MatchSim.unitAllowed(m, 1, "Tanks")).toBe(false)
+			T.expect(MatchSim.unitAllowed(m, 1, "Missile")).toBe(false)
+			T.expect(MatchSim.unitAllowed(m, 2, "Missile")).toBe(true)
+		end
+	)
 end)
 
 T.describe("Клиент: закрытая техника и метки наград (§15э Э1, Э3)", function()
@@ -150,44 +155,46 @@ T.describe("Клиент: закрытая техника и метки нагр
 	end
 
 	T.it(
-		"unitOpen: закрыто до уровня; профиль не пришёл — открыто; дуэль — открыто",
+		"unitOpen: закрыто до уровня (с премиумом — до премиум-уровня); профиль не пришёл — открыто; дуэль — тоже закрыто",
 		function()
 			local cs = ClientState.new(8, 8)
 			T.expect((ClientState.unitOpen(cs, "Tanks"))).toBe(true)
-			cs = withProfile({ unitUnlocks = { Tanks = true }, level = 1, season = { tier = 0 } })
+			cs = withProfile({ unitUnlocks = { Tanks = true }, level = 1, path = { claimed = 1 } })
 			T.expect((ClientState.unitOpen(cs, "Tanks"))).toBe(true)
 			local open, level = ClientState.unitOpen(cs, "Missile")
 			T.expect(open).toBe(false)
 			T.expect(level).toBe(Config.Unlocks.Items.Missile.level)
 			T.expect((ClientState.unitOpen(cs, "Infantry"))).toBe(true)
+			local p = cs.profile :: any
+			p.path.premium = true
+			open, level = ClientState.unitOpen(cs, "Missile")
+			T.expect(level).toBe(Config.Unlocks.Items.Missile.premiumLevel)
 			cs.mode.mode = "Duel" :: any
-			T.expect((ClientState.unitOpen(cs, "Missile"))).toBe(true)
+			T.expect((ClientState.unitOpen(cs, "Missile"))).toBe(false)
 		end
 	)
 
 	T.it(
-		"rewardsPending: путь, бесплатная и премиум-дорога; премиум без покупки не ждёт",
+		"rewardsPending: бесплатная, премиум (без покупки — не ждёт) и бонусы после 100-го",
 		function()
-			local cs = withProfile({
-				level = 9,
-				path = { claimed = 6 },
-				season = { tier = 5, xp = 0, per = 400, premium = false, free = 2, paid = 0 },
-			})
-			local path, free, paid = ClientState.rewardsPending(cs)
-			T.expect(path).toBe(3)
+			local cs = withProfile({ level = 9, path = { claimed = 6, premium = false, paid = 1 } })
+			local free, paid, bonus = ClientState.rewardsPending(cs)
 			T.expect(free).toBe(3)
 			T.expect(paid).toBe(0)
+			T.expect(bonus).toBe(0)
 			local p = cs.profile :: any
-			p.season.premium = true
-			path, free, paid = ClientState.rewardsPending(cs)
-			T.expect(paid).toBe(5)
-			-- Старый сервер без счётчиков — ничего не ждёт.
-			p.path = nil
-			p.season = { tier = 5, xp = 0, per = 400, premium = true }
-			path, free, paid = ClientState.rewardsPending(cs)
-			T.expect(path + free + paid).toBe(0)
-			path, free, paid = ClientState.rewardsPending(ClientState.new(8, 8))
-			T.expect(path + free + paid).toBe(0)
+			p.path.premium = true
+			free, paid, bonus = ClientState.rewardsPending(cs)
+			T.expect(paid).toBe(8)
+			p.path.bonusEarned, p.path.bonus, p.path.bonusPaid = 3, 1, 0
+			free, paid, bonus = ClientState.rewardsPending(cs)
+			T.expect(bonus).toBe(2 + 3)
+			-- Старый сервер (только claimed) — премиума и бонусов нет.
+			p.path = { claimed = 9 }
+			free, paid, bonus = ClientState.rewardsPending(cs)
+			T.expect(free + paid + bonus).toBe(0)
+			free, paid, bonus = ClientState.rewardsPending(ClientState.new(8, 8))
+			T.expect(free + paid + bonus).toBe(0)
 		end
 	)
 end)

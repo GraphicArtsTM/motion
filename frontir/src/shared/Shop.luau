@@ -9,7 +9,7 @@ local Config = require("./Config")
 
 export type PassKey = "HQ" | "Intel" | "Vip" | "AllCommanders"
 export type BoostKey = "Mobilize" | "Loan" | "Research" | "Reserve" | "Guards" | "Airstrike" | "Squadron" | "AirWing"
-export type PackKey = "Recruit" | "Medals" | "Tokens" | "Crate1" | "Crate5" | "SeasonPass" | "Weekly"
+export type PackKey = "Recruit" | "Medals" | "Tokens" | "Crate1" | "Crate5" | "PathPremium" | "Weekly"
 
 -- Перки геймпассов в матче (§11.1).
 export type Perks = {
@@ -29,7 +29,7 @@ Shop.BoostKeys = table.freeze(
 -- Платные части (§11.3) — их дают ящики и пропуск.
 Shop.UnitKeys = table.freeze({ "Guards", "Airstrike", "Squadron", "AirWing" } :: { BoostKey })
 Shop.PackKeys =
-	table.freeze({ "Recruit", "Medals", "Tokens", "Crate1", "Crate5", "SeasonPass", "Weekly" } :: { PackKey })
+	table.freeze({ "Recruit", "Medals", "Tokens", "Crate1", "Crate5", "PathPremium", "Weekly" } :: { PackKey })
 
 -- Номер недели UTC (с понедельника) — для предложения недели.
 function Shop.week(unixTime: number): number

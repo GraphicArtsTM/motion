@@ -9,7 +9,7 @@ T.describe("Картинки предметов (§15л ч.9)", function()
 	T.it(
 		"есть у всего, что показывают окна; картинка W×H без пустых пикселей",
 		function()
-			local need: { string } = { "shop.Crates", "shop.SeasonPass" }
+			local need: { string } = { "shop.Crates", "shop.PathPremium" }
 			for _, list in { Shop.BoostKeys :: any, Shop.PassKeys :: any, Shop.PackKeys :: any } :: { { string } } do
 				for _, key in list do
 					table.insert(need, "shop." .. key)

@@ -1,18 +1,23 @@
 --!strict
 --[[
-	RanksPanel — окно наград: вкладки «Путь командира» и «Боевой пропуск» (GDD §15щ Щ3 → §15э Э3).
+	RanksPanel — окно «Путь командира» (GDD §15щ Щ3 → §15ю Ю6–Ю7): один путь, две дороги.
 
-	Строение (сверху вниз, одинаково на обеих вкладках):
+	Строение (сверху вниз):
 	  1. Шапка — заголовок, кошелёк (медали, жетоны, ящики: сюда летят награды), «×».
-	  2. Вкладки — «Путь командира» и «Боевой пропуск», у каждой красная метка «сколько ждёт».
-	  3. Герой вкладки — где вы: погон и звание / сезон и ступень, полоса опыта, что дальше (или что даёт премиум).
-	  4. Лента — путь: одна дорога наград по уровням 2…MaxLevel над линией прогресса с номерами; ниже — «Впереди»
-	     (ближайшие вехи: техника, звания, генералы). Пропуск: две дороги — «БЕСПЛАТНО» над линией ступеней,
-	     «ПРЕМИУМ» (золотая, под замком без покупки) под ней.
-	  5. Низ — как идёт опыт, «ОТКРЫТЬ ПРЕМИУМ — R$ N» (пропуск без премиума) и «ЗАБРАТЬ ВСЁ (N)».
+	  2. Герой — погон, звание, уровень, «пройдено N%», полоса опыта; в середине — ГЛАВНЫЙ ПРИЗ ур. 100; справа —
+	     что даёт премиум-дорога (или «премиум-дорога ваша»).
+	  3. Лента — «БЕСПЛАТНО» над линией уровней с номерами, «ПРЕМИУМ» (золотая, под замком без покупки) под ней; в конце —
+	     «БОНУС ∞» (сундуки после 100-го). Карточка: редкость (цвет рамки и метка), «★» каждый 5-й, картинка, что даёт,
+	     «ЗАБРАТЬ» / «✔ получено» / «🔒».
+	  4. «Впереди» — ближайшие особые награды обеих дорог (техника, улучшения, косметика, звания, генералы).
+	  5. Низ — описание выбранной карточки, как идёт опыт, «ОТКРЫТЬ ПРЕМИУМ — R$ N», «ЗАБРАТЬ ВСЁ (N)».
 
-	Забрать — намерение pathClaim / seasonClaim, сервер выдаёт по порядку; событие pathClaimed / seasonClaimed →
-	onClaimed: карточки подпрыгивают, лучи, значки летят в кошелёк, счётчики щёлкают; ступень звания — «НОВОЕ ЗВАНИЕ».
+	Эффекты (Ю7): окно въезжает; готовые карточки — блик и покачивание; премиум — бегущий золотой отлив; забор —
+	вспышка, искры, лучи, значки дугой в кошелёк (кошелёк подпрыгивает, счётчики щёлкают); особая награда и новое
+	звание — окно с вращающимися лучами и конфетти (очередью); покупка премиума — «ПРЕМИУМ-ДОРОГА ОТКРЫТА», замки
+	слетают; линия прогресса заполняется плавно; закрытая карточка — встряска и «откроется на ур. N».
+
+	Забрать — намерение pathClaim (сервер выдаёт обе дороги по порядку), ответ pathClaimed → onClaimed.
 ]]
 
 local MarketplaceService = game:GetService("MarketplaceService")
@@ -31,74 +36,60 @@ local Strings = require(Shared:WaitForChild("Strings"))
 
 local CardKit = require(script.Parent:WaitForChild("CardKit"))
 local MenuKit = require(script.Parent:WaitForChild("MenuKit"))
-local ShopPanel = require(script.Parent:WaitForChild("ShopPanel"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
 local UiScale = require(script.Parent:WaitForChild("UiScale"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
+type PathReward = Profile.PathReward
 
 export type RanksPanel = {
 	toggle: () -> (),
 	isOpen: () -> boolean,
 	refresh: () -> (),
-	-- pathClaimed: { got = { { level, reward } } }; seasonClaimed: { got = { { tier, premium, reward } } }
-	onClaimed: (msg: any) -> (),
-	pending: () -> number, -- сколько наград ждёт на пути и обеих дорогах пропуска (метка в меню)
+	onClaimed: (msg: any) -> (), -- pathClaimed: { got = { { level, premium, bonus, reward } } }
+	pending: () -> number, -- сколько наград ждёт на обеих дорогах (метка в меню)
 	window: Frame,
 }
 
 local RanksPanel = {}
 
--- Размеры окна и частей (px до UiScale).
-local W, H = 1040, 672
+-- Размеры (px до UiScale).
+local W, H = 1060, 720
 local BANNER = Config.Render.Banner.MaxPx -- высота картинки-шапки над окном
 local PAD = 24
-local HEADER_H, TABS_H = 64, 44
-local TABS_Y = HEADER_H -- вкладки — сразу под шапкой
-local HERO_Y, HERO_H = 118, 124
-local TRACK_Y = 252
-local FOOTER_H = 78
-local CARD_W, GAP = 112, 10
+local HERO_Y, HERO_H = 70, 128
+local TRACK_Y = 208
+local CARD_W, CARD_H, GAP = 112, 140, 10
 local COL = CARD_W + GAP
-local PATH_CARD_H, PASS_CARD_H = 172, 132
 local CIRCLE = 30
+local LANE_W = 110
+local FOOTER_Y = H - 86
+local FIRST, LAST = 2, Config.Profile.MaxLevel
+local COLUMNS = LAST - FIRST + 2 -- уровни 2…100 и «БОНУС ∞»
+local BONUS_COL = COLUMNS
 
--- Награда в одном виде для карточки (путь и обе дороги пропуска).
-type View = {
-	medals: number,
-	tokens: number,
-	crates: number,
-	stock: { [string]: number },
-	cosmetic: string?,
-	unit: string?, -- §15э Э1: открывает технику
-	title: string?, -- титул (последняя ступень премиума)
+type Rarity = "common" | "rare" | "epic" | "legendary"
+local RARITY_COLOR: { [string]: string } = {
+	common = "Steel",
+	rare = "Sky",
+	epic = "Violet",
+	legendary = "Orange",
 }
 
 local function groupColor(rank: number): Color3
 	return Theme.color(Ranks.GroupColors[Ranks.group(rank)])
 end
 
-local function viewOf(r: any): View
-	return {
-		medals = r.medals or 0,
-		tokens = r.tokens or 0,
-		crates = r.crates or 0,
-		stock = r.stock or {},
-		cosmetic = r.cosmetic,
-		unit = r.unit,
-		title = r.title,
-	}
-end
-
--- Титул, который даёт ступень пропуска (Cosmetics.Titles.seasonTier) — только премиум.
-local function seasonTitle(tier: number): string?
-	for _, it in Config.Cosmetics.Titles do
-		if it.seasonTier == tier then
-			return it.id
-		end
+local function rarityOf(r: PathReward, bonus: boolean): Rarity
+	if r.unit ~= nil or r.pass ~= nil or r.cosmetic == "title:Legend" or r.medals >= 5000 then
+		return "legendary" :: Rarity
+	elseif r.cosmetic ~= nil or r.crates >= 3 or bonus then
+		return "epic" :: Rarity
+	elseif r.crates > 0 or r.tokens > 0 or next(r.stock) ~= nil or r.title ~= nil then
+		return "rare" :: Rarity
 	end
-	return nil
+	return "common" :: Rarity
 end
 
 function RanksPanel.new(
@@ -114,55 +105,120 @@ function RanksPanel.new(
 	local function unitName(key: string): string
 		return if key == "Missile" then t("building.MissileSilo") else t("unit." .. key)
 	end
-
-	-- Главная часть награды: картинка (ключ ItemArt) или значок, и крупная подпись.
-	local function mainPart(v: View): (string, string, boolean, string)
-		if v.unit ~= nil then
-			return "unit", "unlock." .. v.unit, true, unitName(v.unit)
-		elseif v.title ~= nil then
-			return "title", "title." .. v.title, true, string.format(t("path.titleItem"), t("title." .. v.title))
-		elseif v.cosmetic ~= nil then
-			local kind, id = string.match(v.cosmetic, "^(%a+):(%a+)$")
-			return "cosmetic",
-				(kind or "pattern") .. "." .. (id or ""),
-				true,
-				t("path.cosmetic." .. (kind or "pattern"))
+	local function cosmeticName(key: string): (string, string, string)
+		local kind, id = string.match(key, "^(%a+):(%a+)$")
+		local k, i = kind or "pattern", id or ""
+		if k == "title" then
+			return k, i, string.format(t("path.titleItem"), t("title." .. i))
 		end
-		for key, n in v.stock do
+		return k, i, t("path.cosmetic." .. k) .. " «" .. t(k .. "." .. i) .. "»"
+	end
+
+	-- Главная часть награды: ключ картинки (ItemArt) или значка, картинка ли, крупная подпись.
+	local function mainPart(r: PathReward, bonus: boolean): (string, string, boolean, string)
+		if bonus then
+			return "bonus", "shop.Crates", true, t("path.bonusName")
+		elseif r.unit ~= nil then
+			return "unit", "unlock." .. r.unit, true, unitName(r.unit)
+		elseif r.pass ~= nil then
+			return "pass", "shop." .. r.pass, true, t("shop." .. r.pass)
+		elseif r.cosmetic ~= nil then
+			local kind, id, name = cosmeticName(r.cosmetic)
+			return "cosmetic", kind .. "." .. id, true, name
+		elseif r.title ~= nil then
+			return "title", "title." .. r.title, true, string.format(t("path.titleItem"), t("title." .. r.title))
+		end
+		for key, n in r.stock do
 			if n > 0 then
 				return "stock", "shop." .. key, true, t("shop." .. key)
 			end
 		end
-		if v.crates > 0 and v.medals == 0 and v.tokens == 0 then
-			return "crates", "arsenal", false, "+" .. v.crates
-		elseif v.tokens > 0 and v.medals == 0 then
-			return "tokens", "hint", false, "+" .. v.tokens
+		if r.crates >= 3 then
+			return "crates", "shop.Crates", true, string.format(t("path.crates"), r.crates)
+		elseif r.crates > 0 and r.medals == 0 and r.tokens == 0 then
+			return "crates", "arsenal", false, "+" .. r.crates
+		elseif r.tokens > 0 and r.medals == 0 then
+			return "tokens", "hint", false, "+" .. r.tokens
 		end
-		return "medals", "money", false, "+" .. Strings.formatInt(v.medals)
+		return "medals", "money", false, "+" .. Strings.formatInt(r.medals)
 	end
 
-	-- Мелкая строка под подписью: всё, что не вошло в главную часть.
-	local function extras(v: View, main: string): string
+	-- Мелкая строка: всё, что не вошло в главную часть.
+	local function extras(r: PathReward, main: string): string
 		local out: { string } = {}
-		if main ~= "medals" and v.medals > 0 then
-			table.insert(out, "+" .. Strings.formatInt(v.medals))
+		if main ~= "medals" and r.medals > 0 then
+			table.insert(out, "+" .. Strings.formatInt(r.medals))
 		end
-		if main ~= "crates" and v.crates > 0 then
-			table.insert(out, string.format(t("path.crates"), v.crates))
+		if main ~= "crates" and r.crates > 0 then
+			table.insert(out, string.format(t("path.crates"), r.crates))
 		end
-		if main ~= "tokens" and v.tokens > 0 then
-			table.insert(out, string.format(t("path.tokens"), v.tokens))
+		if main ~= "tokens" and r.tokens > 0 then
+			table.insert(out, string.format(t("path.tokens"), r.tokens))
 		end
-		if main == "unit" and v.cosmetic ~= nil then
-			table.insert(out, t("path.cosmetic." .. (string.match(v.cosmetic, "^(%a+):") or "pattern")))
+		if main ~= "stock" then
+			for key, n in r.stock do
+				if n > 0 then
+					table.insert(out, t("shop." .. key))
+				end
+			end
 		end
 		return table.concat(out, " · ")
 	end
 
+	-- Полное описание награды (строка «выбрано» внизу).
+	local function describe(r: PathReward, bonus: boolean): string
+		local out: { string } = {}
+		if bonus then
+			table.insert(out, t("path.bonusName"))
+		end
+		if r.unit ~= nil then
+			table.insert(out, string.format(t("path.opensUnit"), unitName(r.unit)))
+		end
+		if r.pass ~= nil then
+			table.insert(out, string.format(t("path.passItem"), t("shop." .. r.pass)))
+		end
+		if r.cosmetic ~= nil then
+			local _, _, name = cosmeticName(r.cosmetic)
+			table.insert(out, name)
+		end
+		if r.title ~= nil then
+			table.insert(out, string.format(t("path.titleItem"), t("title." .. r.title)))
+		end
+		if r.medals > 0 then
+			table.insert(out, string.format(t("path.medals"), Strings.formatInt(r.medals)))
+		end
+		if r.crates > 0 then
+			table.insert(out, string.format(t("path.crates"), r.crates))
+		end
+		if r.tokens > 0 then
+			table.insert(out, string.format(t("path.tokens"), r.tokens))
+		end
+		for key, n in r.stock do
+			if n > 0 then
+				table.insert(out, t("shop." .. key))
+			end
+		end
+		return table.concat(out, ", ")
+	end
+
+	local function shortText(r: PathReward): string
+		local out: { string } = {}
+		if r.medals > 0 then
+			table.insert(out, string.format(t("path.medals"), Strings.formatInt(r.medals)))
+		end
+		if r.crates > 0 then
+			table.insert(out, string.format(t("path.crates"), r.crates))
+		end
+		if r.tokens > 0 then
+			table.insert(out, string.format(t("path.tokens"), r.tokens))
+		end
+		return table.concat(out, ", ")
+	end
+
 	---------------------------------------------------------------------------------------------------------------
-	-- 0. Рамка окна.
+	-- 0. Рамка. Имя без «Window» на конце: Polish не трогает масштаб окна (въезд — свой).
 	local window = Instance.new("Frame")
-	window.Name = "RanksWindow"
+	window.Name = "RanksBoard"
 	window.AnchorPoint = Vector2.new(0.5, 0.5)
 	window.Position = UDim2.new(0.5, 0, 0.5, BANNER / 2) -- над окном — картинка-шапка (SceneBanner)
 	window.Size = UDim2.fromOffset(W, H)
@@ -193,8 +249,24 @@ function RanksPanel.new(
 		line.Parent = window
 	end
 
+	-- Бегущий золотой отлив (UIGradient, сдвиг — в Heartbeat).
+	local shimmers: { UIGradient } = {}
+	local function shimmer(g: GuiObject)
+		local grad = Instance.new("UIGradient")
+		grad.Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.new(1, 1, 1)),
+			ColorSequenceKeypoint.new(0.42, Color3.new(1, 1, 1)),
+			ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 244, 190)),
+			ColorSequenceKeypoint.new(0.58, Color3.new(1, 1, 1)),
+			ColorSequenceKeypoint.new(1, Color3.new(1, 1, 1)),
+		})
+		grad.Rotation = 20
+		grad.Parent = g
+		table.insert(shimmers, grad)
+	end
+
 	---------------------------------------------------------------------------------------------------------------
-	-- 1. Шапка: заголовок, кошелёк, «×».
+	-- 1. Шапка.
 	local title = MenuKit.label(window, t("path.windowTitle"), 28, Theme.Colors.Text, true)
 	title.FontFace = Theme.FontHeavy
 	title.Position = UDim2.fromOffset(PAD + 4, 16)
@@ -203,7 +275,7 @@ function RanksPanel.new(
 	close.Position = UDim2.new(1, -PAD + 4, 0, 10)
 	close.Size = UDim2.fromOffset(44, 44)
 
-	type Wallet = { frame: Frame, label: TextLabel, value: number }
+	type Wallet = { frame: Frame, label: TextLabel, pop: UIScale, value: number }
 	local wallet: { [string]: Wallet } = {}
 	for k, kind in { "medals", "tokens", "crates" } do
 		local chip = Instance.new("Frame")
@@ -216,6 +288,8 @@ function RanksPanel.new(
 		chip.Parent = window
 		MenuKit.corner(chip, 8)
 		MenuKit.stroke(chip, Theme.Colors.Gold, 1)
+		local pop = Instance.new("UIScale")
+		pop.Parent = chip
 		local icon =
 			MenuKit.icon(chip, if kind == "medals" then "money" elseif kind == "tokens" then "hint" else "arsenal", 3)
 		icon.Position = UDim2.fromOffset(8, 7)
@@ -223,557 +297,445 @@ function RanksPanel.new(
 		label.AnchorPoint = Vector2.new(1, 0.5)
 		label.Position = UDim2.new(1, -10, 0.5, 0)
 		label.TextXAlignment = Enum.TextXAlignment.Right
-		wallet[kind] = { frame = chip, label = label, value = 0 }
+		wallet[kind] = { frame = chip, label = label, pop = pop, value = 0 }
 	end
+	divider(62)
 
 	---------------------------------------------------------------------------------------------------------------
-	-- 2. Вкладки.
-	type TabKey = "path" | "pass"
-	local current: TabKey = "path"
-	type Tab = { button: TextButton, stroke: UIStroke, badge: TextLabel, page: Frame }
-	local tabs: { [string]: Tab } = {}
-	local tabOrder: { TabKey } = { "path" :: TabKey, "pass" :: TabKey }
-	local switchTab: (key: TabKey) -> ()
-	for k, key in tabOrder do
-		local b = Instance.new("TextButton")
-		b.Name = "Tab_" .. key
-		b.AutoButtonColor = true
-		b.Position = UDim2.fromOffset(PAD + (k - 1) * 236, TABS_Y)
-		b.Size = UDim2.fromOffset(224, TABS_H - 6)
-		b.BackgroundColor3 = Theme.Colors.Backdrop
-		b.BorderSizePixel = 0
-		b.FontFace = Theme.FontBold
-		b.TextSize = 17
-		b.TextColor3 = Theme.Colors.Text
-		b.Text = t(if key == "path" then "path.tabPath" else "path.tabPass")
-		b.Parent = window
-		MenuKit.corner(b, 8)
-		local stroke = MenuKit.stroke(b, Theme.Colors.PanelBorder, 2)
-		local badge = MenuKit.label(b, "", 13, Theme.color("White"), true)
-		badge.Name = "Badge"
-		badge.AnchorPoint = Vector2.new(1, 0.5)
-		badge.Position = UDim2.new(1, -8, 0.5, 0)
-		badge.AutomaticSize = Enum.AutomaticSize.None
-		badge.Size = UDim2.fromOffset(28, 22)
-		badge.TextXAlignment = Enum.TextXAlignment.Center
-		badge.BackgroundColor3 = Theme.Colors.Alert
-		badge.BackgroundTransparency = 0
-		badge.Visible = false
-		MenuKit.corner(badge, 11)
-		local page = Instance.new("Frame")
-		page.Name = "Page_" .. key
-		page.BackgroundTransparency = 1
-		page.Size = UDim2.fromScale(1, 1)
-		page.Visible = key == current
-		page.Parent = window
-		tabs[key] = { button = b, stroke = stroke, badge = badge, page = page }
-		local tabKey: TabKey = key :: TabKey
-		Session.connect(b.Activated, function()
-			switchTab(tabKey)
-		end)
+	-- 2. Герой: звание и опыт; главный приз; премиум.
+	local hero = Instance.new("Frame")
+	hero.Name = "Hero"
+	hero.Position = UDim2.fromOffset(PAD, HERO_Y)
+	hero.Size = UDim2.new(1, -2 * PAD, 0, HERO_H)
+	hero.BackgroundColor3 = Theme.Colors.Backdrop
+	hero.BorderSizePixel = 0
+	hero.Parent = window
+	MenuKit.corner(hero, 12)
+	local heroStroke = MenuKit.stroke(hero, Theme.Colors.PanelBorder, 2)
+	local bigRank = MenuKit.rankIcon(hero, 1, 7) -- 112 px
+	bigRank.Position = UDim2.fromOffset(12, 8)
+	local nowLabel = MenuKit.label(hero, t("ranks.now"), 12, Theme.Colors.Sky, true)
+	nowLabel.Position = UDim2.fromOffset(140, 12)
+	local rankName = MenuKit.label(hero, "", 26, Theme.Colors.Text, true)
+	rankName.FontFace = Theme.FontHeavy
+	rankName.Position = UDim2.fromOffset(140, 28)
+	local levelLine = MenuKit.label(hero, "", 14, Theme.Colors.Text)
+	levelLine.Position = UDim2.fromOffset(140, 62)
+	local xpHost = Instance.new("Frame")
+	xpHost.BackgroundTransparency = 1
+	xpHost.Position = UDim2.fromOffset(140, 86)
+	xpHost.Size = UDim2.fromOffset(330, 12)
+	xpHost.Parent = hero
+	local xpBar = MenuKit.bar(xpHost, 12, Theme.Colors.Sky)
+	local xpText = MenuKit.label(hero, "", 12, Theme.Colors.Muted)
+	xpText.Position = UDim2.fromOffset(140, 102)
+
+	local function heroBox(x: number, w: number, gold: boolean): Frame
+		local f = Instance.new("Frame")
+		f.Position = UDim2.fromOffset(x, 12)
+		f.Size = UDim2.fromOffset(w, HERO_H - 24)
+		f.BackgroundColor3 = if gold then Theme.color("Plum") else Theme.Colors.PanelBg
+		f.BorderSizePixel = 0
+		f.Parent = hero
+		MenuKit.corner(f, 10)
+		MenuKit.stroke(f, if gold then Theme.Colors.Gold else Theme.Colors.PanelBorder, if gold then 2 else 1)
+		return f
 	end
-	divider(TABS_Y + TABS_H + 2)
+	-- Главный приз последнего уровня.
+	local grandBox = heroBox(486, 256, false)
+	grandBox.Name = "Grand"
+	local grandArt = CardKit.art(grandBox, "title.Legend", 72, 48)
+	grandArt.Position = UDim2.fromOffset(10, 30)
+	local grandHead = MenuKit.label(grandBox, string.format(t("path.grand"), LAST), 13, Theme.Colors.Gold, true)
+	grandHead.Position = UDim2.fromOffset(10, 6)
+	local grandBody = MenuKit.label(grandBox, "", 11, Theme.Colors.Text)
+	grandBody.AutomaticSize = Enum.AutomaticSize.None
+	grandBody.Position = UDim2.fromOffset(90, 26)
+	grandBody.Size = UDim2.fromOffset(158, 74)
+	grandBody.TextWrapped = true
+	grandBody.TextYAlignment = Enum.TextYAlignment.Top
+	local grandPremium = Profile.premiumReward(LAST)
+	local legendId = string.match(grandPremium.cosmetic or "title:Legend", "^%a+:(%a+)$") or "Legend"
+	grandBody.Text = string.format(t("path.grandPremium"), t("title." .. legendId), shortText(grandPremium))
+		.. "\n"
+		.. string.format(t("path.grandFree"), shortText(Profile.pathReward(LAST)))
+	-- Премиум.
+	local premBox = heroBox(752, 248, true)
+	premBox.Name = "Premium"
+	shimmer(premBox)
+	local premHead = MenuKit.label(premBox, "", 14, Theme.Colors.Gold, true)
+	premHead.FontFace = Theme.FontHeavy
+	premHead.Position = UDim2.fromOffset(12, 8)
+	local premBody = MenuKit.label(premBox, "", 11, Theme.Colors.Text)
+	premBody.AutomaticSize = Enum.AutomaticSize.None
+	premBody.Position = UDim2.fromOffset(12, 30)
+	premBody.Size = UDim2.fromOffset(226, 70)
+	premBody.TextWrapped = true
+	premBody.TextYAlignment = Enum.TextYAlignment.Top
+
+	-- Итоги премиум-дороги (для «премиум-дорога даёт»).
+	local paidMedals, paidCrates, paidTokens, paidStock, paidPasses, paidCosmetics = 0, 0, 0, 0, 0, 0
+	for lv = FIRST, LAST do
+		local r = Profile.premiumReward(lv)
+		paidMedals += r.medals
+		paidCrates += r.crates
+		paidTokens += r.tokens
+		for _, n in r.stock do
+			paidStock += n
+		end
+		if r.pass ~= nil then
+			paidPasses += 1
+		end
+		if r.cosmetic ~= nil then
+			paidCosmetics += 1
+		end
+	end
+	local premiumText = string.format(
+		t("path.totals"),
+		Strings.formatInt(paidMedals),
+		paidCrates,
+		paidTokens,
+		paidStock
+	) .. "\n" .. string.format(t("path.extras"), paidPasses, paidCosmetics)
 
 	---------------------------------------------------------------------------------------------------------------
-	-- Общее: карточка награды, лента с линией прогресса.
+	-- 3. Лента: подписи дорог, прокрутка, линия, карточки.
+	local lineY = 4 + CARD_H + 20
+	local premiumY = lineY + 20
+	local trackH = premiumY + CARD_H + 14
+
+	local function laneLabel(y: number, text: string, color: Color3, gold: boolean): TextLabel
+		local f = Instance.new("Frame")
+		f.Name = "Lane"
+		f.Position = UDim2.fromOffset(PAD, TRACK_Y + y)
+		f.Size = UDim2.fromOffset(LANE_W - 10, CARD_H)
+		f.BackgroundColor3 = if gold then Theme.color("Plum") else Theme.Colors.Backdrop
+		f.BorderSizePixel = 0
+		f.Parent = window
+		MenuKit.corner(f, 10)
+		MenuKit.stroke(f, color, 2)
+		if gold then
+			shimmer(f)
+		end
+		local l = MenuKit.label(f, text, 14, color, true)
+		l.FontFace = Theme.FontHeavy
+		l.AnchorPoint = Vector2.new(0.5, 0)
+		l.Position = UDim2.new(0.5, 0, 0, 16)
+		local sub = MenuKit.label(f, "", 11, Theme.Colors.Muted, true)
+		sub.AutomaticSize = Enum.AutomaticSize.None
+		sub.AnchorPoint = Vector2.new(0.5, 0)
+		sub.Position = UDim2.new(0.5, 0, 0, 42)
+		sub.Size = UDim2.new(1, -12, 0, 90)
+		sub.TextWrapped = true
+		sub.TextXAlignment = Enum.TextXAlignment.Center
+		sub.TextYAlignment = Enum.TextYAlignment.Top
+		return sub
+	end
+	local freeSub = laneLabel(4, t("path.free"), Theme.Colors.Sky, false)
+	local paidSub = laneLabel(premiumY, t("path.premium"), Theme.Colors.Gold, true)
+
+	local viewW = W - 2 * PAD - LANE_W
+	local scroll = Instance.new("ScrollingFrame")
+	scroll.Name = "Track"
+	scroll.Position = UDim2.fromOffset(PAD + LANE_W, TRACK_Y)
+	scroll.Size = UDim2.fromOffset(viewW, trackH)
+	scroll.BackgroundTransparency = 1
+	scroll.BorderSizePixel = 0
+	scroll.ScrollingDirection = Enum.ScrollingDirection.X
+	scroll.ScrollBarThickness = 6
+	scroll.ScrollBarImageColor3 = Theme.Colors.Gold
+	scroll.ElasticBehavior = Enum.ElasticBehavior.Never
+	scroll.Parent = window
+	local canvasW = 8 + COLUMNS * COL - GAP + 8
+	scroll.CanvasSize = UDim2.fromOffset(canvasW, trackH - 10)
+	local canvas = Instance.new("Frame")
+	canvas.Name = "Canvas"
+	canvas.BackgroundTransparency = 1
+	canvas.Size = UDim2.fromOffset(canvasW, trackH - 10)
+	canvas.Parent = scroll
+
+	local function colX(i: number): number
+		return 8 + (i - 1) * COL
+	end
+
+	local line = Instance.new("Frame")
+	line.Name = "Line"
+	line.BackgroundColor3 = Theme.Colors.Slate
+	line.BorderSizePixel = 0
+	line.Position = UDim2.fromOffset(8, lineY - 3)
+	line.Size = UDim2.fromOffset(canvasW - 16, 6)
+	line.Parent = canvas
+	MenuKit.corner(line, 3)
+	local fill = Instance.new("Frame")
+	fill.Name = "Fill"
+	fill.BackgroundColor3 = Theme.Colors.Gold
+	fill.BorderSizePixel = 0
+	fill.Size = UDim2.fromOffset(0, 6)
+	fill.Parent = line
+	MenuKit.corner(fill, 3)
+	local circles: { TextLabel } = {}
+	for i = 1, COLUMNS do
+		local text = if i == BONUS_COL then "∞" else tostring(FIRST + i - 1)
+		local c = MenuKit.label(canvas, text, 13, Theme.Colors.Text, true)
+		c.Name = "Step" .. i
+		c.AnchorPoint = Vector2.new(0.5, 0.5)
+		c.AutomaticSize = Enum.AutomaticSize.None
+		c.Size = UDim2.fromOffset(CIRCLE, CIRCLE)
+		c.Position = UDim2.fromOffset(colX(i) + CARD_W / 2, lineY)
+		c.TextXAlignment = Enum.TextXAlignment.Center
+		c.BackgroundTransparency = 0
+		c.BackgroundColor3 = Theme.Colors.Slate
+		c.ZIndex = 2
+		MenuKit.corner(c, CIRCLE // 2)
+		MenuKit.stroke(c, Theme.color("Ink"), 2)
+		circles[i] = c
+	end
+
+	-- Карточка.
 	type Card = {
 		frame: Frame,
 		pop: UIScale,
 		stroke: UIStroke,
 		art: GuiObject,
 		amount: TextLabel,
-		more: TextLabel,
 		state: TextLabel,
 		claim: TextButton,
 		lock: TextLabel?,
+		shine: Frame?,
+		level: number, -- уровень (бонус — LAST + 1)
+		premium: boolean,
+		bonus: boolean,
+		reward: PathReward,
+		rarity: Rarity,
+		x: number,
+		y: number,
 	}
+	local freeCards: { [number]: Card } = {}
+	local paidCards: { [number]: Card } = {}
+	local selectCard: (c: Card) -> () = function(_c: Card) end
+
 	local busy = false
-	local function requestClaim(intent: string)
+	local function requestClaim()
 		if busy then
 			return
 		end
 		busy = true
-		send(intent, {})
+		send("pathClaim", {})
 		task.delay(3, function()
 			busy = false -- ответ не пришёл — кнопку снова можно нажать
 		end)
 	end
 
-	local function makeCard(
-		parent: Instance,
-		x: number,
-		y: number,
-		h: number,
-		v: View,
-		intent: string,
-		gold: boolean
-	): Card
+	local function makeCard(i: number, y: number, r: PathReward, premium: boolean, bonus: boolean): Card
+		local x = colX(i)
+		local rarity: Rarity = rarityOf(r, bonus)
+		local rc = Theme.color(RARITY_COLOR[rarity])
+		local level = FIRST + i - 1
 		local f = Instance.new("Frame")
+		f.Name = (if premium then "Premium" else "Free") .. (if bonus then "Bonus" else tostring(level))
 		f.Position = UDim2.fromOffset(x, y)
-		f.Size = UDim2.fromOffset(CARD_W, h)
-		f.BackgroundColor3 = if gold then Theme.color("Night") else Theme.Colors.Backdrop
+		f.Size = UDim2.fromOffset(CARD_W, CARD_H)
+		f.BackgroundColor3 = if premium then Theme.color("Plum") else Theme.Colors.Backdrop
 		f.BorderSizePixel = 0
-		f.Parent = parent
+		f.ClipsDescendants = true
+		f.Parent = canvas
 		MenuKit.corner(f, 10)
-		local stroke = MenuKit.stroke(f, if gold then Theme.Colors.Gold else Theme.Colors.PanelBorder, 2)
+		local stroke = MenuKit.stroke(f, rc, 2)
 		local pop = Instance.new("UIScale")
 		pop.Parent = f
-		local y0 = h - PASS_CARD_H -- путь: сверху место под погон ступени звания
-		local main, key, isArt, text = mainPart(v)
+		-- Нажатие / наведение — описание внизу.
+		local hit = Instance.new("TextButton")
+		hit.Name = "Hit"
+		hit.Text = ""
+		hit.AutoButtonColor = false
+		hit.BackgroundTransparency = 1
+		hit.Size = UDim2.fromScale(1, 1)
+		hit.Parent = f
+		-- Метка редкости и «★» каждого 5-го уровня.
+		local tag = MenuKit.label(f, t("path.rarity." .. rarity), 9, Theme.color("Ink"), true)
+		tag.Position = UDim2.fromOffset(6, 5)
+		tag.BackgroundTransparency = 0
+		tag.BackgroundColor3 = rc
+		MenuKit.pad(tag, 4, 1)
+		MenuKit.corner(tag, 4)
+		if not bonus and level % 5 == 0 then
+			local star = MenuKit.label(f, "★", 14, Theme.Colors.Gold, true)
+			star.AnchorPoint = Vector2.new(1, 0)
+			star.Position = UDim2.new(1, -6, 0, 2)
+		end
+		local main, key, isArt, text = mainPart(r, bonus)
 		local art: GuiObject
 		if isArt then
 			art = CardKit.art(f, key, 88, 58)
-			art.Position = UDim2.fromOffset(12, y0 + 6)
+			art.Position = UDim2.fromOffset(12, 22)
 		else
 			art = MenuKit.icon(f, key, 5) -- 40 px
-			art.Position = UDim2.fromOffset(36, y0 + 14)
+			art.Position = UDim2.fromOffset(36, 28)
 		end
-		local amount = MenuKit.label(f, text, 14, Theme.Colors.Text, true)
+		local amount = MenuKit.label(f, text, 13, Theme.Colors.Text, true)
 		amount.AutomaticSize = Enum.AutomaticSize.None
-		amount.Size = UDim2.new(1, -8, 0, 18)
-		amount.Position = UDim2.fromOffset(4, y0 + 68)
+		amount.Size = UDim2.new(1, -8, 0, 16)
+		amount.Position = UDim2.fromOffset(4, 83)
 		amount.TextXAlignment = Enum.TextXAlignment.Center
 		amount.TextTruncate = Enum.TextTruncate.AtEnd
-		local more = MenuKit.label(f, extras(v, main), 11, Theme.Colors.Gold, true)
+		local more = MenuKit.label(f, extras(r, main), 10, Theme.Colors.Gold, true)
 		more.AutomaticSize = Enum.AutomaticSize.None
-		more.Size = UDim2.new(1, -8, 0, 14)
-		more.Position = UDim2.fromOffset(4, y0 + 86)
+		more.Size = UDim2.new(1, -8, 0, 13)
+		more.Position = UDim2.fromOffset(4, 99)
 		more.TextXAlignment = Enum.TextXAlignment.Center
 		more.TextTruncate = Enum.TextTruncate.AtEnd
-		local state = MenuKit.label(f, "", 12, Theme.Colors.Muted, true)
+		local state = MenuKit.label(f, "", 11, Theme.Colors.Muted, true)
 		state.AutomaticSize = Enum.AutomaticSize.None
-		state.Size = UDim2.new(1, -8, 0, 26)
-		state.Position = UDim2.fromOffset(4, h - 32)
+		state.Size = UDim2.new(1, -8, 0, 22)
+		state.Position = UDim2.fromOffset(4, CARD_H - 26)
 		state.TextXAlignment = Enum.TextXAlignment.Center
-		local claim = MenuKit.button(f, t("path.claim"), "primary", 26)
-		claim.Size = UDim2.new(1, -16, 0, 26)
-		claim.Position = UDim2.fromOffset(8, h - 32)
-		claim.TextSize = 13
+		local claim = MenuKit.button(f, t("path.claim"), "primary", 24)
+		claim.Size = UDim2.new(1, -16, 0, 24)
+		claim.Position = UDim2.fromOffset(8, CARD_H - 28)
+		claim.TextSize = 12
+		claim.ZIndex = 3
 		claim.Visible = false
-		Session.connect(claim.Activated, function()
-			requestClaim(intent)
-		end)
+		Session.connect(claim.Activated, requestClaim)
 		local lock: TextLabel? = nil
-		if gold then
+		if premium then
 			local l = MenuKit.label(f, "🔒", 16, Theme.Colors.Gold, true)
-			l.AnchorPoint = Vector2.new(1, 0)
-			l.Position = UDim2.new(1, -6, 0, y0 + 4)
-			l.ZIndex = 3
+			l.AnchorPoint = Vector2.new(0.5, 0.5)
+			l.Position = UDim2.fromOffset(CARD_W - 18, 34)
+			l.ZIndex = 4
 			lock = l
 		end
-		return {
+		local card: Card = {
 			frame = f,
 			pop = pop,
 			stroke = stroke,
 			art = art,
 			amount = amount,
-			more = more,
 			state = state,
 			claim = claim,
 			lock = lock,
+			shine = nil,
+			level = if bonus then LAST + 1 else level,
+			premium = premium,
+			bonus = bonus,
+			reward = r,
+			rarity = rarity,
+			x = x,
+			y = y,
 		}
+		Session.connect(hit.Activated, function()
+			selectCard(card)
+		end)
+		Session.connect(hit.MouseEnter, function()
+			selectCard(card)
+		end)
+		return card
 	end
 
-	-- Лента: прокрутка по X; линия прогресса с кружками номеров на высоте lineY.
-	type Track = {
-		scroll: ScrollingFrame,
-		canvas: Frame,
-		fill: Frame,
-		circles: { TextLabel },
-		width: number,
-	}
-	local function makeTrack(
-		parent: Instance,
-		x: number,
-		y: number,
-		w: number,
-		h: number,
-		count: number,
-		lineY: number,
-		firstNumber: number
-	): Track
-		local scroll = Instance.new("ScrollingFrame")
-		scroll.Name = "Track"
-		scroll.Position = UDim2.fromOffset(x, y)
-		scroll.Size = UDim2.fromOffset(w, h)
-		scroll.BackgroundTransparency = 1
-		scroll.BorderSizePixel = 0
-		scroll.ScrollingDirection = Enum.ScrollingDirection.X
-		scroll.ScrollBarThickness = 6
-		scroll.ScrollBarImageColor3 = Theme.Colors.Gold
-		scroll.ElasticBehavior = Enum.ElasticBehavior.Never
-		scroll.Parent = parent
-		local width = 8 + count * COL - GAP + 8
-		scroll.CanvasSize = UDim2.fromOffset(width, h - 10)
-		local canvas = Instance.new("Frame")
-		canvas.Name = "Canvas"
-		canvas.BackgroundTransparency = 1
-		canvas.Size = UDim2.fromOffset(width, h - 10)
-		canvas.Parent = scroll
-		local line = Instance.new("Frame")
-		line.Name = "Line"
-		line.BackgroundColor3 = Theme.Colors.Slate
-		line.BorderSizePixel = 0
-		line.Position = UDim2.fromOffset(8, lineY - 3)
-		line.Size = UDim2.fromOffset(width - 16, 6)
-		line.Parent = canvas
-		MenuKit.corner(line, 3)
-		local fill = Instance.new("Frame")
-		fill.Name = "Fill"
-		fill.BackgroundColor3 = Theme.Colors.Gold
-		fill.BorderSizePixel = 0
-		fill.Size = UDim2.fromOffset(0, 6)
-		fill.Parent = line
-		MenuKit.corner(fill, 3)
-		local circles: { TextLabel } = {}
-		for i = 1, count do
-			local c = MenuKit.label(canvas, tostring(firstNumber + i - 1), 13, Theme.Colors.Text, true)
-			c.Name = "Step" .. i
-			c.AnchorPoint = Vector2.new(0.5, 0.5)
-			c.AutomaticSize = Enum.AutomaticSize.None
-			c.Size = UDim2.fromOffset(CIRCLE, CIRCLE)
-			c.Position = UDim2.fromOffset(8 + (i - 1) * COL + CARD_W / 2, lineY)
-			c.TextXAlignment = Enum.TextXAlignment.Center
-			c.BackgroundTransparency = 0
-			c.BackgroundColor3 = Theme.Colors.Slate
-			c.ZIndex = 2
-			MenuKit.corner(c, CIRCLE // 2)
-			MenuKit.stroke(c, Theme.color("Ink"), 2)
-			circles[i] = c
+	for i = 1, COLUMNS do
+		local bonus = i == BONUS_COL
+		local level = FIRST + i - 1
+		local fr = if bonus then Profile.bonusReward(false) else Profile.pathReward(level)
+		local pr = if bonus then Profile.bonusReward(true) else Profile.premiumReward(level)
+		freeCards[i] = makeCard(i, 4, fr, false, bonus)
+		paidCards[i] = makeCard(i, premiumY, pr, true, bonus)
+	end
+
+	-- Блик на готовой карточке (создаётся при первой готовности).
+	local function shineOf(c: Card): Frame
+		local existing = c.shine
+		if existing ~= nil then
+			return existing
 		end
-		return { scroll = scroll, canvas = canvas, fill = fill, circles = circles, width = width }
-	end
-
-	local function colX(i: number): number
-		return 8 + (i - 1) * COL
-	end
-
-	-- Линия: закрашено до центра пройденного столбца и доля пути к следующему; кружки — пройдено / следующий.
-	local function paintTrack(tr: Track, reachedIndex: number, frac: number)
-		local count = #tr.circles
-		local cx = if reachedIndex <= 0
-			then 0
-			else (reachedIndex - 1) * COL + CARD_W / 2 + (if reachedIndex < count then COL * frac else 0)
-		tr.fill.Size = UDim2.fromOffset(math.clamp(cx, 0, tr.width - 16), 6)
-		for i, c in tr.circles do
-			local reached = i <= reachedIndex
-			c.BackgroundColor3 = if reached
-				then Theme.Colors.Gold
-				elseif i == reachedIndex + 1 then Theme.Colors.Sky
-				else Theme.Colors.Slate
-			c.TextColor3 = if reached or i == reachedIndex + 1 then Theme.color("Ink") else Theme.Colors.Muted
-		end
-	end
-
-	local function scrollTo(tr: Track, index: number)
-		local x = colX(index) + CARD_W / 2
-		local viewW = tr.scroll.Size.X.Offset
-		tr.scroll.CanvasPosition = Vector2.new(math.clamp(x - viewW / 2, 0, math.max(0, tr.width - viewW)), 0)
-	end
-
-	-- Состояние карточки: закрыто / готово / получено (и замок премиума).
-	local function paintCard(c: Card, reached: boolean, done: boolean, locked: boolean, isNext: boolean, edge: Color3?)
-		local ready = reached and not done and not locked
-		c.claim.Visible = ready
-		c.state.Visible = not ready
-		c.state.Text = if done then "✔ " .. t("path.claimed") elseif locked then t("pass.locked") else "🔒"
-		c.state.TextColor3 = if done
-			then Theme.color("Lime")
-			elseif locked then Theme.Colors.Gold
-			else Theme.Colors.Muted
-		c.stroke.Color = if ready
-			then Theme.Colors.Gold
-			elseif isNext then Theme.Colors.Sky
-			else edge or Theme.Colors.PanelBorder
-		c.stroke.Thickness = if ready then 3 else 2
-		c.frame.BackgroundTransparency = if reached and not locked then 0 else 0.35
-		c.amount.TextColor3 = if reached and not locked then Theme.Colors.Text else Theme.Colors.Muted
-		if c.art:IsA("ImageLabel") then
-			c.art.ImageTransparency = if reached and not locked then 0 else 0.45
-		end
-		local lock = c.lock
-		if lock ~= nil then
-			lock.Visible = locked
-		end
+		local s = Instance.new("Frame")
+		s.Name = "Shine"
+		s.BackgroundColor3 = Color3.new(1, 1, 1)
+		s.BackgroundTransparency = 0.7
+		s.BorderSizePixel = 0
+		s.Size = UDim2.new(0, 34, 1.6, 0)
+		s.AnchorPoint = Vector2.new(0.5, 0.5)
+		s.Rotation = 20
+		s.ZIndex = 2
+		s.Parent = c.frame
+		local grad = Instance.new("UIGradient")
+		grad.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 1),
+			NumberSequenceKeypoint.new(0.5, 0.2),
+			NumberSequenceKeypoint.new(1, 1),
+		})
+		grad.Parent = s
+		c.shine = s
+		return s
 	end
 
 	---------------------------------------------------------------------------------------------------------------
-	-- 3–4. Вкладка «Путь командира».
-	local pathPage = tabs.path.page
-	local pathHero = Instance.new("Frame")
-	pathHero.Name = "Hero"
-	pathHero.Position = UDim2.fromOffset(PAD, HERO_Y)
-	pathHero.Size = UDim2.new(1, -2 * PAD, 0, HERO_H)
-	pathHero.BackgroundColor3 = Theme.Colors.Backdrop
-	pathHero.BorderSizePixel = 0
-	pathHero.Parent = pathPage
-	MenuKit.corner(pathHero, 12)
-	local pathHeroStroke = MenuKit.stroke(pathHero, Theme.Colors.PanelBorder, 2)
-	local bigRank = MenuKit.rankIcon(pathHero, 1, 7) -- 112 px
-	bigRank.Position = UDim2.fromOffset(14, 6)
-	local nowLabel = MenuKit.label(pathHero, t("ranks.now"), 12, Theme.Colors.Sky, true)
-	nowLabel.Position = UDim2.fromOffset(146, 12)
-	local rankName = MenuKit.label(pathHero, "", 28, Theme.Colors.Text, true)
-	rankName.FontFace = Theme.FontHeavy
-	rankName.Position = UDim2.fromOffset(146, 28)
-	local levelLine = MenuKit.label(pathHero, "", 15, Theme.Colors.Text)
-	levelLine.Position = UDim2.fromOffset(146, 62)
-	local xpHost = Instance.new("Frame")
-	xpHost.BackgroundTransparency = 1
-	xpHost.Position = UDim2.fromOffset(146, 86)
-	xpHost.Size = UDim2.fromOffset(380, 12)
-	xpHost.Parent = pathHero
-	local xpBar = MenuKit.bar(xpHost, 12, Theme.Colors.Sky)
-	local xpText = MenuKit.label(pathHero, "", 13, Theme.Colors.Muted)
-	xpText.Position = UDim2.fromOffset(146, 101)
-	-- Справа в герое — следующее звание.
-	local nextBox = Instance.new("Frame")
-	nextBox.Name = "Next"
-	nextBox.AnchorPoint = Vector2.new(1, 0)
-	nextBox.Position = UDim2.new(1, -12, 0, 12)
-	nextBox.Size = UDim2.fromOffset(360, HERO_H - 24)
-	nextBox.BackgroundColor3 = Theme.Colors.PanelBg
-	nextBox.BorderSizePixel = 0
-	nextBox.Parent = pathHero
-	MenuKit.corner(nextBox, 10)
-	MenuKit.stroke(nextBox, Theme.Colors.PanelBorder, 1)
-	local nextIcon = MenuKit.rankIcon(nextBox, 2, 4) -- 64 px
-	nextIcon.Position = UDim2.fromOffset(14, 18)
-	local nextTitle = MenuKit.label(nextBox, t("ranks.next"), 12, Theme.Colors.Sky, true)
-	nextTitle.Position = UDim2.fromOffset(92, 14)
-	local nextName = MenuKit.label(nextBox, "", 18, Theme.Colors.Text, true)
-	nextName.Position = UDim2.fromOffset(92, 32)
-	local nextWhen = MenuKit.label(nextBox, "", 13, Theme.Colors.Gold)
-	nextWhen.Position = UDim2.fromOffset(92, 58)
-
-	-- Генерал по уровню (§11.2), ступени званий.
-	local generalAt: { [number]: string } = {}
-	for id, lv in Config.Profile.CommanderLevels :: { [string]: number } do
-		if lv > 1 then
-			generalAt[lv] = id
-		end
-	end
-	local tierAt: { [number]: number } = {}
-	for k, lv in Config.Ranks.Tiers do
-		tierAt[lv] = k
-	end
-
-	local PATH_FIRST, PATH_LAST = 2, Config.Profile.MaxLevel
-	local pathCount = PATH_LAST - PATH_FIRST + 1
-	local pathLineY = 4 + PATH_CARD_H + 22
-	local pathTrack =
-		makeTrack(pathPage, PAD, TRACK_Y, W - 2 * PAD, pathLineY + CIRCLE // 2 + 14, pathCount, pathLineY, PATH_FIRST)
-	local pathCards: { [number]: Card } = {}
-	for lv = PATH_FIRST, PATH_LAST do
-		local i = lv - PATH_FIRST + 1
-		local v = viewOf(Profile.pathReward(lv))
-		local card = makeCard(pathTrack.canvas, colX(i), 4, PATH_CARD_H, v, "pathClaim", false)
-		card.frame.Name = "Level" .. lv
-		-- Верх карточки: погон ступени звания или генерал.
-		local tier = tierAt[lv]
-		if tier ~= nil then
-			local ep = MenuKit.rankIcon(card.frame, tier, 2)
-			ep.Position = UDim2.fromOffset(8, 6)
-			local rn = MenuKit.label(card.frame, t("rank." .. tier), 11, groupColor(tier), true)
-			rn.AutomaticSize = Enum.AutomaticSize.None
-			rn.Position = UDim2.fromOffset(44, 8)
-			rn.Size = UDim2.fromOffset(CARD_W - 50, 28)
-			rn.TextWrapped = true
-			rn.TextYAlignment = Enum.TextYAlignment.Top
-		elseif generalAt[lv] ~= nil then
-			local gn = MenuKit.label(
-				card.frame,
-				string.format(t("path.general"), t("commander." .. generalAt[lv])),
-				11,
-				Theme.Colors.Sky,
-				true
-			)
-			gn.AutomaticSize = Enum.AutomaticSize.None
-			gn.Position = UDim2.fromOffset(6, 8)
-			gn.Size = UDim2.fromOffset(CARD_W - 12, 28)
-			gn.TextWrapped = true
-			gn.TextYAlignment = Enum.TextYAlignment.Top
-		else
-			local lvl = MenuKit.label(card.frame, string.format(t("ranks.level"), lv), 12, Theme.Colors.Muted, true)
-			lvl.Position = UDim2.fromOffset(8, 10)
-		end
-		pathCards[lv] = card
-	end
-
-	-- «Впереди»: ближайшие вехи пути (техника, звания, генералы).
-	local aheadY = TRACK_Y + pathLineY + CIRCLE // 2 + 22
-	local aheadLabel = MenuKit.label(pathPage, t("path.ahead"), 13, Theme.Colors.Sky, true)
-	aheadLabel.Position = UDim2.fromOffset(PAD + 4, aheadY + 4)
+	-- 4. «Впереди».
+	local aheadY = TRACK_Y + trackH + 4
+	local aheadLabel = MenuKit.label(window, t("path.ahead"), 13, Theme.Colors.Sky, true)
+	aheadLabel.Position = UDim2.fromOffset(PAD + 4, aheadY)
 	local aheadRow = Instance.new("Frame")
 	aheadRow.Name = "Ahead"
 	aheadRow.BackgroundTransparency = 1
-	aheadRow.Position = UDim2.fromOffset(PAD, aheadY + 24)
-	aheadRow.Size = UDim2.new(1, -2 * PAD, 0, 64)
-	aheadRow.Parent = pathPage
+	aheadRow.Position = UDim2.fromOffset(PAD, aheadY + 20)
+	aheadRow.Size = UDim2.new(1, -2 * PAD, 0, 60)
+	aheadRow.Parent = window
 	MenuKit.list(aheadRow, 10, true)
 	local AHEAD = 5
-	type Chip = { frame: Frame, art: Frame, level: TextLabel, name: TextLabel }
+	type Chip = { frame: Frame, stroke: UIStroke, art: Frame, level: TextLabel, name: TextLabel }
 	local aheadChips: { Chip } = {}
 	for k = 1, AHEAD do
 		local f = Instance.new("Frame")
 		f.Name = "Milestone" .. k
 		f.LayoutOrder = k
-		f.Size = UDim2.fromOffset(((W - 2 * PAD) - (AHEAD - 1) * 10) // AHEAD, 60)
+		f.Size = UDim2.fromOffset(((W - 2 * PAD) - (AHEAD - 1) * 10) // AHEAD, 56)
 		f.BackgroundColor3 = Theme.Colors.Backdrop
 		f.BorderSizePixel = 0
 		f.Parent = aheadRow
 		MenuKit.corner(f, 8)
-		MenuKit.stroke(f, Theme.Colors.PanelBorder, 1)
+		local stroke = MenuKit.stroke(f, Theme.Colors.PanelBorder, 1)
 		local host = Instance.new("Frame")
 		host.BackgroundTransparency = 1
-		host.Position = UDim2.fromOffset(6, 6)
-		host.Size = UDim2.fromOffset(72, 48)
+		host.Position = UDim2.fromOffset(5, 5)
+		host.Size = UDim2.fromOffset(69, 46)
 		host.Parent = f
-		local lvl = MenuKit.label(f, "", 13, Theme.Colors.Gold, true)
-		lvl.Position = UDim2.fromOffset(84, 8)
-		local name = MenuKit.label(f, "", 13, Theme.Colors.Text, true)
+		local lvl = MenuKit.label(f, "", 12, Theme.Colors.Gold, true)
+		lvl.Position = UDim2.fromOffset(80, 6)
+		local name = MenuKit.label(f, "", 12, Theme.Colors.Text, true)
 		name.AutomaticSize = Enum.AutomaticSize.None
-		name.Position = UDim2.fromOffset(84, 26)
-		name.Size = UDim2.new(1, -90, 0, 30)
+		name.Position = UDim2.fromOffset(80, 22)
+		name.Size = UDim2.new(1, -86, 0, 30)
 		name.TextWrapped = true
 		name.TextYAlignment = Enum.TextYAlignment.Top
-		aheadChips[k] = { frame = f, art = host, level = lvl, name = name }
+		aheadChips[k] = { frame = f, stroke = stroke, art = host, level = lvl, name = name }
 	end
 
 	---------------------------------------------------------------------------------------------------------------
-	-- 3–4. Вкладка «Боевой пропуск».
-	local passPage = tabs.pass.page
-	local passHero = Instance.new("Frame")
-	passHero.Name = "Hero"
-	passHero.Position = UDim2.fromOffset(PAD, HERO_Y)
-	passHero.Size = UDim2.new(1, -2 * PAD, 0, HERO_H)
-	passHero.BackgroundColor3 = Theme.Colors.Backdrop
-	passHero.BorderSizePixel = 0
-	passHero.Parent = passPage
-	MenuKit.corner(passHero, 12)
-	local passHeroStroke = MenuKit.stroke(passHero, Theme.Colors.PanelBorder, 2)
-	local seasonArt = CardKit.art(passHero, "shop.SeasonPass", 150, 100)
-	seasonArt.Position = UDim2.fromOffset(12, 12)
-	local seasonLabel =
-		MenuKit.label(passHero, string.format(t("pass.season"), Config.Season.Id), 12, Theme.Colors.Sky, true)
-	seasonLabel.Position = UDim2.fromOffset(178, 12)
-	local tierLine = MenuKit.label(passHero, "", 28, Theme.Colors.Text, true)
-	tierLine.FontFace = Theme.FontHeavy
-	tierLine.Position = UDim2.fromOffset(178, 28)
-	local tierHost = Instance.new("Frame")
-	tierHost.BackgroundTransparency = 1
-	tierHost.Position = UDim2.fromOffset(178, 68)
-	tierHost.Size = UDim2.fromOffset(340, 12)
-	tierHost.Parent = passHero
-	local tierBar = MenuKit.bar(tierHost, 12, Theme.Colors.Gold)
-	local tierXp = MenuKit.label(passHero, "", 13, Theme.Colors.Muted)
-	tierXp.Position = UDim2.fromOffset(178, 84)
-	local seasonEnd = MenuKit.label(passHero, "", 12, Theme.Colors.Muted)
-	seasonEnd.Position = UDim2.fromOffset(178, 102)
-	-- Справа — что даёт премиум (или «премиум активен»).
-	local premBox = Instance.new("Frame")
-	premBox.Name = "Premium"
-	premBox.AnchorPoint = Vector2.new(1, 0)
-	premBox.Position = UDim2.new(1, -12, 0, 12)
-	premBox.Size = UDim2.fromOffset(400, HERO_H - 24)
-	premBox.BackgroundColor3 = Theme.color("Night")
-	premBox.BorderSizePixel = 0
-	premBox.Parent = passHero
-	MenuKit.corner(premBox, 10)
-	MenuKit.stroke(premBox, Theme.Colors.Gold, 2)
-	local premHead = MenuKit.label(premBox, "", 16, Theme.Colors.Gold, true)
-	premHead.FontFace = Theme.FontHeavy
-	premHead.Position = UDim2.fromOffset(14, 10)
-	local premBody = MenuKit.label(premBox, "", 13, Theme.Colors.Text)
-	premBody.AutomaticSize = Enum.AutomaticSize.None
-	premBody.Position = UDim2.fromOffset(14, 34)
-	premBody.Size = UDim2.new(1, -28, 0, 56)
-	premBody.TextWrapped = true
-	premBody.TextYAlignment = Enum.TextYAlignment.Top
-
-	-- Итоги дорог за сезон (для «премиум даёт»).
-	type Total = { medals: number, crates: number, tokens: number, stock: number }
-	local function total(premium: boolean): Total
-		local sum: Total = { medals = 0, crates = 0, tokens = 0, stock = 0 }
-		for tier = 1, Config.Season.Tiers do
-			local r = Profile.seasonReward(tier, premium)
-			sum.medals += r.medals
-			sum.crates += r.crates
-			sum.tokens += r.tokens
-			for _, n in r.stock do
-				sum.stock += n
-			end
-		end
-		return sum
-	end
-	local freeTotal, paidTotal = total(false), total(true)
-
-	-- Подписи дорог слева (не прокручиваются).
-	local LANE_W = 118
-	local passLineY = 4 + PASS_CARD_H + 20
-	local premiumY = passLineY + 20
-	local passH = premiumY + PASS_CARD_H + 14
-	local function laneLabel(y: number, text: string, color: Color3, gold: boolean): (Frame, TextLabel)
-		local f = Instance.new("Frame")
-		f.Name = "Lane"
-		f.Position = UDim2.fromOffset(PAD, TRACK_Y + y)
-		f.Size = UDim2.fromOffset(LANE_W - 10, PASS_CARD_H)
-		f.BackgroundColor3 = if gold then Theme.color("Night") else Theme.Colors.Backdrop
-		f.BorderSizePixel = 0
-		f.Parent = passPage
-		MenuKit.corner(f, 10)
-		MenuKit.stroke(f, color, 2)
-		local l = MenuKit.label(f, text, 15, color, true)
-		l.FontFace = Theme.FontHeavy
-		l.AnchorPoint = Vector2.new(0.5, 0)
-		l.Position = UDim2.new(0.5, 0, 0, 18)
-		local sub = MenuKit.label(f, "", 12, Theme.Colors.Muted, true)
-		sub.AutomaticSize = Enum.AutomaticSize.None
-		sub.AnchorPoint = Vector2.new(0.5, 0)
-		sub.Position = UDim2.new(0.5, 0, 0, 46)
-		sub.Size = UDim2.new(1, -12, 0, 70)
-		sub.TextWrapped = true
-		sub.TextXAlignment = Enum.TextXAlignment.Center
-		sub.TextYAlignment = Enum.TextYAlignment.Top
-		return f, sub
-	end
-	local _, freeSub = laneLabel(4, t("pass.free"), Theme.Colors.Sky, false)
-	local _, paidSub = laneLabel(premiumY, t("pass.premium"), Theme.Colors.Gold, true)
-	local passTrack =
-		makeTrack(passPage, PAD + LANE_W, TRACK_Y, W - 2 * PAD - LANE_W, passH, Config.Season.Tiers, passLineY, 1)
-	local freeCards: { [number]: Card } = {}
-	local paidCards: { [number]: Card } = {}
-	for tier = 1, Config.Season.Tiers do
-		local fv = viewOf(Profile.seasonReward(tier, false))
-		freeCards[tier] = makeCard(passTrack.canvas, colX(tier), 4, PASS_CARD_H, fv, "seasonClaim", false)
-		freeCards[tier].frame.Name = "Free" .. tier
-		local pv = viewOf(Profile.seasonReward(tier, true))
-		pv.title = seasonTitle(tier)
-		paidCards[tier] = makeCard(passTrack.canvas, colX(tier), premiumY, PASS_CARD_H, pv, "seasonClaim", true)
-		paidCards[tier].frame.Name = "Premium" .. tier
-	end
-
-	---------------------------------------------------------------------------------------------------------------
-	-- 5. Низ: как идёт опыт, «ОТКРЫТЬ ПРЕМИУМ», «ЗАБРАТЬ ВСЁ».
-	divider(H - FOOTER_H - 6)
-	local how = MenuKit.wrapLabel(window, "", 13, Theme.Colors.Muted)
-	how.Position = UDim2.fromOffset(PAD + 4, H - FOOTER_H + 8)
-	local buyPremium = MenuKit.button(window, "", "good", 50)
+	-- 5. Низ.
+	divider(FOOTER_Y)
+	local detail = MenuKit.label(window, "", 13, Theme.Colors.Text, true)
+	detail.AutomaticSize = Enum.AutomaticSize.None
+	detail.Position = UDim2.fromOffset(PAD + 4, FOOTER_Y + 10)
+	detail.TextTruncate = Enum.TextTruncate.AtEnd
+	local how = MenuKit.label(window, t("path.how"), 12, Theme.Colors.Muted)
+	how.AutomaticSize = Enum.AutomaticSize.None
+	how.Position = UDim2.fromOffset(PAD + 4, FOOTER_Y + 32)
+	how.TextWrapped = true
+	how.TextYAlignment = Enum.TextYAlignment.Top
+	local buyPremium = MenuKit.button(window, "", "primary", 50)
 	buyPremium.AnchorPoint = Vector2.new(1, 1)
 	buyPremium.Position = UDim2.new(1, -PAD - 280, 1, -16)
-	buyPremium.Size = UDim2.fromOffset(300, 50)
+	buyPremium.Size = UDim2.fromOffset(290, 50)
 	buyPremium.TextSize = 17
+	buyPremium.BackgroundColor3 = Theme.color("Orange")
+	shimmer(buyPremium)
 	local claimAll = MenuKit.button(window, "", "primary", 50)
 	claimAll.AnchorPoint = Vector2.new(1, 1)
 	claimAll.Position = UDim2.new(1, -PAD, 1, -16)
 	claimAll.Size = UDim2.fromOffset(268, 50)
 	claimAll.TextSize = 18
 	local claimGlow = MenuKit.stroke(claimAll, Theme.Colors.Gold, 3)
-	Session.connect(claimAll.Activated, function()
-		requestClaim(if current == "path" then "pathClaim" else "seasonClaim")
-	end)
+	Session.connect(claimAll.Activated, requestClaim)
 	Session.connect(buyPremium.Activated, function()
-		local id = Config.Shop.Packs.SeasonPass.id
+		local id = Config.Shop.Packs.PathPremium.id
 		if id == 0 then
 			if toast ~= nil then
 				toast(t("shop.soon"))
@@ -783,7 +745,7 @@ function RanksPanel.new(
 		MarketplaceService:PromptProductPurchase(Players.LocalPlayer, id)
 	end)
 
-	-- Слой анимаций поверх окна (летящие значки, лучи, «НОВОЕ ЗВАНИЕ»).
+	-- Слой эффектов поверх окна.
 	local fx = Instance.new("Frame")
 	fx.Name = "Fx"
 	fx.BackgroundTransparency = 1
@@ -792,237 +754,345 @@ function RanksPanel.new(
 	fx.Parent = window
 
 	---------------------------------------------------------------------------------------------------------------
-	-- Рисование.
-	local function level(): (number, number, number)
+	-- Состояние профиля.
+	type State = {
+		level: number,
+		claimed: number,
+		premium: boolean,
+		paid: number,
+		earned: number,
+		bonus: number,
+		bonusPaid: number,
+	}
+	local function state(): State
 		local p = cs.profile
 		if p == nil then
-			return 1, 0, Profile.xpNeeded(1)
+			return { level = 1, claimed = 1, premium = false, paid = 1, earned = 0, bonus = 0, bonusPaid = 0 }
 		end
-		return p.level, p.xp, p.need
+		local path = p.path
+		if path == nil then
+			return {
+				level = p.level,
+				claimed = p.level,
+				premium = false,
+				paid = p.level,
+				earned = 0,
+				bonus = 0,
+				bonusPaid = 0,
+			}
+		end
+		local earned = path.bonusEarned or 0
+		return {
+			level = p.level,
+			claimed = path.claimed,
+			premium = path.premium == true,
+			paid = path.paid or p.level,
+			earned = earned,
+			bonus = path.bonus or earned,
+			bonusPaid = path.bonusPaid or earned,
+		}
 	end
 	local function pending(): number
-		local path, free, paid = ClientState.rewardsPending(cs)
-		return path + free + paid
+		local free, paid, bonus = ClientState.rewardsPending(cs)
+		return free + paid + bonus
 	end
+	-- Дошли ли, забрана ли, под замком ли.
+	local function cardState(c: Card, s: State): (boolean, boolean, boolean)
+		local locked = c.premium and not s.premium
+		if c.bonus then
+			local got = if c.premium then s.bonusPaid else s.bonus
+			return s.earned > 0, s.earned <= got, locked
+		end
+		local reached = c.level <= s.level
+		local done = c.level <= (if c.premium then s.paid else s.claimed)
+		return reached, done, locked
+	end
+
+	selectCard = function(c: Card)
+		local s = state()
+		local reached, done, locked = cardState(c, s)
+		local road = t(if c.premium then "path.premium" else "path.free")
+		local lv = if c.bonus then LAST else c.level
+		local text = string.format(t("path.detail"), lv, road, describe(c.reward, c.bonus))
+		if locked then
+			text ..= t("path.detailNeedPremium")
+		elseif not reached and not c.bonus then
+			text ..= string.format(t("path.detailWhen"), c.level)
+		elseif done then
+			text ..= "  ✔"
+		end
+		detail.Text = text
+		detail.TextColor3 = Theme.color(RARITY_COLOR[c.rarity])
+		if locked or (not reached and not c.bonus) then
+			-- Встряска закрытой карточки.
+			for k, dx in { -6, 6, -4, 4, 0 } do
+				task.delay((k - 1) * 0.04, function()
+					c.frame.Position = UDim2.fromOffset(c.x + dx, c.y)
+				end)
+			end
+		end
+	end
+
 	local function setWallet(kind: string, value: number)
 		local w = wallet[kind]
 		w.value = value
 		w.label.Text = Strings.formatInt(value)
 	end
-	local function setBadge(tab: Tab, n: number)
-		tab.badge.Visible = n > 0
-		tab.badge.Text = if n > 99 then "99+" else tostring(n)
+
+	local generalAt: { [number]: string } = {}
+	for id, glv in Config.Profile.CommanderLevels :: { [string]: number } do
+		if glv > 1 then
+			generalAt[glv] = id
+		end
+	end
+	local tierAt: { [number]: number } = {}
+	for k, tlv in Config.Ranks.Tiers do
+		tierAt[tlv] = k
 	end
 
-	local scrolled: { [string]: number } = {}
-
 	local function drawAhead(lv: number)
-		local k = 0
-		for l = lv + 1, PATH_LAST do
-			if k >= AHEAD then
+		type Item = { level: number, art: string?, rank: number?, name: string, color: Color3, premium: boolean }
+		local items: { Item } = {}
+		for l = lv + 1, LAST do
+			if #items >= AHEAD then
 				break
 			end
-			local r = Profile.pathReward(l)
-			local tier = tierAt[l]
-			local general = generalAt[l]
-			if r.unit == nil and tier == nil and general == nil then
+			local fr = Profile.pathReward(l)
+			local pr = Profile.premiumReward(l)
+			if fr.unit ~= nil then
+				local unit = fr.unit :: string
+				table.insert(items, {
+					level = l,
+					art = "unlock." .. unit,
+					rank = nil,
+					name = string.format(t("path.opensUnit"), unitName(unit)),
+					color = Theme.color("Orange"),
+					premium = false,
+				})
+			elseif tierAt[l] ~= nil then
+				local rank = tierAt[l]
+				table.insert(items, {
+					level = l,
+					art = nil,
+					rank = rank,
+					name = string.format(t("path.rankAt"), t("rank." .. rank)),
+					color = groupColor(rank),
+					premium = false,
+				})
+			elseif generalAt[l] ~= nil then
+				table.insert(items, {
+					level = l,
+					art = nil,
+					rank = nil,
+					name = string.format(t("path.general"), t("commander." .. generalAt[l])),
+					color = Theme.Colors.Sky,
+					premium = false,
+				})
+			end
+			if #items < AHEAD and (pr.unit ~= nil or pr.pass ~= nil or pr.cosmetic ~= nil) then
+				local _, key, _, name = mainPart(pr, false)
+				table.insert(items, {
+					level = l,
+					art = key,
+					rank = nil,
+					name = "★ " .. name,
+					color = Theme.Colors.Gold,
+					premium = true,
+				})
+			end
+		end
+		for k = 1, AHEAD do
+			local chip = aheadChips[k]
+			local it = items[k]
+			chip.frame.Visible = it ~= nil
+			if it == nil then
 				continue
 			end
-			k += 1
-			local chip = aheadChips[k]
-			chip.frame.Visible = true
 			for _, child in chip.art:GetChildren() do
 				child:Destroy()
 			end
-			if r.unit ~= nil then
-				CardKit.art(chip.art, "unlock." .. r.unit, 72, 48)
-				chip.name.Text = string.format(t("path.opensUnit"), unitName(r.unit))
-				chip.name.TextColor3 = Theme.Colors.Gold
-			elseif tier ~= nil then
-				local ep = MenuKit.rankIcon(chip.art, tier, 3)
-				ep.Position = UDim2.fromOffset(12, 0)
-				chip.name.Text = string.format(t("path.rankAt"), t("rank." .. tier))
-				chip.name.TextColor3 = groupColor(tier)
+			local rank, art = it.rank, it.art
+			if rank ~= nil then
+				local ep = MenuKit.rankIcon(chip.art, rank, 3)
+				ep.Position = UDim2.fromOffset(10, -1)
+			elseif art ~= nil then
+				CardKit.art(chip.art, art, 69, 46)
 			else
 				local icon = MenuKit.icon(chip.art, "army", 5)
-				icon.Position = UDim2.fromOffset(16, 4)
-				chip.name.Text = string.format(t("path.general"), t("commander." .. (general :: string)))
-				chip.name.TextColor3 = Theme.Colors.Sky
+				icon.Position = UDim2.fromOffset(14, 3)
 			end
-			chip.level.Text = string.format(t("ranks.levelLeft"), l, l - lv)
-		end
-		for j = k + 1, AHEAD do
-			aheadChips[j].frame.Visible = false
-		end
-	end
-
-	local function drawPath()
-		local lv, into, need = level()
-		local rank = Ranks.of(lv)
-		local p = cs.profile
-		local claimed = if p ~= nil and p.path ~= nil then p.path.claimed else lv
-		MenuKit.setRank(bigRank, rank, 7)
-		rankName.Text = t("rank." .. rank)
-		rankName.TextColor3 = groupColor(rank)
-		pathHeroStroke.Color = groupColor(rank)
-		levelLine.Text = string.format(t("ranks.levelLine"), lv, t("rank.troops." .. rank))
-		if need > 0 then
-			xpBar.set(into / need)
-			xpText.Text = string.format(t("ranks.xp"), into, need, lv + 1)
-		else
-			xpBar.set(1)
-			xpText.Text = t("menu.maxLevel")
-		end
-		local nextAt = Ranks.nextAt(lv)
-		nextBox.Visible = nextAt ~= nil
-		if nextAt ~= nil then
-			MenuKit.setRank(nextIcon, rank + 1, 4)
-			nextName.Text = t("rank." .. (rank + 1))
-			nextName.TextColor3 = groupColor(rank + 1)
-			nextWhen.Text = string.format(t("ranks.nextWhen"), nextAt, nextAt - lv)
-		end
-		for l, card in pathCards do
-			local edge = if tierAt[l] ~= nil then groupColor(tierAt[l]) else nil
-			paintCard(card, l <= lv, l <= claimed, false, l == lv + 1, edge)
-		end
-		paintTrack(pathTrack, lv - PATH_FIRST + 1, if need > 0 then into / need else 0)
-		drawAhead(lv)
-		local n = math.max(0, lv - claimed)
-		local focus = math.clamp(if n > 0 then claimed + 1 else lv + 1, PATH_FIRST, PATH_LAST)
-		if scrolled.path ~= focus then
-			scrolled.path = focus
-			scrollTo(pathTrack, focus - PATH_FIRST + 1)
+			chip.level.Text = string.format(t("ranks.levelLeft"), it.level, it.level - lv)
+			chip.name.Text = it.name
+			chip.name.TextColor3 = it.color
+			chip.stroke.Color = if it.premium then Theme.Colors.Gold else Theme.Colors.PanelBorder
+			chip.frame.BackgroundColor3 = if it.premium then Theme.color("Plum") else Theme.Colors.Backdrop
 		end
 	end
 
-	local function drawPass()
-		local p = cs.profile
-		local s = if p ~= nil
-			then p.season
-			else {
-				tier = 0,
-				xp = 0,
-				per = Config.Season.XpPerTier,
-				premium = false,
-				free = 0,
-				paid = 0,
-				left = nil,
-			}
-		local tiers = Config.Season.Tiers
-		local freeDone = s.free or s.tier
-		local paidDone = s.paid or s.tier
-		tierLine.Text = string.format(t("pass.tier"), s.tier, tiers)
-		if s.tier >= tiers then
-			tierBar.set(1)
-			tierXp.Text = t("pass.max")
-		else
-			tierBar.set(s.xp / math.max(1, s.per))
-			tierXp.Text = string.format(t("pass.xp"), s.xp, s.per, s.tier + 1)
+	local readyCards: { Card } = {}
+	local scrolledTo = -1
+	local lastFill = -1
+
+	local function paintCard(c: Card, s: State, isNext: boolean)
+		local reached, done, locked = cardState(c, s)
+		local ready = reached and not done and not locked
+		c.claim.Visible = ready
+		c.state.Visible = not ready
+		c.state.Text = if done then "✔ " .. t("path.claimed") elseif locked then t("path.locked") else "🔒"
+		c.state.TextColor3 = if done
+			then Theme.color("Lime")
+			elseif locked then Theme.Colors.Gold
+			else Theme.Colors.Muted
+		c.stroke.Color = if ready
+			then Theme.Colors.Gold
+			elseif isNext then Theme.Colors.Sky
+			else Theme.color(RARITY_COLOR[c.rarity])
+		c.stroke.Thickness = if ready then 3 else 2
+		c.frame.BackgroundTransparency = if reached and not locked then 0 else 0.3
+		c.amount.TextColor3 = if reached and not locked then Theme.Colors.Text else Theme.Colors.Muted
+		if c.art:IsA("ImageLabel") then
+			c.art.ImageTransparency = if reached and not locked then 0 else 0.4
 		end
-		local left = s.left
-		seasonEnd.Text = if left ~= nil
-			then string.format(t("pass.endsIn"), ShopPanel.daysHours(left, lang))
-			else t("pass.noEnd")
-		passHeroStroke.Color = if s.premium then Theme.Colors.Gold else Theme.Colors.PanelBorder
-		if s.premium then
-			premHead.Text = t("pass.premiumOn")
-			premBody.Text = t("pass.premiumOnDesc")
-		else
-			premHead.Text = t("pass.premiumGives")
-			premBody.Text = string.format(
-				t("pass.totals"),
-				Strings.formatInt(paidTotal.medals),
-				paidTotal.crates,
-				paidTotal.tokens,
-				paidTotal.stock
-			) .. "\n" .. string.format(
-				t("pass.times"),
-				math.max(1, math.floor(paidTotal.medals / math.max(1, freeTotal.medals) + 0.5)),
-				t("title." .. (seasonTitle(tiers) or "Legend"))
-			)
+		local lock = c.lock
+		if lock ~= nil then
+			lock.Visible = locked
 		end
-		freeSub.Text = string.format(t("pass.laneFree"), math.max(0, s.tier - freeDone))
-		paidSub.Text = if s.premium
-			then string.format(t("pass.laneFree"), math.max(0, s.tier - paidDone))
-			else t("pass.laneLocked")
-		for tier = 1, tiers do
-			local reached = tier <= s.tier
-			paintCard(freeCards[tier], reached, tier <= freeDone, false, tier == s.tier + 1, nil)
-			paintCard(
-				paidCards[tier],
-				reached,
-				s.premium and tier <= paidDone,
-				not s.premium,
-				tier == s.tier + 1,
-				Theme.Colors.Gold
-			)
+		if c.bonus and ready then
+			local waiting = s.earned - (if c.premium then s.bonusPaid else s.bonus)
+			c.amount.Text = t("path.bonusName") .. " ×" .. waiting
 		end
-		paintTrack(passTrack, s.tier, if s.tier < tiers then s.xp / math.max(1, s.per) else 0)
-		local firstReady = math.min(freeDone, if s.premium then paidDone else freeDone) + 1
-		local focus = math.clamp(if firstReady <= s.tier then firstReady else s.tier + 1, 1, tiers)
-		if scrolled.pass ~= focus then
-			scrolled.pass = focus
-			scrollTo(passTrack, focus)
+		local shine = c.shine
+		if ready then
+			table.insert(readyCards, c)
+			shineOf(c).Visible = true
+		elseif shine ~= nil then
+			shine.Visible = false
+			c.pop.Scale = 1
 		end
 	end
 
 	local function draw()
 		local p = cs.profile
+		local s = state()
 		if p ~= nil then
 			setWallet("medals", p.medals)
 			setWallet("tokens", p.tokens)
 			setWallet("crates", p.crates)
 		end
-		local path, free, paid = ClientState.rewardsPending(cs)
-		setBadge(tabs.path, path)
-		setBadge(tabs.pass, free + paid)
-		for _, key in tabOrder do
-			local tab = tabs[key]
-			local on = key == current
-			tab.page.Visible = on
-			tab.button.BackgroundColor3 = if on then Theme.Colors.Gold else Theme.Colors.Backdrop
-			tab.button.TextColor3 = if on then Theme.color("Ink") else Theme.Colors.Text
-			tab.stroke.Color = if on then Theme.color("Ink") else Theme.Colors.PanelBorder
-		end
-		local premium = p ~= nil and p.season.premium
-		local n: number
-		if current == "path" then
-			drawPath()
-			n = path
-			how.Text = t("ranks.how")
-			buyPremium.Visible = false
+		local lv = s.level
+		local rank = Ranks.of(lv)
+		local into = if p ~= nil then p.xp else 0
+		local need = if p ~= nil then p.need else Profile.xpNeeded(1)
+		MenuKit.setRank(bigRank, rank, 7)
+		rankName.Text = t("rank." .. rank)
+		rankName.TextColor3 = groupColor(rank)
+		heroStroke.Color = groupColor(rank)
+		local percent = math.floor((lv - 1) / (LAST - 1) * 100)
+		levelLine.Text = string.format(t("ranks.levelLine"), lv, t("rank.troops." .. rank))
+			.. "  ·  "
+			.. string.format(t("path.done"), percent)
+		local path = if p ~= nil then p.path else nil
+		local bonusPer = if path ~= nil then path.bonusPer else nil
+		local bonusXp = if path ~= nil then path.bonusXp or 0 else 0
+		local frac = 0
+		if need > 0 then
+			frac = into / need
+			xpBar.set(frac)
+			xpText.Text = string.format(t("ranks.xp"), into, need, lv + 1)
+		elseif bonusPer ~= nil then
+			frac = bonusXp / math.max(1, bonusPer)
+			xpBar.set(frac)
+			xpText.Text = string.format(t("path.bonusLine"), Strings.formatInt(bonusXp), Strings.formatInt(bonusPer))
 		else
-			drawPass()
-			n = free + paid
-			how.Text = t("pass.how")
-			buyPremium.Visible = not premium
-			buyPremium.Text = string.format(t("pass.buy"), Config.Shop.Packs.SeasonPass.price)
+			xpBar.set(1)
+			xpText.Text = t("menu.maxLevel")
 		end
-		how.Size = UDim2.fromOffset(W - 2 * PAD - (if buyPremium.Visible then 600 else 300), 0)
+		premHead.Text = t(if s.premium then "path.premiumOn" else "path.premiumGives")
+		premBody.Text = premiumText
+		-- Лента.
+		table.clear(readyCards)
+		for i = 1, COLUMNS do
+			local isNext = i ~= BONUS_COL and FIRST + i - 1 == lv + 1
+			paintCard(freeCards[i], s, isNext)
+			paintCard(paidCards[i], s, isNext)
+		end
+		local free, paid, bonus = ClientState.rewardsPending(cs)
+		freeSub.Text = string.format(t("path.laneWaiting"), free)
+		paidSub.Text = if s.premium then string.format(t("path.laneWaiting"), paid) else t("path.laneLocked")
+		-- Линия: до центра пройденного столбца и доля пути к следующему (после 100-го — к бонусу).
+		local reachedIndex = lv - FIRST + 1
+		local cx = if reachedIndex <= 0 then 0 else (reachedIndex - 1) * COL + CARD_W / 2 + COL * frac
+		cx = math.clamp(cx, 0, canvasW - 16)
+		if lastFill < 0 then
+			fill.Size = UDim2.fromOffset(cx, 6)
+		elseif cx ~= lastFill then
+			TweenService:Create(
+				fill,
+				TweenInfo.new(0.8, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+				{ Size = UDim2.fromOffset(cx, 6) }
+			):Play()
+		end
+		lastFill = cx
+		for i, c in circles do
+			local reached = if i == BONUS_COL then s.earned > 0 else i <= reachedIndex
+			local nextOne = i == reachedIndex + 1
+			c.BackgroundColor3 = if reached
+				then Theme.Colors.Gold
+				elseif nextOne then Theme.Colors.Sky
+				else Theme.Colors.Slate
+			c.TextColor3 = if reached or nextOne then Theme.color("Ink") else Theme.Colors.Muted
+		end
+		drawAhead(lv)
+		-- Низ.
+		local n = free + paid + bonus
+		buyPremium.Visible = not s.premium
+		buyPremium.Text = string.format(t("path.buy"), Config.Shop.Packs.PathPremium.price)
+		local textW = W - 2 * PAD - (if buyPremium.Visible then 600 else 300)
+		detail.Size = UDim2.fromOffset(textW, 18)
+		how.Size = UDim2.fromOffset(textW, 40)
 		claimAll.Text = if n > 0 then string.format(t("path.claimAll"), n) else t("path.nothing")
 		claimAll.Active = n > 0
 		claimAll.AutoButtonColor = n > 0
 		claimAll.BackgroundTransparency = if n > 0 then 0 else 0.5
 		claimGlow.Enabled = n > 0
+		-- Прокрутка (один раз на открытие): первая готовая, иначе следующий уровень.
+		local firstReady = math.min(s.claimed, if s.premium then s.paid else s.claimed) + 1
+		local focus = if firstReady <= lv then firstReady else lv + 1
+		local index = math.clamp(focus - FIRST + 1, 1, COLUMNS)
+		if index ~= scrolledTo then
+			scrolledTo = index
+			local x = colX(index) + CARD_W / 2
+			scroll.CanvasPosition = Vector2.new(math.clamp(x - viewW / 2, 0, math.max(0, canvasW - viewW)), 0)
+		end
 	end
 
-	switchTab = function(key: TabKey)
-		current = key
-		scrolled[key] = nil
-		draw()
-	end
-
-	-- Пульс «готово»: «ЗАБРАТЬ ВСЁ» мягко дышит.
+	---------------------------------------------------------------------------------------------------------------
+	-- Эффекты.
+	local revealSpin: { Frame } = {}
 	Session.connect(RunService.Heartbeat, function()
 		if not window.Visible then
 			return
 		end
-		local k = 0.5 + 0.5 * math.sin(os.clock() * 4)
-		claimGlow.Transparency = 0.15 + 0.5 * k
+		local now = os.clock()
+		claimGlow.Transparency = 0.15 + 0.5 * (0.5 + 0.5 * math.sin(now * 4))
+		-- Золотой отлив бежит слева направо раз в 2.4 с.
+		local phase = (now % 2.4) / 2.4
+		for _, g in shimmers do
+			g.Offset = Vector2.new(phase * 2 - 1, 0)
+		end
+		-- Готовые карточки: блик проходит, карточка чуть покачивается.
+		for idx, c in readyCards do
+			local shine = c.shine
+			if shine ~= nil then
+				shine.Position = UDim2.fromScale((now * 0.6 + idx * 0.13) % 1.6 - 0.3, 0.5)
+			end
+			c.pop.Scale = 1 + 0.025 * math.sin(now * 3 + idx)
+		end
+		for _, spin in revealSpin do
+			spin.Rotation = (now * 25) % 360
+		end
 	end)
 
-	---------------------------------------------------------------------------------------------------------------
-	-- Анимации забора.
 	local function inWindow(g: GuiObject): Vector2
 		local f = UiScale.factor() * scale.Scale
 		return (g.AbsolutePosition + g.AbsoluteSize / 2 - window.AbsolutePosition) / f
@@ -1051,6 +1121,37 @@ function RanksPanel.new(
 		end
 	end
 
+	-- Искры: квадратики разлетаются и гаснут.
+	local function sparks(at: Vector2, color: Color3, count: number)
+		for _ = 1, count do
+			local bit = Instance.new("Frame")
+			bit.AnchorPoint = Vector2.new(0.5, 0.5)
+			bit.Position = UDim2.fromOffset(at.X, at.Y)
+			bit.Size = UDim2.fromOffset(6, 6)
+			bit.Rotation = math.random(0, 90)
+			bit.BackgroundColor3 = if math.random() < 0.3 then Color3.new(1, 1, 1) else color
+			bit.BorderSizePixel = 0
+			bit.ZIndex = 52
+			bit.Parent = fx
+			local a = math.random() * math.pi * 2
+			local dist = 40 + math.random() * 60
+			TweenService
+				:Create(
+					bit,
+					TweenInfo.new(0.5 + math.random() * 0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+					{
+						Position = UDim2.fromOffset(at.X + math.cos(a) * dist, at.Y + math.sin(a) * dist),
+						Rotation = bit.Rotation + 180,
+						BackgroundTransparency = 1,
+					}
+				)
+				:Play()
+			task.delay(0.9, function()
+				bit:Destroy()
+			end)
+		end
+	end
+
 	local function fly(from: Vector2, iconKey: string, to: string, amount: number)
 		local target = wallet[to]
 		if target == nil then
@@ -1060,34 +1161,41 @@ function RanksPanel.new(
 		local icon = MenuKit.icon(fx, iconKey, 4)
 		icon.AnchorPoint = Vector2.new(0.5, 0.5)
 		icon.Position = UDim2.fromOffset(from.X, from.Y)
-		icon.ZIndex = 52
+		icon.ZIndex = 53
 		for _, d in icon:GetDescendants() do
 			if d:IsA("GuiObject") then
-				d.ZIndex = 52
+				d.ZIndex = 53
 			end
 		end
+		-- Дуга: вверх и в сторону, потом в кошелёк.
+		local midX = (from.X + dest.X) / 2 + math.random(-40, 40)
+		local midY = math.min(from.Y, dest.Y) - 60
 		TweenService:Create(
 			icon,
-			TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-			{ Position = UDim2.fromOffset(from.X, from.Y - 40) }
+			TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{ Position = UDim2.fromOffset(midX, midY) }
 		):Play()
-		task.delay(0.25, function()
+		task.delay(0.3, function()
 			TweenService:Create(
 				icon,
-				TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+				TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
 				{ Position = UDim2.fromOffset(dest.X, dest.Y) }
 			):Play()
-			task.delay(0.5, function()
+			task.delay(0.45, function()
 				icon:Destroy()
-				-- Счётчик щёлкает к новому значению, плашка кошелька вспыхивает.
 				local start, goal = target.value, target.value + amount
 				target.value = goal
-				local steps = 10
-				for s = 1, steps do
-					task.delay(s * 0.03, function()
-						target.label.Text = Strings.formatInt(math.floor(start + (goal - start) * s / steps))
+				local steps = 12
+				for st = 1, steps do
+					task.delay(st * 0.03, function()
+						target.label.Text = Strings.formatInt(math.floor(start + (goal - start) * st / steps))
 					end)
 				end
+				TweenService:Create(
+					target.pop,
+					TweenInfo.new(0.12, Enum.EasingStyle.Back, Enum.EasingDirection.Out, 0, true),
+					{ Scale = 1.18 }
+				):Play()
 				TweenService:Create(
 					target.frame,
 					TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, 0, true),
@@ -1097,50 +1205,21 @@ function RanksPanel.new(
 		end)
 	end
 
-	-- «НОВОЕ ЗВАНИЕ»: погон крупно с прыжком, название, салют из конфетти.
-	local function rankUp(rank: number)
-		local shade = Instance.new("TextButton")
-		shade.Name = "RankUp"
-		shade.Text = ""
-		shade.AutoButtonColor = false
-		shade.Size = UDim2.fromScale(1, 1)
-		shade.BackgroundColor3 = Theme.Colors.Backdrop
-		shade.BackgroundTransparency = 0.15
-		shade.ZIndex = 60
-		shade.Parent = fx
-		MenuKit.corner(shade, Theme.CornerPx)
-		local head = MenuKit.label(shade, t("path.newRank"), 34, Theme.Colors.Gold, true)
-		head.FontFace = Theme.FontHeavy
-		head.AnchorPoint = Vector2.new(0.5, 0)
-		head.Position = UDim2.new(0.5, 0, 0, 110)
-		head.ZIndex = 61
-		local ep = MenuKit.rankIcon(shade, rank, 12) -- 192 px
-		ep.AnchorPoint = Vector2.new(0.5, 0.5)
-		ep.Position = UDim2.new(0.5, 0, 0, 330)
-		local grow = Instance.new("UIScale")
-		grow.Scale = 0.2
-		grow.Parent = ep
-		for _, d in ep:GetDescendants() do
-			if d:IsA("GuiObject") then
-				d.ZIndex = 61
-			end
-		end
-		local name = MenuKit.label(shade, t("rank." .. rank), 28, groupColor(rank), true)
-		name.AnchorPoint = Vector2.new(0.5, 0)
-		name.Position = UDim2.new(0.5, 0, 0, 450)
-		name.ZIndex = 61
-		TweenService:Create(grow, TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 })
-			:Play()
-		local colors = { "Gold", "Red", "Sky", "Lime", "Orange", "White" }
-		for k = 1, 36 do
+	-- Окно-открытие (новое звание, особая награда, премиум): лучи вращаются, крупно картинка, конфетти. Очередью.
+	type Reveal = { head: string, name: string, color: Color3, art: string?, rank: number?, sub: string? }
+	local queue: { Reveal } = {}
+	local showing = false
+	local function confetti(parent: Instance)
+		local colors = { "Gold", "Red", "Sky", "Lime", "Orange", "White", "Violet" }
+		for k = 1, 40 do
 			local bit = Instance.new("Frame")
 			bit.Size = UDim2.fromOffset(8, 12)
 			bit.Position = UDim2.fromOffset(math.random(40, W - 40), -20)
 			bit.Rotation = math.random(0, 90)
 			bit.BackgroundColor3 = Theme.color(colors[(k % #colors) + 1])
 			bit.BorderSizePixel = 0
-			bit.ZIndex = 62
-			bit.Parent = shade
+			bit.ZIndex = 64
+			bit.Parent = parent
 			local fall = TweenService:Create(
 				bit,
 				TweenInfo.new(1.4 + math.random() * 0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
@@ -1153,28 +1232,141 @@ function RanksPanel.new(
 				fall:Play()
 			end)
 		end
-		local function hide()
-			if shade.Parent ~= nil then
-				shade:Destroy()
+	end
+	local function showNext()
+		local item = table.remove(queue, 1)
+		if item == nil or not window.Visible then
+			showing = false
+			table.clear(queue)
+			return
+		end
+		showing = true
+		local shade = Instance.new("TextButton")
+		shade.Name = "Reveal"
+		shade.Text = ""
+		shade.AutoButtonColor = false
+		shade.Size = UDim2.fromScale(1, 1)
+		shade.BackgroundColor3 = Theme.Colors.Backdrop
+		shade.BackgroundTransparency = 0.1
+		shade.ZIndex = 60
+		shade.Parent = fx
+		MenuKit.corner(shade, Theme.CornerPx)
+		-- Вращающиеся лучи за картинкой.
+		local spin = Instance.new("Frame")
+		spin.Name = "Rays"
+		spin.AnchorPoint = Vector2.new(0.5, 0.5)
+		spin.Position = UDim2.new(0.5, 0, 0, 330)
+		spin.Size = UDim2.fromOffset(10, 10)
+		spin.BackgroundTransparency = 1
+		spin.ZIndex = 61
+		spin.Parent = shade
+		for k = 0, 11 do
+			local ray = Instance.new("Frame")
+			ray.AnchorPoint = Vector2.new(0.5, 1)
+			ray.Position = UDim2.fromScale(0.5, 0.5)
+			ray.Size = UDim2.fromOffset(26, 260)
+			ray.Rotation = k * 30
+			ray.BackgroundColor3 = item.color
+			ray.BackgroundTransparency = 0.8
+			ray.BorderSizePixel = 0
+			ray.ZIndex = 61
+			ray.Parent = spin
+			local grad = Instance.new("UIGradient")
+			grad.Rotation = 90
+			grad.Transparency = NumberSequence.new(0, 1)
+			grad.Parent = ray
+		end
+		table.insert(revealSpin, spin)
+		local head = MenuKit.label(shade, item.head, 34, Theme.Colors.Gold, true)
+		head.FontFace = Theme.FontHeavy
+		head.AnchorPoint = Vector2.new(0.5, 0)
+		head.Position = UDim2.new(0.5, 0, 0, 110)
+		head.ZIndex = 63
+		local holder = Instance.new("Frame")
+		holder.AnchorPoint = Vector2.new(0.5, 0.5)
+		holder.Position = UDim2.new(0.5, 0, 0, 330)
+		holder.Size = UDim2.fromOffset(240, 160)
+		holder.BackgroundTransparency = 1
+		holder.ZIndex = 62
+		holder.Parent = shade
+		local grow = Instance.new("UIScale")
+		grow.Scale = 0.2
+		grow.Parent = holder
+		local rank, art = item.rank, item.art
+		if rank ~= nil then
+			local ep = MenuKit.rankIcon(holder, rank, 10) -- 160 px
+			ep.Position = UDim2.fromOffset(40, 0)
+		elseif art ~= nil then
+			CardKit.art(holder, art, 240, 160)
+		end
+		for _, d in holder:GetDescendants() do
+			if d:IsA("GuiObject") then
+				d.ZIndex = 62
 			end
 		end
+		local name = MenuKit.label(shade, item.name, 28, item.color, true)
+		name.AnchorPoint = Vector2.new(0.5, 0)
+		name.Position = UDim2.new(0.5, 0, 0, 430)
+		name.ZIndex = 63
+		local sub = MenuKit.label(shade, item.sub or t("path.reveal.tap"), 14, Theme.Colors.Muted, true)
+		sub.AnchorPoint = Vector2.new(0.5, 0)
+		sub.Position = UDim2.new(0.5, 0, 0, 474)
+		sub.ZIndex = 63
+		TweenService:Create(grow, TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 })
+			:Play()
+		confetti(shade)
+		local closed = false
+		local function hide()
+			if closed then
+				return
+			end
+			closed = true
+			local i = table.find(revealSpin, spin)
+			if i ~= nil then
+				table.remove(revealSpin, i)
+			end
+			shade:Destroy()
+			task.delay(0.15, showNext)
+		end
 		Session.connect(shade.Activated, hide)
-		task.delay(3.5, hide)
+		task.delay(4, hide)
+	end
+	local function reveal(item: Reveal)
+		if #queue >= 5 then
+			return
+		end
+		table.insert(queue, item)
+		if not showing then
+			showNext()
+		end
 	end
 
-	-- Одна карточка: подпрыгнуть, лучи, значки в кошелёк.
-	local function celebrate(card: Card, r: any, delay: number, color: Color3)
+	-- Забор одной карточки: вспышка, подпрыгнуть, лучи, искры, значки в кошелёк.
+	local function celebrate(c: Card, r: PathReward, delay: number)
 		task.delay(delay, function()
 			if not window.Visible then
 				return
 			end
+			local flash = Instance.new("Frame")
+			flash.BackgroundColor3 = Color3.new(1, 1, 1)
+			flash.BackgroundTransparency = 0.6
+			flash.BorderSizePixel = 0
+			flash.Size = UDim2.fromScale(1, 1)
+			flash.ZIndex = 5
+			flash.Parent = c.frame
+			TweenService:Create(flash, TweenInfo.new(0.35), { BackgroundTransparency = 1 }):Play()
+			task.delay(0.4, function()
+				flash:Destroy()
+			end)
 			TweenService:Create(
-				card.pop,
+				c.pop,
 				TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out, 0, true),
-				{ Scale = 1.15 }
+				{ Scale = 1.18 }
 			):Play()
-			local at = inWindow(card.art)
+			local at = inWindow(c.art)
+			local color = if c.premium then Theme.Colors.Gold else Theme.color(RARITY_COLOR[c.rarity])
 			rays(at, color)
+			sparks(at, color, if c.rarity == "common" then 6 else 14)
 			if (r.medals or 0) > 0 then
 				fly(at, "money", "medals", r.medals)
 			end
@@ -1192,46 +1384,107 @@ function RanksPanel.new(
 		if type(msg) ~= "table" or type(msg.got) ~= "table" then
 			return
 		end
-		-- Анимация — на вкладке, где забрали (ответ сервера о другой — переключиться на неё).
-		local want: TabKey = if msg.kind == "seasonClaimed" then "pass" else "path"
-		if current ~= want then
-			current = want
-			draw()
-		end
 		local newRank: number? = nil
+		local specials: { Reveal } = {}
 		for i, item in msg.got :: { any } do
-			-- Видимые — по одному с паузой; далёкие (за краем ленты) — без отдельной паузы.
-			local delay = math.min(i - 1, 10) * 0.18
-			if msg.kind == "seasonClaimed" then
-				local card = if item.premium then paidCards[item.tier] else freeCards[item.tier]
-				if card ~= nil then
-					celebrate(card, item.reward, delay, if item.premium then Theme.Colors.Gold else Theme.Colors.Sky)
-				end
-			else
-				if tierAt[item.level] ~= nil then
-					newRank = tierAt[item.level]
-				end
-				local card = pathCards[item.level]
-				if card ~= nil then
-					celebrate(card, item.reward, delay, Theme.Colors.Gold)
-				end
+			local r = item.reward :: PathReward
+			local index = if item.bonus then BONUS_COL else (tonumber(item.level) or 0) - FIRST + 1
+			local card = if item.premium then paidCards[index] else freeCards[index]
+			if card ~= nil then
+				celebrate(card, r, math.min(i - 1, 12) * 0.15)
+			end
+			if not item.premium and not item.bonus and tierAt[item.level] ~= nil then
+				newRank = tierAt[item.level]
+			end
+			local unit, pass, cosmetic = r.unit, r.pass, r.cosmetic
+			if unit ~= nil then
+				table.insert(specials, {
+					head = t("path.reveal.unit"),
+					name = unitName(unit),
+					color = Theme.color("Orange"),
+					art = "unlock." .. unit,
+				})
+			end
+			if pass ~= nil then
+				table.insert(specials, {
+					head = t("path.reveal.pass"),
+					name = t("shop." .. pass),
+					color = Theme.color("Orange"),
+					art = "shop." .. pass,
+				})
+			end
+			if cosmetic ~= nil then
+				local kind, id, name = cosmeticName(cosmetic)
+				table.insert(specials, {
+					head = t(if kind == "title" then "path.reveal.title" else "path.reveal.cosmetic"),
+					name = name,
+					color = Theme.color("Violet"),
+					art = kind .. "." .. id,
+				})
 			end
 		end
-		if newRank ~= nil then
-			local shown = newRank :: number
-			task.delay(math.min(#msg.got, 10) * 0.18 + 0.9, function()
-				if window.Visible then
-					rankUp(shown)
-				end
-			end)
-		end
+		task.delay(math.min(#msg.got, 12) * 0.15 + 0.9, function()
+			if not window.Visible then
+				return
+			end
+			local shown = newRank
+			if shown ~= nil then
+				reveal({ head = t("path.newRank"), name = t("rank." .. shown), color = groupColor(shown), rank = shown })
+			end
+			for _, sp in specials do
+				reveal(sp)
+			end
+		end)
 	end
 
+	-- Покупка премиума: замки слетают, окно «ПРЕМИУМ-ДОРОГА ОТКРЫТА».
+	local lastPremium: boolean? = nil
+	local function checkPremium()
+		local now = state().premium
+		if lastPremium == false and now and window.Visible then
+			for _, c in paidCards do
+				local lock = c.lock
+				if lock ~= nil then
+					local clone = lock:Clone()
+					clone.Visible = true
+					clone.Parent = c.frame
+					TweenService:Create(
+						clone,
+						TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+						{ Position = lock.Position - UDim2.fromOffset(0, 40), TextTransparency = 1, Rotation = 40 }
+					):Play()
+					task.delay(0.65, function()
+						clone:Destroy()
+					end)
+				end
+			end
+			reveal({
+				head = t("path.reveal.premium"),
+				name = t("shop.PathPremium"),
+				color = Theme.Colors.Gold,
+				art = "shop.PathPremium",
+				sub = t("path.reveal.premiumDesc"),
+			})
+		end
+		lastPremium = now
+	end
+
+	local openPos = window.Position
 	local function toggle()
 		window.Visible = not window.Visible
 		if window.Visible then
-			scrolled = {}
+			scrolledTo = -1
+			lastFill = -1
+			detail.Text = ""
+			-- Въезд снизу с пружинкой.
+			window.Position = openPos + UDim2.fromOffset(0, 40)
+			TweenService:Create(
+				window,
+				TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+				{ Position = openPos }
+			):Play()
 			draw()
+			checkPremium()
 		end
 	end
 	Session.connect(close.Activated, function()
@@ -1255,6 +1508,7 @@ function RanksPanel.new(
 			if window.Visible then
 				draw()
 			end
+			checkPremium()
 		end,
 		onClaimed = onClaimed,
 		pending = pending,

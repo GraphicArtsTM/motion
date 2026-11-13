@@ -61,7 +61,7 @@ local function step(kind: string, o: MatchOutcome): number
 end
 
 -- Итог матча: прогресс, награды выполненных, жетон за все. Возвращает выполненные сейчас и жетонов выдано.
-function Quests.onMatch(d: Profile.Data, o: MatchOutcome, day: number, userId: number, now: number): ({ Done }, number)
+function Quests.onMatch(d: Profile.Data, o: MatchOutcome, day: number, userId: number, _now: number): ({ Done }, number)
 	Quests.sync(d, day, userId)
 	local done: { Done } = {}
 	for _, q in d.quests do
@@ -78,7 +78,7 @@ function Quests.onMatch(d: Profile.Data, o: MatchOutcome, day: number, userId: n
 				q.progress = row.target
 				q.done = true
 				d.medals += row.medals
-				Profile.addSeasonXp(d, row.xp, now)
+				Profile.addXp(d, row.xp) -- §15ю Ю1: опыт заданий — в «Путь командира» (пропуска сезона больше нет)
 				table.insert(done, { pool = q.pool, medals = row.medals, xp = row.xp })
 			end
 		end

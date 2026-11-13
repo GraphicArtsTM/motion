@@ -30,10 +30,11 @@ onPointEnd` → `pointAt` в `Main.client` (общий для мыши и пал
 (`Config.Path`), забрать — намерение `pathClaim` → `Profile.pathClaim` (событие `pathClaimed`, `pathClaimed` в профиле);
 Щ2 — погоны в `Ranks.icon` (превью `tools/epaulette_preview`); Щ3 — окно с лентой наград и анимациями.
 **§15э:** Э1 — техника в блоке: `Config.Unlocks`, `Profile.unitUnlocked`, `MatchSim.unitAllowed` (`unitLocked` /
-`siloLocked`; дуэль и боты — без ограничений), `ClientState.unitOpen`, вкладка «Техника» в магазине. Э2 — пропуск
-двумя дорогами, награды забирает игрок: `Profile.claimSeason / seasonClaimable` (намерение `seasonClaim`, событие
-`seasonClaimed`), числа — `Config.Season.Free / Premium`. Э3 — `UI/RanksPanel`: вкладки «Путь» / «Пропуск»,
-`ClientState.rewardsPending` — метки.
+`siloLocked`; дуэль и боты — без ограничений), `ClientState.unitOpen`, вкладка «Техника» в магазине. 
+**§15ю Единый путь** (заменил Э2–Э3 и сезон): уровни 2…100, бесплатная (`Profile.pathReward`) и премиум-дорога
+(`Profile.premiumReward`, `Config.Path.Premium`, покупка `PathPremium`); `Profile.pathClaim` — обе дороги и бонусы после
+100-го (`bonusEarned`); улучшения с дороги — `Profile.passesWith` (в `MatchService.passesOf`); эксклюзивная косметика —
+`Cosmetics.pathSource`; окно — `UI/RanksPanel` (рамка `RanksBoard`), метки — `ClientState.rewardsPending`.
 - §15ц Ц5г: окно в списке самопроверки (`windows` в `Main.client`) — с `frame` (имя рамки: проверка «влезает в
   экран»); блок «Экран матча» в `SelfCheck` (заголовки полосы, кнопки у мини-карты, наложения, одно окно за раз) —
   новую рамку HUD снизу или справа добавить в его список наложений.

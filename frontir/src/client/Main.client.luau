@@ -979,7 +979,7 @@ local function runSession(mapId: string, resync: boolean)
 			HowToPlay = "help",
 			Handbook = "help",
 			ArsenalWindow = "arsenal",
-			RanksWindow = "ranks",
+			RanksBoard = "ranks",
 			GameMenuWindow = "gamemenu",
 			Tech = "tech",
 			Diplomacy = "diplomacy",
@@ -1274,7 +1274,7 @@ local function runSession(mapId: string, resync: boolean)
 			{ name = "магазин", toggle = shopPanel.toggle, isOpen = shopPanel.isOpen, frame = "Shop" },
 			{ name = "гардероб", toggle = wardrobe.toggle, isOpen = wardrobe.isOpen, frame = "Wardrobe" },
 			{ name = "задания", toggle = questsPanel.toggle, isOpen = questsPanel.isOpen, frame = "Quests" },
-			{ name = "звания", toggle = ranksPanel.toggle, isOpen = ranksPanel.isOpen, frame = "RanksWindow" },
+			{ name = "звания", toggle = ranksPanel.toggle, isOpen = ranksPanel.isOpen, frame = "RanksBoard" },
 			{
 				name = "арсенал",
 				toggle = arsenalPanel.toggle,
@@ -1388,8 +1388,8 @@ local function runSession(mapId: string, resync: boolean)
 			questsPanel.refresh()
 		end,
 		onShopEvent = function(msg: any)
-			if msg.kind == "pathClaimed" or msg.kind == "seasonClaimed" then
-				ranksPanel.onClaimed(msg) -- §15щ Щ3 / §15э Э3: анимация забора наград (путь или пропуск)
+			if msg.kind == "pathClaimed" then
+				ranksPanel.onClaimed(msg) -- §15щ Щ3 / §15ю Ю7: анимация забора наград обеих дорог
 				return
 			end
 			if msg.kind == "quests" then

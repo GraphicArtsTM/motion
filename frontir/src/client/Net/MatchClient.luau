@@ -134,13 +134,8 @@ function MatchClient.connect(cs: ClientState, handlers: Handlers, mapId: string?
 					handlers.onLeaders()
 				end
 			elseif
-				(
-					msg.kind == "daily"
-					or msg.kind == "crate"
-					or msg.kind == "quests"
-					or msg.kind == "pathClaimed"
-					or msg.kind == "seasonClaimed"
-				) and handlers.onShopEvent ~= nil
+				(msg.kind == "daily" or msg.kind == "crate" or msg.kind == "quests" or msg.kind == "pathClaimed")
+				and handlers.onShopEvent ~= nil
 			then
 				handlers.onShopEvent(msg)
 			elseif msg.kind == "profile" then
