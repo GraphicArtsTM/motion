@@ -39,12 +39,11 @@ T.describe("Иконки зданий и юнитов (§15ш Ш5)", function()
 			do
 				T.expect(IconArt.forKey("strike." .. k) ~= nil).toBe(true)
 			end
-			for _, k in { "Reinforce", "Convoy", "Barrage", "Jammer" } do
+			for _, k in { "Reinforce", "Convoy", "HqReserve", "Barrage", "Jammer" } do
 				T.expect(IconArt.forKey("arsenal." .. k) ~= nil).toBe(true)
 			end
 			for key in PixelIcons.Icons do
-				-- «Резерв штаба» картинки пока не получил — остаётся пиксельным значком.
-				T.expect(IconArt.has(key) or key == "hqReserve").toBe(true)
+				T.expect(IconArt.has(key)).toBe(true)
 			end
 			T.expect(IconArt.has("menu") and IconArt.has("home")).toBe(true)
 			T.expect(IconArt.forKey("naval.port")).toBe(nil) -- сцены остаются картинками ItemArt

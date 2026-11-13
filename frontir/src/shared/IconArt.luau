@@ -33,6 +33,7 @@ local BY_KEY: { [string]: string } = {
 	["arsenal.Convoy"] = "convoy",
 	["arsenal.Barrage"] = "barrage",
 	["arsenal.Jammer"] = "jammer",
+	["arsenal.HqReserve"] = "hqReserve",
 }
 
 function IconArt.has(name: string): boolean
