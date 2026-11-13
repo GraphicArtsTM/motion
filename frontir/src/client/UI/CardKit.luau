@@ -12,8 +12,10 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local IconArt = require(Shared:WaitForChild("IconArt"))
 local ItemArt = require(Shared:WaitForChild("ItemArt"))
 
+local IconImage = require(script.Parent:WaitForChild("IconImage"))
 local MenuKit = require(script.Parent:WaitForChild("MenuKit"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
 local UiScale = require(script.Parent:WaitForChild("UiScale"))
@@ -59,6 +61,32 @@ CardKit.MainW = 300 -- §15ц Ц4а: главная кнопка внизу ок
 local editables: { [ImageLabel]: EditableImage } = setmetatable({}, { __mode = "k" }) :: any
 
 -- Картинка предмета: EditableImage на сессию.
+-- §15ш Ш5: здание, юнит, корабль, самолёт — иконка IconArt (вписана, на тёмном фоне); остальное — сцена ItemArt.
+local function paintArt(img: ImageLabel, key: string)
+	local icon = IconArt.forKey(key)
+	local content = if icon ~= nil then IconImage.content(icon) else nil
+	if content ~= nil then
+		img.ImageContent = content
+		img.ScaleType = Enum.ScaleType.Fit
+		return
+	end
+	img.ScaleType = Enum.ScaleType.Crop
+	local editable: EditableImage? = editables[img]
+	if editable == nil then
+		local ok, image = pcall(function(): EditableImage?
+			return AssetService:CreateEditableImage({ Size = Vector2.new(ItemArt.W, ItemArt.H) })
+		end)
+		if not ok or image == nil then
+			return
+		end
+		editable = Session.track(image :: EditableImage)
+		editables[img] = editable :: EditableImage
+	end
+	local e = editable :: EditableImage
+	e:WritePixelsBuffer(Vector2.zero, Vector2.new(ItemArt.W, ItemArt.H), ItemArt.paint(key))
+	img.ImageContent = Content.fromObject(e)
+end
+
 function CardKit.art(parent: Instance, key: string, w: number, h: number): ImageLabel
 	local img = Instance.new("ImageLabel")
 	img.Name = "Art"
@@ -68,16 +96,7 @@ function CardKit.art(parent: Instance, key: string, w: number, h: number): Image
 	img.ResampleMode = Enum.ResamplerMode.Pixelated
 	img.ScaleType = Enum.ScaleType.Crop
 	img.Parent = parent
-	local ok, image = pcall(function(): EditableImage?
-		return AssetService:CreateEditableImage({ Size = Vector2.new(ItemArt.W, ItemArt.H) })
-	end)
-	if ok and image ~= nil then
-		local editable = image :: EditableImage
-		Session.track(editable)
-		editable:WritePixelsBuffer(Vector2.zero, Vector2.new(ItemArt.W, ItemArt.H), ItemArt.paint(key))
-		img.ImageContent = Content.fromObject(editable)
-		editables[img] = editable
-	end
+	paintArt(img, key)
 	img:SetAttribute("ArtKey", key)
 	MenuKit.stroke(img, Theme.color("Ink"), 2)
 	return img
@@ -89,10 +108,7 @@ function CardKit.repaint(img: ImageLabel, key: string)
 		return
 	end
 	img:SetAttribute("ArtKey", key)
-	local editable: EditableImage? = editables[img]
-	if editable then
-		editable:WritePixelsBuffer(Vector2.zero, Vector2.new(ItemArt.W, ItemArt.H), ItemArt.paint(key))
-	end
+	paintArt(img, key)
 end
 
 function CardKit.button(parent: Instance, text: string, style: MenuKit.ButtonStyle, order: number?): TextButton

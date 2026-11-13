@@ -25,6 +25,7 @@ local Strings = require(Shared:WaitForChild("Strings"))
 local Types = require(Shared:WaitForChild("Types"))
 local UnitSprites = require(Shared:WaitForChild("UnitSprites"))
 
+local IconImage = require(script.Parent:WaitForChild("IconImage"))
 local MenuKit = require(script.Parent:WaitForChild("MenuKit"))
 local ResourceBar = require(script.Parent:WaitForChild("ResourceBar"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
@@ -278,8 +279,14 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 
 	-- §15ц Ц3 клетка: значок своим цветом вида, под ним короткое название; клавиша — в левом верхнем уголке,
 	-- цена — в правом; не хватает денег — блёкло, нет технологии или казарм — замок вместо цены.
-	type Slot =
-		{ button: TextButton, icon: Frame?, price: TextLabel, badge: TextLabel, name: TextLabel, edge: UIStroke }
+	type Slot = {
+		button: TextButton,
+		icon: GuiObject?,
+		price: TextLabel,
+		badge: TextLabel,
+		name: TextLabel,
+		edge: UIStroke,
+	}
 	local function makeSlot(parent: Instance, name: string, order: number, key: string?, short: string): Slot
 		local b = Instance.new("TextButton")
 		b.Name = name
@@ -323,7 +330,9 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 	end
 	local function dim(s: Slot, on: boolean)
 		local icon = s.icon
-		if icon ~= nil then
+		if icon ~= nil and icon:IsA("ImageLabel") then
+			icon.ImageTransparency = if on then 0.6 else 0 -- §15ш Ш5: иконка-картинка
+		elseif icon ~= nil then
 			for _, f in icon:GetChildren() do
 				if f:IsA("Frame") then
 					f.BackgroundTransparency = if on then 0.6 else 0
@@ -341,6 +350,18 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 		fit.Scale = 0.75
 		fit.Parent = icon
 		s.icon = icon
+	end
+	-- §15ш Ш5: иконка-картинка (IconArt) — во всю высоту между строкой «клавиша · цена» и названием.
+	local ICON_PX = 30
+	local function placeImage(s: Slot, name: string): boolean
+		local img = IconImage.label(s.button, name, ICON_PX)
+		if img == nil then
+			return false
+		end
+		img.AnchorPoint = Vector2.new(0.5, 0)
+		img.Position = UDim2.new(0.5, 0, 0, 12)
+		s.icon = img
+		return true
 	end
 	local function slotsRow(parent: Instance, name: string): Frame
 		local row = MenuKit.box(parent, name, 1)
@@ -382,7 +403,9 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 	local queueBadges: { TextLabel } = {}
 	for k, unit in Types.LandUnits do
 		local s = makeSlot(hireRow, "Hire" .. unit, k, KEY_HIRE[k], t("unit." .. unit .. ".short"))
-		placeIcon(s, unitIcon(s.button, unit, Theme.color(cfg.UnitColors[unit])))
+		if not placeImage(s, unit) then
+			placeIcon(s, unitIcon(s.button, unit, Theme.color(cfg.UnitColors[unit])))
+		end
 		local q = MenuKit.label(s.button, "", 11, Theme.Colors.Sky, true)
 		q.AnchorPoint = Vector2.new(1, 1)
 		q.Position = UDim2.new(1, -3, 1, -14)
@@ -427,7 +450,9 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 		local key = if k <= 9 then tostring(k) elseif k == 10 then "0" else nil
 		local s = makeSlot(buildRow, "Build" .. kind, k, key, t("building." .. kind .. ".short"))
 		local kindColor: string = (cfg.KindColors :: { [string]: string })[kind] or "Mist"
-		placeIcon(s, deps.buildIcon(s.button, kind, Theme.color(kindColor)))
+		if not placeImage(s, kind) then
+			placeIcon(s, deps.buildIcon(s.button, kind, Theme.color(kindColor)))
+		end
 		Session.connect(s.button.Activated, function()
 			deps.build.pick(kind)
 		end)

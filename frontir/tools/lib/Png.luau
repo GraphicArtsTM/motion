@@ -1,6 +1,7 @@
 --!strict
 --[[
-	Png — запись PNG (RGB, 8 бит) для Lune-инструментов: превью палитры и партий в docs/.
+	Png — запись PNG (RGB, 8 бит) для Lune-инструментов: превью палитры и партий в docs/; чтение PNG
+	(8 бит, RGB / RGBA, без чересстрочности) — для tools/icon_pack.
 	Сжатие — zlib из @lune/serde, CRC32 — свой. Текстовые блоки tEXt помогают тестам понять,
 	соответствует ли картинка текущему коду.
 ]]
@@ -63,6 +64,79 @@ function Png.encodeRgb(width: number, height: number, pixels: buffer, text: { [s
 	table.insert(parts, chunk("IDAT", serde.compress("zlib", table.concat(rows))))
 	table.insert(parts, chunk("IEND", ""))
 	return table.concat(parts)
+end
+
+local function u32at(s: string, i: number): number
+	local a, b, c, d = string.byte(s, i, i + 3)
+	return ((a * 256 + b) * 256 + c) * 256 + d
+end
+
+export type Image = { width: number, height: number, rgba: buffer } -- RGBA по 4 байта, строки сверху вниз
+
+-- Чтение PNG: 8 бит на канал, RGB (тип 2) или RGBA (тип 6), без чересстрочности; фильтры строк 0–4.
+function Png.decode(data: string): Image
+	assert(string.sub(data, 1, 8) == "\137PNG\r\n\26\n", "не PNG")
+	local pos = 9
+	local width, height, colorType = 0, 0, 0
+	local idat: { string } = {}
+	while pos <= #data do
+		local len = u32at(data, pos)
+		local kind = string.sub(data, pos + 4, pos + 7)
+		local body = string.sub(data, pos + 8, pos + 7 + len)
+		if kind == "IHDR" then
+			width, height = u32at(body, 1), u32at(body, 5)
+			local depth, interlace = string.byte(body, 9), string.byte(body, 13)
+			colorType = string.byte(body, 10)
+			assert(
+				depth == 8 and interlace == 0 and (colorType == 2 or colorType == 6),
+				"PNG: нужен 8 бит RGB/RGBA"
+			)
+		elseif kind == "IDAT" then
+			table.insert(idat, body)
+		elseif kind == "IEND" then
+			break
+		end
+		pos += 12 + len
+	end
+	local raw = serde.decompress("zlib", table.concat(idat))
+	local bpp = if colorType == 6 then 4 else 3
+	local stride = width * bpp
+	local cur = buffer.create(stride)
+	local prev = buffer.create(stride)
+	local out = buffer.create(width * height * 4)
+	local p = 1
+	for y = 0, height - 1 do
+		local filter = string.byte(raw, p)
+		p += 1
+		for x = 0, stride - 1 do
+			local v = string.byte(raw, p + x)
+			local left = if x >= bpp then buffer.readu8(cur, x - bpp) else 0
+			local up = buffer.readu8(prev, x)
+			local ul = if x >= bpp then buffer.readu8(prev, x - bpp) else 0
+			if filter == 1 then
+				v += left
+			elseif filter == 2 then
+				v += up
+			elseif filter == 3 then
+				v += (left + up) // 2
+			elseif filter == 4 then
+				local pp = left + up - ul
+				local pa, pb, pc = math.abs(pp - left), math.abs(pp - up), math.abs(pp - ul)
+				v += if pa <= pb and pa <= pc then left elseif pb <= pc then up else ul
+			end
+			buffer.writeu8(cur, x, v % 256)
+		end
+		p += stride
+		for x = 0, width - 1 do
+			local o = (y * width + x) * 4
+			buffer.writeu8(out, o, buffer.readu8(cur, x * bpp))
+			buffer.writeu8(out, o + 1, buffer.readu8(cur, x * bpp + 1))
+			buffer.writeu8(out, o + 2, buffer.readu8(cur, x * bpp + 2))
+			buffer.writeu8(out, o + 3, if bpp == 4 then buffer.readu8(cur, x * bpp + 3) else 255)
+		end
+		cur, prev = prev, cur
+	end
+	return { width = width, height = height, rgba = out }
 end
 
 return table.freeze(Png)

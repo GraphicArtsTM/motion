@@ -21,6 +21,8 @@
 onPointEnd` → `pointAt` в `Main.client` (общий для мыши и пальца); окна из меню — тоже в `sheets` (`sheetOf`);
 Совет — кнопка у мини-карты и F. Ш4: Угрозы и Метки — `MapButtons.new(..., tools)` (квадраты над зумом),
 подсказка клетки полосы по касанию (`CommandBar.withTip`), подписи карты × `UiScale.factor`, GDD §10 — новый.
+Ш5: иконки зданий и юнитов — PNG в `assets/icons` → `lune run tools/icon_pack` → `IconData` (не править руками);
+чистый `IconArt.forKey / paint`, клиент `UI/IconImage` (EditableImage, кеш на сессию); стоят в `CommandBar` и `CardKit.art`.
 - §15ц Ц5г: окно в списке самопроверки (`windows` в `Main.client`) — с `frame` (имя рамки: проверка «влезает в
   экран»); блок «Экран матча» в `SelfCheck` (заголовки полосы, кнопки у мини-карты, наложения, одно окно за раз) —
   новую рамку HUD снизу или справа добавить в его список наложений.
@@ -82,6 +84,7 @@ rojo serve              # синхронизация со Studio
 lune run tools/realmap all     # пересоздать реальные карты maps/*.luau (данные кешируются в build/geo/)
 lune run tools/maps_preview    # лист всех карт → build/maps.png
 lune run tools/map_thumbs      # миниатюры карт для хаба → src/shared/MapThumbs.luau
+lune run tools/icon_pack       # иконки зданий и юнитов assets/icons → src/shared/IconData.luau (превью build/icons_pack.png)
 lune run tools/bench World 60 180  # нагрузка: время тика и трафик на 60 ботах
 lune run tools/genmap Pangea   # пересоздать тестовую maps/Pangea.luau (+ превью build/Pangea.bmp)
 lune run tools/palette_preview # пересоздать docs/palette.png после правки цветов
