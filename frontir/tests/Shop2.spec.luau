@@ -141,11 +141,11 @@ T.describe("Магазин 2.0: без противоречий (§15я Я1)", f
 				T.expect(Shop.saving(cfg.price, parts) > 0).toBe(true)
 			end
 			-- Предложение недели дешевле частей в КАЖДУЮ неделю круга.
-		for w = 0, #Config.Shop.WeeklyOffers - 1 do
-			local at = Config.Modes.WeekStartUnix + w * 7 * 86400 + 3600
-			T.expect((Shop.partsPrice("Weekly", at) :: number) > Config.Shop.Packs.Weekly.price).toBe(true)
-		end
-		T.expect(Shop.saving(100, 90)).toBe(0)
+			for w = 0, #Config.Shop.WeeklyOffers - 1 do
+				local at = Config.Modes.WeekStartUnix + w * 7 * 86400 + 3600
+				T.expect((Shop.partsPrice("Weekly", at) :: number) > Config.Shop.Packs.Weekly.price).toBe(true)
+			end
+			T.expect(Shop.saving(100, 90)).toBe(0)
 			T.expect(Shop.saving(50, 100)).toBe(50)
 			T.expect(Config.Unlocks.All.price < (Shop.partsPrice("UnlockAll", NOW) :: number)).toBe(true)
 			for _, key in Shop.PackKeys do

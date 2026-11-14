@@ -1,6 +1,6 @@
 --!strict
 --[[
-	CardArt — карточки ударов (§15ш Ш8), чистый модуль: какой картинке интерфейса («strike.<удар>») соответствует
+	CardArt — карточки ударов (§15ш Ш8) и товаров (§15я), чистый модуль: какой картинке интерфейса («strike.*», «shop.*», «unlock.*») соответствует
 	карточка и её пиксели RGBA. Данные — CardData (делает tools/card_pack из assets/cards; полный цвет, у каждой
 	карточки своя палитра — исключение из «только палитра», решение геймдизайнера). Клиент — UI/IconImage.card.
 ]]
@@ -24,6 +24,37 @@ local BY_KEY: { [string]: string } = {
 	["strike.Propaganda"] = "ability_propaganda",
 	["strike.Fortify"] = "ability_fortify",
 	["strike.Airdrop"] = "ability_airdrop",
+	-- §15я: магазин и «Путь командира» (промпты — docs/ART_PROMPTS_SHOP.md); нет картинки — пиксели ItemArt.
+	["shop.PathPremium"] = "shop_pathpremium",
+	["shop.PathPremiumPlus"] = "shop_pathpremiumplus",
+	["unlock.Tanks"] = "unlock_tanks",
+	["unlock.Artillery"] = "unlock_artillery",
+	["unlock.AntiAir"] = "unlock_antiair",
+	["unlock.Missile"] = "unlock_missile",
+	["unlock.All"] = "unlock_all",
+	["shop.Weekly"] = "shop_weekly",
+	["shop.XpBoost1"] = "shop_xpboost",
+	["shop.XpBoost7"] = "shop_xpboost",
+	["shop.ParadeSet"] = "shop_paradeset",
+	["shop.Crates"] = "shop_crates",
+	["shop.Crate1"] = "shop_crates",
+	["shop.Crate5"] = "shop_crates",
+	["shop.Recruit"] = "shop_recruit",
+	["shop.Levels5"] = "shop_levels",
+	["shop.Medals"] = "shop_medals",
+	["shop.Tokens"] = "shop_tokens",
+	["shop.HQ"] = "pass_hq",
+	["shop.Intel"] = "pass_intel",
+	["shop.Vip"] = "pass_vip",
+	["shop.AllCommanders"] = "pass_allcommanders",
+	["shop.Mobilize"] = "boost_mobilize",
+	["shop.Loan"] = "boost_loan",
+	["shop.Research"] = "boost_research",
+	["shop.Reserve"] = "boost_reserve",
+	["shop.Guards"] = "boost_guards",
+	["shop.Airstrike"] = "ability_airstrike", -- уже есть
+	["shop.Squadron"] = "boost_squadron",
+	["shop.AirWing"] = "boost_airwing",
 }
 
 type Card = { palette: string, data: string }

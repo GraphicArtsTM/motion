@@ -112,6 +112,8 @@ T.describe("Карточки ударов (§15ш Ш8)", function()
 				T.expect(hi - lo > 100).toBe(true)
 			end
 			T.expect(CardArt.forKey("building.City")).toBe(nil)
+			-- §15я: «Авиаудар» в магазине — та же гладкая карточка; картинки ещё нет — пиксели (nil).
+			T.expect(CardArt.forKey("shop.Airstrike")).toBe("ability_airstrike")
 			T.expect(CardArt.paint("nope")).toBe(nil)
 		end
 	)
