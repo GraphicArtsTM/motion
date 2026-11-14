@@ -296,6 +296,9 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				bonusPer = bonusPer,
 			},
 			unitUnlocks = Profile.unlockedUnits(d), -- §15э Э1
+			pathPasses = Profile.pathPasses(d), -- §15я Я1: какие улучшения даны «Путём» (магазин пишет «с Пути»)
+			ownedPasses = shop.passes(player), -- …и какие куплены геймпассом
+			xpBoostLeft = Profile.xpBoostLeft(d, now), -- §15я: ускоритель опыта
 			weekly = {
 				offer = (function(): { [string]: any }
 					local o = Shop.weeklyOffer(now)
@@ -1195,7 +1198,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			if session == nil then
 				return
 			end
-			local got = Profile.pathClaim(session.data)
+			local got = Profile.pathClaim(session.data, shop.passes(player)) -- §15я Я1: купленное — медалями
 			if #got == 0 then
 				matchEvent:FireClient(player, { kind = "rejected", reason = "nothingToClaim", intent = "pathClaim" })
 				return

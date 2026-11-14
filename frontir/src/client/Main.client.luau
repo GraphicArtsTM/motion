@@ -425,7 +425,13 @@ local function runSession(mapId: string, resync: boolean)
 	end
 	local modePanel = ModePanel.new(hudGui, cs, lang, send)
 	local serverPanel = ServerPanel.new(hudGui, cs, lang, send) -- частный сервер (§5.4)
-	local shopPanel = ShopPanel.new(hudGui, cs, lang, send, hud.toast) -- профиль и магазин (§11.1)
+	local openPath: (() -> ())? = nil -- §15я: «Открыть Путь» из магазина (окно «Путь» создаётся ниже)
+	local shopPanel = ShopPanel.new(hudGui, cs, lang, send, hud.toast, function()
+		local fn = openPath
+		if fn ~= nil then
+			fn()
+		end
+	end) -- профиль и магазин (§11.1)
 	local wardrobe = WardrobePanel.new(hudGui, cs, lang, send) -- косметика и флаг (§11.4)
 	local arsenalPanel = ArsenalPanel.new(hudGui, cs, lang, send) -- §15л ч.6 (окно переедет в слой окон)
 	-- Применить предмет Арсенала: по клетке — следующим нажатием на карту.
@@ -717,6 +723,7 @@ local function runSession(mapId: string, resync: boolean)
 		end
 	end
 	local ranksPanel = RanksPanel.new(windowsGui, cs, lang, send, hud.toast) -- §15щ Щ3: лента наград, забрать — pathClaim
+	openPath = ranksPanel.toggle
 	-- §15х ч.5: справочник механик — из окна «Как играть» (окно «Как играть» закрывается, справочник — поверх).
 	local handbook = HandbookPanel.new(windowsGui, lang)
 	table.insert(sheets, { -- §15ц Ц4а: справочник — тоже «одно окно за раз»

@@ -130,8 +130,10 @@ T.describe("Единый путь: премиум-дорога (§15ю)", functi
 				for _, it in Cosmetics.list(kind :: any) do
 					T.expect(ItemArt.has(kind .. "." .. it.id)).toBe(true)
 					if it.price == nil and it.level == nil then
+						-- Эксклюзив: на «Пути» или в наборе магазина — ровно в одном месте (§15я Я1).
 						local lv = Cosmetics.pathSource(kind :: any, it.id)
-						T.expect(lv ~= nil).toBe(true)
+						local pack = Cosmetics.packSource(kind :: any, it.id)
+						T.expect((lv ~= nil) ~= (pack ~= nil)).toBe(true)
 					end
 				end
 			end

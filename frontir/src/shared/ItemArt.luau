@@ -139,6 +139,9 @@ local function swatch(c: Canvas, kind: string)
 				hit = (u % 8 == 4 and v % 8 >= 2 and v % 8 <= 6) or (v % 8 == 4 and u % 8 >= 2 and u % 8 <= 6)
 			elseif kind == "Bricks" then
 				hit = v % 4 == 0 or (u + (if (v // 4) % 2 == 0 then 0 else 4)) % 8 == 0
+			elseif kind == "Stars" then -- §15я: «Парадный набор»
+				local a, b = u % 7, v % 7
+				hit = (a == 3 and b >= 1 and b <= 5) or (b == 3 and a >= 1 and a <= 5) or (a == b and a >= 2 and a <= 4)
 			end
 			if hit then
 				put(c, x, y, mark.r, mark.g, mark.b)
@@ -563,7 +566,7 @@ for place, disk in { "Gold", "Mist", "Orange" } do
 end
 
 -- Вспышки захвата и титулы — по цвету / по списку.
-local CAPTURE = { "Gold", "Sky", "Red", "Lime", "Violet", "Orange", "Teal", "Rose", "Sea", "Plum" }
+local CAPTURE = { "Gold", "Sky", "Red", "Lime", "Violet", "Orange", "Teal", "Rose", "Sea", "Plum", "Snow" }
 for _, name in CAPTURE do
 	ITEMS["capture." .. name] = function(c)
 		stage(c, { "Night", "Slate" }, "Grass")
@@ -587,6 +590,7 @@ local TITLE_COLORS: { [string]: string } = {
 	Unbreakable = "Slate",
 	Hero = "Lime",
 	Emperor = "Violet",
+	Generalissimo = "Red", -- §15я: «Парадный набор»
 }
 for id, color in TITLE_COLORS do
 	ITEMS["title." .. id] = function(c)
@@ -594,7 +598,21 @@ for id, color in TITLE_COLORS do
 		ribbon(c, color)
 	end
 end
-for _, id in { "Stripes", "Checker", "Dots", "Grid", "Waves", "Diamonds", "Chevron", "Camo", "Cross", "Bricks" } do
+for _, id in
+	{
+		"Stripes",
+		"Checker",
+		"Dots",
+		"Grid",
+		"Waves",
+		"Diamonds",
+		"Chevron",
+		"Camo",
+		"Cross",
+		"Bricks",
+		"Stars",
+	}
+do
 	ITEMS["pattern." .. id] = function(c)
 		stage(c, { "Night", "Slate" }, nil)
 		swatch(c, id)
@@ -688,6 +706,51 @@ ITEMS["strike.Airdrop"] = function(c)
 		rect(c, x, 10 + k * 3, 6, 2, rgb("White"))
 		rect(c, x + 2, 12 + k * 3, 2, 3, rgb("Ink"))
 	end
+end
+
+-- §15я Я2: новые товары магазина.
+ITEMS["shop.PathPremiumPlus"] = function(c)
+	stage(c, { "Violet", "Plum", "Orange" }, nil)
+	crown(c, 6, 9)
+	rect(c, 30, 12, 12, 3, rgb("Gold"))
+	rect(c, 34, 8, 3, 11, rgb("Gold"))
+	spark(c, 44, 5, "White")
+	spark(c, 26, 24, "Gold")
+end
+ITEMS["shop.Levels5"] = function(c)
+	stage(c, { "Night", "Sea", "Sky" }, nil)
+	for k = 0, 4 do
+		rect(c, 6 + k * 8, 24 - k * 4, 6, 4 + k * 4, rgb(if k == 4 then "Gold" else "Sky"))
+	end
+	spark(c, 42, 4, "Gold")
+end
+local function hourglass(c: Canvas, x: number, y: number, sand: string)
+	local g = rgb("Gold")
+	rect(c, x, y, 14, 2, g)
+	rect(c, x, y + 20, 14, 2, g)
+	for k = 0, 8 do
+		local w = math.max(2, 12 - k * 2 + (if k > 4 then (k - 4) * 4 else 0))
+		rect(c, x + 7 - w // 2, y + 2 + k * 2, w, 2, rgb(if k < 3 or k > 6 then sand else "Mist"))
+	end
+end
+ITEMS["shop.XpBoost1"] = function(c)
+	stage(c, { "Night", "Teal" }, nil)
+	hourglass(c, 8, 5, "Orange")
+	icon(c, "quests", 28, 8, 2)
+	spark(c, 40, 6, "Gold")
+end
+ITEMS["shop.XpBoost7"] = function(c)
+	stage(c, { "Night", "Teal", "Sky" }, nil)
+	hourglass(c, 4, 5, "Gold")
+	hourglass(c, 20, 5, "Gold")
+	icon(c, "quests", 34, 8, 2)
+	spark(c, 44, 4, "White")
+end
+ITEMS["shop.ParadeSet"] = function(c)
+	stage(c, { "Night", "Red", "Orange" }, "Basalt")
+	flag(c, 6, 4, rgb("Red"), rgb("Gold"))
+	ribbon(c, "Red")
+	burst(c, 38, 8, 4, "Snow", "White")
 end
 
 -- §15э Э1: закрытая техника — вкладка «Техника» магазина и вехи «Пути командира».

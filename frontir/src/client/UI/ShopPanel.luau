@@ -11,6 +11,7 @@
 local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
@@ -97,6 +98,10 @@ local function effect(key: string, lang: Strings.Lang): string
 		return string.format(fmt, math.round(s.Boosts.Airstrike.frontLoss * 100))
 	elseif key == "Crate1" or key == "Crate5" then
 		return string.format(fmt, (s.Packs :: any)[key].crates)
+	elseif key == "Levels5" or key == "PathPremiumPlus" then -- §15я Я2
+		return string.format(fmt, (s.Packs :: any)[key].levels)
+	elseif key == "XpBoost1" or key == "XpBoost7" then
+		return string.format(fmt, s.XpBoostMul, (s.Packs :: any)[key].xpBoostHours)
 	end
 	return fmt
 end
@@ -130,7 +135,8 @@ function ShopPanel.new(
 	cs: ClientState,
 	lang: Strings.Lang,
 	send: (string, { [string]: any }) -> (),
-	toast: (text: string) -> ()
+	toast: (text: string) -> (),
+	onOpenPath: (() -> ())? -- §15я: «Открыть Путь» с главной карточки
 ): ShopPanel
 	local player = Players.LocalPlayer
 
@@ -145,17 +151,19 @@ function ShopPanel.new(
 	strip.TextXAlignment = Enum.TextXAlignment.Right
 	strip.TextColor3 = Theme.Colors.Sky
 
-	-- §15л ч.9: окно-витрина — вкладки и карточки с картинками (CardKit).
+	-- §15я Я3: витрина — вкладки Главное · Путь · Техника · Бусты · Навсегда · Наборы · Ящики (CardKit).
 	local t = function(key: string): string
 		return Strings.get(key, lang)
 	end
-	local win = CardKit.window(gui, "Shop", t("shop.title"), t("shop.note"), 860, 720, {
+	local win = CardKit.window(gui, "Shop", t("shop.title"), t("shop.note"), 1000, 740, {
+		{ key = "main", label = t("shop.tabMain") },
+		{ key = "path", label = t("shop.tabPath") },
+		{ key = "units", label = t("shop.tabUnits") },
 		{ key = "boosts", label = t("shop.boosts") },
-		{ key = "units", label = t("shop.tabUnits") }, -- §15э Э1: закрытая техника
-		{ key = "season", label = t("shop.tabSeason") },
 		{ key = "passes", label = t("shop.passes") },
 		{ key = "packs", label = t("shop.packs") },
-	}, { season = "list" }, true)
+		{ key = "crates", label = t("shop.crates") },
+	}, { main = "list", crates = "list" }, true)
 	local window = win.frame; -- §15ц Ц5а: низ витрины — где взять медали и жетоны (кнопки — на карточках).
 	(win.footer :: CardKit.Footer).set("", false, t("shop.hint"))
 	local medalsChip = CardKit.chip(win.chips, "money", 1)
@@ -170,6 +178,218 @@ function ShopPanel.new(
 		else
 			MarketplaceService:PromptProductPurchase(player, id)
 		end
+	end
+	local function packPrompt(key: string)
+		prompt("product", (Config.Shop.Packs :: any)[key].id)
+	end
+
+	-- Метка в правом верхнем углу карточки: «ХИТ», «НОВОЕ», «ВЫГОДНО −N%».
+	local function ribbon(parent: GuiObject): TextLabel
+		local r = MenuKit.label(parent, "", 11, Theme.color("Ink"), true)
+		r.Name = "Ribbon"
+		r.AnchorPoint = Vector2.new(1, 0)
+		r.Position = UDim2.new(1, -10, 0, 10)
+		r.BackgroundTransparency = 0
+		r.BackgroundColor3 = Theme.Colors.Gold
+		r.ZIndex = 4
+		r.Visible = false
+		MenuKit.pad(r, 6, 2)
+		MenuKit.corner(r, 4)
+		return r
+	end
+	local function setRibbon(r: TextLabel, key: string, saving: number)
+		local tag = Config.Shop.Tags[key]
+		if saving > 0 then
+			r.Text = string.format(t("shop.tag.saving"), saving)
+			r.BackgroundColor3 = Theme.color("Lime")
+		elseif tag ~= nil then
+			r.Text = t("shop.tag." .. tag)
+			r.BackgroundColor3 = Theme.color(if tag == "hit" then "Orange" else "Sky")
+		end
+		r.Visible = saving > 0 or tag ~= nil
+	end
+	local function savingOf(key: string): number
+		local cfg = (Config.Shop.Packs :: any)[key]
+		local parts = Shop.partsPrice(key, os.time())
+		return if cfg ~= nil and parts ~= nil then Shop.saving(cfg.price, parts) else 0
+	end
+
+	-- Золотой отлив (UIGradient бежит в Heartbeat, пока окно открыто).
+	local shimmers: { UIGradient } = {}
+	local function shimmer(g: GuiObject)
+		local grad = Instance.new("UIGradient")
+		grad.Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.new(1, 1, 1)),
+			ColorSequenceKeypoint.new(0.42, Color3.new(1, 1, 1)),
+			ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 244, 190)),
+			ColorSequenceKeypoint.new(0.58, Color3.new(1, 1, 1)),
+			ColorSequenceKeypoint.new(1, Color3.new(1, 1, 1)),
+		})
+		grad.Rotation = 20
+		grad.Parent = g
+		table.insert(shimmers, grad)
+	end
+
+	-- Широкая строка-предложение («Главное», «Ящики»): картинка, заголовок, строка, мелко, кнопки.
+	type Offer = {
+		frame: Frame,
+		edge: UIStroke,
+		title: TextLabel,
+		line: TextLabel,
+		sub: TextLabel,
+		buttons: Frame,
+		ribbon: TextLabel,
+	}
+	local function offer(page: Instance, artKey: string, order: number, height: number, gold: boolean): Offer
+		local frame, body, edge = CardKit.row(page, artKey, 260, height, order)
+		if gold then
+			frame.BackgroundColor3 = Theme.color("Plum")
+			edge.Color = Theme.Colors.Gold
+			edge.Thickness = 3
+			shimmer(frame)
+		end
+		MenuKit.list(body, 6)
+		local title = MenuKit.label(body, "", 20, Theme.Colors.Gold, true, 1)
+		title.FontFace = Theme.FontHeavy
+		local line = MenuKit.wrapLabel(body, "", 14, Theme.Colors.Text, 2)
+		local sub = MenuKit.wrapLabel(body, "", 12, Theme.Colors.Muted, 3)
+		local buttons = Instance.new("Frame")
+		buttons.Name = "Buttons"
+		buttons.BackgroundTransparency = 1
+		buttons.LayoutOrder = 4
+		buttons.Size = UDim2.new(1, 0, 0, MenuKit.Touch)
+		buttons.Parent = body
+		MenuKit.list(buttons, 8, true)
+		return {
+			frame = frame,
+			edge = edge,
+			title = title,
+			line = line,
+			sub = sub,
+			buttons = buttons,
+			ribbon = ribbon(frame),
+		}
+	end
+	local function offerButton(
+		o: Offer,
+		text: string,
+		style: MenuKit.ButtonStyle,
+		order: number,
+		fn: () -> ()
+	): TextButton
+		local b = CardKit.button(o.buttons, text, style, order)
+		b.Size = UDim2.fromOffset(0, MenuKit.Touch)
+		b.AutomaticSize = Enum.AutomaticSize.X
+		MenuKit.pad(b, 14, 0)
+		Session.connect(b.Activated, fn)
+		return b
+	end
+
+	-- Итоги премиум-дороги (для «что даёт»).
+	local premiumMedals, premiumCrates, premiumStock, premiumPasses, premiumCosmetics = 0, 0, 0, 0, 0
+	for lv = 2, Config.Profile.MaxLevel do
+		local r = Profile.premiumReward(lv)
+		premiumMedals += r.medals
+		premiumCrates += r.crates
+		if r.pass ~= nil then
+			premiumPasses += 1
+		end
+		if r.cosmetic ~= nil then
+			premiumCosmetics += 1
+		end
+		for _, n in r.stock do
+			premiumStock += n
+		end
+	end
+	local unitLevels: { string } = {}
+	for _, key in Config.Unlocks.Order do
+		local item = Config.Unlocks.Items[key]
+		local name = if key == "Missile" then t("building.MissileSilo") else t("unit." .. key)
+		table.insert(unitLevels, string.format(t("shop.premiumUnit"), name, item.premiumLevel, item.level))
+	end
+	local premiumGives = string.format(
+		t("shop.premiumGives"),
+		table.concat(unitLevels, ", "),
+		premiumPasses,
+		premiumCosmetics,
+		Strings.formatInt(premiumMedals),
+		premiumCrates,
+		premiumStock
+	)
+
+	---------------------------------------------------------------------------------------------------------------
+	-- «Главное».
+	local mainPage = win.page("main")
+	local hero = offer(mainPage, "shop.PathPremium", 1, 236, true)
+	hero.title.Text = t("shop.PathPremium")
+	hero.title.TextSize = 24
+	hero.sub.Text = premiumGives
+	hero.sub.TextColor3 = Theme.Colors.Text
+	local heroBuy = offerButton(hero, "", "primary", 1, function()
+		packPrompt("PathPremium")
+	end)
+	local heroPlus = offerButton(hero, "", "good", 2, function()
+		packPrompt("PathPremiumPlus")
+	end)
+	local heroOpen = offerButton(hero, t("shop.toPath"), "normal", 3, function()
+		window.Visible = false
+		if onOpenPath ~= nil then
+			onOpenPath()
+		end
+	end)
+	local weekly = offer(mainPage, "shop.Weekly", 2, 150, false)
+	weekly.title.Text = t("shop.Weekly")
+	local weeklyBuy = offerButton(weekly, "", "primary", 1, function()
+		packPrompt("Weekly")
+	end)
+	local recruit = offer(mainPage, "shop.Recruit", 3, 140, false)
+	recruit.title.Text = t("shop.Recruit")
+	recruit.line.Text = effect("Recruit", lang)
+	recruit.ribbon.Text = t("shop.tag.newbie")
+	recruit.ribbon.BackgroundColor3 = Theme.color("Sky")
+	recruit.ribbon.Visible = true
+	local recruitBuy = offerButton(recruit, "", "primary", 1, function()
+		packPrompt("Recruit")
+	end)
+	local boost = offer(mainPage, "shop.XpBoost7", 4, 150, false)
+	boost.title.Text = t("shop.xpBoostTitle")
+	local boost1 = offerButton(boost, "", "primary", 1, function()
+		packPrompt("XpBoost1")
+	end)
+	local boost7 = offerButton(boost, "", "good", 2, function()
+		packPrompt("XpBoost7")
+	end)
+	local parade = offer(mainPage, "shop.ParadeSet", 5, 140, false)
+	parade.title.Text = t("shop.ParadeSet")
+	parade.line.Text = t("shop.desc.ParadeSet")
+	setRibbon(parade.ribbon, "ParadeSet", 0)
+	local paradeBuy = offerButton(parade, "", "primary", 1, function()
+		packPrompt("ParadeSet")
+	end)
+
+	---------------------------------------------------------------------------------------------------------------
+	-- Сетка товаров (Путь, Наборы): карточка с ценой, меткой и состоянием.
+	type PackCard = { key: string, card: CardKit.Card, buy: TextButton, ribbon: TextLabel }
+	local packCards: { PackCard } = {}
+	local function packCard(page: string, key: string, order: number)
+		local cfg = (Config.Shop.Packs :: any)[key]
+		local card = CardKit.card(win.page(page), "shop." .. key, t("shop." .. key), effect(key, lang), order)
+		local buy = CardKit.button(card.actions, string.format(t("shop.robux"), cfg.price), "primary", 1)
+		Session.connect(buy.Activated, function()
+			local p = cs.profile
+			if p ~= nil and p.packs[key] then
+				packPrompt(key)
+			end
+		end)
+		local r = ribbon(card.frame)
+		setRibbon(r, key, savingOf(key))
+		table.insert(packCards, { key = key, card = card, buy = buy, ribbon = r })
+	end
+	for k, key in { "PathPremium", "PathPremiumPlus", "Levels5", "XpBoost1", "XpBoost7" } do
+		packCard("path", key, k)
+	end
+	for k, key in { "Recruit", "Weekly", "Medals", "Tokens", "ParadeSet" } do
+		packCard("packs", key, k)
 	end
 
 	-- Бусты: жетон / из запаса / за Robux.
@@ -203,47 +423,38 @@ function ShopPanel.new(
 		table.insert(boostCards, { key = key, card = card, token = token, stock = stock, robux = robux })
 	end
 
-	-- Сезон и ящики: широкие строки.
-	local seasonPage = win.page("season")
-	-- §15ю Ю1: премиум-дорога «Пути командира» (навсегда) — что даёт и сколько наград ждёт.
-	local _, seasonBody = CardKit.row(seasonPage, "shop.PathPremium", 240, 176, 1)
-	MenuKit.list(seasonBody, 6)
-	MenuKit.label(seasonBody, t("shop.PathPremium"), 20, Theme.Colors.Gold, true, 1)
-	local seasonLine = MenuKit.wrapLabel(seasonBody, "", 14, Theme.Colors.Text, 2)
-	local seasonNext = MenuKit.wrapLabel(seasonBody, "", 12, Theme.Colors.Muted, 4)
-	local seasonBuy =
-		CardKit.button(seasonBody, string.format(t("shop.robux"), Config.Shop.Packs.PathPremium.price), "primary", 5)
-	seasonBuy.Size = UDim2.fromOffset(200, MenuKit.Touch)
-	Session.connect(seasonBuy.Activated, function()
-		local p = cs.profile
-		local premium = p ~= nil and p.path ~= nil and p.path.premium == true
-		if p ~= nil and not premium then
-			prompt("product", Config.Shop.Packs.PathPremium.id)
-		end
-	end)
-	local _, crateBody = CardKit.row(seasonPage, "shop.Crates", 240, 176, 2)
-	MenuKit.list(crateBody, 6)
-	MenuKit.label(crateBody, t("shop.crates"), 20, Theme.Colors.Gold, true, 1)
-	local crateLine = MenuKit.wrapLabel(crateBody, "", 14, Theme.Colors.Text, 2)
-	local odds = MenuKit.wrapLabel(crateBody, "", 12, Theme.Colors.Muted, 3)
+	-- Ящики: шансы до покупки, 1 и 5 за Robux, открыть.
+	local crates = offer(win.page("crates"), "shop.Crates", 1, 230, false)
+	crates.title.Text = t("shop.crates")
 	local oddsParts: { string } = {}
 	for _, o in Profile.crateOdds() do
 		table.insert(oddsParts, string.format("%s %.0f%%", Strings.get("shop.odds." .. o.key, lang), o.percent))
 	end
-	odds.Text = t("shop.odds")
+	crates.sub.Text = t("shop.odds")
 		.. " "
 		.. table.concat(oddsParts, " · ")
 		.. "\n"
 		.. string.format(t("shop.pity"), Config.Crates.Pity)
-	local openCrate = CardKit.button(crateBody, t("shop.openCrate"), "good", 4)
-	openCrate.Size = UDim2.fromOffset(200, MenuKit.Touch)
-	Session.connect(openCrate.Activated, function()
+	setRibbon(crates.ribbon, "Crate5", savingOf("Crate5"))
+	local openCrate = offerButton(crates, t("shop.openCrate"), "good", 1, function()
 		send("openCrate", {})
 	end)
+	local crate1 = offerButton(crates, "", "primary", 2, function()
+		packPrompt("Crate1")
+	end)
+	local crate5 = offerButton(crates, "", "primary", 3, function()
+		packPrompt("Crate5")
+	end)
 
-	-- Навсегда (геймпассы).
+	-- Навсегда (геймпассы): §15я Я1 — есть с «Пути» — не продаётся.
 	type BuyCard = { key: string, card: CardKit.Card, buy: TextButton }
 	local passCards: { BuyCard } = {}
+	local passLevel: { [string]: number } = {}
+	for lv, sp in Config.Path.Premium.Specials do
+		if sp.pass ~= nil then
+			passLevel[sp.pass] = lv
+		end
+	end
 	for k, key in Shop.PassKeys do
 		local cfg = (Config.Shop.Passes :: any)[key]
 		local card = CardKit.card(win.page("passes"), "shop." .. key, t("shop." .. key), effect(key, lang), k)
@@ -267,43 +478,57 @@ function ShopPanel.new(
 	end
 	local unitKeys = table.clone(Config.Unlocks.Order)
 	table.insert(unitKeys, "All")
+	local allRibbon: TextLabel? = nil
 	for k, key in unitKeys do
 		local item = if key == "All" then Config.Unlocks.All else Config.Unlocks.Items[key]
 		local card = CardKit.card(win.page("units"), "unlock." .. key, unitTitle(key), "", k)
 		local buy = CardKit.button(card.actions, string.format(t("shop.robux"), item.price), "primary", 1)
+		if key == "All" then
+			local r = ribbon(card.frame)
+			local parts = Shop.partsPrice("UnlockAll", 0) :: number
+			setRibbon(r, "All", Shop.saving(item.price, parts))
+			allRibbon = r
+		end
 		Session.connect(buy.Activated, function()
 			local p = cs.profile
-			local opened = p ~= nil
-				and p.unitUnlocks ~= nil
-				and (
-						if key == "All"
-							then p.unitUnlocks.Tanks
-								and p.unitUnlocks.Artillery
-								and p.unitUnlocks.AntiAir
-								and p.unitUnlocks.Missile
-							else p.unitUnlocks[key]
-					)
-					== true
-			if not opened then
+			local opens = if p ~= nil then p.unitUnlocks or {} else {}
+			local anyOpen = false
+			for _, u in Config.Unlocks.Order do
+				anyOpen = anyOpen or opens[u] == true
+			end
+			-- §15я Я1: «Вся техника» — только пока закрыто всё (без переплаты за открытое).
+			local blocked = if key == "All" then anyOpen else opens[key] == true
+			if p ~= nil and not blocked then
 				prompt("product", item.id)
 			end
 		end)
 		table.insert(unitCards, { key = key, card = card, buy = buy })
 	end
 
-	-- Наборы.
-	local packCards: { BuyCard } = {}
-	for k, key in Shop.PackKeys do
-		local cfg = (Config.Shop.Packs :: any)[key]
-		local card = CardKit.card(win.page("packs"), "shop." .. key, t("shop." .. key), effect(key, lang), k)
-		local buy = CardKit.button(card.actions, string.format(t("shop.robux"), cfg.price), "primary", 1)
-		Session.connect(buy.Activated, function()
-			local p = cs.profile
-			if p ~= nil and p.packs[key] then
-				prompt("product", cfg.id)
-			end
-		end)
-		table.insert(packCards, { key = key, card = card, buy = buy })
+	---------------------------------------------------------------------------------------------------------------
+	local profileAt = os.clock() -- когда пришёл профиль (отсчёты идут от него)
+	local function hoursMinutes(sec: number): string
+		return string.format(t("shop.hoursMinutes"), sec // 3600, (sec % 3600) // 60)
+	end
+	local function ticking()
+		local p = cs.profile
+		if p == nil then
+			return
+		end
+		local since = math.floor(os.clock() - profileAt)
+		weekly.sub.Text = string.format(t("shop.weeklyLeft"), daysHours(math.max(0, p.weekly.left - since), lang))
+		local left = math.max(0, (p.xpBoostLeft or 0) - since)
+		boost.line.Text = if left > 0
+			then string.format(t("shop.xpBoostOn"), Config.Shop.XpBoostMul, hoursMinutes(left))
+			else string.format(t("shop.xpBoostDesc"), Config.Shop.XpBoostMul)
+		boost.line.TextColor3 = if left > 0 then Theme.color("Lime") else Theme.Colors.Text
+	end
+
+	local function stylePrice(b: TextButton, owned: boolean, ownedText: string, price: number)
+		b.Text = if owned then ownedText else string.format(t("shop.robux"), price)
+		b.AutoButtonColor = not owned
+		b.BackgroundColor3 = Theme.color(if owned then "Forest" else "Gold")
+		b.TextColor3 = Theme.color(if owned then "White" else "Ink")
 	end
 
 	local function draw()
@@ -317,6 +542,70 @@ function ShopPanel.new(
 			string.format(Strings.get("shop.strip", lang), p.level, p.xp, p.need, Strings.formatInt(p.medals), p.tokens)
 		medalsChip.Text = Strings.formatInt(p.medals)
 		tokensChip.Text = tostring(p.tokens)
+		local packs = Config.Shop.Packs :: any
+		local premium = p.path ~= nil and p.path.premium == true
+		local _, paidWaiting = ClientState.rewardsPending(cs)
+
+		-- «Главное».
+		hero.line.Text = if premium
+			then string.format(t("shop.premiumOn"), paidWaiting)
+			else string.format(t("shop.premiumWaits"), math.max(0, p.level - 1))
+		setRibbon(hero.ribbon, "PathPremium", 0)
+		heroBuy.Visible = not premium
+		heroBuy.Text = string.format(t("shop.buyPremium"), packs.PathPremium.price)
+		heroPlus.Visible = not premium
+		heroPlus.Text =
+			string.format(t("shop.buyPremiumPlus"), packs.PathPremiumPlus.levels, packs.PathPremiumPlus.price)
+		heroOpen.Visible = premium
+		hero.edge.Color = Theme.Colors.Gold
+		local offerNow = p.weekly.offer
+		weekly.line.Text = rewardText(offerNow, lang)
+		weeklyBuy.Visible = p.packs.Weekly == true
+		weeklyBuy.Text = if p.packs.Weekly then string.format(t("shop.robux"), packs.Weekly.price) else t("shop.bought")
+		setRibbon(weekly.ribbon, "Weekly", if p.packs.Weekly then savingOf("Weekly") else 0)
+		recruit.frame.Visible = p.packs.Recruit == true
+		recruitBuy.Text = string.format(t("shop.robux"), packs.Recruit.price)
+		boost1.Text = string.format(t("shop.xpBoostBuy"), t("shop.hours24"), packs.XpBoost1.price)
+		boost7.Text = string.format(t("shop.xpBoostBuy"), t("shop.days7"), packs.XpBoost7.price)
+		setRibbon(boost.ribbon, "XpBoost7", savingOf("XpBoost7"))
+		parade.frame.Visible = p.packs.ParadeSet == true
+		paradeBuy.Text = string.format(t("shop.robux"), packs.ParadeSet.price)
+		ticking()
+
+		-- Сетки наборов.
+		for _, row in packCards do
+			local cfg = packs[row.key]
+			-- Ящики за Robux там, где платные случайные награды запрещены (PolicyService), не продаются.
+			local blocked = p.noPaidRandom == true and (cfg.crates or 0) > 0
+			local available = p.packs[row.key] == true and not blocked
+			local premiumOwned = cfg.premiumPath and premium
+			row.buy.Visible = available
+			stylePrice(row.buy, false, "", cfg.price)
+			if row.key == "Weekly" then
+				row.card.desc.Text = string.format(
+					t("shop.weeklyDesc"),
+					rewardText(p.weekly.offer, lang),
+					daysHours(p.weekly.left, lang)
+				)
+			end
+			row.card.price.Text = if premiumOwned
+				then t("shop.premiumOwned")
+				elseif not available then t("shop.bought")
+				elseif cfg.levels ~= nil and p.level >= Config.Profile.MaxLevel then t("shop.levelsToBonus")
+				else ""
+			row.card.price.TextColor3 = if premiumOwned then Theme.Colors.Good else Theme.Colors.Gold
+			row.card.tag.Visible = not available
+			row.card.tag.Text = t(if premiumOwned then "shop.tagOwned" else "shop.tagBought")
+			row.card.dim.Visible = not available and not premiumOwned
+			row.card.edge.Color = if premiumOwned
+				then Theme.Colors.Good
+				elseif row.key == "PathPremium" then Theme.Colors.Gold
+				else Theme.Colors.PanelBorder
+			setRibbon(row.ribbon, row.key, if available then savingOf(row.key) else 0)
+			row.ribbon.Visible = row.ribbon.Visible and available
+		end
+
+		-- Бусты.
 		local inMatch = cs.phase == "Play"
 		for _, row in boostCards do
 			local used = p.used[row.key] == true
@@ -335,80 +624,92 @@ function ShopPanel.new(
 			row.card.tag.Text = t("shop.tagUsed")
 			row.card.edge.Color = if canUse then Theme.Colors.Good else Theme.Colors.PanelBorder
 		end
+
+		-- Ящики.
+		crates.line.Text = string.format(t("shop.crateLine"), p.crates, p.pityLeft)
+		openCrate.Visible = p.crates > 0
+		local cratesBlocked = p.noPaidRandom == true
+		crate1.Visible = not cratesBlocked
+		crate5.Visible = not cratesBlocked
+		crate1.Text = string.format(t("shop.buyCrates"), packs.Crate1.crates, packs.Crate1.price)
+		crate5.Text = string.format(t("shop.buyCrates"), packs.Crate5.crates, packs.Crate5.price)
+		crates.ribbon.Visible = not cratesBlocked and savingOf("Crate5") > 0
+		if cratesBlocked then
+			crates.sub.Text = t("shop.crateRestricted")
+		end
+
+		-- Навсегда: куплено геймпассом / дано «Путём» / будет на премиум-дороге.
+		local bought = p.ownedPasses or p.passes
+		local fromPath = p.pathPasses or {}
 		for _, row in passCards do
-			local owned = p.passes[row.key] == true
 			local cfg = (Config.Shop.Passes :: any)[row.key]
-			row.buy.Text = if owned then t("shop.owned") else string.format(t("shop.robux"), cfg.price)
-			row.buy.AutoButtonColor = not owned
-			row.buy.BackgroundColor3 = Theme.color(if owned then "Forest" else "Gold")
-			row.buy.TextColor3 = Theme.color(if owned then "White" else "Ink")
+			local viaPath = fromPath[row.key] == true and bought[row.key] ~= true
+			local owned = p.passes[row.key] == true
+			stylePrice(row.buy, owned, t(if viaPath then "shop.ownedPath" else "shop.owned"), cfg.price)
 			row.card.tag.Visible = owned
 			row.card.tag.Text = t("shop.tagOwned")
 			row.card.edge.Color = if owned then Theme.Colors.Good else Theme.Colors.PanelBorder
-			row.card.price.Text = t("shop.forever")
+			local lv = passLevel[row.key]
+			row.card.price.Text = if owned
+				then t("shop.forever")
+				elseif lv ~= nil then string.format(t("shop.passOnPath"), lv, Config.Path.Premium.PassRefund)
+				else t("shop.forever")
 		end
-		-- §15э Э1: техника — открыто / откроется на ур. N «Пути» / купить.
+
+		-- §15э Э1 / §15я Я1: техника — открыто / откроется на ур. N «Пути» / купить; «Вся» — пока закрыто всё.
 		local opens = p.unitUnlocks or {}
-		local allOpen = true
+		local anyOpen = false
 		for _, key in Config.Unlocks.Order do
-			allOpen = allOpen and opens[key] == true
+			anyOpen = anyOpen or opens[key] == true
 		end
 		for _, row in unitCards do
-			local opened = if row.key == "All" then allOpen else opens[row.key] == true
-			local item = if row.key == "All" then Config.Unlocks.All else Config.Unlocks.Items[row.key]
-			row.card.desc.Text = if row.key == "All"
+			local isAll = row.key == "All"
+			local opened = if isAll then anyOpen else opens[row.key] == true
+			local item = if isAll then Config.Unlocks.All else Config.Unlocks.Items[row.key]
+			local level = if isAll then 0 elseif premium then (item :: any).premiumLevel else (item :: any).level
+			row.card.desc.Text = if isAll
 				then t("shop.unlockAllDesc")
-				else string.format(t("shop.unlockDesc"), (Config.Unlocks.Items[row.key] :: any).level)
-			row.card.price.Text = if opened
-				then t("shop.unlockOpen")
-				elseif row.key == "All" then t("shop.forever")
-				else string.format(t("shop.unlockAt"), (Config.Unlocks.Items[row.key] :: any).level, p.level)
-			row.card.price.TextColor3 = if opened then Theme.Colors.Good else Theme.Colors.Gold
+				else string.format(
+					t("shop.unlockDesc2"),
+					(item :: any).level,
+					(item :: any).premiumLevel,
+					Config.Path.Premium.UnitRefund
+				)
+			row.card.price.Text = if isAll and anyOpen
+				then t("shop.unlockAllPartly")
+				elseif opened then t("shop.unlockOpen")
+				elseif isAll then t("shop.forever")
+				else string.format(t("shop.unlockAt"), level, p.level)
+			row.card.price.TextColor3 = if opened and not isAll then Theme.Colors.Good else Theme.Colors.Gold
 			row.buy.Visible = not opened
 			row.buy.Text = string.format(t("shop.robux"), item.price)
-			row.card.tag.Visible = opened
+			row.card.tag.Visible = opened and not isAll
 			row.card.tag.Text = t("shop.tagOpen")
-			row.card.edge.Color = if opened then Theme.Colors.Good else Theme.Colors.PanelBorder
+			row.card.edge.Color = if opened and not isAll then Theme.Colors.Good else Theme.Colors.PanelBorder
+			row.card.dim.Visible = isAll and anyOpen
 		end
-		-- Премиум-дорога и ящики.
-		local premium = p.path ~= nil and p.path.premium == true
-		local _, paidWaiting = ClientState.rewardsPending(cs)
-		seasonLine.Text = if premium
-			then string.format(t("shop.premiumOn"), paidWaiting)
-			else string.format(t("shop.premiumWaits"), math.max(0, p.level - 1))
-		seasonBuy.Text = if premium
-			then t("shop.owned")
-			else string.format(t("shop.robux"), Config.Shop.Packs.PathPremium.price)
-		local nextLevel = math.min(Config.Profile.MaxLevel, p.level + 1)
-		seasonNext.Text = string.format(
-			t("shop.seasonNext"),
-			nextLevel,
-			rewardText(Profile.pathReward(nextLevel), lang),
-			rewardText(Profile.premiumReward(nextLevel), lang)
-		)
-		crateLine.Text = string.format(t("shop.crateLine"), p.crates, p.pityLeft)
-		openCrate.Visible = p.crates > 0
-		for _, row in packCards do
-			local cfg = (Config.Shop.Packs :: any)[row.key]
-			-- Ящики за Robux там, где платные случайные награды запрещены (PolicyService), не продаются.
-			local blocked = p.noPaidRandom == true and (cfg.crates or 0) > 0
-			row.buy.Visible = not blocked
-			if row.key == "Weekly" then
-				row.card.desc.Text = string.format(
-					t("shop.weeklyDesc"),
-					rewardText(p.weekly.offer, lang),
-					daysHours(p.weekly.left, lang)
-				)
-			else
-				row.card.desc.Text = if blocked then t("shop.crateRestricted") else effect(row.key, lang)
-			end
-			local available = p.packs[row.key] == true
-			row.buy.Text = if available then string.format(t("shop.robux"), cfg.price) else t("shop.bought")
-			row.card.tag.Visible = not available
-			row.card.tag.Text = t("shop.tagBought")
-			row.card.dim.Visible = not available
+		local ar = allRibbon
+		if ar ~= nil then
+			ar.Visible = not anyOpen
 		end
 	end
+
+	-- Отлив и отсчёты — только пока окно открыто.
+	local lastTick = 0
+	Session.connect(RunService.Heartbeat, function()
+		if not window.Visible then
+			return
+		end
+		local now = os.clock()
+		local phase = (now % 2.4) / 2.4
+		for _, g in shimmers do
+			g.Offset = Vector2.new(phase * 2 - 1, 0)
+		end
+		if now - lastTick >= 1 then
+			lastTick = now
+			ticking()
+		end
+	end)
 
 	Session.connect(openButton.Activated, function()
 		window.Visible = not window.Visible
@@ -427,7 +728,12 @@ function ShopPanel.new(
 	-- Итог матча — тост один раз; подсказка про набор новобранца — один раз за сессию (§11.1).
 	local shownMatches = -1
 	local hinted = false
+	local lastProfile: any = nil
 	local function refresh()
+		if cs.profile ~= lastProfile then
+			lastProfile = cs.profile
+			profileAt = os.clock() -- отсчёты (неделя, ускоритель) — от прихода профиля
+		end
 		draw()
 		local p = cs.profile
 		if p == nil then

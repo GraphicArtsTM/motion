@@ -35,6 +35,10 @@ onPointEnd` → `pointAt` в `Main.client` (общий для мыши и пал
 (`Profile.premiumReward`, `Config.Path.Premium`, покупка `PathPremium`); `Profile.pathClaim` — обе дороги и бонусы после
 100-го (`bonusEarned`); улучшения с дороги — `Profile.passesWith` (в `MatchService.passesOf`); эксклюзивная косметика —
 `Cosmetics.pathSource`; окно — `UI/RanksPanel` (рамка `RanksBoard`), метки — `ClientState.rewardsPending`.
+**§15я Магазин 2.0:** дубли на дороге — медалями (`Profile.pathClaim(d, owned)`, `PassRefund / UnitRefund`), новые
+товары (`PathPremiumPlus`, `Levels5` → `Profile.addLevels`, `XpBoost*` → `xpBoostUntil`, `ParadeSet` →
+`Cosmetics.packSource`), выгода — `Shop.partsPrice / saving`, метки — `Config.Shop.Tags`; витрина — `UI/ShopPanel`.
+Новый товар — проверить, что он не спорит с Путём и другими товарами (GDD §15я Я1), и добавить в `Shop2.spec`.
 - §15ц Ц5г: окно в списке самопроверки (`windows` в `Main.client`) — с `frame` (имя рамки: проверка «влезает в
   экран»); блок «Экран матча» в `SelfCheck` (заголовки полосы, кнопки у мини-карты, наложения, одно окно за раз) —
   новую рамку HUD снизу или справа добавить в его список наложений.

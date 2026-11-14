@@ -1920,7 +1920,7 @@ local TABLE: { [string]: Entry } = {
 		en = "%s medals · %d crates · %d tokens · %d boosts",
 	},
 	["path.extras"] = {
-		ru = "технику раньше · %d улучшений навсегда · %d эксклюзивных косметик",
+		ru = "технику раньше · улучшения навсегда: %d · эксклюзивная косметика: %d",
 		en = "vehicles earlier · %d permanent upgrades · %d exclusive cosmetics",
 	},
 	["path.premiumOn"] = { ru = "ПРЕМИУМ-ДОРОГА ВАША ✔", en = "PREMIUM TRACK OWNED ✔" },
@@ -2085,15 +2085,15 @@ local TABLE: { [string]: Entry } = {
 	},
 	["menu.nav.shop"] = { ru = "Магазин", en = "Shop" },
 	["menu.navSub.shop"] = {
-		ru = "бусты, наборы, пропуск сезона",
-		en = "boosts, packs, season pass",
+		ru = "премиум-дорога, техника, бусты, наборы",
+		en = "premium track, vehicles, boosts, bundles",
 	},
 	["menu.nav.wardrobe"] = { ru = "Гардероб", en = "Wardrobe" },
 	["menu.navSub.wardrobe"] = { ru = "флаг, узор земли, титул", en = "flag, land pattern, title" },
 	["menu.nav.ranks"] = { ru = "Путь командира", en = "Commander path" },
 	["menu.navSub.ranks"] = {
-		ru = "ваш уровень и следующая ступень",
-		en = "your level and the next step",
+		ru = "награды за каждый уровень: бесплатно и премиум",
+		en = "rewards on every level: free and premium",
 	},
 	["menu.nav.help"] = { ru = "Как играть", en = "How to play" },
 	["menu.navSub.help"] = { ru = "шесть шагов за минуту", en = "six steps in a minute" },
@@ -2409,6 +2409,82 @@ local TABLE: { [string]: Entry } = {
 	-- §15л ч.9 витрины
 	["shop.title"] = { ru = "МАГАЗИН", en = "SHOP" },
 	["shop.tabSeason"] = { ru = "Премиум и ящики", en = "Premium & crates" },
+	-- §15я Магазин 2.0.
+	["shop.tabMain"] = { ru = "Главное", en = "Featured" },
+	["shop.tabPath"] = { ru = "Путь", en = "Path" },
+	["shop.tag.hit"] = { ru = "ХИТ", en = "BEST SELLER" },
+	["shop.tag.new"] = { ru = "НОВОЕ", en = "NEW" },
+	["shop.tag.newbie"] = { ru = "НОВИЧКАМ", en = "FOR NEWCOMERS" },
+	["shop.tag.saving"] = { ru = "ВЫГОДНО −%d%%", en = "SAVE %d%%" },
+	["shop.toPath"] = { ru = "Открыть «Путь командира»", en = "Open Commander Path" },
+	["shop.buyPremium"] = { ru = "Открыть премиум — R$ %d", en = "Unlock premium — R$ %d" },
+	["shop.buyPremiumPlus"] = {
+		ru = "Премиум + %d уровней — R$ %d",
+		en = "Premium + %d levels — R$ %d",
+	},
+	["shop.premiumGives"] = {
+		ru = "• Техника раньше: %s\n• Улучшения навсегда: %d · эксклюзивная косметика: %d\n• Медали: %s · ящики: %d · бусты в запас: %d",
+		en = "• Vehicles earlier: %s\n• Permanent upgrades: %d · exclusive cosmetics: %d\n• Medals: %s · crates: %d · stocked boosts: %d",
+	},
+	["shop.premiumUnit"] = { ru = "%s ур. %d (вместо %d)", en = "%s lv %d (not %d)" },
+	["shop.premiumOwned"] = { ru = "Премиум-дорога ваша ✔", en = "Premium track owned ✔" },
+	["shop.weeklyLeft"] = { ru = "Сменится через %s", en = "Changes in %s" },
+	["shop.hoursMinutes"] = { ru = "%d ч %d мин", en = "%dh %dm" },
+	["shop.xpBoostTitle"] = { ru = "Ускоритель опыта", en = "XP booster" },
+	["shop.xpBoostDesc"] = {
+		ru = "×%d опыта за матчи — быстрее по «Пути командира». С VIP перемножается, повторная покупка продлевает срок.",
+		en = "×%d match XP — climb the Commander Path faster. Stacks with VIP; buying again extends the time.",
+	},
+	["shop.xpBoostOn"] = {
+		ru = "Активен ×%d · ещё %s (купите ещё — срок продлится)",
+		en = "Active ×%d · %s left (buy more to extend)",
+	},
+	["shop.xpBoostBuy"] = { ru = "%s — R$ %d", en = "%s — R$ %d" },
+	["shop.hours24"] = { ru = "24 часа", en = "24 hours" },
+	["shop.days7"] = { ru = "7 дней", en = "7 days" },
+	["shop.buyCrates"] = { ru = "%d шт. — R$ %d", en = "×%d — R$ %d" },
+	["shop.ownedPath"] = { ru = "Есть ✔ — с «Пути»", en = "Owned ✔ — from the Path" },
+	["shop.passOnPath"] = {
+		ru = "навсегда · или бесплатно на премиум-дороге, ур. %d (купили — там будет +%d медалей)",
+		en = "forever · or free on the premium track, lv %d (bought — you get +%d medals there)",
+	},
+	["shop.unlockDesc2"] = {
+		ru = "«Путь»: бесплатно ур. %d, с премиумом ур. %d. Купили сейчас — на дороге вместо неё +%d медалей.",
+		en = "Path: free at lv %d, premium at lv %d. Buy now — the track gives +%d medals instead.",
+	},
+	["shop.unlockAllPartly"] = {
+		ru = "часть уже открыта — докупите остальное по одной",
+		en = "partly unlocked — buy the rest one by one",
+	},
+	["shop.levelsToBonus"] = {
+		ru = "после 100-го — в бонусные сундуки",
+		en = "after lv 100 — into bonus chests",
+	},
+	["shop.PathPremiumPlus"] = { ru = "Премиум + 10 уровней", en = "Premium + 10 levels" },
+	["shop.Levels5"] = { ru = "+5 уровней «Пути»", en = "+5 Path levels" },
+	["shop.XpBoost1"] = { ru = "Ускоритель опыта, 24 ч", en = "XP booster, 24 h" },
+	["shop.XpBoost7"] = { ru = "Ускоритель опыта, 7 дней", en = "XP booster, 7 days" },
+	["shop.ParadeSet"] = { ru = "Парадный набор", en = "Parade set" },
+	["shop.desc.PathPremiumPlus"] = {
+		ru = "премиум-дорога навсегда и сразу +%d уровней — награды обеих дорог ждут",
+		en = "the premium track forever plus %d levels now — rewards of both tracks wait",
+	},
+	["shop.desc.Levels5"] = {
+		ru = "сразу +%d уровней «Пути командира» и их награды; после 100-го — бонусы",
+		en = "+%d Commander Path levels now with their rewards; after lv 100 — bonuses",
+	},
+	["shop.desc.XpBoost1"] = {
+		ru = "×%d опыта за матчи, %d ч; продлевается",
+		en = "×%d match XP for %d h; extends",
+	},
+	["shop.desc.XpBoost7"] = {
+		ru = "×%d опыта за матчи, %d ч; продлевается",
+		en = "×%d match XP for %d h; extends",
+	},
+	["shop.desc.ParadeSet"] = {
+		ru = "Эксклюзив магазина: узор «Звёзды», вспышка «Снег», титул «Генералиссимус». Только вид.",
+		en = "Shop exclusive: «Stars» pattern, «Snow» flash, «Generalissimo» title. Cosmetic only.",
+	},
 	-- §15э Э1: закрытая техника.
 	["shop.tabUnits"] = { ru = "Техника", en = "Vehicles" },
 	["shop.unlockAll"] = { ru = "Вся техника", en = "All vehicles" },
@@ -2556,8 +2632,8 @@ local TABLE: { [string]: Entry } = {
 		en = "jackpot (5 tokens, 2000 medals)",
 	},
 	["shop.pity"] = {
-		ru = "Гарантия: %d-й ящик подряд без джекпота — джекпот. Ящики дают и бесплатно: пропуск, награда за вход.",
-		en = "Guarantee: the %dth crate in a row without a jackpot is a jackpot. Crates are also free: pass, login reward.",
+		ru = "Гарантия: %d-й ящик подряд без джекпота — джекпот. Ящики дают и бесплатно: «Путь командира», награда за вход.",
+		en = "Guarantee: the %dth crate in a row without a jackpot is a jackpot. Crates are also free: Commander Path, login reward.",
 	},
 	["shop.daysHours"] = { ru = "%d дн. %d ч", en = "%dd %dh" },
 	["shop.r.medals"] = { ru = "+%s медалей", en = "+%s medals" },
@@ -2638,6 +2714,7 @@ local TABLE: { [string]: Entry } = {
 	["wardrobe.pass"] = { ru = "🔒 «Путь командира»", en = "🔒 Commander Path" },
 	["wardrobe.pathPremium"] = { ru = "🔒 премиум-дорога, ур. %d", en = "🔒 premium track, lv %d" }, -- §15ю Ю4
 	["wardrobe.pathFree"] = { ru = "🔒 «Путь», ур. %d", en = "🔒 Path, lv %d" },
+	["wardrobe.shopSet"] = { ru = "🔒 магазин: %s", en = "🔒 shop: %s" }, -- §15я Я2
 	["wardrobe.saveFlag"] = { ru = "Сохранить флаг", en = "Save flag" },
 	-- §15л ч.9
 	["wardrobe.title"] = { ru = "ГАРДЕРОБ", en = "WARDROBE" },
@@ -2699,6 +2776,10 @@ local TABLE: { [string]: Entry } = {
 	["title.Unbreakable"] = { ru = "Несокрушимый", en = "Unbreakable" },
 	["title.Hero"] = { ru = "Герой", en = "Hero" },
 	["title.Emperor"] = { ru = "Император", en = "Emperor" },
+	-- §15я Я2: «Парадный набор».
+	["pattern.Stars"] = { ru = "Звёзды", en = "Stars" },
+	["capture.Snow"] = { ru = "Снег", en = "Snow" },
+	["title.Generalissimo"] = { ru = "Генералиссимус", en = "Generalissimo" },
 	["flag.Plain"] = { ru = "без полос", en = "plain" },
 	["flag.HStripe"] = { ru = "гориз. полоса", en = "h. stripe" },
 	["flag.VStripe"] = { ru = "верт. полоса", en = "v. stripe" },
@@ -2728,11 +2809,11 @@ local TABLE: { [string]: Entry } = {
 	["quests.title"] = { ru = "Задания дня", en = "Daily quests" },
 	["quests.titleBig"] = { ru = "ЗАДАНИЯ И ЛИДЕРЫ", en = "QUESTS & LEADERS" },
 	["quests.subtitle"] = {
-		ru = "Три задания каждый день — медали и опыт пропуска; за все три — жетон.",
-		en = "Three quests every day — medals and pass XP; all three give a token.",
+		ru = "Три задания каждый день — медали и опыт «Пути командира»; за все три — жетон.",
+		en = "Three quests every day — medals and Commander Path XP; all three give a token.",
 	},
-	["quests.reward"] = { ru = "+%d 🏅  ·  +%d опыта пропуска", en = "+%d 🏅  ·  +%d pass XP" },
-	["quests.passXp"] = { ru = "опыта пропуска", en = "pass XP" },
+	["quests.reward"] = { ru = "+%d 🏅  ·  +%d опыта", en = "+%d 🏅  ·  +%d XP" },
+	["quests.passXp"] = { ru = "опыта «Пути»", en = "Path XP" },
 	["quests.bonus"] = {
 		ru = "Все три — +%d жетон штаба · новые задания через %d ч",
 		en = "All three — +%d HQ token · new quests in %d h",

@@ -223,8 +223,10 @@ function WardrobePanel.new(
 				else (function(): string
 					-- §15ю Ю4: эксклюзив «Пути командира» — уровень и дорога.
 					local lv, premium = Cosmetics.pathSource(row.kind, row.id)
+					local pack = Cosmetics.packSource(row.kind, row.id) -- §15я Я2: набор магазина
 					return if lv ~= nil
 						then string.format(t(if premium then "wardrobe.pathPremium" else "wardrobe.pathFree"), lv)
+						elseif pack ~= nil then string.format(t("wardrobe.shopSet"), t("shop." .. pack))
 						else t("wardrobe.pass")
 				end)()
 			local canBuy = not owned and it ~= nil and it.price ~= nil and p.medals >= (it.price :: number)

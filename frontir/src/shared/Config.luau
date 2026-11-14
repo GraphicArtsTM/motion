@@ -154,8 +154,25 @@ Config.Shop = {
 		Crate5 = { id = 0, price = 199, crates = 5, tokens = 0, medals = 0 },
 		-- §15ю Ю1: премиум-дорога «Пути командира» — навсегда (заменила пропуск сезона).
 		PathPremium = { id = 0, price = 499, premiumPath = true, tokens = 0, medals = 0 },
-		Weekly = { id = 0, price = 149, weekly = true, tokens = 0, medals = 0 },
+		-- §15я Я1: 119 — дешевле частей в каждую неделю (при 149 одна неделя стоила дороже частей).
+		Weekly = { id = 0, price = 119, weekly = true, tokens = 0, medals = 0 },
+		-- §15я Я2: премиум + уровни, уровни, ускоритель опыта, разовый набор оформления (эксклюзив магазина).
+		PathPremiumPlus = { id = 0, price = 699, premiumPath = true, levels = 10, tokens = 0, medals = 0 },
+		Levels5 = { id = 0, price = 149, levels = 5, tokens = 0, medals = 0 },
+		XpBoost1 = { id = 0, price = 79, xpBoostHours = 24, tokens = 0, medals = 0 },
+		XpBoost7 = { id = 0, price = 249, xpBoostHours = 168, tokens = 0, medals = 0 },
+		ParadeSet = {
+			id = 0,
+			price = 249,
+			once = true,
+			cosmetics = { "pattern:Stars", "capture:Snow", "title:Generalissimo" },
+			tokens = 0,
+			medals = 0,
+		},
 	},
+	XpBoostMul = 2, -- §15я: ускоритель опыта за матчи (с VIP перемножается)
+	-- §15я Я3: метки витрины (hit — «ХИТ», new — «НОВОЕ»; «ВЫГОДНО −N%» считает Shop.saving).
+	Tags = { PathPremium = "hit", PathPremiumPlus = "new", ParadeSet = "new", XpBoost7 = "hit" } :: { [string]: string },
 	-- Предложение недели (§11.3): по номеру недели UTC по кругу; дешевле, чем по отдельности.
 	WeeklyOffers = {
 		{ stock = { Guards = 1, Airstrike = 1 }, crates = 1, tokens = 0 },
@@ -193,6 +210,7 @@ Config.Cosmetics = {
 		{ id = "Camo" },
 		{ id = "Cross" },
 		{ id = "Bricks" },
+		{ id = "Stars" }, -- §15я Я2: только «Парадный набор» в магазине
 	} :: { { id: string, price: number? } },
 	Captures = { -- цвет вспышки захвата (имена — палитра)
 		{ id = "Gold", price = 500 },
@@ -206,6 +224,7 @@ Config.Cosmetics = {
 		{ id = "Rose" },
 		{ id = "Sea" },
 		{ id = "Plum" },
+		{ id = "Snow" }, -- §15я Я2: «Парадный набор»
 	} :: { { id: string, price: number? } },
 	Titles = { -- price — за медали; level — за уровень; без обоих — премиум-дорога «Пути» (§15ю Ю4)
 		{ id = "Strategist", price = 300 },
@@ -222,6 +241,7 @@ Config.Cosmetics = {
 		{ id = "Hero" },
 		{ id = "Emperor" },
 		{ id = "Legend" },
+		{ id = "Generalissimo" }, -- §15я Я2: «Парадный набор»
 	} :: { { id: string, price: number?, level: number? } },
 	Flag = {
 		Colors = { "Red", "Gold", "White", "Sky", "Forest", "Ink", "Violet", "Orange", "Teal", "Rose", "Sea", "Lime" },
@@ -289,6 +309,9 @@ Config.Path = {
 		TokensEvery = 5,
 		Tokens = 2,
 		DuplicateMedals = 500,
+		-- §15я Я1: улучшение уже куплено в магазине / техника уже открыта — вместо них медали.
+		PassRefund = 1500,
+		UnitRefund = 1000,
 		Specials = {
 			[3] = { unit = "Tanks" },
 			[6] = { cosmetic = "capture:Orange" },

@@ -9,7 +9,19 @@ local Config = require("./Config")
 
 export type PassKey = "HQ" | "Intel" | "Vip" | "AllCommanders"
 export type BoostKey = "Mobilize" | "Loan" | "Research" | "Reserve" | "Guards" | "Airstrike" | "Squadron" | "AirWing"
-export type PackKey = "Recruit" | "Medals" | "Tokens" | "Crate1" | "Crate5" | "PathPremium" | "Weekly"
+export type PackKey =
+	"Recruit"
+	| "Medals"
+	| "Tokens"
+	| "Crate1"
+	| "Crate5"
+	| "PathPremium"
+	| "Weekly"
+	| "PathPremiumPlus"
+	| "Levels5"
+	| "XpBoost1"
+	| "XpBoost7"
+	| "ParadeSet"
 
 -- Перки геймпассов в матче (§11.1).
 export type Perks = {
@@ -28,8 +40,20 @@ Shop.BoostKeys = table.freeze(
 )
 -- Платные части (§11.3) — их дают ящики и пропуск.
 Shop.UnitKeys = table.freeze({ "Guards", "Airstrike", "Squadron", "AirWing" } :: { BoostKey })
-Shop.PackKeys =
-	table.freeze({ "Recruit", "Medals", "Tokens", "Crate1", "Crate5", "PathPremium", "Weekly" } :: { PackKey })
+Shop.PackKeys = table.freeze({
+	"Recruit",
+	"Medals",
+	"Tokens",
+	"Crate1",
+	"Crate5",
+	"PathPremium",
+	"Weekly",
+	"PathPremiumPlus",
+	"Levels5",
+	"XpBoost1",
+	"XpBoost7",
+	"ParadeSet",
+} :: { PackKey })
 
 -- Номер недели UTC (с понедельника) — для предложения недели.
 function Shop.week(unixTime: number): number
@@ -80,6 +104,42 @@ function Shop.productById(id: number): (string?, string?)
 		return "unlock", "All"
 	end
 	return nil, nil
+end
+
+-- §15я Я3: выгода набора в процентах от цены частей (0 — не выгоднее). Части — в Robux.
+function Shop.saving(price: number, partsPrice: number): number
+	if partsPrice <= price or partsPrice <= 0 then
+		return 0
+	end
+	return math.floor((1 - price / partsPrice) * 100 + 0.5)
+end
+
+-- Цена частей набора в Robux (для «ВЫГОДНО −N%»); nil — сравнивать не с чем. Жетон — по набору «Жетоны».
+function Shop.partsPrice(key: string, unixTime: number): number?
+	local packs = Config.Shop.Packs :: any
+	local boosts = Config.Shop.Boosts :: any
+	local tokenPrice = packs.Tokens.price / packs.Tokens.tokens
+	if key == "Crate5" then
+		return packs.Crate1.price * packs.Crate5.crates
+	elseif key == "XpBoost7" then
+		return packs.XpBoost1.price * (packs.XpBoost7.xpBoostHours / packs.XpBoost1.xpBoostHours)
+	elseif key == "PathPremiumPlus" then
+		return packs.PathPremium.price + packs.Levels5.price * (packs.PathPremiumPlus.levels / packs.Levels5.levels)
+	elseif key == "UnlockAll" then
+		local sum = 0
+		for _, item in Config.Unlocks.Items do
+			sum += item.price
+		end
+		return sum
+	elseif key == "Weekly" then
+		local offer = Shop.weeklyOffer(unixTime)
+		local sum = offer.crates * packs.Crate1.price + offer.tokens * tokenPrice
+		for k, n in offer.stock do
+			sum += boosts[k].price * n
+		end
+		return sum
+	end
+	return nil
 end
 
 function Shop.noPerks(): Perks

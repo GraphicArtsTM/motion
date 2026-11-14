@@ -106,7 +106,10 @@ export type ProfileInfo = {
 		bonusXp: number?,
 		bonusPer: number?,
 	}?,
-	unitUnlocks: { [string]: boolean }?, -- §15э Э1: открытая техника (Tanks / Artillery / AntiAir / Missile)
+	unitUnlocks: { [string]: boolean }?,
+	pathPasses: { [string]: boolean }?, -- §15я Я1: улучшения с «Пути» / купленные геймпассом
+	ownedPasses: { [string]: boolean }?,
+	xpBoostLeft: number?, -- §15я: секунд ускорителя опыта -- §15э Э1: открытая техника (Tanks / Artillery / AntiAir / Missile)
 	weekly: { offer: { stock: { [string]: number }, crates: number, tokens: number, medals: number? }, left: number },
 	noPaidRandom: boolean?, -- сводная правка ч.4: в стране игрока ящики за Robux не продаются (PolicyService)
 	dailyStreak: number,

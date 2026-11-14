@@ -86,6 +86,17 @@ function Cosmetics.pathSource(kind: Kind, id: string): (number?, boolean)
 	return nil, false
 end
 
+-- §15я Я2: в каком наборе магазина продаётся предмет (ключ Config.Shop.Packs) или nil.
+function Cosmetics.packSource(kind: Kind, id: string): string?
+	local key = Cosmetics.key(kind, id)
+	for packKey, pack in Config.Shop.Packs :: any do
+		if type(pack.cosmetics) == "table" and table.find(pack.cosmetics, key) ~= nil then
+			return packKey
+		end
+	end
+	return nil
+end
+
 -- Купить за медали (§11.4).
 function Cosmetics.buy(d: Profile.Data, kind: Kind, id: string): (boolean, string?)
 	local it = Cosmetics.item(kind, id)
@@ -175,6 +186,9 @@ function Cosmetics.patternHit(pattern: string, x: number, y: number): boolean
 		return (x % 8 == 4 and y % 8 >= 2 and y % 8 <= 6) or (y % 8 == 4 and x % 8 >= 2 and x % 8 <= 6)
 	elseif pattern == "Bricks" then
 		return y % 4 == 0 or (x + (if (y // 4) % 2 == 0 then 0 else 4)) % 8 == 0
+	elseif pattern == "Stars" then -- §15я Я2: «Парадный набор»
+		local a, b = x % 7, y % 7
+		return (a == 3 and b >= 1 and b <= 5) or (b == 3 and a >= 1 and a <= 5) or (a == b and a >= 2 and a <= 4)
 	end
 	return false
 end

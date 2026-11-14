@@ -54,6 +54,7 @@ export type Data = {
 	pathPaid: number,
 	pathBonus: number,
 	pathBonusPaid: number,
+	xpBoostUntil: number, -- §15я: ускоритель опыта действует до (unix; 0 — нет)
 	unlocks: { [string]: boolean }, -- §15э Э1: техника, купленная навсегда (Config.Unlocks; по уровню — само)
 }
 
@@ -98,6 +99,7 @@ function Profile.new(): Data
 		pathPaid = 1,
 		pathBonus = 0,
 		pathBonusPaid = 0,
+		xpBoostUntil = 0,
 		unlocks = {},
 	}
 end
@@ -143,6 +145,7 @@ function Profile.migrate(raw: any): Data
 	d.pathPaid = math.max(1, num(raw.pathPaid))
 	d.pathBonus = num(raw.pathBonus)
 	d.pathBonusPaid = num(raw.pathBonusPaid)
+	d.xpBoostUntil = num(raw.xpBoostUntil)
 	-- §15ю: купивший пропуск сезона — премиум-дорога; дошедший до 30-й ступени премиума — «Легенда».
 	d.pathPremium = raw.pathPremium == true or raw.seasonPremium == true
 	if raw.seasonPremium == true and num(raw.seasonXp) >= 30 * 400 then
@@ -541,6 +544,26 @@ local function cosmeticRefund(key: string): number
 	return Config.Path.Premium.DuplicateMedals
 end
 
+-- §15я Я1: награда, которая уже есть, — медали. Улучшение куплено в магазине (owned); техника уже открыта покупкой
+-- или раньше этого уровня (премиум-дорогой).
+local function dedupe(d: Data, r: PathReward, level: number, owned: { [string]: boolean })
+	local cfg = Config.Path.Premium
+	local pass = r.pass
+	if pass ~= nil and owned[pass] then
+		r.medals += cfg.PassRefund
+		r.pass = nil
+	end
+	local unit = r.unit
+	if unit ~= nil then
+		local item = Config.Unlocks.Items[unit]
+		local earlier = d.pathPremium and item ~= nil and item.premiumLevel < level
+		if d.unlocks[unit] or earlier then
+			r.medals += cfg.UnitRefund
+			r.unit = nil
+		end
+	end
+end
+
 local function grant(d: Data, r: PathReward, paid: boolean)
 	local cosmetic = r.cosmetic
 	if cosmetic ~= nil then
@@ -561,17 +584,20 @@ end
 
 -- Забрать по порядку все награды обеих дорог (и бонусы после последнего уровня). Возвращает забранное (пусто —
 -- нечего). Повтор косметики — медали. Премиум куплен позже — премиум пройденных уровней тоже забирается.
-function Profile.pathClaim(d: Data): { PathGot }
+function Profile.pathClaim(d: Data, owned: { [string]: boolean }?): { PathGot }
+	local bought = owned or {}
 	local out: { PathGot } = {}
 	local level = Profile.levelOf(d.xp)
 	for lv = 2, level do
 		if lv > d.pathClaimed then
 			local r = Profile.pathReward(lv)
+			dedupe(d, r, lv, bought)
 			grant(d, r, false)
 			table.insert(out, { level = lv, premium = false, bonus = false, reward = r })
 		end
 		if d.pathPremium and lv > d.pathPaid then
 			local r = Profile.premiumReward(lv)
+			dedupe(d, r, lv, bought)
 			grant(d, r, true)
 			table.insert(out, { level = lv, premium = true, bonus = false, reward = r })
 		end
@@ -622,6 +648,23 @@ function Profile.passesWith(d: Data, owned: { [string]: boolean }): { [string]: 
 	return out
 end
 
+-- §15я: сколько секунд ещё действует ускоритель опыта.
+function Profile.xpBoostLeft(d: Data, now: number?): number
+	return if now == nil then 0 else math.max(0, d.xpBoostUntil - now)
+end
+
+-- §15я Я1: +n уровней «Пути» (опыт ровно до них); после последнего — в бонусы (BonusXp за уровень).
+function Profile.addLevels(d: Data, n: number)
+	local gain = 0
+	local level = Profile.levelOf(d.xp)
+	for k = 0, n - 1 do
+		local lv = level + k
+		gain += if lv < Config.Profile.MaxLevel then Profile.xpNeeded(lv) else Config.Path.BonusXp
+	end
+	-- Опыт внутри уровня сохраняется: добавляем ровно цену n уровней.
+	d.xp += gain
+end
+
 -- Итог матча в профиль.
 function Profile.applyMatch(
 	d: Data,
@@ -636,6 +679,9 @@ function Profile.applyMatch(
 	if won and now ~= nil and d.firstWinDay ~= Profile.dayOf(now) then
 		d.firstWinDay = Profile.dayOf(now)
 		xp = math.floor(xp * Config.Daily.FirstWinMul)
+	end
+	if Profile.xpBoostLeft(d, now) > 0 then
+		xp = math.floor(xp * Config.Shop.XpBoostMul) -- §15я: ускоритель опыта (с VIP перемножается)
 	end
 	d.matches += 1
 	if won then
@@ -748,6 +794,19 @@ function Profile.grantProduct(d: Data, kind: string, key: string, purchaseId: st
 				)
 			)
 			d.weeklyWeek = Shop.week(now or 0)
+		end
+		-- §15я Я2: уровни, ускоритель (продлевает), набор оформления.
+		if pack.levels ~= nil then
+			Profile.addLevels(d, pack.levels)
+		end
+		if pack.xpBoostHours ~= nil then
+			local t = now or 0
+			d.xpBoostUntil = math.max(d.xpBoostUntil, t) + pack.xpBoostHours * 3600
+		end
+		if pack.cosmetics ~= nil then
+			for _, key in pack.cosmetics :: { string } do
+				d.cosmetics[key] = true
+			end
 		end
 	else
 		return false
