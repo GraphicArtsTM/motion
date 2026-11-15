@@ -373,9 +373,17 @@ local function runSession(mapId: string, resync: boolean)
 		toFront(cell % map.width + 0.5, cell // map.width + 0.5)
 	end)
 	local openMainMenu: () -> () = function() end -- главное меню создаётся ниже (§15л)
+	-- §15я: «Открыть Путь» из магазина и итогов (окно «Путь» создаётся ниже).
+	local openPath: (() -> ())? = nil
+	local function goPath()
+		local fn = openPath
+		if fn ~= nil then
+			fn()
+		end
+	end
 	local results = ResultsPanel.new(hudGui, cs, lang, function()
 		openMainMenu()
-	end)
+	end, goPath)
 	results.refresh()
 	local diplomacy = DiplomacyPanel.new(hudGui, cs, lang, map, provinces, send, hud.toast, wars.offerDeclare)
 	diplomacy.refresh()
@@ -425,7 +433,6 @@ local function runSession(mapId: string, resync: boolean)
 	end
 	local modePanel = ModePanel.new(hudGui, cs, lang, send)
 	local serverPanel = ServerPanel.new(hudGui, cs, lang, send) -- частный сервер (§5.4)
-	local openPath: (() -> ())? = nil -- §15я: «Открыть Путь» из магазина (окно «Путь» создаётся ниже)
 	local shopPanel = ShopPanel.new(hudGui, cs, lang, send, hud.toast, function()
 		local fn = openPath
 		if fn ~= nil then

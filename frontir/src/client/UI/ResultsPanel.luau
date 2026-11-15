@@ -119,7 +119,13 @@ local function button(parent: Instance, text: string): TextButton
 	return b
 end
 
-function ResultsPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, onMenu: () -> ()): ResultsPanel
+function ResultsPanel.new(
+	gui: ScreenGui,
+	cs: ClientState,
+	lang: Strings.Lang,
+	onMenu: () -> (),
+	onPath: (() -> ())? -- §15я: «Забрать награды» — окно «Путь командира»
+): ResultsPanel
 	local muted = hex(Theme.Colors.Muted)
 
 	local panel = Instance.new("Frame")
@@ -154,12 +160,21 @@ function ResultsPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, o
 	local expanded = false -- «Подробнее»: места и график
 	local function fit()
 		local s = UiScale.size(gui)
-		local h = if expanded then CHART_H + 720 else 600
+		local h = if expanded then CHART_H + 900 else 780
 		scale.Scale = math.clamp(math.min(s.X / (TILES_W + 60), s.Y / h), 0.45, 1)
 	end
 	UiScale.onResize(gui, fit)
 	fit()
 
+	-- §15я: картинка-шапка во всю ширину — медаль места (1–3), выбыли или «ваше место».
+	local banner = Instance.new("Frame")
+	banner.Name = "Banner"
+	banner.BackgroundTransparency = 1
+	banner.Size = UDim2.fromOffset(TILES_W, 150)
+	banner.LayoutOrder = 0
+	banner.ClipsDescendants = true
+	banner.Parent = panel
+	local bannerArt = CardKit.art(banner, "results.place", TILES_W, 150)
 	-- Заголовок и «кто победил» — по центру карточки, строка переносится, а не раздвигает окно.
 	local title = label(panel, 40, 1)
 	title.FontFace = Theme.FontHeavy
@@ -234,6 +249,16 @@ function ResultsPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, o
 	levelUp.BackgroundColor3 = Theme.Colors.Gold
 	MenuKit.pad(levelUp, 8, 2)
 	local levelRow = MenuKit.box(panel, "Level", 5)
+	-- §15я: награды «Пути командира» ждут — кнопка сразу к ним.
+	local pathButton = MenuKit.button(panel, "", "good", BUTTON, 6)
+	pathButton.Size = UDim2.fromOffset(TILES_W, BUTTON)
+	pathButton.TextSize = 16
+	pathButton.Visible = false
+	Session.connect(pathButton.Activated, function()
+		if onPath ~= nil then
+			onPath()
+		end
+	end)
 	MenuKit.list(levelRow, 10, true)
 	local rankIcon = MenuKit.rankIcon(levelRow, 1, 2, 1)
 	local levelText = MenuKit.label(levelRow, "", 15, Theme.Colors.Gold, true, 2)
@@ -245,7 +270,7 @@ function ResultsPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, o
 	local levelBar = MenuKit.bar(levelBarHost, 6, Theme.Colors.Sky)
 	local levelXp = MenuKit.label(levelRow, "", 11, Theme.Colors.Muted, false, 4)
 	-- Места держав: строки с медалью (1–3) или номером, цветом державы, долей суши.
-	local placesList = MenuKit.box(panel, "Places", 8)
+	local placesList = MenuKit.box(panel, "Places", 9)
 	placesList.Visible = false
 	placesList.Size = UDim2.fromOffset(TILES_W, 0)
 	local placesGrid = Instance.new("UIGridLayout")
@@ -257,7 +282,7 @@ function ResultsPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, o
 	placesGrid.Parent = placesList
 	local chartTitle = label(panel, 13, 5)
 	chartTitle.TextColor3 = Theme.Colors.Muted
-	chartTitle.LayoutOrder = 9
+	chartTitle.LayoutOrder = 10
 	chartTitle.Text = Strings.get("result.chart", lang)
 	chartTitle.Visible = false
 	local chart = Instance.new("Frame")
@@ -266,7 +291,7 @@ function ResultsPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, o
 	chart.BackgroundColor3 = Theme.Colors.Backdrop
 	chart.BorderSizePixel = 0
 	chart.ClipsDescendants = true
-	chart.LayoutOrder = 10
+	chart.LayoutOrder = 11
 	chart.Visible = false
 	chart.Parent = panel
 	local chartStroke = Instance.new("UIStroke")
@@ -275,7 +300,7 @@ function ResultsPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, o
 	chartStroke.Parent = chart
 	-- Большая «В МЕНЮ» во всю ширину карточки, под ней — отсчёт, «Смотреть карту», «Подробнее».
 	-- §15ц Ц5б: «В МЕНЮ» — золотая главная кнопка, как в окнах шаблона.
-	local menuButton = MenuKit.button(panel, Strings.get("result.menu", lang), "primary", 56, 6)
+	local menuButton = MenuKit.button(panel, Strings.get("result.menu", lang), "primary", 56, 7)
 	menuButton.Size = UDim2.fromOffset(TILES_W, 56)
 	menuButton.TextSize = 20
 	Session.connect(menuButton.Activated, onMenu)
@@ -283,7 +308,7 @@ function ResultsPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, o
 	footer.BackgroundTransparency = 1
 	footer.Size = UDim2.fromOffset(0, BUTTON)
 	footer.AutomaticSize = Enum.AutomaticSize.X
-	footer.LayoutOrder = 7
+	footer.LayoutOrder = 8
 	footer.Parent = panel
 	local footerLayout = Instance.new("UIListLayout")
 	footerLayout.FillDirection = Enum.FillDirection.Horizontal
@@ -388,6 +413,17 @@ function ResultsPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, o
 			then string.format(Strings.get("result.tile.placeOf", lang), mine, #result.places)
 			else "—"
 		placeValue.TextColor3 = if mine == 1 then Theme.Colors.Gold else Theme.Colors.Text
+		-- Шапка: медаль за 1–3 место, выбывшему — разрушенный город, иначе — пьедестал.
+		local meInfo = if me ~= nil then cs.nations[me] else nil
+		local out = meInfo ~= nil and not meInfo.alive and not won
+		CardKit.repaint(
+			bannerArt,
+			if won or mine == 1
+				then "results.medal1"
+				elseif mine == 2 or mine == 3 then "results.medal" .. mine
+				elseif out then "results.out"
+				else "results.place"
+		)
 		local peak = 0
 		local own = if me ~= nil then sharesOf(result, me) else nil
 		if own ~= nil then
@@ -537,6 +573,10 @@ function ResultsPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, o
 			levelUp.Text = if p ~= nil then string.format(Strings.get("result.levelUp", lang), p.level) else ""
 		end
 		levelRow.Visible = p ~= nil
+		local free, paid, bonus = ClientState.rewardsPending(cs)
+		local waiting = free + paid + bonus
+		pathButton.Visible = waiting > 0 and onPath ~= nil
+		pathButton.Text = string.format(Strings.get("result.pathClaim", lang), waiting)
 		if p ~= nil then
 			local rank = Ranks.of(p.level)
 			MenuKit.setRank(rankIcon, rank, 2)

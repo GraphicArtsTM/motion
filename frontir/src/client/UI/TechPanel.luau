@@ -37,7 +37,8 @@ local TechPanel = {}
 
 local BUTTON = Config.Render.MinTouchTargetPx
 local COLUMN = 280
-local CELL_H = 90
+local CELL_H = 84
+local HERO_H = 128 -- §15я: карточка выбранного уровня сверху
 local BRANCHES: { Types.TechBranch } = { "Army", "Economy", "Fleet" }
 
 local function stroke(parent: Instance, color: Color3)
@@ -124,7 +125,7 @@ function TechPanel.new(
 		t("tech.titleBig"),
 		t("tech.subtitle"),
 		940,
-		640,
+		780,
 		{},
 		{ main = "list" },
 		true
@@ -137,21 +138,39 @@ function TechPanel.new(
 	window.ZIndex = 5
 	local moneyChip = CardKit.chip(win.chips, "money", 1)
 	local page = win.page("main")
+	-- §15я: сверху — крупная карточка выбранного (или изучаемого) уровня: картинка, название, что даёт, цена,
+	-- состояние и полоса исследования.
 	local statusRow = Instance.new("Frame")
+	statusRow.Name = "Selected"
 	statusRow.BackgroundColor3 = Theme.Colors.Backdrop
 	statusRow.BorderSizePixel = 0
-	statusRow.Size = UDim2.new(1, 0, 0, 44)
+	statusRow.Size = UDim2.new(1, 0, 0, HERO_H)
 	statusRow.LayoutOrder = 1
 	statusRow.Parent = page
-	MenuKit.stroke(statusRow, Theme.Colors.PanelBorder, 2)
-	local status = MenuKit.label(statusRow, "", 15, Theme.Colors.Text, true)
-	status.Position = UDim2.fromOffset(12, 4)
+	MenuKit.corner(statusRow, 10)
+	local heroEdge = MenuKit.stroke(statusRow, Theme.Colors.PanelBorder, 2)
+	local heroArt = CardKit.art(statusRow, "tech.Army1", 174, HERO_H - 12)
+	heroArt.Position = UDim2.fromOffset(6, 6)
+	local heroName = MenuKit.label(statusRow, "", 20, Theme.Colors.Text, true)
+	heroName.FontFace = Theme.FontHeavy
+	heroName.Position = UDim2.fromOffset(194, 8)
+	local heroDesc = MenuKit.label(statusRow, "", 13, Theme.Colors.Muted)
+	heroDesc.AutomaticSize = Enum.AutomaticSize.None
+	heroDesc.Position = UDim2.fromOffset(194, 36)
+	heroDesc.Size = UDim2.new(1, -206, 0, 36)
+	heroDesc.TextWrapped = true
+	heroDesc.TextYAlignment = Enum.TextYAlignment.Top
+	local status = MenuKit.label(statusRow, "", 14, Theme.Colors.Text, true)
+	status.AutomaticSize = Enum.AutomaticSize.None
+	status.Position = UDim2.fromOffset(194, 76)
+	status.Size = UDim2.new(1, -206, 0, 18)
+	status.TextTruncate = Enum.TextTruncate.AtEnd
 	local statusBarHost = Instance.new("Frame")
 	statusBarHost.BackgroundTransparency = 1
-	statusBarHost.Position = UDim2.fromOffset(12, 28)
-	statusBarHost.Size = UDim2.new(1, -24, 0, 8)
+	statusBarHost.Position = UDim2.fromOffset(194, 102)
+	statusBarHost.Size = UDim2.new(1, -206, 0, 10)
 	statusBarHost.Parent = statusRow
-	local statusBar = MenuKit.bar(statusBarHost, 8, Theme.Colors.Sky)
+	local statusBar = MenuKit.bar(statusBarHost, 10, Theme.Colors.Sky)
 
 	local columns = Instance.new("Frame")
 	columns.BackgroundTransparency = 1
@@ -174,6 +193,7 @@ function TechPanel.new(
 	}
 	local cells: { [string]: Cell } = {}
 	local heads: { [string]: TextLabel } = {}
+	local branchBars: { [string]: MenuKit.Bar } = {}
 	local BRANCH_ICON: { [string]: string } = { Army = "army", Economy = "money", Fleet = "tech" }
 
 	for k, branch in BRANCHES do
@@ -186,6 +206,13 @@ function TechPanel.new(
 		MenuKit.icon(headRow, BRANCH_ICON[branch], 3, 1)
 		local head = MenuKit.label(headRow, t("tech.branch." .. branch), 18, Theme.Colors.Gold, true, 2)
 		heads[branch] = head
+		local branchHost = Instance.new("Frame")
+		branchHost.Name = "BranchBar"
+		branchHost.BackgroundTransparency = 1
+		branchHost.LayoutOrder = 1
+		branchHost.Size = UDim2.new(1, -24, 0, 6)
+		branchHost.Parent = col
+		branchBars[branch] = MenuKit.bar(branchHost, 6, Theme.Colors.Gold)
 		for level = 1, #cfg.Cost do
 			if level > 1 then
 				MenuKit.label(col, "▼", 14, Theme.Colors.PanelBorder, true, level * 2 - 1)
@@ -360,9 +387,19 @@ function TechPanel.new(
 					c.bar.Size = UDim2.fromScale(math.clamp(1 - r.left / math.max(1, r.total), 0, 1), 1)
 				end
 				c.dim.Visible = closed or (not done and not available and not isResearching)
-				c.tag.Visible = done or closed
-				c.tag.Text = t(if done then "tech.tagDone" else "tech.tagLocked")
-				c.tag.BackgroundColor3 = if done then Theme.Colors.Gold else Theme.Colors.PanelBorder
+				-- §15я: метка у каждого уровня — изучено / идёт / доступно / закрыто.
+				c.tag.Visible = true
+				c.tag.Text = if done
+					then t("tech.tagDone")
+					elseif isResearching then t("tech.tagGoing")
+					elseif available then t("tech.tagReady")
+					elseif closed then t("tech.tagLocked")
+					else string.format(t("tech.tagAfter"), level - 1)
+				c.tag.BackgroundColor3 = if done
+					then Theme.Colors.Gold
+					elseif isResearching then Theme.Colors.Sky
+					elseif available then Theme.Colors.Good
+					else Theme.Colors.PanelBorder
 				c.button.AutoButtonColor = available
 				c.name.TextColor3 = if done
 					then Theme.Colors.Gold
@@ -404,7 +441,30 @@ function TechPanel.new(
 				end
 			end
 		end
-		status.Text = researchLine() or Strings.get("tech.idle", lang)
+		-- Карточка сверху: идёт исследование — оно, иначе выбранный уровень.
+		local heroBranch, heroLevel = pickedLevel()
+		if r ~= nil then
+			heroBranch, heroLevel = r.branch, r.level
+		end
+		if heroBranch ~= nil then
+			local hb: string = heroBranch
+			CardKit.repaint(heroArt, "tech." .. hb .. heroLevel)
+			heroName.Text =
+				string.format("%s · %s %d", t("tech." .. hb .. "." .. heroLevel), t("tech.branch." .. hb), heroLevel)
+			heroDesc.Text = describe(hb, heroLevel, lang)
+			heroArt.Visible = true
+		else
+			heroName.Text = t("tech.allDone")
+			heroDesc.Text = ""
+			heroArt.Visible = false
+		end
+		heroEdge.Color = if r ~= nil then Theme.Colors.Sky else Theme.Colors.PanelBorder
+		status.Text = researchLine()
+			or (
+				if heroBranch ~= nil
+					then string.format(t("tech.cost"), Strings.formatInt(cfg.Cost[heroLevel]), cfg.Sec[heroLevel])
+					else Strings.get("tech.idle", lang)
+			)
 		statusBar.frame.Visible = r ~= nil
 		if r ~= nil then
 			statusBar.set(1 - r.left / math.max(1, r.total))
@@ -414,6 +474,7 @@ function TechPanel.new(
 		for _, branch in BRANCHES do
 			local have = (cs.tech.levels :: any)[branch] :: number
 			heads[branch].Text = string.format(t("tech.branchLevel"), t("tech.branch." .. branch), have, #cfg.Cost)
+			branchBars[branch].set(have / #cfg.Cost)
 		end
 	end
 

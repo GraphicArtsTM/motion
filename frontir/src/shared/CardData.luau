@@ -20,6 +20,8 @@ for _, part in
 		require("./CardData5"),
 		require("./CardData6"),
 		require("./CardData7"),
+		require("./CardData8"),
+		require("./CardData9"),
 	} :: { { [string]: { palette: string, data: string } } }
 do
 	for name, card in part do

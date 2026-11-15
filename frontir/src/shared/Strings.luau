@@ -404,6 +404,10 @@ local TABLE: { [string]: Entry } = {
 	["council.votes"] = { ru = "голосов: %d", en = "votes: %d" },
 	["council.votesShare"] = { ru = "голосов: %d · %d%%", en = "votes: %d · %d%%" }, -- §15я
 	["council.leading"] = { ru = "ЛИДИРУЕТ", en = "LEADING" },
+	["result.pathClaim"] = {
+		ru = "Награды «Пути командира» ждут: %d — забрать",
+		en = "Commander Path rewards waiting: %d — claim",
+	},
 	["council.leftTime"] = { ru = "Осталось %s", en = "%s left" },
 	["council.voted"] = { ru = "Ваш голос учтён", en = "Your vote is counted" },
 	["council.next"] = { ru = "Совет через %s", en = "Council in %s" },
@@ -1082,6 +1086,9 @@ local TABLE: { [string]: Entry } = {
 	["tech.branchLevel"] = { ru = "%s  %d/%d", en = "%s  %d/%d" },
 	["tech.tagDone"] = { ru = "ИЗУЧЕНО", en = "DONE" },
 	["tech.tagLocked"] = { ru = "ЗАКРЫТО", en = "LOCKED" },
+	["tech.tagGoing"] = { ru = "ИДЁТ", en = "IN PROGRESS" }, -- §15я
+	["tech.tagReady"] = { ru = "ДОСТУПНО", en = "AVAILABLE" },
+	["tech.tagAfter"] = { ru = "ПОСЛЕ УР. %d", en = "AFTER LV %d" },
 	["tech.Army.1"] = { ru = "Учебка", en = "Boot camp" },
 	["tech.Army.2"] = { ru = "Снабжение", en = "Logistics" },
 	["tech.Army.3"] = { ru = "Ракетная шахта", en = "Missile silo" },
