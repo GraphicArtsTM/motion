@@ -59,10 +59,20 @@ local BY_KEY: { [string]: string } = {
 
 type Card = { palette: string, data: string }
 
+-- Имя по умолчанию: ключ с «_» вместо точки, строчными («tech.Army1» → «tech_army1»; docs/ART_PROMPTS_UI.md).
+local function defaultName(key: string): string
+	return string.lower((string.gsub(key, "%.", "_")))
+end
+
 -- Ключ картинки интерфейса → имя карточки (nil — карточки нет).
 function CardArt.forKey(key: string): string?
+	local cards = CardData.Cards :: { [string]: Card }
 	local name = BY_KEY[key]
-	return if name ~= nil and (CardData.Cards :: { [string]: Card })[name] ~= nil then name else nil
+	if name ~= nil then
+		return if cards[name] ~= nil then name else nil
+	end
+	local fallback = defaultName(key)
+	return if cards[fallback] ~= nil then fallback else nil
 end
 
 -- Пиксели RGBA (W × H, строки сверху вниз, непрозрачные); nil — карточки нет.
