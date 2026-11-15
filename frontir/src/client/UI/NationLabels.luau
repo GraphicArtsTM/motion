@@ -116,7 +116,7 @@ function NationLabels.new(canvas: Frame, cs: ClientState, lang: Strings.Lang, ma
 		local left, top = CameraMath.cellEdge(zoom, cx), CameraMath.cellEdge(zoom, cy)
 		local cellW = CameraMath.cellEdge(zoom, cx + 1) - left
 		local scale = cityScale()
-		local side = CitySprites.size(m.level) * scale
+		local side = if m.picture then CitySprites.pictureSide(m.level, scale) else CitySprites.size(m.level) * scale
 		local centerX, centerY = left + cellW / 2, top + (CameraMath.cellEdge(zoom, cy + 1) - top) / 2
 		m.frame.Size = UDim2.fromOffset(side, side)
 		m.frame.Position = UDim2.fromOffset(centerX, centerY)
@@ -170,6 +170,7 @@ function NationLabels.new(canvas: Frame, cs: ClientState, lang: Strings.Lang, ma
 		if picture ~= nil then
 			-- §15я: город картинкой — растёт с уровнем (CitySprites.size), подложка цветом хозяина, у столицы — звезда.
 			frame.BackgroundTransparency = 0.2
+			frame.ZIndex = 6 -- поверх подписей провинций (ZIndex 4): город не тонет в тексте
 			local corner = Instance.new("UICorner")
 			corner.CornerRadius = UDim.new(0.2, 0)
 			corner.Parent = frame
@@ -182,7 +183,7 @@ function NationLabels.new(canvas: Frame, cs: ClientState, lang: Strings.Lang, ma
 			img.ScaleType = Enum.ScaleType.Fit
 			img.ResampleMode = Enum.ResamplerMode.Pixelated
 			img.ImageContent = picture
-			img.ZIndex = 5
+			img.ZIndex = 7
 			img.Parent = frame
 			if capitalOf ~= nil then
 				local star = Instance.new("TextLabel")
@@ -197,7 +198,7 @@ function NationLabels.new(canvas: Frame, cs: ClientState, lang: Strings.Lang, ma
 				star.TextColor3 = Theme.Colors.Gold
 				star.TextStrokeColor3 = Theme.Colors.Backdrop
 				star.TextStrokeTransparency = 0
-				star.ZIndex = 6
+				star.ZIndex = 8
 				star.Parent = frame
 			end
 		end

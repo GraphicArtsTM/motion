@@ -176,3 +176,24 @@ T.describe("Карта картинками (§15я Я4)", function()
 		end
 	end)
 end)
+
+T.describe("Город картинкой виден на карте (§15я Я4)", function()
+	local CitySprites = require("../src/shared/CitySprites")
+	T.it(
+		"картинка не мельче MinPx, растёт с уровнем и не больше MaxPx",
+		function()
+			local c = Config.Render.CityPicture
+			for _, scale in { 1, 2, 3 } do
+				local prev = 0
+				for level = 1, 5 do
+					local side = CitySprites.pictureSide(level, scale)
+					T.expect(side >= c.MinPx and side <= c.MaxPx).toBe(true)
+					T.expect(side >= prev).toBe(true)
+					T.expect(side >= CitySprites.size(level) * scale).toBe(true) -- не мельче пиксельного города
+					prev = side
+				end
+			end
+			T.expect(CitySprites.pictureSide(5, 2) > CitySprites.pictureSide(1, 2)).toBe(true)
+		end
+	)
+end)

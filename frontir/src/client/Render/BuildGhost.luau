@@ -15,7 +15,9 @@ local BuildingSprites = require(Shared:WaitForChild("BuildingSprites"))
 local CitySprites = require(Shared:WaitForChild("CitySprites"))
 local CameraMath = require(Shared:WaitForChild("CameraMath"))
 local Config = require(Shared:WaitForChild("Config"))
+local IconArt = require(Shared:WaitForChild("IconArt"))
 
+local IconImage = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("IconImage"))
 local Theme = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("Theme"))
 
 type CameraState = CameraMath.CameraState
@@ -73,11 +75,45 @@ function BuildGhost.new(canvas: Frame, mapWidth: number): BuildGhost
 	local parts: { Frame } = {}
 	local shown = ""
 
-	local function setShape(kind: string, color: Color3)
+	-- §15я Я4: картинка здания (та же, что на карте и в полосе стройки); у «Города» — посёлок City1.
+	local picture = Instance.new("ImageLabel")
+	picture.Name = "Picture"
+	picture.AnchorPoint = Vector2.new(0.5, 0.5)
+	picture.Position = UDim2.fromScale(0.5, 0.5)
+	picture.Size = UDim2.fromScale(1.6, 1.6)
+	picture.BackgroundTransparency = 1
+	picture.ScaleType = Enum.ScaleType.Fit
+	picture.ResampleMode = Enum.ResamplerMode.Pixelated
+	picture.ZIndex = 41
+	picture.Visible = false
+	picture.Parent = root
+
+	local function pictureOf(kind: string): Content?
+		local name = if BuildingSprites.Shapes[kind] == nil then "City1" else kind
+		if not IconArt.has(name) then
+			name = if name == "City1" then "City" else name
+		end
+		return if IconArt.has(name) then IconImage.content(name) else nil
+	end
+
+	local function setShape(kind: string, color: Color3, ok: boolean)
 		for _, f in parts do
 			f:Destroy()
 		end
 		table.clear(parts)
+		local content = pictureOf(kind)
+		picture.Visible = content ~= nil
+		if content ~= nil then
+			picture.ImageContent = content
+			-- Нельзя поставить — картинка красноватая и бледнее.
+			picture.ImageColor3 = if ok then Color3.new(1, 1, 1) else Color3.fromRGB(255, 130, 130)
+			picture.ImageTransparency = if ok then 0.05 else 0.3
+			plate.BackgroundColor3 = color
+			plate.BackgroundTransparency = 0.35
+			return
+		end
+		plate.BackgroundColor3 = Theme.Colors.Backdrop
+		plate.BackgroundTransparency = 0.45
 		local r, g, b = math.round(color.R * 255), math.round(color.G * 255), math.round(color.B * 255)
 		local shape = BuildingSprites.Shapes[kind]
 		local rects: { { x: number, y: number, w: number, h: number, c: Color3 } } = {}
@@ -177,10 +213,10 @@ function BuildGhost.new(canvas: Frame, mapWidth: number): BuildGhost
 	end
 
 	local function show(v: GhostView)
-		local key = v.kind .. "|" .. tostring(v.ok)
+		local key = v.kind .. "|" .. tostring(v.ok) .. "|" .. v.color:ToHex()
 		if key ~= shown then
 			shown = key
-			setShape(v.kind, v.color)
+			setShape(v.kind, v.color, v.ok)
 		end
 		current = v
 		local tone = if v.ok then Theme.Colors.Good else Theme.Colors.Alert

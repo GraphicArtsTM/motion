@@ -251,6 +251,33 @@ function BuildingLayer.new(
 		table.insert(icons, icon)
 	end
 
+	-- §15я Я4: метка нефтяного поля — не на клетке города (иначе картинка города её закрывает, а она — город):
+	-- клетка провинции на расстоянии около Render.OilMarkerOffset клеток от города. Провинции не меняются — кеш.
+	local oilSpots: { [number]: number } = {}
+	local function oilSpot(p: Provinces.Province): number
+		local cached = oilSpots[p.id]
+		if cached ~= nil then
+			return cached
+		end
+		local w = map.width
+		local city = p.city or p.center
+		local cx, cy = city % w, city // w
+		local want = Config.Render.OilMarkerOffset
+		local best, bestErr = p.center, math.huge
+		if p.city ~= nil or p.center == city then
+			for _, cell in p.cells do
+				local dx, dy = cell % w - cx, cell // w - cy
+				-- Ближе всего к нужному расстоянию; при равенстве — правее и ниже (одинаково у всех игроков).
+				local err = math.abs(math.sqrt(dx * dx + dy * dy) - want) - (dx + dy) * 0.01
+				if err < bestErr then
+					best, bestErr = cell, err
+				end
+			end
+		end
+		oilSpots[p.id] = best
+		return best
+	end
+
 	local function refresh()
 		for _, icon in icons do
 			icon.root:Destroy()
@@ -279,7 +306,7 @@ function BuildingLayer.new(
 		end
 		for _, p in provinces.list do
 			if p.oil and not rigged[p.id] then
-				add("OilField", p.center, 0)
+				add("OilField", oilSpot(p), 0)
 			end
 		end
 	end

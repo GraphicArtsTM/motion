@@ -16,6 +16,7 @@
 export type Tone = "body" | "roof" | "light" | "ink" | "road" | "window" | "glass"
 export type Part = { x: number, y: number, w: number, h: number, tone: Tone }
 
+local Config = require("./Config")
 local Palette = require("./Palette")
 local UnitSprites = require("./UnitSprites")
 
@@ -34,6 +35,13 @@ CitySprites.Shade = table.freeze({ body = 1, roof = 0.45, light = 1.5 }) :: { [s
 local cache: { [string]: { Part } } = {}
 
 -- Детали города уровня level (capital — флаг над центром). Порядок — для рисования (дальние сверху вниз).
+-- §15я Я4: сторона города-картинки на экране (пиксели) при масштабе зума scale — крупнее пиксельного рисунка,
+-- не меньше Render.CityPicture.MinPx (иначе на дальнем зуме его не видно) и не больше MaxPx.
+function CitySprites.pictureSide(level: number, scale: number): number
+	local c = Config.Render.CityPicture
+	return math.clamp(math.round(CitySprites.size(level) * scale * c.SizeMul), c.MinPx, c.MaxPx)
+end
+
 function CitySprites.parts(level: number, capital: boolean): { Part }
 	level = math.clamp(level, 1, 5)
 	local key = level .. (if capital then "c" else "")

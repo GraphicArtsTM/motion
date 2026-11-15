@@ -10,6 +10,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local CameraMath = require(Shared:WaitForChild("CameraMath"))
 local CitySprites = require(Shared:WaitForChild("CitySprites"))
+local IconArt = require(Shared:WaitForChild("IconArt"))
 local ClientState = require(Shared:WaitForChild("ClientState"))
 local Config = require(Shared:WaitForChild("Config"))
 local MapDataModule = require(Shared:WaitForChild("MapData"))
@@ -102,9 +103,13 @@ function CityLabels.new(
 						scale = step.scale
 					end
 				end
+				-- §15я Я4: город картинкой крупнее — подпись под картинкой.
+				local side = if IconArt.has("City")
+					then CitySprites.pictureSide(level, scale)
+					else CitySprites.size(level) * scale
 				l.Position = UDim2.fromOffset(
 					CameraMath.cellEdge(state.zoom, cx + 0.5),
-					CameraMath.cellEdge(state.zoom, cy + 0.5) + CitySprites.size(level) * scale / 2 + 2
+					CameraMath.cellEdge(state.zoom, cy + 0.5) + side / 2 + 2
 				)
 				l.Visible = true
 			end
