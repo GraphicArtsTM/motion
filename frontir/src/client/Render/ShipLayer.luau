@@ -18,7 +18,9 @@ local NationColors = require(Shared:WaitForChild("NationColors"))
 local Protocol = require(Shared:WaitForChild("Net"):WaitForChild("Protocol"))
 local ShipSprites = require(Shared:WaitForChild("ShipSprites"))
 local UnitSprites = require(Shared:WaitForChild("UnitSprites"))
+local IconArt = require(Shared:WaitForChild("IconArt"))
 
+local IconImage = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("IconImage"))
 local Theme = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("Theme"))
 
 type ClientState = ClientState.ClientState
@@ -50,6 +52,11 @@ type Sprite = {
 	flip: boolean,
 	info: Protocol.ShipInfo,
 	stroke: UIStroke,
+	-- §15я Я4: корабль картинкой (assets/icons/units) на овале цвета державы; nil — пиксельный спрайт.
+	image: ImageLabel?,
+	base: Frame?,
+	shownFlip: boolean?, -- в какую сторону сейчас смотрит картинка
+	phase: number, -- покачивание на волне
 }
 
 local ShipLayer = {}
@@ -96,16 +103,48 @@ function ShipLayer.new(canvas: Frame, cs: ClientState): ShipLayer
 		stroke.Enabled = false
 		stroke.Parent = root
 		local parts: { Frame } = {}
-		for _, p in ShipSprites.Shapes[info.kind] do
-			local f = Instance.new("Frame")
-			f.BorderSizePixel = 0
-			f.ZIndex = 10
-			f.BackgroundColor3 = if p.ink
-				then Theme.Colors.Backdrop
-				elseif p.light then Theme.Colors.Text
-				else colorOf(info.owner)
-			f.Parent = root
-			table.insert(parts, f)
+		local content = if IconArt.has(info.kind) then IconImage.content(info.kind) else nil
+		local image: ImageLabel? = nil
+		local base: Frame? = nil
+		if content ~= nil then
+			local b = Instance.new("Frame")
+			b.Name = "Base"
+			b.AnchorPoint = Vector2.new(0.5, 0.5)
+			b.BackgroundColor3 = colorOf(info.owner)
+			b.BackgroundTransparency = 0.2
+			b.BorderSizePixel = 0
+			b.ZIndex = 9
+			local bc = Instance.new("UICorner")
+			bc.CornerRadius = UDim.new(0.5, 0)
+			bc.Parent = b
+			local bs = Instance.new("UIStroke")
+			bs.Color = Theme.Colors.Backdrop
+			bs.Thickness = 1
+			bs.Parent = b
+			b.Parent = root
+			base = b
+			local img = Instance.new("ImageLabel")
+			img.Name = "Picture"
+			img.AnchorPoint = Vector2.new(0.5, 0.5)
+			img.BackgroundTransparency = 1
+			img.ScaleType = Enum.ScaleType.Fit
+			img.ResampleMode = Enum.ResamplerMode.Pixelated
+			img.ImageContent = content
+			img.ZIndex = 10
+			img.Parent = root
+			image = img
+		else
+			for _, p in ShipSprites.Shapes[info.kind] do
+				local f = Instance.new("Frame")
+				f.BorderSizePixel = 0
+				f.ZIndex = 10
+				f.BackgroundColor3 = if p.ink
+					then Theme.Colors.Backdrop
+					elseif p.light then Theme.Colors.Text
+					else colorOf(info.owner)
+				f.Parent = root
+				table.insert(parts, f)
+			end
 		end
 		root.Parent = canvas
 		return {
@@ -122,6 +161,10 @@ function ShipLayer.new(canvas: Frame, cs: ClientState): ShipLayer
 			flip = false,
 			info = info,
 			stroke = stroke,
+			image = image,
+			base = base,
+			shownFlip = nil,
+			phase = (info.id * 0.7) % (math.pi * 2),
 		}
 	end
 
@@ -194,10 +237,32 @@ function ShipLayer.new(canvas: Frame, cs: ClientState): ShipLayer
 				local sw, sh = ShipSprites.Width * scale, ShipSprites.Height * scale
 				s.root.Size = UDim2.fromOffset(sw, sh)
 				s.root.Position = UDim2.fromOffset(math.round(s.x * zoom), math.round(s.y * zoom))
-				for k, p in ShipSprites.Shapes[s.kind] do
-					local px = if s.flip then ShipSprites.Width - p.x - p.w else p.x
-					s.parts[k].Position = UDim2.fromOffset(px * scale, p.y * scale)
-					s.parts[k].Size = UDim2.fromOffset(p.w * scale, p.h * scale)
+				local img, base = s.image, s.base
+				if img ~= nil and base ~= nil then
+					-- §15я Я4: картинка по ходу движения, покачивается на волне; овал цвета державы — под корпусом.
+					if s.shownFlip ~= s.flip then
+						s.shownFlip = s.flip
+						local content = if IconArt.mirror(s.kind, s.flip)
+							then IconImage.mirrored(s.kind)
+							else IconImage.content(s.kind)
+						if content ~= nil then
+							img.ImageContent = content
+						end
+					end
+					local a = Config.Render.ShipAnim
+					local side = math.round(sw * a.SizeMul)
+					local wave = math.sin(now * a.Rate + s.phase)
+					img.Size = UDim2.fromOffset(side, side)
+					img.Position = UDim2.new(0.5, 0, 0.5, math.round(-side * 0.12 + wave * a.BobPx * scale))
+					img.Rotation = wave * a.RollDeg
+					base.Size = UDim2.fromOffset(math.round(side * 0.85), math.max(3, math.round(sh * 0.7)))
+					base.Position = UDim2.new(0.5, 0, 0.5, math.round(side * 0.18))
+				else
+					for k, p in ShipSprites.Shapes[s.kind] do
+						local px = if s.flip then ShipSprites.Width - p.x - p.w else p.x
+						s.parts[k].Position = UDim2.fromOffset(px * scale, p.y * scale)
+						s.parts[k].Size = UDim2.fromOffset(p.w * scale, p.h * scale)
+					end
 				end
 			end
 			s.stroke.Enabled = id == selected

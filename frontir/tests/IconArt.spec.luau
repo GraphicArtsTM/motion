@@ -155,3 +155,24 @@ T.describe("Шапки окон (§15я)", function()
 		end
 	)
 end)
+
+T.describe("Карта картинками (§15я Я4)", function()
+	T.it("у каждого уровня города и у столицы есть картинка", function()
+		for level = 1, 5 do
+			T.expect(IconArt.has("City" .. level)).toBe(true)
+		end
+		T.expect(IconArt.has("CityCapital")).toBe(true)
+	end)
+	T.it("юниты, корабли и самолёты смотрят по ходу движения", function()
+		-- Танк, истребитель и бомбардировщик нарисованы носом влево: вправо их зеркалим, влево — нет.
+		for _, name in { "Tanks", "Fighter", "Bomber" } do
+			T.expect(IconArt.mirror(name, false)).toBe(true)
+			T.expect(IconArt.mirror(name, true)).toBe(false)
+		end
+		for _, name in { "Infantry", "Artillery", "AntiAir", "Transport", "Destroyer", "Merchant" } do
+			T.expect(IconArt.has(name)).toBe(true)
+			T.expect(IconArt.mirror(name, false)).toBe(false)
+			T.expect(IconArt.mirror(name, true)).toBe(true)
+		end
+	end)
+end)

@@ -36,6 +36,14 @@ local BY_KEY: { [string]: string } = {
 	["arsenal.HqReserve"] = "hqReserve",
 }
 
+-- §15я Я4: какие картинки нарисованы носом влево (остальные смотрят вправо).
+IconArt.FacesLeft = table.freeze({ Tanks = true, Fighter = true, Bomber = true }) :: { [string]: boolean }
+
+-- Зеркалить ли картинку name, чтобы она смотрела влево (faceLeft) или вправо.
+function IconArt.mirror(name: string, faceLeft: boolean): boolean
+	return faceLeft ~= (IconArt.FacesLeft[name] == true)
+end
+
 function IconArt.has(name: string): boolean
 	return (IconData.Icons :: { [string]: { string } })[name] ~= nil
 end

@@ -19,7 +19,9 @@ local NationColors = require(Shared:WaitForChild("NationColors"))
 local PlaneSprites = require(Shared:WaitForChild("PlaneSprites"))
 local Protocol = require(Shared:WaitForChild("Net"):WaitForChild("Protocol"))
 local UnitSprites = require(Shared:WaitForChild("UnitSprites"))
+local IconArt = require(Shared:WaitForChild("IconArt"))
 
+local IconImage = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("IconImage"))
 local Theme = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("Theme"))
 
 type ClientState = ClientState.ClientState
@@ -49,6 +51,12 @@ type Sprite = {
 	flip: boolean,
 	info: Protocol.PlaneInfo,
 	stroke: UIStroke,
+	-- §15я Я4: самолёт картинкой (assets/icons/units) на жетоне цвета державы; nil — пиксельный спрайт.
+	image: ImageLabel?,
+	plate: Frame?,
+	shownFlip: boolean?,
+	dx: number, -- курс (для наклона)
+	dy: number,
 }
 
 local AirLayer = {}
@@ -102,13 +110,50 @@ function AirLayer.new(canvas: Frame, cs: ClientState): AirLayer
 		stroke.Enabled = false
 		stroke.Parent = root
 		local parts: { Frame } = {}
-		for _, p in PlaneSprites.Shapes[info.kind] do
-			local f = Instance.new("Frame")
-			f.BorderSizePixel = 0
-			f.ZIndex = 13
-			f.BackgroundColor3 = if p.ink then Theme.Colors.Backdrop else colorOf(info.owner)
-			f.Parent = root
-			table.insert(parts, f)
+		local content = if IconArt.has(info.kind) then IconImage.content(info.kind) else nil
+		local image: ImageLabel? = nil
+		local plate: Frame? = nil
+		if content ~= nil then
+			local pl = Instance.new("Frame")
+			pl.Name = "Plate"
+			pl.AnchorPoint = Vector2.new(0.5, 0.5)
+			pl.Position = UDim2.fromScale(0.5, 0.5)
+			pl.BackgroundColor3 = colorOf(info.owner)
+			pl.BackgroundTransparency = 0.25
+			pl.BorderSizePixel = 0
+			pl.ZIndex = 12
+			local pc = Instance.new("UICorner")
+			pc.CornerRadius = UDim.new(1, 0)
+			pc.Parent = pl
+			local ps = Instance.new("UIStroke")
+			ps.Color = Theme.Colors.Backdrop
+			ps.Thickness = 1
+			ps.Parent = pl
+			pl.Parent = root
+			plate = pl
+			local img = Instance.new("ImageLabel")
+			img.Name = "Picture"
+			img.AnchorPoint = Vector2.new(0.5, 0.5)
+			img.BackgroundTransparency = 1
+			img.ScaleType = Enum.ScaleType.Fit
+			img.ResampleMode = Enum.ResamplerMode.Pixelated
+			img.ImageContent = content
+			img.ZIndex = 13
+			img.Parent = root
+			image = img
+			-- Тень картинки — овал под самолётом (как раньше), только круглее.
+			local sc = Instance.new("UICorner")
+			sc.CornerRadius = UDim.new(1, 0)
+			sc.Parent = shadow
+		else
+			for _, p in PlaneSprites.Shapes[info.kind] do
+				local f = Instance.new("Frame")
+				f.BorderSizePixel = 0
+				f.ZIndex = 13
+				f.BackgroundColor3 = if p.ink then Theme.Colors.Backdrop else colorOf(info.owner)
+				f.Parent = root
+				table.insert(parts, f)
+			end
 		end
 		root.Parent = canvas
 		return {
@@ -126,6 +171,11 @@ function AirLayer.new(canvas: Frame, cs: ClientState): AirLayer
 			flip = false,
 			info = info,
 			stroke = stroke,
+			image = image,
+			plate = plate,
+			shownFlip = nil,
+			dx = 0,
+			dy = 0,
 		}
 	end
 
@@ -149,6 +199,9 @@ function AirLayer.new(canvas: Frame, cs: ClientState): AirLayer
 			s.toX, s.toY = info.x, info.y
 			if math.abs(info.x - s.fromX) > 0.01 then
 				s.flip = info.x < s.fromX
+			end
+			if math.abs(info.x - s.fromX) + math.abs(info.y - s.fromY) > 0.01 then
+				s.dx, s.dy = info.x - s.fromX, info.y - s.fromY
 			end
 			s.info = info
 		end
@@ -247,7 +300,38 @@ function AirLayer.new(canvas: Frame, cs: ClientState): AirLayer
 					f.AnchorPoint = Vector2.new(0.5, 0.5)
 					f.BackgroundTransparency = 1
 					f.ZIndex = 14
-					for _, p in PlaneSprites.Shapes[kind] do
+					-- §15я Я4: есть картинка — падает она (с жетоном цвета державы), иначе пиксельный спрайт.
+					local pic = if IconArt.has(kind) then IconImage.content(kind) else nil
+					if pic ~= nil then
+						local pl = Instance.new("Frame")
+						pl.Name = "FallPlate"
+						pl.AnchorPoint = Vector2.new(0.5, 0.5)
+						pl.Position = UDim2.fromScale(0.5, 0.5)
+						pl.Size = UDim2.fromScale(0.9, 0.9)
+						pl.SizeConstraint = Enum.SizeConstraint.RelativeXX
+						pl.BackgroundColor3 = colorOf(tonumber(e.nation) or 0)
+						pl.BackgroundTransparency = 0.3
+						pl.BorderSizePixel = 0
+						pl.ZIndex = 14
+						local pc = Instance.new("UICorner")
+						pc.CornerRadius = UDim.new(1, 0)
+						pc.Parent = pl
+						pl.Parent = f
+						local img = Instance.new("ImageLabel")
+						img.Name = "FallPicture"
+						img.AnchorPoint = Vector2.new(0.5, 0.5)
+						img.Position = UDim2.fromScale(0.5, 0.5)
+						img.Size = UDim2.fromScale(Config.Render.PlaneAnim.SizeMul, Config.Render.PlaneAnim.SizeMul)
+						img.SizeConstraint = Enum.SizeConstraint.RelativeXX
+						img.BackgroundTransparency = 1
+						img.ScaleType = Enum.ScaleType.Fit
+						img.ResampleMode = Enum.ResamplerMode.Pixelated
+						img.ImageContent = pic
+						img.ZIndex = 15
+						img.Parent = f
+					end
+					local shapes: { PlaneSprites.Part } = if pic ~= nil then {} else PlaneSprites.Shapes[kind]
+					for _, p in shapes do
 						local part = Instance.new("Frame")
 						part.BorderSizePixel = 0
 						part.ZIndex = 15
@@ -301,7 +385,11 @@ function AirLayer.new(canvas: Frame, cs: ClientState): AirLayer
 				f.Position = UDim2.fromOffset(math.round(e.x * zoom), math.round((e.y + fx.FallCells * t * t) * zoom))
 				f.Rotation = 200 * t
 				for _, part in f:GetChildren() do
-					if part:IsA("Frame") then
+					if part:IsA("ImageLabel") then
+						part.ImageTransparency = t * 0.5
+					elseif part.Name == "FallPlate" and part:IsA("Frame") then
+						part.BackgroundTransparency = 0.3 + t * 0.6
+					elseif part:IsA("Frame") then
 						local n = string.split(part.Name, "_")
 						part.Position = UDim2.fromOffset((tonumber(n[1]) or 0) * scale, (tonumber(n[2]) or 0) * scale)
 						part.Size = UDim2.fromOffset((tonumber(n[3]) or 0) * scale, (tonumber(n[4]) or 0) * scale)
@@ -344,10 +432,39 @@ function AirLayer.new(canvas: Frame, cs: ClientState): AirLayer
 				s.root.Position = UDim2.fromOffset(px, py)
 				s.shadow.Size = UDim2.fromOffset(sw - scale * 2, sh // 2)
 				s.shadow.Position = UDim2.fromOffset(px + shadowOffset, py + shadowOffset + sh // 2)
-				for k, p in PlaneSprites.Shapes[s.kind] do
-					local x = if s.flip then PlaneSprites.Width - p.x - p.w else p.x
-					s.parts[k].Position = UDim2.fromOffset(x * scale, p.y * scale)
-					s.parts[k].Size = UDim2.fromOffset(p.w * scale, p.h * scale)
+				local img, plate = s.image, s.plate
+				if img ~= nil and plate ~= nil then
+					-- §15я Я4: картинка по курсу, нос вверх-вниз по направлению полёта, лёгкое «плавание» в воздухе.
+					if s.shownFlip ~= s.flip then
+						s.shownFlip = s.flip
+						local content = if IconArt.mirror(s.kind, s.flip)
+							then IconImage.mirrored(s.kind)
+							else IconImage.content(s.kind)
+						if content ~= nil then
+							img.ImageContent = content
+						end
+					end
+					local a = Config.Render.PlaneAnim
+					local side = math.round(sw * a.SizeMul)
+					local tilt, float = 0, 0
+					if flying then
+						local deg = math.deg(math.atan2(s.dy, math.max(0.001, math.abs(s.dx))))
+						tilt = math.clamp(deg, -a.TiltMaxDeg, a.TiltMaxDeg) * (if s.flip then -1 else 1)
+						float = math.sin(now * a.FloatRate + id) * a.FloatPx * scale
+					end
+					img.Size = UDim2.fromOffset(side, side)
+					img.Position = UDim2.new(0.5, 0, 0.5, math.round(float))
+					img.Rotation = tilt
+					local plateSide = math.round(side * 0.62)
+					plate.Size = UDim2.fromOffset(plateSide, plateSide)
+					plate.Position = UDim2.new(0.5, 0, 0.5, math.round(float))
+					s.shadow.Size = UDim2.fromOffset(math.round(side * 0.6), math.max(2, math.round(sh * 0.45)))
+				else
+					for k, p in PlaneSprites.Shapes[s.kind] do
+						local x = if s.flip then PlaneSprites.Width - p.x - p.w else p.x
+						s.parts[k].Position = UDim2.fromOffset(x * scale, p.y * scale)
+						s.parts[k].Size = UDim2.fromOffset(p.w * scale, p.h * scale)
+					end
 				end
 			end
 			s.stroke.Enabled = id == selected

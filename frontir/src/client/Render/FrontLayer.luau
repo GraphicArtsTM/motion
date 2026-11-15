@@ -295,7 +295,9 @@ function FrontLayer.new(canvas: Frame, cs: ClientState, map: MapData): FrontLaye
 			local side = math.round(SPRITE_W * scale * 1.25)
 			img.Size = UDim2.fromOffset(side, side)
 			img.Position = UDim2.fromOffset(math.round((SPRITE_W * scale - side) / 2), SPRITE_H * scale - side)
-			local content = if flip then IconImage.mirrored(u.kind) else IconImage.content(u.kind)
+			local content = if IconArt.mirror(u.kind, flip)
+				then IconImage.mirrored(u.kind)
+				else IconImage.content(u.kind)
 			if content ~= nil then
 				img.ImageContent = content
 			end
@@ -661,6 +663,32 @@ function FrontLayer.new(canvas: Frame, cs: ClientState, map: MapData): FrontLaye
 		}, now)
 	end
 
+	-- §15я Я4: «живая» картинка юнита в бою (наклон и сдвиг внутри рамки; место на карте не меняется).
+	-- Танк покачивается и дёргается от выстрела, пехота шагает на месте, орудие задирает ствол при залпе, ПВО вздрагивает.
+	local function animate(u: Unit, img: ImageLabel, fighting: boolean, moving: boolean, now: number, scale: number)
+		local dir = if u.flip then -1 else 1 -- нос вправо: «задрать нос» — поворот против часовой (минус)
+		local a = cfg.Anim
+		local rot, lift, back = 0, 0, 0
+		if u.kind == "Artillery" then
+			local kick = math.max(0, 1 - (now - u.firedAt) / a.ArtilleryKickSec)
+			rot = -a.ArtilleryKickDeg * kick * dir
+		elseif fighting or moving then
+			local kick = math.max(0, 1 - (now - u.firedAt) / a.ShotKickSec)
+			if u.kind == "Infantry" then
+				lift = math.abs(math.sin(now * a.StepRate + u.phase)) * a.StepPx * scale
+			else
+				rot = a.RockDeg * math.sin(now * a.RockRate + u.phase) - a.ShotKickDeg * kick * dir
+			end
+			back = kick * a.ShotKickPx * scale
+		end
+		img.Rotation = rot
+		local side = img.Size.X.Offset
+		img.Position = UDim2.fromOffset(
+			math.round((SPRITE_W * scale - side) / 2 - back * dir),
+			math.round(SPRITE_H * scale - side - lift)
+		)
+	end
+
 	local function placeFrame(f: Frame, x: number, y: number, size: number, zoom: number)
 		local px = math.max(1, math.floor(size * zoom + 0.5))
 		f.Size = UDim2.fromOffset(px, px)
@@ -710,6 +738,10 @@ function FrontLayer.new(canvas: Frame, cs: ClientState, map: MapData): FrontLaye
 				end
 				local bob = if moving then math.floor(math.sin(now * 10 + u.phase) + 0.5) else 0
 				shape(u, scale, u.dx < 0)
+				local img = u.image
+				if img ~= nil then
+					animate(u, img, side.fighting, moving, now, scale)
+				end
 				u.root.Position =
 					UDim2.fromOffset(math.round((u.x + u.dx * adv) * zoom), math.round((u.y + u.dy * adv) * zoom) + bob)
 			end
@@ -721,6 +753,7 @@ function FrontLayer.new(canvas: Frame, cs: ClientState, map: MapData): FrontLaye
 			while flashDebt >= 1 do
 				flashDebt -= 1
 				local u = shooters[rng:NextInteger(1, #shooters)]
+				u.firedAt = now -- §15я Я4: картинка дёргается от выстрела
 				spawnParticle({
 					x = u.x + u.dx * 0.9,
 					y = u.y + u.dy * 0.9 - 0.3,
