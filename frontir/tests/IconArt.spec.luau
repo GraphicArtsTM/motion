@@ -139,3 +139,19 @@ T.describe("Погоны званий (§15ю)", function()
 		end
 	)
 end)
+
+T.describe("Шапки окон (§15я)", function()
+	local BannerArt = require("../src/shared/BannerArt")
+	local SceneArt = require("../src/shared/SceneArt")
+	T.it(
+		"у каждой сцены SceneArt есть гладкая шапка нужного размера",
+		function()
+			for _, key in SceneArt.Keys do
+				T.expect(BannerArt.has(key)).toBe(true)
+				local px = BannerArt.paint(key) :: buffer
+				T.expect(buffer.len(px)).toBe(BannerArt.W * BannerArt.H * 4)
+			end
+			T.expect(BannerArt.paint("nope")).toBe(nil)
+		end
+	)
+end)

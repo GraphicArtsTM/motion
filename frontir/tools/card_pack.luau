@@ -5,6 +5,8 @@
 	(палитра hex + индексы base64; рисует игра через EditableImage — загрузка в Roblox не нужна).
 	Исключение из «только палитра docs/palette.md» — решение геймдизайнера (GDD §15ш Ш8).
 	Запуск из frontir/:  lune run tools/card_pack [превью=build/cards_pack.png]
+	§15я: шапки окон — lune run tools/card_pack banners: assets/banners/*.png (уже вырезанные полосы 8:1) → 512×64 →
+	src/shared/BannerData.luau (+ части BannerData1…N), превью build/banners_pack.png.
 ]]
 
 local fs = require("@lune/fs")
@@ -13,8 +15,15 @@ local process = require("@lune/process")
 local Base64 = require("../src/shared/Base64")
 local Png = require("./lib/Png")
 
+local BANNERS = process.args[1] == "banners"
 local W, H, MAX_COLORS = 144, 96, 128
+local SRC, MODULE, PER_PART_SET, COLS = "assets/cards", "CardData", 10, 2
 local PREVIEW = process.args[1] or "build/cards_pack.png"
+if BANNERS then
+	W, H = 512, 64
+	SRC, MODULE, PER_PART_SET, COLS = "assets/banners", "BannerData", 4, 1
+	PREVIEW = process.args[2] or "build/banners_pack.png"
+end
 
 type Px = { number } -- r, g, b
 
@@ -96,14 +105,14 @@ local function nearest(palette: { Px }, p: Px): number
 	return best
 end
 
-local files = fs.readDir("assets/cards")
+local files = fs.readDir(SRC)
 table.sort(files)
 type Packed = { name: string, palette: { Px }, indices: buffer }
 local packed: { Packed } = {}
 for _, file in files do
 	local name = string.match(file, "^(.+)%.png$")
 	if name ~= nil then
-		local pixels = downscale(Png.decode(fs.readFile("assets/cards/" .. file)))
+		local pixels = downscale(Png.decode(fs.readFile(SRC .. "/" .. file)))
 		local palette = medianCut(pixels)
 		local indices = buffer.create(W * H)
 		for i, p in pixels do
@@ -116,10 +125,10 @@ end
 
 -- Части по PerPart карточек (один модуль на сотни КБ base64 — тяжело для Studio): CardData1…N, индекс CardData
 -- подключает их строками require (литералы — так требует Roblox) и собирает Cards.
-local PER_PART = 10
+local PER_PART = PER_PART_SET
 local partCount = math.max(1, math.ceil(#packed / PER_PART))
 for _, f in fs.readDir("src/shared") do
-	if string.match(f, "^CardData%d+%.luau$") then
+	if string.match(f, "^" .. MODULE .. "%d+%.luau$") then
 		fs.removeFile("src/shared/" .. f)
 	end
 end
@@ -127,8 +136,11 @@ for part = 1, partCount do
 	local lines: { string } = {
 		"--!strict",
 		string.format(
-			"-- CardData%d — часть карточек CardData. Сделано tools/card_pack из assets/cards — руками не править.",
-			part
+			"-- %s%d — часть картинок %s. Сделано tools/card_pack из %s — руками не править.",
+			MODULE,
+			part,
+			MODULE,
+			SRC
 		),
 		"",
 		"-- stylua: ignore",
@@ -147,40 +159,44 @@ for part = 1, partCount do
 	end
 	table.insert(lines, "}) :: { [string]: { palette: string, data: string } }")
 	table.insert(lines, "")
-	fs.writeFile(string.format("src/shared/CardData%d.luau", part), table.concat(lines, "\n"))
+	fs.writeFile(string.format("src/shared/%s%d.luau", MODULE, part), table.concat(lines, "\n"))
 end
 local lines: { string } = {
 	"--!strict",
 	"--[[",
-	"\tCardData — гладкие карточки (§15ш Ш8, §15я). Сделано tools/card_pack из assets/cards — руками не править.",
+	string.format(
+		"\t%s — гладкие картинки (§15ш Ш8, §15я). Сделано tools/card_pack из %s — руками не править.",
+		MODULE,
+		SRC
+	),
 	"\tpalette — цвета подряд по 6 hex-знаков; data — base64 индексов (байт на пиксель, строки сверху вниз).",
-	"\tКарточки лежат частями (CardData1…N), здесь — сборка.",
+	string.format("\tКартинки лежат частями (%s1…N), здесь — сборка.", MODULE),
 	"]]",
 	"",
-	"local CardData = {}",
+	string.format("local %s = {}", MODULE),
 	"",
-	string.format("CardData.W = %d", W),
-	string.format("CardData.H = %d", H),
+	string.format("%s.W = %d", MODULE, W),
+	string.format("%s.H = %d", MODULE, H),
 	"",
 	"local cards: { [string]: { palette: string, data: string } } = {}",
 	"for _, part in {",
 }
 for part = 1, partCount do
-	table.insert(lines, string.format('\trequire("./CardData%d"),', part))
+	table.insert(lines, string.format('\trequire("./%s%d"),', MODULE, part))
 end
 table.insert(lines, "} :: { { [string]: { palette: string, data: string } } } do")
 table.insert(lines, "\tfor name, card in part do")
 table.insert(lines, "\t\tcards[name] = card")
 table.insert(lines, "\tend")
 table.insert(lines, "end")
-table.insert(lines, "CardData.Cards = table.freeze(cards)")
+table.insert(lines, string.format("%s.Cards = table.freeze(cards)", MODULE))
 table.insert(lines, "")
-table.insert(lines, "return table.freeze(CardData)")
+table.insert(lines, string.format("return table.freeze(%s)", MODULE))
 table.insert(lines, "")
-fs.writeFile("src/shared/CardData.luau", table.concat(lines, "\n"))
+fs.writeFile(string.format("src/shared/%s.luau", MODULE), table.concat(lines, "\n"))
 
 -- Превью: карточки ×2, по две в ряд.
-local cols, scale, pad = 2, 2, 8
+local cols, scale, pad = COLS, 2, 8
 local cw, ch = W * scale + pad, H * scale + pad
 local rowsN = math.ceil(#packed / cols)
 local PW, PH = cols * cw + pad, rowsN * ch + pad
@@ -204,10 +220,11 @@ end
 fs.writeFile(PREVIEW, Png.encodeRgb(PW, PH, pix))
 print(
 	string.format(
-		"карточек %d, %d×%d → src/shared/CardData.luau (+%d частей), превью %s",
+		"картинок %d, %d×%d → src/shared/%s.luau (+%d частей), превью %s",
 		#packed,
 		W,
 		H,
+		MODULE,
 		partCount,
 		PREVIEW
 	)

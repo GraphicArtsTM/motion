@@ -1,5 +1,5 @@
 --!strict
--- CardData6 — часть карточек CardData. Сделано tools/card_pack из assets/cards — руками не править.
+-- CardData6 — часть картинок CardData. Сделано tools/card_pack из assets/cards — руками не править.
 
 -- stylua: ignore
 return table.freeze({

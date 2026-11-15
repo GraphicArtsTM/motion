@@ -99,7 +99,24 @@ function WardrobePanel.new(
 	local medalsChip = CardKit.chip(win.chips, "money", 1)
 
 	-- Узоры, вспышки, титулы.
-	type Row = { kind: Cosmetics.Kind, id: string, action: TextButton, card: CardKit.Card }
+	type Row = { kind: Cosmetics.Kind, id: string, action: TextButton, card: CardKit.Card, order: number }
+	-- §15я: откуда вещь — метка в правом верхнем углу карточки (магазин / уровень / «Путь» / премиум / набор).
+	local function sourceOf(kind: Cosmetics.Kind, it: { id: string, price: number?, level: number? }): (string, string)
+		if it.price ~= nil then
+			return t("wardrobe.src.medals"), "Steel"
+		elseif it.level ~= nil then
+			return string.format(t("wardrobe.src.level"), it.level), "Sky"
+		end
+		local lv, premium = Cosmetics.pathSource(kind, it.id)
+		if lv ~= nil then
+			return string.format(t(if premium then "wardrobe.src.premium" else "wardrobe.src.path"), lv),
+				if premium then "Orange" else "Sky"
+		end
+		if Cosmetics.packSource(kind, it.id) ~= nil then
+			return t("wardrobe.src.shop"), "Violet"
+		end
+		return t("wardrobe.src.path0"), "Sky"
+	end
 	local rows: { Row } = {}
 	local function section(kind: Cosmetics.Kind)
 		for k, it in Cosmetics.list(kind) do
@@ -111,7 +128,16 @@ function WardrobePanel.new(
 				k
 			)
 			local action = CardKit.button(card.actions, "", "primary", 1)
-			local row: Row = { kind = kind, id = it.id, action = action, card = card }
+			local srcText, srcColor = sourceOf(kind, it)
+			local src = MenuKit.label(card.frame, srcText, 10, Theme.color("Ink"), true)
+			src.AnchorPoint = Vector2.new(1, 0)
+			src.Position = UDim2.new(1, -10, 0, 10)
+			src.BackgroundTransparency = 0
+			src.BackgroundColor3 = Theme.color(srcColor)
+			src.ZIndex = 3
+			MenuKit.pad(src, 5, 2)
+			MenuKit.corner(src, 4)
+			local row: Row = { kind = kind, id = it.id, action = action, card = card, order = k }
 			Session.connect(action.Activated, function()
 				local p = cs.profile
 				if p == nil then
@@ -241,7 +267,22 @@ function WardrobePanel.new(
 				else Theme.Colors.PanelBorder
 			row.card.price.Text = if owned then "" else row.action.Text
 			row.card.dim.Visible = not owned and not canBuy
+			-- §15я: надетое — первым, потом своё, потом остальное.
+			row.card.frame.LayoutOrder = if worn then 0 elseif owned then row.order else 1000 + row.order
 		end
+		-- Низ окна: что надето сейчас.
+		local function wornName(kind: string): string
+			local id = wr.equipped[kind]
+			return if id ~= nil then Strings.get(kind .. "." .. id, lang) else t("wardrobe.none")
+		end
+		local footer = win.footer :: CardKit.Footer
+		footer.set(
+			"",
+			false,
+			string.format(t("wardrobe.wearing"), wornName("pattern"), wornName("capture"), wornName("title"))
+				.. "  ·  "
+				.. t("wardrobe.hint")
+		)
 		drawFlag()
 	end
 	local function open()

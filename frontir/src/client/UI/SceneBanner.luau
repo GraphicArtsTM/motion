@@ -11,6 +11,7 @@ local AssetService = game:GetService("AssetService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local BannerArt = require(Shared:WaitForChild("BannerArt"))
 local Config = require(Shared:WaitForChild("Config"))
 local Palette = require(Shared:WaitForChild("Palette"))
 local SceneArt = require(Shared:WaitForChild("SceneArt"))
@@ -27,22 +28,26 @@ local function ink(): Color3
 	return Color3.fromRGB(c.r, c.g, c.b)
 end
 
--- Картинка сцены: EditableImage на сессию (Session снимет при смене карты).
-local function content(key: string): Content?
+-- Картинка сцены: EditableImage на сессию (Session снимет при смене карты). §15я: есть гладкая шапка (BannerArt) —
+-- она, иначе пиксельная сцена SceneArt. Второе значение — гладкая ли (сглаживать при растяжении).
+local function content(key: string): (Content?, boolean)
+	local smooth = BannerArt.has(key)
+	local w, h = if smooth then BannerArt.W else SceneArt.W, if smooth then BannerArt.H else SceneArt.H
 	local ok, image = pcall(function(): EditableImage?
-		return AssetService:CreateEditableImage({ Size = Vector2.new(SceneArt.W, SceneArt.H) })
+		return AssetService:CreateEditableImage({ Size = Vector2.new(w, h) })
 	end)
 	if not ok or image == nil then
-		return nil
+		return nil, false
 	end
 	local editable = image :: EditableImage
 	Session.track(editable)
-	editable:WritePixelsBuffer(Vector2.zero, Vector2.new(SceneArt.W, SceneArt.H), SceneArt.paint(key))
-	return Content.fromObject(editable)
+	local pixels = if smooth then BannerArt.paint(key) :: buffer else SceneArt.paint(key)
+	editable:WritePixelsBuffer(Vector2.zero, Vector2.new(w, h), pixels)
+	return Content.fromObject(editable), smooth
 end
 
 local function label(key: string): (ImageLabel?, (string) -> ())
-	local c = content(key)
+	local c, smooth = content(key)
 	if c == nil then
 		return nil, function(_k: string) end
 	end
@@ -50,7 +55,7 @@ local function label(key: string): (ImageLabel?, (string) -> ())
 	img.Name = "SceneBanner"
 	img.BackgroundColor3 = ink()
 	img.BorderSizePixel = 0
-	img.ResampleMode = Enum.ResamplerMode.Pixelated
+	img.ResampleMode = if smooth then Enum.ResamplerMode.Default else Enum.ResamplerMode.Pixelated
 	img.ScaleType = Enum.ScaleType.Crop
 	img.ImageContent = c :: Content
 	local stroke = Instance.new("UIStroke")
@@ -64,10 +69,11 @@ local function label(key: string): (ImageLabel?, (string) -> ())
 		if k == current then
 			return
 		end
-		local nc = content(k)
+		local nc, nsmooth = content(k)
 		if nc ~= nil then
 			current = k
 			img.ImageContent = nc :: Content
+			img.ResampleMode = if nsmooth then Enum.ResamplerMode.Default else Enum.ResamplerMode.Pixelated
 		end
 	end
 	return img, setKey

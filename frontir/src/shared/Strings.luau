@@ -2750,6 +2750,18 @@ local TABLE: { [string]: Entry } = {
 	["wardrobe.pathPremium"] = { ru = "🔒 премиум-дорога, ур. %d", en = "🔒 premium track, lv %d" }, -- §15ю Ю4
 	["wardrobe.pathFree"] = { ru = "🔒 «Путь», ур. %d", en = "🔒 Path, lv %d" },
 	["wardrobe.shopSet"] = { ru = "🔒 магазин: %s", en = "🔒 shop: %s" }, -- §15я Я2
+	-- §15я: откуда вещь и что надето.
+	["wardrobe.src.medals"] = { ru = "ЗА МЕДАЛИ", en = "FOR MEDALS" },
+	["wardrobe.src.level"] = { ru = "УР. %d", en = "LV %d" },
+	["wardrobe.src.path"] = { ru = "ПУТЬ · УР. %d", en = "PATH · LV %d" },
+	["wardrobe.src.premium"] = { ru = "★ ПРЕМИУМ · УР. %d", en = "★ PREMIUM · LV %d" },
+	["wardrobe.src.shop"] = { ru = "НАБОР МАГАЗИНА", en = "SHOP BUNDLE" },
+	["wardrobe.src.path0"] = { ru = "ПУТЬ", en = "PATH" },
+	["wardrobe.none"] = { ru = "нет", en = "none" },
+	["wardrobe.wearing"] = {
+		ru = "<b>Надето:</b> узор — %s · вспышка — %s · титул — %s",
+		en = "<b>Wearing:</b> pattern — %s · flash — %s · title — %s",
+	},
 	["wardrobe.saveFlag"] = { ru = "Сохранить флаг", en = "Save flag" },
 	-- §15л ч.9
 	["wardrobe.title"] = { ru = "ГАРДЕРОБ", en = "WARDROBE" },
