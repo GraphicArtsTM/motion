@@ -404,6 +404,23 @@ local TABLE: { [string]: Entry } = {
 	["council.votes"] = { ru = "голосов: %d", en = "votes: %d" },
 	["council.votesShare"] = { ru = "голосов: %d · %d%%", en = "votes: %d · %d%%" }, -- §15я
 	["council.leading"] = { ru = "ЛИДИРУЕТ", en = "LEADING" },
+	-- §15я: сводка дипломатии.
+	["diplo.sum.allies"] = { ru = "союзники", en = "allies" },
+	["diplo.sum.pacts"] = { ru = "пакты", en = "pacts" },
+	["diplo.sum.wars"] = { ru = "войны", en = "wars" },
+	["diplo.sum.trade"] = { ru = "торговля", en = "trade" },
+	-- §15я: разделы меню игры.
+	["sound.name.sfx"] = { ru = "Звуки боя и интерфейса", en = "Battle & UI sounds" }, -- §15я
+	["sound.name.music"] = { ru = "Музыка", en = "Music" },
+	["sound.test"] = { ru = "Проверить звук", en = "Test sound" },
+	["sound.hint"] = {
+		ru = "Громкость сохраняется в профиле и действует во всех матчах.",
+		en = "Volume is saved to your profile and used in every match.",
+	},
+	["gamemenu.section.game"] = { ru = "ИГРА", en = "GAME" },
+	["gamemenu.section.state"] = { ru = "ДЕРЖАВА", en = "NATION" },
+	["gamemenu.section.profile"] = { ru = "ПРОФИЛЬ", en = "PROFILE" },
+	["gamemenu.section.settings"] = { ru = "НАСТРОЙКИ", en = "SETTINGS" },
 	["result.pathClaim"] = {
 		ru = "Награды «Пути командира» ждут: %d — забрать",
 		en = "Commander Path rewards waiting: %d — claim",
@@ -880,6 +897,23 @@ local TABLE: { [string]: Entry } = {
 		en = "Average: <b>%d</b>  ·  provinces: <b>%d</b>  ·  close to revolt: <b>%d</b>  ·  half income: <b>%d</b>",
 	},
 	["stability.tag.revolt"] = { ru = "ВОССТАНИЕ", en = "REVOLT" },
+	-- §15я: окно стабильности.
+	["stability.stat.avg"] = { ru = "средняя стабильность", en = "average stability" },
+	["stability.stat.count"] = { ru = "ваших провинций", en = "your provinces" },
+	["stability.stat.revolt"] = { ru = "на грани восстания", en = "close to revolt" },
+	["stability.stat.low"] = { ru = "клеток с половинным доходом", en = "cells at half income" },
+	["stability.up"] = {
+		ru = "<b>▲ Поднимают:</b> город или укрепление в провинции, мир (+10 всем), технология «Порядок» (Y), железная дорога к столице.",
+		en = "<b>▲ Raise it:</b> a city or fort in the province, peace (+10 to all), the Public order tech (Y), a railway to the capital.",
+	},
+	["stability.down"] = {
+		ru = "<b>▼ Опускают:</b> даль от столицы, долгая война, свежий захват, метка «Предатель».",
+		en = "<b>▼ Lower it:</b> distance from the capital, long wars, fresh conquest, the Traitor mark.",
+	},
+	["stability.listHead"] = {
+		ru = "ПРОВИНЦИИ — от самой слабой",
+		en = "PROVINCES — weakest first",
+	},
 	["stability.tag.low"] = { ru = "доход ×0.5", en = "income ×0.5" },
 	["stability.tag.ok"] = { ru = "спокойно", en = "calm" },
 	["stability.worst"] = { ru = "К самой слабой провинции", en = "To the weakest province" },

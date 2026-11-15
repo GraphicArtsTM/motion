@@ -13,6 +13,7 @@ local ClientState = require(Shared:WaitForChild("ClientState"))
 local Config = require(Shared:WaitForChild("Config"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
+local MenuKit = require(script.Parent:WaitForChild("MenuKit"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
 local Audio = require(script.Parent.Parent:WaitForChild("Audio"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
@@ -61,90 +62,110 @@ function SoundPanel.new(
 	main.AnchorPoint = Vector2.new(1, 1)
 	main.Position = UDim2.new(1, -12, 1, -12 - Config.Render.MinimapSide - 8)
 
+	-- §15я: окно звука — заголовок со значком, две строки «значок · название · полоса громкости · − / +»,
+	-- кнопки «Без звука» и «Проверить звук».
+	local W = 340
 	local window = Instance.new("Frame")
 	window.Name = "Sound"
 	window.AnchorPoint = Vector2.new(1, 1)
 	window.Position = UDim2.new(1, -12 - BUTTON - 6, 1, -12 - Config.Render.MinimapSide - 8)
-	window.Size = UDim2.fromOffset(280, 3 * (BUTTON + 6) + 36)
+	window.Size = UDim2.fromOffset(W, 0)
+	window.AutomaticSize = Enum.AutomaticSize.Y
 	window.BackgroundColor3 = Theme.Colors.PanelBg
 	window.BackgroundTransparency = 0.05
 	window.BorderSizePixel = 0
 	window.Visible = false
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = Theme.Colors.PanelBorder
-	stroke.Parent = window
 	window.Parent = gui
-	local title = Instance.new("TextLabel")
-	title.Position = UDim2.fromOffset(10, 6)
-	title.Size = UDim2.new(1, -20, 0, 22)
-	title.BackgroundTransparency = 1
-	title.FontFace = Theme.FontBold
-	title.TextSize = 16
-	title.TextColor3 = Theme.Colors.Gold
-	title.TextXAlignment = Enum.TextXAlignment.Left
-	title.Text = Strings.get("sound.title", lang)
-	title.Parent = window
+	MenuKit.corner(window, 10)
+	MenuKit.stroke(window, Theme.Colors.PanelBorder, 2)
+	MenuKit.pad(window, 14, 12)
+	MenuKit.list(window, 10)
+	local head = MenuKit.box(window, "Head", 1)
+	MenuKit.list(head, 8, true)
+	MenuKit.icon(head, "sound", 3, 1)
+	MenuKit.label(head, Strings.get("sound.title", lang), 18, Theme.Colors.Gold, true, 2)
 
 	local sfx, music = Audio.volumes()
 	local saved = { sfx = sfx, music = music } -- до «Без звука»
-
 	local function apply(save: boolean)
 		Audio.setVolumes(sfx, music)
 		if save then
 			send("volume", { sfx = sfx, music = music })
 		end
 	end
-
-	local rows: { { label: TextLabel, key: string } } = {}
-	local function row(index: number, key: string, change: (dir: number) -> ())
-		local y = 32 + (index - 1) * (BUTTON + 6)
-		local label = Instance.new("TextLabel")
-		label.Position = UDim2.fromOffset(10, y)
-		label.Size = UDim2.fromOffset(150, BUTTON)
-		label.BackgroundTransparency = 1
-		label.FontFace = Theme.Font
-		label.TextSize = 15
-		label.TextColor3 = Theme.Colors.Text
-		label.TextXAlignment = Enum.TextXAlignment.Left
-		label.Parent = window
-		local minus = button(window, "−", BUTTON)
-		minus.Position = UDim2.fromOffset(170, y)
-		local plus = button(window, "+", BUTTON)
-		plus.Position = UDim2.fromOffset(170 + BUTTON + 6, y)
-		minus.Activated:Connect(function()
+	type Row = { label: TextLabel, value: TextLabel, bar: MenuKit.Bar, key: string }
+	local rows: { Row } = {}
+	local function row(index: number, key: string, icon: string, change: (dir: number) -> ())
+		local f = MenuKit.box(window, "Row_" .. key, 1 + index)
+		f.AutomaticSize = Enum.AutomaticSize.None
+		f.Size = UDim2.new(1, 0, 0, BUTTON + 18)
+		local ic = MenuKit.icon(f, icon, 3)
+		ic.Position = UDim2.fromOffset(0, 4)
+		local label = MenuKit.label(f, "", 15, Theme.Colors.Text, true)
+		label.Position = UDim2.fromOffset(32, 2)
+		local value = MenuKit.label(f, "", 15, Theme.Colors.Gold, true)
+		value.AnchorPoint = Vector2.new(1, 0)
+		value.Position = UDim2.new(1, -2 * (BUTTON + 6), 0, 2)
+		value.TextXAlignment = Enum.TextXAlignment.Right
+		local host = Instance.new("Frame")
+		host.BackgroundTransparency = 1
+		host.Position = UDim2.fromOffset(32, 30)
+		host.Size = UDim2.new(1, -32 - 2 * (BUTTON + 6), 0, 10)
+		host.Parent = f
+		local bar = MenuKit.bar(host, 10, Theme.Colors.Sky)
+		local minus = MenuKit.button(f, "−", "normal", BUTTON)
+		minus.AnchorPoint = Vector2.new(1, 0)
+		minus.Position = UDim2.new(1, -(BUTTON + 6), 0, 4)
+		minus.Size = UDim2.fromOffset(BUTTON, BUTTON)
+		minus.TextSize = 20
+		local plus = MenuKit.button(f, "+", "normal", BUTTON)
+		plus.AnchorPoint = Vector2.new(1, 0)
+		plus.Position = UDim2.new(1, 0, 0, 4)
+		plus.Size = UDim2.fromOffset(BUTTON, BUTTON)
+		plus.TextSize = 20
+		Session.connect(minus.Activated, function()
 			change(-1)
 		end)
-		plus.Activated:Connect(function()
+		Session.connect(plus.Activated, function()
 			change(1)
 		end)
-		table.insert(rows, { label = label, key = key })
+		table.insert(rows, { label = label, value = value, bar = bar, key = key })
 	end
-
 	local muteButton: TextButton
-
 	local function draw()
 		for _, r in rows do
 			local v = if r.key == "sfx" then sfx else music
-			r.label.Text = string.format(Strings.get("sound." .. r.key, lang), math.round(v * 100))
+			r.label.Text = Strings.get("sound.name." .. r.key, lang)
+			r.value.Text = string.format("%d%%", math.round(v * 100))
+			r.value.TextColor3 = if v > 0 then Theme.Colors.Gold else Theme.Colors.Muted
+			r.bar.set(v)
 		end
 		muteButton.Text = Strings.get(if sfx == 0 and music == 0 then "sound.unmute" else "sound.mute", lang)
 	end
-
-	row(1, "sfx", function(dir: number)
+	row(1, "sfx", "sound", function(dir: number)
 		sfx = AudioCues.stepVolume(sfx, dir)
 		apply(true)
 		draw()
 		Audio.play("Click")
 	end)
-	row(2, "music", function(dir: number)
+	row(2, "music", "quests", function(dir: number)
 		music = AudioCues.stepVolume(music, dir)
 		apply(true)
 		draw()
 	end)
-	muteButton = button(window, "", 260)
-	muteButton.Position = UDim2.fromOffset(10, 32 + 2 * (BUTTON + 6))
+	local buttons = MenuKit.box(window, "Buttons", 5)
+	buttons.AutomaticSize = Enum.AutomaticSize.None
+	buttons.Size = UDim2.new(1, 0, 0, BUTTON)
+	local bl = MenuKit.list(buttons, 8, true)
+	bl.HorizontalFlex = Enum.UIFlexAlignment.Fill
+	muteButton = MenuKit.button(buttons, "", "normal", BUTTON, 1)
 	muteButton.TextSize = 14
-	muteButton.Activated:Connect(function()
+	local testButton = MenuKit.button(buttons, Strings.get("sound.test", lang), "good", BUTTON, 2)
+	testButton.TextSize = 14
+	Session.connect(testButton.Activated, function()
+		Audio.play("Click")
+	end)
+	Session.connect(muteButton.Activated, function()
 		if sfx == 0 and music == 0 then
 			sfx, music = saved.sfx, saved.music
 			if sfx == 0 and music == 0 then
@@ -157,7 +178,7 @@ function SoundPanel.new(
 		apply(true)
 		draw()
 	end)
-
+	MenuKit.wrapLabel(window, Strings.get("sound.hint", lang), 12, Theme.Colors.Muted, 6)
 	local function toggle()
 		window.Visible = not window.Visible
 		if window.Visible then

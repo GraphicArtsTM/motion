@@ -74,7 +74,7 @@ function StabilityPanel.new(
 		t("stability.titleBig"),
 		string.format(t("stability.subtitle"), cfg.LowBelow, cfg.RevoltBelow),
 		760,
-		600,
+		660,
 		{},
 		{ main = "list" },
 		true
@@ -83,9 +83,59 @@ function StabilityPanel.new(
 	local page = win.page("main")
 	local foot = win.footer :: CardKit.Footer
 	foot.set(t("stability.worst"), false, t("stability.hint"))
-	local summary = MenuKit.wrapLabel(page, "", 15, Theme.Colors.Text, 0)
-	summary.RichText = true
-	local empty = MenuKit.wrapLabel(page, t("stability.none"), 14, Theme.Colors.Muted, 1)
+	-- §15я: сверху — четыре плитки (средняя, провинций, на грани восстания, с половинным доходом) и «что поднимает /
+	-- что опускает»; ниже — провинции от худшей к лучшей.
+	local tiles = Instance.new("Frame")
+	tiles.Name = "Summary"
+	tiles.BackgroundTransparency = 1
+	tiles.LayoutOrder = 0
+	tiles.Size = UDim2.new(1, 0, 0, 78)
+	tiles.Parent = page
+	local tilesLayout = MenuKit.list(tiles, 8, true)
+	tilesLayout.HorizontalFlex = Enum.UIFlexAlignment.Fill
+	local function statTile(order: number, caption: string): TextLabel
+		local f = Instance.new("Frame")
+		f.Name = "Stat"
+		f.LayoutOrder = order
+		f.Size = UDim2.new(0, 100, 1, 0)
+		f.BackgroundColor3 = Theme.Colors.Backdrop
+		f.BorderSizePixel = 0
+		f.Parent = tiles
+		MenuKit.corner(f, 10)
+		MenuKit.stroke(f, Theme.Colors.PanelBorder, 2)
+		local value = MenuKit.label(f, "—", 28, Theme.Colors.Text, true)
+		value.FontFace = Theme.FontHeavy
+		value.Position = UDim2.fromOffset(12, 6)
+		local cap = MenuKit.label(f, caption, 12, Theme.Colors.Muted, true)
+		cap.AutomaticSize = Enum.AutomaticSize.None
+		cap.Position = UDim2.fromOffset(12, 46)
+		cap.Size = UDim2.new(1, -20, 0, 26)
+		cap.TextWrapped = true
+		cap.TextYAlignment = Enum.TextYAlignment.Top
+		return value
+	end
+	local avgValue = statTile(1, t("stability.stat.avg"))
+	local countValue = statTile(2, t("stability.stat.count"))
+	local revoltValue = statTile(3, t("stability.stat.revolt"))
+	local lowValue = statTile(4, t("stability.stat.low"))
+	local tips = Instance.new("Frame")
+	tips.Name = "Tips"
+	tips.BackgroundColor3 = Theme.Colors.Backdrop
+	tips.BorderSizePixel = 0
+	tips.LayoutOrder = 1
+	tips.Size = UDim2.fromScale(1, 0)
+	tips.AutomaticSize = Enum.AutomaticSize.Y
+	tips.Parent = page
+	MenuKit.corner(tips, 10)
+	MenuKit.pad(tips, 12, 8)
+	MenuKit.list(tips, 4)
+	local up = MenuKit.wrapLabel(tips, t("stability.up"), 13, Theme.color("Meadow"), 1)
+	up.RichText = true
+	local down = MenuKit.wrapLabel(tips, t("stability.down"), 13, Theme.color("Orange"), 2)
+	down.RichText = true
+	local summary = MenuKit.wrapLabel(page, "", 13, Theme.Colors.Sky, 2)
+	summary.Text = t("stability.listHead")
+	local empty = MenuKit.wrapLabel(page, t("stability.none"), 14, Theme.Colors.Muted, 3)
 
 	local function playing(): boolean
 		local me = if cs.myNation ~= nil then cs.nations[cs.myNation] else nil
@@ -96,7 +146,15 @@ function StabilityPanel.new(
 	end
 
 	-- Строки провинций (переиспользуются по номеру строки).
-	type Row = { button: TextButton, name: TextLabel, tag: TextLabel, value: TextLabel, fill: Frame, province: number }
+	type Row = {
+		button: TextButton,
+		name: TextLabel,
+		tag: TextLabel,
+		value: TextLabel,
+		fill: Frame,
+		accent: Frame,
+		province: number,
+	}
 	local rows: { Row } = {}
 	local function makeRow(k: number): Row
 		local b = Instance.new("TextButton")
@@ -109,9 +167,15 @@ function StabilityPanel.new(
 		b.AutoButtonColor = true
 		b.Parent = page
 		MenuKit.stroke(b, Theme.Colors.PanelBorder, 2)
+		-- §15я: слева полоска цвета уровня (восстание / половинный доход / спокойно).
+		local accent = Instance.new("Frame")
+		accent.Name = "Accent"
+		accent.BorderSizePixel = 0
+		accent.Size = UDim2.new(0, 5, 1, 0)
+		accent.Parent = b
 		local name = MenuKit.label(b, "", 15, Theme.Colors.Text, true)
 		name.AutomaticSize = Enum.AutomaticSize.None
-		name.Position = UDim2.fromOffset(12, 5)
+		name.Position = UDim2.fromOffset(16, 5)
 		name.Size = UDim2.new(1, -230, 0, 20)
 		name.TextTruncate = Enum.TextTruncate.AtEnd
 		local tag = MenuKit.label(b, "", 12, Theme.Colors.Muted, true)
@@ -126,14 +190,15 @@ function StabilityPanel.new(
 		track.Name = "Bar"
 		track.BorderSizePixel = 0
 		track.BackgroundColor3 = Theme.Colors.PanelBg
-		track.Position = UDim2.new(0, 12, 1, -14)
+		track.Position = UDim2.new(0, 16, 1, -14)
 		track.Size = UDim2.new(1, -90, 0, 6)
 		track.Parent = b
 		local fill = Instance.new("Frame")
 		fill.BorderSizePixel = 0
 		fill.Size = UDim2.fromScale(0, 1)
 		fill.Parent = track
-		local row: Row = { button = b, name = name, tag = tag, value = value, fill = fill, province = 0 }
+		local row: Row =
+			{ button = b, name = name, tag = tag, value = value, fill = fill, accent = accent, province = 0 }
 		Session.connect(b.Activated, function()
 			local p = provinces.list[row.province]
 			if p ~= nil then
@@ -152,7 +217,14 @@ function StabilityPanel.new(
 		local list = StabilityList.rows(st.ids, st.values)
 		local counts = StabilityList.counts(list)
 		worst = StabilityList.worst(list)
-		summary.Text = string.format(t("stability.summary"), st.average, #list, counts.revolt, st.lowCells)
+		local ar, ag, ab = TerritoryPaint.stabilityColor(st.average)
+		avgValue.Text = tostring(st.average)
+		avgValue.TextColor3 = Color3.fromRGB(ar, ag, ab)
+		countValue.Text = tostring(#list)
+		revoltValue.Text = tostring(counts.revolt)
+		revoltValue.TextColor3 = if counts.revolt > 0 then Theme.Colors.Alert else Theme.Colors.Text
+		lowValue.Text = Strings.formatInt(st.lowCells)
+		lowValue.TextColor3 = if st.lowCells > 0 then Theme.color("Orange") else Theme.Colors.Text
 		empty.Visible = #list == 0
 		for k, r in list do
 			local row = rows[k]
@@ -172,6 +244,7 @@ function StabilityPanel.new(
 			row.fill.Size = UDim2.fromScale(math.clamp(r.value / 100, 0, 1), 1)
 			row.tag.Text = t("stability.tag." .. r.level)
 			row.tag.TextColor3 = Theme.color(LEVEL_COLOR[r.level])
+			row.accent.BackgroundColor3 = Theme.color(LEVEL_COLOR[r.level])
 		end
 		for k = #list + 1, #rows do
 			rows[k].button.Visible = false

@@ -888,16 +888,22 @@ local function runSession(mapId: string, resync: boolean)
 			text = modePanel.pauseText,
 			action = modePanel.togglePause,
 			visible = modePanel.soloOn,
+			icon = "menu",
+			group = "game",
 		},
 		{
 			label = Strings.get("solo.fast", lang),
 			text = modePanel.fastText,
 			action = modePanel.toggleFast,
 			visible = modePanel.soloOn,
+			icon = "reinforce",
+			group = "game",
 		},
 		{
 			label = Strings.get("dock.diplomacy", lang) .. "  [T]",
 			action = diplomacy.toggle,
+			icon = "diplomacy",
+			group = "state",
 			visible = function(): boolean
 				return diplomacy.button.Visible
 			end,
@@ -905,6 +911,8 @@ local function runSession(mapId: string, resync: boolean)
 		{
 			label = Strings.get("dock.tech", lang) .. "  [Y]",
 			action = techPanel.toggle,
+			icon = "tech",
+			group = "state",
 			visible = function(): boolean
 				return techPanel.button.Visible
 			end,
@@ -912,6 +920,8 @@ local function runSession(mapId: string, resync: boolean)
 		{
 			label = Strings.get("dock.stability", lang) .. "  [N]",
 			action = stabilityPanel.toggle,
+			icon = "stability",
+			group = "state",
 			visible = function(): boolean
 				return stabilityPanel.button.Visible
 			end,
@@ -919,6 +929,8 @@ local function runSession(mapId: string, resync: boolean)
 		{
 			label = Strings.get("council.title", lang) .. "  [F]", -- §15ц Ц4а: окно Совета
 			action = council.toggle,
+			icon = "council",
+			group = "state",
 			visible = function(): boolean
 				return stabilityPanel.button.Visible -- то же условие: идёт игра и держава жива
 			end,
@@ -926,21 +938,42 @@ local function runSession(mapId: string, resync: boolean)
 		{
 			label = Strings.get("dock.threat", lang) .. "  [L]",
 			action = threat.toggle,
+			icon = "threat",
+			group = "state",
 			visible = threat.visible,
 		},
 		{
 			label = Strings.get("dock.ping", lang) .. "  [G]",
 			action = pings.toggle,
+			icon = "ping",
+			group = "state",
 			visible = function(): boolean
 				return pings.button.Visible
 			end,
 		},
-		{ label = Strings.get("dock.quests", lang) .. "  [J]", action = questsPanel.toggle },
-		{ label = Strings.get("dock.wardrobe", lang) .. "  [K]", action = wardrobe.toggle },
-		{ label = Strings.get("dock.arsenal", lang) .. "  [U]", action = arsenalPanel.toggle },
+		{
+			label = Strings.get("dock.quests", lang) .. "  [J]",
+			action = questsPanel.toggle,
+			icon = "quests",
+			group = "profile",
+		},
+		{
+			label = Strings.get("dock.wardrobe", lang) .. "  [K]",
+			action = wardrobe.toggle,
+			icon = "wardrobe",
+			group = "profile",
+		},
+		{
+			label = Strings.get("dock.arsenal", lang) .. "  [U]",
+			action = arsenalPanel.toggle,
+			icon = "arsenal",
+			group = "profile",
+		},
 		{
 			label = Strings.get("menu.nav.ranks", lang),
 			action = ranksPanel.toggle,
+			icon = "rank",
+			group = "profile",
 			-- §15щ Щ3: сколько наград ждёт — прямо на пункте меню.
 			text = function(): string
 				local label = Strings.get("menu.nav.ranks", lang)
@@ -951,6 +984,8 @@ local function runSession(mapId: string, resync: boolean)
 		{
 			label = Strings.get("dock.server", lang) .. "  [O]",
 			action = serverPanel.toggle,
+			icon = "server",
+			group = "settings",
 			visible = function(): boolean
 				return serverPanel.button.Visible
 			end,

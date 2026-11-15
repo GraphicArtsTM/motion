@@ -13,6 +13,7 @@ local UserInputService = game:GetService("UserInputService")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local ClientState = require(Shared:WaitForChild("ClientState"))
 local Config = require(Shared:WaitForChild("Config"))
+local Ranks = require(Shared:WaitForChild("Ranks"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
 local MenuKit = require(script.Parent:WaitForChild("MenuKit"))
@@ -22,7 +23,15 @@ local Session = require(script.Parent.Parent:WaitForChild("Session"))
 type ClientState = ClientState.ClientState
 
 -- Кнопка окна из прежнего дока (visible nil — всегда видна; text — подпись, которая меняется: «Пауза» / «Продолжить»).
-export type MenuItem = { label: string, action: () -> (), visible: (() -> boolean)?, text: (() -> string)? }
+-- §15я: icon — значок PixelIcons / IconArt («rank» — погон звания), group — раздел: game · state · profile · settings.
+export type MenuItem = {
+	label: string,
+	action: () -> (),
+	visible: (() -> boolean)?,
+	text: (() -> string)?,
+	icon: string?,
+	group: string?,
+}
 
 export type Actions = {
 	help: () -> (),
@@ -98,37 +107,72 @@ function GameMenu.new(
 	line.Parent = window
 
 	local resume = MenuKit.button(window, "▶  " .. t("gamemenu.resume"), "good", 52, 4)
-	-- Сетка по две: Как играть, Звук, Магазин и окна из прежнего дока.
-	local grid = Instance.new("Frame")
-	grid.Name = "Grid"
-	grid.BackgroundTransparency = 1
-	grid.LayoutOrder = 5
-	grid.Size = UDim2.fromScale(1, 0)
-	grid.AutomaticSize = Enum.AutomaticSize.Y
-	grid.Parent = window
-	local gridLayout = Instance.new("UIGridLayout")
-	gridLayout.CellSize = UDim2.new(0.5, -5, 0, MenuKit.Touch)
-	gridLayout.CellPadding = UDim2.fromOffset(10, 8)
-	gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	gridLayout.Parent = grid
-	local help = MenuKit.button(grid, "?  " .. t("gamemenu.help"), "normal", nil, 1)
-	local sound = MenuKit.button(grid, "🔊  " .. t("gamemenu.sound"), "normal", nil, 2)
-	local shop = MenuKit.button(grid, "$  " .. t("gamemenu.shop"), "normal", nil, 3)
+	-- §15я: разделы с заголовками — ИГРА · ДЕРЖАВА · ПРОФИЛЬ · НАСТРОЙКИ; пункт — плитка «значок · название».
+	type Section = { header: TextLabel, grid: Frame, items: { TextButton } }
+	local sections: { [string]: Section } = {}
+	local SECTION_ORDER = { "game", "state", "profile", "settings" }
+	for k, key in SECTION_ORDER do
+		local header = MenuKit.label(window, t("gamemenu.section." .. key), 12, Theme.Colors.Sky, true, 4 + k * 2)
+		local grid = Instance.new("Frame")
+		grid.Name = "Grid_" .. key
+		grid.BackgroundTransparency = 1
+		grid.LayoutOrder = 5 + k * 2
+		grid.Size = UDim2.fromScale(1, 0)
+		grid.AutomaticSize = Enum.AutomaticSize.Y
+		grid.Parent = window
+		local gridLayout = Instance.new("UIGridLayout")
+		gridLayout.CellSize = UDim2.new(0.5, -5, 0, MenuKit.Touch)
+		gridLayout.CellPadding = UDim2.fromOffset(10, 8)
+		gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
+		gridLayout.Parent = grid
+		sections[key] = { header = header, grid = grid, items = {} }
+	end
+	-- Плитка пункта: значок слева, подпись.
+	local function tile(section: string, text: string, icon: string?, order: number): TextButton
+		local sec = sections[section] or sections.state
+		local b = MenuKit.button(sec.grid, "", "normal", nil, order)
+		b.TextXAlignment = Enum.TextXAlignment.Left
+		b.TextSize = 15
+		b.Text = text
+		local pad = Instance.new("UIPadding")
+		pad.PaddingLeft = UDim.new(0, if icon ~= nil then 40 else 12)
+		pad.Parent = b
+		if icon ~= nil then
+			local holder = Instance.new("Frame")
+			holder.Name = "IconHost"
+			holder.BackgroundTransparency = 1
+			holder.AnchorPoint = Vector2.new(0, 0.5)
+			holder.Position = UDim2.new(0, -32, 0.5, 0)
+			holder.Size = UDim2.fromOffset(24, 24)
+			holder.Parent = b
+			if icon == "rank" then
+				local p = cs.profile
+				local ep = MenuKit.rankIcon(holder, Ranks.of(if p ~= nil then p.level else 1), 1.5)
+				ep.Name = "Rank"
+			else
+				MenuKit.icon(holder, icon, 3)
+			end
+		end
+		table.insert(sec.items, b)
+		return b
+	end
+	local help = tile("settings", t("gamemenu.help"), "help", 1)
+	local sound = tile("settings", t("gamemenu.sound"), "sound", 2)
+	local shop = tile("profile", t("gamemenu.shop"), "shop", 1)
 	type Extra = { button: TextButton, visible: (() -> boolean)?, text: (() -> string)? }
 	local extras: { Extra } = {}
 	local line2 = line:Clone()
-	line2.LayoutOrder = 8
+	line2.LayoutOrder = 20
 	line2.Parent = window
-	local main = MenuKit.button(window, "🏠  " .. t("gamemenu.main"), "danger", nil, 9)
-	local note = MenuKit.wrapLabel(window, t("gamemenu.note"), 12, Theme.Colors.Muted, 10)
+	local main = MenuKit.button(window, "🏠  " .. t("gamemenu.main"), "danger", nil, 21)
+	local note = MenuKit.wrapLabel(window, t("gamemenu.note"), 12, Theme.Colors.Muted, 22)
 
 	local function close()
 		window.Visible = false
 	end
 	local extraList: { MenuItem } = act.extra or {}
 	for k, e in extraList do
-		local b = MenuKit.button(grid, e.label, "normal", nil, 3 + k)
-		b.TextSize = 15
+		local b = tile(e.group or "state", e.label, e.icon, 1 + k)
 		Session.connect(b.Activated, function()
 			close()
 			e.action()
@@ -145,6 +189,21 @@ function GameMenu.new(
 				if textFn ~= nil then
 					e.button.Text = textFn()
 				end
+			end
+			-- Раздел без видимых пунктов — без заголовка; погон «Пути» — по текущему званию.
+			for _, sec in sections do
+				local any = false
+				for _, b in sec.items do
+					any = any or b.Visible
+					local host = b:FindFirstChild("IconHost")
+					local ep = if host ~= nil then host:FindFirstChild("Rank") else nil
+					if ep ~= nil and ep:IsA("Frame") then
+						local p = cs.profile
+						MenuKit.setRank(ep, Ranks.of(if p ~= nil then p.level else 1), 1.5)
+					end
+				end
+				sec.header.Visible = any
+				sec.grid.Visible = any
 			end
 			-- §15л ч.3: на сервере матча «Главное меню» — переход в хаб, держава уходит из матча.
 			note.Text = t(if cs.place == "match" then "gamemenu.noteLeave" else "gamemenu.note")

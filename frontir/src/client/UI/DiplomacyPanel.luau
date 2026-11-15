@@ -207,7 +207,7 @@ function DiplomacyPanel.new(
 		t("diplo.titleBig"),
 		t("diplo.subtitle"),
 		960,
-		660,
+		720,
 		{},
 		{ main = "list" },
 		true
@@ -219,6 +219,38 @@ function DiplomacyPanel.new(
 	window.ZIndex = 5
 	local closeButton = win.close
 	local page = win.page("main")
+	-- §15я: сводка сверху — сколько союзников, пактов, войн и торговых соглашений (цветные плашки).
+	local summaryRow = Instance.new("Frame")
+	summaryRow.Name = "Summary"
+	summaryRow.BackgroundTransparency = 1
+	summaryRow.LayoutOrder = -1
+	summaryRow.Size = UDim2.new(1, 0, 0, 48)
+	summaryRow.Parent = page
+	local summaryLayout = MenuKit.list(summaryRow, 8, true)
+	summaryLayout.HorizontalFlex = Enum.UIFlexAlignment.Fill
+	local function summaryChip(order: number, color: string, caption: string): TextLabel
+		local f = Instance.new("Frame")
+		f.Name = "Chip"
+		f.LayoutOrder = order
+		f.Size = UDim2.new(0, 100, 1, 0)
+		f.BackgroundColor3 = Theme.Colors.Backdrop
+		f.BorderSizePixel = 0
+		f.Parent = summaryRow
+		MenuKit.corner(f, 8)
+		MenuKit.stroke(f, Theme.color(color), 2)
+		local value = MenuKit.label(f, "0", 22, Theme.color(color), true)
+		value.FontFace = Theme.FontHeavy
+		value.AnchorPoint = Vector2.new(0, 0.5)
+		value.Position = UDim2.new(0, 12, 0.5, 0)
+		local cap = MenuKit.label(f, caption, 12, Theme.Colors.Muted, true)
+		cap.AnchorPoint = Vector2.new(0, 0.5)
+		cap.Position = UDim2.new(0, 48, 0.5, 0)
+		return value
+	end
+	local alliesChip = summaryChip(1, "Gold", t("diplo.sum.allies"))
+	local pactsChip = summaryChip(2, "Sky", t("diplo.sum.pacts"))
+	local warsChip = summaryChip(3, "Red", t("diplo.sum.wars"))
+	local tradeChip = summaryChip(4, "Meadow", t("diplo.sum.trade"))
 	local cols = Instance.new("Frame")
 	cols.BackgroundTransparency = 1
 	cols.Size = UDim2.new(1, 0, 0, 500) -- §15ц Ц4б: ниже — главная кнопка
@@ -399,6 +431,7 @@ function DiplomacyPanel.new(
 	type NationRow = {
 		button: TextButton,
 		edge: UIStroke,
+		accent: Frame,
 		swatch: Frame,
 		name: TextLabel,
 		rel: TextLabel,
@@ -418,6 +451,13 @@ function DiplomacyPanel.new(
 		nb.AutoButtonColor = true
 		nb.Parent = list
 		local edge = MenuKit.stroke(nb, Theme.Colors.PanelBorder, 2)
+		-- §15я: слева полоска цвета отношения (война — красная, союз — золотая, пакт — голубая, мир — серая).
+		local accent = Instance.new("Frame")
+		accent.Name = "Accent"
+		accent.BorderSizePixel = 0
+		accent.Size = UDim2.new(0, 5, 1, 0)
+		accent.BackgroundColor3 = Theme.Colors.Slate
+		accent.Parent = nb
 		local swatch = Instance.new("Frame")
 		swatch.Position = UDim2.fromOffset(10, 11)
 		swatch.Size = UDim2.fromOffset(36, 36)
@@ -440,7 +480,8 @@ function DiplomacyPanel.new(
 		power.Position = UDim2.new(1, -10, 0, 9)
 		power.Size = UDim2.fromOffset(84, 16)
 		power.TextXAlignment = Enum.TextXAlignment.Right
-		local row: NationRow = { button = nb, edge = edge, swatch = swatch, name = name, rel = rel, power = power }
+		local row: NationRow =
+			{ button = nb, edge = edge, accent = accent, swatch = swatch, name = name, rel = rel, power = power }
 		Session.connect(nb.Activated, function()
 			selected = id
 			drawWindow()
@@ -448,6 +489,27 @@ function DiplomacyPanel.new(
 		rows[id] = row
 		return row
 	end
+
+	-- §15я: вид отношения державы id к нам — для цвета полоски и сводки.
+	local function relationKind(id: number): string
+		local me = cs.myNation
+		if me == nil or id == me then
+			return "me"
+		end
+		if ClientState.warBetween(cs, me, id) ~= nil then
+			return "war"
+		end
+		if ClientState.overlordOf(cs, id) == me or ClientState.overlordOf(cs, me) == id then
+			return "ally"
+		end
+		local tr = ClientState.treatyBetween(cs, me, id)
+		if tr ~= nil then
+			return if tr.kind == "alliance" then "ally" else "pact"
+		end
+		return "peace"
+	end
+	local KIND_COLOR: { [string]: string } =
+		{ war = "Red", ally = "Gold", pact = "Sky", peace = "Slate", me = "Meadow" }
 
 	-- Отношение державы id к нам (текст).
 	local function relation(id: number): string
@@ -573,6 +635,7 @@ function DiplomacyPanel.new(
 			local c = if n.colorIndex >= 1 then NationColors.Colors[n.colorIndex] else nil
 			r.swatch.BackgroundColor3 = if c ~= nil then Color3.fromRGB(c.r, c.g, c.b) else Theme.Colors.Gold
 			r.edge.Color = if id == selected then Theme.Colors.Gold else Theme.Colors.PanelBorder
+			r.accent.BackgroundColor3 = Theme.color(KIND_COLOR[relationKind(id)])
 			local traitor = if ClientState.isTraitor(cs, id, now, ClientState.simRate(cs))
 				then string.format(' <font color="%s">⚠</font>', alert)
 				else ""
@@ -590,6 +653,25 @@ function DiplomacyPanel.new(
 				r.button.Visible = false
 			end
 		end
+		-- Сводка сверху.
+		local allies, pacts, wars, trades = 0, 0, 0, 0
+		for _, entry in order do
+			local kind = relationKind(entry.id)
+			if kind == "ally" then
+				allies += 1
+			elseif kind == "pact" then
+				pacts += 1
+			elseif kind == "war" then
+				wars += 1
+			end
+			if me ~= nil and entry.id ~= me and ClientState.hasTrade(cs, me, entry.id) then
+				trades += 1
+			end
+		end
+		alliesChip.Text = tostring(allies)
+		pactsChip.Text = tostring(pacts)
+		warsChip.Text = tostring(wars)
+		tradeChip.Text = tostring(trades)
 		-- Генерал державы (§6.15) — виден всем.
 		local function commanderOf(id: number): string
 			local c = cs.nations[id].commander
