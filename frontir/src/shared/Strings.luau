@@ -402,6 +402,9 @@ local TABLE: { [string]: Entry } = {
 	["council.title"] = { ru = "Совет держав", en = "Council of Nations" },
 	["council.vote"] = { ru = "Голосование: %d с", en = "Voting: %d s" },
 	["council.votes"] = { ru = "голосов: %d", en = "votes: %d" },
+	["council.votesShare"] = { ru = "голосов: %d · %d%%", en = "votes: %d · %d%%" }, -- §15я
+	["council.leading"] = { ru = "ЛИДИРУЕТ", en = "LEADING" },
+	["council.leftTime"] = { ru = "Осталось %s", en = "%s left" },
 	["council.voted"] = { ru = "Ваш голос учтён", en = "Your vote is counted" },
 	["council.next"] = { ru = "Совет через %s", en = "Council in %s" },
 	["council.res.sanctions"] = { ru = "Санкции против лидера", en = "Sanctions on the leader" },
@@ -2839,6 +2842,14 @@ local TABLE: { [string]: Entry } = {
 	},
 	["quests.reward"] = { ru = "+%d 🏅  ·  +%d опыта", en = "+%d 🏅  ·  +%d XP" },
 	["quests.passXp"] = { ru = "опыта «Пути»", en = "Path XP" },
+	-- §15я: окно заданий.
+	["quests.today"] = { ru = "Сегодня выполнено %d из %d", en = "Done today: %d of %d" },
+	["quests.stateDone"] = { ru = "ВЫПОЛНЕНО ✔", en = "DONE ✔" },
+	["quests.statePct"] = { ru = "%d%%", en = "%d%%" },
+	["quests.rewardLine"] = {
+		ru = "Награда: +%d 🏅 · +%d опыта",
+		en = "Reward: +%d 🏅 · +%d XP",
+	},
 	["quests.bonus"] = {
 		ru = "Все три — +%d жетон штаба · новые задания через %d ч",
 		en = "All three — +%d HQ token · new quests in %d h",
@@ -2856,11 +2867,11 @@ local TABLE: { [string]: Entry } = {
 	["quest.win"] = { ru = "Победить: %d", en = "Win: %d" },
 	["quest.top3"] = { ru = "Попасть в тройку: %d", en = "Finish top 3: %d" },
 	["quest.cities"] = {
-		ru = "Держать городов к концу матча: %d",
+		ru = "Городов к концу матча: %d",
 		en = "Hold cities at the end: %d",
 	},
 	["quest.land"] = {
-		ru = "Держать суши к концу матча: %d%%",
+		ru = "Суши к концу матча: %d%%",
 		en = "Hold land at the end: %d%%",
 	},
 	["leaders.weekly"] = { ru = "Победы за неделю", en = "Wins this week" },

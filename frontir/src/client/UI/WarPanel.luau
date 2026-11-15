@@ -278,6 +278,10 @@ function WarPanel.new(
 	local declarePanel = window("DeclareWar", 460, Theme.Colors.Alert)
 	declarePanel.AnchorPoint = Vector2.new(0.5, 1)
 	declarePanel.Position = UDim2.new(0.5, 0, 1, -150)
+	-- §15я: шапка-картинка «объявление войны» во всю ширину.
+	local declareBanner = CardKit.art(declarePanel, "war.declare", 436, 110)
+	declareBanner.Name = "Banner"
+	declareBanner.LayoutOrder = 0
 	local declareHead = MenuKit.label(declarePanel, Strings.get("war.declare", lang), 20, Theme.Colors.Alert, true, 1)
 	declareHead.Size = UDim2.fromScale(1, 0)
 	declareHead.AutomaticSize = Enum.AutomaticSize.Y
@@ -326,7 +330,7 @@ function WarPanel.new(
 	local peaceHead = MenuKit.box(peacePanel, "Head", 1)
 	peaceHead.AutomaticSize = Enum.AutomaticSize.None
 	peaceHead.Size = UDim2.new(1, 0, 0, 48)
-	local peaceArt = CardKit.art(peaceHead, "peace.offer", 72, 48)
+	local peaceArt = CardKit.art(peaceHead, "peace.offer", 72, 48) -- §15я: гладкая картинка «голубь мира»
 	peaceArt.Name = "HeadArt"
 	local peaceTitle = MenuKit.label(peaceHead, "", 20, Theme.Colors.Text, true)
 	peaceTitle.Position = UDim2.fromOffset(84, 0)

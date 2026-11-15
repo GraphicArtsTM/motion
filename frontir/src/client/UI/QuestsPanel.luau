@@ -83,6 +83,34 @@ function QuestsPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, to
 	right.Size = UDim2.new(0.44, -8, 1, 0)
 	MenuKit.list(right, 8)
 
+	-- §15я: сверху — итог дня: «Сегодня выполнено N из 3», три деления и бонус за все три.
+	local summary = MenuKit.box(left, "Today", 0)
+	summary.AutomaticSize = Enum.AutomaticSize.None
+	summary.Size = UDim2.new(1, 0, 0, 70)
+	summary.BackgroundTransparency = 0
+	summary.BackgroundColor3 = Theme.Colors.Backdrop
+	MenuKit.corner(summary, 10)
+	local summaryEdge = MenuKit.stroke(summary, Theme.Colors.PanelBorder, 2)
+	local todayLabel = MenuKit.label(summary, "", 16, Theme.Colors.Text, true)
+	todayLabel.Position = UDim2.fromOffset(12, 8)
+	local segments: { Frame } = {}
+	for k = 1, Config.Quests.PerDay do
+		local seg = Instance.new("Frame")
+		seg.Name = "Segment" .. k
+		seg.BorderSizePixel = 0
+		seg.BackgroundColor3 = Theme.Colors.Slate
+		seg.Position = UDim2.new((k - 1) / Config.Quests.PerDay, if k == 1 then 12 else 4, 0, 34)
+		seg.Size = UDim2.new(1 / Config.Quests.PerDay, if k == 1 then -16 else -8, 0, 8)
+		seg.Parent = summary
+		MenuKit.corner(seg, 4)
+		segments[k] = seg
+	end
+	local bonusLine = MenuKit.label(summary, "", 12, Theme.Colors.Muted)
+	bonusLine.AutomaticSize = Enum.AutomaticSize.None
+	bonusLine.Position = UDim2.fromOffset(12, 48)
+	bonusLine.Size = UDim2.new(1, -24, 0, 16)
+	bonusLine.TextTruncate = Enum.TextTruncate.AtEnd
+
 	-- Три задания: строки пересоздаются, когда меняется вид задания (картинка — по виду).
 	type QuestRow = {
 		kind: string,
@@ -92,6 +120,7 @@ function QuestsPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, to
 		bar: MenuKit.Bar,
 		count: TextLabel,
 		reward: TextLabel,
+		state: TextLabel,
 	}
 	local questRows: { QuestRow? } = {}
 	local function questRow(k: number, kind: string): QuestRow
@@ -105,15 +134,38 @@ function QuestsPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, to
 		local f, body, edge = CardKit.row(left, "quest." .. kind, 150, 112, k)
 		MenuKit.list(body, 6)
 		local name = MenuKit.label(body, "", 16, Theme.Colors.Text, true, 1)
+		-- Место под метку состояния справа; длинное название ужимается.
+		name.AutomaticSize = Enum.AutomaticSize.None
+		name.Size = UDim2.new(1, -96, 0, 20)
+		name.TextScaled = true
+		local nameFit = Instance.new("UITextSizeConstraint")
+		nameFit.MaxTextSize = 16
+		nameFit.MinTextSize = 11
+		nameFit.Parent = name
 		local bar = MenuKit.bar(body, 10, Theme.Colors.Sky, 2)
 		local count = MenuKit.label(body, "", 13, Theme.Colors.Muted, true, 3)
 		local reward = MenuKit.label(body, "", 13, Theme.Colors.Gold, true, 4)
-		local row: QuestRow =
-			{ kind = kind, frame = f, edge = edge, name = name, bar = bar, count = count, reward = reward }
+		-- Метка состояния в углу: «N%» или «ВЫПОЛНЕНО ✔».
+		local state = MenuKit.label(f, "", 11, Theme.color("Ink"), true)
+		state.AnchorPoint = Vector2.new(1, 0)
+		state.Position = UDim2.new(1, -8, 0, 8)
+		state.BackgroundTransparency = 0
+		state.ZIndex = 3
+		MenuKit.pad(state, 6, 2)
+		MenuKit.corner(state, 4)
+		local row: QuestRow = {
+			kind = kind,
+			frame = f,
+			edge = edge,
+			name = name,
+			bar = bar,
+			count = count,
+			reward = reward,
+			state = state,
+		}
 		questRows[k] = row
 		return row
 	end
-	local bonus = MenuKit.wrapLabel(left, "", 13, Theme.Colors.Muted, 10)
 
 	-- Таблицы лидеров: значок места (1–3 — золото, серебро, бронза), имя, число; своя строка — золотая рамка.
 	type BoardRow = { frame: Frame, edge: UIStroke, badge: TextLabel, name: TextLabel, value: TextLabel }
@@ -187,16 +239,33 @@ function QuestsPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, to
 			row.bar.set(q.progress / math.max(1, q.target))
 			row.bar.fill.BackgroundColor3 = if q.done then Theme.Colors.Good else Theme.Colors.Sky
 			row.count.Text = string.format("%d / %d", math.min(q.progress, q.target), q.target)
-			row.reward.Text = string.format(t("quests.reward"), q.medals, q.xp)
+			row.reward.Text = string.format(t("quests.rewardLine"), q.medals, q.xp)
 			row.edge.Color = if q.done then Theme.Colors.Gold else Theme.Colors.PanelBorder
+			local pct = math.floor(math.min(1, q.progress / math.max(1, q.target)) * 100)
+			row.state.Text = if q.done then t("quests.stateDone") else string.format(t("quests.statePct"), pct)
+			row.state.BackgroundColor3 = if q.done then Theme.Colors.Good else Theme.Colors.Sky
 		end
+		-- Итог дня.
+		local doneCount = 0
+		for _, q in p.quests do
+			if q.done then
+				doneCount += 1
+			end
+		end
+		todayLabel.Text = string.format(t("quests.today"), doneCount, #p.quests)
+		for k, seg in segments do
+			seg.BackgroundColor3 = if k <= doneCount then Theme.Colors.Good else Theme.Colors.Slate
+		end
+		summaryEdge.Color = if doneCount >= #p.quests and #p.quests > 0
+			then Theme.Colors.Gold
+			else Theme.Colors.PanelBorder
 		for k = #p.quests + 1, #questRows do
 			local row = questRows[k]
 			if row ~= nil then
 				row.frame.Visible = false
 			end
 		end
-		bonus.Text = string.format(
+		bonusLine.Text = string.format(
 			t(if p.questsBonus then "quests.bonusDone" else "quests.bonus"),
 			Config.Quests.AllDoneTokens,
 			p.dayLeft // 3600

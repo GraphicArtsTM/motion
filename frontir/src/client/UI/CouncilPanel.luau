@@ -89,7 +89,7 @@ function CouncilPanel.new(
 	-- Карточки резолюций: нажатие — выбор (золотая рамка), «✔ ваш голос» — метка в углу.
 	local myVote, picked = 0, 0
 	local draw: (now: number) -> ()
-	type Option = { card: CardKit.Card, kind: string }
+	type Option = { card: CardKit.Card, kind: string, lead: TextLabel }
 	local options: { Option } = {}
 	for k = 1, n do
 		local card = CardKit.card(votePage, "council.truce", "", "", k)
@@ -104,10 +104,42 @@ function CouncilPanel.new(
 			picked = k
 			draw(os.clock())
 		end)
-		table.insert(options, { card = card, kind = "" })
+		-- §15я: «ЛИДИРУЕТ» — у варианта с наибольшим числом голосов.
+		local lead = MenuKit.label(card.frame, t("council.leading"), 11, Theme.color("Ink"), true)
+		lead.AnchorPoint = Vector2.new(1, 0)
+		lead.Position = UDim2.new(1, -10, 0, 10)
+		lead.BackgroundTransparency = 0
+		lead.BackgroundColor3 = Theme.Colors.Gold
+		lead.ZIndex = 3
+		lead.Visible = false
+		MenuKit.pad(lead, 5, 2)
+		MenuKit.corner(lead, 4)
+		table.insert(options, { card = card, kind = "", lead = lead })
 	end
 
-	local lines: { TextLabel } = {}
+	-- §15я: «Действуют» — строки-карточки: картинка резолюции, что делает, полоса оставшегося времени.
+	type ActiveRow = { kind: string, frame: Frame, name: TextLabel, hint: TextLabel, bar: MenuKit.Bar, left: TextLabel }
+	local lines: { ActiveRow } = {}
+	local fullOf: { [string]: number } = {} -- срок резолюции при первом показе (для полосы)
+	local function activeRow(k: number, kind: string): ActiveRow
+		local old = lines[k]
+		if old ~= nil and old.kind == kind then
+			return old
+		end
+		if old ~= nil then
+			old.frame:Destroy()
+		end
+		local f, body = CardKit.row(activePage, "council." .. kind, 150, 100, 10 + k)
+		MenuKit.list(body, 5)
+		local name = MenuKit.label(body, "", 16, Theme.Colors.Text, true, 1)
+		name.RichText = true
+		local hint = MenuKit.wrapLabel(body, "", 12, Theme.Colors.Muted, 2)
+		local bar = MenuKit.bar(body, 8, Theme.Colors.Gold, 3)
+		local left = MenuKit.label(body, "", 13, Theme.Colors.Gold, true, 4)
+		local row: ActiveRow = { kind = kind, frame = f, name = name, hint = hint, bar = bar, left = left }
+		lines[k] = row
+		return row
+	end
 	local hadVote = false
 
 	draw = function(now: number)
@@ -133,9 +165,10 @@ function CouncilPanel.new(
 		local rate = ClientState.simRate(cs)
 		-- Голосование.
 		if vote ~= nil and voting then
-			local total = 0
+			local total, best = 0, 0
 			for k = 1, #options do
 				total += vote.tallies[k] or 0
+				best = math.max(best, vote.tallies[k] or 0)
 			end
 			for k, o in options do
 				local option = vote.options[k]
@@ -148,7 +181,9 @@ function CouncilPanel.new(
 					local count = vote.tallies[k] or 0
 					o.card.title.Text = t("council.res." .. option)
 					o.card.desc.Text = t("council.res." .. option .. ".hint")
-					o.card.price.Text = string.format(t("council.votes"), count)
+					local share = if total > 0 then math.floor(count / total * 100 + 0.5) else 0
+					o.card.price.Text = string.format(t("council.votesShare"), count, share)
+					o.lead.Visible = best > 0 and count == best
 					o.card.tag.Visible = myVote == k
 					o.card.tag.Text = t("council.myVote")
 					local on = picked == k
@@ -181,21 +216,22 @@ function CouncilPanel.new(
 				if a.kind == "sanctions" and a.target ~= nil then
 					name ..= " → " .. nameOf(a.target)
 				end
-				local existing: TextLabel? = lines[k]
-				local l: TextLabel
-				if existing ~= nil then
-					l = existing
-				else
-					l = MenuKit.wrapLabel(activePage, "", 15, Theme.Colors.Text, 10 + k)
-					l.RichText = true
-					lines[k] = l
-				end
-				l.Visible = true
-				l.Text = string.format(t("council.activeRow"), name, clock(left))
+				local row = activeRow(k, a.kind)
+				row.frame.Visible = true
+				row.name.Text = name
+				row.hint.Text = t("council.res." .. a.kind .. ".hint")
+				local key = a.kind .. ":" .. tostring(a.target or 0)
+				local full = math.max(fullOf[key] or 0, left)
+				fullOf[key] = full
+				row.bar.set(left / math.max(1, full))
+				row.left.Text = string.format(t("council.leftTime"), clock(left))
 			end
 		end
 		for j = k + 1, #lines do
-			lines[j].Visible = false
+			local row = lines[j]
+			if row ~= nil then
+				row.frame.Visible = false
+			end
 		end
 		noVote.Visible = k == 0
 		noVote.Text = t("council.noneActive")
