@@ -19,7 +19,10 @@ local NationColors = require(Shared:WaitForChild("NationColors"))
 local Strings = require(Shared:WaitForChild("Strings"))
 local UnitSprites = require(Shared:WaitForChild("UnitSprites"))
 
+local IconArt = require(Shared:WaitForChild("IconArt"))
+
 local FlagView = require(script.Parent:WaitForChild("FlagView"))
+local IconImage = require(script.Parent:WaitForChild("IconImage"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
 
 type ClientState = ClientState.ClientState
@@ -34,6 +37,7 @@ type Marker = {
 	level: number,
 	parts: { Frame },
 	shapes: { CitySprites.Part },
+	picture: boolean, -- §15я: город картинкой (assets/icons/buildings/City<уровень>.png или City.png)
 }
 
 export type NationLabels = {
@@ -68,9 +72,27 @@ function NationLabels.new(canvas: Frame, cs: ClientState, lang: Strings.Lang, ma
 		return scale
 	end
 
+	-- §15я: картинка города уровня level: столица — CityCapital, иначе City1…City5, иначе общая City;
+	-- nil — нет (пиксельный город).
+	local function cityPicture(level: number, capital: boolean): Content?
+		if capital and IconArt.has("CityCapital") then
+			return IconImage.content("CityCapital")
+		end
+		local name = "City" .. math.clamp(level, 1, 5)
+		if IconArt.has(name) then
+			return IconImage.content(name)
+		end
+		return if IconArt.has("City") then IconImage.content("City") else nil
+	end
+
 	-- Цвета деталей города (тон → цвет хозяина с оттенком или свой цвет).
 	local function paintParts(m: Marker)
 		local body = ownerColor(m.owner)
+		if m.picture then
+			-- Картинка своего цвета — подложка квартала цветом хозяина.
+			m.frame.BackgroundColor3 = body
+			return
+		end
 		local r, g, b = math.round(body.R * 255), math.round(body.G * 255), math.round(body.B * 255)
 		for k, p in m.shapes do
 			local shade = CitySprites.Shade[p.tone]
@@ -135,7 +157,8 @@ function NationLabels.new(canvas: Frame, cs: ClientState, lang: Strings.Lang, ma
 		stroke.Transparency = if isMe then 0 else 0.4
 		stroke.Parent = frame
 		local level = ClientState.cityLevel(cs, cell)
-		local shapes = CitySprites.parts(level, capitalOf ~= nil)
+		local picture = cityPicture(level, capitalOf ~= nil)
+		local shapes: { CitySprites.Part } = if picture ~= nil then {} else CitySprites.parts(level, capitalOf ~= nil)
 		local parts: { Frame } = {}
 		for _ in shapes do
 			local f = Instance.new("Frame")
@@ -143,6 +166,40 @@ function NationLabels.new(canvas: Frame, cs: ClientState, lang: Strings.Lang, ma
 			f.ZIndex = 5
 			f.Parent = frame
 			table.insert(parts, f)
+		end
+		if picture ~= nil then
+			-- §15я: город картинкой — растёт с уровнем (CitySprites.size), подложка цветом хозяина, у столицы — звезда.
+			frame.BackgroundTransparency = 0.2
+			local corner = Instance.new("UICorner")
+			corner.CornerRadius = UDim.new(0.2, 0)
+			corner.Parent = frame
+			local img = Instance.new("ImageLabel")
+			img.Name = "Picture"
+			img.BackgroundTransparency = 1
+			img.AnchorPoint = Vector2.new(0.5, 0.5)
+			img.Position = UDim2.fromScale(0.5, 0.5)
+			img.Size = UDim2.fromScale(0.95, 0.95)
+			img.ScaleType = Enum.ScaleType.Fit
+			img.ResampleMode = Enum.ResamplerMode.Pixelated
+			img.ImageContent = picture
+			img.ZIndex = 5
+			img.Parent = frame
+			if capitalOf ~= nil then
+				local star = Instance.new("TextLabel")
+				star.Name = "CapitalStar"
+				star.AnchorPoint = Vector2.new(0.5, 0.5)
+				star.Position = UDim2.fromScale(1, 0)
+				star.Size = UDim2.fromScale(0.45, 0.45)
+				star.BackgroundTransparency = 1
+				star.Text = "★"
+				star.TextScaled = true
+				star.FontFace = Theme.FontBold
+				star.TextColor3 = Theme.Colors.Gold
+				star.TextStrokeColor3 = Theme.Colors.Backdrop
+				star.TextStrokeTransparency = 0
+				star.ZIndex = 6
+				star.Parent = frame
+			end
 		end
 		local dot: Frame? = nil
 		frame.Parent = canvas
@@ -209,6 +266,7 @@ function NationLabels.new(canvas: Frame, cs: ClientState, lang: Strings.Lang, ma
 			level = level,
 			parts = parts,
 			shapes = shapes,
+			picture = picture ~= nil,
 		}
 		paintParts(m)
 		place(m)

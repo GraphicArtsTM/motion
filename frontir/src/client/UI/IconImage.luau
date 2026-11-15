@@ -60,6 +60,26 @@ function IconImage.content(name: string): Content?
 	return make(name, IconArt.paint(name), IconArt.Size, IconArt.Size)
 end
 
+-- §15я: та же иконка зеркально (юнит на фронте смотрит на врага влево); nil — иконки нет.
+function IconImage.mirrored(name: string): Content?
+	local key = "mirror:" .. name
+	if cache[key] then
+		return cache[key]
+	end
+	local src = IconArt.paint(name)
+	if src == nil then
+		return nil
+	end
+	local n = IconArt.Size
+	local out = buffer.create(n * n * 4)
+	for y = 0, n - 1 do
+		for x = 0, n - 1 do
+			buffer.writeu32(out, (y * n + x) * 4, buffer.readu32(src, (y * n + (n - 1 - x)) * 4))
+		end
+	end
+	return make(key, out, n, n)
+end
+
 -- §15ш Ш8: карточка удара (CardArt, полный цвет, W × H).
 function IconImage.card(name: string): Content?
 	local key = "card:" .. name

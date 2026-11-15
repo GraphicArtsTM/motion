@@ -30,7 +30,9 @@ local MapDataModule = require(Shared:WaitForChild("MapData"))
 local NationColors = require(Shared:WaitForChild("NationColors"))
 local Types = require(Shared:WaitForChild("Types"))
 local UnitSprites = require(Shared:WaitForChild("UnitSprites"))
+local IconArt = require(Shared:WaitForChild("IconArt"))
 
+local IconImage = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("IconImage"))
 local Theme = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("Theme"))
 
 type ClientState = ClientState.ClientState
@@ -57,6 +59,7 @@ type Unit = {
 	firedAt: number,
 	scale: number,
 	flip: boolean,
+	image: ImageLabel?, -- §15я: юнит картинкой (assets/icons/units); подложка — shadow цветом державы
 }
 
 type Side = {
@@ -202,6 +205,43 @@ function FrontLayer.new(canvas: Frame, cs: ClientState, map: MapData): FrontLaye
 		local shadowCorner = Instance.new("UICorner")
 		shadowCorner.CornerRadius = UDim.new(0.5, 0)
 		shadowCorner.Parent = shadow
+		-- §15я: есть картинка юнита — она вместо пиксельных деталей; овал под ней — цветом державы.
+		local content = if IconArt.has(kind) then IconImage.content(kind) else nil
+		if content ~= nil then
+			local img = Instance.new("ImageLabel")
+			img.Name = "Picture"
+			img.BackgroundTransparency = 1
+			img.ScaleType = Enum.ScaleType.Fit
+			img.ResampleMode = Enum.ResamplerMode.Pixelated
+			img.ImageContent = content
+			img.ZIndex = 7
+			img.Parent = root
+			local stroke = Instance.new("UIStroke")
+			stroke.Color = ink
+			stroke.Thickness = 1
+			stroke.Parent = shadow
+			table.insert(strokes, stroke)
+			root.Parent = canvas
+			return {
+				root = root,
+				shadow = shadow,
+				parts = parts,
+				strokes = strokes,
+				kind = kind,
+				x = 0,
+				y = 0,
+				tx = 0,
+				ty = 0,
+				dx = 1,
+				dy = 0,
+				phase = 0,
+				nextFire = 0,
+				firedAt = -math.huge,
+				scale = 0,
+				flip = false,
+				image = img,
+			}
+		end
 		for _, p in SHAPES[kind] or SHAPES.Infantry do
 			local f = Instance.new("Frame")
 			f.BorderSizePixel = 0
@@ -236,6 +276,7 @@ function FrontLayer.new(canvas: Frame, cs: ClientState, map: MapData): FrontLaye
 			firedAt = -math.huge,
 			scale = 0,
 			flip = false,
+			image = nil,
 		}
 	end
 
@@ -248,6 +289,19 @@ function FrontLayer.new(canvas: Frame, cs: ClientState, map: MapData): FrontLaye
 		u.root.Size = UDim2.fromOffset(SPRITE_W * scale, SPRITE_H * scale)
 		u.shadow.Position = UDim2.fromOffset(scale, (SPRITE_H - 1) * scale)
 		u.shadow.Size = UDim2.fromOffset((SPRITE_W - 2) * scale, math.max(2, math.round(scale * 1.6)))
+		local img = u.image
+		if img ~= nil then
+			-- Картинка квадратная: шире пиксельного спрайта, стоит на овале; смотрит на врага (зеркало — влево).
+			local side = math.round(SPRITE_W * scale * 1.25)
+			img.Size = UDim2.fromOffset(side, side)
+			img.Position = UDim2.fromOffset(math.round((SPRITE_W * scale - side) / 2), SPRITE_H * scale - side)
+			local content = if flip then IconImage.mirrored(u.kind) else IconImage.content(u.kind)
+			if content ~= nil then
+				img.ImageContent = content
+			end
+			u.shadow.Size = UDim2.fromOffset((SPRITE_W - 2) * scale, math.max(3, math.round(scale * 2.2)))
+			return
+		end
 		for k, p in SHAPES[u.kind] or SHAPES.Infantry do
 			local f = u.parts[k]
 			local x = if flip then SPRITE_W - p.x - p.w else p.x
@@ -260,6 +314,11 @@ function FrontLayer.new(canvas: Frame, cs: ClientState, map: MapData): FrontLaye
 		for _, st in u.strokes do
 			st.Color = if unsupplied then Theme.Colors.Alert else ink
 		end
+		local img = u.image
+		if img ~= nil then
+			-- Без снабжения — картинка красноватая (как красный контур у пиксельного юнита).
+			img.ImageColor3 = if unsupplied then Color3.fromRGB(255, 140, 140) else Color3.new(1, 1, 1)
+		end
 	end
 
 	local function takeUnit(kind: string, owner: number, unsupplied: boolean, now: number): Unit
@@ -267,9 +326,15 @@ function FrontLayer.new(canvas: Frame, cs: ClientState, map: MapData): FrontLaye
 		local u = if list ~= nil and #list > 0 then table.remove(list) :: Unit else newUnit(kind)
 		local color = colorOf(owner)
 		local r, g, b = math.round(color.R * 255), math.round(color.G * 255), math.round(color.B * 255)
-		for k, p in SHAPES[kind] or SHAPES.Infantry do
-			if not p.ink then
-				u.parts[k].BackgroundColor3 = Color3.fromRGB(UnitSprites.shade(r, g, b, p.shade))
+		if u.image ~= nil then
+			-- §15я: овал под картинкой — цветом державы (видно, чей юнит).
+			u.shadow.BackgroundColor3 = color
+			u.shadow.BackgroundTransparency = 0.15
+		else
+			for k, p in SHAPES[kind] or SHAPES.Infantry do
+				if not p.ink then
+					u.parts[k].BackgroundColor3 = Color3.fromRGB(UnitSprites.shade(r, g, b, p.shade))
+				end
 			end
 		end
 		setStroke(u, unsupplied)

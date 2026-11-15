@@ -20,6 +20,8 @@ local MapData = require(Shared:WaitForChild("MapData"))
 local NationColors = require(Shared:WaitForChild("NationColors"))
 local Provinces = require(Shared:WaitForChild("Provinces"))
 
+local IconArt = require(Shared:WaitForChild("IconArt"))
+local IconImage = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("IconImage"))
 local Theme = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("Theme"))
 
 type ClientState = ClientState.ClientState
@@ -32,7 +34,18 @@ export type BuildingLayer = {
 	onCamera: (state: CameraState) -> (),
 }
 
-type Icon = { root: Frame, parts: { Frame }, kind: string, cell: number, owner: number, pips: number, dot: Frame? }
+-- §15я: plate / image — здание картинкой (assets/icons/buildings) на подложке цвета хозяина; без них — пиксели.
+type Icon = {
+	root: Frame,
+	parts: { Frame },
+	kind: string,
+	cell: number,
+	owner: number,
+	pips: number,
+	dot: Frame?,
+	plate: Frame?,
+	image: ImageLabel?,
+}
 
 local BuildingLayer = {}
 
@@ -60,6 +73,13 @@ function BuildingLayer.new(
 	local function shapeOf(kind: string): { BuildingSprites.Part }
 		return BuildingSprites.Shapes[kind] or NONE
 	end
+	-- §15я: картинка здания есть — пиксельные детали не нужны (только точки уровня).
+	local function pictured(kind: string): boolean
+		return kind ~= "City" and kind ~= "OilField" and IconArt.has(kind) and IconImage.content(kind) ~= nil
+	end
+	local function partsShape(icon: Icon): { BuildingSprites.Part }
+		return if icon.image ~= nil then NONE else shapeOf(icon.kind)
+	end
 
 	local function paint(icon: Icon)
 		local color = ownerColor(icon.owner)
@@ -67,8 +87,12 @@ function BuildingLayer.new(
 		if d ~= nil then
 			d.BackgroundColor3 = color
 		end
+		local plate = icon.plate
+		if plate ~= nil then
+			plate.BackgroundColor3 = color
+		end
 		local r, g, b = math.round(color.R * 255), math.round(color.G * 255), math.round(color.B * 255)
-		for k, p in shapeOf(icon.kind) do
+		for k, p in partsShape(icon) do
 			icon.parts[k].BackgroundColor3 = Color3.fromRGB(BuildingSprites.rgb(p, r, g, b))
 		end
 	end
@@ -84,6 +108,10 @@ function BuildingLayer.new(
 		local d = icon.dot
 		if d ~= nil then
 			d.Visible = showDot
+		end
+		local plate = icon.plate
+		if plate ~= nil then
+			plate.Visible = not far
 		end
 		if far then
 			if showDot and d ~= nil then
@@ -120,7 +148,14 @@ function BuildingLayer.new(
 		icon.root.Size = UDim2.fromOffset(size * scale, size * scale)
 		-- Значок стоит над своей клеткой.
 		icon.root.Position = UDim2.fromOffset(math.round(x - size * scale / 2), y - size * scale)
-		local shape = shapeOf(icon.kind)
+		-- §15я: картинка — чуть крупнее пиксельного значка, на скруглённой подложке цвета хозяина.
+		local pic = icon.plate
+		if pic ~= nil then
+			local side = math.round(size * scale * 1.35)
+			pic.Size = UDim2.fromOffset(side, side)
+			pic.Position = UDim2.fromOffset(math.round((size * scale - side) / 2), size * scale - side)
+		end
+		local shape = partsShape(icon)
 		for k, p in shape do
 			icon.parts[k].Position = UDim2.fromOffset(p.x * scale, p.y * scale)
 			icon.parts[k].Size = UDim2.fromOffset(p.w * scale, p.h * scale)
@@ -138,13 +173,44 @@ function BuildingLayer.new(
 		root.Name = kind .. "_" .. cell
 		root.BackgroundTransparency = 1
 		root.ZIndex = 5
+		local plate: Frame? = nil
+		local image: ImageLabel? = nil
+		local withImage = pictured(kind)
+		if withImage then
+			local pf = Instance.new("Frame")
+			pf.Name = "Plate"
+			pf.BorderSizePixel = 0
+			pf.BackgroundTransparency = 0.15
+			pf.ZIndex = 5
+			pf.Parent = root
+			local corner = Instance.new("UICorner")
+			corner.CornerRadius = UDim.new(0.25, 0)
+			corner.Parent = pf
+			local st = Instance.new("UIStroke")
+			st.Color = Theme.Colors.Backdrop
+			st.Thickness = 1.5
+			st.Parent = pf
+			local img = Instance.new("ImageLabel")
+			img.Name = "Picture"
+			img.BackgroundTransparency = 1
+			img.AnchorPoint = Vector2.new(0.5, 0.5)
+			img.Position = UDim2.fromScale(0.5, 0.5)
+			img.Size = UDim2.fromScale(0.92, 0.92)
+			img.ScaleType = Enum.ScaleType.Fit
+			img.ResampleMode = Enum.ResamplerMode.Pixelated
+			img.ImageContent = IconImage.content(kind) :: Content
+			img.ZIndex = 5
+			img.Parent = pf
+			plate, image = pf, img
+		end
 		local parts: { Frame } = {}
-		local count = if kind == "City" then pips else #shapeOf(kind) + pips
+		local shapeCount = if withImage then 0 else #shapeOf(kind)
+		local count = if kind == "City" then pips else shapeCount + pips
 		for k = 1, count do
 			local f = Instance.new("Frame")
 			f.BorderSizePixel = 0
-			f.ZIndex = 5
-			if kind == "City" or k > #shapeOf(kind) then
+			f.ZIndex = 6
+			if kind == "City" or k > shapeCount then
 				f.BackgroundColor3 = Theme.Colors.Gold
 				local stroke = Instance.new("UIStroke")
 				stroke.Color = Theme.Colors.Backdrop
@@ -175,6 +241,8 @@ function BuildingLayer.new(
 			owner = ClientState.knownOwnerAt(cs, cell),
 			pips = pips,
 			dot = dot,
+			plate = plate,
+			image = image,
 		}
 		if kind ~= "City" then
 			paint(icon)
