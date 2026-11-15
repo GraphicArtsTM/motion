@@ -466,6 +466,7 @@ export type HireTile = {
 	name: TextLabel,
 	price: TextLabel,
 	badge: TextLabel,
+	desc: TextLabel, -- §15я: зачем нужен (одна строка)
 }
 export type Dock = {
 	frame: Frame,
@@ -475,11 +476,28 @@ export type Dock = {
 	close: TextButton,
 	hires: { HireTile },
 	action: TextButton,
+	hint: TextLabel, -- §15я: как пользоваться главной кнопкой
+}
+export type DockOptions = {
+	hireDesc: { string }?, -- строка «зачем» под каждой плиткой найма
+	actionArt: string?, -- картинка у главной кнопки
+	hint: string?,
+	section: string?, -- заголовок над плитками («НАНЯТЬ»)
 }
 
-CardKit.DockW = 460
+CardKit.DockW = 540
 
-function CardKit.dock(gui: ScreenGui, name: string, artKey: string, hireKeys: { string }, hireLabel: string): Dock
+-- Окно у здания на карте (§15л ч.11 → §15я): широкая шапка-картинка с названием и состоянием поверх, раздел найма —
+-- плитки «картинка · имя ×N · зачем · цена · + НАНЯТЬ», внизу — картинка действия, главная кнопка и подсказка.
+function CardKit.dock(
+	gui: ScreenGui,
+	name: string,
+	artKey: string,
+	hireKeys: { string },
+	hireLabel: string,
+	opts: DockOptions?
+): Dock
+	local o: DockOptions = opts or {}
 	local width = CardKit.DockW
 	local frame = Instance.new("Frame")
 	frame.Name = name
@@ -504,27 +522,51 @@ function CardKit.dock(gui: ScreenGui, name: string, artKey: string, hireKeys: { 
 	UiScale.onResize(gui, fit)
 	fit()
 
+	-- Шапка: картинка во всю ширину, снизу затемнение, на нём название и состояние; «×» поверх.
 	local head = MenuKit.box(frame, "Head", 1)
 	head.AutomaticSize = Enum.AutomaticSize.None
-	head.Size = UDim2.new(1, 0, 0, 64)
-	local art = CardKit.art(head, artKey, 96, 64)
-	local title = MenuKit.label(head, "", 20, Theme.Colors.Gold, true)
-	title.Position = UDim2.fromOffset(108, 2)
-	local status = MenuKit.label(head, "", 13, Theme.Colors.Muted)
+	head.Size = UDim2.new(1, 0, 0, 128)
+	head.ClipsDescendants = true
+	local art = CardKit.art(head, artKey, width - 20, 128)
+	local shade = Instance.new("Frame")
+	shade.Name = "Shade"
+	shade.BorderSizePixel = 0
+	shade.BackgroundColor3 = Theme.color("Ink")
+	shade.AnchorPoint = Vector2.new(0, 1)
+	shade.Position = UDim2.fromScale(0, 1)
+	shade.Size = UDim2.new(1, 0, 0, 64)
+	shade.ZIndex = 2
+	shade.Parent = head
+	local grad = Instance.new("UIGradient")
+	grad.Rotation = 90
+	grad.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 1),
+		NumberSequenceKeypoint.new(0.45, 0.35),
+		NumberSequenceKeypoint.new(1, 0.1),
+	})
+	grad.Parent = shade
+	local title = MenuKit.label(head, "", 22, Theme.Colors.Gold, true)
+	title.FontFace = Theme.FontHeavy
+	title.Position = UDim2.new(0, 12, 1, -56)
+	title.ZIndex = 3
+	local status = MenuKit.label(head, "", 13, Theme.Colors.Text, true)
 	status.AutomaticSize = Enum.AutomaticSize.None
-	status.Position = UDim2.fromOffset(108, 28)
-	status.Size = UDim2.new(1, -(108 + MenuKit.Touch + 6), 0, 34)
-	status.TextWrapped = true
-	status.TextYAlignment = Enum.TextYAlignment.Top
+	status.Position = UDim2.new(0, 12, 1, -28)
+	status.Size = UDim2.new(1, -24, 0, 22)
+	status.TextTruncate = Enum.TextTruncate.AtEnd
+	status.ZIndex = 3
 	local close = MenuKit.button(head, "×", "normal")
 	close.AnchorPoint = Vector2.new(1, 0)
-	close.Position = UDim2.fromScale(1, 0)
+	close.Position = UDim2.new(1, -6, 0, 6)
 	close.Size = UDim2.fromOffset(MenuKit.Touch, MenuKit.Touch)
 	close.TextSize = 24
+	close.ZIndex = 4
 
-	local row = MenuKit.box(frame, "Hires", 2)
+	local section = MenuKit.label(frame, o.section or string.upper(hireLabel), 12, Theme.Colors.Sky, true, 2)
+	section.Visible = #hireKeys > 0
+	local row = MenuKit.box(frame, "Hires", 3)
 	row.AutomaticSize = Enum.AutomaticSize.None
-	row.Size = UDim2.new(1, 0, 0, 84)
+	row.Size = UDim2.new(1, 0, 0, 132)
 	row.Visible = #hireKeys > 0
 	local rowList = MenuKit.list(row, 8, true)
 	rowList.HorizontalFlex = Enum.UIFlexAlignment.Fill
@@ -539,30 +581,60 @@ function CardKit.dock(gui: ScreenGui, name: string, artKey: string, hireKeys: { 
 		b.BorderSizePixel = 0
 		b.Size = UDim2.new(0, 100, 1, 0)
 		b.Parent = row
+		MenuKit.corner(b, 10)
 		MenuKit.stroke(b, Theme.Colors.PanelBorder, 2)
-		local a = CardKit.art(b, key, 84, 56)
-		a.Position = UDim2.fromOffset(6, 6)
+		local a = CardKit.art(b, key, 96, 64)
+		a.Position = UDim2.fromOffset(8, 8)
 		local n = MenuKit.label(b, "", 15, Theme.Colors.Text, true)
-		n.Position = UDim2.fromOffset(98, 6)
-		local price = MenuKit.label(b, "", 12, Theme.Colors.Gold, true)
+		n.Position = UDim2.fromOffset(112, 8)
+		-- Длинное имя («Бомбардировщик ×1») ужимается по ширине плитки, а не вылезает.
+		n.AutomaticSize = Enum.AutomaticSize.None
+		n.Size = UDim2.new(1, -120, 0, 20)
+		n.TextScaled = true
+		local fitName = Instance.new("UITextSizeConstraint")
+		fitName.MaxTextSize = 15
+		fitName.MinTextSize = 10
+		fitName.Parent = n
+		local desc = MenuKit.label(b, (o.hireDesc or {})[k] or "", 11, Theme.Colors.Muted)
+		desc.AutomaticSize = Enum.AutomaticSize.None
+		desc.Position = UDim2.fromOffset(112, 30)
+		desc.Size = UDim2.new(1, -120, 0, 42)
+		desc.TextWrapped = true
+		desc.TextYAlignment = Enum.TextYAlignment.Top
+		local price = MenuKit.label(b, "", 13, Theme.Colors.Gold, true)
 		price.AutomaticSize = Enum.AutomaticSize.None
-		price.Position = UDim2.fromOffset(98, 26)
-		price.Size = UDim2.new(1, -104, 0, 30)
-		price.TextWrapped = true
-		price.TextYAlignment = Enum.TextYAlignment.Top
-		local badge = MenuKit.label(b, "+ " .. hireLabel, 12, Theme.color("Ink"), true)
-		badge.AnchorPoint = Vector2.new(1, 1)
-		badge.Position = UDim2.new(1, -6, 1, -6)
+		price.Position = UDim2.fromOffset(10, 80)
+		price.Size = UDim2.new(1, -20, 0, 16)
+		price.TextTruncate = Enum.TextTruncate.AtEnd
+		local badge = MenuKit.label(b, "+ " .. string.upper(hireLabel), 13, Theme.color("Ink"), true)
+		badge.AutomaticSize = Enum.AutomaticSize.None
+		badge.AnchorPoint = Vector2.new(0.5, 1)
+		badge.Position = UDim2.new(0.5, 0, 1, -8)
+		badge.Size = UDim2.new(1, -16, 0, 24)
+		badge.TextXAlignment = Enum.TextXAlignment.Center
 		badge.BackgroundTransparency = 0
 		badge.BackgroundColor3 = Theme.Colors.Gold
-		MenuKit.pad(badge, 6, 2)
-		table.insert(hires, { button = b, name = n, price = price, badge = badge })
+		MenuKit.corner(badge, 6)
+		table.insert(hires, { button = b, name = n, price = price, badge = badge, desc = desc })
 	end
 
-	local action = MenuKit.button(frame, "", "primary", MenuKit.Touch, 3)
-	action.Size = UDim2.new(1, 0, 0, MenuKit.Touch)
-	action.TextSize = 15
+	-- Действие: картинка слева, главная кнопка, подсказка под ней.
+	local actionRow = MenuKit.box(frame, "ActionRow", 4)
+	actionRow.AutomaticSize = Enum.AutomaticSize.None
+	actionRow.Size = UDim2.new(1, 0, 0, MenuKit.Touch + 8)
+	local actionX = 0
+	if o.actionArt ~= nil then
+		local aa = CardKit.art(actionRow, o.actionArt, 78, MenuKit.Touch + 8)
+		aa.Position = UDim2.fromOffset(0, 0)
+		actionX = 86
+	end
+	local action = MenuKit.button(actionRow, "", "primary", MenuKit.Touch)
+	action.Position = UDim2.fromOffset(actionX, 4)
+	action.Size = UDim2.new(1, -actionX, 0, MenuKit.Touch)
+	action.TextSize = 16
 	action.TextScaled = false
+	local hint = MenuKit.wrapLabel(frame, o.hint or "", 12, Theme.Colors.Muted, 5)
+	hint.Visible = (o.hint or "") ~= ""
 	return {
 		frame = frame,
 		art = art,
@@ -571,6 +643,7 @@ function CardKit.dock(gui: ScreenGui, name: string, artKey: string, hireKeys: { 
 		close = close,
 		hires = hires,
 		action = action,
+		hint = hint,
 	}
 end
 

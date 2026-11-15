@@ -120,3 +120,22 @@ T.describe("Карточки ударов (§15ш Ш8)", function()
 		end
 	)
 end)
+
+T.describe("Погоны званий (§15ю)", function()
+	local RankArt = require("../src/shared/RankArt")
+	local Config = require("../src/shared/Config")
+	T.it(
+		"гладкий погон есть у каждого звания: прозрачный фон, непрозрачный погон по центру",
+		function()
+			for rank = 1, #Config.Ranks.Tiers do
+				T.expect(RankArt.has(rank)).toBe(true)
+				local px = RankArt.paint(rank) :: buffer
+				T.expect(buffer.len(px)).toBe(RankArt.W * RankArt.H * 4)
+				T.expect(buffer.readu8(px, 3)).toBe(0) -- угол — прозрачный
+				local mid = ((RankArt.H // 2) * RankArt.W + RankArt.W // 2) * 4
+				T.expect(buffer.readu8(px, mid + 3)).toBe(255)
+			end
+			T.expect(RankArt.paint(99)).toBe(nil)
+		end
+	)
+end)

@@ -63,8 +63,23 @@ function ArsenalPanel.new(
 	local window = win.frame
 	local medalsChip = CardKit.chip(win.chips, "money", 1)
 	local foot = win.footer :: CardKit.Footer
+	-- §15я: низ окна — что взято в бой и как применить (иначе — где взять медали).
+	local function loadoutKey(): string?
+		local p = cs.profile
+		return if p ~= nil and p.arsenal ~= nil then p.arsenal.loadout else nil
+	end
 	local function hint(tab: string)
-		foot.set("", false, t(if tab == "generals" then "arsenal.generalsHint" else "arsenal.hint"))
+		if tab == "generals" then
+			foot.set("", false, t("arsenal.generalsHint"))
+			return
+		end
+		local key = loadoutKey()
+		if key == nil then
+			foot.set("", false, t("arsenal.hint"))
+			return
+		end
+		local how = t(if Config.Arsenal.Items[key].target then "arsenal.howTarget" else "arsenal.howInstant")
+		foot.set("", false, string.format(t("arsenal.loadoutHint"), t("arsenal.item." .. key), how))
 	end
 	win.onTab(hint)
 	hint(win.tab())
@@ -139,6 +154,7 @@ function ArsenalPanel.new(
 		local have = medals()
 		local a = arsenal()
 		medalsChip.Text = Strings.formatInt(have)
+		hint(win.tab())
 		for _, c in itemCards do
 			local it = items[c.key]
 			local owned = a.owned[c.key] == true
@@ -152,6 +168,12 @@ function ArsenalPanel.new(
 				elseif owned then Theme.Colors.Sky
 				else Theme.Colors.Gold
 			c.card.edge.Color = if inBattle then Theme.Colors.Good else Theme.Colors.PanelBorder
+			c.card.edge.Thickness = if inBattle then 3 else 2
+			c.card.tag.Text = if inBattle
+				then t("arsenal.tagInBattle")
+				else t(if it.target then "arsenal.tagTarget" else "arsenal.tagInstant")
+			c.card.tag.BackgroundColor3 = if inBattle then Theme.Colors.Good else Theme.Colors.Gold
+			c.card.frame.LayoutOrder = if inBattle then 0 else table.find(order, c.key) or 99
 			c.card.dim.Visible = not owned and level() < it.level
 			if inBattle then
 				c.action.Text = t("arsenal.inBattleBtn")

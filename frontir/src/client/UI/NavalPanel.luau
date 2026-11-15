@@ -79,7 +79,12 @@ function NavalPanel.new(
 		"NavalPanel",
 		"naval.port",
 		{ "naval.Transport", "naval.Destroyer" },
-		Strings.get("dock.hire", lang)
+		Strings.get("dock.hire", lang),
+		{
+			hireDesc = { Strings.get("dock.desc.Transport", lang), Strings.get("dock.desc.Destroyer", lang) },
+			actionArt = "naval.land",
+			hint = Strings.get("naval.hint", lang),
+		}
 	)
 	local panel = dock.frame
 	local title, status = dock.title, dock.status

@@ -114,11 +114,47 @@ for _, file in files do
 	end
 end
 
+-- Части по PerPart карточек (один модуль на сотни КБ base64 — тяжело для Studio): CardData1…N, индекс CardData
+-- подключает их строками require (литералы — так требует Roblox) и собирает Cards.
+local PER_PART = 10
+local partCount = math.max(1, math.ceil(#packed / PER_PART))
+for _, f in fs.readDir("src/shared") do
+	if string.match(f, "^CardData%d+%.luau$") then
+		fs.removeFile("src/shared/" .. f)
+	end
+end
+for part = 1, partCount do
+	local lines: { string } = {
+		"--!strict",
+		string.format(
+			"-- CardData%d — часть карточек CardData. Сделано tools/card_pack из assets/cards — руками не править.",
+			part
+		),
+		"",
+		"-- stylua: ignore",
+		"return table.freeze({",
+	}
+	for n = (part - 1) * PER_PART + 1, math.min(#packed, part * PER_PART) do
+		local c = packed[n]
+		local hex: { string } = {}
+		for _, p in c.palette do
+			table.insert(hex, string.format("%02x%02x%02x", p[1], p[2], p[3]))
+		end
+		table.insert(lines, string.format("\t%s = table.freeze({", c.name))
+		table.insert(lines, string.format('\t\tpalette = "%s",', table.concat(hex)))
+		table.insert(lines, string.format('\t\tdata = "%s",', Base64.encode(c.indices)))
+		table.insert(lines, "\t}),")
+	end
+	table.insert(lines, "}) :: { [string]: { palette: string, data: string } }")
+	table.insert(lines, "")
+	fs.writeFile(string.format("src/shared/CardData%d.luau", part), table.concat(lines, "\n"))
+end
 local lines: { string } = {
 	"--!strict",
 	"--[[",
-	"\tCardData — карточки ударов (§15ш Ш8). Сделано tools/card_pack из assets/cards — руками не править.",
+	"\tCardData — гладкие карточки (§15ш Ш8, §15я). Сделано tools/card_pack из assets/cards — руками не править.",
 	"\tpalette — цвета подряд по 6 hex-знаков; data — base64 индексов (байт на пиксель, строки сверху вниз).",
+	"\tКарточки лежат частями (CardData1…N), здесь — сборка.",
 	"]]",
 	"",
 	"local CardData = {}",
@@ -126,20 +162,18 @@ local lines: { string } = {
 	string.format("CardData.W = %d", W),
 	string.format("CardData.H = %d", H),
 	"",
-	"-- stylua: ignore",
-	"CardData.Cards = table.freeze({",
+	"local cards: { [string]: { palette: string, data: string } } = {}",
+	"for _, part in {",
 }
-for _, c in packed do
-	local hex: { string } = {}
-	for _, p in c.palette do
-		table.insert(hex, string.format("%02x%02x%02x", p[1], p[2], p[3]))
-	end
-	table.insert(lines, string.format("\t%s = table.freeze({", c.name))
-	table.insert(lines, string.format('\t\tpalette = "%s",', table.concat(hex)))
-	table.insert(lines, string.format('\t\tdata = "%s",', Base64.encode(c.indices)))
-	table.insert(lines, "\t}),")
+for part = 1, partCount do
+	table.insert(lines, string.format('\trequire("./CardData%d"),', part))
 end
-table.insert(lines, "})")
+table.insert(lines, "} :: { { [string]: { palette: string, data: string } } } do")
+table.insert(lines, "\tfor name, card in part do")
+table.insert(lines, "\t\tcards[name] = card")
+table.insert(lines, "\tend")
+table.insert(lines, "end")
+table.insert(lines, "CardData.Cards = table.freeze(cards)")
 table.insert(lines, "")
 table.insert(lines, "return table.freeze(CardData)")
 table.insert(lines, "")
@@ -169,5 +203,12 @@ for n, c in packed do
 end
 fs.writeFile(PREVIEW, Png.encodeRgb(PW, PH, pix))
 print(
-	string.format("карточек %d, %d×%d → src/shared/CardData.luau, превью %s", #packed, W, H, PREVIEW)
+	string.format(
+		"карточек %d, %d×%d → src/shared/CardData.luau (+%d частей), превью %s",
+		#packed,
+		W,
+		H,
+		partCount,
+		PREVIEW
+	)
 )

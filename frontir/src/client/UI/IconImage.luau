@@ -11,6 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local CardArt = require(Shared:WaitForChild("CardArt"))
 local IconArt = require(Shared:WaitForChild("IconArt"))
+local RankArt = require(Shared:WaitForChild("RankArt"))
 
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
@@ -66,6 +67,15 @@ function IconImage.card(name: string): Content?
 		return cache[key]
 	end
 	return make(key, CardArt.paint(name), CardArt.W, CardArt.H)
+end
+
+-- §15ю: гладкий погон звания (RankArt, прозрачный фон); nil — картинки нет.
+function IconImage.rank(rank: number): Content?
+	local key = "rank:" .. rank
+	if cache[key] then
+		return cache[key]
+	end
+	return make(key, RankArt.paint(rank), RankArt.W, RankArt.H)
 end
 
 -- Картинка-иконка: ImageLabel по центру родителя (size — сторона, условные px); nil — иконки нет.

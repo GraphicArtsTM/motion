@@ -264,9 +264,43 @@ function MenuKit.icon(parent: Instance, key: string, scale: number, order: numbe
 	return root
 end
 
+-- Погон звания в квадрате side × side: §15ю — гладкая картинка (IconImage.rank), без неё — пиксельный (Ranks.icon).
+-- Чужие дочерние объекты (UIScale и т. п.) не трогает.
+local function drawRank(f: Frame, rank: number, scale: number)
+	for _, child in f:GetChildren() do
+		if child:GetAttribute("RankPart") then
+			child:Destroy()
+		end
+	end
+	local side = Ranks.IconSize * scale
+	local content = IconImage.rank(rank)
+	if content ~= nil then
+		local img = Instance.new("ImageLabel")
+		img.Name = "Epaulette"
+		img.BackgroundTransparency = 1
+		img.Size = UDim2.fromOffset(side, side)
+		img.ScaleType = Enum.ScaleType.Fit
+		img.ResampleMode = Enum.ResamplerMode.Default -- гладкая картинка
+		img.ImageContent = content
+		img:SetAttribute("RankPart", true)
+		img.Parent = f
+		return
+	end
+	for _, p in Ranks.icon(rank) do
+		local px = Instance.new("Frame")
+		px.BorderSizePixel = 0
+		px.BackgroundColor3 = Theme.color(p.color)
+		px.Position = UDim2.fromOffset(p.x * scale, p.y * scale)
+		px.Size = UDim2.fromOffset(p.w * scale, p.h * scale)
+		px:SetAttribute("RankPart", true)
+		px.Parent = f
+	end
+end
+
 -- Значок звания; перерисовать — MenuKit.setRank(frame, rank, scale).
 function MenuKit.rankIcon(parent: Instance, rank: number, scale: number, order: number?): Frame
-	local f = MenuKit.pixels(parent, Ranks.icon(rank), Ranks.IconSize, scale, order)
+	local f = MenuKit.pixels(parent, {}, Ranks.IconSize, scale, order)
+	drawRank(f, rank, scale)
 	f:SetAttribute("Rank", rank)
 	return f
 end
@@ -276,17 +310,7 @@ function MenuKit.setRank(f: Frame, rank: number, scale: number)
 		return
 	end
 	f:SetAttribute("Rank", rank)
-	for _, child in f:GetChildren() do
-		child:Destroy()
-	end
-	for _, p in Ranks.icon(rank) do
-		local px = Instance.new("Frame")
-		px.BorderSizePixel = 0
-		px.BackgroundColor3 = Theme.color(p.color)
-		px.Position = UDim2.fromOffset(p.x * scale, p.y * scale)
-		px.Size = UDim2.fromOffset(p.w * scale, p.h * scale)
-		px.Parent = f
-	end
+	drawRank(f, rank, scale)
 end
 
 -- Плитка: квадратная кнопка, значок по центру, подпись снизу капсом.

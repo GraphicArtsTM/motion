@@ -65,8 +65,19 @@ function AirPanel.new(
 	end
 
 	-- Меню аэродрома (§15л ч.11): шапка с картинкой, плитки найма самолётов, кнопка «Налёт».
-	local dock =
-		CardKit.dock(gui, "AirPanel", "air.airfield", { "air.Fighter", "air.Bomber" }, Strings.get("dock.hire", lang))
+	-- §15я: шапка-картинка, плитки «зачем · цена», налёт с картинкой и подсказкой.
+	local dock = CardKit.dock(
+		gui,
+		"AirPanel",
+		"air.airfield",
+		{ "air.Fighter", "air.Bomber" },
+		Strings.get("dock.hire", lang),
+		{
+			hireDesc = { Strings.get("dock.desc.Fighter", lang), Strings.get("dock.desc.Bomber", lang) },
+			actionArt = "air.raid",
+			hint = Strings.get("air.hint", lang),
+		}
+	)
 	local panel = dock.frame
 	local title, status = dock.title, dock.status
 	local hireFighter, hireBomber = dock.hires[1].button, dock.hires[2].button

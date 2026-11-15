@@ -929,6 +929,31 @@ local TABLE: { [string]: Entry } = {
 	["naval.land"] = { ru = "Высадка (свободных: %d)", en = "Landing (ready: %d)" },
 	["dock.hire"] = { ru = "Нанять", en = "Hire" },
 	["dock.price"] = { ru = "$%s · нефть %s", en = "$%s · oil %s" },
+	-- §15я: окна порта и аэродрома — зачем каждый корабль и самолёт, как пользоваться.
+	["dock.desc.Transport"] = {
+		ru = "Везёт войска через море — для высадки",
+		en = "Carries troops across the sea for landings",
+	},
+	["dock.desc.Destroyer"] = {
+		ru = "Топит корабли врага, прикрывает берег и блокирует порты",
+		en = "Sinks enemy ships, guards the coast, blockades ports",
+	},
+	["dock.desc.Fighter"] = {
+		ru = "Сбивает чужие самолёты над точкой прикрытия",
+		en = "Shoots down enemy planes over its cover point",
+	},
+	["dock.desc.Bomber"] = {
+		ru = "Бомбит фронт и здания врага в налёте",
+		en = "Bombs the enemy front and buildings in raids",
+	},
+	["naval.hint"] = {
+		ru = "Высадка: нажмите берег — транспорты повезут долю войск (кнопки АТАКА). Эсминец: нажмите на него — «Патруль».",
+		en = "Landing: tap a coast — transports carry a share of troops (ATTACK buttons). Destroyer: tap it to patrol.",
+	},
+	["air.hint"] = {
+		ru = "Налёт: нажмите фронт или здание врага — полетят свободные бомбардировщики. Истребитель: нажмите на него — «Прикрытие».",
+		en = "Raid: tap an enemy front or building — ready bombers fly. Fighter: tap it to set a cover point.",
+	},
 	["naval.status"] = {
 		ru = "Транспортов %d · эсминцев %d · в очереди %d",
 		en = "Transports %d · destroyers %d · queued %d",
@@ -2906,6 +2931,20 @@ local TABLE: { [string]: Entry } = {
 	["arsenal.medals"] = { ru = "🏅 %s", en = "🏅 %s" },
 	["arsenal.tagTarget"] = { ru = "ПО КЛЕТКЕ", en = "TARGETED" },
 	["arsenal.tagInstant"] = { ru = "СРАЗУ", en = "INSTANT" },
+	-- §15я: что взято в бой и как применить.
+	["arsenal.tagInBattle"] = { ru = "В БОЮ ✔", en = "IN BATTLE ✔" },
+	["arsenal.loadoutHint"] = {
+		ru = "<b>В бою: %s.</b> %s Предмет — раз за матч; сменить — «Взять в бой» на другом.",
+		en = "<b>In battle: %s.</b> %s Once per match; to swap, press «Take into battle» on another.",
+	},
+	["arsenal.howTarget"] = {
+		ru = "В матче — плитка «Арсенал» на нижней полосе, потом нажмите клетку на карте.",
+		en = "In a match — the «Arsenal» tile on the bottom bar, then tap a cell on the map.",
+	},
+	["arsenal.howInstant"] = {
+		ru = "В матче — плитка «Арсенал» на нижней полосе, действует сразу.",
+		en = "In a match — the «Arsenal» tile on the bottom bar, works at once.",
+	},
 	["arsenal.progress"] = { ru = "🏅 %s / %s", en = "🏅 %s / %s" },
 	["arsenal.buy"] = { ru = "Купить за 🏅 %s", en = "Buy for 🏅 %s" },
 	["arsenal.lockLevel"] = { ru = "🔒 ур. %d", en = "🔒 lvl %d" },

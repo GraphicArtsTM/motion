@@ -39,6 +39,9 @@ onPointEnd` → `pointAt` в `Main.client` (общий для мыши и пал
 товары (`PathPremiumPlus`, `Levels5` → `Profile.addLevels`, `XpBoost*` → `xpBoostUntil`, `ParadeSet` →
 `Cosmetics.packSource`), выгода — `Shop.partsPrice / saving`, метки — `Config.Shop.Tags`; витрина — `UI/ShopPanel`.
 Новый товар — проверить, что он не спорит с Путём и другими товарами (GDD §15я Я1), и добавить в `Shop2.spec`.
+Гладкие картинки: карточки — `assets/cards/<имя>.png` → `lune run tools/card_pack` → `CardData` + части `CardData1…N`
+(не править руками), ключ → имя — `CardArt` (без записи — `tech.Army1` → `tech_army1`); погоны — `assets/ranks/rankN.png`
+→ `lune run tools/rank_pack` → `RankData` → `RankArt` → `MenuKit.rankIcon`. Промпты — `docs/ART_PROMPTS_*.md`.
 - §15ц Ц5г: окно в списке самопроверки (`windows` в `Main.client`) — с `frame` (имя рамки: проверка «влезает в
   экран»); блок «Экран матча» в `SelfCheck` (заголовки полосы, кнопки у мини-карты, наложения, одно окно за раз) —
   новую рамку HUD снизу или справа добавить в его список наложений.
