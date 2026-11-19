@@ -140,9 +140,9 @@ public static class Loc
         Add("select.play", "ИГРАТЬ", "PLAY", "O‘YNASH");
         Add("select.back", "НАЗАД", "BACK", "ORQAGA");
         Add("footer.select",
-            "Влево / Вправо - выбор героя     Enter - играть     WASD / стрелки - бег     Esc - назад",
-            "Left / Right - choose hero     Enter - play     WASD / arrows - run     Esc - back",
-            "Chapga / O‘ngga - qahramon tanlash     Enter - o‘ynash     WASD / strelkalar - yugurish     Esc - orqaga");
+            "Влево / Вправо - выбор героя     Enter - играть     в игре: WASD / стрелки - бег, Пробел - прыжок     Esc - назад",
+            "Left / Right - choose hero     Enter - play     in game: WASD / arrows - run, Space - jump     Esc - back",
+            "Chapga / O‘ngga - qahramon tanlash     Enter - o‘ynash     o‘yinda: WASD / strelkalar - yugurish, Probel - sakrash     Esc - orqaga");
 
         // --- лобби ---
         Add("lobby.subtitle", "СЕТЕВАЯ ИГРА", "NETWORK GAME", "TARMOQ O‘YINI");
@@ -164,9 +164,9 @@ public static class Loc
         Add("lobby.hintEmpty", "Ждём игроков. Подключиться могут до трёх человек.", "Waiting for players. Up to three can join.", "O‘yinchilar kutilmoqda. Uch kishigacha qo‘shilishi mumkin.");
         Add("lobby.hintCount", "Готовы: {0} из {1}.  Игра начнётся, когда все будут готовы.", "Ready: {0} of {1}.  The game starts when everyone is ready.", "Tayyor: {0} / {1}.  Hamma tayyor bo‘lganda o‘yin boshlanadi.");
         Add("footer.lobby",
-            "Tab - следующий адрес     F1 - не подключается?     K - игрок с клавиатуры (Enter - готов, L - убрать)     Esc - меню",
-            "Tab - next address     F1 - can't connect?     K - keyboard player (Enter - ready, L - remove)     Esc - menu",
-            "Tab - keyingi manzil     F1 - ulanmayaptimi?     K - klaviatura o‘yinchisi (Enter - tayyor, L - olib tashlash)     Esc - menyu");
+            "Tab - след. адрес     F1 - помощь     K - игрок с клавиатуры (до 3: WASD / стрелки / NumPad; влево-вправо - герой, Enter - готов, L - убрать)     Esc - меню",
+            "Tab - next address     F1 - help     K - keyboard player (up to 3: WASD / arrows / NumPad; left-right - hero, Enter - ready, L - remove)     Esc - menu",
+            "Tab - keyingi manzil     F1 - yordam     K - klaviatura o‘yinchisi (3 tagacha: WASD / strelkalar / NumPad; chap-o‘ng - qahramon, Enter - tayyor, L - olib tashlash)     Esc - menyu");
 
         // --- результаты и пауза ---
         Add("results.title", "РЕЗУЛЬТАТЫ", "RESULTS", "NATIJALAR");
@@ -235,6 +235,23 @@ public static class Loc
         Add("hud.checkpoint", "ЧЕКПОИНТ  +{0} с", "CHECKPOINT  +{0} s", "NAZORAT NUQTASI  +{0} s");
         Add("hud.speedUp", "УСКОРЕНИЕ!", "SPEED UP!", "TEZLASHISH!");
         Add("hud.hit", "УДАР!", "HIT!", "ZARBA!");
+        Add("hud.distance", "{0} м", "{0} m", "{0} m");
+        Add("hud.combo", "КОМБО x{0}!", "COMBO x{0}!", "KOMBO x{0}!");
+        Add("hud.comboShort", "x{0}", "x{0}", "x{0}");
+        Add("hud.gem", "САМОЦВЕТ +{0}", "GEM +{0}", "QIMMATBAHO TOSH +{0}");
+        Add("hud.shield", "ЩИТ!", "SHIELD!", "QALQON!");
+        Add("hud.shieldSaved", "ЩИТ ЗАЩИТИЛ!", "SHIELD SAVED YOU!", "QALQON HIMOYA QILDI!");
+        Add("hud.magnet", "МАГНИТ!", "MAGNET!", "MAGNIT!");
+        Add("hud.hourglass", "ВРЕМЯ  +{0} с", "TIME  +{0} s", "VAQT  +{0} s");
+        Add("hud.shieldShort", "ЩИТ", "SHIELD", "QALQON");
+        Add("hud.magnetShort", "МАГНИТ", "MAGNET", "MAGNIT");
+        Add("hud.jumpKey", "ПРЫЖОК: {0}", "JUMP: {0}", "SAKRASH: {0}");
+        Add("hud.jumpTap", "ПРЫЖОК: КОСНИСЬ ЭКРАНА", "JUMP: TAP THE SCREEN", "SAKRASH: EKRANGA TEGING");
+        Add("key.space", "ПРОБЕЛ", "SPACE", "PROBEL");
+        Add("keys.solo", "WASD/стрелки + Пробел", "WASD/arrows + Space", "WASD/strelkalar + Probel");
+        Add("keys.wasd", "WASD + Пробел", "WASD + Space", "WASD + Probel");
+        Add("keys.arrows", "стрелки + правый Shift", "arrows + Right Shift", "strelkalar + o‘ng Shift");
+        Add("keys.numpad", "NumPad 8456 + 0", "NumPad 8456 + 0", "NumPad 8456 + 0");
         Add("hud.timeUp", "ВРЕМЯ ВЫШЛО\nОчки: {0}", "TIME'S UP\nScore: {0}", "VAQT TUGADI\nOchko: {0}");
 
         // --- имена игроков ---

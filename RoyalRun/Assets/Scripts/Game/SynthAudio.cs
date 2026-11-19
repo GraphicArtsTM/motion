@@ -6,14 +6,20 @@ public static class SynthAudio
 {
     const int Rate = 22050;
 
-    public static AudioClip Coin, PowerUp, Hit, Thud, Checkpoint, Beep, Go, Click, Music;
+    public static AudioClip Coin, Gem, PowerUp, Hit, Thud, Checkpoint, Beep, Go, Click, Jump, Land, Shield, Combo, Music;
 
     public static void Init()
     {
         if (Coin != null && Music != null) return;
 
         Coin = Make("Coin", Concat(Tone(988f, 988f, 0.07f, 1, 0.5f), Tone(1319f, 1319f, 0.16f, 1, 0.5f)));
+        Gem = Make("Gem", Concat(Concat(Tone(1319f, 1319f, 0.06f, 2, 0.5f), Tone(1568f, 1568f, 0.06f, 2, 0.5f)),
+                                 Concat(Tone(1976f, 1976f, 0.06f, 2, 0.5f), Tone(2637f, 2637f, 0.25f, 2, 0.45f))));
         PowerUp = Make("PowerUp", Tone(380f, 1100f, 0.32f, 1, 0.45f));
+        Jump = Make("Jump", Tone(300f, 720f, 0.16f, 2, 0.45f));
+        Land = Make("Land", Mix(Noise(0.08f, 0.25f, 0.7f), Tone(110f, 70f, 0.08f, 0, 0.5f)));
+        Shield = Make("Shield", Mix(Tone(1200f, 300f, 0.35f, 2, 0.4f), Noise(0.2f, 0.25f, 0.2f)));
+        Combo = Make("Combo", Concat(Tone(784f, 784f, 0.07f, 1, 0.35f), Tone(1175f, 1175f, 0.14f, 1, 0.35f)));
         Hit = Make("Hit", Mix(Noise(0.25f, 0.7f, 0.35f), Tone(140f, 60f, 0.3f, 0, 0.8f)));
         Thud = Make("Thud", Mix(Noise(0.18f, 0.5f, 0.6f), Tone(90f, 45f, 0.22f, 0, 0.9f)));
         Checkpoint = Make("Checkpoint", Concat(Concat(Tone(523f, 523f, 0.09f, 2, 0.5f), Tone(659f, 659f, 0.09f, 2, 0.5f)),

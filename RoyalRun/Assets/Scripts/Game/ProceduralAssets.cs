@@ -1,42 +1,67 @@
-using System.Collections.Generic;
 using UnityEngine;
 
-// Builds every game "prefab" from code: road pieces (chunks), the checkpoint, fences, coins, apples,
-// falling obstacles and the heroes. The guide used imported assets (the King model, GDTV prefabs);
+// Builds every game "prefab" from code: road pieces (chunks), the checkpoint, fences and walls, coins, gems,
+// apples, power-ups, falling obstacles and the heroes. The guide used imported assets (the King model, GDTV prefabs);
 // here they are replaced with templates made of simple shapes, so the project needs no third-party files.
 //
 // The templates lie under an INACTIVE object, so their scripts do not run.
 // Instantiate(template, parent) makes an active copy - exactly like a prefab.
+// After building, each template is "baked" (MeshBaker): its small shapes are merged into a few meshes.
 // Any field you fill in GameAssets by hand (your own prefab) is kept: only empty fields are filled.
 public static class ProceduralAssets
 {
-    static readonly Color Road = new Color(0.27f, 0.26f, 0.31f);
-    static readonly Color Line = new Color(0.92f, 0.90f, 0.82f);
-    static readonly Color Curb = new Color(0.80f, 0.78f, 0.74f);
-    static readonly Color Grass = new Color(0.27f, 0.50f, 0.30f);
-    static readonly Color GrassDark = new Color(0.20f, 0.40f, 0.24f);
+    static readonly Color Road = new Color(0.30f, 0.29f, 0.34f);
+    static readonly Color RoadLight = new Color(0.36f, 0.35f, 0.40f);
+    static readonly Color RoadSeam = new Color(0.21f, 0.20f, 0.25f);
+    static readonly Color Line = new Color(0.95f, 0.88f, 0.60f);
+    static readonly Color CurbRed = new Color(0.78f, 0.18f, 0.18f);
+    static readonly Color CurbWhite = new Color(0.90f, 0.88f, 0.84f);
+    static readonly Color Grass = new Color(0.30f, 0.54f, 0.30f);
+    static readonly Color GrassDark = new Color(0.21f, 0.42f, 0.24f);
     static readonly Color Wood = new Color(0.52f, 0.32f, 0.16f);
     static readonly Color WoodLight = new Color(0.74f, 0.54f, 0.31f);
     static readonly Color WoodDark = new Color(0.33f, 0.20f, 0.10f);
     static readonly Color Iron = new Color(0.20f, 0.20f, 0.23f);
-    static readonly Color Stone = new Color(0.52f, 0.52f, 0.55f);
+    static readonly Color Stone = new Color(0.55f, 0.55f, 0.58f);
+    static readonly Color StoneDark = new Color(0.42f, 0.41f, 0.46f);
     static readonly Color Gold = new Color(1f, 0.78f, 0.22f);
     static readonly Color FenceRed = new Color(0.82f, 0.20f, 0.18f);
-    static readonly Color Leaves = new Color(0.22f, 0.48f, 0.26f);
+    static readonly Color Leaves = new Color(0.24f, 0.52f, 0.27f);
+    static readonly Color Pine = new Color(0.14f, 0.36f, 0.24f);
     static readonly Color LampLight = new Color(1f, 0.85f, 0.5f);
+    static readonly Color Royal = new Color(0.45f, 0.18f, 0.62f);
+    static readonly Color RoofBlue = new Color(0.22f, 0.32f, 0.62f);
+    static readonly Color[] Flowers =
+    {
+        new Color(1f, 0.85f, 0.25f), new Color(0.95f, 0.35f, 0.45f), new Color(0.95f, 0.95f, 1f), new Color(0.6f, 0.45f, 1f),
+    };
 
     const float ChunkLength = 10f;
     const float RoadWidth = 9f;
 
+    struct ChunkStyle
+    {
+        public bool lampLeft, lampRight, rail, banners, castle;
+        public int seed;
+    }
+
     public static void Fill(GameAssets a, Transform templates)
     {
-        GameObject fence = BuildFence(templates);
-        GameObject coin = BuildCoin(templates);
-        GameObject apple = BuildApple(templates);
+        GameObject fence = Bake(BuildFence(templates));
+        GameObject wall = Bake(BuildWall(templates));
+        GameObject coin = Bake(BuildCoin(templates, false));
+        GameObject gem = Bake(BuildCoin(templates, true));
+        GameObject apple = Bake(BuildApple(templates));
+        GameObject[] powerUps =
+        {
+            Bake(BuildPowerUp(templates, PowerUpType.Shield)),
+            Bake(BuildPowerUp(templates, PowerUpType.Magnet)),
+            Bake(BuildPowerUp(templates, PowerUpType.Hourglass)),
+        };
 
         if (a.kingPrefab == null)
         {
-            // one model per hero (index = number in CharacterCatalog)
+            // one model per hero (index = number in CharacterCatalog); heroes are animated, so they are not baked
             GameObject[] heroes = new GameObject[CharacterCatalog.Count];
             for (int i = 0; i < heroes.Length; i++) heroes[i] = CharacterRig.Build(i, templates);
             a.kingPrefab = heroes[0];
@@ -45,33 +70,56 @@ public static class ProceduralAssets
 
         if (IsEmpty(a.chunkPrefabs))
         {
-            // as in the guide: three plain pieces and three with lampposts
-            a.chunkPrefabs = new[]
+            // as in the guide: plain pieces and pieces with lampposts (plus fences, banners and castles in the distance)
+            ChunkStyle[] styles =
             {
-                BuildChunk("Chunk Plain A", templates, fence, apple, coin, false, false, 11),
-                BuildChunk("Chunk Plain B", templates, fence, apple, coin, false, false, 23),
-                BuildChunk("Chunk Plain C", templates, fence, apple, coin, false, false, 37),
-                BuildChunk("Chunk Lightpost Both", templates, fence, apple, coin, true, true, 41),
-                BuildChunk("Chunk Lightpost Left", templates, fence, apple, coin, true, false, 53),
-                BuildChunk("Chunk Lightpost Right", templates, fence, apple, coin, false, true, 67),
+                new ChunkStyle { seed = 11 },
+                new ChunkStyle { seed = 23, rail = true },
+                new ChunkStyle { seed = 37, castle = true },
+                new ChunkStyle { seed = 41, lampLeft = true, lampRight = true },
+                new ChunkStyle { seed = 53, lampLeft = true, banners = true },
+                new ChunkStyle { seed = 67, lampRight = true, rail = true, castle = true },
+                new ChunkStyle { seed = 71, banners = true },
             };
+            a.chunkPrefabs = new GameObject[styles.Length];
+            for (int i = 0; i < styles.Length; i++)
+            {
+                GameObject c = BuildChunk("Chunk " + (i + 1), templates, styles[i]);
+                SetupChunk(c, fence, apple, coin, wall, gem, powerUps);
+                a.chunkPrefabs[i] = Bake(c);
+            }
         }
 
         if (a.checkpointChunkPrefab == null)
         {
-            GameObject cp = BuildChunk("Checkpoint Chunk", templates, fence, apple, coin, true, true, 79);
+            GameObject cp = BuildChunk("Checkpoint Chunk", templates, new ChunkStyle { seed = 79, lampLeft = true, lampRight = true, banners = true });
             AddCheckpointArch(cp.transform);
-            a.checkpointChunkPrefab = cp;
+            SetupChunk(cp, fence, apple, coin, wall, gem, powerUps);
+            a.checkpointChunkPrefab = Bake(cp);
         }
 
         if (IsEmpty(a.obstaclePrefabs))
         {
             a.obstaclePrefabs = new[]
             {
-                BuildBarrel(templates), BuildBench(templates), BuildBox(templates),
-                BuildCannon(templates), BuildCart(templates), BuildRock(templates),
+                Bake(BuildBarrel(templates)), Bake(BuildBench(templates)), Bake(BuildBox(templates)),
+                Bake(BuildCannon(templates)), Bake(BuildCart(templates)), Bake(BuildRock(templates)),
             };
         }
+    }
+
+    static GameObject Bake(GameObject go)
+    {
+        MeshBaker.Bake(go);
+        return go;
+    }
+
+    static void SetupChunk(GameObject c, GameObject fence, GameObject apple, GameObject coin,
+                           GameObject wall, GameObject gem, GameObject[] powerUps)
+    {
+        Chunk chunk = c.AddComponent<Chunk>();
+        chunk.Configure(fence, apple, coin);
+        chunk.ConfigureExtras(wall, gem, powerUps);
     }
 
     public static bool IsEmpty(GameObject[] arr)
@@ -81,66 +129,155 @@ public static class ProceduralAssets
         return true;
     }
 
+    static GameObject Box(string n, Transform p, Vector3 pos, Vector3 scale, Color c, bool collider = false, Vector3 euler = default(Vector3), float smooth = 0.15f, float emission = 0f)
+    {
+        return MatLib.Prim(PrimitiveType.Cube, n, p, pos, scale, c, collider, euler, smooth, emission);
+    }
+
+    static GameObject Ball(string n, Transform p, Vector3 pos, Vector3 scale, Color c, float smooth = 0.15f, float emission = 0f)
+    {
+        return MatLib.Prim(PrimitiveType.Sphere, n, p, pos, scale, c, false, default(Vector3), smooth, emission);
+    }
+
+    static GameObject Cyl(string n, Transform p, Vector3 pos, Vector3 scale, Color c, Vector3 euler = default(Vector3), float smooth = 0.15f, float emission = 0f)
+    {
+        return MatLib.Prim(PrimitiveType.Cylinder, n, p, pos, scale, c, false, euler, smooth, emission);
+    }
+
     // ------------------------------------------------------------------
     //  Road
     // ------------------------------------------------------------------
 
-    static GameObject BuildChunk(string name, Transform parent, GameObject fence, GameObject apple, GameObject coin,
-                                 bool lampLeft, bool lampRight, int seed)
+    static GameObject BuildChunk(string name, Transform parent, ChunkStyle style)
     {
         GameObject root = new GameObject(name);
         root.transform.SetParent(parent, false);
         Transform t = root.transform;
+        System.Random rnd = new System.Random(style.seed);
 
         // the floor: top surface at y = 0, the piece "grows" forward from z = 0 to z = 10
-        MatLib.Prim(PrimitiveType.Cube, "Floor", t, new Vector3(0f, -0.1f, ChunkLength * 0.5f), new Vector3(RoadWidth, 0.2f, ChunkLength), Road, true);
+        Box("Floor", t, new Vector3(0f, -0.1f, ChunkLength * 0.5f), new Vector3(RoadWidth, 0.2f, ChunkLength), Road, true);
 
-        // curbs keep rolling obstacles on the road
-        float curbX = RoadWidth * 0.5f + 0.18f;
-        MatLib.Prim(PrimitiveType.Cube, "Curb L", t, new Vector3(-curbX, 0.06f, ChunkLength * 0.5f), new Vector3(0.36f, 0.32f, ChunkLength), Curb, true);
-        MatLib.Prim(PrimitiveType.Cube, "Curb R", t, new Vector3(curbX, 0.06f, ChunkLength * 0.5f), new Vector3(0.36f, 0.32f, ChunkLength), Curb, true);
+        // cobblestone look: seams across the road and a few lighter stones
+        for (int i = 0; i < 4; i++)
+            Box("Seam", t, new Vector3(0f, 0.002f, i * 2.5f), new Vector3(RoadWidth, 0.01f, 0.06f), RoadSeam);
+        for (int i = 0; i < 7; i++)
+        {
+            float x = -3.8f + (float)rnd.NextDouble() * 7.6f;
+            float z = 0.6f + (float)rnd.NextDouble() * 8.8f;
+            Box("Stone", t, new Vector3(x, 0.003f, z), new Vector3(0.7f + (float)rnd.NextDouble() * 0.6f, 0.012f, 0.6f), RoadLight);
+        }
 
-        // dashed lines between the lanes (lanes are at x = -2.5, 0, 2.5)
+        // dashed lines between the lanes (lanes are at x = -2.5, 0, 2.5) and gold edge lines
         foreach (float x in new[] { -1.25f, 1.25f })
             for (int i = 0; i < 2; i++)
-                MatLib.Prim(PrimitiveType.Cube, "Lane Line", t, new Vector3(x, 0.005f, 2.5f + i * 5f), new Vector3(0.1f, 0.02f, 2.4f), Line);
+                Box("Lane Line", t, new Vector3(x, 0.006f, 2.5f + i * 5f), new Vector3(0.1f, 0.012f, 2.4f), Line);
+        foreach (float x in new[] { -4.3f, 4.3f })
+            Box("Edge Line", t, new Vector3(x, 0.006f, ChunkLength * 0.5f), new Vector3(0.08f, 0.012f, ChunkLength), Gold);
+
+        // red-and-white curbs keep rolling obstacles on the road
+        float curbX = RoadWidth * 0.5f + 0.18f;
+        for (int side = -1; side <= 1; side += 2)
+            for (int i = 0; i < 5; i++)
+                Box("Curb", t, new Vector3(side * curbX, 0.06f, 1f + i * 2f), new Vector3(0.36f, 0.32f, 2f), i % 2 == 0 ? CurbRed : CurbWhite, true);
 
         // grass on both sides
         float grassX = RoadWidth * 0.5f + 0.36f + 11f;
-        MatLib.Prim(PrimitiveType.Cube, "Grass L", t, new Vector3(-grassX, -0.12f, ChunkLength * 0.5f), new Vector3(22f, 0.2f, ChunkLength), Grass);
-        MatLib.Prim(PrimitiveType.Cube, "Grass R", t, new Vector3(grassX, -0.12f, ChunkLength * 0.5f), new Vector3(22f, 0.2f, ChunkLength), Grass);
+        Box("Grass L", t, new Vector3(-grassX, -0.12f, ChunkLength * 0.5f), new Vector3(22f, 0.2f, ChunkLength), Grass);
+        Box("Grass R", t, new Vector3(grassX, -0.12f, ChunkLength * 0.5f), new Vector3(22f, 0.2f, ChunkLength), Grass);
 
-        if (lampLeft) AddLamp(t, -1f);
-        if (lampRight) AddLamp(t, 1f);
+        if (style.lampLeft) AddLamp(t, -1f);
+        if (style.lampRight) AddLamp(t, 1f);
+        if (style.rail) { AddRail(t, -1f); AddRail(t, 1f); }
+        if (style.banners) { AddBanner(t, -1f, 2.5f); AddBanner(t, 1f, 7.5f); }
+        if (style.castle) AddCastle(t, rnd.Next(2) == 0 ? -1f : 1f, rnd);
 
-        // a little decoration (trees, bushes) - each template has its own layout
-        System.Random rnd = new System.Random(seed);
+        // trees, bushes, rocks and flowers - each template has its own layout
         for (int side = -1; side <= 1; side += 2)
         {
-            int count = 1 + rnd.Next(2);
+            int count = 1 + rnd.Next(3);
             for (int i = 0; i < count; i++)
             {
-                float x = side * (7.5f + (float)rnd.NextDouble() * 9f);
+                float x = side * (7.5f + (float)rnd.NextDouble() * 10f);
                 float z = 1f + (float)rnd.NextDouble() * 8f;
-                if (rnd.Next(3) == 0) AddBush(t, new Vector3(x, 0f, z), (float)rnd.NextDouble());
-                else AddTree(t, new Vector3(x, 0f, z), (float)rnd.NextDouble());
+                int kind = rnd.Next(4);
+                float v = (float)rnd.NextDouble();
+                if (kind == 0) AddBush(t, new Vector3(x, 0f, z), v);
+                else if (kind == 1) AddPine(t, new Vector3(x, 0f, z), v);
+                else AddTree(t, new Vector3(x, 0f, z), v);
+            }
+            if (rnd.Next(2) == 0)
+                AddRock(t, new Vector3(side * (6.3f + (float)rnd.NextDouble() * 3f), 0f, 1f + (float)rnd.NextDouble() * 8f), (float)rnd.NextDouble());
+            for (int i = 0; i < 6; i++)
+            {
+                Vector3 p = new Vector3(side * (5.6f + (float)rnd.NextDouble() * 6f), 0.06f, (float)rnd.NextDouble() * 10f);
+                Ball("Flower", t, p, Vector3.one * 0.14f, Flowers[rnd.Next(Flowers.Length)], 0.3f, 0.15f);
             }
         }
 
-        Chunk chunk = root.AddComponent<Chunk>();
-        chunk.Configure(fence, apple, coin);
         return root;
     }
 
     static void AddLamp(Transform chunk, float side)
     {
-        float x = side * (RoadWidth * 0.5f + 1.0f);
         Transform lamp = new GameObject("Lightpost").transform;
         lamp.SetParent(chunk, false);
-        lamp.localPosition = new Vector3(x, 0f, ChunkLength * 0.5f);
-        MatLib.Prim(PrimitiveType.Cylinder, "Pole", lamp, new Vector3(0f, 1.6f, 0f), new Vector3(0.14f, 1.6f, 0.14f), Iron, false, default(Vector3), 0.5f);
-        MatLib.Prim(PrimitiveType.Cube, "Arm", lamp, new Vector3(-side * 0.35f, 3.15f, 0f), new Vector3(0.75f, 0.07f, 0.07f), Iron, false, default(Vector3), 0.5f);
-        MatLib.Prim(PrimitiveType.Sphere, "Lamp", lamp, new Vector3(-side * 0.7f, 3.0f, 0f), Vector3.one * 0.34f, LampLight, false, default(Vector3), 0.6f, 1.6f);
+        lamp.localPosition = new Vector3(side * (RoadWidth * 0.5f + 1.0f), 0f, ChunkLength * 0.5f);
+        Cyl("Base", lamp, new Vector3(0f, 0.15f, 0f), new Vector3(0.32f, 0.15f, 0.32f), Iron, default(Vector3), 0.5f);
+        Cyl("Pole", lamp, new Vector3(0f, 1.6f, 0f), new Vector3(0.13f, 1.6f, 0.13f), Iron, default(Vector3), 0.5f);
+        Box("Arm", lamp, new Vector3(-side * 0.35f, 3.15f, 0f), new Vector3(0.75f, 0.07f, 0.07f), Iron, false, default(Vector3), 0.5f);
+        Cyl("Hood", lamp, new Vector3(-side * 0.7f, 3.12f, 0f), new Vector3(0.36f, 0.06f, 0.36f), Iron, default(Vector3), 0.5f);
+        Ball("Lamp", lamp, new Vector3(-side * 0.7f, 2.98f, 0f), Vector3.one * 0.3f, LampLight, 0.6f, 1.8f);
+        Ball("Top", lamp, new Vector3(0f, 3.25f, 0f), Vector3.one * 0.14f, Gold, 0.8f, 0.2f);
+    }
+
+    static void AddRail(Transform chunk, float side)
+    {
+        float x = side * (RoadWidth * 0.5f + 1.6f);
+        for (int i = 0; i < 4; i++)
+            Box("Rail Post", chunk, new Vector3(x, 0.4f, 1.25f + i * 2.5f), new Vector3(0.14f, 0.8f, 0.14f), WoodDark);
+        Box("Rail", chunk, new Vector3(x, 0.62f, ChunkLength * 0.5f), new Vector3(0.08f, 0.1f, ChunkLength), Wood);
+        Box("Rail Low", chunk, new Vector3(x, 0.3f, ChunkLength * 0.5f), new Vector3(0.08f, 0.1f, ChunkLength), Wood);
+    }
+
+    static void AddBanner(Transform chunk, float side, float z)
+    {
+        Transform b = new GameObject("Banner").transform;
+        b.SetParent(chunk, false);
+        b.localPosition = new Vector3(side * (RoadWidth * 0.5f + 1.2f), 0f, z);
+        Cyl("Pole", b, new Vector3(0f, 1.9f, 0f), new Vector3(0.1f, 1.9f, 0.1f), WoodDark);
+        Ball("Finial", b, new Vector3(0f, 3.85f, 0f), Vector3.one * 0.16f, Gold, 0.8f, 0.3f);
+        Box("Bar", b, new Vector3(-side * 0.35f, 3.6f, 0f), new Vector3(0.8f, 0.05f, 0.05f), WoodDark);
+        Box("Cloth", b, new Vector3(-side * 0.35f, 2.85f, 0f), new Vector3(0.7f, 1.4f, 0.04f), Royal);
+        Box("Stripe", b, new Vector3(-side * 0.35f, 2.85f, -0.025f), new Vector3(0.14f, 1.4f, 0.02f), Gold, false, default(Vector3), 0.6f, 0.15f);
+        Box("Crown", b, new Vector3(-side * 0.35f, 3.1f, -0.03f), new Vector3(0.3f, 0.18f, 0.02f), Gold, false, default(Vector3), 0.6f, 0.2f);
+        Box("Tail L", b, new Vector3(-side * 0.35f - 0.2f, 2.08f, 0f), new Vector3(0.3f, 0.3f, 0.04f), Royal, false, new Vector3(0f, 0f, 45f));
+        Box("Tail R", b, new Vector3(-side * 0.35f + 0.2f, 2.08f, 0f), new Vector3(0.3f, 0.3f, 0.04f), Royal, false, new Vector3(0f, 0f, 45f));
+    }
+
+    // A castle tower far away from the road - in the fog it looks like a silhouette on the horizon.
+    static void AddCastle(Transform chunk, float side, System.Random rnd)
+    {
+        Transform c = new GameObject("Castle").transform;
+        c.SetParent(chunk, false);
+        c.localPosition = new Vector3(side * (21.5f + (float)rnd.NextDouble() * 3.5f), 0f, 5f);
+        float h = 7f + (float)rnd.NextDouble() * 4f;
+        Cyl("Tower", c, new Vector3(0f, h * 0.5f, 0f), new Vector3(3.2f, h * 0.5f, 3.2f), StoneDark);
+        for (int i = 0; i < 8; i++)
+        {
+            float a = i * Mathf.PI / 4f;
+            Box("Merlon", c, new Vector3(Mathf.Sin(a) * 1.45f, h + 0.3f, Mathf.Cos(a) * 1.45f), new Vector3(0.5f, 0.6f, 0.5f), StoneDark, false, new Vector3(0f, a * Mathf.Rad2Deg, 0f));
+        }
+        float[] roof = { 2.6f, 2.0f, 1.4f, 0.8f, 0.3f };
+        for (int i = 0; i < roof.Length; i++)
+            Cyl("Roof", c, new Vector3(0f, h + 0.9f + i * 0.7f, 0f), new Vector3(roof[i], 0.35f, roof[i]), RoofBlue);
+        Cyl("Flag Pole", c, new Vector3(0f, h + 4.9f, 0f), new Vector3(0.08f, 0.8f, 0.08f), Iron);
+        Box("Flag", c, new Vector3(0.5f, h + 5.3f, 0f), new Vector3(1f, 0.5f, 0.05f), FenceRed);
+        for (int i = 0; i < 3; i++)
+            Box("Window", c, new Vector3(-side * 1.55f, h * (0.35f + i * 0.2f), 0f), new Vector3(0.1f, 0.6f, 0.35f), LampLight, false, default(Vector3), 0.3f, 1.2f);
+
+        // a piece of the wall next to the tower
+        Box("Wall", c, new Vector3(0f, 2.2f, -4f), new Vector3(1.6f, 4.4f, 6f), Stone);
     }
 
     static void AddTree(Transform chunk, Vector3 pos, float v)
@@ -148,41 +285,82 @@ public static class ProceduralAssets
         Transform tree = new GameObject("Tree").transform;
         tree.SetParent(chunk, false);
         tree.localPosition = pos;
-        float s = 0.85f + v * 0.5f;
-        tree.localScale = Vector3.one * s;
-        MatLib.Prim(PrimitiveType.Cylinder, "Trunk", tree, new Vector3(0f, 0.7f, 0f), new Vector3(0.3f, 0.7f, 0.3f), WoodDark);
+        tree.localScale = Vector3.one * (0.85f + v * 0.5f);
+        tree.localRotation = Quaternion.Euler(0f, v * 360f, 0f);
+        Cyl("Trunk", tree, new Vector3(0f, 0.7f, 0f), new Vector3(0.28f, 0.7f, 0.28f), WoodDark);
         Color leaf = Color.Lerp(Leaves, GrassDark, v);
-        MatLib.Prim(PrimitiveType.Sphere, "Crown", tree, new Vector3(0f, 2.0f, 0f), new Vector3(1.7f, 1.5f, 1.7f), leaf);
-        MatLib.Prim(PrimitiveType.Sphere, "Crown Top", tree, new Vector3(0.15f, 2.7f, -0.1f), new Vector3(1.1f, 1.0f, 1.1f), leaf);
+        Ball("Crown", tree, new Vector3(0f, 2.0f, 0f), new Vector3(1.7f, 1.5f, 1.7f), leaf);
+        Ball("Crown Top", tree, new Vector3(0.2f, 2.7f, -0.15f), new Vector3(1.1f, 1.0f, 1.1f), Color.Lerp(leaf, Color.white, 0.08f));
+        Ball("Crown Side", tree, new Vector3(-0.55f, 1.85f, 0.3f), new Vector3(0.9f, 0.8f, 0.9f), leaf);
+        if (v > 0.5f)
+            for (int i = 0; i < 3; i++)
+                Ball("Apple", tree, new Vector3(Mathf.Sin(i * 2.1f) * 0.75f, 1.8f + i * 0.25f, Mathf.Cos(i * 2.1f) * 0.75f), Vector3.one * 0.16f, new Color(0.85f, 0.12f, 0.12f), 0.6f);
+    }
+
+    static void AddPine(Transform chunk, Vector3 pos, float v)
+    {
+        Transform tree = new GameObject("Pine").transform;
+        tree.SetParent(chunk, false);
+        tree.localPosition = pos;
+        tree.localScale = Vector3.one * (0.9f + v * 0.6f);
+        Cyl("Trunk", tree, new Vector3(0f, 0.4f, 0f), new Vector3(0.25f, 0.4f, 0.25f), WoodDark);
+        float[] r = { 1.7f, 1.35f, 1.0f, 0.65f, 0.3f };
+        for (int i = 0; i < r.Length; i++)
+            Cyl("Needles", tree, new Vector3(0f, 1.0f + i * 0.55f, 0f), new Vector3(r[i], 0.3f, r[i]), Pine);
     }
 
     static void AddBush(Transform chunk, Vector3 pos, float v)
     {
-        MatLib.Prim(PrimitiveType.Sphere, "Bush", chunk, pos + Vector3.up * 0.3f, new Vector3(1.3f, 0.8f, 1.1f) * (0.8f + v * 0.5f), GrassDark);
+        float s = 0.8f + v * 0.5f;
+        Ball("Bush", chunk, pos + Vector3.up * 0.3f, new Vector3(1.3f, 0.8f, 1.1f) * s, GrassDark);
+        Ball("Bush", chunk, pos + new Vector3(0.5f, 0.25f, 0.3f) * s, new Vector3(0.8f, 0.6f, 0.8f) * s, Leaves);
+        if (v > 0.4f)
+            for (int i = 0; i < 4; i++)
+                Ball("Berry", chunk, pos + new Vector3(Mathf.Sin(i * 1.7f) * 0.5f, 0.55f, Mathf.Cos(i * 1.7f) * 0.4f) * s, Vector3.one * 0.1f, Flowers[1], 0.5f, 0.1f);
+    }
+
+    static void AddRock(Transform chunk, Vector3 pos, float v)
+    {
+        Ball("Rock", chunk, pos + Vector3.up * 0.15f, new Vector3(1.0f, 0.6f, 0.8f) * (0.7f + v), StoneDark);
+        Ball("Rock", chunk, pos + new Vector3(0.5f, 0.08f, 0.2f), new Vector3(0.5f, 0.35f, 0.4f) * (0.7f + v), Stone);
     }
 
     // The arch over the road and the invisible trigger that adds time (the Checkpoint script).
     static void AddCheckpointArch(Transform chunk)
     {
         const float z = 2f;
-        float px = RoadWidth * 0.5f + 0.3f;
-        MatLib.Prim(PrimitiveType.Cube, "Pillar L", chunk, new Vector3(-px, 2.1f, z), new Vector3(0.6f, 4.2f, 0.6f), Gold, false, default(Vector3), 0.6f, 0.1f);
-        MatLib.Prim(PrimitiveType.Cube, "Pillar R", chunk, new Vector3(px, 2.1f, z), new Vector3(0.6f, 4.2f, 0.6f), Gold, false, default(Vector3), 0.6f, 0.1f);
-        MatLib.Prim(PrimitiveType.Cube, "Beam", chunk, new Vector3(0f, 4.45f, z), new Vector3(px * 2f + 0.8f, 0.6f, 0.6f), Gold, false, default(Vector3), 0.6f, 0.1f);
+        float px = RoadWidth * 0.5f + 0.5f;
+
+        for (int side = -1; side <= 1; side += 2)
+        {
+            Transform tower = new GameObject("Arch Tower").transform;
+            tower.SetParent(chunk, false);
+            tower.localPosition = new Vector3(side * px, 0f, z);
+            Box("Pillar", tower, new Vector3(0f, 2.3f, 0f), new Vector3(0.9f, 4.6f, 0.9f), Stone);
+            Box("Base", tower, new Vector3(0f, 0.3f, 0f), new Vector3(1.1f, 0.6f, 1.1f), StoneDark);
+            Box("Cap", tower, new Vector3(0f, 4.7f, 0f), new Vector3(1.1f, 0.3f, 1.1f), Gold, false, default(Vector3), 0.7f, 0.15f);
+            float[] roof = { 0.8f, 0.55f, 0.3f };
+            for (int i = 0; i < roof.Length; i++)
+                Cyl("Roof", tower, new Vector3(0f, 5.05f + i * 0.35f, 0f), new Vector3(roof[i], 0.18f, roof[i]), FenceRed);
+            Cyl("Flag Pole", tower, new Vector3(0f, 6.2f, 0f), new Vector3(0.05f, 0.5f, 0.05f), Iron);
+            Box("Flag", tower, new Vector3(side * 0.3f, 6.45f, 0f), new Vector3(0.6f, 0.3f, 0.04f), Gold, false, default(Vector3), 0.6f, 0.3f);
+            Ball("Torch", tower, new Vector3(-side * 0.5f, 3.2f, -0.3f), Vector3.one * 0.25f, new Color(1f, 0.6f, 0.15f), 0.3f, 2f);
+        }
+
+        Box("Beam", chunk, new Vector3(0f, 4.45f, z), new Vector3(px * 2f, 0.6f, 0.7f), Gold, false, default(Vector3), 0.7f, 0.15f);
 
         // a chequered finish banner
-        for (int i = 0; i < 10; i++)
+        for (int i = 0; i < 12; i++)
         {
             for (int row = 0; row < 2; row++)
             {
                 bool dark = (i + row) % 2 == 0;
-                MatLib.Prim(PrimitiveType.Cube, "Banner", chunk,
-                    new Vector3(-2.7f + i * 0.6f, 3.65f + row * 0.4f, z), new Vector3(0.6f, 0.4f, 0.08f),
+                Box("Banner", chunk, new Vector3(-3.3f + i * 0.6f, 3.75f - row * 0.4f, z), new Vector3(0.6f, 0.4f, 0.08f),
                     dark ? new Color(0.1f, 0.08f, 0.14f) : Color.white);
             }
         }
-        MatLib.Prim(PrimitiveType.Cube, "Flag L", chunk, new Vector3(-px, 4.95f, z), new Vector3(0.08f, 0.6f, 0.5f), FenceRed, false, new Vector3(0f, 0f, 10f));
-        MatLib.Prim(PrimitiveType.Cube, "Flag R", chunk, new Vector3(px, 4.95f, z), new Vector3(0.08f, 0.6f, 0.5f), FenceRed, false, new Vector3(0f, 0f, -10f));
+        // glowing gate line on the road
+        Box("Gate Line", chunk, new Vector3(0f, 0.008f, z), new Vector3(RoadWidth, 0.015f, 0.25f), new Color(0.5f, 1f, 0.6f), false, default(Vector3), 0.3f, 1.2f);
 
         GameObject trigger = new GameObject("Checkpoint Trigger");
         trigger.transform.SetParent(chunk, false);
@@ -197,6 +375,7 @@ public static class ProceduralAssets
     //  Things on the road
     // ------------------------------------------------------------------
 
+    // A low fence: it slows you down, but you can JUMP over it.
     static GameObject BuildFence(Transform parent)
     {
         GameObject root = new GameObject("Fence");
@@ -207,29 +386,77 @@ public static class ProceduralAssets
         root.AddComponent<Hazard>();
 
         Transform t = root.transform;
-        MatLib.Prim(PrimitiveType.Cube, "Post L", t, new Vector3(-0.9f, 0.55f, 0f), new Vector3(0.14f, 1.1f, 0.2f), WoodDark);
-        MatLib.Prim(PrimitiveType.Cube, "Post R", t, new Vector3(0.9f, 0.55f, 0f), new Vector3(0.14f, 1.1f, 0.2f), WoodDark);
+        Box("Post L", t, new Vector3(-0.9f, 0.55f, 0f), new Vector3(0.14f, 1.1f, 0.2f), WoodDark);
+        Box("Post R", t, new Vector3(0.9f, 0.55f, 0f), new Vector3(0.14f, 1.1f, 0.2f), WoodDark);
+        Ball("Knob L", t, new Vector3(-0.9f, 1.12f, 0f), Vector3.one * 0.16f, Gold, 0.7f, 0.1f);
+        Ball("Knob R", t, new Vector3(0.9f, 1.12f, 0f), Vector3.one * 0.16f, Gold, 0.7f, 0.1f);
         for (int i = 0; i < 5; i++)
         {
             Color c = i % 2 == 0 ? FenceRed : Color.white;
-            MatLib.Prim(PrimitiveType.Cube, "Plank", t, new Vector3(-0.72f + i * 0.36f, 0.78f, 0.02f), new Vector3(0.36f, 0.26f, 0.1f), c);
+            Box("Plank", t, new Vector3(-0.72f + i * 0.36f, 0.78f, 0.02f), new Vector3(0.36f, 0.26f, 0.1f), c);
         }
-        MatLib.Prim(PrimitiveType.Cube, "Rail", t, new Vector3(0f, 0.38f, 0.02f), new Vector3(1.8f, 0.1f, 0.08f), WoodDark);
+        Box("Rail", t, new Vector3(0f, 0.38f, 0.02f), new Vector3(1.8f, 0.1f, 0.08f), WoodDark);
+        Box("Foot L", t, new Vector3(-0.9f, 0.05f, 0f), new Vector3(0.2f, 0.1f, 0.5f), WoodDark);
+        Box("Foot R", t, new Vector3(0.9f, 0.05f, 0f), new Vector3(0.2f, 0.1f, 0.5f), WoodDark);
         return root;
     }
 
-    static GameObject BuildCoin(Transform parent)
+    // A tall stone wall with a banner: it CANNOT be jumped over - only avoided.
+    static GameObject BuildWall(Transform parent)
     {
-        GameObject root = new GameObject("Coin Pickup");
+        GameObject root = new GameObject("Wall");
+        root.transform.SetParent(parent, false);
+        BoxCollider box = root.AddComponent<BoxCollider>();
+        box.center = new Vector3(0f, 1.3f, 0f);
+        box.size = new Vector3(2.1f, 2.6f, 0.5f);
+        root.AddComponent<Hazard>();
+
+        Transform t = root.transform;
+        for (int row = 0; row < 4; row++)
+        {
+            float off = row % 2 == 0 ? 0f : 0.26f;
+            for (int i = 0; i < 4; i++)
+            {
+                float x = -0.79f + i * 0.52f + off;
+                if (x > 0.9f) continue;
+                Box("Brick", t, new Vector3(x, 0.3f + row * 0.6f, 0f), new Vector3(0.5f, 0.56f, 0.5f), (row + i) % 3 == 0 ? StoneDark : Stone);
+            }
+        }
+        Box("Fill", t, new Vector3(0f, 1.2f, 0f), new Vector3(2.0f, 2.4f, 0.44f), StoneDark);
+        for (int i = 0; i < 3; i++)
+            Box("Merlon", t, new Vector3(-0.75f + i * 0.75f, 2.6f, 0f), new Vector3(0.45f, 0.4f, 0.5f), Stone);
+        Box("Banner", t, new Vector3(0f, 1.4f, -0.27f), new Vector3(0.7f, 1.3f, 0.03f), Royal);
+        Box("Banner Crown", t, new Vector3(0f, 1.6f, -0.29f), new Vector3(0.3f, 0.2f, 0.02f), Gold, false, default(Vector3), 0.6f, 0.2f);
+        Box("Warning", t, new Vector3(0f, 0.15f, -0.27f), new Vector3(2.0f, 0.12f, 0.03f), Gold, false, default(Vector3), 0.6f, 0.4f);
+        return root;
+    }
+
+    static GameObject BuildCoin(Transform parent, bool gem)
+    {
+        GameObject root = new GameObject(gem ? "Gem Pickup" : "Coin Pickup");
         root.transform.SetParent(parent, false);
         SphereCollider sc = root.AddComponent<SphereCollider>();
         sc.center = new Vector3(0f, 1f, 0f);
-        sc.radius = 0.45f;
+        sc.radius = 0.5f;
         sc.isTrigger = true;
-        root.AddComponent<Coin>();
+        Coin coin = root.AddComponent<Coin>();
+        Transform t = root.transform;
 
-        MatLib.Prim(PrimitiveType.Cylinder, "Disc", root.transform, new Vector3(0f, 1f, 0f), new Vector3(0.62f, 0.05f, 0.62f), Gold, false, new Vector3(90f, 0f, 0f), 0.85f, 0.35f);
-        MatLib.Prim(PrimitiveType.Cylinder, "Inner", root.transform, new Vector3(0f, 1f, 0f), new Vector3(0.42f, 0.06f, 0.42f), new Color(1f, 0.9f, 0.4f), false, new Vector3(90f, 0f, 0f), 0.85f, 0.35f);
+        if (!gem)
+        {
+            coin.Configure(100, false);
+            Cyl("Disc", t, new Vector3(0f, 1f, 0f), new Vector3(0.62f, 0.05f, 0.62f), Gold, new Vector3(90f, 0f, 0f), 0.85f, 0.35f);
+            Cyl("Inner", t, new Vector3(0f, 1f, 0f), new Vector3(0.44f, 0.06f, 0.44f), new Color(1f, 0.9f, 0.4f), new Vector3(90f, 0f, 0f), 0.85f, 0.4f);
+            Box("Star", t, new Vector3(0f, 1f, 0f), new Vector3(0.14f, 0.14f, 0.08f), Gold, false, new Vector3(0f, 0f, 45f), 0.85f, 0.5f);
+        }
+        else
+        {
+            coin.Configure(500, true);
+            Color g = new Color(0.75f, 0.35f, 1f);
+            Box("Gem Top", t, new Vector3(0f, 1.12f, 0f), new Vector3(0.4f, 0.4f, 0.4f), g, false, new Vector3(45f, 0f, 45f), 0.95f, 0.8f);
+            Box("Gem Core", t, new Vector3(0f, 1f, 0f), new Vector3(0.3f, 0.5f, 0.3f), Color.Lerp(g, Color.white, 0.4f), false, new Vector3(0f, 45f, 0f), 0.95f, 1.2f);
+            Cyl("Halo", t, new Vector3(0f, 1f, 0f), new Vector3(0.8f, 0.01f, 0.8f), Color.Lerp(g, Color.white, 0.6f), default(Vector3), 0.5f, 1f);
+        }
         return root;
     }
 
@@ -244,9 +471,58 @@ public static class ProceduralAssets
         root.AddComponent<Apple>();
 
         Transform t = root.transform;
-        MatLib.Prim(PrimitiveType.Sphere, "Apple", t, new Vector3(0f, 0.9f, 0f), new Vector3(0.55f, 0.5f, 0.55f), new Color(0.88f, 0.12f, 0.12f), false, default(Vector3), 0.7f, 0.15f);
-        MatLib.Prim(PrimitiveType.Cylinder, "Stem", t, new Vector3(0f, 1.18f, 0f), new Vector3(0.04f, 0.07f, 0.04f), WoodDark);
-        MatLib.Prim(PrimitiveType.Cube, "Leaf", t, new Vector3(0.08f, 1.2f, 0f), new Vector3(0.16f, 0.02f, 0.08f), new Color(0.3f, 0.75f, 0.25f), false, new Vector3(0f, 0f, 25f));
+        Ball("Apple", t, new Vector3(0f, 0.9f, 0f), new Vector3(0.55f, 0.5f, 0.55f), new Color(0.88f, 0.12f, 0.12f), 0.7f, 0.15f);
+        Ball("Shine", t, new Vector3(-0.12f, 1.02f, 0.18f), Vector3.one * 0.1f, new Color(1f, 0.7f, 0.7f), 0.9f, 0.3f);
+        Cyl("Stem", t, new Vector3(0f, 1.18f, 0f), new Vector3(0.04f, 0.07f, 0.04f), WoodDark);
+        Box("Leaf", t, new Vector3(0.08f, 1.2f, 0f), new Vector3(0.16f, 0.02f, 0.08f), new Color(0.3f, 0.75f, 0.25f), false, new Vector3(0f, 0f, 25f));
+        return root;
+    }
+
+    static GameObject BuildPowerUp(Transform parent, PowerUpType type)
+    {
+        GameObject root = new GameObject(type + " PowerUp");
+        root.transform.SetParent(parent, false);
+        SphereCollider sc = root.AddComponent<SphereCollider>();
+        sc.center = new Vector3(0f, 1.1f, 0f);
+        sc.radius = 0.6f;
+        sc.isTrigger = true;
+        root.AddComponent<PowerUp>().Configure(type);
+        Transform t = root.transform;
+
+        // a glowing ring on the ground under every bonus
+        Color ring = type == PowerUpType.Shield ? new Color(0.3f, 0.85f, 1f)
+                   : type == PowerUpType.Magnet ? new Color(1f, 0.35f, 0.35f)
+                   : new Color(1f, 0.85f, 0.3f);
+        Cyl("Ring", t, new Vector3(0f, 0.02f, 0f), new Vector3(1.1f, 0.01f, 1.1f), ring, default(Vector3), 0.5f, 1.2f);
+
+        switch (type)
+        {
+            case PowerUpType.Shield:
+                Cyl("Shield", t, new Vector3(0f, 1.1f, 0f), new Vector3(0.7f, 0.06f, 0.8f), ring, new Vector3(90f, 0f, 0f), 0.9f, 0.6f);
+                Cyl("Rim", t, new Vector3(0f, 1.1f, 0f), new Vector3(0.78f, 0.05f, 0.88f), Color.white, new Vector3(90f, 0f, 0f), 0.9f, 0.3f);
+                Box("Cross V", t, new Vector3(0f, 1.1f, 0.05f), new Vector3(0.1f, 0.5f, 0.04f), Color.white, false, default(Vector3), 0.9f, 0.5f);
+                Box("Cross H", t, new Vector3(0f, 1.18f, 0.05f), new Vector3(0.36f, 0.1f, 0.04f), Color.white, false, default(Vector3), 0.9f, 0.5f);
+                break;
+            case PowerUpType.Magnet:
+                Box("Arm L", t, new Vector3(-0.22f, 1.15f, 0f), new Vector3(0.18f, 0.5f, 0.18f), ring, false, default(Vector3), 0.7f, 0.4f);
+                Box("Arm R", t, new Vector3(0.22f, 1.15f, 0f), new Vector3(0.18f, 0.5f, 0.18f), ring, false, default(Vector3), 0.7f, 0.4f);
+                Box("Bend", t, new Vector3(0f, 0.86f, 0f), new Vector3(0.62f, 0.18f, 0.18f), ring, false, default(Vector3), 0.7f, 0.4f);
+                Box("Tip L", t, new Vector3(-0.22f, 1.47f, 0f), new Vector3(0.2f, 0.16f, 0.2f), Color.white, false, default(Vector3), 0.9f, 0.4f);
+                Box("Tip R", t, new Vector3(0.22f, 1.47f, 0f), new Vector3(0.2f, 0.16f, 0.2f), Color.white, false, default(Vector3), 0.9f, 0.4f);
+                break;
+            default:
+                Cyl("Top", t, new Vector3(0f, 1.48f, 0f), new Vector3(0.5f, 0.04f, 0.5f), WoodDark);
+                Cyl("Bottom", t, new Vector3(0f, 0.72f, 0f), new Vector3(0.5f, 0.04f, 0.5f), WoodDark);
+                for (int i = 0; i < 3; i++)
+                {
+                    float a = i * Mathf.PI * 2f / 3f;
+                    Cyl("Post", t, new Vector3(Mathf.Sin(a) * 0.2f, 1.1f, Mathf.Cos(a) * 0.2f), new Vector3(0.05f, 0.38f, 0.05f), WoodDark);
+                }
+                Ball("Glass Top", t, new Vector3(0f, 1.28f, 0f), new Vector3(0.3f, 0.36f, 0.3f), new Color(0.8f, 0.95f, 1f), 0.95f, 0.3f);
+                Ball("Glass Bottom", t, new Vector3(0f, 0.92f, 0f), new Vector3(0.3f, 0.36f, 0.3f), new Color(0.8f, 0.95f, 1f), 0.95f, 0.3f);
+                Ball("Sand", t, new Vector3(0f, 0.88f, 0f), new Vector3(0.22f, 0.18f, 0.22f), ring, 0.4f, 0.6f);
+                break;
+        }
         return root;
     }
 
@@ -267,7 +543,7 @@ public static class ProceduralAssets
         AudioSource src = root.AddComponent<AudioSource>();
         src.playOnAwake = false;
         src.spatialBlend = 0f;
-        src.volume = 0.18f;
+        src.volume = 0.16f;
         src.clip = SynthAudio.Thud;
 
         Rock rock = root.AddComponent<Rock>();
@@ -281,9 +557,11 @@ public static class ProceduralAssets
         CapsuleCollider c = root.AddComponent<CapsuleCollider>();
         c.radius = 0.46f; c.height = 1.15f; c.direction = 1;
         Transform t = root.transform;
-        MatLib.Prim(PrimitiveType.Cylinder, "Body", t, Vector3.zero, new Vector3(0.9f, 0.56f, 0.9f), Wood);
-        MatLib.Prim(PrimitiveType.Cylinder, "Band Top", t, new Vector3(0f, 0.36f, 0f), new Vector3(0.94f, 0.04f, 0.94f), Iron, false, default(Vector3), 0.5f);
-        MatLib.Prim(PrimitiveType.Cylinder, "Band Bottom", t, new Vector3(0f, -0.36f, 0f), new Vector3(0.94f, 0.04f, 0.94f), Iron, false, default(Vector3), 0.5f);
+        Cyl("Body", t, Vector3.zero, new Vector3(0.9f, 0.56f, 0.9f), Wood);
+        Cyl("Belly", t, Vector3.zero, new Vector3(0.98f, 0.3f, 0.98f), Wood);
+        Cyl("Band Top", t, new Vector3(0f, 0.36f, 0f), new Vector3(0.94f, 0.04f, 0.94f), Iron, default(Vector3), 0.5f);
+        Cyl("Band Bottom", t, new Vector3(0f, -0.36f, 0f), new Vector3(0.94f, 0.04f, 0.94f), Iron, default(Vector3), 0.5f);
+        Cyl("Lid", t, new Vector3(0f, 0.56f, 0f), new Vector3(0.8f, 0.01f, 0.8f), WoodLight);
         return root;
     }
 
@@ -293,13 +571,14 @@ public static class ProceduralAssets
         BoxCollider c = root.AddComponent<BoxCollider>();
         c.size = new Vector3(1.6f, 0.75f, 0.55f);
         Transform t = root.transform;
-        MatLib.Prim(PrimitiveType.Cube, "Seat", t, new Vector3(0f, 0.03f, 0.03f), new Vector3(1.6f, 0.1f, 0.48f), WoodLight);
-        MatLib.Prim(PrimitiveType.Cube, "Back", t, new Vector3(0f, 0.27f, -0.22f), new Vector3(1.6f, 0.36f, 0.08f), WoodLight);
+        for (int i = 0; i < 3; i++)
+            Box("Slat", t, new Vector3(0f, 0.03f, -0.14f + i * 0.16f), new Vector3(1.6f, 0.08f, 0.14f), WoodLight);
+        Box("Back", t, new Vector3(0f, 0.27f, -0.22f), new Vector3(1.6f, 0.3f, 0.07f), WoodLight);
         for (int i = 0; i < 4; i++)
         {
             float x = i < 2 ? -0.68f : 0.68f;
             float z = i % 2 == 0 ? -0.16f : 0.2f;
-            MatLib.Prim(PrimitiveType.Cube, "Leg", t, new Vector3(x, -0.18f, z), new Vector3(0.08f, 0.36f, 0.08f), Iron);
+            Box("Leg", t, new Vector3(x, -0.18f, z), new Vector3(0.08f, 0.36f, 0.08f), Iron);
         }
         return root;
     }
@@ -310,10 +589,11 @@ public static class ProceduralAssets
         BoxCollider c = root.AddComponent<BoxCollider>();
         c.size = Vector3.one * 1.05f;
         Transform t = root.transform;
-        MatLib.Prim(PrimitiveType.Cube, "Crate", t, Vector3.zero, Vector3.one * 1.0f, WoodLight);
-        MatLib.Prim(PrimitiveType.Cube, "Strap 1", t, new Vector3(0f, 0.38f, 0f), new Vector3(1.04f, 0.14f, 1.04f), Wood);
-        MatLib.Prim(PrimitiveType.Cube, "Strap 2", t, new Vector3(0f, -0.38f, 0f), new Vector3(1.04f, 0.14f, 1.04f), Wood);
-        MatLib.Prim(PrimitiveType.Cube, "Strap 3", t, Vector3.zero, new Vector3(0.14f, 1.04f, 1.04f), Wood);
+        Box("Crate", t, Vector3.zero, Vector3.one * 1.0f, WoodLight);
+        Box("Strap 1", t, new Vector3(0f, 0.43f, 0f), new Vector3(1.04f, 0.12f, 1.04f), Wood);
+        Box("Strap 2", t, new Vector3(0f, -0.43f, 0f), new Vector3(1.04f, 0.12f, 1.04f), Wood);
+        Box("Strap 3", t, Vector3.zero, new Vector3(0.12f, 1.04f, 1.04f), Wood);
+        Box("Diagonal", t, Vector3.zero, new Vector3(1.04f, 0.1f, 1.3f), Wood, false, new Vector3(45f, 0f, 0f));
         return root;
     }
 
@@ -323,11 +603,14 @@ public static class ProceduralAssets
         CapsuleCollider c = root.AddComponent<CapsuleCollider>();
         c.radius = 0.38f; c.height = 1.7f; c.direction = 2;
         Transform t = root.transform;
-        MatLib.Prim(PrimitiveType.Cylinder, "Barrel", t, Vector3.zero, new Vector3(0.5f, 0.8f, 0.5f), Iron, false, new Vector3(90f, 0f, 0f), 0.6f);
-        MatLib.Prim(PrimitiveType.Cylinder, "Muzzle", t, new Vector3(0f, 0f, 0.78f), new Vector3(0.6f, 0.05f, 0.6f), Iron, false, new Vector3(90f, 0f, 0f), 0.6f);
-        MatLib.Prim(PrimitiveType.Sphere, "Breech", t, new Vector3(0f, 0f, -0.8f), Vector3.one * 0.5f, Iron, false, default(Vector3), 0.6f);
-        MatLib.Prim(PrimitiveType.Cylinder, "Wheel L", t, new Vector3(-0.36f, -0.18f, -0.25f), new Vector3(0.75f, 0.06f, 0.75f), Wood, false, new Vector3(0f, 0f, 90f));
-        MatLib.Prim(PrimitiveType.Cylinder, "Wheel R", t, new Vector3(0.36f, -0.18f, -0.25f), new Vector3(0.75f, 0.06f, 0.75f), Wood, false, new Vector3(0f, 0f, 90f));
+        Cyl("Barrel", t, Vector3.zero, new Vector3(0.5f, 0.8f, 0.5f), Iron, new Vector3(90f, 0f, 0f), 0.6f);
+        Cyl("Muzzle", t, new Vector3(0f, 0f, 0.78f), new Vector3(0.6f, 0.05f, 0.6f), Iron, new Vector3(90f, 0f, 0f), 0.6f);
+        Cyl("Band", t, new Vector3(0f, 0f, 0.2f), new Vector3(0.56f, 0.04f, 0.56f), Gold, new Vector3(90f, 0f, 0f), 0.8f, 0.1f);
+        Ball("Breech", t, new Vector3(0f, 0f, -0.8f), Vector3.one * 0.5f, Iron, 0.6f);
+        Cyl("Wheel L", t, new Vector3(-0.36f, -0.18f, -0.25f), new Vector3(0.75f, 0.06f, 0.75f), Wood, new Vector3(0f, 0f, 90f));
+        Cyl("Wheel R", t, new Vector3(0.36f, -0.18f, -0.25f), new Vector3(0.75f, 0.06f, 0.75f), Wood, new Vector3(0f, 0f, 90f));
+        Cyl("Hub L", t, new Vector3(-0.4f, -0.18f, -0.25f), new Vector3(0.18f, 0.04f, 0.18f), Iron, new Vector3(0f, 0f, 90f));
+        Cyl("Hub R", t, new Vector3(0.4f, -0.18f, -0.25f), new Vector3(0.18f, 0.04f, 0.18f), Iron, new Vector3(0f, 0f, 90f));
         return root;
     }
 
@@ -337,14 +620,15 @@ public static class ProceduralAssets
         BoxCollider c = root.AddComponent<BoxCollider>();
         c.size = new Vector3(1.3f, 0.95f, 1.6f);
         Transform t = root.transform;
-        MatLib.Prim(PrimitiveType.Cube, "Bed", t, new Vector3(0f, 0.08f, 0f), new Vector3(1.1f, 0.45f, 1.5f), Wood);
-        MatLib.Prim(PrimitiveType.Cube, "Rim", t, new Vector3(0f, 0.32f, 0f), new Vector3(1.14f, 0.06f, 1.54f), WoodDark);
-        MatLib.Prim(PrimitiveType.Sphere, "Hay", t, new Vector3(0f, 0.32f, 0f), new Vector3(0.9f, 0.35f, 1.2f), new Color(0.93f, 0.8f, 0.35f));
+        Box("Bed", t, new Vector3(0f, 0.08f, 0f), new Vector3(1.1f, 0.45f, 1.5f), Wood);
+        Box("Rim", t, new Vector3(0f, 0.32f, 0f), new Vector3(1.14f, 0.06f, 1.54f), WoodDark);
+        Ball("Hay", t, new Vector3(0f, 0.32f, 0f), new Vector3(0.9f, 0.35f, 1.2f), new Color(0.93f, 0.8f, 0.35f));
+        Ball("Pumpkin", t, new Vector3(0.2f, 0.45f, 0.3f), new Vector3(0.35f, 0.28f, 0.35f), new Color(1f, 0.55f, 0.1f));
         for (int i = 0; i < 4; i++)
         {
             float x = i < 2 ? -0.6f : 0.6f;
             float z = i % 2 == 0 ? -0.5f : 0.5f;
-            MatLib.Prim(PrimitiveType.Cylinder, "Wheel", t, new Vector3(x, -0.25f, z), new Vector3(0.55f, 0.05f, 0.55f), Iron, false, new Vector3(0f, 0f, 90f));
+            Cyl("Wheel", t, new Vector3(x, -0.25f, z), new Vector3(0.55f, 0.05f, 0.55f), Iron, new Vector3(0f, 0f, 90f));
         }
         return root;
     }
@@ -356,7 +640,9 @@ public static class ProceduralAssets
         c.radius = 0.58f;
         Transform t = root.transform;
         MatLib.Prim(PrimitiveType.Sphere, "Stone", t, Vector3.zero, new Vector3(1.25f, 1.0f, 1.1f), Stone, false, new Vector3(10f, 20f, 0f));
-        MatLib.Prim(PrimitiveType.Sphere, "Bump", t, new Vector3(0.25f, 0.25f, 0.1f), new Vector3(0.6f, 0.5f, 0.6f), new Color(0.45f, 0.45f, 0.48f));
+        Ball("Bump", t, new Vector3(0.25f, 0.25f, 0.1f), new Vector3(0.6f, 0.5f, 0.6f), StoneDark);
+        Ball("Bump 2", t, new Vector3(-0.3f, -0.1f, 0.25f), new Vector3(0.5f, 0.4f, 0.5f), StoneDark);
+        Ball("Moss", t, new Vector3(0f, 0.38f, -0.1f), new Vector3(0.6f, 0.2f, 0.5f), GrassDark);
         return root;
     }
 }

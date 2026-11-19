@@ -2,6 +2,7 @@
 // Тексты страницы есть на трёх языках (русский, английский, узбекский) - словарь I18N в скрипте.
 // Язык подставляется сервером вместо метки __RR_LANG__ (см. ControllerPage.Build) и меняется
 // на лету сообщением {"t":"lang"} от игры.
+// Палец по экрану - бег (джойстик), короткое касание - прыжок ({"t":"jump"}).
 // В C# строке @"..." двойная кавычка записывается как "".
 public static class ControllerPage
 {
@@ -75,6 +76,10 @@ button.ghost{background:#ffffff18;color:#fff;box-shadow:none;border:2px solid #f
 .row2{display:flex;justify-content:space-between;align-items:center;padding:11px 14px;border-radius:14px;background:#ffffff12;margin-bottom:8px;font-size:20px;border-left:7px solid #888}
 .row2.me{outline:3px solid var(--gold)}
 #banner{position:fixed;left:0;right:0;top:0;padding:calc(env(safe-area-inset-top,0px) + 8px) 12px 8px;background:#b71c1c;text-align:center;display:none;z-index:9;font-weight:700}
+#fx{margin-top:8px;font-size:18px;font-weight:800;min-height:24px;text-align:center}
+#fx b{color:var(--gold);font-size:24px}
+#fx .sh{color:#66e6ff}
+#fx .mg{color:#ff8a80}
 </style>
 </head>
 <body>
@@ -115,6 +120,7 @@ button.ghost{background:#ffffff18;color:#fff;box-shadow:none;border:2px solid #f
       <div style='text-align:right'><small data-i='score'></small><span id='hScore'>0</span></div>
     </div>
     <div id='bar'><div id='barFill'></div></div>
+    <div id='fx'></div>
   </div>
   <div id='hint'><div class='ring'></div><div data-i='drag'></div></div>
   <div id='over' data-i='timeUp'></div>
@@ -161,7 +167,9 @@ var I18N={
   go:""GO!"",
   time:""TIME"",
   score:""SCORE"",
-  drag:""Drag your finger on the screen"",
+  drag:""Drag your finger to run, tap to jump"",
+  shield:""SHIELD"",
+  magnet:""MAGNET"",
   timeUp:""TIME'S UP"",
   paused:""PAUSED"",
   pausedSub:""The host paused the game"",
@@ -193,7 +201,9 @@ var I18N={
   go:""ВПЕРЁД!"",
   time:""ВРЕМЯ"",
   score:""ОЧКИ"",
-  drag:""Води пальцем по экрану"",
+  drag:""Води пальцем - бег, коснись - прыжок"",
+  shield:""ЩИТ"",
+  magnet:""МАГНИТ"",
   timeUp:""ВРЕМЯ ВЫШЛО"",
   paused:""ПАУЗА"",
   pausedSub:""Ведущий поставил игру на паузу"",
@@ -225,7 +235,9 @@ var I18N={
   go:""OLG‘A!"",
   time:""VAQT"",
   score:""OCHKO"",
-  drag:""Barmog‘ingizni ekranda yurgizing"",
+  drag:""Barmoq bilan yurgizing - yugurish, tegining - sakrash"",
+  shield:""QALQON"",
+  magnet:""MAGNIT"",
   timeUp:""VAQT TUGADI"",
   paused:""PAUZA"",
   pausedSub:""Boshlovchi o‘yinni to‘xtatdi"",
@@ -343,6 +355,11 @@ function handle(m){
       var f=$('barFill');f.style.width=(r*100)+'%';
       f.style.background=r>0.4?'#43d65f':(r>0.2?'#ffc107':'#ff5252');
       $('over').style.display=m.over?'block':'none';
+      var fx=[];
+      if(m.mult>1)fx.push('<b>x'+m.mult+'</b>');
+      if(m.shield)fx.push('<span class=\'sh\'>'+tr('shield')+'</span>');
+      if(m.magnet)fx.push('<span class=\'mg\'>'+tr('magnet')+'</span>');
+      $('fx').innerHTML=fx.join(' ');
       break;
     case 'pause':
       $('paused').style.display=(m.on&&current==='play')?'flex':'none';
@@ -432,7 +449,7 @@ $('againBtn').addEventListener('click',function(){$('againBtn').disabled=true;se
 
 /* ---------- floating joystick ---------- */
 var area=$('play'),base=$('base'),knob=$('knob');
-var R=70,DEAD=0.12,active=-1,ox=0,oy=0,vx=0,vy=0,lastSend=0,pending=null;
+var R=70,DEAD=0.12,active=-1,ox=0,oy=0,vx=0,vy=0,lastSend=0,pending=null,downAt=0,maxMove=0;
 
 function sendNow(){pending=null;lastSend=Date.now();send({t:'move',x:+vx.toFixed(3),y:+vy.toFixed(3)})}
 function sendMove(force){
@@ -443,6 +460,7 @@ function sendMove(force){
 function place(el,x,y){el.style.left=x+'px';el.style.top=y+'px'}
 function update(e){
   var dx=e.clientX-ox,dy=e.clientY-oy,d=Math.sqrt(dx*dx+dy*dy);
+  if(d>maxMove)maxMove=d;
   if(d>R){dx*=R/d;dy*=R/d;d=R}
   place(knob,ox+dx,oy+dy);
   if(d<R*DEAD){vx=0;vy=0}else{vx=dx/R;vy=-dy/R}
@@ -459,14 +477,19 @@ area.addEventListener('pointerdown',function(e){
   if(active!==-1)return;
   active=e.pointerId;
   try{area.setPointerCapture(e.pointerId)}catch(x){}
-  ox=e.clientX;oy=e.clientY;
+  ox=e.clientX;oy=e.clientY;downAt=Date.now();maxMove=0;
   place(base,ox,oy);place(knob,ox,oy);
   base.style.display='block';knob.style.display='block';
   $('hint').style.display='none';
   update(e);e.preventDefault();
 });
 area.addEventListener('pointermove',function(e){if(e.pointerId===active){update(e);e.preventDefault()}});
-area.addEventListener('pointerup',function(e){if(e.pointerId===active)endTouch()});
+area.addEventListener('pointerup',function(e){
+  if(e.pointerId!==active)return;
+  // a short touch without dragging = jump
+  if(Date.now()-downAt<250&&maxMove<18){send({t:'jump'});if(navigator.vibrate){navigator.vibrate(20)}}
+  endTouch();
+});
 area.addEventListener('pointercancel',function(e){if(e.pointerId===active)endTouch()});
 setInterval(function(){if(active!==-1)sendMove(true)},200);
 document.addEventListener('visibilitychange',function(){if(document.hidden)endTouch()});

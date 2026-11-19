@@ -217,8 +217,45 @@ public class GameBootstrap : MonoBehaviour
             v.pedestalObject = ped;
             v.pedestal = ped.GetComponent<Renderer>();
 
+            // a gold rim and a darker base under the coloured top
+            MatLib.Prim(PrimitiveType.Cylinder, "Rim", ped.transform, new Vector3(0f, -1.2f, 0f), new Vector3(1.06f, 0.6f, 1.06f), GameUI.Gold, false, default(Vector3), 0.8f, 0.25f);
+            MatLib.Prim(PrimitiveType.Cylinder, "Base", ped.transform, new Vector3(0f, -4f, 0f), new Vector3(0.95f, 2.4f, 0.95f), new Color(0.2f, 0.14f, 0.32f));
+
             views[i] = v;
         }
+
+        BuildBackdrop();
+    }
+
+    // A dark castle hall behind the heroes: columns, banners and glowing windows.
+    void BuildBackdrop()
+    {
+        Transform back = new GameObject("Backdrop").transform;
+        back.SetParent(stage, false);
+        back.localPosition = new Vector3(0f, 0f, 16f);
+        Color wall = new Color(0.16f, 0.11f, 0.27f);
+        Color column = new Color(0.24f, 0.18f, 0.38f);
+        MatLib.Prim(PrimitiveType.Cube, "Wall", back, new Vector3(0f, 0f, 2f), new Vector3(60f, 30f, 1f), wall);
+        for (int i = -4; i <= 4; i++)
+        {
+            float x = i * 4.5f;
+            MatLib.Prim(PrimitiveType.Cylinder, "Column", back, new Vector3(x, -1f, 0.5f), new Vector3(0.9f, 9f, 0.9f), column);
+            MatLib.Prim(PrimitiveType.Cube, "Capital", back, new Vector3(x, 8.1f, 0.5f), new Vector3(1.3f, 0.4f, 1.3f), GameUI.Gold, false, default(Vector3), 0.7f, 0.15f);
+            if (i == 4) continue;
+            float wx = x + 2.25f;
+            bool banner = (i + 4) % 2 == 0;
+            if (banner)
+            {
+                MatLib.Prim(PrimitiveType.Cube, "Banner", back, new Vector3(wx, 3.5f, 1.3f), new Vector3(1.6f, 4.5f, 0.1f), new Color(0.5f, 0.12f, 0.2f));
+                MatLib.Prim(PrimitiveType.Cube, "Stripe", back, new Vector3(wx, 3.5f, 1.2f), new Vector3(0.3f, 4.5f, 0.05f), GameUI.Gold, false, default(Vector3), 0.6f, 0.2f);
+            }
+            else
+            {
+                MatLib.Prim(PrimitiveType.Cube, "Window", back, new Vector3(wx, 4f, 1.4f), new Vector3(1.2f, 3f, 0.1f), new Color(0.55f, 0.45f, 0.9f), false, default(Vector3), 0.3f, 0.9f);
+                MatLib.Prim(PrimitiveType.Sphere, "Window Arch", back, new Vector3(wx, 5.5f, 1.4f), new Vector3(1.2f, 1.2f, 0.1f), new Color(0.55f, 0.45f, 0.9f), false, default(Vector3), 0.3f, 0.9f);
+            }
+        }
+        MeshBaker.Bake(back.gameObject);
     }
 
     void BuildMenuUi()
@@ -425,7 +462,12 @@ public class GameBootstrap : MonoBehaviour
         if (GameInput.Down(GKey.F1) && phase != Phase.Playing) { OpenHelp(); return; }
         if (GameInput.Down(GKey.Escape))
         {
-            if (phase == Phase.Menu) QuitGame();
+            if (phase == Phase.Menu)
+            {
+#if !UNITY_EDITOR
+                QuitGame();
+#endif
+            }
             else if (phase == Phase.Playing) OpenPause();
             else EnterMenu();
             return;
@@ -467,14 +509,27 @@ public class GameBootstrap : MonoBehaviour
         }
         if (GameInput.Down(GKey.K)) hub.AddKeyboardPlayer();
 
-        PhonePlayer keyPlayer = FindKeyboardPlayer();
-        if (keyPlayer != null)
+        // keyboard players: L removes the last one, Enter toggles READY for all of them,
+        // each one flips through the heroes with their own left/right keys
+        PhonePlayer lastKeyboard = FindLastKeyboardPlayer();
+        if (lastKeyboard != null)
         {
-            if (GameInput.Down(GKey.L)) hub.RemovePlayer(keyPlayer);
+            if (GameInput.Down(GKey.L)) hub.RemovePlayer(lastKeyboard);
             else if (GameInput.Down(GKey.Enter))
             {
-                keyPlayer.ready = !keyPlayer.ready;
+                bool allReady = true;
+                foreach (PhonePlayer p in hub.Slots) if (p != null && p.isKeyboard && !p.ready) allReady = false;
+                foreach (PhonePlayer p in hub.Slots) if (p != null && p.isKeyboard) p.ready = !allReady;
                 OnHubChanged();
+            }
+            else
+            {
+                foreach (PhonePlayer p in hub.Slots)
+                {
+                    if (p == null || !p.isKeyboard || p.ready) continue;
+                    int step = GameInput.StepPressed(p.keyboardScheme);
+                    if (step != 0 && CycleCharacter(p, step)) OnHubChanged();
+                }
             }
         }
 
@@ -528,6 +583,15 @@ public class GameBootstrap : MonoBehaviour
     void UpdateResults()
     {
         resultsTimer += Time.deltaTime;
+
+        // the winner on a gold podium to the left of the table
+        LobbySlotView winner = views[0];
+        if (winner.root.gameObject.activeSelf)
+        {
+            winner.root.position = lobbyCam.ViewportToWorldPoint(new Vector3(0.14f, 0.18f, 8f));
+            winner.root.localScale = Vector3.one * 1.25f;
+            winner.root.rotation = Quaternion.Euler(0f, 180f + Mathf.Sin(Time.time * 1.2f) * 20f, 0f);
+        }
 
         // Enter / Space - the selected button (RESTART by default), L - add players
         if (GameInput.Down(GKey.L)) { ResultsSecondAction(); return; }
@@ -612,6 +676,7 @@ public class GameBootstrap : MonoBehaviour
         if (p != null)
         {
             p.name = Loc.T("player.single");
+            p.keyboardScheme = GameInput.SchemeSolo;
             p.character = 0;
             p.ready = true;
         }
@@ -718,6 +783,7 @@ public class GameBootstrap : MonoBehaviour
     void StartGame()
     {
         hub.AcceptNewPlayers = false;
+        if (mode == Mode.Network) NormalizeKeyboardSchemes();
 
         List<PhonePlayer> players = new List<PhonePlayer>();
         foreach (PhonePlayer p in hub.Slots) if (p != null) players.Add(p);
@@ -771,6 +837,15 @@ public class GameBootstrap : MonoBehaviour
         // World cameras draw only their own strip of the screen and "cut" the shared UI.
         // On the results screen we turn them off and show the full-screen lobby camera with a dark background.
         ShowCleanBackground();
+        if (ranking.Count > 0)
+        {
+            LobbySlotView v = views[0];
+            v.root.gameObject.SetActive(true);
+            ShowModel(v, ranking[0].Owner.character);
+            v.pedestal.material.color = GameUI.Gold;
+            SetRigState(v, true);
+            Sfx.Play(SynthAudio.Checkpoint, 0.6f);
+        }
 
         PushResultsAll();
     }
@@ -799,7 +874,7 @@ public class GameBootstrap : MonoBehaviour
             GameUI.CreateText("Rank", row.transform, new Vector2(0.02f, 0f), new Vector2(0.17f, 1f),
                               (i + 1).ToString(), 64, medal[Mathf.Min(i, 2)], TextAnchor.MiddleCenter);
             GameUI.CreateText("Name", row.transform, new Vector2(0.18f, 0f), new Vector2(0.68f, 1f),
-                              w.Owner.name + "\n<size=26>" + w.Character.Name + "</size>", 42, Color.white, TextAnchor.MiddleLeft);
+                              w.Owner.name + "\n<size=26>" + w.Character.Name + "  ·  " + Loc.F("hud.distance", w.Distance) + "</size>", 42, Color.white, TextAnchor.MiddleLeft);
             GameUI.CreateText("Score", row.transform, new Vector2(0.66f, 0f), new Vector2(0.97f, 1f),
                               w.Score.ToString(), 56, GameUI.Gold, TextAnchor.MiddleRight);
         }
@@ -813,7 +888,7 @@ public class GameBootstrap : MonoBehaviour
     // So for the pause menu and the results we turn them off and show a full-screen camera with a dark background.
     void ShowCleanBackground()
     {
-        foreach (PlayerWorld w in worlds) if (w != null && w.Cam != null) w.Cam.enabled = false;
+        foreach (PlayerWorld w in worlds) if (w != null) w.SetViewVisible(false);
         stage.gameObject.SetActive(true);
         foreach (LobbySlotView v in views) v.root.gameObject.SetActive(false);
     }
@@ -842,7 +917,7 @@ public class GameBootstrap : MonoBehaviour
         Time.timeScale = 1f;
         pauseUi.SetActive(false);
         stage.gameObject.SetActive(false);
-        foreach (PlayerWorld w in worlds) if (w != null && w.Cam != null) w.Cam.enabled = true;
+        foreach (PlayerWorld w in worlds) if (w != null) w.SetViewVisible(true);
         SetFooter(null);
         hub.SendToAll("{\"t\":\"pause\",\"on\":false}");
     }
@@ -932,6 +1007,7 @@ public class GameBootstrap : MonoBehaviour
     {
         if (phase == Phase.Lobby || phase == Phase.Countdown)
         {
+            NormalizeKeyboardSchemes();
             RefreshLobbyUi();
             PushLobbyAll();
         }
@@ -960,10 +1036,52 @@ public class GameBootstrap : MonoBehaviour
         return true;
     }
 
-    PhonePlayer FindKeyboardPlayer()
+    PhonePlayer FindLastKeyboardPlayer()
     {
-        foreach (PhonePlayer p in hub.Slots) if (p != null && p.isKeyboard) return p;
-        return null;
+        PhonePlayer last = null;
+        foreach (PhonePlayer p in hub.Slots) if (p != null && p.isKeyboard) last = p;
+        return last;
+    }
+
+    // Next free hero for a keyboard player (heroes taken by others are skipped).
+    bool CycleCharacter(PhonePlayer p, int step)
+    {
+        int n = CharacterCatalog.Count;
+        for (int k = 1; k < n; k++)
+        {
+            int c = ((p.character + step * k) % n + n) % n;
+            if (!hub.IsCharacterTaken(c, p))
+            {
+                p.character = c;
+                Sfx.Play(SynthAudio.Click, 0.5f);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // One keyboard player uses WASD and the arrows; several share the keyboard: WASD / arrows / numpad.
+    void NormalizeKeyboardSchemes()
+    {
+        int count = 0;
+        foreach (PhonePlayer p in hub.Slots) if (p != null && p.isKeyboard) count++;
+        int next = 0;
+        foreach (PhonePlayer p in hub.Slots)
+        {
+            if (p == null || !p.isKeyboard) continue;
+            p.keyboardScheme = count == 1 ? GameInput.SchemeSolo : Mathf.Min(next++, GameInput.SchemeCount - 1);
+        }
+    }
+
+    static string SchemeLabel(int scheme)
+    {
+        switch (scheme)
+        {
+            case 0: return Loc.T("keys.wasd");
+            case 1: return Loc.T("keys.arrows");
+            case 2: return Loc.T("keys.numpad");
+            default: return Loc.T("keys.solo");
+        }
     }
 
     void QuitGame()
@@ -995,6 +1113,18 @@ public class GameBootstrap : MonoBehaviour
         ModelTint.Apply(v.model, CharacterCatalog.All[character].tint);
         Animator anim = v.model.GetComponentInChildren<Animator>();
         if (anim != null) anim.applyRootMotion = false;
+        SetRigState(v, false);
+    }
+
+    static void SetRigState(LobbySlotView v, bool cheering)
+    {
+        if (v.model == null) return;
+        CharacterRig rig = v.model.GetComponentInChildren<CharacterRig>();
+        if (rig == null) return;
+        rig.showcase = true;
+        rig.running = false;
+        rig.airborne = false;
+        rig.cheering = cheering;
     }
 
     // Put the heroes in the right places on the screen however the window size changes.
@@ -1061,6 +1191,7 @@ public class GameBootstrap : MonoBehaviour
 
             v.pedestal.material.color = p != null ? slotColor : new Color(0.25f, 0.25f, 0.28f);
             ShowModel(v, p != null ? p.character : -1);
+            SetRigState(v, p != null && p.ready);
 
             if (p == null)
             {
@@ -1075,6 +1206,7 @@ public class GameBootstrap : MonoBehaviour
                 v.nameText.text = p.name;
                 v.nameText.color = slotColor;
                 v.charText.text = p.character < 0 ? Loc.T("lobby.choosing") : CharacterCatalog.All[p.character].Name;
+                if (p.isKeyboard) v.charText.text += "  <size=22>(" + SchemeLabel(p.keyboardScheme) + ")</size>";
                 v.statusText.text = p.ready ? "<color=#8bff8b>" + Loc.T("lobby.ready") + "</color>" : Loc.T("lobby.notReady");
                 v.strip.color = slotColor;
             }

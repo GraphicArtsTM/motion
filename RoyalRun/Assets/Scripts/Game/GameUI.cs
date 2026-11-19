@@ -16,6 +16,9 @@ public class ColumnHud
     public Text score;
     public Text big;
     public Text toast;
+    public Text combo;       // "x3"
+    public Text status;      // active power-ups
+    public Text distance;    // metres run
 }
 
 // A menu button. Works with mouse and keyboard, without an EventSystem.
@@ -333,7 +336,13 @@ public static class GameUI
         hud.timeFillImage.raycastTarget = false;
         hud.time = CreateText("Time", barBg.transform, Vector2.zero, Vector2.one, "", 26, Color.white, TextAnchor.MiddleCenter);
 
-        hud.toast = CreateText("Toast", hud.root, new Vector2(0.05f, 0.74f), new Vector2(0.95f, 0.83f),
+        hud.combo = CreateText("Combo", hud.root, new Vector2(0.62f, 0.80f), new Vector2(0.97f, 0.87f),
+                               "", 44, Gold, TextAnchor.MiddleRight);
+        hud.status = CreateText("Status", hud.root, new Vector2(0.03f, 0.80f), new Vector2(0.62f, 0.87f),
+                                "", 28, Color.white, TextAnchor.MiddleLeft);
+        hud.distance = CreateText("Distance", hud.root, new Vector2(0.03f, 0.015f), new Vector2(0.5f, 0.07f),
+                                  "", 30, new Color(1f, 1f, 1f, 0.85f), TextAnchor.MiddleLeft);
+        hud.toast = CreateText("Toast", hud.root, new Vector2(0.05f, 0.66f), new Vector2(0.95f, 0.77f),
                                "", 44, Color.white, TextAnchor.MiddleCenter);
         hud.big = CreateText("Big", hud.root, new Vector2(0.05f, 0.35f), new Vector2(0.95f, 0.65f),
                              "", 58, new Color(1f, 0.55f, 0.5f), TextAnchor.MiddleCenter);

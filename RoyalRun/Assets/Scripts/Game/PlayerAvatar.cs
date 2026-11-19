@@ -1,7 +1,7 @@
 using UnityEngine;
 
 // One player's hero. Combines the former PlayerController and PlayerCollisionHandler:
-// moves on commands from the phone joystick (or the keyboard for a test player)
+// moves on commands from the phone joystick (or the keyboard), jumps,
 // and tells its world about a hit on an obstacle.
 [RequireComponent(typeof(Rigidbody))]
 public class PlayerAvatar : MonoBehaviour
@@ -11,6 +11,9 @@ public class PlayerAvatar : MonoBehaviour
     const float ZClamp = 2f;
     const float CollisionCooldown = 1f;
     const float HitSlowAmount = -2f;
+    const float JumpVelocity = 8.2f;      // apex ~1.4 m: enough to clear a fence, not a wall
+    const float JumpGravity = -24f;
+    const float JumpBuffer = 0.15f;       // a press slightly before landing still counts
 
     PlayerWorld world;
     PhonePlayer input;
@@ -21,7 +24,17 @@ public class PlayerAvatar : MonoBehaviour
     float originX;
     float cooldownTimer;
 
+    float height;              // current jump height
+    float verticalVelocity;
+    bool grounded = true;
+    float jumpBufferTimer;
+    float lateral;             // smoothed sideways input, for leaning
+
+    Transform shieldFx, magnetFx;
+
     static readonly int HitTrigger = Animator.StringToHash("Hit");
+
+    public float Height { get { return height; } }
 
     public static PlayerAvatar Create(PlayerWorld world, PhonePlayer input, GameObject modelPrefab,
                                       CharacterDef character, Vector3 position)
@@ -68,31 +81,115 @@ public class PlayerAvatar : MonoBehaviour
         avatar.originX = position.x;
         avatar.moveSpeed = BaseMoveSpeed * character.moveMult;
         avatar.cooldownTimer = 0f;
+        avatar.BuildEffects();
         sensor.owner = avatar;
+        input.jumpQueued = false;
         return avatar;
+    }
+
+    // Glowing orbs around the hero (shield) and a gold ring at the feet (magnet).
+    void BuildEffects()
+    {
+        shieldFx = new GameObject("Shield FX").transform;
+        shieldFx.SetParent(transform, false);
+        shieldFx.localPosition = new Vector3(0f, 0.95f, 0f);
+        for (int i = 0; i < 6; i++)
+        {
+            float a = i * Mathf.PI / 3f;
+            MatLib.Prim(PrimitiveType.Sphere, "Orb", shieldFx, new Vector3(Mathf.Sin(a) * 0.75f, (i % 2) * 0.5f - 0.25f, Mathf.Cos(a) * 0.75f),
+                        Vector3.one * 0.16f, new Color(0.35f, 0.9f, 1f), false, default(Vector3), 0.9f, 1.6f);
+        }
+        shieldFx.gameObject.SetActive(false);
+
+        magnetFx = new GameObject("Magnet FX").transform;
+        magnetFx.SetParent(transform, false);
+        magnetFx.localPosition = new Vector3(0f, 0.05f, 0f);
+        for (int i = 0; i < 10; i++)
+        {
+            float a = i * Mathf.PI / 5f;
+            MatLib.Prim(PrimitiveType.Cube, "Spark", magnetFx, new Vector3(Mathf.Sin(a) * 0.9f, 0f, Mathf.Cos(a) * 0.9f),
+                        new Vector3(0.12f, 0.04f, 0.2f), new Color(1f, 0.82f, 0.3f), false, new Vector3(0f, a * Mathf.Rad2Deg, 0f), 0.8f, 1.2f);
+        }
+        magnetFx.gameObject.SetActive(false);
     }
 
     void Update()
     {
-        cooldownTimer += Time.deltaTime;
+        float dt = Time.deltaTime;
+        cooldownTimer += dt;
+        if (jumpBufferTimer > 0f) jumpBufferTimer -= dt;
+
+        if (!world.Finished && dt > 0f)
+        {
+            if (input.isKeyboard && GameInput.JumpPressed(input.keyboardScheme)) jumpBufferTimer = JumpBuffer;
+            if (input.jumpQueued) { input.jumpQueued = false; jumpBufferTimer = JumpBuffer; }
+        }
+        else
+        {
+            input.jumpQueued = false;
+        }
+
+        Vector2 move = world.Finished ? Vector2.zero : ReadInput();
+        lateral = Mathf.Lerp(lateral, move.x, 1f - Mathf.Exp(-10f * dt));
 
         if (rig != null)
         {
             rig.running = !world.Finished;
             rig.runSpeed = world.MoveSpeed / 6f;
+            rig.lateral = lateral;
+            rig.airborne = !grounded;
+            rig.verticalSpeed = verticalVelocity;
         }
+
+        // power-up effects spin around the hero
+        bool shield = world.ShieldActive;
+        if (shieldFx.gameObject.activeSelf != shield) shieldFx.gameObject.SetActive(shield);
+        if (shield)
+        {
+            shieldFx.Rotate(0f, 180f * dt, 0f, Space.Self);
+            // blink during the last 2 seconds
+            float left = world.ShieldTimeLeft;
+            shieldFx.localScale = Vector3.one * (left < 2f && Mathf.Repeat(Time.time * 8f, 1f) < 0.4f ? 0.6f : 1f);
+        }
+        bool magnet = world.MagnetActive;
+        if (magnetFx.gameObject.activeSelf != magnet) magnetFx.gameObject.SetActive(magnet);
+        if (magnet) magnetFx.Rotate(0f, -240f * dt, 0f, Space.Self);
     }
 
     void FixedUpdate()
     {
         if (world.Finished) return;
+        float dt = Time.fixedDeltaTime;
 
         Vector2 move = ReadInput();
         Vector3 current = body.position;
-        Vector3 next = current + new Vector3(move.x, 0f, move.y) * (moveSpeed * Time.fixedDeltaTime);
+        Vector3 next = current + new Vector3(move.x, 0f, move.y) * (moveSpeed * dt);
 
         next.x = Mathf.Clamp(next.x, originX - XClamp, originX + XClamp);
         next.z = Mathf.Clamp(next.z, -ZClamp, ZClamp);
+
+        // jump: our own simple vertical physics (the body is kinematic)
+        if (jumpBufferTimer > 0f && grounded)
+        {
+            jumpBufferTimer = 0f;
+            grounded = false;
+            verticalVelocity = JumpVelocity;
+            Sfx.Play(SynthAudio.Jump, 0.45f);
+        }
+        if (!grounded)
+        {
+            verticalVelocity += JumpGravity * dt;
+            height += verticalVelocity * dt;
+            if (height <= 0f)
+            {
+                height = 0f;
+                verticalVelocity = 0f;
+                grounded = true;
+                if (rig != null) rig.Land();
+                Sfx.Play(SynthAudio.Land, 0.35f);
+            }
+        }
+        next.y = height;
 
         body.MovePosition(next);
     }
@@ -101,8 +198,8 @@ public class PlayerAvatar : MonoBehaviour
     {
         Vector2 move = input.move;
 
-        // the keyboard player: WASD / arrows (works with both the new and the old input system)
-        if (input.isKeyboard) move = GameInput.MoveVector();
+        // the keyboard player: their own keys (several players can share one keyboard)
+        if (input.isKeyboard) move = GameInput.MoveVector(input.keyboardScheme);
 
         // the phone disconnected - stand still
         if (!input.isKeyboard && !input.connected) move = Vector2.zero;
@@ -116,7 +213,7 @@ public class PlayerAvatar : MonoBehaviour
         RegisterHit();
     }
 
-    // Fences are static - they are reported by the trigger sensor.
+    // Fences and walls are static - they are reported by the trigger sensor.
     public void OnSensorTouch(Collider other)
     {
         if (other.isTrigger) return;
@@ -128,10 +225,17 @@ public class PlayerAvatar : MonoBehaviour
     {
         if (cooldownTimer < CollisionCooldown) return;
         if (world.Finished) return;
-
         cooldownTimer = 0f;
+
+        // the shield takes the blow
+        if (world.TryAbsorbHit())
+        {
+            Sfx.Play(SynthAudio.Shield, 0.6f);
+            return;
+        }
+
         world.ChangeSpeed(HitSlowAmount);
-        world.NotifyHit();
+        world.OnHit();
         Sfx.Play(SynthAudio.Hit, 0.7f);
         if (animator != null) animator.SetTrigger(HitTrigger);
         if (rig != null) rig.PlayHit();

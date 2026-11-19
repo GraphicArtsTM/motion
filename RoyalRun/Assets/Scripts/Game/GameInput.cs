@@ -4,15 +4,27 @@ using UnityEngine.InputSystem;
 #endif
 
 // Клавиши, которые нужны игре.
-public enum GKey { Up, Down, Left, Right, W, A, S, D, Enter, Space, Escape, F1, Tab, K, L }
+public enum GKey
+{
+    Up, Down, Left, Right, W, A, S, D, Enter, Space, Escape, F1, Tab, K, L,
+    RightShift, RightCtrl, Numpad8, Numpad4, Numpad5, Numpad6, Numpad0
+}
 
 // Ввод с клавиатуры и мыши, который работает при любой настройке проекта
 // (Project Settings -> Player -> Active Input Handling):
 //   "Input System Package (New)" или "Both" - читаем через новый Input System (Keyboard.current / Mouse.current);
 //   "Input Manager (Old)"                  - читаем через старый UnityEngine.Input.
-// Так проект открывается и работает сразу, без ручной настройки.
+//
+// Раскладки клавиатуры (несколько игроков за одной клавиатурой):
+//   -1  один игрок:  WASD или стрелки, прыжок - Пробел
+//    0  игрок 1:     WASD, прыжок - Пробел
+//    1  игрок 2:     стрелки, прыжок - правый Shift (или правый Ctrl)
+//    2  игрок 3:     NumPad 8/4/5/6, прыжок - NumPad 0
 public static class GameInput
 {
+    public const int SchemeSolo = -1;
+    public const int SchemeCount = 3;
+
     static int cachedFrame = -1;
     static Vector2 lastMouse;
     static bool mouseMoved;
@@ -23,17 +35,11 @@ public static class GameInput
 #if ENABLE_INPUT_SYSTEM
         Keyboard kb = Keyboard.current;
         if (kb == null) return false;
-        switch (k)
-        {
-            case GKey.Enter: return kb.enterKey.isPressed || kb.numpadEnterKey.isPressed;
-            default: return kb[ToKey(k)].isPressed;
-        }
+        if (k == GKey.Enter) return kb.enterKey.isPressed || kb.numpadEnterKey.isPressed;
+        return kb[ToKey(k)].isPressed;
 #elif ENABLE_LEGACY_INPUT_MANAGER
-        switch (k)
-        {
-            case GKey.Enter: return Input.GetKey(KeyCode.Return) || Input.GetKey(KeyCode.KeypadEnter);
-            default: return Input.GetKey(ToKeyCode(k));
-        }
+        if (k == GKey.Enter) return Input.GetKey(KeyCode.Return) || Input.GetKey(KeyCode.KeypadEnter);
+        return Input.GetKey(ToKeyCode(k));
 #else
         return false;
 #endif
@@ -45,31 +51,51 @@ public static class GameInput
 #if ENABLE_INPUT_SYSTEM
         Keyboard kb = Keyboard.current;
         if (kb == null) return false;
-        switch (k)
-        {
-            case GKey.Enter: return kb.enterKey.wasPressedThisFrame || kb.numpadEnterKey.wasPressedThisFrame;
-            default: return kb[ToKey(k)].wasPressedThisFrame;
-        }
+        if (k == GKey.Enter) return kb.enterKey.wasPressedThisFrame || kb.numpadEnterKey.wasPressedThisFrame;
+        return kb[ToKey(k)].wasPressedThisFrame;
 #elif ENABLE_LEGACY_INPUT_MANAGER
-        switch (k)
-        {
-            case GKey.Enter: return Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter);
-            default: return Input.GetKeyDown(ToKeyCode(k));
-        }
+        if (k == GKey.Enter) return Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter);
+        return Input.GetKeyDown(ToKeyCode(k));
 #else
         return false;
 #endif
     }
 
-    // Направление WASD / стрелки, длина не больше 1.
-    public static Vector2 MoveVector()
+    // Направление для раскладки, длина не больше 1.
+    public static Vector2 MoveVector(int scheme = SchemeSolo)
     {
         float x = 0f, y = 0f;
-        if (Held(GKey.A) || Held(GKey.Left)) x -= 1f;
-        if (Held(GKey.D) || Held(GKey.Right)) x += 1f;
-        if (Held(GKey.W) || Held(GKey.Up)) y += 1f;
-        if (Held(GKey.S) || Held(GKey.Down)) y -= 1f;
+        bool wasd = scheme == SchemeSolo || scheme == 0;
+        bool arrows = scheme == SchemeSolo || scheme == 1;
+        bool numpad = scheme == 2;
+
+        if ((wasd && Held(GKey.A)) || (arrows && Held(GKey.Left)) || (numpad && Held(GKey.Numpad4))) x -= 1f;
+        if ((wasd && Held(GKey.D)) || (arrows && Held(GKey.Right)) || (numpad && Held(GKey.Numpad6))) x += 1f;
+        if ((wasd && Held(GKey.W)) || (arrows && Held(GKey.Up)) || (numpad && Held(GKey.Numpad8))) y += 1f;
+        if ((wasd && Held(GKey.S)) || (arrows && Held(GKey.Down)) || (numpad && Held(GKey.Numpad5))) y -= 1f;
         return Vector2.ClampMagnitude(new Vector2(x, y), 1f);
+    }
+
+    public static bool JumpPressed(int scheme = SchemeSolo)
+    {
+        switch (scheme)
+        {
+            case 0: return Down(GKey.Space);
+            case 1: return Down(GKey.RightShift) || Down(GKey.RightCtrl);
+            case 2: return Down(GKey.Numpad0);
+            default: return Down(GKey.Space);
+        }
+    }
+
+    // "Влево/вправо" один раз (листать героев в лобби).
+    public static int StepPressed(int scheme = SchemeSolo)
+    {
+        bool wasd = scheme == SchemeSolo || scheme == 0;
+        bool arrows = scheme == SchemeSolo || scheme == 1;
+        bool numpad = scheme == 2;
+        if ((wasd && Down(GKey.A)) || (arrows && Down(GKey.Left)) || (numpad && Down(GKey.Numpad4))) return -1;
+        if ((wasd && Down(GKey.D)) || (arrows && Down(GKey.Right)) || (numpad && Down(GKey.Numpad6))) return 1;
+        return 0;
     }
 
     public static bool HasMouse
@@ -149,6 +175,13 @@ public static class GameInput
             case GKey.Tab: return Key.Tab;
             case GKey.K: return Key.K;
             case GKey.L: return Key.L;
+            case GKey.RightShift: return Key.RightShift;
+            case GKey.RightCtrl: return Key.RightCtrl;
+            case GKey.Numpad8: return Key.Numpad8;
+            case GKey.Numpad4: return Key.Numpad4;
+            case GKey.Numpad5: return Key.Numpad5;
+            case GKey.Numpad6: return Key.Numpad6;
+            case GKey.Numpad0: return Key.Numpad0;
             default: return Key.Enter;
         }
     }
@@ -171,6 +204,13 @@ public static class GameInput
             case GKey.Tab: return KeyCode.Tab;
             case GKey.K: return KeyCode.K;
             case GKey.L: return KeyCode.L;
+            case GKey.RightShift: return KeyCode.RightShift;
+            case GKey.RightCtrl: return KeyCode.RightControl;
+            case GKey.Numpad8: return KeyCode.Keypad8;
+            case GKey.Numpad4: return KeyCode.Keypad4;
+            case GKey.Numpad5: return KeyCode.Keypad5;
+            case GKey.Numpad6: return KeyCode.Keypad6;
+            case GKey.Numpad0: return KeyCode.Keypad0;
             default: return KeyCode.Return;
         }
     }

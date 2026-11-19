@@ -19,6 +19,8 @@ public class PhonePlayer
     public bool connected;
     public bool isKeyboard;
     public Vector2 move;             // joystick position, length at most 1
+    public bool jumpQueued;          // a tap on the phone (= jump), taken by PlayerAvatar
+    public int keyboardScheme = -1;  // keyboard player: -1 WASD+arrows, 0 WASD, 1 arrows, 2 numpad (see GameInput)
     public bool wantsAgain;
 }
 
@@ -26,7 +28,7 @@ public class PhonePlayer
 [Serializable]
 public class PhoneMessage
 {
-    public string t;     // type: join, char, ready, move, again
+    public string t;     // type: join, char, ready, move, jump, again
     public string cid;
     public string name;
     public int id;
@@ -145,6 +147,10 @@ public class PhoneHub : MonoBehaviour
                 Vector2 v = new Vector2(m.x, m.y);
                 if (float.IsNaN(v.x) || float.IsNaN(v.y)) v = Vector2.zero;
                 p.move = Vector2.ClampMagnitude(v, 1f);
+                break;
+
+            case "jump":
+                p.jumpQueued = true;
                 break;
 
             case "char":
@@ -314,10 +320,14 @@ public class PhoneHub : MonoBehaviour
             while (character < CharacterCatalog.Count && IsCharacterTaken(character, null)) character++;
             if (character >= CharacterCatalog.Count) character = 0;
 
+            int keyboards = 0;
+            foreach (PhonePlayer other in Slots) if (other != null && other.isKeyboard) keyboards++;
+
             PhonePlayer p = new PhonePlayer
             {
                 slot = i,
-                name = Loc.T("player.keyboard"),
+                keyboardScheme = keyboards,
+                name = keyboards == 0 ? Loc.T("player.keyboard") : Loc.T("player.keyboard") + " " + (keyboards + 1),
                 character = character,
                 ready = false,
                 connected = true,
