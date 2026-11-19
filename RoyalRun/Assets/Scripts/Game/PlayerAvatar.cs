@@ -9,7 +9,11 @@ public class PlayerAvatar : MonoBehaviour
     const float BaseMoveSpeed = 5f;
     const float XClamp = 3f;
     const float ZClamp = 2f;
-    const float CollisionCooldown = 1f;
+    const float CollisionCooldown = 1.2f;   // after a hit the hero blinks and cannot be hit again
+    const float StunTime = 0.45f;           // controls do not respond right after a hit
+    const float KnockbackSpeed = 7f;        // the hero is thrown back
+    const float BounceVelocity = 4.5f;      // ...and bounces up a little
+    const float HeroRadius = 0.3f;          // the size used to check touching obstacles
     const float HitSlowAmount = -2f;
     const float JumpVelocity = 8.2f;      // apex ~1.4 m: enough to clear a fence, not a wall
     const float JumpGravity = -24f;
@@ -31,6 +35,10 @@ public class PlayerAvatar : MonoBehaviour
     float lateral;             // smoothed sideways input, for leaning
 
     Transform shieldFx, magnetFx, blobShadow;
+    Renderer[] modelRenderers;
+    float stunTimer;
+    float knockback;
+    bool blinkVisible = true;
 
     static readonly int HitTrigger = Animator.StringToHash("Hit");
 
@@ -78,9 +86,10 @@ public class PlayerAvatar : MonoBehaviour
         avatar.body = rb;
         avatar.animator = model.GetComponentInChildren<Animator>();
         avatar.rig = model.GetComponentInChildren<CharacterRig>();
+        avatar.modelRenderers = model.GetComponentsInChildren<Renderer>();
+        avatar.cooldownTimer = CollisionCooldown;
         avatar.originX = position.x;
         avatar.moveSpeed = BaseMoveSpeed * character.moveMult;
-        avatar.cooldownTimer = 0f;
         avatar.BuildEffects();
         sensor.owner = avatar;
         input.jumpQueued = false;
@@ -127,6 +136,18 @@ public class PlayerAvatar : MonoBehaviour
         float dt = Time.deltaTime;
         cooldownTimer += dt;
         if (jumpBufferTimer > 0f) jumpBufferTimer -= dt;
+        if (stunTimer > 0f) stunTimer -= dt;
+
+        // did we run into something? (checked every frame against all obstacles of this world)
+        if (world.Running && cooldownTimer >= CollisionCooldown) CheckHazards();
+
+        // blinking while the hero cannot be hit again
+        bool visible = cooldownTimer >= CollisionCooldown || world.Finished || Mathf.Repeat(cooldownTimer * 10f, 1f) < 0.55f;
+        if (visible != blinkVisible)
+        {
+            blinkVisible = visible;
+            foreach (Renderer r in modelRenderers) if (r != null) r.enabled = visible;
+        }
 
         if (world.Running && dt > 0f)
         {
@@ -178,10 +199,17 @@ public class PlayerAvatar : MonoBehaviour
 
         // when the road is not moving (intro, time is up) the hero does not run,
         // but a jump in progress still lands - nobody stays hanging in the air
-        Vector2 move = world.Running ? ReadInput() : Vector2.zero;
+        Vector2 move = world.Running && stunTimer <= 0f ? ReadInput() : Vector2.zero;
         Vector3 current = body.position;
         Vector3 next = current + new Vector3(move.x, 0f, move.y) * (moveSpeed * dt);
         if (!world.Running) jumpBufferTimer = 0f;
+
+        // thrown back after a hit
+        if (knockback > 0f)
+        {
+            next.z -= knockback * dt;
+            knockback = Mathf.MoveTowards(knockback, 0f, 18f * dt);
+        }
 
         next.x = Mathf.Clamp(next.x, originX - XClamp, originX + XClamp);
         next.z = Mathf.Clamp(next.z, -ZClamp, ZClamp);
@@ -225,26 +253,46 @@ public class PlayerAvatar : MonoBehaviour
         return move;
     }
 
-    // Falling obstacles have a dynamic Rigidbody, so a real collision arrives here.
-    void OnCollisionEnter(Collision other)
+    // The hero is a vertical capsule; every obstacle of the world is checked against it.
+    void CheckHazards()
     {
-        if (other.collider.GetComponentInParent<Hazard>() == null) return;
-        RegisterHit();
+        float s = transform.localScale.y;
+        Vector3 feet = transform.position;
+        Vector3 bottom = feet + Vector3.up * (0.45f * s);     // the feet may brush the top of a fence in a jump
+        Vector3 top = feet + Vector3.up * (1.6f * s);
+        foreach (Hazard h in world.Hazards)
+        {
+            if (h != null && h.Touches(bottom, top, HeroRadius * s))
+            {
+                RegisterHit(h);
+                return;
+            }
+        }
     }
 
-    // Fences and walls are static - they are reported by the trigger sensor.
+    // Falling obstacles have a dynamic Rigidbody, so a physics collision may also arrive here.
+    void OnCollisionEnter(Collision other)
+    {
+        Hazard h = other.collider.GetComponentInParent<Hazard>();
+        if (h != null) RegisterHit(h);
+    }
+
+    // The trigger sensor (a second way to notice fences).
     public void OnSensorTouch(Collider other)
     {
         if (other.isTrigger) return;
-        if (other.GetComponentInParent<Hazard>() == null) return;
-        RegisterHit();
+        Hazard h = other.GetComponentInParent<Hazard>();
+        if (h != null) RegisterHit(h);
     }
 
-    void RegisterHit()
+    void RegisterHit(Hazard hazard)
     {
         if (cooldownTimer < CollisionCooldown) return;
-        if (world.Finished) return;
+        if (!world.Running || hazard.Smashed) return;
         cooldownTimer = 0f;
+
+        // whatever we ran into breaks into pieces
+        hazard.Smash(transform.position + Vector3.up);
 
         // the shield takes the blow
         if (world.TryAbsorbHit())
@@ -253,9 +301,19 @@ public class PlayerAvatar : MonoBehaviour
             return;
         }
 
-        world.ChangeSpeed(HitSlowAmount);
-        world.OnHit();
-        Sfx.Play(SynthAudio.Hit, 0.7f);
+        // the hero is thrown back and bounces, the controls stop for a moment,
+        // the road almost stops, time is taken away, the screen flashes red and shakes
+        knockback = KnockbackSpeed;
+        stunTimer = StunTime;
+        if (grounded)
+        {
+            grounded = false;
+            verticalVelocity = BounceVelocity;
+        }
+        world.ChangeSpeed(HitSlowAmount, true);
+        world.OnHit(hazard.TimePenalty);
+        Sfx.Play(SynthAudio.Hit, 0.9f);
+        Sfx.Play(SynthAudio.Thud, 0.8f);
         if (animator != null) animator.SetTrigger(HitTrigger);
         if (rig != null) rig.PlayHit();
     }

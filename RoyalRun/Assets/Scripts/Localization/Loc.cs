@@ -235,6 +235,8 @@ public static class Loc
         Add("hud.checkpoint", "ЧЕКПОИНТ  +{0} с", "CHECKPOINT  +{0} s", "NAZORAT NUQTASI  +{0} s");
         Add("hud.speedUp", "УСКОРЕНИЕ!", "SPEED UP!", "TEZLASHISH!");
         Add("hud.hit", "УДАР!", "HIT!", "ZARBA!");
+        Add("hud.hitPenalty", "УДАР!  −{0} с", "CRASH!  −{0} s", "ZARBA!  −{0} s");
+        Add("hud.comboLost", "комбо потеряно", "combo lost", "kombo yo‘qoldi");
         Add("hud.go", "ВПЕРЁД!", "GO!", "OLG‘A!");
         Add("hud.coins", "монет: {0}", "coins: {0}", "tanga: {0}");
         Add("hud.bestCombo", "комбо x{0}", "combo x{0}", "kombo x{0}");

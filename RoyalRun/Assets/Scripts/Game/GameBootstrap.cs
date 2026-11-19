@@ -148,30 +148,56 @@ public class GameBootstrap : MonoBehaviour
     //  Building the scene
     // ============================================================
 
+    Light sun;
+
     void CreateLight()
     {
-        GameObject go = new GameObject("Directional Light");
+        GameObject go = new GameObject("Sun");
         go.transform.SetParent(transform, false);
-        go.transform.rotation = new Quaternion(-0.36955687f, 0.56243926f, -0.3280403f, -0.6629324f);
-        Light l = go.AddComponent<Light>();
-        l.type = LightType.Directional;
-        l.intensity = 1.2f;
-        l.shadows = LightShadows.Soft;
+        go.transform.rotation = Quaternion.Euler(48f, 35f, 0f);    // high, behind the camera on the left
+        sun = go.AddComponent<Light>();
+        sun.type = LightType.Directional;
+        sun.color = new Color(1f, 0.95f, 0.86f);
+        sun.intensity = 1.3f;
+        sun.shadows = LightShadows.Soft;
+        sun.shadowStrength = 0.8f;
+        QualitySettings.shadowDistance = 60f;
     }
 
-    // Ambient light and fog (the scene has no skybox - the background is a solid colour).
+    // A daytime sky (Unity's procedural skybox), soft ambient light and a haze that matches the horizon,
+    // so distant road pieces fade into the sky instead of popping in.
+    public static Color HorizonColor = new Color(0.74f, 0.81f, 0.89f);
+
     void CreateAtmosphere()
     {
-        Color fog = new Color(0.10f, 0.06f, 0.20f, 1f);
+        Material sky = RenderSettings.skybox;
+        if (sky == null)
+        {
+            Shader s = Shader.Find("Skybox/Procedural");
+            if (s != null) sky = new Material(s);
+        }
+        if (sky != null)
+        {
+            sky = new Material(sky);
+            if (sky.HasProperty("_SkyTint")) sky.SetColor("_SkyTint", new Color(0.46f, 0.56f, 0.72f));
+            if (sky.HasProperty("_GroundColor")) sky.SetColor("_GroundColor", new Color(0.42f, 0.4f, 0.37f));
+            if (sky.HasProperty("_AtmosphereThickness")) sky.SetFloat("_AtmosphereThickness", 0.9f);
+            if (sky.HasProperty("_Exposure")) sky.SetFloat("_Exposure", 1.25f);
+            if (sky.HasProperty("_SunSize")) sky.SetFloat("_SunSize", 0.035f);
+            RenderSettings.skybox = sky;
+        }
+        RenderSettings.sun = sun;
+
         RenderSettings.ambientMode = AmbientMode.Trilight;
-        RenderSettings.ambientSkyColor = new Color(0.62f, 0.58f, 0.78f);
-        RenderSettings.ambientEquatorColor = new Color(0.40f, 0.36f, 0.48f);
-        RenderSettings.ambientGroundColor = new Color(0.18f, 0.15f, 0.22f);
+        RenderSettings.ambientSkyColor = new Color(0.58f, 0.66f, 0.80f);
+        RenderSettings.ambientEquatorColor = new Color(0.52f, 0.54f, 0.56f);
+        RenderSettings.ambientGroundColor = new Color(0.30f, 0.27f, 0.24f);
         RenderSettings.fog = true;
         RenderSettings.fogMode = FogMode.Linear;
-        RenderSettings.fogColor = fog;
-        RenderSettings.fogStartDistance = 40f;
-        RenderSettings.fogEndDistance = 120f;
+        RenderSettings.fogColor = HorizonColor;
+        RenderSettings.fogStartDistance = 30f;
+        RenderSettings.fogEndDistance = 125f;
+        DynamicGI.UpdateEnvironment();   // reflections on metal come from the new sky
     }
 
     void CreateMusic()

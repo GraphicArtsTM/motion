@@ -79,7 +79,8 @@ public class CharacterRig : MonoBehaviour
         {
             if (clothes[i] == null) continue;
             float k = (clothShade != null && i < clothShade.Length) ? clothShade[i] : 1f;
-            clothes[i].sharedMaterial = MatLib.Get(new Color(Mathf.Clamp01(main.r * k), Mathf.Clamp01(main.g * k), Mathf.Clamp01(main.b * k)));
+            clothes[i].sharedMaterial = MatLib.Get(new Color(Mathf.Clamp01(main.r * k), Mathf.Clamp01(main.g * k), Mathf.Clamp01(main.b * k)),
+                                                   0.05f, 0f, Surface.Fabric, Vector2.one * 2f);
         }
     }
 
@@ -293,7 +294,13 @@ public class CharacterRig : MonoBehaviour
     static GameObject P(PrimitiveType t, string n, Transform parent, Vector3 pos, Vector3 scale, Color c,
                         Vector3 euler = default(Vector3), float smooth = 0.15f, float emission = 0f)
     {
-        return MatLib.Prim(t, n, parent, pos, scale, c, false, euler, smooth, emission);
+        // skin is skin, armour and gold are metal, eyes are glossy, everything else is cloth
+        Surface surf = Surface.Fabric;
+        if (c == Skin) surf = Surface.Skin;
+        else if (c == Metal || c == Gold) surf = Surface.Metal;
+        else if (c == Wood) surf = Surface.Wood;
+        else if (c == White || c == Dark || c == Lips || emission > 0f) surf = Surface.Plain;
+        return MatLib.Prim(t, n, parent, pos, scale, c, false, euler, smooth, emission, surf);
     }
 
     public static GameObject Build(int style, Transform parent)

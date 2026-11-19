@@ -10,9 +10,7 @@ using UnityEngine;
 // Any field you fill in GameAssets by hand (your own prefab) is kept: only empty fields are filled.
 public static class ProceduralAssets
 {
-    static readonly Color Road = new Color(0.30f, 0.29f, 0.34f);
-    static readonly Color RoadLight = new Color(0.36f, 0.35f, 0.40f);
-    static readonly Color RoadSeam = new Color(0.21f, 0.20f, 0.25f);
+    static readonly Color Road = new Color(0.88f, 0.86f, 0.84f);    // tints the cobblestone texture
     static readonly Color Line = new Color(0.95f, 0.88f, 0.60f);
     static readonly Color CurbRed = new Color(0.78f, 0.18f, 0.18f);
     static readonly Color CurbWhite = new Color(0.90f, 0.88f, 0.84f);
@@ -187,19 +185,35 @@ public static class ProceduralAssets
         return true;
     }
 
-    static GameObject Box(string n, Transform p, Vector3 pos, Vector3 scale, Color c, bool collider = false, Vector3 euler = default(Vector3), float smooth = 0.15f, float emission = 0f)
+    static GameObject Box(string n, Transform p, Vector3 pos, Vector3 scale, Color c, bool collider = false, Vector3 euler = default(Vector3), float smooth = 0.15f, float emission = 0f, Surface surf = Surface.Grime)
     {
-        return MatLib.Prim(PrimitiveType.Cube, n, p, pos, scale, c, collider, euler, smooth, emission);
+        return MatLib.Prim(PrimitiveType.Cube, n, p, pos, scale, c, collider, euler, smooth, emission, Infer(c, surf, false));
     }
 
-    static GameObject Ball(string n, Transform p, Vector3 pos, Vector3 scale, Color c, float smooth = 0.15f, float emission = 0f)
+    static GameObject Ball(string n, Transform p, Vector3 pos, Vector3 scale, Color c, float smooth = 0.15f, float emission = 0f, Surface surf = Surface.Grime)
     {
-        return MatLib.Prim(PrimitiveType.Sphere, n, p, pos, scale, c, false, default(Vector3), smooth, emission);
+        return MatLib.Prim(PrimitiveType.Sphere, n, p, pos, scale, c, false, default(Vector3), smooth, emission, Infer(c, surf, true));
     }
 
-    static GameObject Cyl(string n, Transform p, Vector3 pos, Vector3 scale, Color c, Vector3 euler = default(Vector3), float smooth = 0.15f, float emission = 0f)
+    static GameObject Cyl(string n, Transform p, Vector3 pos, Vector3 scale, Color c, Vector3 euler = default(Vector3), float smooth = 0.15f, float emission = 0f, Surface surf = Surface.Grime)
     {
-        return MatLib.Prim(PrimitiveType.Cylinder, n, p, pos, scale, c, false, euler, smooth, emission);
+        return MatLib.Prim(PrimitiveType.Cylinder, n, p, pos, scale, c, false, euler, smooth, emission, Infer(c, surf, false));
+    }
+
+    // Which texture a colour gets when the caller did not say: wood colours -> wood, stone -> bricks (rocks for
+    // round shapes), iron and gold -> metal, the zone's grass and earth -> grass, bark -> bark, leaves -> leaves.
+    static Surface Infer(Color c, Surface asked, bool round)
+    {
+        if (asked != Surface.Grime) return asked;
+        if (c == Wood || c == WoodLight || c == WoodDark) return Surface.Wood;
+        if (c == Stone || c == StoneDark) return round ? Surface.Stone : Surface.Bricks;
+        if (c == CurbRed || c == CurbWhite) return Surface.Stone;
+        if (c == Iron || c == Gold) return Surface.Metal;
+        if (c == Royal || c == RoofBlue) return Surface.Fabric;
+        if (c == B.grass || c == B.grassDark || c == B.ground || c == GrassDark) return Surface.Grass;
+        if (c == B.trunk) return Surface.Bark;
+        if (c == B.leaves || c == B.leaves2 || c == B.pine) return Surface.Leaves;
+        return Surface.Grime;
     }
 
     // ------------------------------------------------------------------
@@ -214,17 +228,9 @@ public static class ProceduralAssets
         System.Random rnd = new System.Random(style.seed);
 
         // the floor: top surface at y = 0, the piece "grows" forward from z = 0 to z = 10
-        Box("Floor", t, new Vector3(0f, -0.1f, ChunkLength * 0.5f), new Vector3(RoadWidth, 0.2f, ChunkLength), Road, true);
-
-        // cobblestone look: seams across the road and a few lighter stones
-        for (int i = 0; i < 4; i++)
-            Box("Seam", t, new Vector3(0f, 0.002f, i * 2.5f), new Vector3(RoadWidth, 0.01f, 0.06f), RoadSeam);
-        for (int i = 0; i < 7; i++)
-        {
-            float x = -3.8f + (float)rnd.NextDouble() * 7.6f;
-            float z = 0.6f + (float)rnd.NextDouble() * 8.8f;
-            Box("Stone", t, new Vector3(x, 0.003f, z), new Vector3(0.7f + (float)rnd.NextDouble() * 0.6f, 0.012f, 0.6f), RoadLight);
-        }
+        // cobblestones: a whole number of texture repeats per piece, so there is no seam between pieces
+        MatLib.Prim(PrimitiveType.Cube, "Floor", t, new Vector3(0f, -0.1f, ChunkLength * 0.5f), new Vector3(RoadWidth, 0.2f, ChunkLength), Road,
+                    true, default(Vector3), 0.2f, 0f, Surface.Road, new Vector2(3f, 3f));
 
         // dashed lines between the lanes (lanes are at x = -2.5, 0, 2.5) and gold edge lines
         foreach (float x in new[] { -1.25f, 1.25f })
@@ -362,9 +368,9 @@ public static class ProceduralAssets
         tree.localRotation = Quaternion.Euler(0f, v * 360f, 0f);
         Cyl("Trunk", tree, new Vector3(0f, 0.7f, 0f), new Vector3(0.28f, 0.7f, 0.28f), B.trunk);
         Color leaf = Color.Lerp(B.leaves, B.leaves2, v);
-        Ball("Crown", tree, new Vector3(0f, 2.0f, 0f), new Vector3(1.7f, 1.5f, 1.7f), leaf);
-        Ball("Crown Top", tree, new Vector3(0.2f, 2.7f, -0.15f), new Vector3(1.1f, 1.0f, 1.1f), Color.Lerp(leaf, Color.white, 0.08f));
-        Ball("Crown Side", tree, new Vector3(-0.55f, 1.85f, 0.3f), new Vector3(0.9f, 0.8f, 0.9f), Color.Lerp(leaf, B.leaves2, 0.5f));
+        Ball("Crown", tree, new Vector3(0f, 2.0f, 0f), new Vector3(1.7f, 1.5f, 1.7f), leaf, surf: Surface.Leaves);
+        Ball("Crown Top", tree, new Vector3(0.2f, 2.7f, -0.15f), new Vector3(1.1f, 1.0f, 1.1f), Color.Lerp(leaf, Color.white, 0.08f), surf: Surface.Leaves);
+        Ball("Crown Side", tree, new Vector3(-0.55f, 1.85f, 0.3f), new Vector3(0.9f, 0.8f, 0.9f), Color.Lerp(leaf, B.leaves2, 0.5f), surf: Surface.Leaves);
         if (v > 0.5f && !B.snow && !B.fallenLeaves)
             for (int i = 0; i < 3; i++)
                 Ball("Apple", tree, new Vector3(Mathf.Sin(i * 2.1f) * 0.75f, 1.8f + i * 0.25f, Mathf.Cos(i * 2.1f) * 0.75f), Vector3.one * 0.16f, new Color(0.85f, 0.12f, 0.12f), 0.6f);
@@ -461,7 +467,7 @@ public static class ProceduralAssets
         BoxCollider box = root.AddComponent<BoxCollider>();
         box.center = new Vector3(0f, 0.5f, 0f);
         box.size = new Vector3(2.0f, 1.0f, 0.3f);
-        root.AddComponent<Hazard>();
+        root.AddComponent<Hazard>().Configure(new Color(0.8f, 0.35f, 0.25f), 2f);
 
         Transform t = root.transform;
         Box("Post L", t, new Vector3(-0.9f, 0.55f, 0f), new Vector3(0.14f, 1.1f, 0.2f), WoodDark);
@@ -471,7 +477,7 @@ public static class ProceduralAssets
         for (int i = 0; i < 5; i++)
         {
             Color c = i % 2 == 0 ? FenceRed : Color.white;
-            Box("Plank", t, new Vector3(-0.72f + i * 0.36f, 0.78f, 0.02f), new Vector3(0.36f, 0.26f, 0.1f), c);
+            Box("Plank", t, new Vector3(-0.72f + i * 0.36f, 0.78f, 0.02f), new Vector3(0.36f, 0.26f, 0.1f), c, surf: Surface.Wood);
         }
         Box("Rail", t, new Vector3(0f, 0.38f, 0.02f), new Vector3(1.8f, 0.1f, 0.08f), WoodDark);
         Box("Foot L", t, new Vector3(-0.9f, 0.05f, 0f), new Vector3(0.2f, 0.1f, 0.5f), WoodDark);
@@ -487,7 +493,7 @@ public static class ProceduralAssets
         BoxCollider box = root.AddComponent<BoxCollider>();
         box.center = new Vector3(0f, 1.3f, 0f);
         box.size = new Vector3(2.1f, 2.6f, 0.5f);
-        root.AddComponent<Hazard>();
+        root.AddComponent<Hazard>().Configure(new Color(0.55f, 0.55f, 0.58f), 3f);
 
         Transform t = root.transform;
         for (int row = 0; row < 4; row++)
@@ -616,7 +622,7 @@ public static class ProceduralAssets
         rb.mass = mass;
         rb.interpolation = RigidbodyInterpolation.Interpolate;
         rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
-        root.AddComponent<Hazard>();
+        root.AddComponent<Hazard>().Configure(new Color(0.55f, 0.4f, 0.25f), 2f);
 
         AudioSource src = root.AddComponent<AudioSource>();
         src.playOnAwake = false;
@@ -719,7 +725,7 @@ public static class ProceduralAssets
         BoxCollider c = root.AddComponent<BoxCollider>();
         c.center = new Vector3(0f, 0.55f, 0f);
         c.size = new Vector3(1.2f, 1.0f, 1.7f);
-        root.AddComponent<Hazard>();
+        root.AddComponent<Hazard>().Configure(new Color(0.6f, 0.4f, 0.2f), 2f);
         Transform t = root.transform;
         Box("Bed", t, new Vector3(0f, 0.6f, 0f), new Vector3(1.1f, 0.45f, 1.5f), Wood);
         Box("Rim", t, new Vector3(0f, 0.85f, 0f), new Vector3(1.14f, 0.06f, 1.54f), Gold, false, default(Vector3), 0.7f, 0.15f);

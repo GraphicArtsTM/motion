@@ -31,10 +31,10 @@ public class PlayerWorld : MonoBehaviour
     const float SpawnWidth = 4f;
     const float ObstacleSpawnHeight = 5f;
     const float ObstacleSpawnDistance = 40f;
-    const float BaseFov = 75f;
-    const float MinFov = 20f;
-    const float MaxFov = 120f;
-    const float FovPerSpeed = 5f;
+    const float BaseFov = 70f;
+    const float MinFov = 62f;
+    const float MaxFov = 84f;
+    const float FovPerSpeed = 1.2f;       // was 5: at top speed the hero became tiny
     const float TimeBarMax = 40f;
     const int CoinsPerComboStep = 10;
     const int MaxMultiplier = 5;
@@ -66,6 +66,13 @@ public class PlayerWorld : MonoBehaviour
     public float ShieldTimeLeft { get { return shieldTime; } }
     public bool MagnetActive { get { return magnetTime > 0f && !Finished; } }
     public Transform AvatarTransform { get { return avatar != null ? avatar.transform : null; } }
+    public List<Hazard> Hazards { get { return hazards; } }
+
+    public void RegisterHazard(Hazard h) { if (!hazards.Contains(h)) hazards.Add(h); }
+    public void UnregisterHazard(Hazard h) { hazards.Remove(h); }
+
+    // 1 normally, much less right after a hit
+    float StumbleFactor { get { return stumbleTimer > 0f ? Mathf.Lerp(1f, 0.15f, stumbleTimer / StumbleDuration) : 1f; } }
 
     GameAssets assets;
     PhoneHub hub;
@@ -75,6 +82,9 @@ public class PlayerWorld : MonoBehaviour
     Transform obstacleParent;
 
     readonly List<GameObject> chunks = new List<GameObject>();
+    readonly List<Hazard> hazards = new List<Hazard>();
+    float stumbleTimer;                    // after a hit the road almost stops, then speeds up again
+    const float StumbleDuration = 0.8f;
     int chunkIndex = -ChunksBehindPlayer;
     bool settingUp;
 
@@ -148,9 +158,10 @@ public class PlayerWorld : MonoBehaviour
         Cam.rect = new Rect(index / (float)total, 0f, 1f / total, 1f);
         Cam.fieldOfView = BaseFov;
         Cam.nearClipPlane = 0.3f;
-        Cam.farClipPlane = 130f;
-        Cam.clearFlags = CameraClearFlags.SolidColor;
-        Cam.backgroundColor = new Color(0.10f, 0.06f, 0.20f, 1f);   // fog colour from the original scene
+        Cam.farClipPlane = 135f;
+        // the daytime sky; without a skybox material - a plain background of the horizon colour
+        Cam.clearFlags = RenderSettings.skybox != null ? CameraClearFlags.Skybox : CameraClearFlags.SolidColor;
+        Cam.backgroundColor = GameBootstrap.HorizonColor;
         Cam.depth = index;
 
         // The player's UI lives on its own canvas attached to their camera.
@@ -198,8 +209,9 @@ public class PlayerWorld : MonoBehaviour
         {
             TickTime(dt);
             TickObstacleSpawner(dt);
+            if (stumbleTimer > 0f) stumbleTimer -= dt;
             MoveChunks(dt);
-            distance += moveSpeed * dt;
+            distance += moveSpeed * StumbleFactor * dt;
             if (shieldTime > 0f) shieldTime -= dt;
             if (magnetTime > 0f) magnetTime -= dt;
         }
@@ -339,11 +351,27 @@ public class PlayerWorld : MonoBehaviour
     // A real hit: the combo is lost, the phone vibrates.
     public void OnHit()
     {
+        OnHit(2f);
+    }
+
+    // A real hit: time is taken away, the combo is lost, the road stumbles, the screen flashes and shakes.
+    public void OnHit(float timePenalty)
+    {
+        if (Finished) return;
+        int lostCombo = Multiplier;
         comboCoins = 0;
-        Shake(0.6f);
+        float penalty = timePenalty * Character.hitSlowMult;
+        TimeLeft = Mathf.Max(0f, TimeLeft - penalty);
+        stumbleTimer = StumbleDuration;
+        trauma = 1f;
         punch = 1f;
-        flashAlpha = 0.5f;
+        flashAlpha = 0.65f;
+
+        string text = Loc.F("hud.hitPenalty", penalty.ToString("0.#", CultureInfo.InvariantCulture));
+        if (lostCombo > 1) text += "\n<size=28>" + Loc.T("hud.comboLost") + "</size>";
+        ShowToast(text, new Color(1f, 0.4f, 0.35f), 1.6f);
         NotifyHit();
+        if (TimeLeft <= 0f) Finish();
     }
 
     // Called by PlayerAvatar: the camera follows the jump and dips a little on landing.
@@ -356,12 +384,18 @@ public class PlayerWorld : MonoBehaviour
 
     public void ChangeSpeed(float amount)
     {
+        ChangeSpeed(amount, false);
+    }
+
+    public void ChangeSpeed(float amount, bool silent)
+    {
         if (Finished) return;
         if (amount < 0f) amount *= Character.hitSlowMult;
 
         float before = moveSpeed;
         if (!SetSpeed(moveSpeed + amount)) return;
 
+        if (silent) return;
         if (moveSpeed > before)
         {
             ShowToast(Loc.T("hud.speedUp"), new Color(1f, 0.9f, 0.3f));
@@ -433,7 +467,7 @@ public class PlayerWorld : MonoBehaviour
 
     void MoveChunks(float dt)
     {
-        Vector3 step = Vector3.back * (moveSpeed * dt);
+        Vector3 step = Vector3.back * (moveSpeed * StumbleFactor * dt);
         for (int i = 0; i < chunks.Count; i++) chunks[i].transform.position += step;
 
         float recycleZ = Cam.transform.position.z - ChunkLength;
@@ -479,10 +513,9 @@ public class PlayerWorld : MonoBehaviour
         // A narrow strip of the screen sees less road, so for 2-3 players we move the camera back and up.
         float aspect = Mathf.Max(0.3f, Cam.aspect);
         float tanHalfV = Mathf.Tan(BaseFov * 0.5f * Mathf.Deg2Rad);
-        float back = Mathf.Clamp(4.6f / (tanHalfV * aspect), 3.8f, 11f);
-        float height = 2.25f + (back - 3.8f) * 0.5f;
+        float back = Mathf.Clamp(4.4f / (tanHalfV * aspect), 3.5f, 8f);
+        float height = 2.1f + (back - 3.5f) * 0.45f;
         float speed01 = Mathf.Clamp01((moveSpeed - 6f) / 14f);
-        back += speed01 * 0.9f;                 // a little further back at high speed
 
         Vector3 hero = avatar.transform.position;
 
@@ -539,7 +572,7 @@ public class PlayerWorld : MonoBehaviour
 
         // smooth field-of-view change when speeding up / slowing down (+ a short "kick" on an apple)
         currentFov = Mathf.Lerp(currentFov, targetFov, 1f - Mathf.Exp(-3f * dt));
-        Cam.fieldOfView = Mathf.Clamp(currentFov + fovKick * 9f, MinFov, MaxFov);
+        Cam.fieldOfView = Mathf.Clamp(currentFov + fovKick * 4f, MinFov, MaxFov);
     }
 
     // A point on a circle around the hero (angle 0 = behind, PI = in front) looking at the chest.
