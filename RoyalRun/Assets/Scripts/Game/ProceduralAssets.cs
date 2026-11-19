@@ -16,7 +16,6 @@ public static class ProceduralAssets
     static readonly Color Line = new Color(0.95f, 0.88f, 0.60f);
     static readonly Color CurbRed = new Color(0.78f, 0.18f, 0.18f);
     static readonly Color CurbWhite = new Color(0.90f, 0.88f, 0.84f);
-    static readonly Color Grass = new Color(0.30f, 0.54f, 0.30f);
     static readonly Color GrassDark = new Color(0.21f, 0.42f, 0.24f);
     static readonly Color Wood = new Color(0.52f, 0.32f, 0.16f);
     static readonly Color WoodLight = new Color(0.74f, 0.54f, 0.31f);
@@ -26,18 +25,55 @@ public static class ProceduralAssets
     static readonly Color StoneDark = new Color(0.42f, 0.41f, 0.46f);
     static readonly Color Gold = new Color(1f, 0.78f, 0.22f);
     static readonly Color FenceRed = new Color(0.82f, 0.20f, 0.18f);
-    static readonly Color Leaves = new Color(0.24f, 0.52f, 0.27f);
-    static readonly Color Pine = new Color(0.14f, 0.36f, 0.24f);
     static readonly Color LampLight = new Color(1f, 0.85f, 0.5f);
     static readonly Color Royal = new Color(0.45f, 0.18f, 0.62f);
     static readonly Color RoofBlue = new Color(0.22f, 0.32f, 0.62f);
-    static readonly Color[] Flowers =
-    {
-        new Color(1f, 0.85f, 0.25f), new Color(0.95f, 0.35f, 0.45f), new Color(0.95f, 0.95f, 1f), new Color(0.6f, 0.45f, 1f),
-    };
 
     const float ChunkLength = 10f;
     const float RoadWidth = 9f;
+
+    // A zone of the road. Every checkpoint leads into the next zone: meadows -> autumn forest -> winter peaks.
+    class Biome
+    {
+        public string name;
+        public Color grass, grassDark, leaves, leaves2, pine, trunk, ground;
+        public Color[] flowers;
+        public bool snow, fallenLeaves;
+    }
+
+    static readonly Biome[] Biomes =
+    {
+        new Biome
+        {
+            name = "Meadow",
+            grass = new Color(0.30f, 0.54f, 0.30f), grassDark = new Color(0.21f, 0.42f, 0.24f),
+            leaves = new Color(0.24f, 0.52f, 0.27f), leaves2 = new Color(0.32f, 0.58f, 0.28f),
+            pine = new Color(0.14f, 0.36f, 0.24f), trunk = new Color(0.33f, 0.20f, 0.10f), ground = new Color(0.36f, 0.30f, 0.22f),
+            flowers = new[] { new Color(1f, 0.85f, 0.25f), new Color(0.95f, 0.35f, 0.45f), new Color(0.95f, 0.95f, 1f), new Color(0.6f, 0.45f, 1f) },
+        },
+        new Biome
+        {
+            name = "Autumn",
+            grass = new Color(0.52f, 0.48f, 0.24f), grassDark = new Color(0.42f, 0.34f, 0.18f),
+            leaves = new Color(0.90f, 0.45f, 0.12f), leaves2 = new Color(0.80f, 0.20f, 0.12f),
+            pine = new Color(0.20f, 0.33f, 0.20f), trunk = new Color(0.30f, 0.18f, 0.09f), ground = new Color(0.40f, 0.28f, 0.16f),
+            flowers = new[] { new Color(1f, 0.6f, 0.1f), new Color(0.85f, 0.2f, 0.12f), new Color(1f, 0.85f, 0.3f), new Color(0.6f, 0.3f, 0.15f) },
+            fallenLeaves = true,
+        },
+        new Biome
+        {
+            name = "Winter",
+            grass = new Color(0.86f, 0.89f, 0.95f), grassDark = new Color(0.74f, 0.79f, 0.88f),
+            leaves = new Color(0.88f, 0.92f, 0.98f), leaves2 = new Color(0.78f, 0.85f, 0.95f),
+            pine = new Color(0.12f, 0.30f, 0.24f), trunk = new Color(0.28f, 0.18f, 0.12f), ground = new Color(0.75f, 0.8f, 0.9f),
+            flowers = new[] { new Color(0.6f, 0.85f, 1f), new Color(0.85f, 0.95f, 1f) },
+            snow = true,
+        },
+    };
+
+    static Biome B = Biomes[0];
+
+    public static int BiomeCount { get { return Biomes.Length; } }
 
     struct ChunkStyle
     {
@@ -58,6 +94,7 @@ public static class ProceduralAssets
             Bake(BuildPowerUp(templates, PowerUpType.Magnet)),
             Bake(BuildPowerUp(templates, PowerUpType.Hourglass)),
         };
+        GameObject mover = BuildMovingCart(templates);
 
         if (a.kingPrefab == null)
         {
@@ -81,20 +118,40 @@ public static class ProceduralAssets
                 new ChunkStyle { seed = 67, lampRight = true, rail = true, castle = true },
                 new ChunkStyle { seed = 71, banners = true },
             };
-            a.chunkPrefabs = new GameObject[styles.Length];
-            for (int i = 0; i < styles.Length; i++)
+            bool ownCheckpoint = a.checkpointChunkPrefab != null;
+            a.biomeChunks = new GameObject[Biomes.Length][];
+            a.biomeCheckpoints = new GameObject[Biomes.Length];
+            for (int b = 0; b < Biomes.Length; b++)
             {
-                GameObject c = BuildChunk("Chunk " + (i + 1), templates, styles[i]);
-                SetupChunk(c, fence, apple, coin, wall, gem, powerUps);
-                a.chunkPrefabs[i] = Bake(c);
+                B = Biomes[b];
+                a.biomeChunks[b] = new GameObject[styles.Length];
+                for (int i = 0; i < styles.Length; i++)
+                {
+                    ChunkStyle st = styles[i];
+                    st.seed += b * 1000;
+                    GameObject c = BuildChunk(B.name + " Chunk " + (i + 1), templates, st);
+                    SetupChunk(c, fence, apple, coin, wall, gem, powerUps, mover);
+                    a.biomeChunks[b][i] = Bake(c);
+                }
+                if (!ownCheckpoint)
+                {
+                    GameObject cp = BuildChunk(B.name + " Checkpoint", templates, new ChunkStyle { seed = 79 + b, lampLeft = true, lampRight = true, banners = true });
+                    AddCheckpointArch(cp.transform);
+                    SetupChunk(cp, fence, apple, coin, wall, gem, powerUps, mover);
+                    a.biomeCheckpoints[b] = Bake(cp);
+                }
             }
+            B = Biomes[0];
+            a.chunkPrefabs = a.biomeChunks[0];
+            if (!ownCheckpoint) a.checkpointChunkPrefab = a.biomeCheckpoints[0];
+            else a.biomeCheckpoints = null;
         }
 
         if (a.checkpointChunkPrefab == null)
         {
             GameObject cp = BuildChunk("Checkpoint Chunk", templates, new ChunkStyle { seed = 79, lampLeft = true, lampRight = true, banners = true });
             AddCheckpointArch(cp.transform);
-            SetupChunk(cp, fence, apple, coin, wall, gem, powerUps);
+            SetupChunk(cp, fence, apple, coin, wall, gem, powerUps, mover);
             a.checkpointChunkPrefab = Bake(cp);
         }
 
@@ -115,11 +172,12 @@ public static class ProceduralAssets
     }
 
     static void SetupChunk(GameObject c, GameObject fence, GameObject apple, GameObject coin,
-                           GameObject wall, GameObject gem, GameObject[] powerUps)
+                           GameObject wall, GameObject gem, GameObject[] powerUps, GameObject mover)
     {
         Chunk chunk = c.AddComponent<Chunk>();
         chunk.Configure(fence, apple, coin);
         chunk.ConfigureExtras(wall, gem, powerUps);
+        chunk.ConfigureMover(mover);
     }
 
     public static bool IsEmpty(GameObject[] arr)
@@ -183,8 +241,11 @@ public static class ProceduralAssets
 
         // grass on both sides
         float grassX = RoadWidth * 0.5f + 0.36f + 11f;
-        Box("Grass L", t, new Vector3(-grassX, -0.12f, ChunkLength * 0.5f), new Vector3(22f, 0.2f, ChunkLength), Grass);
-        Box("Grass R", t, new Vector3(grassX, -0.12f, ChunkLength * 0.5f), new Vector3(22f, 0.2f, ChunkLength), Grass);
+        Box("Grass L", t, new Vector3(-grassX, -0.12f, ChunkLength * 0.5f), new Vector3(22f, 0.2f, ChunkLength), B.grass);
+        Box("Grass R", t, new Vector3(grassX, -0.12f, ChunkLength * 0.5f), new Vector3(22f, 0.2f, ChunkLength), B.grass);
+        // a strip of earth (or snow) between the curb and the grass
+        Box("Verge L", t, new Vector3(-(RoadWidth * 0.5f + 0.75f), -0.04f, ChunkLength * 0.5f), new Vector3(0.8f, 0.1f, ChunkLength), B.ground);
+        Box("Verge R", t, new Vector3(RoadWidth * 0.5f + 0.75f, -0.04f, ChunkLength * 0.5f), new Vector3(0.8f, 0.1f, ChunkLength), B.ground);
 
         if (style.lampLeft) AddLamp(t, -1f);
         if (style.lampRight) AddLamp(t, 1f);
@@ -211,8 +272,20 @@ public static class ProceduralAssets
             for (int i = 0; i < 6; i++)
             {
                 Vector3 p = new Vector3(side * (5.6f + (float)rnd.NextDouble() * 6f), 0.06f, (float)rnd.NextDouble() * 10f);
-                Ball("Flower", t, p, Vector3.one * 0.14f, Flowers[rnd.Next(Flowers.Length)], 0.3f, 0.15f);
+                Ball("Flower", t, p, Vector3.one * 0.14f, B.flowers[rnd.Next(B.flowers.Length)], 0.3f, 0.15f);
             }
+            if (B.fallenLeaves)
+                for (int i = 0; i < 8; i++)
+                {
+                    Vector3 p = new Vector3(side * (5.3f + (float)rnd.NextDouble() * 8f), 0.0f, (float)rnd.NextDouble() * 10f);
+                    Box("Fallen Leaf", t, p, new Vector3(0.22f, 0.02f, 0.14f), rnd.Next(2) == 0 ? B.leaves : B.leaves2, false, new Vector3(0f, (float)rnd.NextDouble() * 180f, 0f));
+                }
+            if (B.snow)
+                for (int i = 0; i < 3; i++)
+                {
+                    Vector3 p = new Vector3(side * (6f + (float)rnd.NextDouble() * 9f), 0.0f, (float)rnd.NextDouble() * 10f);
+                    Ball("Snowdrift", t, p, new Vector3(1.6f, 0.45f, 1.2f) * (0.7f + (float)rnd.NextDouble() * 0.6f), Color.white, 0.4f);
+                }
         }
 
         return root;
@@ -287,12 +360,12 @@ public static class ProceduralAssets
         tree.localPosition = pos;
         tree.localScale = Vector3.one * (0.85f + v * 0.5f);
         tree.localRotation = Quaternion.Euler(0f, v * 360f, 0f);
-        Cyl("Trunk", tree, new Vector3(0f, 0.7f, 0f), new Vector3(0.28f, 0.7f, 0.28f), WoodDark);
-        Color leaf = Color.Lerp(Leaves, GrassDark, v);
+        Cyl("Trunk", tree, new Vector3(0f, 0.7f, 0f), new Vector3(0.28f, 0.7f, 0.28f), B.trunk);
+        Color leaf = Color.Lerp(B.leaves, B.leaves2, v);
         Ball("Crown", tree, new Vector3(0f, 2.0f, 0f), new Vector3(1.7f, 1.5f, 1.7f), leaf);
         Ball("Crown Top", tree, new Vector3(0.2f, 2.7f, -0.15f), new Vector3(1.1f, 1.0f, 1.1f), Color.Lerp(leaf, Color.white, 0.08f));
-        Ball("Crown Side", tree, new Vector3(-0.55f, 1.85f, 0.3f), new Vector3(0.9f, 0.8f, 0.9f), leaf);
-        if (v > 0.5f)
+        Ball("Crown Side", tree, new Vector3(-0.55f, 1.85f, 0.3f), new Vector3(0.9f, 0.8f, 0.9f), Color.Lerp(leaf, B.leaves2, 0.5f));
+        if (v > 0.5f && !B.snow && !B.fallenLeaves)
             for (int i = 0; i < 3; i++)
                 Ball("Apple", tree, new Vector3(Mathf.Sin(i * 2.1f) * 0.75f, 1.8f + i * 0.25f, Mathf.Cos(i * 2.1f) * 0.75f), Vector3.one * 0.16f, new Color(0.85f, 0.12f, 0.12f), 0.6f);
     }
@@ -303,26 +376,31 @@ public static class ProceduralAssets
         tree.SetParent(chunk, false);
         tree.localPosition = pos;
         tree.localScale = Vector3.one * (0.9f + v * 0.6f);
-        Cyl("Trunk", tree, new Vector3(0f, 0.4f, 0f), new Vector3(0.25f, 0.4f, 0.25f), WoodDark);
+        Cyl("Trunk", tree, new Vector3(0f, 0.4f, 0f), new Vector3(0.25f, 0.4f, 0.25f), B.trunk);
         float[] r = { 1.7f, 1.35f, 1.0f, 0.65f, 0.3f };
         for (int i = 0; i < r.Length; i++)
-            Cyl("Needles", tree, new Vector3(0f, 1.0f + i * 0.55f, 0f), new Vector3(r[i], 0.3f, r[i]), Pine);
+        {
+            Cyl("Needles", tree, new Vector3(0f, 1.0f + i * 0.55f, 0f), new Vector3(r[i], 0.3f, r[i]), B.pine);
+            // snow lies on every tier of a winter fir
+            if (B.snow) Cyl("Snow", tree, new Vector3(0f, 1.27f + i * 0.55f, 0f), new Vector3(r[i] * 0.8f, 0.06f, r[i] * 0.8f), Color.white, default(Vector3), 0.4f);
+        }
     }
 
     static void AddBush(Transform chunk, Vector3 pos, float v)
     {
         float s = 0.8f + v * 0.5f;
-        Ball("Bush", chunk, pos + Vector3.up * 0.3f, new Vector3(1.3f, 0.8f, 1.1f) * s, GrassDark);
-        Ball("Bush", chunk, pos + new Vector3(0.5f, 0.25f, 0.3f) * s, new Vector3(0.8f, 0.6f, 0.8f) * s, Leaves);
-        if (v > 0.4f)
+        Ball("Bush", chunk, pos + Vector3.up * 0.3f, new Vector3(1.3f, 0.8f, 1.1f) * s, B.grassDark);
+        Ball("Bush", chunk, pos + new Vector3(0.5f, 0.25f, 0.3f) * s, new Vector3(0.8f, 0.6f, 0.8f) * s, B.leaves);
+        if (v > 0.4f && !B.snow)
             for (int i = 0; i < 4; i++)
-                Ball("Berry", chunk, pos + new Vector3(Mathf.Sin(i * 1.7f) * 0.5f, 0.55f, Mathf.Cos(i * 1.7f) * 0.4f) * s, Vector3.one * 0.1f, Flowers[1], 0.5f, 0.1f);
+                Ball("Berry", chunk, pos + new Vector3(Mathf.Sin(i * 1.7f) * 0.5f, 0.55f, Mathf.Cos(i * 1.7f) * 0.4f) * s, Vector3.one * 0.1f, B.flowers[1 % B.flowers.Length], 0.5f, 0.1f);
     }
 
     static void AddRock(Transform chunk, Vector3 pos, float v)
     {
         Ball("Rock", chunk, pos + Vector3.up * 0.15f, new Vector3(1.0f, 0.6f, 0.8f) * (0.7f + v), StoneDark);
         Ball("Rock", chunk, pos + new Vector3(0.5f, 0.08f, 0.2f), new Vector3(0.5f, 0.35f, 0.4f) * (0.7f + v), Stone);
+        if (B.snow) Ball("Snow Cap", chunk, pos + Vector3.up * 0.38f * (0.7f + v), new Vector3(0.8f, 0.2f, 0.65f) * (0.7f + v), Color.white, 0.4f);
     }
 
     // The arch over the road and the invisible trigger that adds time (the Checkpoint script).
@@ -631,6 +709,34 @@ public static class ProceduralAssets
             Cyl("Wheel", t, new Vector3(x, -0.25f, z), new Vector3(0.55f, 0.05f, 0.55f), Iron, new Vector3(0f, 0f, 90f));
         }
         return root;
+    }
+
+    // A runaway cart that drives from side to side across the road (LaneMover). Low enough to jump over.
+    static GameObject BuildMovingCart(Transform parent)
+    {
+        GameObject root = new GameObject("Moving Cart");
+        root.transform.SetParent(parent, false);
+        BoxCollider c = root.AddComponent<BoxCollider>();
+        c.center = new Vector3(0f, 0.55f, 0f);
+        c.size = new Vector3(1.2f, 1.0f, 1.7f);
+        root.AddComponent<Hazard>();
+        Transform t = root.transform;
+        Box("Bed", t, new Vector3(0f, 0.6f, 0f), new Vector3(1.1f, 0.45f, 1.5f), Wood);
+        Box("Rim", t, new Vector3(0f, 0.85f, 0f), new Vector3(1.14f, 0.06f, 1.54f), Gold, false, default(Vector3), 0.7f, 0.15f);
+        Ball("Apples", t, new Vector3(0f, 0.86f, 0f), new Vector3(0.9f, 0.3f, 1.2f), new Color(0.85f, 0.15f, 0.12f), 0.6f);
+        Box("Shaft L", t, new Vector3(-0.35f, 0.45f, 1.1f), new Vector3(0.06f, 0.06f, 0.9f), WoodDark);
+        Box("Shaft R", t, new Vector3(0.35f, 0.45f, 1.1f), new Vector3(0.06f, 0.06f, 0.9f), WoodDark);
+        Box("Flag", t, new Vector3(0.5f, 1.35f, -0.6f), new Vector3(0.04f, 0.35f, 0.4f), FenceRed);
+        Cyl("Flag Pole", t, new Vector3(0.5f, 1.15f, -0.75f), new Vector3(0.03f, 0.35f, 0.03f), WoodDark);
+        for (int i = 0; i < 4; i++)
+        {
+            float x = i < 2 ? -0.62f : 0.62f;
+            float z = i % 2 == 0 ? -0.5f : 0.5f;
+            Cyl("Wheel", t, new Vector3(x, 0.3f, z), new Vector3(0.6f, 0.05f, 0.6f), Wood, new Vector3(0f, 0f, 90f));
+            Cyl("Hub", t, new Vector3(x * 1.05f, 0.3f, z), new Vector3(0.15f, 0.04f, 0.15f), Iron, new Vector3(0f, 0f, 90f));
+        }
+        root.AddComponent<LaneMover>();
+        return Bake(root);
     }
 
     static GameObject BuildRock(Transform parent)

@@ -40,6 +40,7 @@ public class CharacterRig : MonoBehaviour
 
     [SerializeField] Transform visual, body, head, hipL, hipR, kneeL, kneeR, shoulderL, shoulderR, elbowL, elbowR, capeTop, capeBottom;
     [SerializeField] Transform[] eyes;
+    [SerializeField] Transform mouth;
     [SerializeField] Transform[] flickers;     // flames that flicker (Pyro), glowing things
     [SerializeField] Renderer[] clothes;       // tinted with the main colour
     [SerializeField] float[] clothShade;       // brightness of each tinted part (the cape is darker, etc.)
@@ -53,6 +54,7 @@ public class CharacterRig : MonoBehaviour
     [System.NonSerialized] public float verticalSpeed;
     [System.NonSerialized] public bool showcase;          // on a podium: waves now and then
     [System.NonSerialized] public bool cheering;          // arms up, hopping (READY in the lobby)
+    [System.NonSerialized] public bool defeated;          // time is up: tired, hands on the knees
 
     float phase;
     float hitTimer;
@@ -61,6 +63,8 @@ public class CharacterRig : MonoBehaviour
     float waveTimer = 3f;
     float time;
     Vector3[] flickerBase;
+    Vector3 mouthBase;
+    float mouthOpen;
 
     const float Smooth = 16f;
 
@@ -88,6 +92,7 @@ public class CharacterRig : MonoBehaviour
             flickerBase = new Vector3[flickers.Length];
             for (int i = 0; i < flickers.Length; i++) if (flickers[i] != null) flickerBase[i] = flickers[i].localScale;
         }
+        if (mouth != null) mouthBase = mouth.localScale;
     }
 
     // ======================================================================
@@ -177,6 +182,19 @@ public class CharacterRig : MonoBehaviour
             }
         }
 
+        // time is up: bent forward, hands on the knees, heavy breathing
+        if (defeated && !airborne)
+        {
+            float br = Mathf.Sin(time * 4f);
+            bodyX = 38f + br * 3f; bodyY = 0f; bodyZ = 0f;
+            hipLx = -38f; hipRx = -38f; kneeLx = 45f; kneeRx = 45f;
+            shLx = -50f; shRx = -50f; shLz = 12f; shRz = -12f;
+            elLx = -10f; elRx = -10f;
+            headX = -20f + br * 2f; headY = 0f;
+            capeA = 15f; capeB = 5f;
+            bob = -0.12f;
+        }
+
         // a hit: the body is thrown back, the arms flail
         if (hitTimer > 0f)
         {
@@ -219,6 +237,12 @@ public class CharacterRig : MonoBehaviour
             }
             visual.localScale = scale;
         }
+
+        // the mouth opens in a jump, on a hit and when cheering ("O!")
+        float wantOpen = (hitTimer > 0f || cheering || airborne) ? 1f : (defeated ? 0.5f : 0f);
+        mouthOpen = Mathf.Lerp(mouthOpen, wantOpen, 1f - Mathf.Exp(-12f * dt));
+        if (mouth != null)
+            mouth.localScale = new Vector3(mouthBase.x * (1f - 0.3f * mouthOpen), mouthBase.y * (1f + 3.5f * mouthOpen), mouthBase.z);
 
         // blinking
         blinkTimer -= dt;
@@ -327,7 +351,9 @@ public class CharacterRig : MonoBehaviour
             b.eyes.Add(eye);
             P(PrimitiveType.Cube, "Brow", h, new Vector3(i * 0.07f, 0.268f, 0.163f), new Vector3(0.075f, 0.016f, 0.02f), hair, new Vector3(0f, 0f, -i * 8f));
         }
-        P(PrimitiveType.Cube, "Mouth", h, new Vector3(0f, 0.095f, 0.165f), new Vector3(0.075f, 0.014f, 0.02f), Lips);
+        rig.mouth = P(PrimitiveType.Cube, "Mouth", h, new Vector3(0f, 0.095f, 0.165f), new Vector3(0.075f, 0.016f, 0.02f), Lips).transform;
+        P(PrimitiveType.Sphere, "Cheek L", h, new Vector3(-0.1f, 0.13f, 0.135f), new Vector3(0.06f, 0.035f, 0.03f), new Color(1f, 0.62f, 0.6f));
+        P(PrimitiveType.Sphere, "Cheek R", h, new Vector3(0.1f, 0.13f, 0.135f), new Vector3(0.06f, 0.035f, 0.03f), new Color(1f, 0.62f, 0.6f));
         if (style != 1) P(PrimitiveType.Sphere, "Hair", h, new Vector3(0f, 0.26f, -0.04f), new Vector3(0.38f, 0.32f, 0.38f), hair);
 
         BuildOutfit(style, rig, b, main, hair);

@@ -42,6 +42,8 @@ public class PlayerWorld : MonoBehaviour
     const float MagnetDuration = 8f;
     const float HourglassSeconds = 4f;
     const int SpeedLineCount = 18;
+    const float IntroDuration = 1.5f;        // the camera flies around the hero before the start
+    const float CheckpointSpeedUp = 0.5f;    // the road gets a little faster at every checkpoint
 
     // --- state ---
     public int Index { get; private set; }
@@ -49,6 +51,10 @@ public class PlayerWorld : MonoBehaviour
     public CharacterDef Character { get; private set; }
     public Camera Cam { get; private set; }
     public bool Finished { get; private set; }
+    // true while the road is moving: not during the intro fly-around and not after the time is up
+    public bool Running { get { return !Finished && introTimer <= 0f; } }
+    public int CoinsCollected { get; private set; }
+    public int BestMultiplier { get; private set; }
     public int Score { get { return coinScore + Mathf.FloorToInt(distance); } }
     public int Distance { get { return Mathf.FloorToInt(distance); } }
     public float TimeLeft { get; private set; }
@@ -79,11 +85,26 @@ public class PlayerWorld : MonoBehaviour
     float spawnTimer = -FirstObstacleDelay;
     float targetFov = BaseFov;
     float currentFov = BaseFov;
-    float shakeAmplitude;
-    float shakeTimeLeft;
     float phoneTimer;
     float toastTimeLeft;
     float camHeightFollow;
+
+    // camera state
+    float camX;
+    float camXVelocity;
+    float camRoll;
+    float trauma;              // 0..1, shake strength (decays by itself)
+    float punch;               // a short push of the camera on a hit
+    float dip;                 // a small dip on landing
+    float fovKick;             // a short widening of the view on a speed-up
+    float introTimer = IntroDuration;
+    float finishTimer;
+    float goTimer;
+    float flashAlpha;
+
+    // zones: every checkpoint leads into the next one
+    int biome;
+    readonly Queue<int> pendingZones = new Queue<int>();
 
     int coinScore;
     float distance;
@@ -145,13 +166,11 @@ public class PlayerWorld : MonoBehaviour
         avatar = PlayerAvatar.Create(this, owner, model, Character, new Vector3(originX, 0f, 0f));
 
         BuildSpeedLines();
+        camX = originX;
+        BestMultiplier = 1;
         UpdateCamera(0f);
         UpdateHud();
         PushToPhone(false);
-
-        // a reminder how to jump
-        string jumpHint = owner.isKeyboard ? Loc.F("hud.jumpKey", KeyName(owner.keyboardScheme)) : Loc.T("hud.jumpTap");
-        ShowToast(jumpHint, new Color(0.7f, 0.9f, 1f), 3f);
     }
 
     static string KeyName(int scheme)
@@ -170,7 +189,12 @@ public class PlayerWorld : MonoBehaviour
     {
         float dt = Time.deltaTime;
 
-        if (!Finished)
+        if (introTimer > 0f && !Finished)
+        {
+            introTimer -= dt;
+            if (introTimer <= 0f) OnStart();
+        }
+        else if (!Finished)
         {
             TickTime(dt);
             TickObstacleSpawner(dt);
@@ -178,6 +202,10 @@ public class PlayerWorld : MonoBehaviour
             distance += moveSpeed * dt;
             if (shieldTime > 0f) shieldTime -= dt;
             if (magnetTime > 0f) magnetTime -= dt;
+        }
+        else
+        {
+            finishTimer += dt;
         }
 
         UpdateHud();
@@ -194,6 +222,15 @@ public class PlayerWorld : MonoBehaviour
     void LateUpdate()
     {
         UpdateCamera(Time.deltaTime);
+    }
+
+    // The camera has flown around the hero: GO!
+    void OnStart()
+    {
+        goTimer = 0.9f;
+        Sfx.Play(SynthAudio.Go, 0.6f);
+        string jumpHint = Owner.isKeyboard ? Loc.F("hud.jumpKey", KeyName(Owner.keyboardScheme)) : Loc.T("hud.jumpTap");
+        ShowToast(jumpHint, new Color(0.7f, 0.9f, 1f), 3f);
     }
 
     // ================= time and score =================
@@ -236,7 +273,9 @@ public class PlayerWorld : MonoBehaviour
         if (Finished) return;
         int before = Multiplier;
         comboCoins += gem ? 3 : 1;
+        CoinsCollected++;
         int mult = Multiplier;
+        if (mult > BestMultiplier) BestMultiplier = mult;
         int gained = Mathf.RoundToInt(baseAmount * Character.coinMult * mult);
         coinScore += gained;
 
@@ -254,9 +293,17 @@ public class PlayerWorld : MonoBehaviour
         if (Finished) return;
         float added = timeExtension + Character.checkpointBonus;
         TimeLeft += added;
-        ShowToast(Loc.F("hud.checkpoint", Mathf.RoundToInt(added)), new Color(0.5f, 1f, 0.6f));
+
+        // the next zone begins right behind the arch
+        string text = Loc.F("hud.checkpoint", Mathf.RoundToInt(added));
+        if (pendingZones.Count > 0) text += "\n<size=30>" + Loc.T("zone." + pendingZones.Dequeue()) + "</size>";
+        ShowToast(text, new Color(0.5f, 1f, 0.6f), 2.2f);
         Sfx.Play(SynthAudio.Checkpoint, 0.6f);
         obstacleSpawnTime = Mathf.Max(MinObstacleSpawnTime, obstacleSpawnTime - obstacleDecrease);
+
+        // a little faster after every checkpoint (quietly, without "SPEED UP!")
+        SetSpeed(moveSpeed + CheckpointSpeedUp);
+        trauma = Mathf.Max(trauma, 0.25f);
     }
 
     public void ActivatePowerUp(PowerUpType type)
@@ -294,7 +341,15 @@ public class PlayerWorld : MonoBehaviour
     {
         comboCoins = 0;
         Shake(0.6f);
+        punch = 1f;
+        flashAlpha = 0.5f;
         NotifyHit();
+    }
+
+    // Called by PlayerAvatar: the camera follows the jump and dips a little on landing.
+    public void OnLanded()
+    {
+        dip = 0.18f;
     }
 
     // ================= speed (apples and hits) =================
@@ -304,14 +359,27 @@ public class PlayerWorld : MonoBehaviour
         if (Finished) return;
         if (amount < 0f) amount *= Character.hitSlowMult;
 
-        float newSpeed = Mathf.Clamp(moveSpeed + amount, MinMoveSpeed, MaxMoveSpeed);
-        if (Mathf.Approximately(newSpeed, moveSpeed)) return;
+        float before = moveSpeed;
+        if (!SetSpeed(moveSpeed + amount)) return;
 
-        moveSpeed = newSpeed;
-        if (amount > 0f) ShowToast(Loc.T("hud.speedUp"), new Color(1f, 0.9f, 0.3f));
+        if (moveSpeed > before)
+        {
+            ShowToast(Loc.T("hud.speedUp"), new Color(1f, 0.9f, 0.3f));
+            fovKick = 1f;
+        }
         else ShowToast(Loc.T("hud.hit"), new Color(1f, 0.45f, 0.4f));
+    }
+
+    // The road speed, the "gravity" of the obstacles and the field of view change together.
+    bool SetSpeed(float newSpeed)
+    {
+        newSpeed = Mathf.Clamp(newSpeed, MinMoveSpeed, MaxMoveSpeed);
+        float amount = newSpeed - moveSpeed;
+        if (Mathf.Approximately(amount, 0f)) return false;
+        moveSpeed = newSpeed;
         gravityZ = Mathf.Clamp(gravityZ - amount, MinGravityZ, MaxGravityZ);
         targetFov = Mathf.Clamp(targetFov + amount * FovPerSpeed, MinFov, MaxFov);
+        return true;
     }
 
     public void NotifyHit()
@@ -343,9 +411,24 @@ public class PlayerWorld : MonoBehaviour
 
     GameObject ChooseChunkPrefab()
     {
+        GameObject[][] zones = assets.biomeChunks;
+        bool hasZones = zones != null && zones.Length > 0;
+
         if (chunkIndex % CheckpointChunkInterval == 0 && chunkIndex != 0 && assets.checkpointChunkPrefab != null)
-            return assets.checkpointChunkPrefab;
-        return assets.chunkPrefabs[Random.Range(0, assets.chunkPrefabs.Length)];
+        {
+            GameObject cp = assets.biomeCheckpoints != null && biome < assets.biomeCheckpoints.Length && assets.biomeCheckpoints[biome] != null
+                ? assets.biomeCheckpoints[biome]
+                : assets.checkpointChunkPrefab;
+            if (hasZones)
+            {
+                biome = (biome + 1) % zones.Length;     // after the arch the road enters the next zone
+                pendingZones.Enqueue(biome);
+            }
+            return cp;
+        }
+
+        GameObject[] set = hasZones && zones[biome] != null && zones[biome].Length > 0 ? zones[biome] : assets.chunkPrefabs;
+        return set[Random.Range(0, set.Length)];
     }
 
     void MoveChunks(float dt)
@@ -381,44 +464,90 @@ public class PlayerWorld : MonoBehaviour
 
     // ================= camera =================
 
+    // Camera shake uses "trauma": every impact adds some, it decays by itself,
+    // and the shake strength is trauma squared - small knocks are subtle, big ones are strong.
     public void Shake(float intensity)
     {
-        shakeAmplitude = Mathf.Max(shakeAmplitude, Mathf.Clamp01(intensity) * 0.35f);
-        shakeTimeLeft = 0.5f;
+        trauma = Mathf.Clamp01(trauma + Mathf.Clamp01(intensity) * 0.7f);
     }
 
     void UpdateCamera(float dt)
     {
         if (Cam == null || avatar == null) return;
+        float t = Time.time;
 
         // A narrow strip of the screen sees less road, so for 2-3 players we move the camera back and up.
         float aspect = Mathf.Max(0.3f, Cam.aspect);
         float tanHalfV = Mathf.Tan(BaseFov * 0.5f * Mathf.Deg2Rad);
         float back = Mathf.Clamp(4.6f / (tanHalfV * aspect), 3.8f, 11f);
         float height = 2.25f + (back - 3.8f) * 0.5f;
+        float speed01 = Mathf.Clamp01((moveSpeed - 6f) / 14f);
+        back += speed01 * 0.9f;                 // a little further back at high speed
 
-        float avatarX = avatar.transform.position.x;
-        float camX = originX + (avatarX - originX) * 0.6f;
+        Vector3 hero = avatar.transform.position;
 
-        // the camera rises a little with a jump (smoothly, so it does not jerk)
-        camHeightFollow = Mathf.Lerp(camHeightFollow, avatar.Height * 0.4f, 1f - Mathf.Exp(-8f * dt));
-        Vector3 pos = new Vector3(camX, height + camHeightFollow, -back);
-        Vector3 look = new Vector3(camX, 0.8f + camHeightFollow * 0.5f, 0.5f);
-
-        if (shakeTimeLeft > 0f)
+        // ---- gameplay camera: smooth follow, lean into turns, look ahead ----
+        if (dt > 0f)
         {
-            shakeTimeLeft -= dt;
-            float k = Mathf.Clamp01(shakeTimeLeft / 0.5f);
-            pos += Random.insideUnitSphere * (shakeAmplitude * k);
-            if (shakeTimeLeft <= 0f) shakeAmplitude = 0f;
+            float targetX = originX + (hero.x - originX) * 0.65f;
+            camX = Mathf.SmoothDamp(camX, targetX, ref camXVelocity, 0.12f, Mathf.Infinity, dt);
+            camRoll = Mathf.Lerp(camRoll, Mathf.Clamp(-camXVelocity * 1.4f, -5f, 5f), 1f - Mathf.Exp(-6f * dt));
+            camHeightFollow = Mathf.Lerp(camHeightFollow, avatar.Height * 0.45f, 1f - Mathf.Exp(-8f * dt));
+            dip = Mathf.MoveTowards(dip, 0f, dt * 0.9f);
+            punch = Mathf.MoveTowards(punch, 0f, dt * 4f);
+            fovKick = Mathf.MoveTowards(fovKick, 0f, dt * 1.5f);
+            trauma = Mathf.MoveTowards(trauma, 0f, dt * 1.4f);
+        }
+
+        Vector3 gPos = new Vector3(camX, height + camHeightFollow - dip - punch * 0.15f, -back + punch * 0.5f);
+        Vector3 gLook = new Vector3(Mathf.Lerp(camX, hero.x, 0.35f), 0.8f + camHeightFollow * 0.5f, 0.5f + speed01 * 2f);
+        Quaternion gRot = Quaternion.LookRotation(gLook - gPos) * Quaternion.Euler(0f, 0f, camRoll);
+
+        Vector3 pos = gPos;
+        Quaternion rot = gRot;
+
+        // ---- intro: the camera flies around from the hero's face to behind the back ----
+        if (introTimer > 0f && !Finished)
+        {
+            float k = Mathf.SmoothStep(0f, 1f, 1f - introTimer / IntroDuration);
+            Vector3 oPos; Quaternion oRot;
+            Orbit(hero, Mathf.PI * (1f - k) * (Index % 2 == 0 ? 1f : -1f), 4.2f, out oPos, out oRot);
+            pos = Vector3.Lerp(oPos, gPos, k * k);
+            rot = Quaternion.Slerp(oRot, gRot, k * k);
+        }
+        // ---- finish: a slow orbit to the tired hero's face ----
+        else if (Finished)
+        {
+            float w = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(finishTimer / 1.2f));
+            Vector3 oPos; Quaternion oRot;
+            Orbit(hero, Mathf.Min(Mathf.PI * 0.8f, finishTimer * 0.9f), 4.6f, out oPos, out oRot);
+            pos = Vector3.Lerp(gPos, oPos, w);
+            rot = Quaternion.Slerp(gRot, oRot, w);
+        }
+
+        // ---- shake: smooth Perlin noise instead of random jumps ----
+        float shake = trauma * trauma;
+        if (shake > 0.0001f)
+        {
+            float seed = Index * 31.7f;
+            pos += new Vector3(Mathf.PerlinNoise(seed, t * 22f) - 0.5f, Mathf.PerlinNoise(seed + 5f, t * 22f) - 0.5f, 0f) * (shake * 0.9f);
+            rot *= Quaternion.Euler(0f, 0f, (Mathf.PerlinNoise(seed + 9f, t * 18f) - 0.5f) * shake * 10f);
         }
 
         Cam.transform.position = pos;
-        Cam.transform.rotation = Quaternion.LookRotation(look - pos);
+        Cam.transform.rotation = rot;
 
-        // smooth field-of-view change when speeding up / slowing down
+        // smooth field-of-view change when speeding up / slowing down (+ a short "kick" on an apple)
         currentFov = Mathf.Lerp(currentFov, targetFov, 1f - Mathf.Exp(-3f * dt));
-        Cam.fieldOfView = currentFov;
+        Cam.fieldOfView = Mathf.Clamp(currentFov + fovKick * 9f, MinFov, MaxFov);
+    }
+
+    // A point on a circle around the hero (angle 0 = behind, PI = in front) looking at the chest.
+    void Orbit(Vector3 hero, float angle, float distance, out Vector3 pos, out Quaternion rot)
+    {
+        Vector3 target = hero + Vector3.up * 1.2f;
+        pos = target + new Vector3(Mathf.Sin(angle) * distance, 0.6f, -Mathf.Cos(angle) * distance);
+        rot = Quaternion.LookRotation(target - pos);
     }
 
     // Thin glowing streaks that rush past the camera at high speed.
@@ -512,7 +641,23 @@ public class PlayerWorld : MonoBehaviour
         if (!Finished && TimeLeft < 8f) c.a = 0.6f + 0.4f * Mathf.Abs(Mathf.Sin(Time.time * 6f));
         hud.timeFillImage.color = c;
 
-        hud.big.text = Finished ? Loc.F("hud.timeUp", Score) : "";
+        if (Finished) hud.big.text = Loc.F("hud.timeUp", Score);
+        else if (goTimer > 0f)
+        {
+            goTimer -= Time.deltaTime;
+            hud.big.text = "<color=#ffd54f>" + Loc.T("hud.go") + "</color>";
+            hud.big.transform.localScale = Vector3.one * (1f + 0.6f * Mathf.Clamp01(goTimer - 0.5f));
+            if (goTimer <= 0f) { hud.big.text = ""; hud.big.transform.localScale = Vector3.one; }
+        }
+        else hud.big.text = "";
+
+        // a red flash along the screen on a hit
+        flashAlpha = Mathf.MoveTowards(flashAlpha, 0f, Time.deltaTime * 1.6f);
+        if (hud.flash != null)
+        {
+            hud.flash.color = new Color(1f, 0.1f, 0.1f, flashAlpha);
+            hud.flash.enabled = flashAlpha > 0.001f;
+        }
 
         // the pop-up text fades out smoothly
         if (toastTimeLeft > 0f)

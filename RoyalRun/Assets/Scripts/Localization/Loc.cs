@@ -235,6 +235,12 @@ public static class Loc
         Add("hud.checkpoint", "ЧЕКПОИНТ  +{0} с", "CHECKPOINT  +{0} s", "NAZORAT NUQTASI  +{0} s");
         Add("hud.speedUp", "УСКОРЕНИЕ!", "SPEED UP!", "TEZLASHISH!");
         Add("hud.hit", "УДАР!", "HIT!", "ZARBA!");
+        Add("hud.go", "ВПЕРЁД!", "GO!", "OLG‘A!");
+        Add("hud.coins", "монет: {0}", "coins: {0}", "tanga: {0}");
+        Add("hud.bestCombo", "комбо x{0}", "combo x{0}", "kombo x{0}");
+        Add("zone.0", "ЗЕЛЁНЫЕ ЛУГА", "GREEN MEADOWS", "YASHIL O‘TLOQLAR");
+        Add("zone.1", "ОСЕННИЙ ЛЕС", "AUTUMN FOREST", "KUZGI O‘RMON");
+        Add("zone.2", "ЗИМНИЕ ГОРЫ", "WINTER PEAKS", "QISHKI TOG‘LAR");
         Add("hud.distance", "{0} м", "{0} m", "{0} m");
         Add("hud.combo", "КОМБО x{0}!", "COMBO x{0}!", "KOMBO x{0}!");
         Add("hud.comboShort", "x{0}", "x{0}", "x{0}");

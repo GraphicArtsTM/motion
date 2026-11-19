@@ -12,6 +12,8 @@ public class Chunk : MonoBehaviour
     [SerializeField] GameObject tallFencePrefab;
     [SerializeField] GameObject gemPrefab;
     [SerializeField] GameObject[] powerUpPrefabs;
+    [Tooltip("A hazard that drives across the road (LaneMover).")]
+    [SerializeField] GameObject moverPrefab;
 
     [SerializeField] float appleSpawnChance = .3f;
     [SerializeField] float coinSpawnChance = .5f;
@@ -19,6 +21,8 @@ public class Chunk : MonoBehaviour
     [SerializeField] float tallFenceChance = .3f;
     [SerializeField] float gemChance = .15f;
     [SerializeField] float powerUpChance = .08f;
+    [SerializeField] float coinArcChance = .45f;
+    [SerializeField] float moverChance = .12f;
 
     // Lanes are measured from the centre of THIS chunk's road (each player has their own road at their own X).
     [SerializeField] float[] lanes = { -2.5f, 0f, 2.5f };
@@ -41,6 +45,11 @@ public class Chunk : MonoBehaviour
         powerUpPrefabs = powerUps;
     }
 
+    public void ConfigureMover(GameObject mover)
+    {
+        moverPrefab = mover;
+    }
+
     // The pieces around the start get no fences, so nothing hits the player in the first second.
     public void MakeSafe()
     {
@@ -54,6 +63,7 @@ public class Chunk : MonoBehaviour
             SpawnFences();
             SpawnApple();
             SpawnPowerUp();
+            SpawnMover();
         }
         SpawnCoins();
     }
@@ -73,9 +83,35 @@ public class Chunk : MonoBehaviour
             if (availableLanes.Count <= 0) break;
 
             int selectedLane = SelectLane();
-            GameObject prefab = (tallFencePrefab != null && Random.value < tallFenceChance) ? tallFencePrefab : fencePrefab;
+            bool tall = tallFencePrefab != null && Random.value < tallFenceChance;
+            GameObject prefab = tall ? tallFencePrefab : fencePrefab;
             Instantiate(prefab, LanePosition(selectedLane, transform.position.z), Quaternion.identity, this.transform);
+
+            // a low fence sometimes has an arc of coins over it - you only get them by jumping
+            if (!tall && coinPrefab != null && Random.value < coinArcChance) SpawnCoinArc(selectedLane);
         }
+    }
+
+    void SpawnCoinArc(int lane)
+    {
+        const int count = 5;
+        for (int i = 0; i < count; i++)
+        {
+            float t = i / (float)(count - 1);          // 0..1 along the arc
+            float dz = Mathf.Lerp(-2.6f, 2.6f, t);
+            float h = 1.5f * (1f - (2f * t - 1f) * (2f * t - 1f));
+            Vector3 p = LanePosition(lane, transform.position.z + dz);
+            p.y += 0.2f + h;
+            Instantiate(coinPrefab, p, Quaternion.identity, this.transform);
+        }
+    }
+
+    void SpawnMover()
+    {
+        if (moverPrefab == null || Random.value > moverChance) return;
+        // it drives across all lanes in the middle of the piece, away from the fences at its start
+        Vector3 p = new Vector3(transform.position.x, transform.position.y, transform.position.z + 6.5f);
+        Instantiate(moverPrefab, p, Quaternion.identity, this.transform);
     }
 
     void SpawnApple()

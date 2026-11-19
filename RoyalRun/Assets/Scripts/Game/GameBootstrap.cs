@@ -562,11 +562,7 @@ public class GameBootstrap : MonoBehaviour
         float frac = countdownLeft - Mathf.Floor(countdownLeft);
         countText.transform.localScale = Vector3.one * (1f + 0.5f * frac);
 
-        if (countdownLeft <= 0f)
-        {
-            Sfx.Play(SynthAudio.Go, 0.7f);
-            StartGame();
-        }
+        if (countdownLeft <= 0f) StartGame();   // "GO!" sounds when the camera has flown around the hero
     }
 
     void UpdatePlaying()
@@ -577,7 +573,7 @@ public class GameBootstrap : MonoBehaviour
         if (!allDone) { finishDelay = 0f; return; }
 
         finishDelay += Time.deltaTime;
-        if (finishDelay >= 2.5f) ShowResults();
+        if (finishDelay >= 3f) ShowResults();   // time for the camera to fly around the tired hero
     }
 
     void UpdateResults()
@@ -874,7 +870,10 @@ public class GameBootstrap : MonoBehaviour
             GameUI.CreateText("Rank", row.transform, new Vector2(0.02f, 0f), new Vector2(0.17f, 1f),
                               (i + 1).ToString(), 64, medal[Mathf.Min(i, 2)], TextAnchor.MiddleCenter);
             GameUI.CreateText("Name", row.transform, new Vector2(0.18f, 0f), new Vector2(0.68f, 1f),
-                              w.Owner.name + "\n<size=26>" + w.Character.Name + "  ·  " + Loc.F("hud.distance", w.Distance) + "</size>", 42, Color.white, TextAnchor.MiddleLeft);
+                              w.Owner.name + "\n<size=24>" + w.Character.Name + "  ·  " + Loc.F("hud.distance", w.Distance)
+                              + "  ·  " + Loc.F("hud.coins", w.CoinsCollected)
+                              + (w.BestMultiplier > 1 ? "  ·  " + Loc.F("hud.bestCombo", w.BestMultiplier) : "") + "</size>",
+                              42, Color.white, TextAnchor.MiddleLeft);
             GameUI.CreateText("Score", row.transform, new Vector2(0.66f, 0f), new Vector2(0.97f, 1f),
                               w.Score.ToString(), 56, GameUI.Gold, TextAnchor.MiddleRight);
         }
@@ -1131,6 +1130,11 @@ public class GameBootstrap : MonoBehaviour
     void LayoutStage()
     {
         float t = Time.time;
+
+        // the stage camera drifts slowly: the hall behind moves (parallax), while the heroes stay in place
+        // because they are positioned relative to the camera's view below
+        lobbyCam.transform.localPosition = new Vector3(Mathf.Sin(t * 0.23f) * 0.35f, 1.7f + Mathf.Sin(t * 0.31f) * 0.12f, -8f);
+        lobbyCam.transform.localRotation = Quaternion.Euler(Mathf.Sin(t * 0.19f) * 0.6f, -Mathf.Sin(t * 0.23f) * 1.2f, 0f);
 
         if (phase == Phase.Menu || phase == Phase.SingleSelect)
         {

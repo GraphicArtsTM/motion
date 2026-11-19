@@ -30,7 +30,7 @@ public class PlayerAvatar : MonoBehaviour
     float jumpBufferTimer;
     float lateral;             // smoothed sideways input, for leaning
 
-    Transform shieldFx, magnetFx;
+    Transform shieldFx, magnetFx, blobShadow;
 
     static readonly int HitTrigger = Animator.StringToHash("Hit");
 
@@ -111,6 +111,15 @@ public class PlayerAvatar : MonoBehaviour
                         new Vector3(0.12f, 0.04f, 0.2f), new Color(1f, 0.82f, 0.3f), false, new Vector3(0f, a * Mathf.Rad2Deg, 0f), 0.8f, 1.2f);
         }
         magnetFx.gameObject.SetActive(false);
+
+        // a soft dark spot under the feet: it stays on the ground and shrinks during a jump,
+        // so it is easy to see where the hero will land
+        GameObject blob = MatLib.Prim(PrimitiveType.Cylinder, "Blob Shadow", transform, new Vector3(0f, 0.012f, 0f),
+                                      new Vector3(0.85f, 0.004f, 0.75f), new Color(0.06f, 0.04f, 0.1f), false, default(Vector3), 0f);
+        Renderer br = blob.GetComponent<Renderer>();
+        br.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        br.receiveShadows = false;
+        blobShadow = blob.transform;
     }
 
     void Update()
@@ -119,7 +128,7 @@ public class PlayerAvatar : MonoBehaviour
         cooldownTimer += dt;
         if (jumpBufferTimer > 0f) jumpBufferTimer -= dt;
 
-        if (!world.Finished && dt > 0f)
+        if (world.Running && dt > 0f)
         {
             if (input.isKeyboard && GameInput.JumpPressed(input.keyboardScheme)) jumpBufferTimer = JumpBuffer;
             if (input.jumpQueued) { input.jumpQueued = false; jumpBufferTimer = JumpBuffer; }
@@ -129,12 +138,13 @@ public class PlayerAvatar : MonoBehaviour
             input.jumpQueued = false;
         }
 
-        Vector2 move = world.Finished ? Vector2.zero : ReadInput();
+        Vector2 move = world.Running ? ReadInput() : Vector2.zero;
         lateral = Mathf.Lerp(lateral, move.x, 1f - Mathf.Exp(-10f * dt));
 
         if (rig != null)
         {
-            rig.running = !world.Finished;
+            rig.running = world.Running;
+            rig.defeated = world.Finished;
             rig.runSpeed = world.MoveSpeed / 6f;
             rig.lateral = lateral;
             rig.airborne = !grounded;
@@ -154,16 +164,24 @@ public class PlayerAvatar : MonoBehaviour
         bool magnet = world.MagnetActive;
         if (magnetFx.gameObject.activeSelf != magnet) magnetFx.gameObject.SetActive(magnet);
         if (magnet) magnetFx.Rotate(0f, -240f * dt, 0f, Space.Self);
+
+        // the shadow stays on the road (the hero's root moves up during a jump)
+        float s = transform.localScale.y;
+        float k = Mathf.Clamp01(1f - height / 2.2f);
+        blobShadow.localPosition = new Vector3(0f, (0.012f - height) / s, 0f);
+        blobShadow.localScale = new Vector3(0.85f * (0.55f + 0.45f * k), 0.004f, 0.75f * (0.55f + 0.45f * k));
     }
 
     void FixedUpdate()
     {
-        if (world.Finished) return;
         float dt = Time.fixedDeltaTime;
 
-        Vector2 move = ReadInput();
+        // when the road is not moving (intro, time is up) the hero does not run,
+        // but a jump in progress still lands - nobody stays hanging in the air
+        Vector2 move = world.Running ? ReadInput() : Vector2.zero;
         Vector3 current = body.position;
         Vector3 next = current + new Vector3(move.x, 0f, move.y) * (moveSpeed * dt);
+        if (!world.Running) jumpBufferTimer = 0f;
 
         next.x = Mathf.Clamp(next.x, originX - XClamp, originX + XClamp);
         next.z = Mathf.Clamp(next.z, -ZClamp, ZClamp);
@@ -186,6 +204,7 @@ public class PlayerAvatar : MonoBehaviour
                 verticalVelocity = 0f;
                 grounded = true;
                 if (rig != null) rig.Land();
+                world.OnLanded();
                 Sfx.Play(SynthAudio.Land, 0.35f);
             }
         }

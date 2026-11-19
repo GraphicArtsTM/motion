@@ -22,6 +22,11 @@ public class GameAssets : MonoBehaviour
     [Header("Audio")]
     public AudioClip music;
 
+    // Filled by ProceduralAssets: road pieces for every zone (meadows, autumn forest, winter peaks).
+    // Empty when you use your own chunk prefabs - then chunkPrefabs are used everywhere.
+    [System.NonSerialized] public GameObject[][] biomeChunks;
+    [System.NonSerialized] public GameObject[] biomeCheckpoints;
+
     bool prepared;
 
     // Fills the empty fields with templates built from code.

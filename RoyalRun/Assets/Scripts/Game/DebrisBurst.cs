@@ -1,31 +1,47 @@
 using UnityEngine;
 
-// A small "dust and splinters" effect made of a few tiny cubes that fly apart and shrink.
-// Used by Rock when no ParticleSystem is assigned.
+// A small burst made of a few tiny cubes that fly apart and shrink.
+//   Spawn(...)   - dust and splinters when an obstacle hits something (falls with gravity);
+//   Sparkle(...) - glittering sparks when a coin, gem or power-up is picked up (float up and spin).
 public class DebrisBurst : MonoBehaviour
 {
-    const int Pieces = 7;
-    const float Life = 0.6f;
-
     Transform[] parts;
     Vector3[] velocities;
+    float life;
+    float gravityScale;
+    float size;
     float age;
 
     public static void Spawn(Vector3 position, Color color, Transform parent)
     {
-        GameObject go = new GameObject("Debris");
+        Create(position, color, parent, 7, 0.6f, 1f, 0.14f, 3f, 2f, 0f);
+    }
+
+    public static void Sparkle(Vector3 position, Color color, Transform parent, int pieces = 8)
+    {
+        Create(position, color, parent, pieces, 0.45f, -0.15f, 0.12f, 2.6f, 1.2f, 1.6f);
+    }
+
+    static void Create(Vector3 position, Color color, Transform parent, int pieces, float life,
+                       float gravityScale, float size, float spread, float up, float emission)
+    {
+        GameObject go = new GameObject("Burst");
         go.transform.SetParent(parent, true);
         go.transform.position = position;
         DebrisBurst d = go.AddComponent<DebrisBurst>();
-        d.parts = new Transform[Pieces];
-        d.velocities = new Vector3[Pieces];
-        for (int i = 0; i < Pieces; i++)
+        d.life = life;
+        d.gravityScale = gravityScale;
+        d.size = size;
+        d.parts = new Transform[pieces];
+        d.velocities = new Vector3[pieces];
+        for (int i = 0; i < pieces; i++)
         {
             GameObject p = MatLib.Prim(PrimitiveType.Cube, "Piece", go.transform, Vector3.zero,
-                                       Vector3.one * Random.Range(0.08f, 0.18f), color, false, Random.rotation.eulerAngles);
+                                       Vector3.one * size, color, false, Random.rotation.eulerAngles, 0.6f, emission);
+            p.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             d.parts[i] = p.transform;
-            Vector3 v = Random.insideUnitSphere * 3f;
-            v.y = Mathf.Abs(v.y) + 2f;
+            Vector3 v = Random.insideUnitSphere * spread;
+            v.y = Mathf.Abs(v.y) + up;
             d.velocities[i] = v;
         }
     }
@@ -34,13 +50,15 @@ public class DebrisBurst : MonoBehaviour
     {
         float dt = Time.deltaTime;
         age += dt;
-        float k = 1f - Mathf.Clamp01(age / Life);
+        float k = 1f - Mathf.Clamp01(age / life);
         for (int i = 0; i < parts.Length; i++)
         {
-            velocities[i] += Physics.gravity * dt;
+            velocities[i] += Physics.gravity * (gravityScale * dt);
+            velocities[i] *= 1f - 2f * dt;        // a little air drag
             parts[i].localPosition += velocities[i] * dt;
-            parts[i].localScale = Vector3.one * 0.14f * k;
+            parts[i].localScale = Vector3.one * size * k;
+            parts[i].Rotate(400f * dt, 300f * dt, 0f, Space.Self);
         }
-        if (age >= Life) Destroy(gameObject);
+        if (age >= life) Destroy(gameObject);
     }
 }

@@ -19,6 +19,7 @@ public class ColumnHud
     public Text combo;       // "x3"
     public Text status;      // active power-ups
     public Text distance;    // metres run
+    public Image flash;      // a red flash over the whole strip on a hit
 }
 
 // A menu button. Works with mouse and keyboard, without an EventSystem.
@@ -301,6 +302,12 @@ public static class GameUI
 
         ColumnHud hud = new ColumnHud();
         hud.root = CreateRect("HUD " + (index + 1), cgo.transform, Vector2.zero, Vector2.one);
+
+        RectTransform flash = CreateRect("Hit Flash", hud.root, Vector2.zero, Vector2.one);
+        hud.flash = flash.gameObject.AddComponent<Image>();
+        hud.flash.color = new Color(1f, 0.1f, 0.1f, 0f);
+        hud.flash.raycastTarget = false;
+        hud.flash.enabled = false;
 
         // black divider strip between screens
         if (index > 0)
