@@ -36,6 +36,21 @@ public static class MatLib
         }
     }
 
+    // What each material was made from (the phone version re-packs simple materials into one palette material).
+    public struct Info
+    {
+        public Color color;
+        public float smoothness, emission;
+        public Surface surface;
+    }
+    static readonly Dictionary<Material, Info> infos = new Dictionary<Material, Info>();
+
+    public static bool TryInfo(Material m, out Info info)
+    {
+        if (m == null) { info = default(Info); return false; }
+        return infos.TryGetValue(m, out info);
+    }
+
     // A material of the given colour. Identical requests return the same material (it is shared).
     public static Material Get(Color color, float smoothness = 0.15f, float emission = 0f)
     {
@@ -82,6 +97,7 @@ public static class MatLib
             m.SetColor(EmissionId, color * emission);
         }
         cache[key] = m;
+        infos[m] = new Info { color = color, smoothness = sm, emission = emission, surface = surface };
         return m;
     }
 

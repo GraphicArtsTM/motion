@@ -129,6 +129,16 @@ public partial class GameBootstrap : MonoBehaviour
             ProceduralAssets.Lite = true;
             PlayerWorld.Lite = true;
             TextureLib.Lite = true;
+            MeshBaker.Palette = true;       // plain-coloured shapes share 3 palette materials: far fewer draw calls
+
+            // modern phones have 2400 x 1080 screens and more: render at most 1600 px on the long side
+            // (the picture is still sharp, the graphics chip draws about half as many pixels)
+            int longSide = Mathf.Max(Screen.width, Screen.height);
+            if (longSide > 1600)
+            {
+                float k = 1600f / longSide;
+                Screen.SetResolution(Mathf.RoundToInt(Screen.width * k), Mathf.RoundToInt(Screen.height * k), FullScreenMode.FullScreenWindow);
+            }
         }
         rules = (GameRules)Mathf.Clamp(PlayerPrefs.GetInt(ModeKey, 0), 0, 1);
         lastPortrait = GameUI.Portrait;

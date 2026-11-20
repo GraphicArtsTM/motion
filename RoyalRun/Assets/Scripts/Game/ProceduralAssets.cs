@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 // Builds every game "prefab" from code: road pieces (chunks), the checkpoint, fences and walls, coins, gems,
 // apples, power-ups, falling obstacles and the heroes. The guide used imported assets (the King model, GDTV prefabs);
@@ -253,6 +254,8 @@ public static class ProceduralAssets
         root.transform.SetParent(parent, false);
         Transform t = root.transform;
         System.Random rnd = new System.Random(style.seed);
+        TerrainSeed(rnd);
+        tPond = style.bridge;
 
         // the floor: top surface at y = 0, the piece "grows" forward from z = 0 to z = 10
         // cobblestones: a whole number of texture repeats per piece, so there is no seam between pieces
@@ -285,9 +288,11 @@ public static class ProceduralAssets
             if (style.bridge && !open)
             {
                 AddWater(t, side);
+                AddTerrain(t, side);
                 continue;
             }
-            Box("Grass", t, new Vector3(side * grassX, grassY, len * 0.5f), new Vector3(22f, 0.2f, len), B.grass);
+            if (open) Box("Grass", t, new Vector3(side * grassX, grassY, len * 0.5f), new Vector3(22f, 0.2f, len), B.grass);
+            else AddTerrain(t, side);
             Box("Verge", t, new Vector3(side * (RoadWidth * 0.5f + 0.75f), -0.04f, len * 0.5f), new Vector3(0.8f, 0.1f, len), B.ground);
         }
 
@@ -302,41 +307,69 @@ public static class ProceduralAssets
         if (style.windmill && openSide == 0) AddWindmill(t, -houseSide);
         if (style.bridge) return root;    // a lake on both sides: no trees
 
-        // trees, bushes, rocks and flowers - each template has its own layout
+        // trees, bushes, rocks and flowers on the slopes of the valley - each template has its own layout
         for (int side = -1; side <= 1; side += 2)
         {
             if (side == openSide) continue;
-            int count = Lite ? 1 : 1 + rnd.Next(3);
-            if (style.village && side == houseSide) count = 0;     // the cottage stands there
+            int count = Lite ? 2 : 3 + rnd.Next(3);
+            if (style.village && side == houseSide) count = 1;     // the cottage stands there
             if (style.windmill && side == -houseSide) count = Mathf.Min(count, 1);
             for (int i = 0; i < count; i++)
             {
-                float x = side * (7.5f + (float)rnd.NextDouble() * 10f);
+                float x = side * (7.5f + (float)rnd.NextDouble() * 22f);
+                if (style.village && side == houseSide) x = side * (16f + (float)rnd.NextDouble() * 12f);
                 float z = 1f + (float)rnd.NextDouble() * 8f;
-                int kind = rnd.Next(4);
+                int kind = rnd.Next(5);
                 float v = (float)rnd.NextDouble();
-                if (kind == 0) AddBush(t, new Vector3(x, 0f, z), v);
-                else if (kind == 1) AddPine(t, new Vector3(x, 0f, z), v);
-                else AddTree(t, new Vector3(x, 0f, z), v);
+                Vector3 p = OnGround(x, z);
+                if (kind == 0) AddBush(t, p, v);
+                else if (kind <= 2) AddPine(t, p, v);
+                else AddTree(t, p, v);
+            }
+            // a forest higher up the slope, so the valley never looks empty
+            int forest = Lite ? 2 : 5;
+            for (int i = 0; i < forest; i++)
+            {
+                float x = side * (32f + (float)rnd.NextDouble() * 34f);
+                float z = 0.8f + (float)rnd.NextDouble() * 8.4f;
+                float v = (float)rnd.NextDouble();
+                if (rnd.Next(3) == 0 && !B.snow) AddTree(t, OnGround(x, z), 0.6f + v);
+                else AddPine(t, OnGround(x, z), 0.8f + v);
             }
             if (rnd.Next(2) == 0)
-                AddRock(t, new Vector3(side * (6.3f + (float)rnd.NextDouble() * 3f), 0f, 1f + (float)rnd.NextDouble() * 8f), (float)rnd.NextDouble());
-            for (int i = 0; i < (Lite ? 3 : 6); i++)
             {
-                Vector3 p = new Vector3(side * (5.6f + (float)rnd.NextDouble() * 6f), 0.06f, (float)rnd.NextDouble() * 10f);
-                Ball("Flower", t, p, Vector3.one * 0.14f, B.flowers[rnd.Next(B.flowers.Length)], 0.3f, 0.15f);
+                float x = side * (6.3f + (float)rnd.NextDouble() * 8f), z = 1f + (float)rnd.NextDouble() * 8f;
+                AddRock(t, OnGround(x, z), (float)rnd.NextDouble());
+            }
+            if (!Lite)
+            {
+                for (int i = 0; i < 6; i++)
+                {
+                    float x = side * (5.6f + (float)rnd.NextDouble() * 8f), z = (float)rnd.NextDouble() * 10f;
+                    Ball("Flower", t, OnGround(x, z) + Vector3.up * 0.06f, Vector3.one * 0.14f, B.flowers[rnd.Next(B.flowers.Length)], 0.3f, 0.15f);
+                }
+                // tufts of tall grass
+                Color blade = Color.Lerp(B.grassDark, B.grass, 0.3f);
+                for (int i = 0; i < 10; i++)
+                {
+                    float x = side * (5.4f + (float)rnd.NextDouble() * 10f), z = (float)rnd.NextDouble() * 10f;
+                    Vector3 p = OnGround(x, z);
+                    for (int k = 0; k < 3; k++)
+                        Box("Blade", t, p + new Vector3((k - 1) * 0.05f, 0.16f, 0f), new Vector3(0.035f, 0.34f, 0.012f), blade, false,
+                            new Vector3(0f, (float)rnd.NextDouble() * 180f, (k - 1) * 18f), 0.1f, 0f, Surface.Plain);
+                }
             }
             if (B.fallenLeaves)
-                for (int i = 0; i < 8; i++)
+                for (int i = 0; i < (Lite ? 3 : 8); i++)
                 {
-                    Vector3 p = new Vector3(side * (5.3f + (float)rnd.NextDouble() * 8f), 0.0f, (float)rnd.NextDouble() * 10f);
-                    Box("Fallen Leaf", t, p, new Vector3(0.22f, 0.02f, 0.14f), rnd.Next(2) == 0 ? B.leaves : B.leaves2, false, new Vector3(0f, (float)rnd.NextDouble() * 180f, 0f));
+                    float x = side * (5.3f + (float)rnd.NextDouble() * 10f), z = (float)rnd.NextDouble() * 10f;
+                    Box("Fallen Leaf", t, OnGround(x, z) + Vector3.up * 0.01f, new Vector3(0.22f, 0.02f, 0.14f), rnd.Next(2) == 0 ? B.leaves : B.leaves2, false, new Vector3(0f, (float)rnd.NextDouble() * 180f, 0f));
                 }
             if (B.snow)
-                for (int i = 0; i < 3; i++)
+                for (int i = 0; i < (Lite ? 1 : 3); i++)
                 {
-                    Vector3 p = new Vector3(side * (6f + (float)rnd.NextDouble() * 9f), 0.0f, (float)rnd.NextDouble() * 10f);
-                    Ball("Snowdrift", t, p, new Vector3(1.6f, 0.45f, 1.2f) * (0.7f + (float)rnd.NextDouble() * 0.6f), Color.white, 0.4f);
+                    float x = side * (6f + (float)rnd.NextDouble() * 14f), z = (float)rnd.NextDouble() * 10f;
+                    Ball("Snowdrift", t, OnGround(x, z), new Vector3(1.6f, 0.45f, 1.2f) * (0.7f + (float)rnd.NextDouble() * 0.6f), Color.white, 0.4f);
                 }
         }
 
@@ -385,7 +418,7 @@ public static class ProceduralAssets
     {
         Transform c = new GameObject("Castle").transform;
         c.SetParent(chunk, false);
-        c.localPosition = new Vector3(side * (21.5f + (float)rnd.NextDouble() * 3.5f), 0f, 5f);
+        c.localPosition = OnGround(side * (21.5f + (float)rnd.NextDouble() * 3.5f), 5f) + Vector3.down * 0.5f;
         float h = 7f + (float)rnd.NextDouble() * 4f;
         Cyl("Tower", c, new Vector3(0f, h * 0.5f, 0f), new Vector3(3.2f, h * 0.5f, 3.2f), StoneDark);
         for (int i = 0; i < 8; i++)
@@ -405,12 +438,97 @@ public static class ProceduralAssets
         Box("Wall", c, new Vector3(0f, 2.2f, -4f), new Vector3(1.6f, 4.4f, 6f), Stone);
     }
 
+    // ------------------------------------------------------------------
+    //  The land beside the road: knolls and meadows near it, then forested slopes
+    //  falling away into a wide valley 22 m below (the road runs along a ridge).
+    //  Falling ground never blocks the road after a corner: where the land of two
+    //  pieces overlaps, the higher one is simply seen, and both are low there.
+    // ------------------------------------------------------------------
+
+    public const float ValleyDepth = 22f;
+    static float tp1, tp2, tp3, tAmp;
+    static bool tPond;      // a pond under the causeway (bridge pieces)
+
+    static void TerrainSeed(System.Random rnd)
+    {
+        tp1 = (float)rnd.NextDouble() * 6.28f;
+        tp2 = (float)rnd.NextDouble() * 6.28f;
+        tp3 = (float)rnd.NextDouble() * 6.28f;
+        tAmp = 0.7f + (float)rnd.NextDouble() * 1.3f;
+    }
+
+    // The height of the ground beside the road. At the ends of a piece (z = 0 and z = 10) it depends only on
+    // the distance from the road, so every piece fits every other piece without a step.
+    public static float Ground(float x, float z)
+    {
+        float ax = Mathf.Abs(x);
+        float fall = Mathf.Clamp01((ax - 26f) / 48f);
+        float slope = -ValleyDepth * fall * fall * (3f - 2f * fall);
+        float near = Mathf.Clamp01((ax - 7.5f) / 8f);
+        float bumps = (Mathf.Sin(x * 0.33f + tp1) * Mathf.Sin(z * 0.55f + tp2) + 0.6f * Mathf.Sin(x * 0.85f + tp3) + 0.35f) * tAmp * near;
+        float edge = Mathf.Sin(Mathf.PI * Mathf.Clamp01(z / ChunkLength));
+        if (tPond) bumps = -3f * Mathf.Clamp01((ax - 5f) / 2f) * (1f - Mathf.Clamp01((ax - 20f) / 5f));
+        return slope + bumps * edge;
+    }
+
+    static Vector3 OnGround(float x, float z)
+    {
+        return new Vector3(x, Ground(x, z), z);
+    }
+
+    static void AddTerrain(Transform chunk, int side)
+    {
+        float[] xs = Lite ? new[] { 4.86f, 7f, 10f, 14f, 20f, 30f, 45f, 62f, 80f }
+                          : new[] { 4.86f, 6f, 7.5f, 9f, 11f, 13f, 16f, 20f, 25f, 31f, 38f, 46f, 56f, 68f, 80f };
+        int zCells = Lite ? 3 : 5;
+        List<Vector3> v = new List<Vector3>();
+        List<Vector3> nr = new List<Vector3>();
+        List<Vector2> uv = new List<Vector2>();
+        List<int> tri = new List<int>();
+        for (int i = 0; i < xs.Length; i++)
+        {
+            for (int j = 0; j <= zCells; j++)
+            {
+                float x = side * xs[i], z = ChunkLength * j / zCells;
+                float y = Ground(x, z) - 0.02f;
+                float dx = (Ground(x + 0.3f, z) - Ground(x - 0.3f, z)) / 0.6f;
+                float dz = (Ground(x, z + 0.3f) - Ground(x, z - 0.3f)) / 0.6f;
+                v.Add(new Vector3(x, y, z));
+                nr.Add(new Vector3(-dx, 1f, -dz).normalized);
+                uv.Add(new Vector2(x / TextureLib.TileSize(Surface.Grass), z / TextureLib.TileSize(Surface.Grass)));
+            }
+        }
+        int row = zCells + 1;
+        for (int i = 0; i < xs.Length - 1; i++)
+        {
+            for (int j = 0; j < zCells; j++)
+            {
+                int a = i * row + j, b = a + 1, c = a + row + 1, d = a + row;
+                if (side > 0) { tri.Add(a); tri.Add(b); tri.Add(c); tri.Add(a); tri.Add(c); tri.Add(d); }
+                else { tri.Add(a); tri.Add(c); tri.Add(b); tri.Add(a); tri.Add(d); tri.Add(c); }
+            }
+        }
+        Mesh mesh = new Mesh();
+        mesh.name = "Valley";
+        mesh.SetVertices(v);
+        mesh.SetNormals(nr);
+        mesh.SetUVs(0, uv);
+        mesh.SetTriangles(tri, 0);
+        mesh.RecalculateBounds();
+        GameObject go = new GameObject("Valley Slope");
+        go.transform.SetParent(chunk, false);
+        go.AddComponent<MeshFilter>().sharedMesh = mesh;
+        MeshRenderer mr = go.AddComponent<MeshRenderer>();
+        mr.sharedMaterial = MatLib.Get(B.grass, 0.04f, 0f, Surface.Grass, Vector2.one);
+        mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;   // the ground only receives shadows
+    }
+
     // A lake on one side of a causeway: water a little below the road, stone piers, reeds and lily pads.
     static void AddWater(Transform chunk, int side)
     {
         Color water = B.snow ? new Color(0.72f, 0.82f, 0.92f) : new Color(0.16f, 0.36f, 0.48f);
-        float x = side * (RoadWidth * 0.5f + 11f);
-        MatLib.Prim(PrimitiveType.Cube, "Water", chunk, new Vector3(x, -0.85f, ChunkLength * 0.5f), new Vector3(22f, 0.1f, ChunkLength),
+        // the pond lies in a hollow of the ground: it shows only where the ground dips below the water
+        MatLib.Prim(PrimitiveType.Cube, "Water", chunk, new Vector3(side * 15f, -0.85f, ChunkLength * 0.5f), new Vector3(20f, 0.1f, ChunkLength),
                     water, false, default(Vector3), B.snow ? 0.8f : 0.92f, 0f, Surface.Plain);
         // the causeway wall and its piers
         Box("Causeway", chunk, new Vector3(side * (RoadWidth * 0.5f + 0.25f), -0.5f, ChunkLength * 0.5f), new Vector3(0.5f, 0.9f, ChunkLength), Stone);
@@ -425,8 +543,8 @@ public static class ProceduralAssets
         for (int i = 0; i < 4; i++)
         {
             float lx = side * (7f + i * 2.7f);
-            Cyl("Lily Pad", chunk, new Vector3(lx, -0.79f, 1.5f + (i * 3.1f) % 8f), new Vector3(0.7f, 0.01f, 0.7f), lily, default(Vector3), 0.6f, 0f, Surface.Leaves);
-            Ball("Flower", chunk, new Vector3(lx + 0.15f, -0.72f, 1.5f + (i * 3.1f) % 8f), Vector3.one * 0.15f, new Color(1f, 0.75f, 0.85f), 0.3f, 0.2f);
+            Cyl("Lily Pad", chunk, new Vector3(lx, -0.79f, 3.2f + (i * 1.7f) % 3.6f), new Vector3(0.7f, 0.01f, 0.7f), lily, default(Vector3), 0.6f, 0f, Surface.Leaves);
+            Ball("Flower", chunk, new Vector3(lx + 0.15f, -0.72f, 3.2f + (i * 1.7f) % 3.6f), Vector3.one * 0.15f, new Color(1f, 0.75f, 0.85f), 0.3f, 0.2f);
         }
         for (int i = 0; i < 5; i++)
             Cyl("Reed", chunk, new Vector3(side * (5.3f + (i % 2) * 0.4f), -0.2f, 1f + i * 2f), new Vector3(0.05f, 0.7f, 0.05f), new Color(0.45f, 0.5f, 0.25f), new Vector3(0f, 0f, side * (i % 3) * 6f));
@@ -437,12 +555,13 @@ public static class ProceduralAssets
     {
         Transform h = new GameObject("House").transform;
         h.SetParent(chunk, false);
-        h.localPosition = new Vector3(side * (10.5f + (float)rnd.NextDouble() * 2.5f), 0f, z);
+        h.localPosition = OnGround(side * (10.5f + (float)rnd.NextDouble() * 2.5f), z);
         h.localRotation = Quaternion.Euler(0f, side > 0 ? -90f : 90f, 0f);   // the front looks at the road
         bool stone = rnd.Next(2) == 0;
         Color wall = stone ? Stone : new Color(0.92f, 0.88f, 0.78f);
         Color roof = rnd.Next(2) == 0 ? new Color(0.62f, 0.22f, 0.16f) : new Color(0.35f, 0.3f, 0.32f);
         Box("Walls", h, new Vector3(0f, 1.2f, 0f), new Vector3(4f, 2.4f, 3.2f), wall, false, default(Vector3), 0.1f, 0f, stone ? Surface.Bricks : Surface.Grime);
+        Box("Foundation", h, new Vector3(0f, -0.6f, 0f), new Vector3(4.2f, 1.4f, 3.4f), StoneDark);
         if (!stone)
         {
             // timber frame
@@ -475,7 +594,7 @@ public static class ProceduralAssets
     {
         Transform m = new GameObject("Windmill").transform;
         m.SetParent(chunk, false);
-        m.localPosition = new Vector3(side * 16f, 0f, 5f);
+        m.localPosition = OnGround(side * 16f, 5f) + Vector3.down * 0.2f;
         m.localRotation = Quaternion.Euler(0f, side > 0 ? -90f : 90f, 0f);
         float[] r = { 3.0f, 2.6f, 2.2f };
         for (int i = 0; i < r.Length; i++)

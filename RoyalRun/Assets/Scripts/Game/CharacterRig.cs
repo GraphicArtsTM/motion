@@ -322,237 +322,281 @@ public class CharacterRig : MonoBehaviour
     }
 
     // ======================================================================
-    //  Building the model
+    //  Building the model: one smooth skinned mesh (no boxes)
     // ======================================================================
 
-    class Builder
+    static readonly Color[] HairByStyle =
     {
-        public readonly List<Renderer> clothes = new List<Renderer>();
-        public readonly List<float> shade = new List<float>();
-        public readonly List<Transform> eyes = new List<Transform>();
-        public readonly List<Transform> flickers = new List<Transform>();
-        public readonly List<Transform> bouncers = new List<Transform>();
+        new Color(0.88f, 0.88f, 0.86f),   // King - silver
+        new Color(0.40f, 0.25f, 0.13f),   // Knight
+        new Color(0.62f, 0.38f, 0.17f),   // Ranger - auburn
+        new Color(0.93f, 0.93f, 0.95f),   // Alchemist - white
+        new Color(1f, 0.42f, 0.08f),      // Pyro
+    };
 
-        public GameObject Cloth(GameObject go, float k)
-        {
-            clothes.Add(go.GetComponent<Renderer>());
-            shade.Add(k);
-            return go;
-        }
-    }
+    static readonly Color Cheek = new Color(1f, 0.62f, 0.58f);
+    static readonly Color Iris = new Color(0.22f, 0.36f, 0.62f);
 
-    static GameObject P(PrimitiveType t, string n, Transform parent, Vector3 pos, Vector3 scale, Color c,
-                        Vector3 euler = default(Vector3), float smooth = 0.15f, float emission = 0f)
-    {
-        // skin is skin, armour and gold are metal, eyes are glossy, everything else is cloth
-        Surface surf = Surface.Fabric;
-        if (c == Skin) surf = Surface.Skin;
-        else if (c == Metal || c == Gold) surf = Surface.Metal;
-        else if (c == Wood) surf = Surface.Wood;
-        else if (c == White || c == Dark || c == Lips || emission > 0f) surf = Surface.Plain;
-        return MatLib.Prim(t, n, parent, pos, scale, c, false, euler, smooth, emission, surf);
-    }
-
+    // main: the clothes colour (null = the hero's own colour).
     public static GameObject Build(int style, Transform parent)
     {
+        return Build(style, parent, Color.white);
+    }
+
+    public static GameObject Build(int style, Transform parent, Color tint)
+    {
         style = Mathf.Clamp(style, 0, DefaultMain.Length - 1);
-        Color main = DefaultMain[style];
-        Color hair = HairColor[style];
-        Builder b = new Builder();
+        Color main = tint == Color.white ? DefaultMain[style] : tint;
+        Color dark = new Color(main.r * 0.6f, main.g * 0.6f, main.b * 0.6f);
+        Color hair = HairByStyle[style];
 
         GameObject root = new GameObject("Hero " + style);
         root.transform.SetParent(parent, false);
         CharacterRig rig = root.AddComponent<CharacterRig>();
         rig.defaultColor = main;
+        rig.style = style;
+        Transform r = root.transform;
 
-        rig.visual = Pivot("Visual", root.transform, Vector3.zero);
-
-        // ---- legs: hip -> thigh -> knee -> shin -> boot ----
+        // ---- the skeleton (the animation moves these) ----
+        rig.visual = Pivot("Visual", r, Vector3.zero);
         rig.hipL = Pivot("Hip L", rig.visual, new Vector3(-0.11f, 0.8f, 0f));
         rig.hipR = Pivot("Hip R", rig.visual, new Vector3(0.11f, 0.8f, 0f));
-        rig.kneeL = BuildLeg(rig.hipL);
-        rig.kneeR = BuildLeg(rig.hipR);
-
-        // ---- body (pivot at the hips) ----
+        rig.kneeL = Pivot("Knee L", rig.hipL, new Vector3(0f, -0.38f, 0f));
+        rig.kneeR = Pivot("Knee R", rig.hipR, new Vector3(0f, -0.38f, 0f));
         rig.body = Pivot("Body", rig.visual, new Vector3(0f, 0.8f, 0f));
-        Transform bd = rig.body;
-        P(PrimitiveType.Cube, "Pelvis", bd, new Vector3(0f, 0.02f, 0f), new Vector3(0.36f, 0.16f, 0.24f), Pants);
-        b.Cloth(P(PrimitiveType.Capsule, "Torso", bd, new Vector3(0f, 0.31f, 0f), new Vector3(0.46f, 0.3f, 0.3f), main), 1f);
-        P(PrimitiveType.Cylinder, "Belt", bd, new Vector3(0f, 0.1f, 0f), new Vector3(0.44f, 0.035f, 0.3f), style == 0 ? Gold : Wood, default(Vector3), 0.5f);
-        P(PrimitiveType.Cube, "Buckle", bd, new Vector3(0f, 0.1f, 0.15f), new Vector3(0.07f, 0.06f, 0.02f), Gold, default(Vector3), 0.8f, 0.2f);
-        P(PrimitiveType.Cylinder, "Neck", bd, new Vector3(0f, 0.6f, 0f), new Vector3(0.12f, 0.05f, 0.12f), Skin);
+        rig.shoulderL = Pivot("Shoulder L", rig.body, new Vector3(-0.25f, 0.5f, 0f));
+        rig.shoulderR = Pivot("Shoulder R", rig.body, new Vector3(0.25f, 0.5f, 0f));
+        rig.elbowL = Pivot("Elbow L", rig.shoulderL, new Vector3(-0.015f, -0.26f, 0f));
+        rig.elbowR = Pivot("Elbow R", rig.shoulderR, new Vector3(0.015f, -0.26f, 0f));
+        rig.head = Pivot("Head", rig.body, new Vector3(0f, 0.6f, 0f));
+        rig.capeTop = Pivot("Cape", rig.body, new Vector3(0f, 0.56f, -0.13f));
+        rig.capeBottom = Pivot("Cape Low", rig.capeTop, new Vector3(0f, -0.3f, 0f));
+        Transform eyeL = Pivot("Eye L", rig.head, new Vector3(-0.078f, 0.215f, 0.185f));
+        Transform eyeR = Pivot("Eye R", rig.head, new Vector3(0.078f, 0.215f, 0.185f));
+        rig.mouth = Pivot("Mouth", rig.head, new Vector3(0f, 0.1f, 0.2f));
+        rig.eyes = new[] { eyeL, eyeR };
 
-        // ---- cape (two parts so it can wave) ----
-        rig.capeTop = Pivot("Cape", bd, new Vector3(0f, 0.56f, -0.15f));
-        b.Cloth(P(PrimitiveType.Cube, "Cape Top", rig.capeTop, new Vector3(0f, -0.16f, 0f), new Vector3(0.44f, 0.33f, 0.03f), main), 0.6f);
-        rig.capeBottom = Pivot("Cape Low", rig.capeTop, new Vector3(0f, -0.32f, 0f));
-        b.Cloth(P(PrimitiveType.Cube, "Cape Bottom", rig.capeBottom, new Vector3(0f, -0.15f, 0f), new Vector3(0.47f, 0.3f, 0.03f), main), 0.55f);
+        ShapeBuilder sb = new ShapeBuilder(r);
+        sb.Detail = PlayerWorld.Lite ? 10 : 14;
+        List<Transform> flick = new List<Transform>();
+        List<Transform> bounce = new List<Transform>();
 
-        // ---- arms: shoulder -> upper arm -> elbow -> forearm -> hand ----
-        rig.shoulderL = Pivot("Shoulder L", bd, new Vector3(-0.27f, 0.49f, 0f));
-        rig.shoulderR = Pivot("Shoulder R", bd, new Vector3(0.27f, 0.49f, 0f));
-        rig.elbowL = BuildArm(rig.shoulderL, main, b);
-        rig.elbowR = BuildArm(rig.shoulderR, main, b);
-
-        // ---- head ----
-        rig.head = Pivot("Head", bd, new Vector3(0f, 0.62f, 0f));
-        Transform h = rig.head;
-        P(PrimitiveType.Sphere, "Face", h, new Vector3(0f, 0.18f, 0f), Vector3.one * 0.36f, Skin);
-        P(PrimitiveType.Sphere, "Ear L", h, new Vector3(-0.175f, 0.18f, 0f), new Vector3(0.05f, 0.09f, 0.06f), Skin);
-        P(PrimitiveType.Sphere, "Ear R", h, new Vector3(0.175f, 0.18f, 0f), new Vector3(0.05f, 0.09f, 0.06f), Skin);
-        P(PrimitiveType.Sphere, "Nose", h, new Vector3(0f, 0.16f, 0.18f), new Vector3(0.06f, 0.07f, 0.07f), new Color(0.93f, 0.7f, 0.56f));
-        for (int i = -1; i <= 1; i += 2)
+        // ---- legs: one smooth tube from hip to ankle that bends at the knee ----
+        Color pants = style == 4 ? new Color(0.25f, 0.22f, 0.2f) : Pants;
+        foreach (int side in new[] { -1, 1 })
         {
-            Transform eye = P(PrimitiveType.Sphere, "Eye", h, new Vector3(i * 0.068f, 0.215f, 0.148f), Vector3.one * 0.075f, White, default(Vector3), 0.6f).transform;
-            P(PrimitiveType.Sphere, "Pupil", eye, new Vector3(0f, 0f, 0.38f), Vector3.one * 0.55f, Dark, default(Vector3), 0.8f);
-            b.eyes.Add(eye);
-            P(PrimitiveType.Cube, "Brow", h, new Vector3(i * 0.07f, 0.268f, 0.163f), new Vector3(0.075f, 0.016f, 0.02f), hair, new Vector3(0f, 0f, -i * 8f));
+            Transform hip = side < 0 ? rig.hipL : rig.hipR;
+            Transform knee = side < 0 ? rig.kneeL : rig.kneeR;
+            float x = side * 0.11f;
+            sb.Limb(hip, knee, new Vector3(x, 0.84f, 0f), new Vector3(x, 0.42f, 0.01f), new Vector3(x, 0.1f, 0f), 0.09f, 0.068f, 0.058f, pants);
+            // a rounded boot with a toe and a cuff
+            sb.RoundBox(knee, new Vector3(0f, -0.34f, 0.045f), new Vector3(0.15f, 0.12f, 0.27f), Boots, ShapeBuilder.Matte, default(Quaternion), 0.55f);
+            sb.Ellipsoid(knee, new Vector3(0f, -0.355f, 0.15f), new Vector3(0.075f, 0.055f, 0.06f), Boots);
+            sb.Torus(knee, new Vector3(0f, -0.27f, 0f), 0.068f, 0.022f, Color.Lerp(Boots, Color.black, 0.2f));
         }
-        rig.mouth = P(PrimitiveType.Cube, "Mouth", h, new Vector3(0f, 0.095f, 0.165f), new Vector3(0.075f, 0.016f, 0.02f), Lips).transform;
-        P(PrimitiveType.Sphere, "Cheek L", h, new Vector3(-0.1f, 0.13f, 0.135f), new Vector3(0.06f, 0.035f, 0.03f), new Color(1f, 0.62f, 0.6f));
-        P(PrimitiveType.Sphere, "Cheek R", h, new Vector3(0.1f, 0.13f, 0.135f), new Vector3(0.06f, 0.035f, 0.03f), new Color(1f, 0.62f, 0.6f));
-        if (style != 1) P(PrimitiveType.Sphere, "Hair", h, new Vector3(0f, 0.26f, -0.04f), new Vector3(0.38f, 0.32f, 0.38f), hair);
 
-        BuildOutfit(style, rig, b, main, hair);
+        // ---- body: a smooth torso (hips -> waist -> chest -> shoulders) ----
+        sb.Ellipsoid(rig.body, new Vector3(0f, 0.03f, 0f), new Vector3(0.2f, 0.13f, 0.15f), pants);
+        sb.Lathe(rig.body, Vector3.zero,
+                 new[] { 0.19f, 0.185f, 0.17f, 0.18f, 0.2f, 0.205f, 0.17f, 0.07f },
+                 new[] { -0.02f, 0.08f, 0.2f, 0.3f, 0.4f, 0.48f, 0.55f, 0.6f }, main, ShapeBuilder.Matte, default(Quaternion), 0.74f);
+        // a short skirt of the tunic over the hips
+        sb.Lathe(rig.body, Vector3.zero, new[] { 0.245f, 0.215f, 0.195f }, new[] { -0.17f, -0.05f, 0.06f }, dark, ShapeBuilder.Matte, default(Quaternion), 0.8f, false, false);
+        sb.Torus(rig.body, new Vector3(0f, 0.07f, 0f), 0.19f, 0.03f, style == 0 ? Gold : Wood, style == 0 ? ShapeBuilder.Shiny : ShapeBuilder.Matte, default(Quaternion), 0.76f);
+        sb.RoundBox(rig.body, new Vector3(0f, 0.07f, 0.145f), new Vector3(0.08f, 0.07f, 0.03f), Gold, ShapeBuilder.Shiny);
+        sb.Lathe(rig.body, Vector3.zero, new[] { 0.07f, 0.065f }, new[] { 0.56f, 0.66f }, Skin, ShapeBuilder.Matte, default(Quaternion), 1f, false, false);
 
-        rig.style = style;
-        rig.bouncers = b.bouncers.ToArray();
-        rig.eyes = b.eyes.ToArray();
-        rig.flickers = b.flickers.ToArray();
-        rig.clothes = b.clothes.ToArray();
-        rig.clothShade = b.shade.ToArray();
+        // ---- arms: a smooth tube from shoulder to wrist that bends at the elbow, round hands ----
+        foreach (int side in new[] { -1, 1 })
+        {
+            Transform sh = side < 0 ? rig.shoulderL : rig.shoulderR;
+            Transform el = side < 0 ? rig.elbowL : rig.elbowR;
+            float x = side * 0.25f;
+            sb.Ellipsoid(sh, Vector3.zero, new Vector3(0.09f, 0.085f, 0.09f), main);
+            sb.Limb(sh, el, new Vector3(x, 1.3f, 0f), new Vector3(x + side * 0.015f, 1.04f, 0f), new Vector3(x + side * 0.015f, 0.82f, 0.01f), 0.07f, 0.058f, 0.05f, main);
+            sb.Torus(el, new Vector3(0f, -0.21f, 0f), 0.05f, 0.016f, dark);
+            sb.Ellipsoid(el, new Vector3(0f, -0.29f, 0.01f), new Vector3(0.058f, 0.075f, 0.05f), Skin);
+            sb.Ellipsoid(el, new Vector3(-side * 0.045f, -0.27f, 0.035f), new Vector3(0.022f, 0.038f, 0.022f), Skin, ShapeBuilder.Matte, Quaternion.Euler(0f, 0f, side * 30f));
+        }
+
+        // ---- head: a big rounded head, cheeks, nose, ears, shiny eyes with a highlight, brows, mouth ----
+        Transform h = rig.head;
+        sb.Ellipsoid(h, new Vector3(0f, 0.21f, 0f), new Vector3(0.215f, 0.225f, 0.205f), Skin);
+        sb.Ellipsoid(h, new Vector3(0f, 0.13f, 0.04f), new Vector3(0.175f, 0.125f, 0.165f), Skin);
+        sb.Ellipsoid(h, new Vector3(0f, 0.165f, 0.205f), new Vector3(0.034f, 0.04f, 0.035f), Color.Lerp(Skin, Cheek, 0.35f));
+        sb.Ellipsoid(h, new Vector3(-0.21f, 0.19f, 0f), new Vector3(0.035f, 0.06f, 0.03f), Skin);
+        sb.Ellipsoid(h, new Vector3(0.21f, 0.19f, 0f), new Vector3(0.035f, 0.06f, 0.03f), Skin);
+        sb.Ellipsoid(h, new Vector3(-0.115f, 0.13f, 0.165f), new Vector3(0.045f, 0.025f, 0.02f), Cheek);
+        sb.Ellipsoid(h, new Vector3(0.115f, 0.13f, 0.165f), new Vector3(0.045f, 0.025f, 0.02f), Cheek);
+        foreach (Transform e in rig.eyes)
+        {
+            sb.Ellipsoid(e, Vector3.zero, new Vector3(0.046f, 0.058f, 0.03f), White, ShapeBuilder.Shiny);
+            sb.Ellipsoid(e, new Vector3(0f, -0.005f, 0.021f), new Vector3(0.028f, 0.036f, 0.014f), Iris, ShapeBuilder.Shiny);
+            sb.Ellipsoid(e, new Vector3(0f, -0.005f, 0.03f), new Vector3(0.016f, 0.02f, 0.008f), Dark, ShapeBuilder.Shiny);
+            sb.Ellipsoid(e, new Vector3(0.011f, 0.014f, 0.036f), new Vector3(0.008f, 0.009f, 0.004f), Color.white, ShapeBuilder.Glow);
+        }
+        if (style != 1)
+        {
+            sb.RoundBox(h, new Vector3(-0.078f, 0.288f, 0.18f), new Vector3(0.075f, 0.02f, 0.025f), Color.Lerp(hair, Dark, 0.3f), ShapeBuilder.Matte, Quaternion.Euler(0f, 0f, -10f), 0.8f);
+            sb.RoundBox(h, new Vector3(0.078f, 0.288f, 0.18f), new Vector3(0.075f, 0.02f, 0.025f), Color.Lerp(hair, Dark, 0.3f), ShapeBuilder.Matte, Quaternion.Euler(0f, 0f, 10f), 0.8f);
+        }
+        sb.Ellipsoid(rig.mouth, Vector3.zero, new Vector3(0.042f, 0.012f, 0.014f), new Color(0.45f, 0.12f, 0.15f));
+
+        BuildOutfit(style, rig, sb, main, dark, hair, flick, bounce);
+
+        // ---- one skinned renderer for everything ----
+        rig.flickers = flick.ToArray();
+        rig.bouncers = bounce.ToArray();
+        rig.clothes = new Renderer[0];
+        rig.clothShade = new float[0];
+        PaletteLib.Flush();
+        SkinnedMeshRenderer smr = sb.BuildSkinned(root, rig.visual, "Hero " + style);
+        smr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
         return root;
     }
 
-    static Transform BuildLeg(Transform hip)
+    // Hair cap: covers the top and the back of the head, a fringe over the forehead.
+    static void Hair(ShapeBuilder sb, Transform h, Color hair, bool fringe)
     {
-        P(PrimitiveType.Capsule, "Thigh", hip, new Vector3(0f, -0.2f, 0f), new Vector3(0.17f, 0.21f, 0.17f), Pants);
-        Transform knee = Pivot("Knee", hip, new Vector3(0f, -0.39f, 0f));
-        P(PrimitiveType.Capsule, "Shin", knee, new Vector3(0f, -0.19f, 0f), new Vector3(0.15f, 0.2f, 0.15f), Pants);
-        P(PrimitiveType.Cube, "Boot", knee, new Vector3(0f, -0.36f, 0.035f), new Vector3(0.16f, 0.1f, 0.25f), Boots);
-        P(PrimitiveType.Sphere, "Toe", knee, new Vector3(0f, -0.365f, 0.15f), new Vector3(0.16f, 0.1f, 0.1f), Boots);
-        P(PrimitiveType.Cylinder, "Cuff", knee, new Vector3(0f, -0.29f, 0f), new Vector3(0.18f, 0.025f, 0.18f), Boots);
-        return knee;
+        sb.Ellipsoid(h, new Vector3(0f, 0.255f, -0.03f), new Vector3(0.232f, 0.215f, 0.225f), hair);
+        if (!fringe) return;
+        for (int i = -1; i <= 1; i++)
+            sb.Ellipsoid(h, new Vector3(i * 0.09f, 0.35f, 0.14f), new Vector3(0.075f, 0.05f, 0.06f), hair, ShapeBuilder.Matte, Quaternion.Euler(20f, 0f, -i * 25f));
     }
 
-    static Transform BuildArm(Transform shoulder, Color main, Builder b)
-    {
-        b.Cloth(P(PrimitiveType.Sphere, "Shoulder", shoulder, Vector3.zero, Vector3.one * 0.17f, main), 0.9f);
-        b.Cloth(P(PrimitiveType.Capsule, "Upper Arm", shoulder, new Vector3(0f, -0.13f, 0f), new Vector3(0.13f, 0.15f, 0.13f), main), 0.85f);
-        Transform elbow = Pivot("Elbow", shoulder, new Vector3(0f, -0.27f, 0f));
-        b.Cloth(P(PrimitiveType.Capsule, "Forearm", elbow, new Vector3(0f, -0.11f, 0f), new Vector3(0.12f, 0.13f, 0.12f), main), 0.75f);
-        P(PrimitiveType.Sphere, "Hand", elbow, new Vector3(0f, -0.26f, 0f), new Vector3(0.11f, 0.12f, 0.11f), Skin);
-        return elbow;
-    }
-
-    static void BuildOutfit(int style, CharacterRig rig, Builder b, Color main, Color hair)
+    static void BuildOutfit(int style, CharacterRig rig, ShapeBuilder sb, Color main, Color dark, Color hair,
+                            List<Transform> flick, List<Transform> bounce)
     {
         Transform h = rig.head, bd = rig.body;
         switch (style)
         {
-            case 0: // King: crown with gems, ermine collar, beard, sceptre
+            case 0: // King: silver hair and a big beard, a gold crown with jewels, an ermine collar, a sceptre, a red cape
             {
-                P(PrimitiveType.Cylinder, "Crown", h, new Vector3(0f, 0.37f, 0f), new Vector3(0.3f, 0.05f, 0.3f), Gold, default(Vector3), 0.85f, 0.25f);
-                for (int i = 0; i < 5; i++)
+                Hair(sb, h, hair, false);
+                sb.Ellipsoid(h, new Vector3(0f, 0.04f, 0.1f), new Vector3(0.19f, 0.17f, 0.14f), hair);
+                sb.Ellipsoid(h, new Vector3(0f, 0.115f, 0.19f), new Vector3(0.09f, 0.025f, 0.03f), hair);
+                sb.Lathe(h, new Vector3(0f, 0.36f, -0.01f), new[] { 0.2f, 0.205f, 0.2f }, new[] { 0f, 0.05f, 0.09f }, Gold, ShapeBuilder.Shiny, default(Quaternion), 1f, false, false);
+                for (int i = 0; i < 6; i++)
                 {
-                    float a = i * Mathf.PI * 2f / 5f;
-                    Vector3 p = new Vector3(Mathf.Sin(a) * 0.13f, 0.45f, Mathf.Cos(a) * 0.13f);
-                    P(PrimitiveType.Cube, "Crown Tip", h, p, new Vector3(0.055f, 0.1f, 0.055f), Gold, new Vector3(0f, a * Mathf.Rad2Deg, 45f), 0.85f, 0.25f);
-                    P(PrimitiveType.Sphere, "Pearl", h, p + Vector3.up * 0.06f, Vector3.one * 0.035f, White, default(Vector3), 0.9f);
+                    float a = i * Mathf.PI * 2f / 6f;
+                    Vector3 p = new Vector3(Mathf.Sin(a) * 0.19f, 0.45f, Mathf.Cos(a) * 0.19f - 0.01f);
+                    sb.Lathe(h, p, new[] { 0.035f, 0.0f }, new[] { 0f, 0.09f }, Gold, ShapeBuilder.Shiny, default(Quaternion), 1f, true, false);
+                    sb.Ellipsoid(h, p + Vector3.up * 0.1f, Vector3.one * 0.02f, White, ShapeBuilder.Shiny);
                 }
-                P(PrimitiveType.Sphere, "Gem", h, new Vector3(0f, 0.375f, 0.152f), Vector3.one * 0.055f, new Color(0.9f, 0.1f, 0.2f), default(Vector3), 0.9f, 0.7f);
-                P(PrimitiveType.Sphere, "Beard", h, new Vector3(0f, 0.06f, 0.12f), new Vector3(0.24f, 0.2f, 0.14f), hair);
-                P(PrimitiveType.Sphere, "Moustache", h, new Vector3(0f, 0.12f, 0.17f), new Vector3(0.14f, 0.04f, 0.05f), hair);
-                P(PrimitiveType.Cylinder, "Ermine", bd, new Vector3(0f, 0.55f, -0.02f), new Vector3(0.44f, 0.04f, 0.34f), White);
-                for (int i = -1; i <= 1; i++)
-                    P(PrimitiveType.Sphere, "Spot", bd, new Vector3(i * 0.12f, 0.56f, 0.14f), Vector3.one * 0.03f, Dark);
-                Transform sceptre = Pivot("Sceptre", rig.elbowR, new Vector3(0f, -0.26f, 0.02f));
-                P(PrimitiveType.Cylinder, "Rod", sceptre, new Vector3(0f, 0.02f, 0.12f), new Vector3(0.035f, 0.2f, 0.035f), Gold, new Vector3(80f, 0f, 0f), 0.85f, 0.2f);
-                P(PrimitiveType.Sphere, "Orb", sceptre, new Vector3(0f, 0.05f, 0.33f), Vector3.one * 0.08f, new Color(0.85f, 0.15f, 0.25f), default(Vector3), 0.9f, 0.6f);
+                sb.Ellipsoid(h, new Vector3(0f, 0.405f, 0.2f), new Vector3(0.035f, 0.035f, 0.02f), new Color(0.9f, 0.1f, 0.2f), ShapeBuilder.Glow);
+                sb.Ellipsoid(h, new Vector3(0f, 0.43f, -0.01f), new Vector3(0.18f, 0.06f, 0.17f), new Color(0.65f, 0.1f, 0.15f));
+                sb.Torus(bd, new Vector3(0f, 0.53f, 0f), 0.17f, 0.05f, White, ShapeBuilder.Matte, default(Quaternion), 0.8f);
+                for (int i = -1; i <= 1; i++) sb.Ellipsoid(bd, new Vector3(i * 0.09f, 0.54f, 0.155f), Vector3.one * 0.016f, Dark);
+                sb.Cloth(rig.capeTop, rig.capeBottom, new Vector3(-0.2f, 1.36f, -0.15f), new Vector3(0.2f, 1.36f, -0.15f), 0.78f, 0.08f, dark);
+                sb.Lathe(rig.elbowR, new Vector3(0f, -0.29f, 0.04f), new[] { 0.02f, 0.02f }, new[] { -0.08f, 0.35f }, Gold, ShapeBuilder.Shiny, Quaternion.Euler(70f, 0f, 0f));
+                sb.Ellipsoid(rig.elbowR, new Vector3(0f, -0.17f, 0.37f), Vector3.one * 0.05f, new Color(0.9f, 0.15f, 0.3f), ShapeBuilder.Glow);
                 break;
             }
 
-            case 1: // Knight: helmet, visor, plume, breastplate, shield, sword
+            case 1: // Knight: a rounded helmet with a visor and a plume, a breastplate, pauldrons, a shield, a sword
             {
-                P(PrimitiveType.Sphere, "Helmet", h, new Vector3(0f, 0.2f, -0.005f), Vector3.one * 0.4f, Metal, default(Vector3), 0.8f);
-                P(PrimitiveType.Cube, "Visor", h, new Vector3(0f, 0.215f, 0.188f), new Vector3(0.24f, 0.03f, 0.04f), Dark);
-                P(PrimitiveType.Cube, "Nasal", h, new Vector3(0f, 0.17f, 0.195f), new Vector3(0.03f, 0.1f, 0.03f), Metal, default(Vector3), 0.8f);
-                b.bouncers.Add(b.Cloth(P(PrimitiveType.Cube, "Plume", h, new Vector3(0f, 0.43f, -0.04f), new Vector3(0.05f, 0.14f, 0.3f), main, new Vector3(-12f, 0f, 0f)), 1.15f).transform);
-                P(PrimitiveType.Capsule, "Breastplate", bd, new Vector3(0f, 0.34f, 0.025f), new Vector3(0.44f, 0.22f, 0.3f), Metal, default(Vector3), 0.8f);
-                P(PrimitiveType.Sphere, "Pauldron L", rig.shoulderL, new Vector3(0f, 0.02f, 0f), new Vector3(0.22f, 0.16f, 0.22f), Metal, default(Vector3), 0.8f);
-                P(PrimitiveType.Sphere, "Pauldron R", rig.shoulderR, new Vector3(0f, 0.02f, 0f), new Vector3(0.22f, 0.16f, 0.22f), Metal, default(Vector3), 0.8f);
-                Transform shield = Pivot("Shield", rig.elbowL, new Vector3(-0.08f, -0.12f, 0.02f));
-                b.Cloth(P(PrimitiveType.Cylinder, "Shield", shield, Vector3.zero, new Vector3(0.38f, 0.02f, 0.44f), main, new Vector3(0f, 0f, 90f)), 1f);
-                P(PrimitiveType.Cylinder, "Rim", shield, new Vector3(0.004f, 0f, 0f), new Vector3(0.4f, 0.015f, 0.46f), Metal, new Vector3(0f, 0f, 90f), 0.8f);
-                P(PrimitiveType.Cube, "Emblem", shield, new Vector3(-0.025f, 0f, 0f), new Vector3(0.01f, 0.18f, 0.05f), Gold, default(Vector3), 0.8f, 0.2f);
-                P(PrimitiveType.Cube, "Emblem 2", shield, new Vector3(-0.025f, 0.03f, 0f), new Vector3(0.01f, 0.05f, 0.16f), Gold, default(Vector3), 0.8f, 0.2f);
-                Transform sword = Pivot("Sword", bd, new Vector3(0.1f, 0.35f, -0.2f));
-                P(PrimitiveType.Cube, "Blade", sword, new Vector3(0f, 0.05f, 0f), new Vector3(0.05f, 0.6f, 0.015f), Metal, new Vector3(0f, 0f, 25f), 0.9f);
-                P(PrimitiveType.Cube, "Guard", sword, new Vector3(0.12f, 0.31f, 0f), new Vector3(0.18f, 0.03f, 0.03f), Gold, new Vector3(0f, 0f, 25f), 0.8f);
+                Color metal = Metal;
+                sb.Ellipsoid(h, new Vector3(0f, 0.23f, -0.005f), new Vector3(0.245f, 0.255f, 0.235f), metal, ShapeBuilder.Shiny);
+                sb.RoundBox(h, new Vector3(0f, 0.2f, 0.22f), new Vector3(0.3f, 0.07f, 0.04f), Dark, ShapeBuilder.Matte, default(Quaternion), 0.6f);
+                sb.Torus(h, new Vector3(0f, 0.1f, 0f), 0.2f, 0.025f, Gold, ShapeBuilder.Shiny);
+                Transform plume = Pivot("Plume", h, new Vector3(0f, 0.46f, -0.04f));
+                bounce.Add(plume);
+                for (int i = 0; i < 4; i++)
+                    sb.Ellipsoid(plume, new Vector3(0f, 0.03f - i * 0.025f, -i * 0.07f), new Vector3(0.04f, 0.06f, 0.06f), main);
+                sb.Lathe(bd, new Vector3(0f, 0.01f, 0.012f), new[] { 0.2f, 0.19f, 0.205f, 0.215f, 0.18f }, new[] { 0.12f, 0.22f, 0.34f, 0.46f, 0.55f },
+                         metal, ShapeBuilder.Shiny, default(Quaternion), 0.78f, false, false);
+                sb.Ellipsoid(rig.shoulderL, new Vector3(-0.02f, 0.03f, 0f), new Vector3(0.12f, 0.08f, 0.11f), metal, ShapeBuilder.Shiny);
+                sb.Ellipsoid(rig.shoulderR, new Vector3(0.02f, 0.03f, 0f), new Vector3(0.12f, 0.08f, 0.11f), metal, ShapeBuilder.Shiny);
+                // the shield on the left forearm
+                Quaternion face = Quaternion.Euler(0f, 0f, 90f);
+                sb.Lathe(rig.elbowL, new Vector3(-0.07f, -0.13f, 0.02f), new[] { 0.21f, 0.2f, 0.0f }, new[] { 0f, 0.02f, 0.045f }, main, ShapeBuilder.Matte, face);
+                sb.Torus(rig.elbowL, new Vector3(-0.072f, -0.13f, 0.02f), 0.205f, 0.018f, metal, ShapeBuilder.Shiny, face);
+                sb.RoundBox(rig.elbowL, new Vector3(-0.12f, -0.13f, 0.02f), new Vector3(0.02f, 0.2f, 0.05f), Gold, ShapeBuilder.Shiny);
+                sb.RoundBox(rig.elbowL, new Vector3(-0.12f, -0.1f, 0.02f), new Vector3(0.02f, 0.05f, 0.17f), Gold, ShapeBuilder.Shiny);
+                // a sword on the back
+                Quaternion tilt = Quaternion.Euler(0f, 0f, 30f);
+                sb.RoundBox(bd, new Vector3(0.05f, 0.33f, -0.18f), new Vector3(0.05f, 0.62f, 0.015f), metal, ShapeBuilder.Shiny, tilt, 0.3f);
+                sb.RoundBox(bd, new Vector3(0.21f, 0.62f, -0.18f), new Vector3(0.18f, 0.035f, 0.035f), Gold, ShapeBuilder.Shiny, tilt, 0.5f);
+                sb.Cloth(rig.capeTop, rig.capeBottom, new Vector3(-0.19f, 1.36f, -0.16f), new Vector3(0.19f, 1.36f, -0.16f), 0.62f, 0.06f, dark);
                 break;
             }
 
-            case 2: // Ranger: hood, quiver with arrows, bow on the back
+            case 2: // Ranger: a pointed hood with a cape, a quiver of arrows, a bow on the back
             {
-                b.Cloth(P(PrimitiveType.Sphere, "Hood", h, new Vector3(0f, 0.23f, -0.05f), new Vector3(0.42f, 0.4f, 0.42f), main), 0.75f);
-                b.bouncers.Add(b.Cloth(P(PrimitiveType.Cube, "Hood Tip", h, new Vector3(0f, 0.3f, -0.24f), new Vector3(0.1f, 0.1f, 0.12f), main, new Vector3(35f, 0f, 0f)), 0.75f).transform);
-                Transform quiver = Pivot("Quiver", bd, new Vector3(0.12f, 0.36f, -0.2f));
-                P(PrimitiveType.Cylinder, "Tube", quiver, Vector3.zero, new Vector3(0.12f, 0.2f, 0.12f), Wood, new Vector3(-10f, 0f, -20f));
+                Hair(sb, h, hair, true);
+                sb.Ellipsoid(h, new Vector3(0f, 0.24f, -0.06f), new Vector3(0.25f, 0.245f, 0.245f), main);
+                Transform tip = Pivot("Hood Tip", h, new Vector3(0f, 0.33f, -0.27f));
+                bounce.Add(tip);
+                sb.Lathe(tip, Vector3.zero, new[] { 0.09f, 0.0f }, new[] { 0f, 0.2f }, main, ShapeBuilder.Matte, Quaternion.Euler(-120f, 0f, 0f), 1f, true, false);
+                sb.Torus(bd, new Vector3(0f, 0.55f, -0.01f), 0.15f, 0.05f, dark, ShapeBuilder.Matte, default(Quaternion), 0.85f);
+                sb.Cloth(rig.capeTop, rig.capeBottom, new Vector3(-0.2f, 1.36f, -0.15f), new Vector3(0.2f, 1.36f, -0.15f), 0.7f, 0.07f, dark);
+                Quaternion q = Quaternion.Euler(-10f, 0f, -22f);
+                sb.Lathe(bd, new Vector3(0.12f, 0.15f, -0.21f), new[] { 0.065f, 0.07f, 0.065f }, new[] { 0f, 0.2f, 0.4f }, Wood, ShapeBuilder.Matte, q);
                 for (int i = 0; i < 3; i++)
                 {
-                    Vector3 p = new Vector3(0.08f + (i - 1) * 0.03f, 0.25f, -0.04f);
-                    P(PrimitiveType.Cube, "Arrow", quiver, p, new Vector3(0.012f, 0.22f, 0.012f), Wood, new Vector3(-10f, 0f, -20f));
-                    P(PrimitiveType.Cube, "Fletching", quiver, p + new Vector3(0.04f, 0.1f, -0.02f), new Vector3(0.04f, 0.06f, 0.01f), White, new Vector3(-10f, 0f, -20f));
+                    Vector3 p = new Vector3(0.18f + (i - 1) * 0.03f, 0.58f, -0.24f);
+                    sb.RoundBox(bd, p, new Vector3(0.012f, 0.22f, 0.012f), Wood, ShapeBuilder.Matte, q, 0.6f);
+                    sb.Ellipsoid(bd, p + new Vector3(0.04f, 0.1f, 0f), new Vector3(0.03f, 0.05f, 0.008f), White, ShapeBuilder.Matte, q);
                 }
-                Transform bow = Pivot("Bow", bd, new Vector3(-0.05f, 0.3f, -0.2f));
-                for (int i = -2; i <= 2; i++)
-                {
-                    float a = i * 18f;
-                    Vector3 p = new Vector3(Mathf.Sin(a * Mathf.Deg2Rad) * 0.32f - 0.06f, Mathf.Cos(a * Mathf.Deg2Rad) * 0.32f - 0.32f, 0f);
-                    P(PrimitiveType.Cube, "Limb", bow, Quaternion.Euler(0f, 0f, 40f) * p, new Vector3(0.03f, 0.12f, 0.03f), Wood, new Vector3(0f, 0f, 40f - a));
-                }
+                sb.Torus(bd, new Vector3(-0.04f, 0.3f, -0.22f), 0.32f, 0.018f, Wood, ShapeBuilder.Matte, Quaternion.Euler(90f, 0f, 30f), 1f, 160f);
                 break;
             }
 
-            case 3: // Alchemist: pointed hat with a star, long beard, glowing potion, belt bottles
+            case 3: // Alchemist: a tall bent wizard hat with a star, a long beard, a long robe, a glowing potion
             {
-                b.Cloth(P(PrimitiveType.Cylinder, "Brim", h, new Vector3(0f, 0.34f, 0f), new Vector3(0.52f, 0.015f, 0.52f), main), 0.7f);
-                float[] r = { 0.3f, 0.23f, 0.16f, 0.1f, 0.05f };
-                for (int i = 0; i < r.Length; i++)
-                    b.Cloth(P(PrimitiveType.Cylinder, "Hat", h, new Vector3(0f, 0.41f + i * 0.1f, -0.012f * i * i), new Vector3(r[i], 0.055f, r[i]), main, new Vector3(-4f * i, 0f, 0f)), 0.7f);
-                P(PrimitiveType.Cylinder, "Hat Band", h, new Vector3(0f, 0.38f, 0f), new Vector3(0.31f, 0.02f, 0.31f), Gold, default(Vector3), 0.8f, 0.2f);
-                Transform star = P(PrimitiveType.Sphere, "Star", h, new Vector3(0f, 0.92f, -0.22f), Vector3.one * 0.07f, Gold, default(Vector3), 0.8f, 1f).transform;
-                b.flickers.Add(star);
-                P(PrimitiveType.Sphere, "Beard", h, new Vector3(0f, 0.0f, 0.12f), new Vector3(0.24f, 0.36f, 0.14f), hair);
-                P(PrimitiveType.Sphere, "Moustache", h, new Vector3(0f, 0.12f, 0.17f), new Vector3(0.16f, 0.045f, 0.05f), hair);
-                Transform potion = P(PrimitiveType.Sphere, "Potion", rig.elbowR, new Vector3(0f, -0.33f, 0.04f), Vector3.one * 0.12f, new Color(0.3f, 1f, 0.5f), default(Vector3), 0.9f, 1.4f).transform;
-                b.flickers.Add(potion);
-                P(PrimitiveType.Cylinder, "Cork", rig.elbowR, new Vector3(0f, -0.25f, 0.04f), new Vector3(0.04f, 0.03f, 0.04f), Wood);
+                Hair(sb, h, hair, false);
+                sb.Ellipsoid(h, new Vector3(0f, -0.02f, 0.1f), new Vector3(0.17f, 0.25f, 0.12f), hair);
+                sb.Ellipsoid(h, new Vector3(0f, 0.115f, 0.19f), new Vector3(0.1f, 0.028f, 0.03f), hair);
+                sb.Lathe(h, new Vector3(0f, 0.36f, 0f), new[] { 0.33f, 0.33f, 0.21f, 0.2f }, new[] { 0f, 0.02f, 0.03f, 0.06f }, dark);
+                Transform tip = Pivot("Hat", h, new Vector3(0f, 0.4f, 0f));
+                bounce.Add(tip);
+                sb.Lathe(tip, Vector3.zero, new[] { 0.19f, 0.14f, 0.09f, 0.045f, 0.0f }, new[] { 0f, 0.14f, 0.27f, 0.38f, 0.46f }, main,
+                         ShapeBuilder.Matte, Quaternion.Euler(-14f, 0f, 0f), 1f, false, false);
+                sb.Torus(tip, new Vector3(0f, 0.02f, 0f), 0.19f, 0.022f, Gold, ShapeBuilder.Shiny);
+                Transform star = Pivot("Star", tip, new Vector3(0f, 0.3f, 0.13f));
+                flick.Add(star);
+                sb.Ellipsoid(star, Vector3.zero, new Vector3(0.045f, 0.045f, 0.015f), Gold, ShapeBuilder.Glow);
+                // a long robe to the knees
+                sb.Lathe(bd, Vector3.zero, new[] { 0.36f, 0.3f, 0.24f, 0.2f }, new[] { -0.5f, -0.3f, -0.12f, 0.05f }, main, ShapeBuilder.Matte, default(Quaternion), 0.85f, false, false);
+                sb.Torus(bd, new Vector3(0f, -0.49f, 0f), 0.355f, 0.02f, Gold, ShapeBuilder.Shiny, default(Quaternion), 0.85f);
+                Transform potion = Pivot("Potion", rig.elbowR, new Vector3(0f, -0.34f, 0.06f));
+                flick.Add(potion);
+                sb.Ellipsoid(potion, Vector3.zero, Vector3.one * 0.065f, new Color(0.3f, 1f, 0.5f), ShapeBuilder.Glow);
+                sb.Lathe(rig.elbowR, new Vector3(0f, -0.29f, 0.06f), new[] { 0.025f, 0.025f }, new[] { 0f, 0.05f }, Wood);
                 Color[] bottles = { new Color(1f, 0.3f, 0.3f), new Color(0.3f, 0.6f, 1f), new Color(1f, 0.85f, 0.2f) };
                 for (int i = 0; i < 3; i++)
-                    P(PrimitiveType.Capsule, "Bottle", bd, new Vector3(-0.16f + i * 0.16f, 0.06f, 0.17f), new Vector3(0.06f, 0.05f, 0.06f), bottles[i], default(Vector3), 0.9f, 0.7f);
+                    sb.Ellipsoid(bd, new Vector3(-0.12f + i * 0.12f, 0.06f, 0.17f), new Vector3(0.03f, 0.045f, 0.03f), bottles[i], ShapeBuilder.Glow);
                 break;
             }
 
-            default: // Pyro: flaming hair, goggles, scarf, glowing fists
+            default: // Pyro: flaming hair, goggles on the forehead, a scarf with a waving end, glowing fists
             {
+                Hair(sb, h, Color.Lerp(hair, Color.black, 0.3f), false);
                 Color[] flame = { new Color(1f, 0.32f, 0.05f), new Color(1f, 0.58f, 0.1f), new Color(1f, 0.86f, 0.25f) };
-                for (int i = 0; i < 7; i++)
+                for (int i = 0; i < 6; i++)
                 {
-                    float x = (i - 3) * 0.055f;
-                    Transform f = P(PrimitiveType.Cube, "Flame", h, new Vector3(x, 0.4f + (i % 2) * 0.04f, -0.03f - (i % 3) * 0.03f),
-                        new Vector3(0.07f, 0.2f + (i % 3) * 0.06f, 0.14f), flame[i % 3], new Vector3(-15f, 0f, -x * 220f), 0.3f, 1.2f).transform;
-                    b.flickers.Add(f);
+                    float x = (i - 2.5f) * 0.07f;
+                    Transform f = Pivot("Flame", h, new Vector3(x, 0.37f + (i % 2) * 0.03f, -0.03f - (i % 3) * 0.04f));
+                    flick.Add(f);
+                    sb.Lathe(f, Vector3.zero, new[] { 0.055f, 0.045f, 0.0f }, new[] { 0f, 0.1f, 0.22f + (i % 3) * 0.05f }, flame[i % 3],
+                             ShapeBuilder.Glow, Quaternion.Euler(-15f, 0f, -x * 200f), 1f, true, false);
                 }
-                P(PrimitiveType.Cylinder, "Goggle Strap", h, new Vector3(0f, 0.27f, 0f), new Vector3(0.375f, 0.02f, 0.375f), Dark);
-                P(PrimitiveType.Sphere, "Lens L", h, new Vector3(-0.07f, 0.28f, 0.16f), new Vector3(0.09f, 0.08f, 0.05f), new Color(1f, 0.7f, 0.2f), default(Vector3), 0.95f, 0.5f);
-                P(PrimitiveType.Sphere, "Lens R", h, new Vector3(0.07f, 0.28f, 0.16f), new Vector3(0.09f, 0.08f, 0.05f), new Color(1f, 0.7f, 0.2f), default(Vector3), 0.95f, 0.5f);
-                b.Cloth(P(PrimitiveType.Cylinder, "Scarf", bd, new Vector3(0f, 0.58f, 0f), new Vector3(0.3f, 0.05f, 0.3f), main), 0.7f);
-                b.bouncers.Add(b.Cloth(P(PrimitiveType.Cube, "Scarf End", rig.capeTop, new Vector3(0.12f, -0.05f, -0.03f), new Vector3(0.08f, 0.25f, 0.02f), main), 0.7f).transform);
-                Transform fl = P(PrimitiveType.Sphere, "Fire L", rig.elbowL, new Vector3(0f, -0.27f, 0f), Vector3.one * 0.15f, flame[1], default(Vector3), 0.3f, 1.4f).transform;
-                Transform fr = P(PrimitiveType.Sphere, "Fire R", rig.elbowR, new Vector3(0f, -0.27f, 0f), Vector3.one * 0.15f, flame[1], default(Vector3), 0.3f, 1.4f).transform;
-                b.flickers.Add(fl);
-                b.flickers.Add(fr);
+                sb.Torus(h, new Vector3(0f, 0.3f, 0f), 0.215f, 0.018f, Dark);
+                foreach (int side in new[] { -1, 1 })
+                {
+                    sb.Torus(h, new Vector3(side * 0.07f, 0.32f, 0.19f), 0.045f, 0.012f, Dark, ShapeBuilder.Matte, Quaternion.Euler(90f, 0f, 0f));
+                    sb.Ellipsoid(h, new Vector3(side * 0.07f, 0.32f, 0.195f), new Vector3(0.04f, 0.04f, 0.012f), new Color(1f, 0.65f, 0.2f), ShapeBuilder.Glow);
+                }
+                sb.Torus(bd, new Vector3(0f, 0.56f, 0f), 0.13f, 0.055f, main);
+                Transform scarf = Pivot("Scarf End", rig.capeTop, new Vector3(0.1f, -0.02f, -0.02f));
+                bounce.Add(scarf);
+                sb.RoundBox(scarf, new Vector3(0f, -0.13f, 0f), new Vector3(0.09f, 0.28f, 0.025f), main, ShapeBuilder.Matte, default(Quaternion), 0.7f);
+                foreach (Transform el in new[] { rig.elbowL, rig.elbowR })
+                {
+                    Transform fire = Pivot("Fire", el, new Vector3(0f, -0.29f, 0f));
+                    flick.Add(fire);
+                    sb.Ellipsoid(fire, Vector3.zero, Vector3.one * 0.085f, flame[1], ShapeBuilder.Glow);
+                }
                 break;
             }
         }

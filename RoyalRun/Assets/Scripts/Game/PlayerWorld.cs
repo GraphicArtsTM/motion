@@ -163,6 +163,7 @@ public class PlayerWorld : MonoBehaviour
     Transform[] speedLines;
     float[] speedLineZ;
     Transform clouds;
+    Transform backdrop;
 
     // Fewer pieces ahead and fewer effects (phones). Set by GameBootstrap.
     public static bool Lite;
@@ -229,7 +230,9 @@ public class PlayerWorld : MonoBehaviour
         Cam = camGo.AddComponent<Camera>();
         Cam.rect = new Rect(index / (float)total, 0f, 1f / total, 1f);
         Cam.nearClipPlane = 0.3f;
-        Cam.farClipPlane = Lite ? 115f : 135f;
+        Cam.farClipPlane = 700f;        // the fog hides the road beyond ~130 m; only the mountains are drawn further away
+        // the far mountains of each player are on their own layer, so split-screen players never see each other's
+        Cam.cullingMask = ~(0xF << BackdropLayer0) | (1 << (BackdropLayer0 + Mathf.Clamp(index, 0, 3)));
         // the daytime sky; without a skybox material - a plain background of the horizon colour
         Cam.clearFlags = RenderSettings.skybox != null ? CameraClearFlags.Skybox : CameraClearFlags.SolidColor;
         Cam.backgroundColor = GameBootstrap.HorizonColor;
@@ -252,6 +255,7 @@ public class PlayerWorld : MonoBehaviour
 
         BuildSpeedLines();
         BuildClouds();
+        BuildBackdrop();
         camX = originX;
         BestMultiplier = 1;
         UpdateCamera(0f);
@@ -323,6 +327,108 @@ public class PlayerWorld : MonoBehaviour
             clouds.position = new Vector3(c.x, 0f, c.z);
             clouds.Rotate(0f, 0.8f * Time.deltaTime, 0f, Space.World);
         }
+        if (backdrop != null && Cam != null)
+        {
+            Vector3 c = Cam.transform.position;
+            backdrop.position = new Vector3(c.x, 0f, c.z);
+        }
+    }
+
+    // ================= the far landscape =================
+
+    const int BackdropLayer0 = 28;     // layers 28..31: one per player
+
+    // Two rings of mountains around the camera (snowy peaks far away, darker forested ridges nearer) and the
+    // valley floor far below the road. The mountains are flat painted silhouettes with the haze already in their
+    // colours: an unlit vertex-colour shader without fog, so they stay visible far beyond the fog - and cost almost nothing.
+    void BuildBackdrop()
+    {
+        backdrop = new GameObject("Backdrop").transform;
+        backdrop.SetParent(transform, false);
+        int layer = BackdropLayer0 + Mathf.Clamp(Index, 0, 3);
+
+        Color haze = GameBootstrap.HorizonColor;
+        Shader unlit = Shader.Find("Sprites/Default");
+        System.Random r = new System.Random(4242 + Index);
+        // far range: high, blue, snow-capped
+        AddRange(r, unlit, layer, 560f, 70f, 165f, new Color(0.50f, 0.58f, 0.72f), new Color(0.95f, 0.97f, 1f), 0.62f, haze, 2501);
+        // near range: lower, darker, wooded
+        AddRange(r, unlit, layer, 390f, 28f, 72f, new Color(0.30f, 0.42f, 0.42f), new Color(0.40f, 0.52f, 0.46f), 2f, haze, 2502);
+
+        // the valley floor: fogged like the road, so near it is green and far away it melts into the haze
+        GameObject floor = GameObject.CreatePrimitive(PrimitiveType.Quad);
+        floor.name = "Valley Floor";
+        Destroy(floor.GetComponent<Collider>());
+        floor.transform.SetParent(backdrop, false);
+        floor.transform.localPosition = new Vector3(0f, -ProceduralAssets.ValleyDepth - 0.4f, 0f);
+        floor.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+        floor.transform.localScale = new Vector3(760f, 760f, 1f);
+        Renderer fr = floor.GetComponent<Renderer>();
+        fr.sharedMaterial = MatLib.Get(new Color(0.24f, 0.40f, 0.26f), 0.05f);
+        fr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        fr.receiveShadows = false;
+        floor.layer = layer;
+    }
+
+    void AddRange(System.Random r, Shader unlit, int layer, float radius, float minH, float maxH,
+                  Color rock, Color peak, float snowLine, Color haze, int queue)
+    {
+        const int Segments = 120;
+        float p1 = (float)r.NextDouble() * 6.28f, p2 = (float)r.NextDouble() * 6.28f, p3 = (float)r.NextDouble() * 6.28f;
+        Vector3[] v = new Vector3[(Segments + 1) * 3];
+        Color[] col = new Color[v.Length];
+        int[] tri = new int[Segments * 12];
+        float bottom = -ProceduralAssets.ValleyDepth - 60f;
+        for (int i = 0; i <= Segments; i++)
+        {
+            float a = i / (float)Segments * Mathf.PI * 2f;
+            // ridges: a few broad waves plus sharp "folded" peaks
+            float n = 0.5f + 0.25f * Mathf.Sin(a * 3f + p1) + 0.15f * Mathf.Sin(a * 7f + p2)
+                      + 0.22f * (1f - Mathf.Abs(Mathf.Sin(a * 11f + p3))) + 0.1f * Mathf.Sin(a * 23f + p1 * 2f);
+            float h = Mathf.Lerp(minH, maxH, Mathf.Clamp01(n));
+            float rr = radius * (0.92f + 0.08f * Mathf.Sin(a * 5f + p2));
+            Vector3 dir = new Vector3(Mathf.Sin(a), 0f, Mathf.Cos(a));
+            float snow = Mathf.Clamp01((h - Mathf.Lerp(minH, maxH, snowLine)) / (maxH - minH) * 4f);
+            v[i * 3] = dir * rr + Vector3.up * bottom;
+            v[i * 3 + 1] = dir * rr + Vector3.up * (h * 0.55f);
+            v[i * 3 + 2] = dir * rr + Vector3.up * h;
+            col[i * 3] = haze;
+            col[i * 3 + 1] = Color.Lerp(rock, haze, 0.35f);
+            col[i * 3 + 2] = Color.Lerp(rock, peak, snow);
+        }
+        int k = 0;
+        for (int i = 0; i < Segments; i++)
+        {
+            for (int row = 0; row < 2; row++)
+            {
+                int a0 = i * 3 + row, a1 = a0 + 1, b0 = a0 + 3, b1 = a1 + 3;
+                tri[k++] = a0; tri[k++] = a1; tri[k++] = b1;
+                tri[k++] = a0; tri[k++] = b1; tri[k++] = b0;
+            }
+        }
+        Mesh m = new Mesh();
+        m.name = "Mountains";
+        m.vertices = v;
+        m.colors = col;
+        m.triangles = tri;
+        m.bounds = new Bounds(Vector3.zero, Vector3.one * radius * 2.2f);
+
+        GameObject go = new GameObject("Mountains");
+        go.layer = layer;
+        go.transform.SetParent(backdrop, false);
+        go.AddComponent<MeshFilter>().sharedMesh = m;
+        MeshRenderer mr = go.AddComponent<MeshRenderer>();
+        Material mat;
+        if (unlit != null)
+        {
+            mat = new Material(unlit);
+            // after the sky (2500) and before transparent things; the far range first
+            mat.renderQueue = queue;
+        }
+        else mat = MatLib.Get(Color.Lerp(rock, haze, 0.3f), 0f, 0.6f);
+        mr.sharedMaterial = mat;
+        mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        mr.receiveShadows = false;
     }
 
     // White clouds high above the road, made of flattened spheres (merged into one mesh).

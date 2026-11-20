@@ -29,43 +29,47 @@ public class Chaser : MonoBehaviour
         return c;
     }
 
-    static GameObject P(PrimitiveType t, string n, Transform p, Vector3 pos, Vector3 scale, Color c, Surface s = Surface.Stone, float emission = 0f)
-    {
-        GameObject go = MatLib.Prim(t, n, p, pos, scale, c, false, default(Vector3), 0.1f, emission, s);
-        return go;
-    }
-
     void Build()
     {
         Transform r = transform;
         body = new GameObject("Body").transform; body.SetParent(r, false); body.localPosition = new Vector3(0f, 1.25f, 0f);
-        P(PrimitiveType.Sphere, "Chest", body, new Vector3(0f, 0.25f, 0f), new Vector3(1.25f, 1.0f, 0.85f), Rock);
-        P(PrimitiveType.Sphere, "Belly", body, new Vector3(0f, -0.25f, 0.05f), new Vector3(0.9f, 0.7f, 0.7f), RockDark);
-        P(PrimitiveType.Sphere, "Moss", body, new Vector3(0.2f, 0.65f, -0.2f), new Vector3(0.6f, 0.25f, 0.5f), Moss, Surface.Grass);
-        P(PrimitiveType.Sphere, "Rune", body, new Vector3(0f, 0.25f, 0.42f), Vector3.one * 0.18f, Glow, Surface.Plain, 2f);
-
         head = new GameObject("Head").transform; head.SetParent(body, false); head.localPosition = new Vector3(0f, 0.85f, 0.1f);
-        P(PrimitiveType.Cube, "Skull", head, Vector3.zero, new Vector3(0.55f, 0.45f, 0.5f), Rock);
-        P(PrimitiveType.Cube, "Brow", head, new Vector3(0f, 0.12f, 0.22f), new Vector3(0.6f, 0.12f, 0.15f), RockDark);
-        P(PrimitiveType.Sphere, "Eye L", head, new Vector3(-0.13f, 0.02f, 0.25f), Vector3.one * 0.1f, Glow, Surface.Plain, 3f);
-        P(PrimitiveType.Sphere, "Eye R", head, new Vector3(0.13f, 0.02f, 0.25f), Vector3.one * 0.1f, Glow, Surface.Plain, 3f);
-        P(PrimitiveType.Cube, "Jaw", head, new Vector3(0f, -0.2f, 0.12f), new Vector3(0.45f, 0.14f, 0.3f), RockDark);
+        armL = Joint("Arm L", body, new Vector3(-0.75f, 0.45f, 0f));
+        armR = Joint("Arm R", body, new Vector3(0.75f, 0.45f, 0f));
+        legL = Joint("Leg L", r, new Vector3(-0.35f, 0.85f, 0f));
+        legR = Joint("Leg R", r, new Vector3(0.35f, 0.85f, 0f));
 
-        armL = Limb("Arm L", body, new Vector3(-0.75f, 0.45f, 0f), 0.95f, 0.42f);
-        armR = Limb("Arm R", body, new Vector3(0.75f, 0.45f, 0f), 0.95f, 0.42f);
-        legL = Limb("Leg L", r, new Vector3(-0.35f, 0.85f, 0f), 0.8f, 0.4f);
-        legR = Limb("Leg R", r, new Vector3(0.35f, 0.85f, 0f), 0.8f, 0.4f);
-
-        MeshBaker.Bake(head.gameObject);
+        // smooth boulders for the body, glowing eyes and runes - one skinned mesh
+        ShapeBuilder sb = new ShapeBuilder(r);
+        sb.Detail = PlayerWorld.Lite ? 10 : 12;
+        sb.Ellipsoid(body, new Vector3(0f, 0.25f, 0f), new Vector3(0.66f, 0.52f, 0.44f), Rock);
+        sb.Ellipsoid(body, new Vector3(0f, -0.25f, 0.05f), new Vector3(0.46f, 0.36f, 0.36f), RockDark);
+        sb.Ellipsoid(body, new Vector3(0.22f, 0.66f, -0.2f), new Vector3(0.32f, 0.13f, 0.26f), Moss);
+        sb.Ellipsoid(body, new Vector3(-0.3f, 0.5f, -0.15f), new Vector3(0.22f, 0.1f, 0.2f), Moss);
+        sb.Ellipsoid(body, new Vector3(0f, 0.25f, 0.42f), new Vector3(0.1f, 0.1f, 0.04f), Glow, ShapeBuilder.Glow);
+        sb.Ellipsoid(head, Vector3.zero, new Vector3(0.3f, 0.25f, 0.27f), Rock);
+        sb.RoundBox(head, new Vector3(0f, 0.12f, 0.2f), new Vector3(0.58f, 0.12f, 0.16f), RockDark, ShapeBuilder.Matte, default(Quaternion), 0.6f);
+        sb.Ellipsoid(head, new Vector3(-0.13f, 0.02f, 0.24f), new Vector3(0.06f, 0.045f, 0.03f), Glow, ShapeBuilder.Glow);
+        sb.Ellipsoid(head, new Vector3(0.13f, 0.02f, 0.24f), new Vector3(0.06f, 0.045f, 0.03f), Glow, ShapeBuilder.Glow);
+        sb.Ellipsoid(head, new Vector3(0f, -0.17f, 0.12f), new Vector3(0.24f, 0.08f, 0.16f), RockDark);
+        foreach (Transform t in new[] { armL, armR })
+        {
+            sb.Ellipsoid(t, new Vector3(0f, -0.29f, 0f), new Vector3(0.22f, 0.3f, 0.22f), Rock);
+            sb.Ellipsoid(t, new Vector3(0f, -0.76f, 0.05f), new Vector3(0.26f, 0.26f, 0.25f), RockDark);
+        }
+        foreach (Transform t in new[] { legL, legR })
+        {
+            sb.Ellipsoid(t, new Vector3(0f, -0.24f, 0f), new Vector3(0.21f, 0.26f, 0.21f), Rock);
+            sb.Ellipsoid(t, new Vector3(0f, -0.66f, 0.06f), new Vector3(0.24f, 0.2f, 0.28f), RockDark);
+        }
+        sb.BuildSkinned(gameObject, r, "Golem");
     }
 
-    static Transform Limb(string name, Transform parent, Vector3 pos, float length, float thick)
+    static Transform Joint(string name, Transform parent, Vector3 pos)
     {
         Transform t = new GameObject(name).transform;
         t.SetParent(parent, false);
         t.localPosition = pos;
-        P(PrimitiveType.Sphere, "Upper", t, new Vector3(0f, -length * 0.3f, 0f), new Vector3(thick, length * 0.6f, thick), Rock);
-        P(PrimitiveType.Sphere, "Lower", t, new Vector3(0f, -length * 0.8f, 0.05f), new Vector3(thick * 1.15f, length * 0.5f, thick * 1.1f), RockDark);
         return t;
     }
 
