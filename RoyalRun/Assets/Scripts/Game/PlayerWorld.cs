@@ -253,6 +253,9 @@ public class PlayerWorld : MonoBehaviour
         GameObject model = assets.ModelFor(owner.character);
         avatar = PlayerAvatar.Create(this, owner, model, Character, new Vector3(originX, 0f, 0f));
         golem = Chaser.Create(transform);
+        golem.Stepped = OnGolemStep;
+        // endless mode: the golem waits right behind the hero at the start (the camera sees it while flying around)
+        if (Rules == GameRules.Endless) golem.Intro();
 
         BuildSpeedLines();
         BuildClouds();
@@ -302,7 +305,7 @@ public class PlayerWorld : MonoBehaviour
         }
 
         if (golem != null && avatar != null && golem.gameObject.activeSelf)
-            golem.Follow(avatar.transform.position, Running ? moveSpeed : 0f, dt);
+            golem.Follow(avatar.transform.position, originX, Running ? moveSpeed * StumbleFactor : 0f, dt);
 
         if (lan != null) UpdateGhosts(dt);
 
@@ -439,6 +442,13 @@ public class PlayerWorld : MonoBehaviour
         mr.receiveShadows = false;
     }
 
+    // A golem footfall near the hero: the ground shakes and dust flies.
+    void OnGolemStep(Vector3 foot, float near)
+    {
+        if (Running) trauma = Mathf.Max(trauma, 0.08f + 0.17f * near);
+        if (!Lite) DebrisBurst.Dust(new Vector3(foot.x, 0.05f, foot.z), new Color(0.55f, 0.52f, 0.48f), transform);
+    }
+
     // White clouds high above the road, made of flattened spheres (merged into one mesh).
     void BuildClouds()
     {
@@ -473,6 +483,7 @@ public class PlayerWorld : MonoBehaviour
     {
         goTimer = 0.9f;
         Sfx.Play(SynthAudio.Go, 0.6f);
+        if (Rules == GameRules.Endless && golem != null) golem.StartChase(2.5f);
         hintTimer = 5f;
         if (Owner.isKeyboard && GameInput.HasTouch && Owner.keyboardScheme == GameInput.SchemeSolo && Application.isMobilePlatform)
             hud.hint.text = Loc.T("hint.touch");
@@ -535,7 +546,8 @@ public class PlayerWorld : MonoBehaviour
         punch = 1f;
         flashAlpha = 0.7f;
         NotifyHit();
-        if (cause == CrashCause.Caught && golem != null) golem.Grab();
+        // whatever ended the run, the golem comes for the fallen hero (the finish camera shows it)
+        if (golem != null) golem.Grab();
         Finish(cause);
     }
 
