@@ -41,6 +41,8 @@ public class CharacterRig : MonoBehaviour
     [SerializeField] Transform visual, body, head, hipL, hipR, kneeL, kneeR, shoulderL, shoulderR, elbowL, elbowR, capeTop, capeBottom;
     [SerializeField] Transform[] eyes;
     [SerializeField] Transform mouth;
+    [SerializeField] Transform[] bouncers;     // plume, hood tip, scarf end: they wobble with the run
+    [SerializeField] int style;
     [SerializeField] Transform[] flickers;     // flames that flicker (Pyro), glowing things
     [SerializeField] Renderer[] clothes;       // tinted with the main colour
     [SerializeField] float[] clothShade;       // brightness of each tinted part (the cape is darker, etc.)
@@ -56,6 +58,16 @@ public class CharacterRig : MonoBehaviour
     [System.NonSerialized] public bool cheering;          // arms up, hopping (READY in the lobby)
     [System.NonSerialized] public bool defeated;          // time is up: tired, hands on the knees
     [System.NonSerialized] public bool sliding;           // sliding under a beam: leaning back, legs forward
+
+    // A foot touched the ground while running (PlayerAvatar puts a puff of dust there).
+    public event System.Action Footstep;
+
+    // each hero runs a little differently: arm swing (degrees), forward lean, bounce
+    static readonly float[] ArmSwing = { 34f, 30f, 46f, 28f, 52f };
+    static readonly float[] Lean = { 8f, 11f, 14f, 7f, 13f };
+    static readonly float[] Bounce = { 0.04f, 0.065f, 0.05f, 0.035f, 0.06f };
+    Quaternion[] bouncerBase;
+    float lastStepSin;
 
     float phase;
     float hitTimer;
@@ -95,6 +107,11 @@ public class CharacterRig : MonoBehaviour
             for (int i = 0; i < flickers.Length; i++) if (flickers[i] != null) flickerBase[i] = flickers[i].localScale;
         }
         if (mouth != null) mouthBase = mouth.localScale;
+        if (bouncers != null)
+        {
+            bouncerBase = new Quaternion[bouncers.Length];
+            for (int i = 0; i < bouncers.Length; i++) if (bouncers[i] != null) bouncerBase[i] = bouncers[i].localRotation;
+        }
     }
 
     // ======================================================================
@@ -131,19 +148,26 @@ public class CharacterRig : MonoBehaviour
         {
             phase += dt * 10f * Mathf.Clamp(runSpeed, 0.6f, 2.3f);
             float s = Mathf.Sin(phase), c = Mathf.Cos(phase);
+            int st = Mathf.Clamp(style, 0, ArmSwing.Length - 1);
+            float swing = ArmSwing[st];
             hipLx = -42f * s;                 hipRx = 42f * s;
             kneeLx = 8f + 75f * Mathf.Max(0f, c); kneeRx = 8f + 75f * Mathf.Max(0f, -c);
-            shLx = 40f * s;                   shRx = -40f * s;
+            shLx = swing * s;                 shRx = -swing * s;
             shLz = -8f; shRz = 8f;
             elLx = -80f + 10f * s;            elRx = -80f - 10f * s;
-            bodyX = 10f + Mathf.Clamp(runSpeed - 1f, 0f, 1f) * 6f;
+            if (st == 3) { shRx = -swing * 0.3f * s - 20f; elRx = -100f; }   // the alchemist holds the potion up
+            bodyX = Lean[st] + Mathf.Clamp(runSpeed - 1f, 0f, 1f) * 6f;
+
+            // a footstep each time a leg passes under the body
+            if (!airborne && !sliding && Mathf.Sign(s) != Mathf.Sign(lastStepSin) && Footstep != null) Footstep();
+            lastStepSin = s;
             bodyY = 7f * s + lateral * 10f;
             bodyZ = -lateral * 13f;
             headX = -7f; headY = -5f * s;
             float flutter = Mathf.Sin(time * 13f);
             capeA = 25f + 12f * runSpeed + 6f * flutter;
             capeB = 12f + 9f * Mathf.Sin(time * 13f + 1.2f);
-            bob = 0.05f * Mathf.Abs(c);
+            bob = Bounce[st] * Mathf.Abs(c);
         }
         else
         {
@@ -258,6 +282,18 @@ public class CharacterRig : MonoBehaviour
         if (mouth != null)
             mouth.localScale = new Vector3(mouthBase.x * (1f - 0.3f * mouthOpen), mouthBase.y * (1f + 3.5f * mouthOpen), mouthBase.z);
 
+        // plumes, hoods and scarves wobble (more when running or jumping)
+        if (bouncers != null && bouncerBase != null)
+        {
+            float amp = airborne ? 18f : running ? 10f : 3f;
+            for (int i = 0; i < bouncers.Length; i++)
+            {
+                if (bouncers[i] == null) continue;
+                float w = Mathf.Sin(time * (running ? 14f : 3f) + i * 1.7f);
+                bouncers[i].localRotation = bouncerBase[i] * Quaternion.Euler(w * amp, 0f, w * amp * 0.4f);
+            }
+        }
+
         // blinking
         blinkTimer -= dt;
         float eyeY = blinkTimer < 0.12f ? 0.15f : 1f;
@@ -295,6 +331,7 @@ public class CharacterRig : MonoBehaviour
         public readonly List<float> shade = new List<float>();
         public readonly List<Transform> eyes = new List<Transform>();
         public readonly List<Transform> flickers = new List<Transform>();
+        public readonly List<Transform> bouncers = new List<Transform>();
 
         public GameObject Cloth(GameObject go, float k)
         {
@@ -378,6 +415,8 @@ public class CharacterRig : MonoBehaviour
 
         BuildOutfit(style, rig, b, main, hair);
 
+        rig.style = style;
+        rig.bouncers = b.bouncers.ToArray();
         rig.eyes = b.eyes.ToArray();
         rig.flickers = b.flickers.ToArray();
         rig.clothes = b.clothes.ToArray();
@@ -438,7 +477,7 @@ public class CharacterRig : MonoBehaviour
                 P(PrimitiveType.Sphere, "Helmet", h, new Vector3(0f, 0.2f, -0.005f), Vector3.one * 0.4f, Metal, default(Vector3), 0.8f);
                 P(PrimitiveType.Cube, "Visor", h, new Vector3(0f, 0.215f, 0.188f), new Vector3(0.24f, 0.03f, 0.04f), Dark);
                 P(PrimitiveType.Cube, "Nasal", h, new Vector3(0f, 0.17f, 0.195f), new Vector3(0.03f, 0.1f, 0.03f), Metal, default(Vector3), 0.8f);
-                b.Cloth(P(PrimitiveType.Cube, "Plume", h, new Vector3(0f, 0.43f, -0.04f), new Vector3(0.05f, 0.14f, 0.3f), main, new Vector3(-12f, 0f, 0f)), 1.15f);
+                b.bouncers.Add(b.Cloth(P(PrimitiveType.Cube, "Plume", h, new Vector3(0f, 0.43f, -0.04f), new Vector3(0.05f, 0.14f, 0.3f), main, new Vector3(-12f, 0f, 0f)), 1.15f).transform);
                 P(PrimitiveType.Capsule, "Breastplate", bd, new Vector3(0f, 0.34f, 0.025f), new Vector3(0.44f, 0.22f, 0.3f), Metal, default(Vector3), 0.8f);
                 P(PrimitiveType.Sphere, "Pauldron L", rig.shoulderL, new Vector3(0f, 0.02f, 0f), new Vector3(0.22f, 0.16f, 0.22f), Metal, default(Vector3), 0.8f);
                 P(PrimitiveType.Sphere, "Pauldron R", rig.shoulderR, new Vector3(0f, 0.02f, 0f), new Vector3(0.22f, 0.16f, 0.22f), Metal, default(Vector3), 0.8f);
@@ -456,7 +495,7 @@ public class CharacterRig : MonoBehaviour
             case 2: // Ranger: hood, quiver with arrows, bow on the back
             {
                 b.Cloth(P(PrimitiveType.Sphere, "Hood", h, new Vector3(0f, 0.23f, -0.05f), new Vector3(0.42f, 0.4f, 0.42f), main), 0.75f);
-                b.Cloth(P(PrimitiveType.Cube, "Hood Tip", h, new Vector3(0f, 0.3f, -0.24f), new Vector3(0.1f, 0.1f, 0.12f), main, new Vector3(35f, 0f, 0f)), 0.75f);
+                b.bouncers.Add(b.Cloth(P(PrimitiveType.Cube, "Hood Tip", h, new Vector3(0f, 0.3f, -0.24f), new Vector3(0.1f, 0.1f, 0.12f), main, new Vector3(35f, 0f, 0f)), 0.75f).transform);
                 Transform quiver = Pivot("Quiver", bd, new Vector3(0.12f, 0.36f, -0.2f));
                 P(PrimitiveType.Cylinder, "Tube", quiver, Vector3.zero, new Vector3(0.12f, 0.2f, 0.12f), Wood, new Vector3(-10f, 0f, -20f));
                 for (int i = 0; i < 3; i++)
@@ -509,7 +548,7 @@ public class CharacterRig : MonoBehaviour
                 P(PrimitiveType.Sphere, "Lens L", h, new Vector3(-0.07f, 0.28f, 0.16f), new Vector3(0.09f, 0.08f, 0.05f), new Color(1f, 0.7f, 0.2f), default(Vector3), 0.95f, 0.5f);
                 P(PrimitiveType.Sphere, "Lens R", h, new Vector3(0.07f, 0.28f, 0.16f), new Vector3(0.09f, 0.08f, 0.05f), new Color(1f, 0.7f, 0.2f), default(Vector3), 0.95f, 0.5f);
                 b.Cloth(P(PrimitiveType.Cylinder, "Scarf", bd, new Vector3(0f, 0.58f, 0f), new Vector3(0.3f, 0.05f, 0.3f), main), 0.7f);
-                b.Cloth(P(PrimitiveType.Cube, "Scarf End", rig.capeTop, new Vector3(0.12f, -0.05f, -0.03f), new Vector3(0.08f, 0.25f, 0.02f), main), 0.7f);
+                b.bouncers.Add(b.Cloth(P(PrimitiveType.Cube, "Scarf End", rig.capeTop, new Vector3(0.12f, -0.05f, -0.03f), new Vector3(0.08f, 0.25f, 0.02f), main), 0.7f).transform);
                 Transform fl = P(PrimitiveType.Sphere, "Fire L", rig.elbowL, new Vector3(0f, -0.27f, 0f), Vector3.one * 0.15f, flame[1], default(Vector3), 0.3f, 1.4f).transform;
                 Transform fr = P(PrimitiveType.Sphere, "Fire R", rig.elbowR, new Vector3(0f, -0.27f, 0f), Vector3.one * 0.15f, flame[1], default(Vector3), 0.3f, 1.4f).transform;
                 b.flickers.Add(fl);

@@ -126,7 +126,7 @@ public static class Loc
         // --- главное меню ---
         Add("menu.subtitle", "Беги, уворачивайся, собирай!", "Run, dodge, collect!", "Yugur, chetlab o‘t, yig‘!");
         Add("menu.single", "ОДИНОЧНАЯ ИГРА", "SINGLE PLAYER", "YAKKA O‘YIN");
-        Add("menu.multi", "МУЛЬТИПЛЕЕР   ·   2-3 игрока", "MULTIPLAYER   ·   2-3 players", "KO‘P O‘YINCHI   ·   2-3 kishi");
+        Add("menu.multi", "ОДИН ЭКРАН   ·   телефоны-пульты", "ONE SCREEN   ·   phone controllers", "BITTA EKRAN   ·   telefon pultlar");
         Add("menu.help", "КАК ПОДКЛЮЧИТЬСЯ", "HOW TO CONNECT", "QANDAY ULANISH");
         Add("menu.lang", "ЯЗЫК: {0}", "LANGUAGE: {0}", "TIL: {0}");
         Add("menu.quit", "ВЫХОД", "QUIT", "CHIQISH");
@@ -237,6 +237,36 @@ public static class Loc
         Add("hud.hit", "УДАР!", "HIT!", "ZARBA!");
         Add("hud.hitPenalty", "УДАР!  −{0} с", "CRASH!  −{0} s", "ZARBA!  −{0} s");
         Add("hud.comboLost", "комбо потеряно", "combo lost", "kombo yo‘qoldi");
+        // --- гонка по Wi-Fi ---
+        Add("menu.lan", "ГОНКА ПО WI-FI", "WI-FI RACE", "WI-FI POYGASI");
+        Add("lan.title", "ГОНКА ПО WI-FI", "WI-FI RACE", "WI-FI POYGASI");
+        Add("lan.info", "Телефоны и компьютеры в одной сети Wi-Fi бегут по одной и той же дороге.\nОдин создаёт игру, остальные входят.", "Phones and computers on the same Wi-Fi run on the same road.\nOne creates the race, the others join.", "Bitta Wi-Fi tarmog‘idagi telefon va kompyuterlar bir xil yo‘lda yuguradi.\nBittasi o‘yin yaratadi, qolganlar qo‘shiladi.");
+        Add("lan.create", "СОЗДАТЬ ИГРУ", "CREATE A RACE", "O‘YIN YARATISH");
+        Add("lan.join", "ВОЙТИ: {0}  ({1})", "JOIN: {0}  ({1})", "KIRISH: {0}  ({1})");
+        Add("lan.rescan", "ИСКАТЬ СНОВА", "SEARCH AGAIN", "QAYTA QIDIRISH");
+        Add("lan.searching", "Ищем игры в сети", "Looking for races", "Tarmoqda o‘yinlar qidirilmoqda");
+        Add("lan.found", "Найдено игр: {0}", "Races found: {0}", "Topilgan o‘yinlar: {0}");
+        Add("lan.none", "Игр не найдено. Создайте свою или проверьте, что все в одной сети Wi-Fi.", "No races found. Create one, or check that everybody is on the same Wi-Fi.", "O‘yin topilmadi. O‘zingiz yarating yoki hamma bitta Wi-Fi tarmog‘ida ekanini tekshiring.");
+        Add("lan.connecting", "Подключение...", "Connecting...", "Ulanmoqda...");
+        Add("lan.hostInfo", "Вы ведущий  ·  адрес {0}", "You are the host  ·  address {0}", "Siz boshlovchisiz  ·  manzil {0}");
+        Add("lan.clientInfo", "Ведущий: {0}", "Host: {0}", "Boshlovchi: {0}");
+        Add("lan.hostTag", "ведущий", "host", "boshlovchi");
+        Add("lan.hintHost", "Нажмите СТАРТ, когда все войдут (до 4 игроков)", "Press START when everybody is in (up to 4 runners)", "Hamma kirgach START tugmasini bosing (4 kishigacha)");
+        Add("lan.hintClient", "Ждём, когда ведущий начнёт забег...", "Waiting for the host to start...", "Boshlovchi boshlashini kutyapmiz...");
+        Add("lan.hero", "ГЕРОЙ: {0}  ►", "HERO: {0}  ►", "QAHRAMON: {0}  ►");
+        Add("lan.start", "СТАРТ", "START", "START");
+        Add("lan.leave", "ВЫЙТИ", "LEAVE", "CHIQISH");
+        Add("lan.again", "ЕЩЁ РАЗ", "AGAIN", "YANA");
+        Add("lan.waitEnd", "ЖДЁМ ВСЕХ...", "WAITING...", "KUTILMOQDA...");
+        Add("lan.waitOthers", "Ждём, пока финишируют остальные...", "Waiting for the others to finish...", "Boshqalar marraga yetishini kutyapmiz...");
+        Add("lan.raceOver", "ГОНКА ОКОНЧЕНА", "RACE OVER", "POYGA TUGADI");
+        Add("lan.running", "бежит", "running", "yugurmoqda");
+        Add("lan.left", "вышел", "left", "chiqib ketdi");
+        Add("lan.hostFail", "Не удалось создать игру: порт 8095 занят.", "Could not create a race: port 8095 is busy.", "O‘yin yaratib bo‘lmadi: 8095-port band.");
+        Add("lan.lost", "Связь с ведущим потеряна.", "The connection to the host was lost.", "Boshlovchi bilan aloqa uzildi.");
+        Add("lan.full", "В игре уже 4 игрока.", "The race already has 4 runners.", "O‘yinda allaqachon 4 kishi bor.");
+        Add("lan.started", "Забег уже начался. Дождитесь следующего.", "The race has already started. Wait for the next one.", "Poyga boshlangan. Keyingisini kuting.");
+
         // --- режимы и забег ---
         Add("mode.label", "РЕЖИМ: {0}", "MODE: {0}", "REJIM: {0}");
         Add("mode.endless", "БЕСКОНЕЧНЫЙ", "ENDLESS", "CHEKSIZ");

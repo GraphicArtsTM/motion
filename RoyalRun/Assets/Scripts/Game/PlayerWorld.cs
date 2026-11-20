@@ -162,16 +162,44 @@ public class PlayerWorld : MonoBehaviour
 
     Transform[] speedLines;
     float[] speedLineZ;
+    Transform clouds;
 
     // Fewer pieces ahead and fewer effects (phones). Set by GameBootstrap.
     public static bool Lite;
 
+    // The road comes from this generator: with the same seed every device builds the same road.
+    System.Random rng;
+    int spawnedChunks;
+
+    // Wi-Fi race: the other runners are shown as ghosts on our road and in a small leaderboard.
+    LanRace lan;
+    class Ghost
+    {
+        public GameObject root;
+        public CharacterRig rig;
+        public TextMesh tag;
+        public float shownD, shownY;
+        public int ch = -1;
+    }
+    readonly Dictionary<int, Ghost> ghosts = new Dictionary<int, Ghost>();
+    float boardTimer;
+
+    public PlayerAvatar Avatar { get { return avatar; } }
+
     public static PlayerWorld Create(int index, int total, PhonePlayer owner, GameAssets assets, PhoneHub hub, GameRules rules)
+    {
+        return Create(index, total, owner, assets, hub, rules, 0, null);
+    }
+
+    public static PlayerWorld Create(int index, int total, PhonePlayer owner, GameAssets assets, PhoneHub hub, GameRules rules,
+                                     int seed, LanRace lan)
     {
         GameObject root = new GameObject("World " + (index + 1) + " (" + owner.name + ")");
         root.transform.position = new Vector3(index * WorldSpacing, 0f, 0f);
 
         PlayerWorld w = root.AddComponent<PlayerWorld>();
+        w.lan = lan;
+        w.rng = new System.Random(seed != 0 ? seed : Random.Range(1, int.MaxValue));
         w.Setup(index, total, owner, assets, hub, rules);
         return w;
     }
@@ -188,7 +216,7 @@ public class PlayerWorld : MonoBehaviour
         TimeLeft = StartTime + Character.startTimeBonus;
         moveSpeed = rules == GameRules.Endless ? EndlessStartSpeed : 6f;
         startingChunks = Lite ? 12 : 14;
-        cornerGap = Random.Range(6, 10);
+        cornerGap = rng.Next(6, 10);
 
         chunkParent = new GameObject("Chunk Parent").transform;
         chunkParent.SetParent(transform, false);
@@ -210,7 +238,9 @@ public class PlayerWorld : MonoBehaviour
 
         // The player's UI lives on its own canvas attached to their camera.
         hud = GameUI.CreateColumnHud(Cam, index, total, owner.name, Character.Name,
-                                     PhoneHub.SlotColors[owner.slot], transform, rules == GameRules.Classic);
+                                     PhoneHub.SlotColors[Mathf.Clamp(owner.slot, 0, PhoneHub.SlotColors.Length - 1)], transform, rules == GameRules.Classic);
+        // in a network race nobody can pause the road
+        if (lan != null && hud.pause != null) hud.pause.rect.gameObject.SetActive(false);
 
         settingUp = true;
         for (int i = 0; i < startingChunks; i++) SpawnChunk();
@@ -221,6 +251,7 @@ public class PlayerWorld : MonoBehaviour
         golem = Chaser.Create(transform);
 
         BuildSpeedLines();
+        BuildClouds();
         camX = originX;
         BestMultiplier = 1;
         UpdateCamera(0f);
@@ -268,6 +299,8 @@ public class PlayerWorld : MonoBehaviour
         if (golem != null && avatar != null && golem.gameObject.activeSelf)
             golem.Follow(avatar.transform.position, Running ? moveSpeed : 0f, dt);
 
+        if (lan != null) UpdateGhosts(dt);
+
         UpdateHud();
         UpdateSpeedLines(dt);
 
@@ -282,6 +315,43 @@ public class PlayerWorld : MonoBehaviour
     void LateUpdate()
     {
         UpdateCamera(Time.deltaTime);
+
+        // the clouds stay around the camera (they are "infinitely" far) and drift slowly
+        if (clouds != null && Cam != null)
+        {
+            Vector3 c = Cam.transform.position;
+            clouds.position = new Vector3(c.x, 0f, c.z);
+            clouds.Rotate(0f, 0.8f * Time.deltaTime, 0f, Space.World);
+        }
+    }
+
+    // White clouds high above the road, made of flattened spheres (merged into one mesh).
+    void BuildClouds()
+    {
+        clouds = new GameObject("Clouds").transform;
+        clouds.SetParent(transform, false);
+        System.Random r = new System.Random(Index * 7 + 3);
+        int count = Lite ? 6 : 11;
+        for (int i = 0; i < count; i++)
+        {
+            float a = (float)(i / (double)count * System.Math.PI * 2.0 + r.NextDouble() * 0.4);
+            float dist = 55f + (float)r.NextDouble() * 30f;
+            Vector3 centre = new Vector3(Mathf.Sin(a) * dist, 26f + (float)r.NextDouble() * 12f, Mathf.Cos(a) * dist);
+            int puffs = 4 + r.Next(3);
+            for (int k = 0; k < puffs; k++)
+            {
+                Vector3 off = new Vector3((k - puffs * 0.5f) * 3.2f, (float)r.NextDouble() * 1.5f, (float)r.NextDouble() * 3f);
+                float size = 5f + (float)r.NextDouble() * 4f;
+                MatLib.Prim(PrimitiveType.Sphere, "Puff", clouds, centre + off, new Vector3(size, size * 0.45f, size * 0.8f),
+                            new Color(0.98f, 0.98f, 1f), false, default(Vector3), 0f, 0.35f, Surface.Plain);
+            }
+        }
+        MeshBaker.Bake(clouds.gameObject);
+        foreach (Renderer rd in clouds.GetComponentsInChildren<Renderer>())
+        {
+            rd.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            rd.receiveShadows = false;
+        }
     }
 
     // The camera has flown around the hero: GO!
@@ -565,6 +635,9 @@ public class PlayerWorld : MonoBehaviour
         GameObject go = Instantiate(prefab, pos, rot, chunkParent);
         Chunk chunk = go.GetComponent<Chunk>();
         if (chunk == null) chunk = go.AddComponent<Chunk>();
+        chunk.SetSeed(rng.Next());
+        chunk.PathStart = spawnedChunks * ChunkLength;
+        spawnedChunks++;
 
         // the pieces around the start and right after a corner get no obstacles
         if ((settingUp && pos.z < SafeStartZ) || justTurnedSpawn) chunk.MakeSafe();
@@ -586,11 +659,11 @@ public class PlayerWorld : MonoBehaviour
         if (corners != null && corners.Length > biome && corners[biome] != null
             && chunkIndex >= FirstCornerIndex && chunksSinceCorner >= cornerGap)
         {
-            int dir = lastCornerDir == 0 ? (Random.value < 0.5f ? -1 : 1)
-                    : (Random.value < 0.7f ? -lastCornerDir : lastCornerDir);
+            int dir = lastCornerDir == 0 ? (rng.NextDouble() < 0.5 ? -1 : 1)
+                    : (rng.NextDouble() < 0.7 ? -lastCornerDir : lastCornerDir);
             lastCornerDir = dir;
             chunksSinceCorner = 0;
-            cornerGap = Random.Range(6, 10);
+            cornerGap = rng.Next(6, 10);
             GameObject c = corners[biome][dir < 0 ? 0 : 1];
             if (c != null) return c;
         }
@@ -609,7 +682,7 @@ public class PlayerWorld : MonoBehaviour
         }
 
         GameObject[] set = hasZones && zones[biome] != null && zones[biome].Length > 0 ? zones[biome] : assets.chunkPrefabs;
-        return set[Random.Range(0, set.Length)];
+        return set[rng.Next(0, set.Length)];
     }
 
     void MoveChunks(float dt)
@@ -667,6 +740,10 @@ public class PlayerWorld : MonoBehaviour
         turnT = 0f;
         turnKick = corner.Turn;
 
+        // after the turn the hero stands at the corner's centre: keep the distance along the road exact
+        // (the ghosts of a Wi-Fi race are placed by distance)
+        distance = Mathf.Max(distance, corner.PathStart + 5.5f - HeroPathOffset);
+
         // falling obstacles belong to the old direction
         foreach (Transform t in obstacleParent) Destroy(t.gameObject);
 
@@ -692,6 +769,142 @@ public class PlayerWorld : MonoBehaviour
             chunkParent.position = turnToPos;
             chunkParent.rotation = turnToRot;
         }
+    }
+
+    // ================= ghosts (Wi-Fi race) =================
+
+    // The hero stands at the start of the third piece: distance 0 = 20 m along the road.
+    const float HeroPathOffset = ChunksBehindPlayer * ChunkLength;
+
+    // A point of our road at a distance along it and in a lane (false if that part of the road is not built).
+    bool RoadPoint(float pathPos, int laneIndex, out Vector3 pos, out Quaternion rot)
+    {
+        pos = Vector3.zero;
+        rot = Quaternion.identity;
+        float laneX = PlayerAvatar.Lanes[Mathf.Clamp(laneIndex, 0, 2)];
+        foreach (Chunk c in chunks)
+        {
+            float t = pathPos - c.PathStart;
+            if (t < 0f || t >= ChunkLength) continue;
+            Vector3 local;
+            Quaternion localRot = Quaternion.identity;
+            if (c.IsCorner && t > 5.5f)
+            {
+                // after the turning point the road leaves the corner sideways
+                int d = c.Turn;
+                local = new Vector3(d * (t - 5.5f), 0f, 5.5f) + new Vector3(0f, 0f, -d) * laneX;
+                localRot = Quaternion.Euler(0f, d * 90f, 0f);
+            }
+            else local = new Vector3(laneX, 0f, t);
+            pos = c.transform.TransformPoint(local);
+            rot = c.transform.rotation * localRot;
+            return true;
+        }
+        return false;
+    }
+
+    void UpdateGhosts(float dt)
+    {
+        foreach (NetPlayer p in lan.Players)
+        {
+            if (p.id == lan.MyId) continue;
+            Ghost g;
+            if (!ghosts.TryGetValue(p.id, out g))
+            {
+                g = new Ghost();
+                ghosts[p.id] = g;
+            }
+            if (g.ch != p.ch || g.root == null) BuildGhost(g, p);
+
+            // smooth: the data arrives 5 times a second, in between the ghost keeps running at its speed
+            float target = p.d + (p.over ? 0f : p.speed * Mathf.Clamp(Time.time - p.receivedAt, 0f, 0.5f));
+            g.shownD = Mathf.Abs(target - g.shownD) > 15f ? target : Mathf.Lerp(g.shownD, target, 1f - Mathf.Exp(-8f * dt));
+            g.shownY = Mathf.Lerp(g.shownY, p.y, 1f - Mathf.Exp(-15f * dt));
+
+            Vector3 pos = Vector3.zero; Quaternion rot = Quaternion.identity;
+            bool visible = !p.gone && Mathf.Abs(g.shownD - distance) < 60f
+                           && RoadPoint(g.shownD + HeroPathOffset, p.lane, out pos, out rot);
+            if (g.root.activeSelf != visible) g.root.SetActive(visible);
+            if (!visible) continue;
+
+            // slide sideways smoothly between lanes
+            Vector3 current = g.root.transform.position;
+            Vector3 next = new Vector3(pos.x, g.shownY, pos.z);
+            if ((current - next).sqrMagnitude < 25f)
+            {
+                next.x = Mathf.Lerp(current.x, next.x, 1f - Mathf.Exp(-12f * dt));
+                next.z = Mathf.Lerp(current.z, next.z, 1f - Mathf.Exp(-12f * dt));
+            }
+            g.root.transform.position = next;
+            g.root.transform.rotation = rot;
+
+            if (g.rig != null)
+            {
+                g.rig.running = !p.over && Running;
+                g.rig.defeated = p.over;
+                g.rig.airborne = p.y > 0.05f;
+                g.rig.sliding = p.slide;
+                g.rig.runSpeed = Mathf.Max(0.8f, p.speed / 7f);
+            }
+            if (g.tag != null)
+            {
+                g.tag.transform.rotation = Cam.transform.rotation;
+                float ahead = g.shownD - distance;
+                g.tag.text = p.name + (Mathf.Abs(ahead) > 1f ? "  " + (ahead > 0f ? "+" : "") + Mathf.RoundToInt(ahead) + " m" : "");
+            }
+        }
+    }
+
+    void BuildGhost(Ghost g, NetPlayer p)
+    {
+        if (g.root != null) Destroy(g.root);
+        g.ch = p.ch;
+        g.root = new GameObject("Ghost " + p.name);
+        g.root.transform.SetParent(transform, false);
+        g.root.transform.localScale = Vector3.one * 1.2f;
+        GameObject model = Instantiate(assets.ModelFor(p.ch), g.root.transform);
+        model.transform.localPosition = Vector3.zero;
+        model.transform.localRotation = Quaternion.identity;
+        ModelTint.Apply(model, CharacterCatalog.All[Mathf.Clamp(p.ch, 0, CharacterCatalog.Count - 1)].tint);
+        g.rig = model.GetComponentInChildren<CharacterRig>();
+
+        // a name above the head in the runner's colour
+        GameObject tagGo = new GameObject("Name");
+        tagGo.transform.SetParent(g.root.transform, false);
+        tagGo.transform.localPosition = new Vector3(0f, 2.15f, 0f);
+        g.tag = tagGo.AddComponent<TextMesh>();
+        g.tag.font = GameUI.DefaultFont;
+        g.tag.fontSize = 48;
+        g.tag.characterSize = 0.05f;
+        g.tag.anchor = TextAnchor.MiddleCenter;
+        g.tag.alignment = TextAlignment.Center;
+        g.tag.fontStyle = FontStyle.Bold;
+        g.tag.color = PhoneHub.SlotColors[Mathf.Clamp(p.color, 0, PhoneHub.SlotColors.Length - 1)];
+        MeshRenderer mr = tagGo.GetComponent<MeshRenderer>();
+        mr.sharedMaterial = GameUI.DefaultFont.material;
+        mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        g.shownD = p.d;
+    }
+
+    // The race leaderboard in the corner: place, name, metres; our line in gold, finished runners grey.
+    void UpdateBoard(float dt)
+    {
+        if (lan == null || hud.board == null) return;
+        boardTimer -= dt;
+        if (boardTimer > 0f) return;
+        boardTimer = 0.25f;
+
+        List<NetPlayer> list = new List<NetPlayer>(lan.Players);
+        list.Sort((a, b) => b.d.CompareTo(a.d));
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < list.Count; i++)
+        {
+            NetPlayer p = list[i];
+            string color = p.id == lan.MyId ? "#ffd54f" : (p.over || p.gone ? "#9e9e9e" : "#ffffff");
+            sb.Append("<color=").Append(color).Append('>').Append(i + 1).Append(". ").Append(p.name)
+              .Append("  ").Append(Mathf.FloorToInt(p.d)).Append(" m").Append(p.over ? "  ✕" : "").Append("</color>\n");
+        }
+        hud.board.text = sb.ToString();
     }
 
     // ================= falling obstacles =================
@@ -895,6 +1108,7 @@ public class PlayerWorld : MonoBehaviour
     {
         if (hud == null) return;
         float dt = Time.deltaTime;
+        UpdateBoard(dt);
 
         hud.score.text = Score.ToString("N0", CultureInfo.InvariantCulture).Replace(',', ' ');
         hud.distance.text = Loc.F("hud.distance", Distance);
@@ -1010,7 +1224,9 @@ public class PlayerWorld : MonoBehaviour
         sb.Append(",\"mult\":").Append(Multiplier);
         sb.Append(",\"shield\":").Append(ShieldActive ? "true" : "false");
         sb.Append(",\"magnet\":").Append(MagnetActive ? "true" : "false");
-        sb.Append(",\"over\":").Append((over || Finished) ? "true" : "false").Append('}');
+        sb.Append(",\"over\":").Append((over || Finished) ? "true" : "false");
+        if (Finished) sb.Append(",\"end\":").Append(PhoneHub.Quote(CauseText()));
+        sb.Append('}');
         hub.SendTo(Owner, sb.ToString());
     }
 

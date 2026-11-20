@@ -13,10 +13,10 @@ using UnityEngine.UI;
 //   Menu ─┬─ Single Player ──> Hero select ───────────┐
 //         └─ Multiplayer ─> Lobby (QR code) -> Countdown ─┴─> Game -> Results -> (back to select / lobby)
 [RequireComponent(typeof(GameAssets))]
-public class GameBootstrap : MonoBehaviour
+public partial class GameBootstrap : MonoBehaviour
 {
-    enum Phase { Menu, SingleSelect, Lobby, Countdown, Playing, Results }
-    enum Mode { Single, Network }
+    enum Phase { Menu, SingleSelect, Lobby, Countdown, Playing, Results, NetMenu, NetLobby }
+    enum Mode { Single, Network, Lan }
 
     class LobbySlotView
     {
@@ -164,6 +164,7 @@ public class GameBootstrap : MonoBehaviour
         BuildResultsUi();
         BuildPauseUi();
         BuildHelpUi();
+        BuildNetUi();
         BuildFooter();
 
         EnterMenu();
@@ -334,16 +335,16 @@ public class GameBootstrap : MonoBehaviour
         GameUI.Pick(new Vector4(0.065f, 0.615f, 0.62f, 0.66f), new Vector4(0.03f, 0.79f, 0.97f, 0.83f), out a, out b);
         menuBest = GameUI.CreateText("Best", p, a, b, "", 34, GameUI.Cyan, portrait ? TextAnchor.MiddleCenter : TextAnchor.MiddleLeft);
 
-        string[] keys = { "menu.single", "menu.multi", "menu.help", null, "menu.quit" };
-        System.Action[] actions = { StartSingle, StartNetwork, OpenHelp, Loc.Next, QuitGame };
+        string[] keys = { "menu.single", "menu.lan", "menu.multi", "menu.help", null, "menu.quit" };
+        System.Action[] actions = { StartSingle, OpenNetMenu, StartNetwork, OpenHelp, Loc.Next, QuitGame };
         List<MenuButton> list = new List<MenuButton>();
         for (int i = 0; i < keys.Length; i++)
         {
-            // on a phone there is no multiplayer (other phones connect to a computer)
-            if (mobile && (i == 1 || i == 2)) continue;
+            // on a phone there is no split screen (phones as controllers connect to a computer) - the Wi-Fi race is there
+            if (mobile && (i == 2 || i == 3)) continue;
             int k = list.Count;
-            if (portrait) { float top = 0.40f - k * 0.07f; a = V(0.12f, top - 0.058f); b = V(0.88f, top); }
-            else { float top = 0.60f - k * 0.115f; a = V(0.06f, top - 0.09f); b = V(0.46f, top); }
+            if (portrait) { float top = 0.40f - k * 0.065f; a = V(0.12f, top - 0.054f); b = V(0.88f, top); }
+            else { float top = 0.62f - k * 0.1f; a = V(0.06f, top - 0.08f); b = V(0.46f, top); }
             MenuButton btn = GameUI.CreateButton("Button " + (i + 1), p, a, b, "", 38, actions[i]);
             if (keys[i] != null) GameUI.Bind(btn.label, keys[i]);
             // the language button shows the current language in that language: "ЯЗЫК: РУССКИЙ", "TIL: O‘ZBEKCHA"...
@@ -561,8 +562,11 @@ public class GameBootstrap : MonoBehaviour
         BuildResultsUi();
         BuildPauseUi();
         BuildHelpUi();
+        BuildNetUi();
         BuildFooter();
-        if (was == Phase.SingleSelect) EnterSingleSelect();
+        if (was == Phase.NetMenu) { HideAllScreens(); netMenuUi.SetActive(true); phase = Phase.NetMenu; RefreshNetMenu(); }
+        else if (was == Phase.NetLobby) EnterNetLobby();
+        else if (was == Phase.SingleSelect) EnterSingleSelect();
         else if (was == Phase.Lobby) EnterLobby();
         else EnterMenu();
     }
@@ -597,7 +601,8 @@ public class GameBootstrap : MonoBehaviour
         if (paused) { UpdatePause(); return; }
 
         // the window or phone was turned: rebuild the menus in the other layout
-        if (GameUI.Portrait != lastPortrait && (phase == Phase.Menu || phase == Phase.SingleSelect || phase == Phase.Lobby))
+        if (GameUI.Portrait != lastPortrait && (phase == Phase.Menu || phase == Phase.SingleSelect || phase == Phase.Lobby
+                                                || phase == Phase.NetMenu || phase == Phase.NetLobby))
         {
             RebuildUi();
             return;
@@ -612,7 +617,9 @@ public class GameBootstrap : MonoBehaviour
                 QuitGame();
 #endif
             }
-            else if (phase == Phase.Playing) OpenPause();
+            else if (phase == Phase.Playing) { if (mode != Mode.Lan) OpenPause(); }   // a network race cannot be paused
+            else if (phase == Phase.NetMenu || phase == Phase.NetLobby) LeaveLan();
+            else if (mode == Mode.Lan) { }                                            // race results: use the buttons
             else EnterMenu();
             return;
         }
@@ -622,9 +629,11 @@ public class GameBootstrap : MonoBehaviour
             case Phase.Menu: UpdateMenu(); break;
             case Phase.SingleSelect: UpdateSingleSelect(); break;
             case Phase.Lobby: UpdateLobby(); break;
-            case Phase.Countdown: UpdateCountdown(); break;
-            case Phase.Playing: UpdatePlaying(); break;
-            case Phase.Results: UpdateResults(); break;
+            case Phase.Countdown: if (mode == Mode.Lan) UpdateLanCountdown(); else UpdateCountdown(); break;
+            case Phase.Playing: if (mode == Mode.Lan) UpdateLanPlaying(); else UpdatePlaying(); break;
+            case Phase.Results: if (mode == Mode.Lan) UpdateLanResults(); else UpdateResults(); break;
+            case Phase.NetMenu: UpdateNetMenu(); break;
+            case Phase.NetLobby: UpdateNetLobby(); break;
         }
     }
 
@@ -792,6 +801,8 @@ public class GameBootstrap : MonoBehaviour
         lobbyUi.SetActive(false);
         resultsUi.SetActive(false);
         if (pauseUi != null) pauseUi.SetActive(false);
+        if (netMenuUi != null) netMenuUi.SetActive(false);
+        if (netLobbyUi != null) netLobbyUi.SetActive(false);
         countText.gameObject.SetActive(false);
         countText.transform.localScale = Vector3.one;
     }
@@ -809,6 +820,8 @@ public class GameBootstrap : MonoBehaviour
     {
         ClearWorlds();
         HideAllScreens();
+        if (lan != null) lan.Leave();
+        if (mode == Mode.Lan) mode = Mode.Single;
 
         // phones that were in the game move to the waiting screen
         if (hub.Enabled) hub.SendToAll(PhoneHub.MessageJson("wait", Loc.T("phone.waitReturned")));
@@ -835,7 +848,7 @@ public class GameBootstrap : MonoBehaviour
         {
             p.name = Loc.T("player.single");
             p.keyboardScheme = GameInput.SchemeSolo;
-            p.character = 0;
+            p.character = LocalHero();
             p.ready = true;
         }
         EnterSingleSelect();
@@ -859,6 +872,7 @@ public class GameBootstrap : MonoBehaviour
         if (p == null) return;
 
         CharacterDef def = CharacterCatalog.All[p.character];
+        SaveHero(p.character);
         selName.text = def.Name;
         selName.color = Color.Lerp(Color.white, def.tint, 0.85f);
         selDesc.text = def.Description;
@@ -1091,6 +1105,7 @@ public class GameBootstrap : MonoBehaviour
     // Start the round again with the same players and heroes.
     void RestartGame()
     {
+        if (mode == Mode.Lan) { LanAgain(); return; }
         if (mode == Mode.Single)
         {
             ClearWorlds();
@@ -1108,6 +1123,7 @@ public class GameBootstrap : MonoBehaviour
     // "ADD PLAYERS": back to the lobby where new players can join (in single-player mode: hero select).
     void ResultsSecondAction()
     {
+        if (mode == Mode.Lan) { OpenNetMenu(); return; }
         if (mode == Mode.Single) EnterSingleSelect();
         else
         {
@@ -1302,6 +1318,37 @@ public class GameBootstrap : MonoBehaviour
         // because they are positioned relative to the camera's view below
         lobbyCam.transform.localPosition = new Vector3(Mathf.Sin(t * 0.23f) * 0.35f, 1.7f + Mathf.Sin(t * 0.31f) * 0.12f, -8f);
         lobbyCam.transform.localRotation = Quaternion.Euler(Mathf.Sin(t * 0.19f) * 0.6f, -Mathf.Sin(t * 0.23f) * 1.2f, 0f);
+
+        // the Wi-Fi race menu: our hero on the side (not in portrait - the list needs the room)
+        if (phase == Phase.NetMenu)
+        {
+            for (int i = 0; i < views.Length; i++) views[i].root.gameObject.SetActive(i == 1 && !GameUI.Portrait);
+            ShowModel(views[1], LocalHero());
+            views[1].pedestal.material.color = GameUI.Gold;
+            views[1].root.position = lobbyCam.ViewportToWorldPoint(new Vector3(0.85f, 0.14f, 8f));
+            views[1].root.localScale = Vector3.one * 1.1f;
+            views[1].root.rotation = Quaternion.Euler(0f, 180f + Mathf.Sin(t * 1.1f) * 28f, 0f);
+            return;
+        }
+
+        // the room: the runners' heroes on their podiums (up to three)
+        if (phase == Phase.NetLobby && lan != null)
+        {
+            bool portrait = GameUI.Portrait;
+            for (int i = 0; i < views.Length; i++)
+            {
+                NetPlayer p = i < lan.Players.Count ? lan.Players[i] : null;
+                views[i].root.gameObject.SetActive(p != null);
+                if (p == null) continue;
+                ShowModel(views[i], p.ch);
+                views[i].pedestal.material.color = PhoneHub.SlotColors[Mathf.Clamp(p.color, 0, PhoneHub.SlotColors.Length - 1)];
+                Vector3 vp = portrait ? new Vector3(0.22f + i * 0.28f, 0.37f, 8f) : new Vector3(0.12f + i * 0.17f, 0.08f, 8f);
+                views[i].root.position = lobbyCam.ViewportToWorldPoint(vp);
+                views[i].root.localScale = Vector3.one * (portrait ? 0.62f : 0.85f);
+                views[i].root.rotation = Quaternion.Euler(0f, 180f + Mathf.Sin(t * 1.3f + i) * 22f, 0f);
+            }
+            return;
+        }
 
         if (phase == Phase.Menu || phase == Phase.SingleSelect)
         {

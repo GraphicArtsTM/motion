@@ -52,6 +52,7 @@ public class PhoneHub : MonoBehaviour
         new Color(0.94f, 0.33f, 0.31f),
         new Color(0.26f, 0.65f, 0.96f),
         new Color(0.40f, 0.73f, 0.42f),
+        new Color(1.00f, 0.76f, 0.20f),   // the 4th runner of a Wi-Fi race
     };
 
     [SerializeField] int port = 8080;

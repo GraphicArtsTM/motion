@@ -36,6 +36,7 @@ namespace RoyalRun.Net
             public NetworkStream Stream;
             public readonly object WriteLock = new object();
             public volatile bool Alive = true;
+            public bool Raw;     // a game (not a browser): plain lines of JSON instead of WebSocket frames
         }
 
         readonly Func<string> pageProvider;   // returns the page HTML (it can change, e.g. with the language)
@@ -55,6 +56,10 @@ namespace RoyalRun.Net
         public int ClientCount { get { lock (clientsLock) { return clients.Count; } } }
         public bool IsRunning { get { return running; } }
         public Action<string> Log = delegate { };
+
+        // GET /rr-info answers with this JSON (a Wi-Fi race room describes itself to searching phones).
+        // Called on a network thread: it must not touch Unity objects.
+        public Func<string> InfoProvider;
 
         public MiniWebSocketServer(string htmlPage) : this(() => htmlPage)
         {
@@ -113,7 +118,8 @@ namespace RoyalRun.Net
             Client c;
             lock (clientsLock) { clients.TryGetValue(clientId, out c); }
             if (c == null || !c.Alive) return;
-            SendFrame(c, 0x1, Encoding.UTF8.GetBytes(text));
+            if (c.Raw) SendRaw(c, text);
+            else SendFrame(c, 0x1, Encoding.UTF8.GetBytes(text));
         }
 
         public void Broadcast(string text)
@@ -121,7 +127,12 @@ namespace RoyalRun.Net
             List<Client> copy;
             lock (clientsLock) { copy = new List<Client>(clients.Values); }
             byte[] data = Encoding.UTF8.GetBytes(text);
-            foreach (Client c in copy) if (c.Alive) SendFrame(c, 0x1, data);
+            foreach (Client c in copy)
+            {
+                if (!c.Alive) continue;
+                if (c.Raw) SendRaw(c, text);
+                else SendFrame(c, 0x1, data);
+            }
         }
 
         public void Disconnect(int clientId)
@@ -179,6 +190,21 @@ namespace RoyalRun.Net
                                  && headers["Upgrade"].ToLowerInvariant().Contains("websocket");
 
                 string remote = tcp.Client.RemoteEndPoint != null ? tcp.Client.RemoteEndPoint.ToString() : "?";
+
+                // another copy of the game joins a Wi-Fi race: after the answer, lines of JSON go both ways
+                if (path == "/rrnet")
+                {
+                    byte[] ok = Encoding.ASCII.GetBytes("HTTP/1.1 101 Switching Protocols\r\nUpgrade: rrnet\r\nConnection: Upgrade\r\n\r\n");
+                    stream.Write(ok, 0, ok.Length);
+                    stream.Flush();
+                    tcp.ReceiveTimeout = 15000;
+                    Log("Game connected: " + remote);
+                    client = new Client { Id = Interlocked.Increment(ref nextId), Tcp = tcp, Stream = stream, Raw = true };
+                    lock (clientsLock) { clients[client.Id] = client; }
+                    events.Enqueue(new ServerEvent { Type = ServerEventType.Connected, ClientId = client.Id, Text = remote });
+                    ReadLines(client);
+                    return;
+                }
 
                 if (!isUpgrade)
                 {
@@ -249,6 +275,12 @@ namespace RoyalRun.Net
                 status = "200 OK";
                 body = Encoding.UTF8.GetBytes(pageProvider());
             }
+            else if (path == "/rr-info" && InfoProvider != null)
+            {
+                status = "200 OK";
+                body = Encoding.UTF8.GetBytes(InfoProvider());
+                type = "application/json; charset=utf-8";
+            }
             else if (path == "/ping")
             {
                 status = "200 OK";
@@ -277,6 +309,57 @@ namespace RoyalRun.Net
             stream.Write(hb, 0, hb.Length);
             if (body.Length > 0) stream.Write(body, 0, body.Length);
             stream.Flush();
+        }
+
+        // ---------- reading lines (game clients) ----------
+
+        void ReadLines(Client c)
+        {
+            MemoryStream line = new MemoryStream();
+            byte[] buf = new byte[4096];
+            while (running && c.Alive)
+            {
+                int n = c.Stream.Read(buf, 0, buf.Length);
+                if (n <= 0) return;
+                for (int i = 0; i < n; i++)
+                {
+                    if (buf[i] == (byte)'\n')
+                    {
+                        if (line.Length > 0)
+                        {
+                            events.Enqueue(new ServerEvent
+                            {
+                                Type = ServerEventType.Message,
+                                ClientId = c.Id,
+                                Text = Encoding.UTF8.GetString(line.ToArray())
+                            });
+                        }
+                        line.SetLength(0);
+                    }
+                    else if (buf[i] != (byte)'\r')
+                    {
+                        line.WriteByte(buf[i]);
+                        if (line.Length > MaxMessageBytes) return;
+                    }
+                }
+            }
+        }
+
+        void SendRaw(Client c, string text)
+        {
+            try
+            {
+                byte[] data = Encoding.UTF8.GetBytes(text + "\n");
+                lock (c.WriteLock)
+                {
+                    c.Stream.Write(data, 0, data.Length);
+                    c.Stream.Flush();
+                }
+            }
+            catch
+            {
+                CloseClient(c, true);
+            }
         }
 
         // ---------- reading WebSocket frames ----------
@@ -415,7 +498,12 @@ namespace RoyalRun.Net
                 Thread.Sleep(5000);
                 List<Client> copy;
                 lock (clientsLock) { copy = new List<Client>(clients.Values); }
-                foreach (Client c in copy) if (c.Alive) SendFrame(c, 0x9, new byte[0]);
+                foreach (Client c in copy)
+                {
+                    if (!c.Alive) continue;
+                    if (c.Raw) SendRaw(c, "{\"t\":\"ping\"}");
+                    else SendFrame(c, 0x9, new byte[0]);
+                }
             }
         }
 

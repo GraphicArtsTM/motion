@@ -61,6 +61,7 @@ static class RoyalRunEditorStartup
         PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
         PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
         PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
+        PlayerSettings.Android.forceInternetPermission = true;   // the Wi-Fi race needs the network
 
         if (!BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.Android, BuildTarget.Android))
         {

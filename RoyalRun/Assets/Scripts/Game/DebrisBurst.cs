@@ -23,6 +23,12 @@ public class DebrisBurst : MonoBehaviour
         Create(position, color, parent, 16, 1.1f, 1f, 0.24f, 4.5f, 3.5f, 0f);
     }
 
+    // A small puff of dust under a running foot.
+    public static void Dust(Vector3 position, Color color, Transform parent)
+    {
+        Create(position, color, parent, 3, 0.4f, 0.25f, 0.11f, 0.9f, 0.6f, 0f);
+    }
+
     public static void Sparkle(Vector3 position, Color color, Transform parent, int pieces = 8)
     {
         Create(position, color, parent, pieces, 0.45f, -0.15f, 0.12f, 2.6f, 1.2f, 1.6f);

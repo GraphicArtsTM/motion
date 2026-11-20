@@ -363,6 +363,7 @@ function handle(m){
       var r=Math.max(0,Math.min(1,m.time/40));
       var f=$('barFill');f.style.width=(r*100)+'%';
       f.style.background=r>0.4?'#43d65f':(r>0.2?'#ffc107':'#ff5252');
+      $('over').textContent=m.end||tr('timeUp');
       $('over').style.display=m.over?'block':'none';
       var fx=[];
       if(m.mult>1)fx.push('<b>x'+m.mult+'</b>');

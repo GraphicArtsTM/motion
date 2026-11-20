@@ -40,6 +40,19 @@ public class Chunk : MonoBehaviour
 
     List<int> availableLanes = new List<int> { 0, 1, 2 };
     bool safe;
+    System.Random rnd;
+
+    // Where this piece starts along the road (metres from the first piece); set by PlayerWorld.
+    [System.NonSerialized] public float PathStart;
+
+    // The contents come from this seed, so every device in a Wi-Fi race gets the same road.
+    public void SetSeed(int seed)
+    {
+        rnd = new System.Random(seed);
+    }
+
+    float Value() { return (float)rnd.NextDouble(); }
+    int Range(int min, int maxExclusive) { return rnd.Next(min, maxExclusive); }
 
     public int Turn { get { return turn; } }
     public bool IsCorner { get { return turn != 0; } }
@@ -88,6 +101,7 @@ public class Chunk : MonoBehaviour
 
     void Start()
     {
+        if (rnd == null) rnd = new System.Random(UnityEngine.Random.Range(0, int.MaxValue));
         if (!safe && !IsCorner)
         {
             SpawnFences();
@@ -112,14 +126,14 @@ public class Chunk : MonoBehaviour
     void SpawnFences()
     {
         if (fencePrefab == null) return;
-        int fencesToSpawn = Random.Range(0, lanes.Length);   // never all three lanes
+        int fencesToSpawn = Range(0, lanes.Length);   // never all three lanes
 
         for (int i = 0; i < fencesToSpawn; i++)
         {
             if (availableLanes.Count <= 0) break;
 
             int selectedLane = SelectLane();
-            float r = Random.value;
+            float r = Value();
             if (tallFencePrefab != null && r < tallFenceChance)
             {
                 Place(tallFencePrefab, LanePoint(selectedLane, 0f));
@@ -135,7 +149,7 @@ public class Chunk : MonoBehaviour
             {
                 Place(fencePrefab, LanePoint(selectedLane, 0f));
                 // a low fence sometimes has an arc of coins over it - you only get them by jumping
-                if (coinPrefab != null && Random.value < coinArcChance) SpawnCoinArc(selectedLane);
+                if (coinPrefab != null && Value() < coinArcChance) SpawnCoinArc(selectedLane);
             }
         }
     }
@@ -154,34 +168,34 @@ public class Chunk : MonoBehaviour
 
     void SpawnApple()
     {
-        if (applePrefab == null || Random.value > appleSpawnChance || availableLanes.Count <= 0) return;
+        if (applePrefab == null || Value() > appleSpawnChance || availableLanes.Count <= 0) return;
         Place(applePrefab, LanePoint(SelectLane(), 0f));
     }
 
     void SpawnPowerUp()
     {
         if (powerUpPrefabs == null || powerUpPrefabs.Length == 0) return;
-        if (Random.value > powerUpChance || availableLanes.Count <= 0) return;
+        if (Value() > powerUpChance || availableLanes.Count <= 0) return;
 
-        GameObject prefab = powerUpPrefabs[Random.Range(0, powerUpPrefabs.Length)];
+        GameObject prefab = powerUpPrefabs[Range(0, powerUpPrefabs.Length)];
         if (prefab == null) return;
         Place(prefab, LanePoint(SelectLane(), 5f));
     }
 
     void SpawnMover()
     {
-        if (moverPrefab == null || Random.value > moverChance) return;
+        if (moverPrefab == null || Value() > moverChance) return;
         // it drives across all lanes in the middle of the piece, away from the fences at its start
         Place(moverPrefab, transform.TransformPoint(new Vector3(0f, 0f, 6.5f)));
     }
 
     void SpawnCoins()
     {
-        if (coinPrefab == null || Random.value > coinSpawnChance || availableLanes.Count <= 0) return;
+        if (coinPrefab == null || Value() > coinSpawnChance || availableLanes.Count <= 0) return;
 
         int selectedLane = SelectLane();
-        int coinsToSpawn = Random.Range(2, 7);
-        bool gemAtEnd = gemPrefab != null && coinsToSpawn >= 3 && Random.value < gemChance;
+        int coinsToSpawn = Range(2, 7);
+        bool gemAtEnd = gemPrefab != null && coinsToSpawn >= 3 && Value() < gemChance;
 
         // a line of coins in the second half of the piece (away from the obstacles at its start)
         for (int i = 0; i < coinsToSpawn; i++)
@@ -195,7 +209,7 @@ public class Chunk : MonoBehaviour
 
     int SelectLane()
     {
-        int randomLaneIndex = Random.Range(0, availableLanes.Count);
+        int randomLaneIndex = Range(0, availableLanes.Count);
         int selectedLane = availableLanes[randomLaneIndex];
         availableLanes.RemoveAt(randomLaneIndex);
         return selectedLane;

@@ -98,6 +98,7 @@ public class PlayerAvatar : MonoBehaviour
         avatar.originX = world.OriginX;
         avatar.laneSpeed = LaneSpeed * character.moveMult;
         avatar.BuildEffects();
+        if (avatar.rig != null && !PlayerWorld.Lite) avatar.rig.Footstep += avatar.OnFootstep;
         sensor.owner = avatar;
         input.jumpQueued = false;
         input.actions.Clear();
@@ -135,6 +136,14 @@ public class PlayerAvatar : MonoBehaviour
         br.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         br.receiveShadows = false;
         blobShadow = blob.transform;
+    }
+
+    // A puff of dust where the foot touched the road (it stays behind as the road runs on).
+    void OnFootstep()
+    {
+        if (!world.Running) return;
+        DebrisBurst.Dust(transform.position + new Vector3(Random.Range(-0.15f, 0.15f), 0.05f, -0.1f),
+                         new Color(0.62f, 0.57f, 0.5f), world.transform);
     }
 
     // ================= input =================

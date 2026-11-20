@@ -22,6 +22,8 @@ public static class MeshBaker
             Material mat = r.sharedMaterial;
             // a mesh that cannot be read on this platform is simply left as it is
             if (mf == null || mf.sharedMesh == null || mat == null || !mf.sharedMesh.isReadable) continue;
+            // moving parts (windmill sails) keep their own renderers
+            if (r.GetComponentInParent<NoBake>(true) != null) continue;
 
             List<CombineInstance> list;
             if (!groups.TryGetValue(mat, out list))

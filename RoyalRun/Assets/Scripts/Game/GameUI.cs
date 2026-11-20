@@ -21,6 +21,7 @@ public class ColumnHud
     public Text hint;           // how to control, at the bottom for the first seconds
     public Image flash;         // a red flash over the whole strip on a hit
     public MenuButton pause;    // the "II" button (tap / click)
+    public Text board;          // Wi-Fi race: the live leaderboard
 }
 
 // A menu button. Works with mouse and keyboard, without an EventSystem.
@@ -414,6 +415,12 @@ public static class GameUI
         RectTransform st = CreateAnchored("Status", r, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, total > 1 ? -215f : -170f), new Vector2(560f, 56f));
         hud.status = st.gameObject.AddComponent<Text>();
         StyleText(hud.status, "", 32, Color.white, TextAnchor.MiddleLeft, true);
+
+        // ---- Wi-Fi race leaderboard (right, under the combo) ----
+        RectTransform bd = CreateAnchored("Leaderboard", r, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-20f, -180f), new Vector2(380f, 220f));
+        hud.board = bd.gameObject.AddComponent<Text>();
+        StyleText(hud.board, "", 30, Color.white, TextAnchor.UpperRight, true);
+        hud.board.verticalOverflow = VerticalWrapMode.Overflow;
 
         // ---- the middle and the bottom ----
         hud.toast = CreateText("Toast", r, new Vector2(0.04f, 0.6f), new Vector2(0.96f, 0.72f), "", 50, Color.white, TextAnchor.MiddleCenter);

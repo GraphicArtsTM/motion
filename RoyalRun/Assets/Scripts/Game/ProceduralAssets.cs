@@ -79,6 +79,9 @@ public static class ProceduralAssets
     struct ChunkStyle
     {
         public bool lampLeft, lampRight, rail, banners, castle;
+        public bool village;   // cottages by the road
+        public bool windmill;  // a windmill with turning sails
+        public bool bridge;    // the road crosses a lake on a stone causeway
         public int seed;
     }
 
@@ -119,6 +122,9 @@ public static class ProceduralAssets
                 new ChunkStyle { seed = 53, lampLeft = true, banners = true },
                 new ChunkStyle { seed = 67, lampRight = true, rail = true, castle = true },
                 new ChunkStyle { seed = 71, banners = true },
+                new ChunkStyle { seed = 83, village = true, lampLeft = true },
+                new ChunkStyle { seed = 89, windmill = true, village = true },
+                new ChunkStyle { seed = 97, bridge = true, lampLeft = true, lampRight = true },
             };
             bool ownCheckpoint = a.checkpointChunkPrefab != null;
             a.biomeChunks = new GameObject[Biomes.Length][];
@@ -276,6 +282,11 @@ public static class ProceduralAssets
             // grass and a strip of earth (or snow) between the curb and the grass
             float grassX = RoadWidth * 0.5f + 0.36f + 11f;
             float len = open ? 1f : ChunkLength;
+            if (style.bridge && !open)
+            {
+                AddWater(t, side);
+                continue;
+            }
             Box("Grass", t, new Vector3(side * grassX, grassY, len * 0.5f), new Vector3(22f, 0.2f, len), B.grass);
             Box("Verge", t, new Vector3(side * (RoadWidth * 0.5f + 0.75f), -0.04f, len * 0.5f), new Vector3(0.8f, 0.1f, len), B.ground);
         }
@@ -285,12 +296,19 @@ public static class ProceduralAssets
         if (style.rail && openSide == 0) { AddRail(t, -1f); AddRail(t, 1f); }
         if (style.banners) { if (openSide != -1) AddBanner(t, -1f, 2.5f); if (openSide != 1) AddBanner(t, 1f, 7.5f); }
         if (style.castle && openSide == 0) AddCastle(t, rnd.Next(2) == 0 ? -1f : 1f, rnd);
+        int houseSide = rnd.Next(2) == 0 ? -1 : 1;
+        if (style.village && openSide == 0) AddHouse(t, houseSide, 2.5f + (float)rnd.NextDouble() * 4f, rnd);
+        if (style.village && openSide == 0 && !Lite && rnd.Next(2) == 0) AddHouse(t, -houseSide, 3f + (float)rnd.NextDouble() * 4f, rnd);
+        if (style.windmill && openSide == 0) AddWindmill(t, -houseSide);
+        if (style.bridge) return root;    // a lake on both sides: no trees
 
         // trees, bushes, rocks and flowers - each template has its own layout
         for (int side = -1; side <= 1; side += 2)
         {
             if (side == openSide) continue;
             int count = Lite ? 1 : 1 + rnd.Next(3);
+            if (style.village && side == houseSide) count = 0;     // the cottage stands there
+            if (style.windmill && side == -houseSide) count = Mathf.Min(count, 1);
             for (int i = 0; i < count; i++)
             {
                 float x = side * (7.5f + (float)rnd.NextDouble() * 10f);
@@ -385,6 +403,102 @@ public static class ProceduralAssets
 
         // a piece of the wall next to the tower
         Box("Wall", c, new Vector3(0f, 2.2f, -4f), new Vector3(1.6f, 4.4f, 6f), Stone);
+    }
+
+    // A lake on one side of a causeway: water a little below the road, stone piers, reeds and lily pads.
+    static void AddWater(Transform chunk, int side)
+    {
+        Color water = B.snow ? new Color(0.72f, 0.82f, 0.92f) : new Color(0.16f, 0.36f, 0.48f);
+        float x = side * (RoadWidth * 0.5f + 11f);
+        MatLib.Prim(PrimitiveType.Cube, "Water", chunk, new Vector3(x, -0.85f, ChunkLength * 0.5f), new Vector3(22f, 0.1f, ChunkLength),
+                    water, false, default(Vector3), B.snow ? 0.8f : 0.92f, 0f, Surface.Plain);
+        // the causeway wall and its piers
+        Box("Causeway", chunk, new Vector3(side * (RoadWidth * 0.5f + 0.25f), -0.5f, ChunkLength * 0.5f), new Vector3(0.5f, 0.9f, ChunkLength), Stone);
+        for (int i = 0; i < 3; i++)
+            Box("Pier", chunk, new Vector3(side * (RoadWidth * 0.5f + 0.55f), -0.55f, 1.5f + i * 3.5f), new Vector3(0.7f, 0.8f, 0.9f), StoneDark);
+        // a stone balustrade instead of the curb
+        for (int i = 0; i < 6; i++)
+            Box("Baluster", chunk, new Vector3(side * (RoadWidth * 0.5f + 0.25f), 0.35f, 0.9f + i * 1.65f), new Vector3(0.3f, 0.7f, 0.3f), Stone);
+        Box("Handrail", chunk, new Vector3(side * (RoadWidth * 0.5f + 0.25f), 0.75f, ChunkLength * 0.5f), new Vector3(0.38f, 0.14f, ChunkLength), StoneDark);
+        if (B.snow) return;
+        Color lily = new Color(0.25f, 0.55f, 0.25f);
+        for (int i = 0; i < 4; i++)
+        {
+            float lx = side * (7f + i * 2.7f);
+            Cyl("Lily Pad", chunk, new Vector3(lx, -0.79f, 1.5f + (i * 3.1f) % 8f), new Vector3(0.7f, 0.01f, 0.7f), lily, default(Vector3), 0.6f, 0f, Surface.Leaves);
+            Ball("Flower", chunk, new Vector3(lx + 0.15f, -0.72f, 1.5f + (i * 3.1f) % 8f), Vector3.one * 0.15f, new Color(1f, 0.75f, 0.85f), 0.3f, 0.2f);
+        }
+        for (int i = 0; i < 5; i++)
+            Cyl("Reed", chunk, new Vector3(side * (5.3f + (i % 2) * 0.4f), -0.2f, 1f + i * 2f), new Vector3(0.05f, 0.7f, 0.05f), new Color(0.45f, 0.5f, 0.25f), new Vector3(0f, 0f, side * (i % 3) * 6f));
+    }
+
+    // A cottage by the road: stone or timber walls, a gable roof, a chimney, a door and lit windows.
+    static void AddHouse(Transform chunk, int side, float z, System.Random rnd)
+    {
+        Transform h = new GameObject("House").transform;
+        h.SetParent(chunk, false);
+        h.localPosition = new Vector3(side * (10.5f + (float)rnd.NextDouble() * 2.5f), 0f, z);
+        h.localRotation = Quaternion.Euler(0f, side > 0 ? -90f : 90f, 0f);   // the front looks at the road
+        bool stone = rnd.Next(2) == 0;
+        Color wall = stone ? Stone : new Color(0.92f, 0.88f, 0.78f);
+        Color roof = rnd.Next(2) == 0 ? new Color(0.62f, 0.22f, 0.16f) : new Color(0.35f, 0.3f, 0.32f);
+        Box("Walls", h, new Vector3(0f, 1.2f, 0f), new Vector3(4f, 2.4f, 3.2f), wall, false, default(Vector3), 0.1f, 0f, stone ? Surface.Bricks : Surface.Grime);
+        if (!stone)
+        {
+            // timber frame
+            foreach (float x in new[] { -1.95f, 1.95f })
+                Box("Beam", h, new Vector3(x, 1.2f, 1.61f), new Vector3(0.15f, 2.4f, 0.06f), WoodDark);
+            Box("Beam", h, new Vector3(0f, 2.35f, 1.61f), new Vector3(4f, 0.15f, 0.06f), WoodDark);
+            Box("Beam", h, new Vector3(0f, 0.1f, 1.61f), new Vector3(4f, 0.15f, 0.06f), WoodDark);
+        }
+        // a gable roof made of two slanted slabs
+        Box("Roof L", h, new Vector3(-1.1f, 3.05f, 0f), new Vector3(2.7f, 0.18f, 3.6f), roof, false, new Vector3(0f, 0f, 38f), 0.1f, 0f, Surface.Bricks);
+        Box("Roof R", h, new Vector3(1.1f, 3.05f, 0f), new Vector3(2.7f, 0.18f, 3.6f), roof, false, new Vector3(0f, 0f, -38f), 0.1f, 0f, Surface.Bricks);
+        Box("Gable", h, new Vector3(0f, 2.75f, 0f), new Vector3(2.4f, 1.1f, 3.15f), wall, false, new Vector3(0f, 0f, 45f), 0.1f, 0f, stone ? Surface.Bricks : Surface.Grime);
+        Box("Chimney", h, new Vector3(1.1f, 3.6f, -0.6f), new Vector3(0.45f, 1.1f, 0.45f), StoneDark);
+        Box("Door", h, new Vector3(0f, 0.8f, 1.62f), new Vector3(0.8f, 1.6f, 0.08f), Wood);
+        foreach (float x in new[] { -1.3f, 1.3f })
+        {
+            Box("Window", h, new Vector3(x, 1.4f, 1.62f), new Vector3(0.7f, 0.7f, 0.06f), LampLight, false, default(Vector3), 0.3f, 0.9f, Surface.Plain);
+            Box("Shutter", h, new Vector3(x - 0.5f, 1.4f, 1.63f), new Vector3(0.22f, 0.75f, 0.05f), new Color(0.25f, 0.45f, 0.3f));
+            Box("Flower Box", h, new Vector3(x, 0.98f, 1.72f), new Vector3(0.8f, 0.14f, 0.2f), Wood);
+            if (!B.snow)
+                for (int i = 0; i < 3; i++)
+                    Ball("Flower", h, new Vector3(x - 0.25f + i * 0.25f, 1.1f, 1.73f), Vector3.one * 0.13f, B.flowers[i % B.flowers.Length], 0.3f, 0.15f);
+        }
+        if (B.snow) Box("Snow", h, new Vector3(0f, 3.85f, 0f), new Vector3(0.6f, 0.18f, 3.7f), Color.white);
+        Box("Path", h, new Vector3(0f, -0.01f, 3.2f), new Vector3(0.9f, 0.04f, 3.2f), B.ground);
+    }
+
+    // A windmill whose sails turn (they are kept out of the baked mesh).
+    static void AddWindmill(Transform chunk, int side)
+    {
+        Transform m = new GameObject("Windmill").transform;
+        m.SetParent(chunk, false);
+        m.localPosition = new Vector3(side * 16f, 0f, 5f);
+        m.localRotation = Quaternion.Euler(0f, side > 0 ? -90f : 90f, 0f);
+        float[] r = { 3.0f, 2.6f, 2.2f };
+        for (int i = 0; i < r.Length; i++)
+            Cyl("Tower", m, new Vector3(0f, 1.3f + i * 2.4f, 0f), new Vector3(r[i], 1.2f, r[i]), new Color(0.9f, 0.86f, 0.78f), default(Vector3), 0.1f, 0f, Surface.Bricks);
+        Cyl("Cap", m, new Vector3(0f, 7.6f, 0f), new Vector3(2.4f, 0.4f, 2.4f), new Color(0.55f, 0.2f, 0.15f));
+        Ball("Dome", m, new Vector3(0f, 7.9f, 0f), new Vector3(2.3f, 1.4f, 2.3f), new Color(0.55f, 0.2f, 0.15f));
+        Box("Door", m, new Vector3(0f, 0.8f, 1.48f), new Vector3(0.8f, 1.6f, 0.1f), Wood);
+        Box("Window", m, new Vector3(0f, 4.2f, 1.25f), new Vector3(0.5f, 0.6f, 0.1f), LampLight, false, default(Vector3), 0.3f, 0.8f, Surface.Plain);
+
+        Transform hub = new GameObject("Sails").transform;
+        hub.SetParent(m, false);
+        hub.localPosition = new Vector3(0f, 7.3f, 1.4f);
+        hub.gameObject.AddComponent<NoBake>();
+        hub.gameObject.AddComponent<Spinner>().degreesPerSecond = 35f;
+        Cyl("Axle", hub, Vector3.zero, new Vector3(0.35f, 0.25f, 0.35f), Iron, new Vector3(90f, 0f, 0f));
+        for (int i = 0; i < 4; i++)
+        {
+            Transform arm = new GameObject("Arm").transform;
+            arm.SetParent(hub, false);
+            arm.localRotation = Quaternion.Euler(0f, 0f, i * 90f);
+            Box("Spar", arm, new Vector3(0f, 2.6f, 0.2f), new Vector3(0.15f, 5f, 0.1f), WoodDark);
+            Box("Sail", arm, new Vector3(0.45f, 2.9f, 0.22f), new Vector3(0.75f, 3.8f, 0.04f), new Color(0.95f, 0.93f, 0.86f), false, default(Vector3), 0.1f, 0f, Surface.Fabric);
+        }
     }
 
     static void AddTree(Transform chunk, Vector3 pos, float v)
