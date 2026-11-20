@@ -20,6 +20,9 @@ public class PhonePlayer
     public bool isKeyboard;
     public Vector2 move;             // joystick position, length at most 1
     public bool jumpQueued;          // a tap on the phone (= jump), taken by PlayerAvatar
+    // swipes from the phone: 'L' left, 'R' right, 'U' up (jump), 'D' down (slide); taken by PlayerAvatar
+    public readonly System.Collections.Generic.Queue<char> actions = new System.Collections.Generic.Queue<char>();
+    public Vector2 lastMove;         // for turning old joystick messages into swipes
     public int keyboardScheme = -1;  // keyboard player: -1 WASD+arrows, 0 WASD, 1 arrows, 2 numpad (see GameInput)
     public bool wantsAgain;
 }
@@ -28,7 +31,8 @@ public class PhonePlayer
 [Serializable]
 public class PhoneMessage
 {
-    public string t;     // type: join, char, ready, move, jump, again
+    public string t;     // type: join, char, ready, move, swipe, jump, again
+    public string d;     // swipe direction: l, r, u, d
     public string cid;
     public string name;
     public int id;
@@ -82,8 +86,17 @@ public class PhoneHub : MonoBehaviour
     MiniWebSocketServer server;
     readonly Dictionary<int, PhonePlayer> byClient = new Dictionary<int, PhonePlayer>();
 
+    // Set before the component is added: no server (the Android version is single-player on the phone itself).
+    public static bool DisableServer;
+
     void Awake()
     {
+        if (DisableServer)
+        {
+            ServerOk = false;
+            return;
+        }
+
         // The page is built for every request with the current game language.
         server = new MiniWebSocketServer(() => ControllerPage.Build(Loc.CodeForThreads));
         server.Log = delegate (string m) { Debug.Log("[PhoneHub] " + m); };
@@ -147,10 +160,27 @@ public class PhoneHub : MonoBehaviour
                 Vector2 v = new Vector2(m.x, m.y);
                 if (float.IsNaN(v.x) || float.IsNaN(v.y)) v = Vector2.zero;
                 p.move = Vector2.ClampMagnitude(v, 1f);
+                // the hero runs in lanes now: a joystick pushed far to a side counts as one swipe
+                if (p.actions.Count < 8)
+                {
+                    if (p.move.x > 0.6f && p.lastMove.x <= 0.6f) p.actions.Enqueue('R');
+                    if (p.move.x < -0.6f && p.lastMove.x >= -0.6f) p.actions.Enqueue('L');
+                    if (p.move.y > 0.6f && p.lastMove.y <= 0.6f) p.actions.Enqueue('U');
+                    if (p.move.y < -0.6f && p.lastMove.y >= -0.6f) p.actions.Enqueue('D');
+                }
+                p.lastMove = p.move;
                 break;
 
             case "jump":
                 p.jumpQueued = true;
+                break;
+
+            case "swipe":
+                if (!string.IsNullOrEmpty(m.d) && p.actions.Count < 8)
+                {
+                    char c = char.ToUpperInvariant(m.d[0]);
+                    if (c == 'L' || c == 'R' || c == 'U' || c == 'D') p.actions.Enqueue(c);
+                }
                 break;
 
             case "char":

@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using UnityEngine;
 
+// One road piece and its contents. Everything is placed in the piece's OWN coordinates
+// (lanes across, distance along), so a piece can stand rotated - after a corner the road goes sideways.
 public class Chunk : MonoBehaviour
 {
     [SerializeField] GameObject fencePrefab;
@@ -10,25 +12,40 @@ public class Chunk : MonoBehaviour
     [Header("Extras (optional)")]
     [Tooltip("A tall wall that cannot be jumped over.")]
     [SerializeField] GameObject tallFencePrefab;
+    [Tooltip("A beam at head height: slide under it.")]
+    [SerializeField] GameObject beamPrefab;
     [SerializeField] GameObject gemPrefab;
     [SerializeField] GameObject[] powerUpPrefabs;
     [Tooltip("A hazard that drives across the road (LaneMover).")]
     [SerializeField] GameObject moverPrefab;
 
     [SerializeField] float appleSpawnChance = .3f;
-    [SerializeField] float coinSpawnChance = .5f;
+    [SerializeField] float coinSpawnChance = .55f;
     [SerializeField] float coinSeperationLength = 2f;
-    [SerializeField] float tallFenceChance = .3f;
+    [SerializeField] float tallFenceChance = .25f;
+    [SerializeField] float beamChance = .25f;
     [SerializeField] float gemChance = .15f;
     [SerializeField] float powerUpChance = .08f;
     [SerializeField] float coinArcChance = .45f;
-    [SerializeField] float moverChance = .12f;
+    [SerializeField] float moverChance = .1f;
 
-    // Lanes are measured from the centre of THIS chunk's road (each player has their own road at their own X).
+    [Header("Corner (junction pieces only)")]
+    [SerializeField] int turn;                                   // -1 = the road turns left, 1 = right, 0 = straight
+    [SerializeField] Vector3 pivot = new Vector3(0f, 0f, 5.5f);  // the centre of the turning square
+    [SerializeField] Vector3 exitPosition = new Vector3(0f, 0f, 10f);
+    [SerializeField] float exitYaw;
+
+    // Lanes are measured from the centre of THIS chunk's road.
     [SerializeField] float[] lanes = { -2.5f, 0f, 2.5f };
 
     List<int> availableLanes = new List<int> { 0, 1, 2 };
     bool safe;
+
+    public int Turn { get { return turn; } }
+    public bool IsCorner { get { return turn != 0; } }
+    public Vector3 PivotWorld { get { return transform.TransformPoint(pivot); } }
+    public Vector3 ExitPosition { get { return transform.TransformPoint(exitPosition); } }
+    public Quaternion ExitRotation { get { return transform.rotation * Quaternion.Euler(0f, exitYaw, 0f); } }
 
     // Used when the chunk template is built from code (ProceduralAssets).
     public void Configure(GameObject fence, GameObject apple, GameObject coin)
@@ -50,7 +67,20 @@ public class Chunk : MonoBehaviour
         moverPrefab = mover;
     }
 
-    // The pieces around the start get no fences, so nothing hits the player in the first second.
+    public void ConfigureBeam(GameObject beam)
+    {
+        beamPrefab = beam;
+    }
+
+    public void ConfigureCorner(int direction)
+    {
+        turn = direction;
+        pivot = new Vector3(0f, 0f, 5.5f);
+        exitPosition = new Vector3(direction * 4.5f, 0f, 5.5f);
+        exitYaw = direction * 90f;
+    }
+
+    // The pieces around the start (and corners) get no obstacles.
     public void MakeSafe()
     {
         safe = true;
@@ -58,37 +88,55 @@ public class Chunk : MonoBehaviour
 
     void Start()
     {
-        if (!safe)
+        if (!safe && !IsCorner)
         {
             SpawnFences();
             SpawnApple();
             SpawnPowerUp();
             SpawnMover();
         }
-        SpawnCoins();
+        if (!IsCorner) SpawnCoins();
     }
 
-    Vector3 LanePosition(int lane, float z)
+    // A point on this piece: lane index, distance along the piece, height.
+    Vector3 LanePoint(int lane, float along, float up = 0f)
     {
-        return new Vector3(transform.position.x + lanes[lane], transform.position.y, z);
+        return transform.TransformPoint(new Vector3(lanes[lane], up, along));
+    }
+
+    GameObject Place(GameObject prefab, Vector3 worldPos)
+    {
+        return Instantiate(prefab, worldPos, transform.rotation, transform);
     }
 
     void SpawnFences()
     {
         if (fencePrefab == null) return;
-        int fencesToSpawn = Random.Range(0, lanes.Length);
+        int fencesToSpawn = Random.Range(0, lanes.Length);   // never all three lanes
 
         for (int i = 0; i < fencesToSpawn; i++)
         {
             if (availableLanes.Count <= 0) break;
 
             int selectedLane = SelectLane();
-            bool tall = tallFencePrefab != null && Random.value < tallFenceChance;
-            GameObject prefab = tall ? tallFencePrefab : fencePrefab;
-            Instantiate(prefab, LanePosition(selectedLane, transform.position.z), Quaternion.identity, this.transform);
-
-            // a low fence sometimes has an arc of coins over it - you only get them by jumping
-            if (!tall && coinPrefab != null && Random.value < coinArcChance) SpawnCoinArc(selectedLane);
+            float r = Random.value;
+            if (tallFencePrefab != null && r < tallFenceChance)
+            {
+                Place(tallFencePrefab, LanePoint(selectedLane, 0f));
+            }
+            else if (beamPrefab != null && r < tallFenceChance + beamChance)
+            {
+                // a beam to slide under, with coins along the floor under it
+                Place(beamPrefab, LanePoint(selectedLane, 0f));
+                if (coinPrefab != null)
+                    for (int c = -1; c <= 1; c++) Place(coinPrefab, LanePoint(selectedLane, c * 1.6f));
+            }
+            else
+            {
+                Place(fencePrefab, LanePoint(selectedLane, 0f));
+                // a low fence sometimes has an arc of coins over it - you only get them by jumping
+                if (coinPrefab != null && Random.value < coinArcChance) SpawnCoinArc(selectedLane);
+            }
         }
     }
 
@@ -100,26 +148,14 @@ public class Chunk : MonoBehaviour
             float t = i / (float)(count - 1);          // 0..1 along the arc
             float dz = Mathf.Lerp(-2.6f, 2.6f, t);
             float h = 1.5f * (1f - (2f * t - 1f) * (2f * t - 1f));
-            Vector3 p = LanePosition(lane, transform.position.z + dz);
-            p.y += 0.2f + h;
-            Instantiate(coinPrefab, p, Quaternion.identity, this.transform);
+            Place(coinPrefab, LanePoint(lane, dz, 0.2f + h));
         }
-    }
-
-    void SpawnMover()
-    {
-        if (moverPrefab == null || Random.value > moverChance) return;
-        // it drives across all lanes in the middle of the piece, away from the fences at its start
-        Vector3 p = new Vector3(transform.position.x, transform.position.y, transform.position.z + 6.5f);
-        Instantiate(moverPrefab, p, Quaternion.identity, this.transform);
     }
 
     void SpawnApple()
     {
         if (applePrefab == null || Random.value > appleSpawnChance || availableLanes.Count <= 0) return;
-
-        int selectedLane = SelectLane();
-        Instantiate(applePrefab, LanePosition(selectedLane, transform.position.z), Quaternion.identity, this.transform);
+        Place(applePrefab, LanePoint(SelectLane(), 0f));
     }
 
     void SpawnPowerUp()
@@ -129,8 +165,14 @@ public class Chunk : MonoBehaviour
 
         GameObject prefab = powerUpPrefabs[Random.Range(0, powerUpPrefabs.Length)];
         if (prefab == null) return;
-        int selectedLane = SelectLane();
-        Instantiate(prefab, LanePosition(selectedLane, transform.position.z + 5f), Quaternion.identity, this.transform);
+        Place(prefab, LanePoint(SelectLane(), 5f));
+    }
+
+    void SpawnMover()
+    {
+        if (moverPrefab == null || Random.value > moverChance) return;
+        // it drives across all lanes in the middle of the piece, away from the fences at its start
+        Place(moverPrefab, transform.TransformPoint(new Vector3(0f, 0f, 6.5f)));
     }
 
     void SpawnCoins()
@@ -138,19 +180,16 @@ public class Chunk : MonoBehaviour
         if (coinPrefab == null || Random.value > coinSpawnChance || availableLanes.Count <= 0) return;
 
         int selectedLane = SelectLane();
-
-        int maxCoinsToSpawn = 6;
-        int coinsToSpawn = Random.Range(1, maxCoinsToSpawn);
+        int coinsToSpawn = Random.Range(2, 7);
         bool gemAtEnd = gemPrefab != null && coinsToSpawn >= 3 && Random.value < gemChance;
 
-        float topOfChunkZPos = transform.position.z + (coinSeperationLength * 2f);
-
+        // a line of coins in the second half of the piece (away from the obstacles at its start)
         for (int i = 0; i < coinsToSpawn; i++)
         {
-            float spawnPositionZ = topOfChunkZPos - (i * coinSeperationLength);
-            // the farthest coin of a long chain may be a gem
+            float along = 9.5f - i * coinSeperationLength * 0.7f;
+            if (along < 1.5f) break;
             GameObject prefab = (gemAtEnd && i == 0) ? gemPrefab : coinPrefab;
-            Instantiate(prefab, LanePosition(selectedLane, spawnPositionZ), Quaternion.identity, this.transform);
+            Place(prefab, LanePoint(selectedLane, along));
         }
     }
 

@@ -26,6 +26,7 @@ public class GameAssets : MonoBehaviour
     // Empty when you use your own chunk prefabs - then chunkPrefabs are used everywhere.
     [System.NonSerialized] public GameObject[][] biomeChunks;
     [System.NonSerialized] public GameObject[] biomeCheckpoints;
+    [System.NonSerialized] public GameObject[][] biomeCorners;      // [zone][0 = left, 1 = right]
 
     bool prepared;
 

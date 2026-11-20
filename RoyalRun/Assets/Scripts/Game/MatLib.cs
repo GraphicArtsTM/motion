@@ -67,7 +67,7 @@ public static class MatLib
         {
             if (m.HasProperty(MainTexId)) { m.SetTexture(MainTexId, tex); m.SetTextureScale(MainTexId, tiling); }
             if (m.HasProperty(BaseMapId)) { m.SetTexture(BaseMapId, tex); m.SetTextureScale(BaseMapId, tiling); }
-            if (m.HasProperty(BumpMapId))
+            if (m.HasProperty(BumpMapId) && !TextureLib.Lite)
             {
                 m.SetTexture(BumpMapId, TextureLib.Normal(surface));
                 if (m.HasProperty(BumpScaleId)) m.SetFloat(BumpScaleId, 1f);

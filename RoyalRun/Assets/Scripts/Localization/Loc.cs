@@ -140,9 +140,9 @@ public static class Loc
         Add("select.play", "ИГРАТЬ", "PLAY", "O‘YNASH");
         Add("select.back", "НАЗАД", "BACK", "ORQAGA");
         Add("footer.select",
-            "Влево / Вправо - выбор героя     Enter - играть     в игре: WASD / стрелки - бег, Пробел - прыжок     Esc - назад",
-            "Left / Right - choose hero     Enter - play     in game: WASD / arrows - run, Space - jump     Esc - back",
-            "Chapga / O‘ngga - qahramon tanlash     Enter - o‘ynash     o‘yinda: WASD / strelkalar - yugurish, Probel - sakrash     Esc - orqaga");
+            "Влево / Вправо - герой     Enter - играть     в игре: ← → полоса и поворот, ↑ прыжок, ↓ подкат     Esc - назад",
+            "Left / Right - hero     Enter - play     in game: ← → lane & turn, ↑ jump, ↓ slide     Esc - back",
+            "Chapga / O‘ngga - qahramon     Enter - o‘ynash     o‘yinda: ← → yo‘lak va burilish, ↑ sakrash, ↓ sirpanish     Esc - orqaga");
 
         // --- лобби ---
         Add("lobby.subtitle", "СЕТЕВАЯ ИГРА", "NETWORK GAME", "TARMOQ O‘YINI");
@@ -237,6 +237,25 @@ public static class Loc
         Add("hud.hit", "УДАР!", "HIT!", "ZARBA!");
         Add("hud.hitPenalty", "УДАР!  −{0} с", "CRASH!  −{0} s", "ZARBA!  −{0} s");
         Add("hud.comboLost", "комбо потеряно", "combo lost", "kombo yo‘qoldi");
+        // --- режимы и забег ---
+        Add("mode.label", "РЕЖИМ: {0}", "MODE: {0}", "REJIM: {0}");
+        Add("mode.endless", "БЕСКОНЕЧНЫЙ", "ENDLESS", "CHEKSIZ");
+        Add("mode.classic", "НА ВРЕМЯ", "TIME TRIAL", "VAQTGA");
+        Add("menu.best", "Рекорд: {0}", "Best: {0}", "Rekord: {0}");
+        Add("results.runOver", "ЗАБЕГ ОКОНЧЕН", "RUN OVER", "YUGURISH TUGADI");
+        Add("end.crashed", "ВРЕЗАЛСЯ!", "CRASHED!", "URILIB KETDI!");
+        Add("end.missedTurn", "НЕ УСПЕЛ ПОВЕРНУТЬ!", "MISSED THE TURN!", "BURILISHGA ULGURMADI!");
+        Add("end.caught", "ГОЛЕМ ПОЙМАЛ!", "THE GOLEM GOT YOU!", "GOLEM USHLAB OLDI!");
+        Add("end.timeUp", "ВРЕМЯ ВЫШЛО", "TIME'S UP", "VAQT TUGADI");
+        Add("hud.stumble", "СПОТКНУЛСЯ! ГОЛЕМ РЯДОМ", "STUMBLE! THE GOLEM IS CLOSE", "QOQILDI! GOLEM YAQIN");
+        Add("hud.golemNear", "ГОЛЕМ!", "GOLEM!", "GOLEM!");
+        Add("hud.checkpointScore", "ЧЕКПОИНТ  +500", "CHECKPOINT  +500", "NAZORAT NUQTASI  +500");
+        Add("hint.touch", "Свайп ← → полоса и поворот   ↑ прыжок   ↓ подкат", "Swipe ← → lane & turn   ↑ jump   ↓ slide", "Svayp ← → yo‘lak va burilish   ↑ sakrash   ↓ sirpanish");
+        Add("hint.keys", "← → / A D полоса и поворот   ↑ W Пробел прыжок   ↓ S подкат", "← → / A D lane & turn   ↑ W Space jump   ↓ S slide", "← → / A D yo‘lak va burilish   ↑ W Probel sakrash   ↓ S sirpanish");
+        Add("hint.wasd", "A D полоса и поворот   W / Пробел прыжок   S подкат", "A D lane & turn   W / Space jump   S slide", "A D yo‘lak va burilish   W / Probel sakrash   S sirpanish");
+        Add("hint.arrows", "← → полоса и поворот   ↑ / правый Shift прыжок   ↓ подкат", "← → lane & turn   ↑ / Right Shift jump   ↓ slide", "← → yo‘lak va burilish   ↑ / o‘ng Shift sakrash   ↓ sirpanish");
+        Add("hint.numpad", "NumPad 4 6 полоса   8 / 0 прыжок   5 подкат", "NumPad 4 6 lane   8 / 0 jump   5 slide", "NumPad 4 6 yo‘lak   8 / 0 sakrash   5 sirpanish");
+        Add("hint.phone", "Свайпы на телефоне: ← → полоса и поворот, ↑ прыжок, ↓ подкат", "Swipe on your phone: ← → lane & turn, ↑ jump, ↓ slide", "Telefonda svayp: ← → yo‘lak va burilish, ↑ sakrash, ↓ sirpanish");
         Add("hud.go", "ВПЕРЁД!", "GO!", "OLG‘A!");
         Add("hud.coins", "монет: {0}", "coins: {0}", "tanga: {0}");
         Add("hud.bestCombo", "комбо x{0}", "combo x{0}", "kombo x{0}");

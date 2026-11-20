@@ -55,6 +55,7 @@ public class CharacterRig : MonoBehaviour
     [System.NonSerialized] public bool showcase;          // on a podium: waves now and then
     [System.NonSerialized] public bool cheering;          // arms up, hopping (READY in the lobby)
     [System.NonSerialized] public bool defeated;          // time is up: tired, hands on the knees
+    [System.NonSerialized] public bool sliding;           // sliding under a beam: leaning back, legs forward
 
     float phase;
     float hitTimer;
@@ -183,6 +184,18 @@ public class CharacterRig : MonoBehaviour
             }
         }
 
+        // a slide: low, leaning back, legs straight forward, arms back for balance
+        if (sliding && !airborne)
+        {
+            bodyX = -55f; bodyY = 0f; bodyZ = -lateral * 8f;
+            hipLx = -85f; hipRx = -78f; kneeLx = 8f; kneeRx = 20f;
+            shLx = 45f; shRx = 45f; shLz = -35f; shRz = 35f;
+            elLx = -20f; elRx = -20f;
+            headX = 30f; headY = 0f;
+            capeA = 85f; capeB = 10f;
+            bob = -0.58f;
+        }
+
         // time is up: bent forward, hands on the knees, heavy breathing
         if (defeated && !airborne)
         {
@@ -240,7 +253,7 @@ public class CharacterRig : MonoBehaviour
         }
 
         // the mouth opens in a jump, on a hit and when cheering ("O!")
-        float wantOpen = (hitTimer > 0f || cheering || airborne) ? 1f : (defeated ? 0.5f : 0f);
+        float wantOpen = (hitTimer > 0f || cheering || airborne || sliding) ? 1f : (defeated ? 0.5f : 0f);
         mouthOpen = Mathf.Lerp(mouthOpen, wantOpen, 1f - Mathf.Exp(-12f * dt));
         if (mouth != null)
             mouth.localScale = new Vector3(mouthBase.x * (1f - 0.3f * mouthOpen), mouthBase.y * (1f + 3.5f * mouthOpen), mouthBase.z);

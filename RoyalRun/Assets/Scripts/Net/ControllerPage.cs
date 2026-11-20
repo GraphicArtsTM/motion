@@ -2,7 +2,8 @@
 // Тексты страницы есть на трёх языках (русский, английский, узбекский) - словарь I18N в скрипте.
 // Язык подставляется сервером вместо метки __RR_LANG__ (см. ControllerPage.Build) и меняется
 // на лету сообщением {"t":"lang"} от игры.
-// Палец по экрану - бег (джойстик), короткое касание - прыжок ({"t":"jump"}).
+// Управление свайпами: влево/вправо - полоса и поворот, вверх - прыжок, вниз - подкат ({"t":"swipe","d":"l"});
+// короткое касание - прыжок ({"t":"jump"}).
 // В C# строке @"..." двойная кавычка записывается как "".
 public static class ControllerPage
 {
@@ -80,6 +81,7 @@ button.ghost{background:#ffffff18;color:#fff;box-shadow:none;border:2px solid #f
 #fx b{color:var(--gold);font-size:24px}
 #fx .sh{color:#66e6ff}
 #fx .mg{color:#ff8a80}
+#knob{align-items:center;justify-content:center;font-size:34px;color:#1a1030;font-weight:900}
 </style>
 </head>
 <body>
@@ -116,7 +118,7 @@ button.ghost{background:#ffffff18;color:#fff;box-shadow:none;border:2px solid #f
 <div id='play' class='screen'>
   <div id='hud'>
     <div class='row'>
-      <div><small data-i='time'></small><span id='hTime'>0</span></div>
+      <div><small id='hTimeLbl' data-i='time'></small><span id='hTime'>0</span></div>
       <div style='text-align:right'><small data-i='score'></small><span id='hScore'>0</span></div>
     </div>
     <div id='bar'><div id='barFill'></div></div>
@@ -167,7 +169,8 @@ var I18N={
   go:""GO!"",
   time:""TIME"",
   score:""SCORE"",
-  drag:""Drag your finger to run, tap to jump"",
+  drag:""Swipe: ← → lane & turn, ↑ jump, ↓ slide"",
+  dist:""METRES"",
   shield:""SHIELD"",
   magnet:""MAGNET"",
   timeUp:""TIME'S UP"",
@@ -201,7 +204,8 @@ var I18N={
   go:""ВПЕРЁД!"",
   time:""ВРЕМЯ"",
   score:""ОЧКИ"",
-  drag:""Води пальцем - бег, коснись - прыжок"",
+  drag:""Свайп: ← → полоса и поворот, ↑ прыжок, ↓ подкат"",
+  dist:""МЕТРЫ"",
   shield:""ЩИТ"",
   magnet:""МАГНИТ"",
   timeUp:""ВРЕМЯ ВЫШЛО"",
@@ -235,7 +239,8 @@ var I18N={
   go:""OLG‘A!"",
   time:""VAQT"",
   score:""OCHKO"",
-  drag:""Barmoq bilan yurgizing - yugurish, tegining - sakrash"",
+  drag:""Svayp: ← → yo‘lak va burilish, ↑ sakrash, ↓ sirpanish"",
+  dist:""METR"",
   shield:""QALQON"",
   magnet:""MAGNIT"",
   timeUp:""VAQT TUGADI"",
@@ -349,7 +354,11 @@ function handle(m){
       break;
     case 'play':
       if(current!=='play'){show('play');$('hint').style.display='block'}
-      $('hTime').textContent=m.time.toFixed(1);
+      // endless mode: no timer (time = -1), the metres are shown instead
+      var endless=m.time<0;
+      $('hTimeLbl').textContent=tr(endless?'dist':'time');
+      $('hTime').textContent=endless?(m.dist||0):m.time.toFixed(1);
+      $('bar').style.display=endless?'none':'block';
       $('hScore').textContent=m.score;
       var r=Math.max(0,Math.min(1,m.time/40));
       var f=$('barFill');f.style.width=(r*100)+'%';
@@ -447,51 +456,52 @@ $('nameIn').addEventListener('keydown',function(e){if(e.key==='Enter'){$('joinBt
 $('readyBtn').addEventListener('click',function(){send({t:'ready',v:!me.ready})});
 $('againBtn').addEventListener('click',function(){$('againBtn').disabled=true;send({t:'again'})});
 
-/* ---------- floating joystick ---------- */
+/* ---------- swipes ---------- */
+// A swipe left/right changes the lane (or turns at a corner), up = jump, down = slide. A tap = jump.
 var area=$('play'),base=$('base'),knob=$('knob');
-var R=70,DEAD=0.12,active=-1,ox=0,oy=0,vx=0,vy=0,lastSend=0,pending=null,downAt=0,maxMove=0;
-
-function sendNow(){pending=null;lastSend=Date.now();send({t:'move',x:+vx.toFixed(3),y:+vy.toFixed(3)})}
-function sendMove(force){
-  var n=Date.now();
-  if(force||n-lastSend>=33){sendNow()}
-  else if(pending===null){pending=setTimeout(sendNow,33-(n-lastSend))}
-}
+var active=-1,ox=0,oy=0,downAt=0,swiped=false,maxMove=0,lastDir='';
+var SWIPE=36;
 function place(el,x,y){el.style.left=x+'px';el.style.top=y+'px'}
-function update(e){
-  var dx=e.clientX-ox,dy=e.clientY-oy,d=Math.sqrt(dx*dx+dy*dy);
-  if(d>maxMove)maxMove=d;
-  if(d>R){dx*=R/d;dy*=R/d;d=R}
-  place(knob,ox+dx,oy+dy);
-  if(d<R*DEAD){vx=0;vy=0}else{vx=dx/R;vy=-dy/R}
-  sendMove(false);
+function flashArrow(d){
+  var arrows={l:'◀',r:'▶',u:'▲',d:'▼'};
+  knob.textContent=arrows[d];knob.style.display='flex';
+  if(navigator.vibrate){navigator.vibrate(12)}
+  setTimeout(function(){if(active===-1)knob.style.display='none'},180);
 }
+function swipe(d){send({t:'swipe',d:d});flashArrow(d)}
 function endTouch(){
   if(active===-1)return;
-  active=-1;vx=0;vy=0;
-  if(pending!==null){clearTimeout(pending);pending=null}
-  base.style.display='none';knob.style.display='none';
-  send({t:'move',x:0,y:0});
+  active=-1;
+  base.style.display='none';
+  setTimeout(function(){knob.style.display='none'},150);
 }
 area.addEventListener('pointerdown',function(e){
   if(active!==-1)return;
-  active=e.pointerId;
+  active=e.pointerId;swiped=false;maxMove=0;downAt=Date.now();lastDir='';
   try{area.setPointerCapture(e.pointerId)}catch(x){}
-  ox=e.clientX;oy=e.clientY;downAt=Date.now();maxMove=0;
-  place(base,ox,oy);place(knob,ox,oy);
-  base.style.display='block';knob.style.display='block';
+  ox=e.clientX;oy=e.clientY;
+  place(base,ox,oy);place(knob,ox,oy);base.style.display='block';
   $('hint').style.display='none';
-  update(e);e.preventDefault();
+  e.preventDefault();
 });
-area.addEventListener('pointermove',function(e){if(e.pointerId===active){update(e);e.preventDefault()}});
+area.addEventListener('pointermove',function(e){
+  if(e.pointerId!==active)return;
+  var dx=e.clientX-ox,dy=e.clientY-oy,d=Math.sqrt(dx*dx+dy*dy);
+  if(d>maxMove)maxMove=d;
+  if(d>SWIPE){
+    var dir=Math.abs(dx)>Math.abs(dy)?(dx>0?'r':'l'):(dy<0?'u':'d');
+    // one swipe per direction per touch; a turn of the finger (e.g. left then up) gives a second one
+    if(dir!==lastDir){swipe(dir);lastDir=dir;swiped=true}
+    ox=e.clientX;oy=e.clientY;place(base,ox,oy);place(knob,ox,oy);
+  }
+  e.preventDefault();
+});
 area.addEventListener('pointerup',function(e){
   if(e.pointerId!==active)return;
-  // a short touch without dragging = jump
-  if(Date.now()-downAt<250&&maxMove<18){send({t:'jump'});if(navigator.vibrate){navigator.vibrate(20)}}
+  if(Date.now()-downAt<250&&maxMove<14){send({t:'jump'});flashArrow('u')}
   endTouch();
 });
 area.addEventListener('pointercancel',function(e){if(e.pointerId===active)endTouch()});
-setInterval(function(){if(active!==-1)sendMove(true)},200);
 document.addEventListener('visibilitychange',function(){if(document.hidden)endTouch()});
 document.addEventListener('contextmenu',function(e){e.preventDefault()});
 // block page scrolling only during the game - in the lobby the hero list must scroll

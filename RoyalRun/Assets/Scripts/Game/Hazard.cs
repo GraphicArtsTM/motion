@@ -7,22 +7,39 @@ using UnityEngine;
 // every frame (Touches). This does not depend on physics events, which Unity does not send for a
 // kinematic body touching static colliders - so a hit is never missed.
 // On a hit the object breaks into pieces (Smash), so you can see what you ran into.
+// What happens in the endless mode when you run into it.
+public enum HazardKind
+{
+    Stumble,      // fence, cart, falling object: you stumble (twice in a row - the golem catches you)
+    Fatal,        // wall, beam: the run is over
+    TurnBarrier,  // the dead end of a corner you did not turn at: the run is over
+}
+
 public class Hazard : MonoBehaviour
 {
     [SerializeField] Color debrisColor = new Color(0.55f, 0.36f, 0.2f);
-    [SerializeField] float timePenalty = 2f;       // seconds taken from the timer on a hit
+    [SerializeField] float timePenalty = 2f;       // seconds taken from the timer on a hit (classic mode)
+    [SerializeField] HazardKind kind = HazardKind.Stumble;
 
     PlayerWorld world;
     Collider shape;
     bool smashed;
 
     public float TimePenalty { get { return timePenalty; } }
+    public HazardKind Kind { get { return kind; } }
     public bool Smashed { get { return smashed; } }
 
     public void Configure(Color debris, float penalty)
     {
         debrisColor = debris;
         timePenalty = penalty;
+    }
+
+    public void Configure(Color debris, float penalty, HazardKind hazardKind)
+    {
+        debrisColor = debris;
+        timePenalty = penalty;
+        kind = hazardKind;
     }
 
     void OnEnable()

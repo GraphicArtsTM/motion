@@ -3,11 +3,14 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 #endif
 
+// Жест пальцем (или мышью в редакторе): свайп в одну из сторон.
+public enum SwipeDir { None, Left, Right, Up, Down }
+
 // Клавиши, которые нужны игре.
 public enum GKey
 {
     Up, Down, Left, Right, W, A, S, D, Enter, Space, Escape, F1, Tab, K, L,
-    RightShift, RightCtrl, Numpad8, Numpad4, Numpad5, Numpad6, Numpad0
+    RightShift, RightCtrl, Numpad8, Numpad4, Numpad5, Numpad6, Numpad0, M
 }
 
 // Ввод с клавиатуры и мыши, который работает при любой настройке проекта
@@ -98,6 +101,111 @@ public static class GameInput
         return 0;
     }
 
+    // ------------------------------------------------------------------
+    //  Touch / pointer (finger on Android, mouse on a computer)
+    // ------------------------------------------------------------------
+
+    static int pointerFrame = -1;
+    static bool pointerHeld, pointerPressedThisFrame;
+    static Vector2 pointerPos, pressPos;
+    static float pressTime;
+    static bool swipeUsed;
+    static SwipeDir swipe;
+
+    // Is the pointer (a finger or the left mouse button) pressed right now?
+    static void ReadPointer(out bool held, out Vector2 pos)
+    {
+        held = false;
+        pos = Vector2.zero;
+#if ENABLE_INPUT_SYSTEM
+        Touchscreen ts = Touchscreen.current;
+        if (ts != null && ts.primaryTouch.press.isPressed)
+        {
+            held = true;
+            pos = ts.primaryTouch.position.ReadValue();
+            return;
+        }
+        Mouse m = Mouse.current;
+        if (m != null)
+        {
+            pos = m.position.ReadValue();
+            held = m.leftButton.isPressed;
+        }
+#elif ENABLE_LEGACY_INPUT_MANAGER
+        if (Input.touchCount > 0)
+        {
+            held = true;
+            pos = Input.GetTouch(0).position;
+            return;
+        }
+        pos = Input.mousePosition;
+        held = Input.GetMouseButton(0);
+#endif
+    }
+
+    static void UpdatePointer()
+    {
+        if (pointerFrame == Time.frameCount) return;
+        pointerFrame = Time.frameCount;
+
+        bool held; Vector2 pos;
+        ReadPointer(out held, out pos);
+        pointerPressedThisFrame = held && !pointerHeld;
+        pointerHeld = held;
+        pointerPos = pos;
+        swipe = SwipeDir.None;
+
+        if (pointerPressedThisFrame)
+        {
+            pressPos = pos;
+            pressTime = Time.unscaledTime;
+            swipeUsed = false;
+        }
+        else if (held && !swipeUsed)
+        {
+            // a swipe = the finger moved far enough quickly enough (one swipe per touch)
+            Vector2 d = pos - pressPos;
+            float threshold = Mathf.Min(Screen.width, Screen.height) * 0.07f;
+            if (d.magnitude > threshold && Time.unscaledTime - pressTime < 0.6f)
+            {
+                swipeUsed = true;
+                if (Mathf.Abs(d.x) > Mathf.Abs(d.y)) swipe = d.x > 0f ? SwipeDir.Right : SwipeDir.Left;
+                else swipe = d.y > 0f ? SwipeDir.Up : SwipeDir.Down;
+            }
+        }
+    }
+
+    // A swipe made in this frame (SwipeDir.None if there was none).
+    public static SwipeDir Swipe
+    {
+        get { UpdatePointer(); return swipe; }
+    }
+
+    // The pointer was pressed in this frame (a tap or a click) - used by the menu buttons.
+    public static bool PointerPressed
+    {
+        get { UpdatePointer(); return pointerPressedThisFrame; }
+    }
+
+    public static Vector2 PointerPosition
+    {
+        get { UpdatePointer(); return pointerPos; }
+    }
+
+    public static bool HasTouch
+    {
+        get
+        {
+#if ENABLE_INPUT_SYSTEM
+            return Touchscreen.current != null;
+#elif ENABLE_LEGACY_INPUT_MANAGER
+            return Input.touchSupported;
+#else
+            return false;
+#endif
+        }
+    }
+
     public static bool HasMouse
     {
         get
@@ -182,6 +290,7 @@ public static class GameInput
             case GKey.Numpad5: return Key.Numpad5;
             case GKey.Numpad6: return Key.Numpad6;
             case GKey.Numpad0: return Key.Numpad0;
+            case GKey.M: return Key.M;
             default: return Key.Enter;
         }
     }
@@ -211,6 +320,7 @@ public static class GameInput
             case GKey.Numpad5: return KeyCode.Keypad5;
             case GKey.Numpad6: return KeyCode.Keypad6;
             case GKey.Numpad0: return KeyCode.Keypad0;
+            case GKey.M: return KeyCode.M;
             default: return KeyCode.Return;
         }
     }

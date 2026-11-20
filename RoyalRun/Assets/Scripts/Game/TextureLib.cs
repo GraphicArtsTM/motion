@@ -11,6 +11,9 @@ public enum Surface { Plain, Grime, Road, Grass, Wood, Bark, Stone, Bricks, Leav
 // green meadows, the autumn forest and snow).
 public static class TextureLib
 {
+    // Phones: smaller textures and no normal maps (faster to build and to draw).
+    public static bool Lite;
+
     static readonly Dictionary<Surface, Texture2D> albedo = new Dictionary<Surface, Texture2D>();
     static readonly Dictionary<Surface, Texture2D> normals = new Dictionary<Surface, Texture2D>();
 
@@ -88,7 +91,7 @@ public static class TextureLib
 
     static void Build(Surface s)
     {
-        int n = s == Surface.Road ? 512 : 256;
+        int n = Lite ? (s == Surface.Road ? 256 : 128) : (s == Surface.Road ? 512 : 256);
         float[] h = new float[n * n];      // height, for the normal map
         Color[] c = new Color[n * n];
 

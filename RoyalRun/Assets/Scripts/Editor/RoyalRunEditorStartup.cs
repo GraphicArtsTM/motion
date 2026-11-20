@@ -1,4 +1,5 @@
 using UnityEditor;
+using UnityEditor.Build;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -50,11 +51,51 @@ static class RoyalRunEditorStartup
         EditorApplication.isPlaying = true;
     }
 
+    // Android: upright screen, a package name, 64-bit IL2CPP (required by Google Play), then switch the platform.
+    [MenuItem("Royal Run/Setup Android Build", false, 10)]
+    static void SetupAndroid()
+    {
+        PlayerSettings.companyName = "RoyalRun";
+        PlayerSettings.productName = "Royal Run";
+        PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, "com.royalrun.game");
+        PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
+        PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
+        PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
+
+        if (!BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.Android, BuildTarget.Android))
+        {
+            EditorUtility.DisplayDialog("Royal Run",
+                "Android settings are saved.\n\nThe Android Build Support module is not installed: Unity Hub -> Installs -> (your Unity) -> Add modules -> Android Build Support (with SDK & NDK, OpenJDK).",
+                "OK");
+            return;
+        }
+        EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.Android, BuildTarget.Android);
+        Debug.Log("[Royal Run] Android is set up: portrait, IL2CPP, ARM64, package com.royalrun.game. Use Royal Run -> Build Android APK.");
+    }
+
+    [MenuItem("Royal Run/Build Android APK", false, 11)]
+    static void BuildAndroid()
+    {
+        SetupAndroid();
+        if (!BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.Android, BuildTarget.Android)) return;
+        BuildPlayerOptions o = new BuildPlayerOptions
+        {
+            scenes = new[] { ScenePath },
+            locationPathName = "Builds/RoyalRun.apk",
+            target = BuildTarget.Android,
+            options = BuildOptions.None,
+        };
+        BuildPipeline.BuildPlayer(o);
+        EditorUtility.RevealInFinder("Builds/RoyalRun.apk");
+    }
+
     [MenuItem("Royal Run/Reset Language and Record", false, 20)]
     static void ResetPrefs()
     {
         PlayerPrefs.DeleteKey("royalrun_lang");
         PlayerPrefs.DeleteKey("royalrun_best");
+        PlayerPrefs.DeleteKey("royalrun_best_endless");
+        PlayerPrefs.DeleteKey("royalrun_mode");
         PlayerPrefs.Save();
         Debug.Log("[Royal Run] The saved language and the record were reset.");
     }

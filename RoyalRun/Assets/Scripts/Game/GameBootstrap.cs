@@ -32,6 +32,15 @@ public class GameBootstrap : MonoBehaviour
     }
 
     const string BestScoreKey = "royalrun_best";
+    const string BestEndlessKey = "royalrun_best_endless";
+    const string ModeKey = "royalrun_mode";
+
+    GameRules rules = GameRules.Endless;
+    bool mobile;                 // a phone or a tablet: single player, portrait, lighter graphics
+    bool lastPortrait;
+    MenuButton modeButton;
+    Text menuBest;
+    Text resultsTitle;
 
     [SerializeField] float countdownSeconds = 3f;
     [SerializeField] float resultsTimeout = 40f;
@@ -106,6 +115,23 @@ public class GameBootstrap : MonoBehaviour
     {
         Application.runInBackground = true;      // the game must not pause when the window loses focus
         Application.targetFrameRate = 60;
+
+        // Android / iOS: the phone itself is the controller (swipes), the screen is upright,
+        // graphics are lighter and there is no server for other phones.
+        mobile = Application.isMobilePlatform;
+        if (mobile)
+        {
+            Screen.orientation = ScreenOrientation.Portrait;
+            Screen.sleepTimeout = SleepTimeout.NeverSleep;
+            QualitySettings.vSyncCount = 0;
+            QualitySettings.antiAliasing = 2;
+            PhoneHub.DisableServer = true;
+            ProceduralAssets.Lite = true;
+            PlayerWorld.Lite = true;
+            TextureLib.Lite = true;
+        }
+        rules = (GameRules)Mathf.Clamp(PlayerPrefs.GetInt(ModeKey, 0), 0, 1);
+        lastPortrait = GameUI.Portrait;
         _ = Loc.Current;                         // load the saved language before the server starts
         assets = GetComponent<GameAssets>();
         if (assets == null) assets = gameObject.AddComponent<GameAssets>();
@@ -119,6 +145,13 @@ public class GameBootstrap : MonoBehaviour
         CreateLight();
         CreateAtmosphere();
         CreateMusic();
+        if (mobile)
+        {
+            sun.shadows = LightShadows.Hard;
+            QualitySettings.shadowDistance = 30f;
+            QualitySettings.shadowCascades = 1;
+            QualitySettings.shadowResolution = ShadowResolution.Medium;
+        }
 
         hub = gameObject.AddComponent<PhoneHub>();
         hub.Changed += OnHubChanged;
@@ -284,41 +317,78 @@ public class GameBootstrap : MonoBehaviour
         MeshBaker.Bake(back.gameObject);
     }
 
+    static Vector2 V(float x, float y) { return new Vector2(x, y); }
+
     void BuildMenuUi()
     {
         menuUi = GameUI.CreateRect("Menu UI", canvas.transform, Vector2.zero, Vector2.one).gameObject;
         Transform p = menuUi.transform;
+        bool portrait = GameUI.Portrait;
+        Vector2 a, b;
 
-        GameUI.CreateText("Title", p, new Vector2(0.06f, 0.72f), new Vector2(0.62f, 0.95f),
-                          "ROYAL RUN", 150, GameUI.Gold, TextAnchor.MiddleLeft);
-        GameUI.Bind(GameUI.CreateText("Subtitle", p, new Vector2(0.065f, 0.655f), new Vector2(0.62f, 0.73f),
-                          "", 42, new Color(1f, 1f, 1f, 0.85f), TextAnchor.MiddleLeft), "menu.subtitle");
+        GameUI.Pick(new Vector4(0.06f, 0.72f, 0.62f, 0.95f), new Vector4(0.03f, 0.87f, 0.97f, 0.97f), out a, out b);
+        GameUI.CreateText("Title", p, a, b, "ROYAL RUN", portrait ? 140 : 150, GameUI.Gold, portrait ? TextAnchor.MiddleCenter : TextAnchor.MiddleLeft);
+        GameUI.Pick(new Vector4(0.065f, 0.655f, 0.62f, 0.73f), new Vector4(0.03f, 0.83f, 0.97f, 0.875f), out a, out b);
+        GameUI.Bind(GameUI.CreateText("Subtitle", p, a, b, "", 42, new Color(1f, 1f, 1f, 0.85f),
+                    portrait ? TextAnchor.MiddleCenter : TextAnchor.MiddleLeft), "menu.subtitle");
+        GameUI.Pick(new Vector4(0.065f, 0.615f, 0.62f, 0.66f), new Vector4(0.03f, 0.79f, 0.97f, 0.83f), out a, out b);
+        menuBest = GameUI.CreateText("Best", p, a, b, "", 34, GameUI.Cyan, portrait ? TextAnchor.MiddleCenter : TextAnchor.MiddleLeft);
 
-        menuButtons = new MenuButton[5];
         string[] keys = { "menu.single", "menu.multi", "menu.help", null, "menu.quit" };
         System.Action[] actions = { StartSingle, StartNetwork, OpenHelp, Loc.Next, QuitGame };
-        for (int i = 0; i < menuButtons.Length; i++)
+        List<MenuButton> list = new List<MenuButton>();
+        for (int i = 0; i < keys.Length; i++)
         {
-            float top = 0.60f - i * 0.115f;
-            menuButtons[i] = GameUI.CreateButton("Button " + (i + 1), p,
-                new Vector2(0.06f, top - 0.09f), new Vector2(0.46f, top), "", 38, actions[i]);
-            if (keys[i] != null) GameUI.Bind(menuButtons[i].label, keys[i]);
+            // on a phone there is no multiplayer (other phones connect to a computer)
+            if (mobile && (i == 1 || i == 2)) continue;
+            int k = list.Count;
+            if (portrait) { float top = 0.40f - k * 0.07f; a = V(0.12f, top - 0.058f); b = V(0.88f, top); }
+            else { float top = 0.60f - k * 0.115f; a = V(0.06f, top - 0.09f); b = V(0.46f, top); }
+            MenuButton btn = GameUI.CreateButton("Button " + (i + 1), p, a, b, "", 38, actions[i]);
+            if (keys[i] != null) GameUI.Bind(btn.label, keys[i]);
+            // the language button shows the current language in that language: "ЯЗЫК: РУССКИЙ", "TIL: O‘ZBEKCHA"...
+            else GameUI.Bind(btn.label, () => Loc.F("menu.lang", Loc.NativeName(Loc.Current)));
+            list.Add(btn);
         }
-        // the language button shows the current language in that language: "ЯЗЫК: РУССКИЙ", "TIL: O‘ZBEKCHA"...
-        GameUI.Bind(menuButtons[3].label, () => Loc.F("menu.lang", Loc.NativeName(Loc.Current)));
+        menuButtons = list.ToArray();
+        if (menuSelected >= menuButtons.Length) menuSelected = 0;
+    }
+
+    string ModeLabel()
+    {
+        return Loc.F("mode.label", Loc.T(rules == GameRules.Endless ? "mode.endless" : "mode.classic"));
+    }
+
+    void ToggleMode()
+    {
+        rules = rules == GameRules.Endless ? GameRules.Classic : GameRules.Endless;
+        PlayerPrefs.SetInt(ModeKey, (int)rules);
+        PlayerPrefs.Save();
+        GameUI.RefreshBindings();
+        if (phase == Phase.SingleSelect) RefreshSelect();
+        if (phase == Phase.Menu) RefreshMenuBest();
+    }
+
+    void RefreshMenuBest()
+    {
+        if (menuBest == null) return;
+        int best = PlayerPrefs.GetInt(rules == GameRules.Endless ? BestEndlessKey : BestScoreKey, 0);
+        menuBest.text = best > 0 ? Loc.F("menu.best", best) + "   <size=26>" + ModeLabel() + "</size>" : "";
     }
 
     void BuildSelectUi()
     {
         selectUi = GameUI.CreateRect("Select UI", canvas.transform, Vector2.zero, Vector2.one).gameObject;
         Transform p = selectUi.transform;
+        Vector2 a, b;
 
-        GameUI.Bind(GameUI.CreateText("Title", p, new Vector2(0f, 0.88f), new Vector2(1f, 1f),
-                          "", 90, GameUI.Gold, TextAnchor.MiddleCenter), "select.title");
-        selCounter = GameUI.CreateText("Counter", p, new Vector2(0.3f, 0.82f), new Vector2(0.7f, 0.88f),
-                                       "", 30, new Color(1f, 1f, 1f, 0.7f), TextAnchor.MiddleCenter);
+        GameUI.Pick(new Vector4(0f, 0.88f, 1f, 1f), new Vector4(0f, 0.9f, 1f, 0.97f), out a, out b);
+        GameUI.Bind(GameUI.CreateText("Title", p, a, b, "", 84, GameUI.Gold, TextAnchor.MiddleCenter), "select.title");
+        GameUI.Pick(new Vector4(0.3f, 0.82f, 0.7f, 0.88f), new Vector4(0.3f, 0.86f, 0.7f, 0.9f), out a, out b);
+        selCounter = GameUI.CreateText("Counter", p, a, b, "", 30, new Color(1f, 1f, 1f, 0.7f), TextAnchor.MiddleCenter);
 
-        Image card = GameUI.CreatePanel("Card", p, new Vector2(0.27f, 0.03f), new Vector2(0.73f, 0.30f), GameUI.Panel);
+        GameUI.Pick(new Vector4(0.27f, 0.03f, 0.73f, 0.30f), new Vector4(0.05f, 0.13f, 0.95f, 0.34f), out a, out b);
+        Image card = GameUI.CreatePanel("Card", p, a, b, GameUI.Panel);
         selName = GameUI.CreateText("Name", card.transform, new Vector2(0.03f, 0.66f), new Vector2(0.97f, 1f),
                                     "", 58, Color.white, TextAnchor.MiddleCenter);
         selDesc = GameUI.CreateText("Desc", card.transform, new Vector2(0.05f, 0.40f), new Vector2(0.95f, 0.68f),
@@ -326,13 +396,23 @@ public class GameBootstrap : MonoBehaviour
         selStats = GameUI.CreateText("Stats", card.transform, new Vector2(0.05f, 0.03f), new Vector2(0.95f, 0.42f),
                                      "", 30, GameUI.Cyan, TextAnchor.MiddleCenter, false);
 
-        selectButtons = new MenuButton[4];
-        selectButtons[0] = GameUI.CreateButton("Prev", p, new Vector2(0.10f, 0.44f), new Vector2(0.17f, 0.58f), "<", 80, PrevCharacter);
-        selectButtons[1] = GameUI.CreateButton("Next", p, new Vector2(0.83f, 0.44f), new Vector2(0.90f, 0.58f), ">", 80, NextCharacter);
-        selectButtons[2] = GameUI.CreateButton("Play", p, new Vector2(0.78f, 0.04f), new Vector2(0.97f, 0.14f), "", 42, BeginSingleGame);
-        selectButtons[3] = GameUI.CreateButton("Back", p, new Vector2(0.03f, 0.04f), new Vector2(0.20f, 0.12f), "", 34, EnterMenu);
+        selectButtons = new MenuButton[5];
+        GameUI.Pick(new Vector4(0.10f, 0.44f, 0.17f, 0.58f), new Vector4(0.03f, 0.50f, 0.18f, 0.59f), out a, out b);
+        selectButtons[0] = GameUI.CreateButton("Prev", p, a, b, "<", 80, PrevCharacter);
+        GameUI.Pick(new Vector4(0.83f, 0.44f, 0.90f, 0.58f), new Vector4(0.82f, 0.50f, 0.97f, 0.59f), out a, out b);
+        selectButtons[1] = GameUI.CreateButton("Next", p, a, b, ">", 80, NextCharacter);
+        GameUI.Pick(new Vector4(0.78f, 0.04f, 0.97f, 0.14f), new Vector4(0.52f, 0.03f, 0.95f, 0.11f), out a, out b);
+        selectButtons[2] = GameUI.CreateButton("Play", p, a, b, "", 42, BeginSingleGame);
+        GameUI.Pick(new Vector4(0.03f, 0.04f, 0.20f, 0.12f), new Vector4(0.05f, 0.03f, 0.48f, 0.11f), out a, out b);
+        selectButtons[3] = GameUI.CreateButton("Back", p, a, b, "", 34, EnterMenu);
+        GameUI.Pick(new Vector4(0.03f, 0.14f, 0.25f, 0.22f), new Vector4(0.12f, 0.795f, 0.88f, 0.855f), out a, out b);
+        selectButtons[4] = GameUI.CreateButton("Mode", p, a, b, "", 30, ToggleMode);
+        modeButton = selectButtons[4];
         GameUI.Bind(selectButtons[2].label, "select.play");
         GameUI.Bind(selectButtons[3].label, "select.back");
+        GameUI.Bind(modeButton.label, ModeLabel);
+        selectButtons[2].normal = new Color(0.15f, 0.55f, 0.25f, 0.95f);
+        selectButtons[2].Refresh();
     }
 
     void BuildLobbyUi()
@@ -342,8 +422,9 @@ public class GameBootstrap : MonoBehaviour
 
         GameUI.CreateText("Title", p, new Vector2(0.03f, 0.89f), new Vector2(0.5f, 1f),
                           "ROYAL RUN", 84, GameUI.Gold, TextAnchor.MiddleLeft);
-        GameUI.Bind(GameUI.CreateText("Subtitle", p, new Vector2(0.032f, 0.85f), new Vector2(0.5f, 0.9f),
-                          "", 30, new Color(1f, 1f, 1f, 0.75f), TextAnchor.MiddleLeft), "lobby.subtitle");
+        GameUI.Bind(GameUI.CreateText("Subtitle", p, new Vector2(0.032f, 0.85f), new Vector2(0.6f, 0.9f),
+                          "", 30, new Color(1f, 1f, 1f, 0.75f), TextAnchor.MiddleLeft),
+                    () => Loc.T("lobby.subtitle") + "   ·   " + ModeLabel() + "  <size=22>(M)</size>");
 
         // connection steps + address
         Image steps = GameUI.CreatePanel("Steps", p, new Vector2(0.03f, 0.61f), new Vector2(0.60f, 0.85f), GameUI.Panel);
@@ -391,23 +472,29 @@ public class GameBootstrap : MonoBehaviour
     {
         RectTransform root = GameUI.CreateRect("Results UI", canvas.transform, Vector2.zero, Vector2.one);
         resultsUi = root.gameObject;
+        bool portrait = GameUI.Portrait;
+        Vector2 a, b;
 
-        GameUI.CreatePanel("Shade", root, new Vector2(0.27f, 0.10f), new Vector2(0.73f, 0.90f), new Color(0.06f, 0.03f, 0.13f, 0.92f));
-        GameUI.Bind(GameUI.CreateText("Title", root, new Vector2(0.27f, 0.77f), new Vector2(0.73f, 0.90f),
-                          "", 96, GameUI.Gold, TextAnchor.MiddleCenter), "results.title");
-        resultsRows = GameUI.CreateRect("Rows", root, new Vector2(0.30f, 0.38f), new Vector2(0.70f, 0.76f));
-        resultsHint = GameUI.CreateText("Hint", root, new Vector2(0.28f, 0.23f), new Vector2(0.72f, 0.29f),
-                                        "", 26, new Color(1f, 1f, 1f, 0.7f), TextAnchor.MiddleCenter, false);
+        GameUI.Pick(new Vector4(0.27f, 0.10f, 0.73f, 0.90f), new Vector4(0.04f, 0.06f, 0.96f, 0.93f), out a, out b);
+        GameUI.CreatePanel("Shade", root, a, b, new Color(0.06f, 0.03f, 0.13f, 0.92f));
+        GameUI.Pick(new Vector4(0.27f, 0.77f, 0.73f, 0.90f), new Vector4(0.04f, 0.80f, 0.96f, 0.92f), out a, out b);
+        resultsTitle = GameUI.CreateText("Title", root, a, b, "", 90, GameUI.Gold, TextAnchor.MiddleCenter);
+        GameUI.Pick(new Vector4(0.30f, 0.38f, 0.70f, 0.76f), new Vector4(0.07f, 0.42f, 0.93f, 0.79f), out a, out b);
+        resultsRows = GameUI.CreateRect("Rows", root, a, b);
+        GameUI.Pick(new Vector4(0.28f, 0.22f, 0.72f, 0.30f), new Vector4(0.06f, 0.29f, 0.94f, 0.41f), out a, out b);
+        resultsHint = GameUI.CreateText("Hint", root, a, b, "", 28, new Color(1f, 1f, 1f, 0.8f), TextAnchor.MiddleCenter, false);
 
         resultsButtons = new MenuButton[3];
         string[] names = { "btn.restart", "btn.addPlayers", "btn.mainMenu" };
         System.Action[] acts = { RestartGame, ResultsSecondAction, EnterMenu };
         for (int i = 0; i < 3; i++)
         {
-            float x0 = 0.285f + i * 0.145f;
-            resultsButtons[i] = GameUI.CreateButton("Button " + (i + 1), root,
-                new Vector2(x0, 0.12f), new Vector2(x0 + 0.135f, 0.215f), Loc.T(names[i]), 28, acts[i]);
+            if (portrait) { float top = 0.27f - i * 0.075f; a = V(0.12f, top - 0.062f); b = V(0.88f, top); }
+            else { float x0 = 0.285f + i * 0.145f; a = V(x0, 0.12f); b = V(x0 + 0.135f, 0.215f); }
+            resultsButtons[i] = GameUI.CreateButton("Button " + (i + 1), root, a, b, Loc.T(names[i]), portrait ? 38 : 28, acts[i]);
         }
+        resultsButtons[0].normal = new Color(0.15f, 0.55f, 0.25f, 0.95f);
+        resultsButtons[0].Refresh();
         resultsUi.SetActive(false);
     }
 
@@ -416,18 +503,21 @@ public class GameBootstrap : MonoBehaviour
         RectTransform root = GameUI.CreateRect("Pause UI", canvas.transform, Vector2.zero, Vector2.one);
         pauseUi = root.gameObject;
 
-        GameUI.CreatePanel("Panel", root, new Vector2(0.34f, 0.14f), new Vector2(0.66f, 0.86f), new Color(0.06f, 0.03f, 0.13f, 0.92f));
-        GameUI.Bind(GameUI.CreateText("Title", root, new Vector2(0.34f, 0.72f), new Vector2(0.66f, 0.86f),
-                          "", 90, GameUI.Gold, TextAnchor.MiddleCenter), "pause.title");
+        bool portrait = GameUI.Portrait;
+        Vector2 a, b;
+        GameUI.Pick(new Vector4(0.34f, 0.14f, 0.66f, 0.86f), new Vector4(0.08f, 0.2f, 0.92f, 0.8f), out a, out b);
+        GameUI.CreatePanel("Panel", root, a, b, new Color(0.06f, 0.03f, 0.13f, 0.92f));
+        GameUI.Pick(new Vector4(0.34f, 0.72f, 0.66f, 0.86f), new Vector4(0.08f, 0.67f, 0.92f, 0.79f), out a, out b);
+        GameUI.Bind(GameUI.CreateText("Title", root, a, b, "", 90, GameUI.Gold, TextAnchor.MiddleCenter), "pause.title");
 
         pauseButtons = new MenuButton[4];
         string[] names = { "btn.resume", "btn.restart", "btn.addPlayers", "btn.mainMenu" };
         System.Action[] acts = { ResumeGame, RestartGame, ResultsSecondAction, EnterMenu };
         for (int i = 0; i < 4; i++)
         {
-            float top = 0.68f - i * 0.135f;
-            pauseButtons[i] = GameUI.CreateButton("Button " + (i + 1), root,
-                new Vector2(0.37f, top - 0.105f), new Vector2(0.63f, top), Loc.T(names[i]), 36, acts[i]);
+            if (portrait) { float top = 0.63f - i * 0.1f; a = V(0.15f, top - 0.075f); b = V(0.85f, top); }
+            else { float top = 0.68f - i * 0.135f; a = V(0.37f, top - 0.105f); b = V(0.63f, top); }
+            pauseButtons[i] = GameUI.CreateButton("Button " + (i + 1), root, a, b, Loc.T(names[i]), portrait ? 42 : 36, acts[i]);
         }
         pauseUi.SetActive(false);
     }
@@ -457,10 +547,30 @@ public class GameBootstrap : MonoBehaviour
                                        "", 24, new Color(1f, 1f, 1f, 0.65f), TextAnchor.MiddleCenter);
     }
 
+    // The screen changed between upright and sideways: build the menus again in the right layout.
+    void RebuildUi()
+    {
+        lastPortrait = GameUI.Portrait;
+        Phase was = phase;
+        if (canvas != null) Destroy(canvas.gameObject);
+        GameUI.ClearBindings();
+        canvas = GameUI.CreateCanvas("Canvas", transform);
+        BuildMenuUi();
+        BuildSelectUi();
+        BuildLobbyUi();
+        BuildResultsUi();
+        BuildPauseUi();
+        BuildHelpUi();
+        BuildFooter();
+        if (was == Phase.SingleSelect) EnterSingleSelect();
+        else if (was == Phase.Lobby) EnterLobby();
+        else EnterMenu();
+    }
+
     void SetFooter(string key)
     {
         footerKey = key;
-        footerText.text = string.IsNullOrEmpty(key) ? "" : Loc.T(key);
+        footerText.text = string.IsNullOrEmpty(key) || mobile ? "" : Loc.T(key);
     }
 
     // The language was switched (the LANGUAGE button in the menu).
@@ -472,6 +582,7 @@ public class GameBootstrap : MonoBehaviour
         qrShownUrl = null;
         if (phase == Phase.SingleSelect) RefreshSelect();
         if (phase == Phase.Lobby || phase == Phase.Countdown) RefreshLobbyUi();
+        if (phase == Phase.Menu) RefreshMenuBest();
         if (helpOpen) helpText.text = BuildHelpText();
         hub.BroadcastLanguage();
     }
@@ -484,6 +595,13 @@ public class GameBootstrap : MonoBehaviour
     {
         if (helpOpen) { UpdateHelp(); return; }
         if (paused) { UpdatePause(); return; }
+
+        // the window or phone was turned: rebuild the menus in the other layout
+        if (GameUI.Portrait != lastPortrait && (phase == Phase.Menu || phase == Phase.SingleSelect || phase == Phase.Lobby))
+        {
+            RebuildUi();
+            return;
+        }
 
         if (GameInput.Down(GKey.F1) && phase != Phase.Playing) { OpenHelp(); return; }
         if (GameInput.Down(GKey.Escape))
@@ -520,8 +638,9 @@ public class GameBootstrap : MonoBehaviour
     {
         LayoutStage();
 
-        if (GameInput.Down(GKey.Left) || GameInput.Down(GKey.A)) { PrevCharacter(); Sfx.Play(SynthAudio.Click, 0.5f); }
-        if (GameInput.Down(GKey.Right) || GameInput.Down(GKey.D)) { NextCharacter(); Sfx.Play(SynthAudio.Click, 0.5f); }
+        SwipeDir sw = GameInput.Swipe;
+        if (GameInput.Down(GKey.Left) || GameInput.Down(GKey.A) || sw == SwipeDir.Right) { PrevCharacter(); Sfx.Play(SynthAudio.Click, 0.5f); }
+        if (GameInput.Down(GKey.Right) || GameInput.Down(GKey.D) || sw == SwipeDir.Left) { NextCharacter(); Sfx.Play(SynthAudio.Click, 0.5f); }
         if (GameInput.Down(GKey.Enter) || GameInput.Down(GKey.Space)) { BeginSingleGame(); return; }
         GameUI.UpdateButtons(selectButtons, ref selectSelected, false);
     }
@@ -534,6 +653,7 @@ public class GameBootstrap : MonoBehaviour
             RefreshLobbyUi();
         }
         if (GameInput.Down(GKey.K)) hub.AddKeyboardPlayer();
+        if (GameInput.Down(GKey.M)) ToggleMode();
 
         // keyboard players: L removes the last one, Enter toggles READY for all of them,
         // each one flips through the heroes with their own left/right keys
@@ -593,13 +713,28 @@ public class GameBootstrap : MonoBehaviour
 
     void UpdatePlaying()
     {
+        // the "II" button in the corner of a player's screen (a tap or a click)
+        if (GameInput.PointerPressed)
+        {
+            Vector2 pos = GameInput.PointerPosition;
+            foreach (PlayerWorld w in worlds)
+            {
+                if (w != null && w.PauseButton != null && w.PauseButton.Contains(pos))
+                {
+                    Sfx.Play(SynthAudio.Click, 0.6f);
+                    OpenPause();
+                    return;
+                }
+            }
+        }
+
         bool allDone = worlds.Count > 0;
         foreach (PlayerWorld w in worlds) if (!w.Finished) { allDone = false; break; }
 
         if (!allDone) { finishDelay = 0f; return; }
 
         finishDelay += Time.deltaTime;
-        if (finishDelay >= 3f) ShowResults();   // time for the camera to fly around the tired hero
+        if (finishDelay >= 2.6f) ShowResults();   // time for the camera to fly around the hero
     }
 
     void UpdateResults()
@@ -684,6 +819,7 @@ public class GameBootstrap : MonoBehaviour
         stage.gameObject.SetActive(true);
         phase = Phase.Menu;
         SetFooter("footer.menu");
+        RefreshMenuBest();
 
         ShowModel(views[1], 0);
     }
@@ -817,7 +953,7 @@ public class GameBootstrap : MonoBehaviour
 
         int n = players.Count;
         for (int i = 0; i < n; i++)
-            worlds.Add(PlayerWorld.Create(i, n, players[i], assets, hub));
+            worlds.Add(PlayerWorld.Create(i, n, players[i], assets, hub, rules));
 
         finishDelay = 0f;
         phase = Phase.Playing;
@@ -834,16 +970,21 @@ public class GameBootstrap : MonoBehaviour
         resultsButtons[1].label.text = Loc.T(mode == Mode.Single ? "btn.changeHero" : "btn.addPlayers");
         resultsButtons[2].label.text = Loc.T("btn.mainMenu");
         resultsSelected = 0;
-        resultsHint.text = Loc.T(mode == Mode.Single ? "results.hintSingle" : "results.hintNet");
+        resultsHint.text = mobile ? "" : Loc.T(mode == Mode.Single ? "results.hintSingle" : "results.hintNet");
+        bool endless = rules == GameRules.Endless;
+        resultsTitle.text = Loc.T(mode == Mode.Single && endless ? "results.runOver" : "results.title");
+        if (mode == Mode.Single && ranking.Count > 0 && endless)
+            resultsHint.text = "<color=#ffb74d>" + ranking[0].CauseText() + "</color>\n" + resultsHint.text;
 
-        // the record of the single-player game is kept between launches
+        // the record of the single-player game is kept between launches (separately for each mode)
         if (mode == Mode.Single && ranking.Count > 0)
         {
-            int best = PlayerPrefs.GetInt(BestScoreKey, 0);
+            string key = endless ? BestEndlessKey : BestScoreKey;
+            int best = PlayerPrefs.GetInt(key, 0);
             int score = ranking[0].Score;
             if (score > best)
             {
-                PlayerPrefs.SetInt(BestScoreKey, score);
+                PlayerPrefs.SetInt(key, score);
                 PlayerPrefs.Save();
                 resultsHint.text = "<color=#ffd54f><b>" + Loc.T("results.newBest") + "</b></color>\n" + resultsHint.text;
             }
@@ -859,7 +1000,7 @@ public class GameBootstrap : MonoBehaviour
         // World cameras draw only their own strip of the screen and "cut" the shared UI.
         // On the results screen we turn them off and show the full-screen lobby camera with a dark background.
         ShowCleanBackground();
-        if (ranking.Count > 0)
+        if (ranking.Count > 0 && !GameUI.Portrait)
         {
             LobbySlotView v = views[0];
             v.root.gameObject.SetActive(true);
@@ -1170,8 +1311,10 @@ public class GameBootstrap : MonoBehaviour
                 bool show = (i == 1);
                 views[i].root.gameObject.SetActive(show);
             }
-            Vector2 vp = menu ? new Vector2(0.76f, 0.16f) : new Vector2(0.5f, 0.36f);
-            float scale = menu ? 1.7f : 1.4f;
+            bool portrait = GameUI.Portrait;
+            Vector2 vp = portrait ? new Vector2(0.5f, menu ? 0.45f : 0.42f)
+                                  : (menu ? new Vector2(0.76f, 0.16f) : new Vector2(0.5f, 0.36f));
+            float scale = portrait ? 1.0f : (menu ? 1.7f : 1.4f);
             views[1].pedestalObject.SetActive(true);
             views[1].pedestal.material.color = menu ? GameUI.Gold : new Color(0.5f, 0.4f, 0.8f);
             views[1].root.position = lobbyCam.ViewportToWorldPoint(new Vector3(vp.x, vp.y, 8f));

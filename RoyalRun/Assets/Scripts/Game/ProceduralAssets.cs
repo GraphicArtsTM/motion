@@ -71,6 +71,9 @@ public static class ProceduralAssets
 
     static Biome B = Biomes[0];
 
+    // Fewer decorations (phones): set by GameBootstrap before the templates are built.
+    public static bool Lite;
+
     public static int BiomeCount { get { return Biomes.Length; } }
 
     struct ChunkStyle
@@ -93,6 +96,7 @@ public static class ProceduralAssets
             Bake(BuildPowerUp(templates, PowerUpType.Hourglass)),
         };
         GameObject mover = BuildMovingCart(templates);
+        GameObject beam = Bake(BuildBeam(templates));
 
         if (a.kingPrefab == null)
         {
@@ -119,6 +123,7 @@ public static class ProceduralAssets
             bool ownCheckpoint = a.checkpointChunkPrefab != null;
             a.biomeChunks = new GameObject[Biomes.Length][];
             a.biomeCheckpoints = new GameObject[Biomes.Length];
+            a.biomeCorners = new GameObject[Biomes.Length][];
             for (int b = 0; b < Biomes.Length; b++)
             {
                 B = Biomes[b];
@@ -129,13 +134,27 @@ public static class ProceduralAssets
                     st.seed += b * 1000;
                     GameObject c = BuildChunk(B.name + " Chunk " + (i + 1), templates, st);
                     SetupChunk(c, fence, apple, coin, wall, gem, powerUps, mover);
+                    c.GetComponent<Chunk>().ConfigureBeam(beam);
                     a.biomeChunks[b][i] = Bake(c);
+                }
+                // corners: the road turns left or right (swipe at the right moment!)
+                a.biomeCorners[b] = new GameObject[2];
+                for (int d = 0; d < 2; d++)
+                {
+                    int dir = d == 0 ? -1 : 1;
+                    GameObject c = BuildChunk(B.name + (dir < 0 ? " Corner Left" : " Corner Right"), templates,
+                                              new ChunkStyle { seed = 500 + b * 10 + d, banners = true }, dir);
+                    AddCornerEnd(c.transform, dir);
+                    SetupChunk(c, fence, apple, coin, wall, gem, powerUps, mover);
+                    c.GetComponent<Chunk>().ConfigureCorner(dir);
+                    a.biomeCorners[b][d] = Bake(c);
                 }
                 if (!ownCheckpoint)
                 {
                     GameObject cp = BuildChunk(B.name + " Checkpoint", templates, new ChunkStyle { seed = 79 + b, lampLeft = true, lampRight = true, banners = true });
                     AddCheckpointArch(cp.transform);
                     SetupChunk(cp, fence, apple, coin, wall, gem, powerUps, mover);
+                    cp.GetComponent<Chunk>().ConfigureBeam(beam);
                     a.biomeCheckpoints[b] = Bake(cp);
                 }
             }
@@ -220,7 +239,9 @@ public static class ProceduralAssets
     //  Road
     // ------------------------------------------------------------------
 
-    static GameObject BuildChunk(string name, Transform parent, ChunkStyle style)
+    // openSide: -1 / 1 = the road turns to that side here, so that side has no curb, grass or trees
+    // (the next piece of road lies there).
+    static GameObject BuildChunk(string name, Transform parent, ChunkStyle style, int openSide = 0)
     {
         GameObject root = new GameObject(name);
         root.transform.SetParent(parent, false);
@@ -237,32 +258,39 @@ public static class ProceduralAssets
             for (int i = 0; i < 2; i++)
                 Box("Lane Line", t, new Vector3(x, 0.006f, 2.5f + i * 5f), new Vector3(0.1f, 0.012f, 2.4f), Line);
         foreach (float x in new[] { -4.3f, 4.3f })
-            Box("Edge Line", t, new Vector3(x, 0.006f, ChunkLength * 0.5f), new Vector3(0.08f, 0.012f, ChunkLength), Gold);
+            if (openSide == 0 || Mathf.Sign(x) != openSide)
+                Box("Edge Line", t, new Vector3(x, 0.006f, ChunkLength * 0.5f), new Vector3(0.08f, 0.012f, ChunkLength), Gold);
+
+        // the grass height differs a tiny bit between templates, so overlapping grass near corners does not flicker
+        float grassY = -0.12f - (style.seed % 7) * 0.004f;
 
         // red-and-white curbs keep rolling obstacles on the road
         float curbX = RoadWidth * 0.5f + 0.18f;
         for (int side = -1; side <= 1; side += 2)
+        {
+            bool open = side == openSide;
             for (int i = 0; i < 5; i++)
-                Box("Curb", t, new Vector3(side * curbX, 0.06f, 1f + i * 2f), new Vector3(0.36f, 0.32f, 2f), i % 2 == 0 ? CurbRed : CurbWhite, true);
+                if (!open || i == 0)
+                    Box("Curb", t, new Vector3(side * curbX, 0.06f, open ? 0.5f : 1f + i * 2f), new Vector3(0.36f, 0.32f, open ? 1f : 2f), i % 2 == 0 ? CurbRed : CurbWhite, true);
 
-        // grass on both sides
-        float grassX = RoadWidth * 0.5f + 0.36f + 11f;
-        Box("Grass L", t, new Vector3(-grassX, -0.12f, ChunkLength * 0.5f), new Vector3(22f, 0.2f, ChunkLength), B.grass);
-        Box("Grass R", t, new Vector3(grassX, -0.12f, ChunkLength * 0.5f), new Vector3(22f, 0.2f, ChunkLength), B.grass);
-        // a strip of earth (or snow) between the curb and the grass
-        Box("Verge L", t, new Vector3(-(RoadWidth * 0.5f + 0.75f), -0.04f, ChunkLength * 0.5f), new Vector3(0.8f, 0.1f, ChunkLength), B.ground);
-        Box("Verge R", t, new Vector3(RoadWidth * 0.5f + 0.75f, -0.04f, ChunkLength * 0.5f), new Vector3(0.8f, 0.1f, ChunkLength), B.ground);
+            // grass and a strip of earth (or snow) between the curb and the grass
+            float grassX = RoadWidth * 0.5f + 0.36f + 11f;
+            float len = open ? 1f : ChunkLength;
+            Box("Grass", t, new Vector3(side * grassX, grassY, len * 0.5f), new Vector3(22f, 0.2f, len), B.grass);
+            Box("Verge", t, new Vector3(side * (RoadWidth * 0.5f + 0.75f), -0.04f, len * 0.5f), new Vector3(0.8f, 0.1f, len), B.ground);
+        }
 
-        if (style.lampLeft) AddLamp(t, -1f);
-        if (style.lampRight) AddLamp(t, 1f);
-        if (style.rail) { AddRail(t, -1f); AddRail(t, 1f); }
-        if (style.banners) { AddBanner(t, -1f, 2.5f); AddBanner(t, 1f, 7.5f); }
-        if (style.castle) AddCastle(t, rnd.Next(2) == 0 ? -1f : 1f, rnd);
+        if (style.lampLeft && openSide != -1) AddLamp(t, -1f);
+        if (style.lampRight && openSide != 1) AddLamp(t, 1f);
+        if (style.rail && openSide == 0) { AddRail(t, -1f); AddRail(t, 1f); }
+        if (style.banners) { if (openSide != -1) AddBanner(t, -1f, 2.5f); if (openSide != 1) AddBanner(t, 1f, 7.5f); }
+        if (style.castle && openSide == 0) AddCastle(t, rnd.Next(2) == 0 ? -1f : 1f, rnd);
 
         // trees, bushes, rocks and flowers - each template has its own layout
         for (int side = -1; side <= 1; side += 2)
         {
-            int count = 1 + rnd.Next(3);
+            if (side == openSide) continue;
+            int count = Lite ? 1 : 1 + rnd.Next(3);
             for (int i = 0; i < count; i++)
             {
                 float x = side * (7.5f + (float)rnd.NextDouble() * 10f);
@@ -275,7 +303,7 @@ public static class ProceduralAssets
             }
             if (rnd.Next(2) == 0)
                 AddRock(t, new Vector3(side * (6.3f + (float)rnd.NextDouble() * 3f), 0f, 1f + (float)rnd.NextDouble() * 8f), (float)rnd.NextDouble());
-            for (int i = 0; i < 6; i++)
+            for (int i = 0; i < (Lite ? 3 : 6); i++)
             {
                 Vector3 p = new Vector3(side * (5.6f + (float)rnd.NextDouble() * 6f), 0.06f, (float)rnd.NextDouble() * 10f);
                 Ball("Flower", t, p, Vector3.one * 0.14f, B.flowers[rnd.Next(B.flowers.Length)], 0.3f, 0.15f);
@@ -409,6 +437,68 @@ public static class ProceduralAssets
         if (B.snow) Ball("Snow Cap", chunk, pos + Vector3.up * 0.38f * (0.7f + v), new Vector3(0.8f, 0.2f, 0.65f) * (0.7f + v), Color.white, 0.4f);
     }
 
+    // The end of a corner piece: a castle wall across the road (running into it ends the run),
+    // gold arrows on the road and on the wall pointing where the road goes, and ground behind the wall.
+    static void AddCornerEnd(Transform chunk, int dir)
+    {
+        const float z = 10.25f;
+        GameObject wall = new GameObject("Dead End");
+        wall.transform.SetParent(chunk, false);
+        wall.transform.localPosition = new Vector3(0f, 0f, z);
+        BoxCollider box = wall.AddComponent<BoxCollider>();
+        box.center = new Vector3(0f, 1.5f, 0f);
+        box.size = new Vector3(RoadWidth, 3f, 0.5f);
+        wall.AddComponent<Hazard>().Configure(new Color(0.55f, 0.55f, 0.58f), 3f, HazardKind.TurnBarrier);
+
+        Transform w = wall.transform;
+        Box("Wall", w, new Vector3(0f, 1.6f, 0.1f), new Vector3(RoadWidth + 1.2f, 3.2f, 0.7f), Stone);
+        for (int i = 0; i < 7; i++)
+            Box("Merlon", w, new Vector3(-4.5f + i * 1.5f, 3.45f, 0.1f), new Vector3(0.7f, 0.5f, 0.7f), StoneDark);
+        // a big arrow on the wall
+        for (int i = 0; i < 3; i++)
+        {
+            Box("Arrow", w, new Vector3(dir * (i * 0.9f - 0.9f), 1.8f, -0.27f), new Vector3(0.9f, 0.22f, 0.05f), Gold, false, new Vector3(0f, 0f, dir * 35f), 0.7f, 0.6f);
+            Box("Arrow", w, new Vector3(dir * (i * 0.9f - 0.9f), 1.4f, -0.27f), new Vector3(0.9f, 0.22f, 0.05f), Gold, false, new Vector3(0f, 0f, -dir * 35f), 0.7f, 0.6f);
+        }
+        Ball("Torch", w, new Vector3(-3.6f, 2.4f, -0.3f), Vector3.one * 0.3f, new Color(1f, 0.6f, 0.15f), 0.3f, 2f);
+        Ball("Torch", w, new Vector3(3.6f, 2.4f, -0.3f), Vector3.one * 0.3f, new Color(1f, 0.6f, 0.15f), 0.3f, 2f);
+
+        // chevrons on the road
+        for (int i = 0; i < 3; i++)
+        {
+            float cz = 2.2f + i * 1.3f;
+            Box("Chevron", chunk, new Vector3(dir * 0.35f, 0.008f, cz + 0.3f), new Vector3(1.4f, 0.012f, 0.25f), Gold, false, new Vector3(0f, dir * 40f, 0f), 0.4f, 0.4f);
+            Box("Chevron", chunk, new Vector3(dir * 0.35f, 0.008f, cz - 0.3f), new Vector3(1.4f, 0.012f, 0.25f), Gold, false, new Vector3(0f, -dir * 40f, 0f), 0.4f, 0.4f);
+        }
+
+        // ground behind the wall (the side road lies on the open side, so only the other side is covered)
+        float gx = -dir * 11f;
+        Box("Ground Behind", chunk, new Vector3(gx, -0.13f, z + 10.3f), new Vector3(31f, 0.2f, 20f), B.grass);
+        AddTree(chunk, new Vector3(-dir * 2f, 0f, z + 4f), 0.3f);
+        AddPine(chunk, new Vector3(-dir * 6.5f, 0f, z + 6f), 0.6f);
+        AddTree(chunk, new Vector3(dir * 1.5f, 0f, z + 9f), 0.8f);
+    }
+
+    // A log across one lane at head height: slide under it (jumping over is impossible, running into it ends the run).
+    static GameObject BuildBeam(Transform parent)
+    {
+        GameObject root = new GameObject("Beam");
+        root.transform.SetParent(parent, false);
+        BoxCollider box = root.AddComponent<BoxCollider>();
+        box.center = new Vector3(0f, 2.0f, 0f);
+        box.size = new Vector3(2.3f, 1.2f, 0.45f);
+        root.AddComponent<Hazard>().Configure(new Color(0.5f, 0.32f, 0.16f), 2f, HazardKind.Fatal);
+
+        Transform t = root.transform;
+        Cyl("Post L", t, new Vector3(-1.18f, 1.35f, 0f), new Vector3(0.16f, 1.35f, 0.16f), WoodDark);
+        Cyl("Post R", t, new Vector3(1.18f, 1.35f, 0f), new Vector3(0.16f, 1.35f, 0.16f), WoodDark);
+        Cyl("Log", t, new Vector3(0f, 1.75f, 0f), new Vector3(0.36f, 1.25f, 0.36f), Wood, new Vector3(0f, 0f, 90f));
+        Cyl("Log 2", t, new Vector3(0f, 2.15f, 0f), new Vector3(0.3f, 1.25f, 0.3f), WoodDark, new Vector3(0f, 0f, 90f));
+        Box("Banner", t, new Vector3(0f, 1.65f, -0.2f), new Vector3(1.2f, 0.32f, 0.03f), Royal);
+        Box("Stripe", t, new Vector3(0f, 1.65f, -0.22f), new Vector3(1.2f, 0.07f, 0.02f), Gold, false, default(Vector3), 0.6f, 0.4f);
+        return root;
+    }
+
     // The arch over the road and the invisible trigger that adds time (the Checkpoint script).
     static void AddCheckpointArch(Transform chunk)
     {
@@ -493,7 +583,7 @@ public static class ProceduralAssets
         BoxCollider box = root.AddComponent<BoxCollider>();
         box.center = new Vector3(0f, 1.3f, 0f);
         box.size = new Vector3(2.1f, 2.6f, 0.5f);
-        root.AddComponent<Hazard>().Configure(new Color(0.55f, 0.55f, 0.58f), 3f);
+        root.AddComponent<Hazard>().Configure(new Color(0.55f, 0.55f, 0.58f), 3f, HazardKind.Fatal);
 
         Transform t = root.transform;
         for (int row = 0; row < 4; row++)
