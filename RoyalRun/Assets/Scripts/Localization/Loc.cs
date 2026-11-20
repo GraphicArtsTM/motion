@@ -129,6 +129,9 @@ public static class Loc
         Add("menu.multi", "ОДИН ЭКРАН   ·   телефоны-пульты", "ONE SCREEN   ·   phone controllers", "BITTA EKRAN   ·   telefon pultlar");
         Add("menu.help", "КАК ПОДКЛЮЧИТЬСЯ", "HOW TO CONNECT", "QANDAY ULANISH");
         Add("menu.lang", "ЯЗЫК: {0}", "LANGUAGE: {0}", "TIL: {0}");
+        Add("menu.sound", "ЗВУК: {0}", "SOUND: {0}", "OVOZ: {0}");
+        Add("sound.on", "ВКЛ", "ON", "YONIQ");
+        Add("sound.off", "ВЫКЛ", "OFF", "O‘CHIQ");
         Add("menu.quit", "ВЫХОД", "QUIT", "CHIQISH");
         Add("footer.menu",
             "Вверх / Вниз - выбор     Enter - подтвердить     мышь тоже работает     F1 - помощь с телефоном",

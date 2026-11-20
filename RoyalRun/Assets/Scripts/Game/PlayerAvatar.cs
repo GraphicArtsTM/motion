@@ -98,7 +98,7 @@ public class PlayerAvatar : MonoBehaviour
         avatar.originX = world.OriginX;
         avatar.laneSpeed = LaneSpeed * character.moveMult;
         avatar.BuildEffects();
-        if (avatar.rig != null && !PlayerWorld.Lite) avatar.rig.Footstep += avatar.OnFootstep;
+        if (avatar.rig != null) avatar.rig.Footstep += avatar.OnFootstep;
         sensor.owner = avatar;
         input.jumpQueued = false;
         input.actions.Clear();
@@ -142,6 +142,8 @@ public class PlayerAvatar : MonoBehaviour
     void OnFootstep()
     {
         if (!world.Running) return;
+        Sfx.PlayStep(0.22f);
+        if (PlayerWorld.Lite) return;
         DebrisBurst.Dust(transform.position + new Vector3(Random.Range(-0.15f, 0.15f), 0.05f, -0.1f),
                          new Color(0.62f, 0.57f, 0.5f), world.transform);
     }
@@ -265,7 +267,7 @@ public class PlayerAvatar : MonoBehaviour
             return;
         }
         lane = next;
-        Sfx.Play(SynthAudio.Click, 0.25f);
+        Sfx.Play(SynthAudio.Whoosh, 0.4f, 1f + Random.Range(-0.08f, 0.08f), dir * 0.35f);
     }
 
     // ================= movement =================
@@ -303,12 +305,12 @@ public class PlayerAvatar : MonoBehaviour
                 grounded = false;
                 slideTimer = 0f;
                 verticalVelocity = JumpVelocity;
-                Sfx.Play(SynthAudio.Jump, 0.45f);
+                Sfx.PlayVar(SynthAudio.Jump, 0.5f, 0.06f);
             }
             if (slideBuffer > 0f && grounded)
             {
                 slideBuffer = 0f;
-                if (slideTimer <= 0f) Sfx.Play(SynthAudio.Land, 0.5f);
+                if (slideTimer <= 0f) Sfx.PlayVar(SynthAudio.Slide, 0.55f, 0.06f);
                 slideTimer = SlideTime;
             }
         }
@@ -325,7 +327,7 @@ public class PlayerAvatar : MonoBehaviour
                 grounded = true;
                 if (rig != null) rig.Land();
                 world.OnLanded();
-                Sfx.Play(SynthAudio.Land, 0.35f);
+                Sfx.PlayVar(SynthAudio.Land, 0.45f, 0.08f);
             }
         }
         next.y = height;
@@ -388,13 +390,18 @@ public class PlayerAvatar : MonoBehaviour
         // the shield takes the blow (even a deadly one)
         if (world.TryAbsorbHit())
         {
-            Sfx.Play(SynthAudio.Shield, 0.6f);
+            Sfx.Play(SynthAudio.ShieldBreak, 0.75f);
             if (barrier) world.ForceTurn();
             return;
         }
 
-        Sfx.Play(SynthAudio.Hit, 0.9f);
-        Sfx.Play(SynthAudio.Thud, 0.8f);
+        bool fatal = world.Rules == GameRules.Endless && hazard.Kind != HazardKind.Stumble;
+        if (fatal) Sfx.Play(SynthAudio.Crash, 1f);
+        else
+        {
+            Sfx.PlayVar(SynthAudio.Hit, 0.85f, 0.06f);
+            Sfx.Play(SynthAudio.Stumble, 0.6f);
+        }
         if (animator != null) animator.SetTrigger(HitTrigger);
         if (rig != null) rig.PlayHit();
         stunTimer = StunTime;

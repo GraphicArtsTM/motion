@@ -244,15 +244,24 @@ public partial class GameBootstrap : MonoBehaviour
         DynamicGI.UpdateEnvironment();   // reflections on metal come from the new sky
     }
 
+    // The music follows the screen: a calm lute tune in the menus, the run theme on the road.
     void CreateMusic()
     {
-        if (assets.music == null) return;
-        AudioSource src = gameObject.AddComponent<AudioSource>();
-        src.clip = assets.music;
-        src.loop = true;
-        src.volume = 0.4f;
-        src.playOnAwake = false;
-        src.Play();
+        UpdateMusic();
+    }
+
+    void UpdateMusic()
+    {
+        bool racing = phase == Phase.Playing || phase == Phase.Countdown;
+        AudioClip game = assets.music != null ? assets.music : SynthAudio.Music;
+        Sfx.Music(racing ? game : SynthAudio.MenuMusic);
+        Sfx.DuckMusic(paused ? 0.35f : phase == Phase.Results ? 0.55f : 1f);
+    }
+
+    void ToggleSound()
+    {
+        Sfx.ToggleMute();
+        GameUI.RefreshBindings();
     }
 
     // Three "podiums" with heroes, visible in the menu, hero select and lobby.
@@ -345,8 +354,8 @@ public partial class GameBootstrap : MonoBehaviour
         GameUI.Pick(new Vector4(0.065f, 0.615f, 0.62f, 0.66f), new Vector4(0.03f, 0.79f, 0.97f, 0.83f), out a, out b);
         menuBest = GameUI.CreateText("Best", p, a, b, "", 34, GameUI.Cyan, portrait ? TextAnchor.MiddleCenter : TextAnchor.MiddleLeft);
 
-        string[] keys = { "menu.single", "menu.lan", "menu.multi", "menu.help", null, "menu.quit" };
-        System.Action[] actions = { StartSingle, OpenNetMenu, StartNetwork, OpenHelp, Loc.Next, QuitGame };
+        string[] keys = { "menu.single", "menu.lan", "menu.multi", "menu.help", null, "menu.sound", "menu.quit" };
+        System.Action[] actions = { StartSingle, OpenNetMenu, StartNetwork, OpenHelp, Loc.Next, ToggleSound, QuitGame };
         List<MenuButton> list = new List<MenuButton>();
         for (int i = 0; i < keys.Length; i++)
         {
@@ -354,9 +363,10 @@ public partial class GameBootstrap : MonoBehaviour
             if (mobile && (i == 2 || i == 3)) continue;
             int k = list.Count;
             if (portrait) { float top = 0.40f - k * 0.065f; a = V(0.12f, top - 0.054f); b = V(0.88f, top); }
-            else { float top = 0.62f - k * 0.1f; a = V(0.06f, top - 0.08f); b = V(0.46f, top); }
+            else { float top = 0.62f - k * 0.087f; a = V(0.06f, top - 0.072f); b = V(0.46f, top); }
             MenuButton btn = GameUI.CreateButton("Button " + (i + 1), p, a, b, "", 38, actions[i]);
-            if (keys[i] != null) GameUI.Bind(btn.label, keys[i]);
+            if (keys[i] == "menu.sound") GameUI.Bind(btn.label, () => Loc.F("menu.sound", Loc.T(Sfx.Muted ? "sound.off" : "sound.on")));
+            else if (keys[i] != null) GameUI.Bind(btn.label, keys[i]);
             // the language button shows the current language in that language: "ЯЗЫК: РУССКИЙ", "TIL: O‘ZBEKCHA"...
             else GameUI.Bind(btn.label, () => Loc.F("menu.lang", Loc.NativeName(Loc.Current)));
             list.Add(btn);
@@ -607,6 +617,7 @@ public partial class GameBootstrap : MonoBehaviour
 
     void Update()
     {
+        UpdateMusic();
         if (helpOpen) { UpdateHelp(); return; }
         if (paused) { UpdatePause(); return; }
 
@@ -621,6 +632,7 @@ public partial class GameBootstrap : MonoBehaviour
         if (GameInput.Down(GKey.F1) && phase != Phase.Playing) { OpenHelp(); return; }
         if (GameInput.Down(GKey.Escape))
         {
+            if (phase != Phase.Playing) Sfx.Play(SynthAudio.Back, 0.6f);
             if (phase == Phase.Menu)
             {
 #if !UNITY_EDITOR
@@ -779,7 +791,7 @@ public partial class GameBootstrap : MonoBehaviour
 
     void UpdatePause()
     {
-        if (GameInput.Down(GKey.Escape)) { ResumeGame(); return; }
+        if (GameInput.Down(GKey.Escape)) { Sfx.Play(SynthAudio.Back, 0.6f); ResumeGame(); return; }
         GameUI.UpdateButtons(pauseButtons, ref pauseSelected, true);
     }
 
@@ -1008,6 +1020,7 @@ public partial class GameBootstrap : MonoBehaviour
             int score = ranking[0].Score;
             if (score > best)
             {
+                Sfx.PlayDelayed(SynthAudio.Record, 0.8f, 0.3f);
                 PlayerPrefs.SetInt(key, score);
                 PlayerPrefs.Save();
                 resultsHint.text = "<color=#ffd54f><b>" + Loc.T("results.newBest") + "</b></color>\n" + resultsHint.text;
@@ -1031,7 +1044,7 @@ public partial class GameBootstrap : MonoBehaviour
             ShowModel(v, ranking[0].Owner.character);
             v.pedestal.material.color = GameUI.Gold;
             SetRigState(v, true);
-            Sfx.Play(SynthAudio.Checkpoint, 0.6f);
+            if (mode != Mode.Single) Sfx.PlayDelayed(SynthAudio.Victory, 0.7f, 0.2f);
         }
 
         PushResultsAll();

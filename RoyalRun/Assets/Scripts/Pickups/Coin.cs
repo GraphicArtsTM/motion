@@ -19,6 +19,8 @@ public class Coin : Pickup
     {
         world.AddCoinScore(scoreAmount, isGem);
         DebrisBurst.Sparkle(transform.position + Vector3.up, isGem ? new Color(0.8f, 0.5f, 1f) : new Color(1f, 0.85f, 0.3f), world.transform, isGem ? 14 : 6);
-        Sfx.Play(isGem ? SynthAudio.Gem : SynthAudio.Coin, isGem ? 0.7f : 0.45f);
+        // each coin of a streak rings a little higher
+        if (isGem) Sfx.Play(SynthAudio.Gem, 0.7f);
+        else Sfx.Play(SynthAudio.Coin, 0.42f, world.CoinPitch);
     }
 }

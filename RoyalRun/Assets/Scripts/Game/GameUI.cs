@@ -257,6 +257,7 @@ public static class GameUI
     // Returns true if a button was pressed.
     public static bool UpdateButtons(MenuButton[] buttons, ref int selected, bool allowKeyboardNav)
     {
+        int before = selected;
         if (allowKeyboardNav)
         {
             if (GameInput.Down(GKey.Down) || GameInput.Down(GKey.S))
@@ -286,6 +287,7 @@ public static class GameUI
         }
 
         Refresh(buttons, selected);
+        if (selected != before) Sfx.Play(SynthAudio.Click, 0.3f);   // a soft tick when the highlight moves
 
         if (allowKeyboardNav && (GameInput.Down(GKey.Enter) || GameInput.Down(GKey.Space)))
         {
@@ -297,7 +299,7 @@ public static class GameUI
 
     static void Press(MenuButton b)
     {
-        Sfx.Play(SynthAudio.Click, 0.6f);
+        Sfx.Play(SynthAudio.Select, 0.6f);
         if (b.onClick != null) b.onClick();
     }
 

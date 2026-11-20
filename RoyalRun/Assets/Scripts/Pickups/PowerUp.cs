@@ -20,6 +20,5 @@ public class PowerUp : Pickup
         world.ActivatePowerUp(type);
         Color c = type == PowerUpType.Shield ? new Color(0.4f, 0.9f, 1f) : type == PowerUpType.Magnet ? new Color(1f, 0.45f, 0.45f) : new Color(1f, 0.85f, 0.35f);
         DebrisBurst.Sparkle(transform.position + Vector3.up, c, world.transform, 16);
-        Sfx.Play(SynthAudio.Checkpoint, 0.55f);
     }
 }

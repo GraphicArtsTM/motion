@@ -8,6 +8,6 @@ public class Apple : Pickup
     {
         world.OnApple(adjustChangeMoveSpeedAmount);
         DebrisBurst.Sparkle(transform.position + Vector3.up * 0.9f, new Color(1f, 0.3f, 0.3f), world.transform, 8);
-        Sfx.Play(SynthAudio.PowerUp, 0.6f);
+        Sfx.Play(SynthAudio.Apple, 0.65f);
     }
 }

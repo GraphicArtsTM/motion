@@ -76,6 +76,7 @@ public static class ProceduralAssets
     public static bool Lite;
 
     public static int BiomeCount { get { return Biomes.Length; } }
+    public static bool IsSnowBiome(int b) { return Biomes[((b % Biomes.Length) + Biomes.Length) % Biomes.Length].snow; }
 
     struct ChunkStyle
     {

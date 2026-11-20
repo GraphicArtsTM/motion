@@ -12,6 +12,7 @@ public class Chaser : MonoBehaviour
 
     Transform body, head, armL, armR, legL, legR;
     float phase;
+    float lastStep;
     float distanceBehind = 14f;     // how far behind the hero it is now (metres)
     float targetDistance = 14f;
     bool grabbing;
@@ -76,6 +77,7 @@ public class Chaser : MonoBehaviour
     // A stumble: the golem comes close for a while.
     public void Approach(float seconds)
     {
+        if (!gameObject.activeSelf || distanceBehind > 8f) Sfx.Play(SynthAudio.GolemRoar, 0.55f);
         gameObject.SetActive(true);
         targetDistance = 1.8f;
         CancelInvoke("FallBack");
@@ -94,6 +96,7 @@ public class Chaser : MonoBehaviour
         CancelInvoke("FallBack");
         targetDistance = 0.9f;
         grabbing = true;
+        Sfx.Play(SynthAudio.GolemRoar, 0.85f, 0.85f);
     }
 
     public void ResetChase()
@@ -118,6 +121,13 @@ public class Chaser : MonoBehaviour
         // a heavy run
         phase += dt * (grabbing ? 4f : 6f + roadSpeed * 0.25f);
         float s = Mathf.Sin(phase);
+        // a heavy footfall every time a leg comes down; louder the closer it is
+        if (Mathf.Sign(s) != Mathf.Sign(lastStep))
+        {
+            float near = Mathf.Clamp01(1f - (distanceBehind - 1f) / 13f);
+            if (near > 0.05f) Sfx.Play(SynthAudio.GolemStep, 0.15f + 0.5f * near, Random.Range(0.9f, 1.05f));
+        }
+        lastStep = s;
         legL.localRotation = Quaternion.Euler(-35f * s, 0f, 0f);
         legR.localRotation = Quaternion.Euler(35f * s, 0f, 0f);
         body.localPosition = new Vector3(0f, 1.25f + Mathf.Abs(Mathf.Cos(phase)) * 0.12f, 0f);

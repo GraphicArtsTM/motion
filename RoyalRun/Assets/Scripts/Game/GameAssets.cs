@@ -55,7 +55,7 @@ public class GameAssets : MonoBehaviour
             ProceduralAssets.Fill(this, holder.transform);
         }
 
-        if (music == null) music = SynthAudio.Music;
+        // an empty "music" field: the synthesized track is used (it is ready a moment after the start)
     }
 
     static GameObject[] WithoutNulls(GameObject[] arr)

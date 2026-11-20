@@ -151,6 +151,7 @@ public class PlayerWorld : MonoBehaviour
 
     // zones: every checkpoint leads into the next one
     int biome;
+    bool InSnow { get { return ProceduralAssets.IsSnowBiome(biome); } }
     readonly Queue<int> pendingZones = new Queue<int>();
 
     int coinScore;
@@ -307,6 +308,13 @@ public class PlayerWorld : MonoBehaviour
 
         UpdateHud();
         UpdateSpeedLines(dt);
+
+        // the wind gets louder with speed; birds sing everywhere but in the snow
+        if (Running && Time.timeScale > 0f)
+        {
+            float max = Rules == GameRules.Endless ? EndlessMaxSpeed : MaxMoveSpeedClassic;
+            Sfx.ReportRun(Mathf.InverseLerp(MinMoveSpeed, max, moveSpeed), !InSnow);
+        }
 
         phoneTimer += dt;
         if (phoneTimer >= 0.2f)
@@ -504,6 +512,9 @@ public class PlayerWorld : MonoBehaviour
         Cause = cause;
         shieldTime = 0f;
         magnetTime = 0f;
+        // the ending tune: a sad one after a crash, a bright one when the time of a classic run is up
+        if (cause == CrashCause.TimeUp) Sfx.PlayDelayed(SynthAudio.Victory, 0.6f, 0.2f);
+        else Sfx.PlayDelayed(SynthAudio.GameOver, 0.75f, 0.7f);
 
         // freeze everything still rolling along the road
         foreach (Rigidbody rb in obstacleParent.GetComponentsInChildren<Rigidbody>())
@@ -529,6 +540,9 @@ public class PlayerWorld : MonoBehaviour
     }
 
     // Endless mode: a stumble over a fence, a cart or a falling object. Twice while the golem is near - caught.
+    // coins of a streak ring higher and higher
+    public float CoinPitch { get { return 1f + 0.035f * Mathf.Min(comboCoins, 14); } }
+
     public void OnStumble()
     {
         if (Finished) return;
@@ -570,7 +584,7 @@ public class PlayerWorld : MonoBehaviour
         {
             comboPulse = 1f;
             ShowToast(Loc.F("hud.combo", mult), new Color(1f, 0.85f, 0.3f));
-            Sfx.Play(SynthAudio.Combo, 0.5f);
+            Sfx.Play(SynthAudio.Combo, 0.5f, 1f + 0.06f * Mathf.Min(mult, 8));
         }
     }
 
@@ -616,13 +630,16 @@ public class PlayerWorld : MonoBehaviour
         {
             case PowerUpType.Shield:
                 shieldTime = ShieldDuration;
+                Sfx.Play(SynthAudio.Shield, 0.7f);
                 ShowToast(Loc.T("hud.shield"), new Color(0.4f, 0.9f, 1f));
                 break;
             case PowerUpType.Magnet:
                 magnetTime = MagnetDuration;
+                Sfx.Play(SynthAudio.Magnet, 0.7f);
                 ShowToast(Loc.T("hud.magnet"), new Color(1f, 0.55f, 0.5f));
                 break;
             default:
+                Sfx.Play(SynthAudio.PowerUp, 0.65f);
                 if (Rules == GameRules.Classic)
                 {
                     TimeLeft += HourglassSeconds;
@@ -697,6 +714,7 @@ public class PlayerWorld : MonoBehaviour
         if (moveSpeed > before)
         {
             ShowToast(Loc.T("hud.speedUp"), new Color(1f, 0.9f, 0.3f));
+            Sfx.Play(SynthAudio.SpeedUp, 0.55f);
             fovKick = 1f;
         }
         else ShowToast(Loc.T("hud.hit"), new Color(1f, 0.45f, 0.4f));
@@ -859,7 +877,7 @@ public class PlayerWorld : MonoBehaviour
         for (int i = idx + 1; i < chunks.Count; i++)
             if (chunks[i].IsCorner) { nextCorner = chunks[i]; break; }
 
-        Sfx.Play(SynthAudio.Jump, 0.35f);
+        Sfx.PlayVar(SynthAudio.Turn, 0.6f, 0.05f);
         coinScore += 50;
     }
 
