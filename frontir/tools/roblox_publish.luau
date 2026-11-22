@@ -5,6 +5,8 @@
 	  lune run tools/roblox_publish products [--dry]          — 4 пропуска и 26 товаров разработчика: создаёт
 	      недостающие (по названию — повторный запуск не плодит дубли), значок — центр карточки магазина
 	      (assets/cards), id — в src/shared/Config.luau.
+	  lune run tools/roblox_publish place [--saved] [--dry] — собрать проект Rojo и опубликовать место (по умолчанию
+	      Published — сразу в игре; --saved — только версия). Право ключа: universe-places write.
 	  lune run tools/roblox_publish sounds <userId|group:ID> [--dry] — 17 звуков и 3 мелодии (assets/audio) как Audio
 	      ассеты владельца игры; id «rbxassetid://…» — в Config.Sounds / Config.Music (уже заполненные — пропускает).
 	Ключ API — переменная FRONTIR_API_KEY (Creator Hub → Open Cloud → API Keys; права на игру: developer-product
@@ -20,6 +22,7 @@ local serde = require("@lune/serde")
 local Png = require("./lib/Png")
 
 local UNIVERSE = 10778535396 -- «WORLD CONQUER: Global Strategy» (место 110452094639889)
+local PLACE = 110452094639889 -- стартовое место (режим «всё в одном»)
 local API = "https://apis.roblox.com"
 local CONFIG = "src/shared/Config.luau"
 local args = process.args
@@ -573,10 +576,36 @@ local function sounds(owner: string?)
 	print(string.format("звуки: загружено %d", made))
 end
 
+-- Собрать проект Rojo и опубликовать место (Published — сразу в игре; --saved — только сохранить версию).
+local function place()
+	fs.writeDir("build")
+	local out = "build/WorldConquer.rbxl"
+	local r = process.exec("rojo", { "build", "default.project.json", "-o", out })
+	assert(r.ok, "rojo build: " .. r.stderr)
+	local kind = if table.find(args, "--saved") ~= nil then "Saved" else "Published"
+	print(string.format("  сборка %s, %d КБ → %s", out, #fs.readFile(out) // 1024, kind))
+	if dry then
+		return
+	end
+	local ok, res = curl({
+		"-X",
+		"POST",
+		"-H",
+		"Content-Type: application/octet-stream",
+		"--data-binary",
+		"@" .. out,
+		string.format("%s/universes/v1/%d/places/%d/versions?versionType=%s", API, UNIVERSE, PLACE, kind),
+	})
+	assert(ok, "публикация не прошла: " .. tostring(res))
+	print(string.format("место %d: версия %s (%s)", PLACE, tostring(res.versionNumber), kind))
+end
+
 if mode == "products" then
 	products()
 elseif mode == "sounds" then
 	sounds(args[2])
+elseif mode == "place" then
+	place()
 else
-	print("lune run tools/roblox_publish products|sounds <userId|group:ID> [--dry]")
+	print("lune run tools/roblox_publish products | sounds <userId|group:ID> | place [--saved] [--dry]")
 end

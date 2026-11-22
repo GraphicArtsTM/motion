@@ -1,5 +1,10 @@
 # Changelog
 
+## Публикация без Studio
+- `tools/roblox_publish place [--saved]` — `rojo build` и Open Cloud Place Publishing; опубликована версия 5 места
+  110452094639889. Проверка на сервере Roblox (Luau Execution): модули грузятся, товаров с id 30/30, звуков 20/20,
+  матч «Европа» на 8 держав — 1200 тиков, 2.33 мс на тик.
+
 ## Игра «WORLD CONQUER: Global Strategy» (universe 10778535396)
 - Товары пересозданы в настоящей игре (первые 30 ушли в старую «GraphicArtsTM's Place», 1395386473 — там не
   нужны). `tools/roblox_publish` — `UNIVERSE = 10778535396`, повтор запроса при 429.
