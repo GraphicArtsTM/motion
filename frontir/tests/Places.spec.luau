@@ -23,6 +23,15 @@ end
 T.describe("Хаб и матч (§15л ч.3)", function()
 	T.it("роль сервера: id места, Studio и частный сервер", function()
 		local hub, match = Config.Places.Hub, Config.Places.Match
+		-- Игра из одного места (оба 0): любой сервер — «всё в одном» (меню и матч вместе), F4 только в Studio.
+		if hub == 0 and match == 0 then
+			T.expect(Places.role(110452094639889, false, 0, "")).toBe("combined")
+			T.expect(Places.role(0, false, 0, "")).toBe("combined")
+			T.expect(Places.role(123, false, 42, "")).toBe("combined")
+			T.expect(Places.role(0, true, 0, "hub")).toBe("hub")
+			T.expect(Config.Dev.Role).toBe("")
+			return
+		end
 		T.expect(Places.role(hub, false, 0, "")).toBe("hub")
 		T.expect(Places.role(match, false, 0, "")).toBe("match")
 		T.expect(Places.role(123, false, 0, "")).toBe("combined")

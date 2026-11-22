@@ -178,40 +178,40 @@ Config.Profile = {
 Config.Shop = {
 	MaxEdge = 0.15, -- потолок платного преимущества в матче (тест сверяет каждый эффект)
 	Passes = {
-		HQ = { id = 2093796769, price = 399, recruitLines = 1, incomeMul = 1.05 },
-		Intel = { id = 2097012484, price = 249, intelCostMul = 0.5, intelDurationSec = 120 },
-		Vip = { id = 2092704701, price = 299, xpMul = 1.5 },
-		AllCommanders = { id = 2092728739, price = 199 },
+		HQ = { id = 2092296805, price = 399, recruitLines = 1, incomeMul = 1.05 },
+		Intel = { id = 2092686750, price = 249, intelCostMul = 0.5, intelDurationSec = 120 },
+		Vip = { id = 2093328752, price = 299, xpMul = 1.5 },
+		AllCommanders = { id = 2093970731, price = 199 },
 	},
 	Boosts = {
-		Mobilize = { id = 3734909459, price = 49, garrisonShare = 0.15 },
-		Loan = { id = 3734909473, price = 39, money = 2000 },
-		Research = { id = 3734909492, price = 29 },
-		Reserve = { id = 3734909512, price = 25 },
+		Mobilize = { id = 3734923945, price = 49, garrisonShare = 0.15 },
+		Loan = { id = 3734923961, price = 39, money = 2000 },
+		Research = { id = 3734923984, price = 29 },
+		Reserve = { id = 3734924056, price = 25 },
 		-- Платные части (этап 9б, §11.3).
-		Guards = { id = 3734909526, price = 59, powerShare = 0.12, minStrength = 400, xp = 3 }, -- танки 2⭐ (Forces.StarXp)
-		Airstrike = { id = 3734909547, price = 45, frontLoss = 0.15 }, -- по клетке; радиус — Commanders.StrikeRadius
-		Squadron = { id = 3734909568, price = 49 }, -- эсминец и транспорт у своего порта
-		AirWing = { id = 3734909585, price = 49 }, -- истребитель и бомбардировщик у своего аэродрома
+		Guards = { id = 3734924069, price = 59, powerShare = 0.12, minStrength = 400, xp = 3 }, -- танки 2⭐ (Forces.StarXp)
+		Airstrike = { id = 3734924087, price = 45, frontLoss = 0.15 }, -- по клетке; радиус — Commanders.StrikeRadius
+		Squadron = { id = 3734924102, price = 49 }, -- эсминец и транспорт у своего порта
+		AirWing = { id = 3734924116, price = 49 }, -- истребитель и бомбардировщик у своего аэродрома
 	},
 	Packs = {
-		Recruit = { id = 3734909603, price = 99, tokens = 3, medals = 1500, maxLevel = 10, once = true },
-		Medals = { id = 3734909620, price = 79, medals = 2000, tokens = 0 },
-		Tokens = { id = 3734909642, price = 99, tokens = 3, medals = 0 },
+		Recruit = { id = 3734924134, price = 99, tokens = 3, medals = 1500, maxLevel = 10, once = true },
+		Medals = { id = 3734924145, price = 79, medals = 2000, tokens = 0 },
+		Tokens = { id = 3734924160, price = 99, tokens = 3, medals = 0 },
 		-- Этап 9б (§11.3): ящики, пропуск сезона, предложение недели.
-		Crate1 = { id = 3734909659, price = 49, crates = 1, tokens = 0, medals = 0 },
-		Crate5 = { id = 3734909678, price = 199, crates = 5, tokens = 0, medals = 0 },
+		Crate1 = { id = 3734924173, price = 49, crates = 1, tokens = 0, medals = 0 },
+		Crate5 = { id = 3734924188, price = 199, crates = 5, tokens = 0, medals = 0 },
 		-- §15ю Ю1: премиум-дорога «Пути командира» — навсегда (заменила пропуск сезона).
-		PathPremium = { id = 3734909701, price = 499, premiumPath = true, tokens = 0, medals = 0 },
+		PathPremium = { id = 3734924202, price = 499, premiumPath = true, tokens = 0, medals = 0 },
 		-- §15я Я1: 119 — дешевле частей в каждую неделю (при 149 одна неделя стоила дороже частей).
-		Weekly = { id = 3734909721, price = 119, weekly = true, tokens = 0, medals = 0 },
+		Weekly = { id = 3734924217, price = 119, weekly = true, tokens = 0, medals = 0 },
 		-- §15я Я2: премиум + уровни, уровни, ускоритель опыта, разовый набор оформления (эксклюзив магазина).
-		PathPremiumPlus = { id = 3734909739, price = 699, premiumPath = true, levels = 10, tokens = 0, medals = 0 },
-		Levels5 = { id = 3734909763, price = 149, levels = 5, tokens = 0, medals = 0 },
-		XpBoost1 = { id = 3734909786, price = 79, xpBoostHours = 24, tokens = 0, medals = 0 },
-		XpBoost7 = { id = 3734909807, price = 249, xpBoostHours = 168, tokens = 0, medals = 0 },
+		PathPremiumPlus = { id = 3734924231, price = 699, premiumPath = true, levels = 10, tokens = 0, medals = 0 },
+		Levels5 = { id = 3734924241, price = 149, levels = 5, tokens = 0, medals = 0 },
+		XpBoost1 = { id = 3734924259, price = 79, xpBoostHours = 24, tokens = 0, medals = 0 },
+		XpBoost7 = { id = 3734924272, price = 249, xpBoostHours = 168, tokens = 0, medals = 0 },
 		ParadeSet = {
-			id = 3734909823,
+			id = 3734924284,
 			price = 249,
 			once = true,
 			cosmetics = { "pattern:Stars", "capture:Snow", "title:Generalissimo" },
@@ -309,13 +309,13 @@ Config.Cosmetics = {
 Config.Unlocks = {
 	Order = { "Tanks", "Intel", "Artillery", "AntiAir", "Missile" },
 	Items = {
-		Tanks = { level = 10, premiumLevel = 3, id = 3734909847, price = 99 },
-		Intel = { level = 12, premiumLevel = 7, id = 3734909865, price = 79 }, -- §15э Э1б: разведка (намерение intel)
-		Artillery = { level = 25, premiumLevel = 8, id = 3734909883, price = 99 },
-		AntiAir = { level = 40, premiumLevel = 15, id = 3734909897, price = 79 },
-		Missile = { level = 55, premiumLevel = 25, id = 3734909911, price = 149 },
+		Tanks = { level = 10, premiumLevel = 3, id = 3734924299, price = 99 },
+		Intel = { level = 12, premiumLevel = 7, id = 3734924311, price = 79 }, -- §15э Э1б: разведка (намерение intel)
+		Artillery = { level = 25, premiumLevel = 8, id = 3734924331, price = 99 },
+		AntiAir = { level = 40, premiumLevel = 15, id = 3734924343, price = 79 },
+		Missile = { level = 55, premiumLevel = 25, id = 3734924357, price = 149 },
 	} :: { [string]: { level: number, premiumLevel: number, id: number, price: number } },
-	All = { id = 3734909928, price = 299 },
+	All = { id = 3734924369, price = 299 },
 	OpenInDuel = false,
 }
 
@@ -894,8 +894,11 @@ Config.Lobbies = {
 
 -- §15л ч.3 Хаб и матч — разные места одной игры (одна сборка, роль — по game.PlaceId, модуль Places).
 Config.Places = {
-	Hub = 4316252648, -- стартовое место: главное меню без матча
-	Match = 135440328929805, -- сервер матча
+	-- Игра «WORLD CONQUER: Global Strategy» (universe 10778535396) — пока одно место 110452094639889: оба 0 —
+	-- режим «всё в одном» (меню и матч на одном сервере, Places.role → combined). Хаб и матч отдельно — добавить
+	-- второе место и вписать: Hub = 110452094639889 (корневое), Match = <id второго места>.
+	Hub = 0, -- стартовое место: главное меню без матча
+	Match = 0, -- сервер матча
 	ListName = "FrontirMatches_v1", -- MemoryStore: серверы матча пишут о себе
 	CodesName = "FrontirCodes_v1", -- MemoryStore: коды резервных серверов матча (только сервер)
 	PublishSec = 10, -- сервер матча пишет о себе раз в

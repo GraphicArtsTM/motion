@@ -19,7 +19,7 @@ local serde = require("@lune/serde")
 
 local Png = require("./lib/Png")
 
-local UNIVERSE = 1395386473 -- «World Conquer»: хаб 4316252648 и матч 135440328929805 (apis.roblox.com/universes/v1/places)
+local UNIVERSE = 10778535396 -- «WORLD CONQUER: Global Strategy» (место 110452094639889)
 local API = "https://apis.roblox.com"
 local CONFIG = "src/shared/Config.luau"
 local args = process.args
@@ -362,12 +362,20 @@ local function curl(params: { string }): (boolean, any)
 	for _, p in params do
 		table.insert(all, p)
 	end
-	local r = process.exec("curl", all)
-	if not r.ok then
-		return false, r.stderr
+	-- 429 (слишком часто) — подождать и повторить (до 6 раз, пауза растёт): запрос не выполнен, дубля не будет.
+	local body: string?, status = nil, 0
+	for attempt = 1, 6 do
+		local r = process.exec("curl", all)
+		if not r.ok then
+			return false, r.stderr
+		end
+		local b, code = string.match(r.stdout, "^(.*)\n(%d+)$")
+		body, status = b, tonumber(code) or 0
+		if status ~= 429 then
+			break
+		end
+		process.exec("sleep", { tostring(attempt * 5) })
 	end
-	local body, code = string.match(r.stdout, "^(.*)\n(%d+)$")
-	local status = tonumber(code) or 0
 	local okJson, decoded = pcall(serde.decode, "json" :: any, body or "")
 	if status < 200 or status >= 300 then
 		return false, "HTTP " .. tostring(status) .. ": " .. tostring(body)
