@@ -126,6 +126,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 	local travelToMatch: (player: Player, serverId: string?) -> ()
 	local nationOf: { [Player]: number } = {}
 	local limiters: { [Player]: RateLimiter.RateLimiter } = {}
+	local syncAt: { [Player]: number } = {} -- последний полный снимок по запросу sync (os.clock)
 
 	-- Косметика игроков (§11.4): UserId → то, что видят все. Обновляется при входе и в гардеробе.
 	local cosmeticOf: { [number]: Cosmetics.Public } = {}
@@ -1046,6 +1047,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		joined[player] = nil
 		limiters[player] = nil
 		travelling[player] = nil
+		syncAt[player] = nil
 		rewards[player] = nil
 		shop.forget(player)
 		task.spawn(profiles.release, player.UserId)
@@ -1247,6 +1249,12 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			return
 		end
 		if kind == "sync" then
+			-- Полный снимок карты тяжёлый: не чаще Net.SyncMinSec на игрока (иначе спам sync грузит сервер и сеть).
+			local last = syncAt[player]
+			if last ~= nil and os.clock() - last < Config.Sim.SyncMinSec then
+				return
+			end
+			syncAt[player] = os.clock()
 			matchEvent:FireClient(player, infoFor(player))
 			sendDiplo(player)
 			-- §15ц Ц2: новая сессия клиента (смена карты) — профиль и список матчей заново.
@@ -1606,7 +1614,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		end
 	end
 
-	RunService.Heartbeat:Connect(function(dt: number)
+	local function frame(dt: number)
 		-- «Против ботов» (§5.1): на паузе симуляция стоит, ×2 — вдвое больше шагов за кадр.
 		local paused = m.paused and m.phase == "Play"
 		local soloSpeed = if m.fast then Config.Modes.SoloFastSpeed else 1
@@ -1774,6 +1782,36 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		if m.phase == "Play" and stabilityAcc >= Config.Net.StabilityEverySec then
 			stabilityAcc = 0
 			sendStability()
+		end
+	end
+
+	-- Правка перед закрытым тестом: ошибка в тике (ошибка в коде на редком случае) не должна молча повторяться
+	-- каждый кадр — матч замер бы для всех. Пишем её с трассировкой; TickErrorLimit кадров подряд с ошибкой —
+	-- матч начинается заново на той же карте (лучше новый матч, чем вечная заморозка).
+	local errorsInRow = 0
+	RunService.Heartbeat:Connect(function(dt: number)
+		local err = ""
+		local ok = xpcall(frame, function(e: any): any
+			err = debug.traceback(tostring(e), 2)
+			return e
+		end, dt)
+		if ok then
+			errorsInRow = 0
+			return
+		end
+		errorsInRow += 1
+		warn("[Frontir] ошибка в тике матча (" .. errorsInRow .. " подряд):", err)
+		if errorsInRow >= Config.Sim.TickErrorLimit then
+			errorsInRow = 0
+			acc = 0
+			warn("[Frontir] матч начинается заново после ошибок в тике")
+			local okRestart = xpcall(startNewMatch, function(e: any): any
+				warn("[Frontir] перезапуск матча не удался:", debug.traceback(tostring(e), 2))
+				return e
+			end, map.name)
+			if okRestart then
+				sendInfoAll()
+			end
 		end
 	end)
 

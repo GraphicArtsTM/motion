@@ -417,6 +417,9 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   Правка по аудиту 2: блокировка `{ jobId, token, at }` — токен (GUID, `deps.newToken`) на каждый захват, `write` /
   `isOurs(lock, jobId, token)`; `load(userId, isHere)` — проверка «игрок здесь» до регистрации сессии; в
   `MatchService` — номер входа `visits[userId]`. В Studio `jobId` — `studio-<GUID>` (пустой `JobId`).
+- Перед закрытым тестом: кадр матча — `frame` в `xpcall` (ошибка — в лог с трассировкой, `Sim.TickErrorLimit` подряд —
+  `startNewMatch`); `sync` — не чаще `Sim.SyncMinSec` (`syncAt`). Новое намерение — добавить вид в `KINDS` и поля в
+  `IntentFuzz.spec` (плохие клетки и id не должны ронять матч).
 
 ## Платные части, пропуск, ящики (этап 9б)
 - Бусты `Guards`, `Airstrike` (цель — `cell`, `MatchSim.strikeAt`), `Squadron`, `AirWing` — в `MatchSim.useBoost`.
