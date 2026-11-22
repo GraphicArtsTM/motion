@@ -178,40 +178,40 @@ Config.Profile = {
 Config.Shop = {
 	MaxEdge = 0.15, -- потолок платного преимущества в матче (тест сверяет каждый эффект)
 	Passes = {
-		HQ = { id = 0, price = 399, recruitLines = 1, incomeMul = 1.05 },
-		Intel = { id = 0, price = 249, intelCostMul = 0.5, intelDurationSec = 120 },
-		Vip = { id = 0, price = 299, xpMul = 1.5 },
-		AllCommanders = { id = 0, price = 199 },
+		HQ = { id = 2093796769, price = 399, recruitLines = 1, incomeMul = 1.05 },
+		Intel = { id = 2097012484, price = 249, intelCostMul = 0.5, intelDurationSec = 120 },
+		Vip = { id = 2092704701, price = 299, xpMul = 1.5 },
+		AllCommanders = { id = 2092728739, price = 199 },
 	},
 	Boosts = {
-		Mobilize = { id = 0, price = 49, garrisonShare = 0.15 },
-		Loan = { id = 0, price = 39, money = 2000 },
-		Research = { id = 0, price = 29 },
-		Reserve = { id = 0, price = 25 },
+		Mobilize = { id = 3734909459, price = 49, garrisonShare = 0.15 },
+		Loan = { id = 3734909473, price = 39, money = 2000 },
+		Research = { id = 3734909492, price = 29 },
+		Reserve = { id = 3734909512, price = 25 },
 		-- Платные части (этап 9б, §11.3).
-		Guards = { id = 0, price = 59, powerShare = 0.12, minStrength = 400, xp = 3 }, -- танки 2⭐ (Forces.StarXp)
-		Airstrike = { id = 0, price = 45, frontLoss = 0.15 }, -- по клетке; радиус — Commanders.StrikeRadius
-		Squadron = { id = 0, price = 49 }, -- эсминец и транспорт у своего порта
-		AirWing = { id = 0, price = 49 }, -- истребитель и бомбардировщик у своего аэродрома
+		Guards = { id = 3734909526, price = 59, powerShare = 0.12, minStrength = 400, xp = 3 }, -- танки 2⭐ (Forces.StarXp)
+		Airstrike = { id = 3734909547, price = 45, frontLoss = 0.15 }, -- по клетке; радиус — Commanders.StrikeRadius
+		Squadron = { id = 3734909568, price = 49 }, -- эсминец и транспорт у своего порта
+		AirWing = { id = 3734909585, price = 49 }, -- истребитель и бомбардировщик у своего аэродрома
 	},
 	Packs = {
-		Recruit = { id = 0, price = 99, tokens = 3, medals = 1500, maxLevel = 10, once = true },
-		Medals = { id = 0, price = 79, medals = 2000, tokens = 0 },
-		Tokens = { id = 0, price = 99, tokens = 3, medals = 0 },
+		Recruit = { id = 3734909603, price = 99, tokens = 3, medals = 1500, maxLevel = 10, once = true },
+		Medals = { id = 3734909620, price = 79, medals = 2000, tokens = 0 },
+		Tokens = { id = 3734909642, price = 99, tokens = 3, medals = 0 },
 		-- Этап 9б (§11.3): ящики, пропуск сезона, предложение недели.
-		Crate1 = { id = 0, price = 49, crates = 1, tokens = 0, medals = 0 },
-		Crate5 = { id = 0, price = 199, crates = 5, tokens = 0, medals = 0 },
+		Crate1 = { id = 3734909659, price = 49, crates = 1, tokens = 0, medals = 0 },
+		Crate5 = { id = 3734909678, price = 199, crates = 5, tokens = 0, medals = 0 },
 		-- §15ю Ю1: премиум-дорога «Пути командира» — навсегда (заменила пропуск сезона).
-		PathPremium = { id = 0, price = 499, premiumPath = true, tokens = 0, medals = 0 },
+		PathPremium = { id = 3734909701, price = 499, premiumPath = true, tokens = 0, medals = 0 },
 		-- §15я Я1: 119 — дешевле частей в каждую неделю (при 149 одна неделя стоила дороже частей).
-		Weekly = { id = 0, price = 119, weekly = true, tokens = 0, medals = 0 },
+		Weekly = { id = 3734909721, price = 119, weekly = true, tokens = 0, medals = 0 },
 		-- §15я Я2: премиум + уровни, уровни, ускоритель опыта, разовый набор оформления (эксклюзив магазина).
-		PathPremiumPlus = { id = 0, price = 699, premiumPath = true, levels = 10, tokens = 0, medals = 0 },
-		Levels5 = { id = 0, price = 149, levels = 5, tokens = 0, medals = 0 },
-		XpBoost1 = { id = 0, price = 79, xpBoostHours = 24, tokens = 0, medals = 0 },
-		XpBoost7 = { id = 0, price = 249, xpBoostHours = 168, tokens = 0, medals = 0 },
+		PathPremiumPlus = { id = 3734909739, price = 699, premiumPath = true, levels = 10, tokens = 0, medals = 0 },
+		Levels5 = { id = 3734909763, price = 149, levels = 5, tokens = 0, medals = 0 },
+		XpBoost1 = { id = 3734909786, price = 79, xpBoostHours = 24, tokens = 0, medals = 0 },
+		XpBoost7 = { id = 3734909807, price = 249, xpBoostHours = 168, tokens = 0, medals = 0 },
 		ParadeSet = {
-			id = 0,
+			id = 3734909823,
 			price = 249,
 			once = true,
 			cosmetics = { "pattern:Stars", "capture:Snow", "title:Generalissimo" },
@@ -309,13 +309,13 @@ Config.Cosmetics = {
 Config.Unlocks = {
 	Order = { "Tanks", "Intel", "Artillery", "AntiAir", "Missile" },
 	Items = {
-		Tanks = { level = 10, premiumLevel = 3, id = 0, price = 99 },
-		Intel = { level = 12, premiumLevel = 7, id = 0, price = 79 }, -- §15э Э1б: разведка (намерение intel)
-		Artillery = { level = 25, premiumLevel = 8, id = 0, price = 99 },
-		AntiAir = { level = 40, premiumLevel = 15, id = 0, price = 79 },
-		Missile = { level = 55, premiumLevel = 25, id = 0, price = 149 },
+		Tanks = { level = 10, premiumLevel = 3, id = 3734909847, price = 99 },
+		Intel = { level = 12, premiumLevel = 7, id = 3734909865, price = 79 }, -- §15э Э1б: разведка (намерение intel)
+		Artillery = { level = 25, premiumLevel = 8, id = 3734909883, price = 99 },
+		AntiAir = { level = 40, premiumLevel = 15, id = 3734909897, price = 79 },
+		Missile = { level = 55, premiumLevel = 25, id = 3734909911, price = 149 },
 	} :: { [string]: { level: number, premiumLevel: number, id: number, price: number } },
-	All = { id = 0, price = 299 },
+	All = { id = 3734909928, price = 299 },
 	OpenInDuel = false,
 }
 
@@ -770,30 +770,30 @@ Config.BotPersonalities = botPersonalities
 -- SoundService/FrontirAudio). volume — громкость звука до общей громкости игрока. Файлы для загрузки —
 -- assets/audio/sfx/<Имя>.wav (их делает lune run tools/sfx_gen). Как заменить — README «Звуки и музыка».
 Config.Sounds = {
-	Click = { id = "", volume = 0.35 }, -- нажатие кнопки
-	Error = { id = "", volume = 0.4 }, -- отказ сервера
-	Capture = { id = "", volume = 0.25 }, -- ваша граница растёт (не чаще Audio.Gaps.Capture)
-	Province = { id = "", volume = 0.45 }, -- взят город
-	Battle = { id = "", volume = 0.35 }, -- ваш фронт в бою (не чаще Audio.Gaps.Battle)
-	Explosion = { id = "", volume = 0.6 }, -- удар ракеты, налёт по вам
-	Plane = { id = "", volume = 0.35 }, -- ваш налёт, готовый самолёт
-	Parachute = { id = "", volume = 0.5 }, -- десанты генералов
-	Siren = { id = "", volume = 0.35 }, -- война или ракета против вас
-	Offer = { id = "", volume = 0.5 }, -- вам предложили союз, пакт, торговлю, мир
-	Betrayal = { id = "", volume = 0.45 }, -- вас предали
-	Victory = { id = "", volume = 0.6 },
-	Defeat = { id = "", volume = 0.55 },
-	Notify = { id = "", volume = 0.45 }, -- событие, «Изучено», готовый корабль
-	Coin = { id = "", volume = 0.35 }, -- покупка, награда
-	Hire = { id = "", volume = 0.35 }, -- найм
-	Build = { id = "", volume = 0.45 }, -- стройка
+	Click = { id = "rbxassetid://109929431003571", volume = 0.35 }, -- нажатие кнопки
+	Error = { id = "rbxassetid://91833661098614", volume = 0.4 }, -- отказ сервера
+	Capture = { id = "rbxassetid://91685687402184", volume = 0.25 }, -- ваша граница растёт (не чаще Audio.Gaps.Capture)
+	Province = { id = "rbxassetid://129730510035002", volume = 0.45 }, -- взят город
+	Battle = { id = "rbxassetid://112617050791964", volume = 0.35 }, -- ваш фронт в бою (не чаще Audio.Gaps.Battle)
+	Explosion = { id = "rbxassetid://93364098603363", volume = 0.6 }, -- удар ракеты, налёт по вам
+	Plane = { id = "rbxassetid://90448233060606", volume = 0.35 }, -- ваш налёт, готовый самолёт
+	Parachute = { id = "rbxassetid://74694097456623", volume = 0.5 }, -- десанты генералов
+	Siren = { id = "rbxassetid://100152039926053", volume = 0.35 }, -- война или ракета против вас
+	Offer = { id = "rbxassetid://71606664188780", volume = 0.5 }, -- вам предложили союз, пакт, торговлю, мир
+	Betrayal = { id = "rbxassetid://120803572203802", volume = 0.45 }, -- вас предали
+	Victory = { id = "rbxassetid://95200514467559", volume = 0.6 },
+	Defeat = { id = "rbxassetid://94035427618132", volume = 0.55 },
+	Notify = { id = "rbxassetid://98592893880342", volume = 0.45 }, -- событие, «Изучено», готовый корабль
+	Coin = { id = "rbxassetid://72018501129903", volume = 0.35 }, -- покупка, награда
+	Hire = { id = "rbxassetid://93335675502473", volume = 0.35 }, -- найм
+	Build = { id = "rbxassetid://140233839312053", volume = 0.45 }, -- стройка
 }
 
 -- §13 Музыка (правка звука 18.11.2026 — треки геймдизайнера): петли (Looped). Файлы — assets/audio/music/<Имя>.mp3.
 Config.Music = {
-	Menu = { id = "", volume = 0.6 }, -- «The Last Frontier»: главное меню, хаб, ожидание игроков, итоги
-	Match = { id = "", volume = 0.5 }, -- «Silent Frontlines»: выбор старта и матч без войны
-	War = { id = "", volume = 0.55 }, -- «The Battle Never Ends»: у вас война (и мобилизация), финал
+	Menu = { id = "rbxassetid://124292919036374", volume = 0.6 }, -- «The Last Frontier»: главное меню, хаб, ожидание игроков, итоги
+	Match = { id = "rbxassetid://82928776332454", volume = 0.5 }, -- «Silent Frontlines»: выбор старта и матч без войны
+	War = { id = "rbxassetid://133560650046090", volume = 0.55 }, -- «The Battle Never Ends»: у вас война (и мобилизация), финал
 }
 
 Config.Audio = {

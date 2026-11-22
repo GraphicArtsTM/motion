@@ -279,24 +279,25 @@ local PRODUCTS: { Product } = {
 	),
 }
 
+-- По важности: лимит загрузок аудио в месяц кончится — самое нужное уже загружено.
 local SOUNDS = {
 	"Click",
-	"Error",
-	"Capture",
-	"Province",
-	"Battle",
 	"Explosion",
-	"Plane",
-	"Parachute",
-	"Siren",
-	"Offer",
-	"Betrayal",
 	"Victory",
 	"Defeat",
-	"Notify",
+	"Siren",
+	"Province",
+	"Battle",
 	"Coin",
-	"Hire",
 	"Build",
+	"Hire",
+	"Notify",
+	"Error",
+	"Offer",
+	"Betrayal",
+	"Plane",
+	"Parachute",
+	"Capture",
 }
 local MUSIC = { "Menu", "Match", "War" }
 
@@ -500,16 +501,16 @@ local function sounds(owner: string?)
 		else { userId = owner }
 	local text = fs.readFile(CONFIG)
 	local list: { { section: string, key: string, file: string, mime: string } } = {}
+	for _, k in MUSIC do -- мелодии первыми: лимит загрузок кончится — главное уже есть
+		table.insert(
+			list,
+			{ section = "Music", key = k, file = "assets/audio/music/" .. k .. ".mp3", mime = "audio/mpeg" }
+		)
+	end
 	for _, k in SOUNDS do
 		table.insert(
 			list,
 			{ section = "Sounds", key = k, file = "assets/audio/sfx/" .. k .. ".wav", mime = "audio/wav" }
-		)
-	end
-	for _, k in MUSIC do
-		table.insert(
-			list,
-			{ section = "Music", key = k, file = "assets/audio/music/" .. k .. ".mp3", mime = "audio/mpeg" }
 		)
 	end
 	local made = 0
