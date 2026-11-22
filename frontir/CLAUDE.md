@@ -414,6 +414,9 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   `saving = false`. Выход во время загрузки — загрузка снимает блокировку сама (`pending`, `releasing`). Покупка —
   `profiles.grant(userId, apply, allowMemory)` в `ShopService` (без записи — `NotProcessedYet`; память — только Studio).
   Тесты — `ProfileSessions.spec` (сопрограммы для гонок; `wait` уступает ход только по флагу теста).
+  Правка по аудиту 2: блокировка `{ jobId, token, at }` — токен (GUID, `deps.newToken`) на каждый захват, `write` /
+  `isOurs(lock, jobId, token)`; `load(userId, isHere)` — проверка «игрок здесь» до регистрации сессии; в
+  `MatchService` — номер входа `visits[userId]`. В Studio `jobId` — `studio-<GUID>` (пустой `JobId`).
 
 ## Платные части, пропуск, ящики (этап 9б)
 - Бусты `Guards`, `Airstrike` (цель — `cell`, `MatchSim.strikeAt`), `Squadron`, `AirWing` — в `MatchSim.useBoost`.

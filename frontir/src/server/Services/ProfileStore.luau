@@ -9,6 +9,7 @@
 ]]
 
 local DataStoreService = game:GetService("DataStoreService")
+local HttpService = game:GetService("HttpService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
@@ -19,7 +20,7 @@ local ProfileSessions = require(Shared:WaitForChild("ProfileSessions"))
 export type Session = ProfileSessions.Session
 
 export type ProfileStore = {
-	load: (userId: number) -> Session,
+	load: (userId: number, isHere: (() -> boolean)?) -> Session,
 	get: (userId: number) -> Session?,
 	save: (userId: number) -> boolean,
 	release: (userId: number) -> (),
@@ -49,9 +50,14 @@ function ProfileStore.new(): ProfileStore
 			end,
 		}
 	end
+	-- В Studio game.JobId пустой — у всех тестовых серверов он один; свой id, чтобы не путать их блокировки.
+	local jobId = if game.JobId ~= "" then game.JobId else "studio-" .. HttpService:GenerateGUID(false)
 	local manager = ProfileSessions.new({
 		store = wrapped,
-		jobId = game.JobId,
+		jobId = jobId,
+		newToken = function(): string
+			return HttpService:GenerateGUID(false) -- свой на каждый захват профиля
+		end,
 		now = os.time,
 		wait = function(sec: number)
 			task.wait(sec)

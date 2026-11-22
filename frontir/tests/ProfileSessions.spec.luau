@@ -288,3 +288,105 @@ T.describe(
 		)
 	end
 )
+
+T.describe(
+	"Сессии профилей: гонки входа и выхода (правка по аудиту 2)",
+	function()
+		T.it(
+			"ушёл раньше, чем загрузка встала в очередь (release её не видел) — блокировка снята, сессии нет",
+			function()
+				local f = fake()
+				local m = manager(f)
+				m.release(1) -- PlayerRemoving пришёл первым: загрузки ещё нет, снимать нечего
+				local s = m.load(1, function(): boolean
+					return false -- игрока на сервере уже нет
+				end)
+				T.expect(s.released).toBe(true)
+				T.expect(m.get(1)).toBe(nil)
+				T.expect(m.loading(1)).toBe(false)
+				T.expect(f.records[KEY].lock).toBe(nil) -- автосохранение не будет держать блокировку до конца сервера
+				local calls = f.calls
+				m.autosave()
+				T.expect(f.calls).toBe(calls)
+			end
+		)
+
+		T.it("игрок здесь — сессия как обычно", function()
+			local f = fake()
+			local m = manager(f)
+			local s = m.load(1, function(): boolean
+				return true
+			end)
+			T.expect(s.released).toBe(false)
+			T.expect(m.get(1) == s).toBe(true)
+			T.expect(f.records[KEY].lock.token).toBe(s.token)
+		end)
+
+		T.it("у каждого захвата свой токен, и он — в блокировке", function()
+			local f = fake()
+			local m = manager(f)
+			local a = m.load(1)
+			local tokenA = a.token
+			m.release(1)
+			local b = m.load(1)
+			T.expect(tokenA ~= b.token).toBe(true)
+			T.expect(f.records[KEY].lock.jobId).toBe("A")
+			T.expect(f.records[KEY].lock.token).toBe(b.token)
+		end)
+
+		T.it(
+			"запоздавшее автосохранение старой сессии не перезаписывает новую сессию того же игрока",
+			function()
+				local f = fake()
+				local m = manager(f)
+				local old = m.load(1)
+				old.data.medals = 10
+				f.yieldOnUpdate = true
+				local co = coroutine.create(function()
+					m.autosave() -- запрос старой сессии ушёл в DataStore и «завис»
+				end)
+				coroutine.resume(co)
+				f.yieldOnUpdate = false
+				m.release(1) -- вышел: блокировка снята (данные 10 записаны)
+				local new = m.load(1) -- вернулся на этот же сервер: тот же jobId, новый токен
+				new.data.medals = 50
+				T.expect(m.save(1)).toBe(true)
+				old.data.medals = 999 -- старые данные в памяти (старая сессия больше не своя)
+				coroutine.resume(co) -- старый запрос всё-таки выполнился
+				T.expect(f.records[KEY].data.medals).toBe(50)
+				T.expect(f.records[KEY].lock.token).toBe(new.token)
+				T.expect(m.get(1) == new).toBe(true)
+			end
+		)
+
+		T.it(
+			"запоздавшее снятие блокировки старой сессией не снимает блокировку новой",
+			function()
+				local f = fake()
+				local m = manager(f)
+				local new = m.load(1)
+				local record =
+					ProfileSessions.write(f.records[KEY], "A", "старый-токен", Profile.new(), true, clock)
+				T.expect(record).toBe(nil) -- не наша блокировка: запись отменена
+				T.expect(ProfileSessions.isOurs(f.records[KEY].lock, "A", new.token)).toBe(true)
+				T.expect(ProfileSessions.isOurs(f.records[KEY].lock, "A", "старый-токен")).toBe(false)
+				T.expect(ProfileSessions.isOurs(f.records[KEY].lock, "B", new.token)).toBe(false)
+			end
+		)
+
+		T.it(
+			"блокировка этого же сервера с чужим токеном (след прошлой сессии) — забираем; чужого сервера — нет",
+			function()
+				local f = fake()
+				f.records[KEY] = { data = Profile.new(), lock = { jobId = "A", token = "прошлый", at = clock } }
+				local s = manager(f).load(1)
+				T.expect(s.saving).toBe(true)
+				T.expect(f.records[KEY].lock.token).toBe(s.token)
+				local g = fake()
+				g.records[KEY] = { data = Profile.new(), lock = { jobId = "B", token = "чужой", at = clock } }
+				T.expect(manager(g).load(1).saving).toBe(false)
+				T.expect(g.records[KEY].lock.token).toBe("чужой")
+			end
+		)
+	end
+)

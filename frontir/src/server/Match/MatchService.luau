@@ -117,6 +117,9 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 	local startDemo: () -> ()
 	local addToMatch: (player: Player) -> ()
 	local joined: { [Player]: boolean } = {} -- §15л ч.7: кто нажал «В БОЙ» (или пришёл на сервер матча)
+	-- Правка по аудиту 2: номер входа игрока (UserId → счётчик). Не чистится при выходе — по нему задача загрузки
+	-- профиля узнаёт, что её вход устарел (игрок вышел и вернулся).
+	local visits: { [number]: number } = {}
 	local demoRunning = false -- идёт показательный бой ботов (хаб; «как раньше», пока все в меню)
 	local demoSpeed = 1 -- показательный бой идёт быстрее (Hub.DemoSpeed)
 	local travel: (players: { Player }, placeId: number, options: TeleportOptions?) -> TeleportAsyncResult?
@@ -977,15 +980,30 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		end
 		checkPrivate(player)
 		-- Профиль грузится в фоне (DataStore может ждать блокировку сессии).
+		-- Номер этого входа: вышел и вернулся — у нового входа свой, задача старого профиль не применяет.
+		local userId = player.UserId
+		local visit = (visits[userId] or 0) + 1
+		visits[userId] = visit
 		task.spawn(function()
-			local session = profiles.load(player.UserId)
+			-- Проверка «ещё здесь» — внутри загрузки, сразу после захвата: ушёл раньше, чем загрузка встала в
+			-- очередь, — блокировка снимается, сессии нет (иначе автосохранение держало бы её до конца сервера).
+			local session = profiles.load(userId, function(): boolean
+				return Players:GetPlayerByUserId(userId) ~= nil
+			end)
 			-- Игрок ушёл, пока профиль грузился: загрузка уже сняла блокировку, сессии нет — ничего не делаем.
 			if session.released then
 				return
 			end
+			-- Этот вход устарел (вышел; вернулся — профиль применит задача нового входа).
+			if player.Parent == nil or visits[userId] ~= visit then
+				if Players:GetPlayerByUserId(userId) == nil then
+					profiles.release(userId) -- никого с этим UserId нет: сессия ничья — снять блокировку
+				end
+				return
+			end
 			shop.loadPasses(player)
 			session.data.noPaidRandom = shop.noPaidRandom(player) ~= false
-			if player.Parent ~= nil then
+			if player.Parent == Players then -- пропуска грузятся с ожиданием: мог уйти за это время
 				applyProfile(player)
 				-- Новичок один в лобби — голос за «Обучение» стоит сам (§5.5), можно сменить.
 				local id = nationOf[player]

@@ -3,7 +3,13 @@
 	ProfileSessions — сессии профилей с блокировкой (GDD §11.2, правка по аудиту). Чистый модуль: хранилище, время,
 	ожидание и id сервера подставляются (в игре — DataStore, os.time, task.wait, game.JobId; в тестах — подделки).
 
-	Запись по ключу "u<UserId>": { data = Profile.Data, lock = { jobId, at } }.
+	Запись по ключу "u<UserId>": { data = Profile.Data, lock = { jobId, token, at } }.
+	- Токен (правка по аудиту 2): у каждого захвата профиля — свой (`newToken`). Пишет только сессия, у которой
+	  совпали и jobId, и токен: запоздавший запрос старой сессии того же игрока на том же сервере (вышел и вернулся)
+	  не перезапишет данные новой и не снимет её блокировку.
+	- «Игрок ещё здесь» (`load(userId, isHere)`): проверка сразу после захвата, до регистрации сессии и без уступки
+	  хода между ними. Игрок ушёл раньше, чем загрузка встала в очередь (release её не видел), — блокировку снимаем,
+	  сессию не создаём.
 	- Загрузка (`claim`): чужая живая блокировка (моложе LockStaleSec) — не пишем и пробуем снова через LockRetrySec
 	  (до LockRetries раз); старая — забираем. Не вышло — профиль только в памяти (`saving = false`).
 	- Сохранение (`write`) — только если блокировка наша. Иначе запись отменена, и это НЕ успех: сессия перестаёт
@@ -25,6 +31,7 @@ export type Store = {
 export type Deps = {
 	store: Store?, -- nil — хранилища нет (Studio без доступа к API)
 	jobId: string,
+	newToken: (() -> string)?, -- уникальный токен захвата (в игре — GUID); nil — jobId#счётчик
 	now: () -> number,
 	wait: (sec: number) -> (),
 	warn: ((...any) -> ())?,
@@ -35,12 +42,14 @@ export type Session = {
 	data: Profile.Data,
 	saving: boolean, -- false — только в памяти (или блокировку забрал другой сервер)
 	released: boolean,
+	token: string, -- токен захвата: пишем, только если блокировка с ним
 }
 
 export type Grant = "granted" | "retry"
 
 export type Manager = {
-	load: (userId: number) -> Session,
+	-- isHere — игрок ещё на сервере (проверяется после захвата); nil — не проверять.
+	load: (userId: number, isHere: (() -> boolean)?) -> Session,
 	get: (userId: number) -> Session?,
 	save: (userId: number) -> boolean,
 	release: (userId: number) -> (),
@@ -57,12 +66,14 @@ function ProfileSessions.key(userId: number): string
 	return "u" .. tostring(userId)
 end
 
-function ProfileSessions.isOurs(lock: any, jobId: string): boolean
-	return type(lock) == "table" and lock.jobId == jobId
+-- Блокировка этой сессии: тот же сервер И тот же захват (токен).
+function ProfileSessions.isOurs(lock: any, jobId: string, token: string): boolean
+	return type(lock) == "table" and lock.jobId == jobId and lock.token == token
 end
 
--- Забрать блокировку: новая запись и данные; nil — чужая живая сессия (ничего не пишем).
-function ProfileSessions.claim(old: any, jobId: string, now: number): (any, Profile.Data?)
+-- Забрать блокировку: новая запись и данные; nil — чужая живая сессия (ничего не пишем). Блокировка этого же
+-- сервера с другим токеном — след прошлой сессии игрока здесь (менеджер держит одну сессию на игрока) — забираем.
+function ProfileSessions.claim(old: any, jobId: string, token: string, now: number): (any, Profile.Data?)
 	local record = if type(old) == "table" then old else {}
 	local lock = record.lock
 	if
@@ -75,18 +86,25 @@ function ProfileSessions.claim(old: any, jobId: string, now: number): (any, Prof
 	end
 	local data = Profile.migrate(record.data)
 	record.data = data
-	record.lock = { jobId = jobId, at = now }
+	record.lock = { jobId = jobId, token = token, at = now }
 	return record, data
 end
 
 -- Записать данные: новая запись; nil — блокировка не наша (сессию забрали — не затираем).
-function ProfileSessions.write(old: any, jobId: string, data: Profile.Data, release: boolean, now: number): any
+function ProfileSessions.write(
+	old: any,
+	jobId: string,
+	token: string,
+	data: Profile.Data,
+	release: boolean,
+	now: number
+): any
 	local record = if type(old) == "table" then old else {}
-	if not ProfileSessions.isOurs(record.lock, jobId) then
+	if not ProfileSessions.isOurs(record.lock, jobId, token) then
 		return nil
 	end
 	record.data = data
-	record.lock = if release then nil else { jobId = jobId, at = now }
+	record.lock = if release then nil else { jobId = jobId, token = token, at = now }
 	return record
 end
 
@@ -98,6 +116,15 @@ function ProfileSessions.new(deps: Deps): Manager
 	local pending: { [number]: Pending } = {}
 	local releasing: { [number]: boolean } = {}
 	local closing = false
+	local tokens = 0
+	local function newToken(): string
+		local make = deps.newToken
+		if make ~= nil then
+			return make()
+		end
+		tokens += 1
+		return deps.jobId .. "#" .. tostring(tokens)
+	end
 	local function say(...: any)
 		local w = deps.warn
 		if w ~= nil then
@@ -113,7 +140,7 @@ function ProfileSessions.new(deps: Deps): Manager
 		end
 		local written = false
 		local ok, err = store.update(ProfileSessions.key(session.userId), function(old: any): any
-			local record = ProfileSessions.write(old, deps.jobId, session.data, release, deps.now())
+			local record = ProfileSessions.write(old, deps.jobId, session.token, session.data, release, deps.now())
 			written = record ~= nil -- transform может вызываться повторно: итог — по последнему вызову
 			return record
 		end)
@@ -134,7 +161,7 @@ function ProfileSessions.new(deps: Deps): Manager
 	end
 
 	-- Одна попытка забрать блокировку: данные или nil и причина ("locked" — чужая живая сессия).
-	local function tryLock(userId: number): (Profile.Data?, string?)
+	local function tryLock(userId: number, token: string): (Profile.Data?, string?)
 		local store = deps.store
 		if store == nil then
 			return nil, "noStore"
@@ -142,7 +169,7 @@ function ProfileSessions.new(deps: Deps): Manager
 		local data: Profile.Data? = nil
 		local busy = false
 		local ok, err = store.update(ProfileSessions.key(userId), function(old: any): any
-			local record, d = ProfileSessions.claim(old, deps.jobId, deps.now())
+			local record, d = ProfileSessions.claim(old, deps.jobId, token, deps.now())
 			busy = record == nil
 			data = d
 			return record
@@ -164,7 +191,7 @@ function ProfileSessions.new(deps: Deps): Manager
 
 	local self: Manager
 	self = {
-		load = function(userId: number): Session
+		load = function(userId: number, isHere: (() -> boolean)?): Session
 			-- Вернулся, пока снималась блокировка прошлого захода, — дождаться (иначе снятие сотрёт новую).
 			waitWhile(function(): boolean
 				return releasing[userId] == true
@@ -186,19 +213,20 @@ function ProfileSessions.new(deps: Deps): Manager
 					return s
 				end
 				if closing then
-					return { userId = userId, data = Profile.new(), saving = false, released = true }
+					return { userId = userId, data = Profile.new(), saving = false, released = true, token = "" }
 				end
 				-- Та загрузка успела отмениться и снять блокировку — загрузить заново.
-				return self.load(userId)
+				return self.load(userId, isHere)
 			end
 			local mine: Pending = { cancelled = false, done = false }
 			pending[userId] = mine
+			local token = newToken() -- свой на каждый захват
 			local data: Profile.Data? = nil
 			for attempt = 1, cfg.LockRetries do
 				if mine.cancelled or closing then
 					break
 				end
-				local d, why = tryLock(userId)
+				local d, why = tryLock(userId, token)
 				if d ~= nil then
 					data = d
 					break
@@ -213,7 +241,13 @@ function ProfileSessions.new(deps: Deps): Manager
 				data = data or Profile.new(),
 				saving = data ~= nil,
 				released = false,
+				token = token,
 			}
+			-- Игрок ушёл раньше, чем загрузка встала в очередь (release её не видел), — та же отмена. Между этой
+			-- проверкой и регистрацией сессии ход не уступается: уйдёт позже — release найдёт сессию.
+			if not mine.cancelled and isHere ~= nil and not isHere() then
+				mine.cancelled = true
+			end
 			if mine.cancelled or closing then
 				-- Игрок ушёл (или сервер закрывается), пока грузили: блокировку снять, сессию не создавать.
 				session.released = true
