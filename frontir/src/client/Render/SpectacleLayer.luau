@@ -19,6 +19,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local CameraMath = require(Shared:WaitForChild("CameraMath"))
 local ClientState = require(Shared:WaitForChild("ClientState"))
 local Config = require(Shared:WaitForChild("Config"))
+local MapIcons = require(Shared:WaitForChild("MapIcons"))
 local Fog = require(Shared:WaitForChild("Fog"))
 local RenderBudget = require(Shared:WaitForChild("RenderBudget"))
 local SpectacleFx = require(Shared:WaitForChild("SpectacleFx"))
@@ -143,6 +144,20 @@ function SpectacleLayer.new(
 				if visible(cell) and onScreen(e.x, e.y, 6) then
 					spawn(SpectacleFx.sinking(e.x, e.y, nextSeed()), tonumber(e.nation) or 0, 0, false)
 				end
+			elseif e.kind == "taskDone" and e.nation == cs.myNation and type(e.cell) == "number" then
+				-- §15й Й1: задача выполнена — маленький салют своего цвета над целью (городом или столицей).
+				local x, y = e.cell % w + 0.5, e.cell // w + 0.5
+				local st = lastState
+				if st ~= nil and onScreen(x, y, 4) then
+					-- На общем плане клетка — пара пикселей: салют не меньше TaskMinPx в поперечнике.
+					local scale = cfg.TaskMinPx / math.max(1e-3, st.zoom * 16)
+					spawn(
+						SpectacleFx.fireworks(x, y, nextSeed(), cfg.TaskVolleys, cfg.TaskSparks, scale),
+						e.nation,
+						0,
+						false
+					)
+				end
 			elseif e.kind == "victory" and type(e.nation) == "number" then
 				local n = cs.nations[e.nation]
 				local cap = if n ~= nil then n.capital else nil
@@ -180,7 +195,9 @@ function SpectacleLayer.new(
 				end
 				if (math.abs(s.dx) > 0.05 or math.abs(s.dy) > 0.05) and onScreen(s.x, s.y, 2) then
 					made += 1
-					spawn(SpectacleFx.wake(s.x, s.y, s.dx, s.dy, nextSeed()), s.owner, 0, true)
+					-- §15ы: след — от кормы (половина картинки корабля, MapIcons.shipSide).
+					local back = MapIcons.shipSide(zoom) * 0.42 / zoom
+					spawn(SpectacleFx.wake(s.x, s.y, s.dx, s.dy, nextSeed(), back), s.owner, 0, true)
 				end
 			end
 		end

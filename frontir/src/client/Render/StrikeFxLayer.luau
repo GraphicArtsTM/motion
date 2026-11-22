@@ -448,7 +448,9 @@ function StrikeFxLayer.new(canvas: Frame, cs: ClientState, shake: (px: number) -
 				f.Rotation = p.rot
 			-- §15х ч.9
 			elseif kind == "wake" then
-				alpha = 0.35 + 0.65 * t
+				-- §15ы: бледный с самого начала.
+				local a0 = Config.Render.Spectacle.WakeAlpha
+				alpha = a0 + (1 - a0) * t
 			elseif kind == "tracer" then
 				alpha = 0
 			elseif kind == "glow" then

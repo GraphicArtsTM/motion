@@ -46,8 +46,11 @@ local function duo(): MatchSim.Match
 	return m
 end
 
+-- Строит и сразу достраивает (§15ч Ч5а): тесты проверяют действие готового здания.
 local function build(m: MatchSim.Match, kind: string, cell: number): (boolean, string?)
-	return MatchSim.applyIntent(m, 1, { kind = "build", building = kind :: any, cell = cell })
+	local ok, reason = MatchSim.applyIntent(m, 1, { kind = "build", building = kind :: any, cell = cell })
+	MatchSim.finishSites(m)
+	return ok, reason
 end
 
 T.describe("Экономика 2.0 (§15д)", function()

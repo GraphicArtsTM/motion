@@ -13,7 +13,7 @@
 матча) и **Ц4** (окна механик: шаблон, одно окно за раз, Совет и Стабильность, Дипломатия и Технологии с главной
 кнопкой, «Как играть» и справочник по группам), **Ц5а** (Магазин, Арсенал, Гардероб в одном виде) и **Ц5б** (Итоги
 и «Обучение» под новый экран), **Ц5в** (телефон), **Ц5г** (самопроверка и чек-лист) — **§15ц сделан целиком**, ждёт
-проверки в Studio. **§15ч Логистика:** Ч1 (железные дороги) и Ч2 (поезда и грузы) сделаны; дальше Ч3 (союзники, война и логистика).
+проверки в Studio. **§15ч Логистика:** Ч1 (железные дороги), Ч2 (поезда и грузы), Ч3а (умные боты у дорог), Ч3б (стык с союзником), Ч3в (война и логистика) Ч4 (реки — водные пути), Ч5а (стройка с лесами) и Ч5б (понятность) — **§15ч сделан целиком**, ждёт проверки в Studio.
 **§15ш Экран по скриншоту:** Ш1 (быстрые правки: лидер словами, атака 25%, живая подсказка, имена провинций без
 «-N» — `Provinces.shortName`, подсказки «клавиша N» — тест в `CommandBar.spec`) сделана; Ш2 сделана: тревога «нет войск» и «фронт проседает» (перевес ≥ `Render.Alarm.LosingRatio`) — `UI/AlarmBanner` + чистый `Alarm` (`state(перевесы, войска)`, `alertName` — цвет тревоги
 не как своя держава), подсказка — в «AttackArea» над лентой (не в `TopCenter`), баннер войны одной строкой, узкие
@@ -30,7 +30,9 @@ onPointEnd` → `pointAt` в `Main.client` (общий для мыши и пал
 (`Config.Path`), забрать — намерение `pathClaim` → `Profile.pathClaim` (событие `pathClaimed`, `pathClaimed` в профиле);
 Щ2 — погоны в `Ranks.icon` (превью `tools/epaulette_preview`); Щ3 — окно с лентой наград и анимациями.
 **§15э:** Э1 — техника в блоке: `Config.Unlocks`, `Profile.unitUnlocked`, `MatchSim.unitAllowed` (`unitLocked` /
-`siloLocked`; дуэль и боты — без ограничений), `ClientState.unitOpen`, вкладка «Техника» в магазине. 
+`siloLocked`; дуэль и боты — без ограничений), `ClientState.unitOpen`, вкладка «Техника» в магазине. Э1б — разведка в
+блоке: ключ `Intel` в `Config.Unlocks` (ур. 12 / премиум 7), `MatchSim.spy` → `intelLocked`, пропуск «Разведуправление»
+открывает её (`Profile.unlockedUnits(d, passes)` — оба вызова в `MatchService`), замок — `DiplomacyPanel`. 
 **§15ю Единый путь** (заменил Э2–Э3 и сезон): уровни 2…100, бесплатная (`Profile.pathReward`) и премиум-дорога
 (`Profile.premiumReward`, `Config.Path.Premium`, покупка `PathPremium`); `Profile.pathClaim` — обе дороги и бонусы после
 100-го (`bonusEarned`); улучшения с дороги — `Profile.passesWith` (в `MatchService.passesOf`); эксклюзивная косметика —
@@ -39,6 +41,28 @@ onPointEnd` → `pointAt` в `Main.client` (общий для мыши и пал
 товары (`PathPremiumPlus`, `Levels5` → `Profile.addLevels`, `XpBoost*` → `xpBoostUntil`, `ParadeSet` →
 `Cosmetics.packSource`), выгода — `Shop.partsPrice / saving`, метки — `Config.Shop.Tags`; витрина — `UI/ShopPanel`.
 Новый товар — проверить, что он не спорит с Путём и другими товарами (GDD §15я Я1), и добавить в `Shop2.spec`.
+**§15ё Телефон «от и до»** (части Ё1–Ё4, GDD §15ё): Ё1 (экран матча) сделана — телефон = узкий или низкий экран
+(`PhoneLayout.phone`, клиент `UiScale.isPhone`), раскладка — чистая `PhoneLayout.hud` (числа `Render.Phone.Hud`,
+тест без наложений), применяет `phoneLayout` в `Main.client`; `CommanderPanel / MapButtons / MatchHud / AttackPanel
+.setCompact`, полоса — одна строка с ящиками ВОЙСКА / СТРОЙКА (`CommandBar`, `BarDrawer`). Studio: экран телефона на
+мониторе — `Config.Dev.PhoneScreenW/H` + `PhoneLayout` (после — вернуть 0 / false). Новое окно у полосы на телефоне —
+добавить в список нижних окон в `phoneLayout`. Ё2 (окна) сделана: `CardKit.window` на телефоне во весь экран
+(`win.isPhone / pageHeight / onFit`, карточки — `CardKit.PhoneCardH`, две в ряд), нижние окна — `UiScale.fitSheet`
+(новое нижнее окно — через него), подсказки без клавиш — `UiScale.touchText` (чистый `TouchText.strip`, тест).
+`UITextSizeConstraint` ограничивает размер и без `TextScaled` — в настоящих пикселях. Ё3 (вокруг матча) сделана:
+главное меню на телефоне — `MainMenu.setPhone`, «Играть одному» — прокрутка `Body` в `MatchSetup`, «Путь» и Итоги —
+`UiScale.scrollHost` (большое окно постоянной раскладки: по ширине, вниз прокрутка), подсветка «Обучения» на
+телефоне — `Config.Tutorial.PhoneFocus`. Ё4 сделана — **§15ё сделан целиком**, ждёт проверки геймдизайнером:
+описание удара на телефоне — в строке прицела, отмена стройки — кнопка СТРОЙКА («ОТМЕНА»), блок «Телефон» в
+`SelfCheck` (только при `UiScale.isPhone`; новая кнопка HUD телефона — в его списки). Новая клавиша — сразу и кнопка
+на экране телефона (проверка «у каждой клавиши — кнопка»). Ё5 (по эмулятору устройств): верхний ряд телефона — в
+полосе Roblox (`FrontirTopbar`, `DeviceSafeInsets` + `IgnoreGuiInset`; `UiScale.topbar`), карта — `ScreenInsets.None`,
+планшет — `UiFit.scale(w, h, touch)`. В эмуляторе устройств Studio клики MCP до игры не доходят — там только замеры
+и снимки; нажатия проверять на мониторе (`Dev.PhoneLayout` + `PhoneScreenW/H`). Ё6: в полосе Roblox — «⚙», время
+и «Контроль суши» (`BandTop`, `MatchHud.setBandTop`), кнопки окон; удары — слева под полосой (`PhoneLayout.hud`:
+`top`, `centerX`). Ё7: удары столбиком (`CommanderPanel.setVertical`), окна `CardKit.window` на телефоне — без ужатия
+(`Phone.Hud.WindowCardScale`), во всю ширину и непрозрачные. Ё8: нижние окна HUD — `Render.SheetZIndex` (новое нижнее окно — в
+список в `Main.client` перед `Layering.liftAll`).
 **§15я Я4 карта картинками:** здания — `Render/BuildingLayer` (подложка `Plate` + `Picture`), юниты —
 `Render/FrontLayer` (`Unit.image`, зеркало `IconImage.mirrored`), города — `UI/NationLabels` (`City1…5`, `CityCapital`,
 иначе `City`), корабли — `Render/ShipLayer`, самолёты — `Render/AirLayer`; куда смотрит картинка — `IconArt.mirror`
@@ -48,6 +72,14 @@ onPointEnd` → `pointAt` в `Main.client` (общий для мыши и пал
 → `lune run tools/rank_pack` → `RankData` → `RankArt` → `MenuKit.rankIcon`; шапки окон — `assets/banners/banner_<сцена>.png`
 (полоса 8:1) → `lune run tools/card_pack banners` → `BannerData` (+ части) → `BannerArt` → `UI/SceneBanner`.
 Промпты — `docs/ART_PROMPTS_*.md`.
+**§15ы карта читается** (ждёт проверки геймдизайнером): размеры значков — чистый `MapIcons` (`Render.MapIcons`): здание —
+квадрат с центром в клетке, сторона ≤ места до соседей (`sideAmong`; соседи — в `BuildingLayer.refresh`; не влез у
+города — точка), город — жетон `citySideAmong` (уступает соседним значкам; кант + кольцо, ничей — `NeutralCity`,
+соседи — `MapIcons.buildingsNear`), корабль — `shipSide`; `Build.MinGap` = 4. Новый значок на карте —
+размер через `MapIcons`, проверка «не перекрываются» — `MapIcons.spec`. Подписи — чистый `LabelLayout`
+(`ProvinceLabels` ← `CityLabels.boxes` + `BuildingLayer.boxes`). «Призрак»: `Buildings.blocker` → `GhostView.blocker`.
+Ы4: города и корабли — гладкие картинки `MapArt` (`tools/map_art_pack`, список имён — в инструменте; `IconImage.mapArt`,
+показ с `ResampleMode.Default`), нет картинки — прежняя `IconArt`. Новая картинка на карте — добавить имя в `SOURCES`.
 - §15ц Ц5г: окно в списке самопроверки (`windows` в `Main.client`) — с `frame` (имя рамки: проверка «влезает в
   экран»); блок «Экран матча» в `SelfCheck` (заголовки полосы, кнопки у мини-карты, наложения, одно окно за раз) —
   новую рамку HUD снизу или справа добавить в его список наложений.
@@ -58,6 +90,34 @@ onPointEnd` → `pointAt` в `Main.client` (общий для мыши и пал
   `Config.Tutorial.Focus`, путь от FrontirHud); переименовали рамку из этого списка — поправить путь.
 **10а** (обучение) готов и ждёт проверки в Studio; **10б** (звук и музыка) и **10в** (телефон, аналитика, отчёт баланса) — тоже
 (см. «Статус» в начале GDD §15). Обновляй «Статус» в GDD и этот раздел в конце каждого этапа.
+
+**§15й Живой матч** (план Й1–Й6 — GDD §15й): Й1 сделана — задачи матча: чистый `MatchTasks` (`options / choose /
+reward / status / finish / skip`, `Config.Tasks`), в `MatchSim` — `taskFacts`, `stepTasks` (только люди, не
+«Обучение»), `m.tasks`, поток `m.taskRng`, события `taskNew / taskDone / taskFailed`, намерение `taskSkip`, F4 —
+`newTask / completeTask`; сеть — таблица `task` (`MatchStats.task` → `ClientState.applyTask / taskLeft`); клиент —
+`UI/TaskCard` (в `TopCenter`, кольцо цели на canvas). Нажатие по жетону города — `MapIcons.inToken` (`cityUnderTap`).
+Й2 сделана — трофеи: `stepTrophies` (`m.cityOwner`, город врага в активной войне → `trophy`, `MatchSim.trophyAmount`),
+столица → «Триумф» (`m.triumphUntil`, `triumphMul` внутри `surgeMul`, поле `triumph` в `commander`), «Давид и Голиаф» —
+`underdog(m, war, …)` по `War.powerA / powerB` (в `eliminate` и капитуляции); числа — `Config.Trophy`; клиент —
+`WarFxLayer` (надписи, баннеры), `BattleFxLayer` `TriumphChip`, `MatchHud`; F4 — `DevTools.takeCapital`.
+Й3 сделана — финал: чистый `Finale` (`state`, `nearAllowed`, `coalitionMul`; музыка — тоже через него), сервер —
+`MatchSim.leaderBloc / stepFinale` (`m.finaleNear`, `m.finaleBloc`, множитель в `stepAttacks`, `m.finaleOff` для
+замеров), клиент — `UI/FinalePanel` (баннер, `FinaleStrip` в `TopCenter`, рамка `PhaseBanner`) и
+`MapHighlightLayer.setLeader`; F4 — `DevTools.finaleNear / finaleTime`.
+Й4 сделана — отклик: чистый `FeedbackFx` + `Render/FeedbackLayer` (отсчёт старта и «В БОЙ!», «→ N» через `onSent` в
+`send`, вспышки роста, «Готово!» по `built`, монеты к `CommandBar.moneyLabel`, «+N» у `armyLabel`), числа —
+`Render.Feedback`.
+Й5 сделана — поражение и итоги: `MatchSim.matchStats` (`m.citiesTaken`, `m.trophyMoney`, задачи, пик) → `stats` в
+таблице `task`; намерение `endSolo` → `MatchSim.finishByTime`; клиент — `UI/DefeatScreen`, `UI/SpectatePanel` (чистый
+`Spectate`, кнопка `SpectateChip` в `TopCenter`), строка «Ваш матч» в `ResultsPanel`; F4 — `DevTools.fall`.
+Й6 сделана — **§15й сделан целиком**: предложения — карточка `DiplomacyOffer` в `TopRight` (чистый `OfferQueue`,
+таймер, «ещё N»); «К фронту» и слежка — в центр свободной части (`FreeArea`, `CameraMath.showAt`, `freeCenter` в
+`Main.client`). Рамка внутри столбика `TopRight` / `TopCenter` — ZIndex 1 (иначе содержимое под фоном).
+Й7 — окно державы: чистый `NationCard` (`actions(facts)` — плитки по группам и причины «нельзя», `balance`), клиент
+`UI/NationWindow` (рамка `DeclareWar`; `WarPanel.new(..., nationWindow)`, плитки зовут `DiplomacyPanel.openFor /
+demand`). Телефон: `DiplomacyOffer` — первым в `TopCenter` (`phoneLayout`), столбик `TopCenter` ужимается и по
+высоте, заставка `WarBanner` — атрибуты `PhoneY` / `PhoneBottom`. В `phoneLayout` `guiNamed` ищет только в корне
+HUD — рамку из столбика искать `FindFirstChild(name, true)`.
 
 ## Порядок работы (договорённости с геймдизайнером)
 - Каждый этап (или его часть) — **ветка от свежего `main` и отдельный PR в `main`**.
@@ -111,6 +171,7 @@ lune run tools/maps_preview    # лист всех карт → build/maps.png
 lune run tools/map_thumbs      # миниатюры карт для хаба → src/shared/MapThumbs.luau
 lune run tools/icon_pack       # иконки зданий и юнитов assets/icons → src/shared/IconData.luau (превью build/icons_pack.png)
 lune run tools/card_pack       # карточки ударов assets/cards → src/shared/CardData.luau (превью build/cards_pack.png)
+lune run tools/map_art_pack    # города и корабли гладко → src/shared/MapArtData.luau (+ части; потом stylua), превью build/map_art_pack.png
 lune run tools/bench World 60 180  # нагрузка: время тика и трафик на 60 ботах
 lune run tools/genmap Pangea   # пересоздать тестовую maps/Pangea.luau (+ превью build/Pangea.bmp)
 lune run tools/palette_preview # пересоздать docs/palette.png после правки цветов
@@ -347,6 +408,12 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   `setUnlocked`, `rules.boosts`. Сервер: `Services/ProfileStore` (блокировка сессии), `Services/ShopService`
   (ProcessReceipt, пассы), в `MatchService` — `applyProfile`, `useBoost` (жетон / запас), `giveRewards`, `profile`.
   Клиент: `UI/ShopPanel` (M), `cs.profile`. Товары — id в `Config.Shop` (0 — не создан).
+- Правка по аудиту (17.11.2026): сессии и блокировки — чистый `ProfileSessions` (`claim / write` — записи DataStore,
+  менеджер `new(deps)` с подставным хранилищем, `wait`, `now`, `jobId`), `Services/ProfileStore` — тонкая обёртка.
+  `save` / `grant` — успех только если запись ушла и блокировка наша (`lock.jobId`); потеряли блокировку —
+  `saving = false`. Выход во время загрузки — загрузка снимает блокировку сама (`pending`, `releasing`). Покупка —
+  `profiles.grant(userId, apply, allowMemory)` в `ShopService` (без записи — `NotProcessedYet`; память — только Studio).
+  Тесты — `ProfileSessions.spec` (сопрограммы для гонок; `wait` уступает ход только по флагу теста).
 
 ## Платные части, пропуск, ящики (этап 9б)
 - Бусты `Guards`, `Airstrike` (цель — `cell`, `MatchSim.strikeAt`), `Squadron`, `AirWing` — в `MatchSim.useBoost`.
@@ -376,6 +443,11 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
 - `AudioCues` (чистый): события → звуки, выбор музыки, `allow` (частота). Клиент: `Audio` (play / music /
   setVolumes), звуки подключены в `Main.client` (onEvents, onDelta, onStats, клики кнопок HUD), `UI/SoundPanel`
   («♪», громкости в профиле: `Profile.setVolumes`, намерение `volume`).
+
+- Правка звука (18.11.2026): музыка — `Menu / Match / War` (`assets/audio/music/*.mp3`, треки геймдизайнера),
+  `AudioCues.music({ menu, atWar, … })`, `warHold`, `ducks`, `pitch`; клиент `Audio` — группы `FrontirSfx` /
+  `FrontirMusic`, приглушение (`Audio.Duck`); нажатия — `uiSound` в `Main.client` (не глушится в хабе). Звук
+  молчит, пока у него нет id в Config или `Sound` в `SoundService/FrontirAudio`.
 
 ## Телефон и аналитика (этап 10в)
 - Аналитика: чистый `Analytics` (записи `MatchEnd`, `Commander`, `MatchResult` — генерал и место, `Leave`,
@@ -607,7 +679,9 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
 - Боеголовки — `tools/nuke_report` (удары по снимкам партии, матч не меняется), метрики ботов — `tools/bot_metrics`
   (7 метрик по уровням); итоги — `docs/BALANCE.md` «Боеголовки» и «Метрики ботов».
 - Арена (`tools/bot_arena`) — инструмент для отчёта, **не проверка CI** (решение геймдизайнера): полоса против
-  Генералов 2.0 < среднее место ≤ 3.5, против Новичков первый ≥ 80% партий.
+  Генералов 2.0 < среднее место ≤ 3.5, против Новичков первый ≥ 80% партий. Партии хаотичны: погрешность среднего
+  места на 20 сидах ≈ 0.17 (арена пишет «± …»); итог у порога в пределах двух погрешностей — решать по 60 сидам,
+  сравнивать варианты — на одних и тех же сидах.
 
 ## Логистика (§15ч)
 - Ч1 железные дороги: чистый `Rails` (`path` — A* со своими клетками и мостами, `build` — сеть с переиспользованием
@@ -621,6 +695,40 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   `trainStarted` (маршрут строкой) / `trainStop` / `trainGone`; нефть вышек главной сети — `m.rails.rigBonus` в
   `stepEconomy`. Клиент: `Render/RailLayer` — линии дорог вдали (`Render.Rail.LineBelowZoom`) и поезда (сам двигает по
   маршруту, время — `ClientState.simRate`), «+$» — `WarFxLayer` по `trainStop`.
+- Ч3а умные боты: `BotLevels.*.logistics` (Обычный, Генерал) → `MatchSim.railSpots` (свободная и нефтяная провинции
+  ближе всего к станции главной сети, не дальше `Rail.BotRangeShare` × `Rails.range`) → `spots.railFree / railOilRig`;
+  в `BotBrain.chooseBuild` завод и вышка берут их первыми, казармы и жильё — прежние места. Новичок — как раньше.
+- Ч3б стык с союзником: `m.rails.junctions` (ключ "a:b", a < b) — `stepJunctions` из `stepRails` (полное доверие, без
+  войны и эмбарго; неудача — `junctionFail`, повтор через `RetryFailedSec`), `MatchSim.junctionsOf(m, id)`; поезд —
+  `Trains.planVia` (остановка `to` — кому платит), поля поезда `ally / junction`; в `railsMessage` у державы
+  `junctions` (станция → союзник), путь стыка — в `links` меньшего номера; клиент — `ClientState.railJunction`,
+  голубые вагоны — `RailLayer` (`ally` в `trainStarted`).
+- Ч3в война: мосты рушит `MatchSim.hitBridges` (из `strikeDamage`) → `m.rails.damaged` (клетка → хозяин, ремонт);
+  `railContext` не пускает через разрушенный мост и реку в `BridgeBlockCells` от него; ремонт — в `stepRails`
+  (`m.rails.dirty` → пересборка с чистым `failed`); обрыв — событие `railCut` (`MatchSim.railCutCell`); поезд у
+  фронта — `MatchSim.inWarZone` (сейчас и к следующей проверке); боты — `MatchSim.enemyBridge` / `botBridge`
+  (Генерал, поток `logistics`). Клиент: `damaged` в сообщении `rails` → `cs.rails.damaged`, кресты — `RailLayer`,
+  лента — `MatchHud` (`railCut`), F4 — `DevTools.bridgeHit`.
+- Ч4 реки: `Rails.dock` / `Rails.waterPath` (нужен `ctx.bank` — свой берег; в `MatchSim.railContext` есть), в
+  `Rails.build` — пара без пути по суше (или дальше дальности, до `WaterRangeMul` ×) и в разных сетях → `link.water`,
+  клетки реки — вид 4; `Rails.intact` у водного пути проверяет берег. Сеть: `w` у связи в `railsMessage` →
+  `ClientState` (`net.water`, `cs.rails.waterway`, на реке не рельсы), `RailLayer` (линии `Waterways` на любом
+  зуме, баржа на клетке реки).
+- Ч5а стройка: `m.sites` (клетка → `doneAt`, `total`) ставит намерение `build` для нового здания
+  (`MatchSim.siteSec`); `MatchSim.isDisabled` включает стройки (в `refreshOwned`, `buildingsOf`, укреплениях, портах),
+  `stepSites` — событие `built`; `MatchSim.finishSites` — F4 и тесты (тест, проверяющий действие здания, достраивает
+  его). Боты: `BotView.building` (`hasSite`) — новую стройку не начинают. Клиент: `sites` в `world` →
+  `ClientState.siteAt`, `BuildingLayer.sites(now)` каждый кадр, подсказки — `BuildPanel` / `MapTooltip`.
+- Ч5б понятность: призрак дороги — `Rails.ghost` (в `BuildPanel.railGhost`, кеш по месту) → `BuildGhost` (`rail`);
+  режим «Логистика» — `UI/LogisticsPanel` (клавиша I, рамка `LogisticsLegend` в `TopCenter`, квадрат в
+  `MapButtons` tools, пункт меню игры, окно в самопроверке) + `RailLayer.setLogistics / setStations / trainsOf`,
+  сводка — чистый `Logistics.summary`; справочник — раздел `logistics` в `Handbook`. Новый значок интерфейса —
+  PNG в `assets/icons/ui` (прозрачный фон) и `lune run tools/icon_pack` (тест `IconArt.spec` требует картинку).
+- Ч6 морские линии: `Rails.Context.isSea / seaOk / seaLink` (в `MatchSim.railContext`: `seaBlocked` — эсминец врага,
+  `seaRoute` — суша + `Naval.path` клетками подряд + суша), в `Rails.build` — два порта до `SeaRangeMul` ×, `link.sea`,
+  клетки моря — вид 5, новый путь проверяется `Rails.intact`; стык морем — `buildJunction` (`Junction.sea`); поезд на
+  море тонет у эсминца (`danger` в `stepTrains`); пары без пути — повтор через `RetryFailedSec` (`retry` в
+  `stepRails`). Клиент: `o` у связи → `net.sea`, `cs.rails.seaway` (`applyRails(..., isSea)`), пунктир — `RailLayer`.
 
 ## Require
 Внутри `src/shared` модули подключают друг друга строкой: `require("./Types")` — так работает и в Roblox (`./` = `script.Parent`), и в Lune.

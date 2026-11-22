@@ -112,6 +112,7 @@ export type BotView = {
 		housing: number?,
 	},
 	spots: BuildSpots,
+	building: boolean?, -- §15ч Ч5а: своя стройка идёт — новую не начинать (иначе строит второе, не видя первого)
 	stability: number?, -- средняя стабильность своих провинций (§6.10, этап 7а)
 	navy: NavyView?, -- флот (§6.12, этап 7б-1)
 	air: AirView?, -- авиация (§6.13, этап 7б-2)
@@ -163,6 +164,8 @@ export type BuildSpots = {
 	factory: number?, -- §15х ч.6: свой завод ниже предела — улучшить (ур. 3 — +доход)
 	barracks: number?, -- свои казармы, которые можно улучшить (§15д)
 	batteryCovered: boolean?, -- место налёта уже прикрыто своей батареей ПВО — новую не ставить
+	railFree: number?, -- §15ч Ч3а: свободная провинция у дороги главной сети (только боты с logistics)
+	railOilRig: number?, -- §15ч Ч3а: нефтяная провинция у дороги главной сети
 }
 
 -- Что бот знает, отвечая на предложение договора или требование (§8.1).
@@ -314,6 +317,9 @@ end
 
 -- Что построить (§6.9), если хватает денег с запасом уровня.
 local function chooseBuild(view: BotView, profile: Profile, rng: Rng, atWar: boolean): Types.Intent?
+	if view.building then
+		return nil -- §15ч Ч5а: ждёт, пока достроится начатое
+	end
 	local level, personality = profile.level, profile.personality
 	local spots, owned = view.spots, view.owned
 	local function want(kind: Types.BuildingKind, cell: number?): Types.Intent?
@@ -328,6 +334,9 @@ local function chooseBuild(view: BotView, profile: Profile, rng: Rng, atWar: boo
 		return nil
 	end
 	local fortSpot = if personality.forts then spots.fort else nil
+	-- §15ч Ч3а: станции (завод, вышка) — у дороги, если такое место есть; казармы и жильё — на прежние места.
+	local factorySpot = spots.railFree or spots.free
+	local rigSpot = spots.railOilRig or spots.oilRig
 	-- Новичок строит что попало: случайное из доступного.
 	if level.randomTarget then
 		local options: { Types.Intent } = {}
@@ -350,7 +359,7 @@ local function chooseBuild(view: BotView, profile: Profile, rng: Rng, atWar: boo
 		return want("Barracks", spots.free or spots.oilRig)
 	end
 	if owned.factories == 0 then
-		return want("Factory", spots.free or spots.oilRig)
+		return want("Factory", factorySpot or spots.oilRig)
 	end
 	if barracks < 2 and spots.barracks ~= nil then
 		local up = want("Barracks", spots.barracks)
@@ -379,7 +388,7 @@ local function chooseBuild(view: BotView, profile: Profile, rng: Rng, atWar: boo
 			and view.oil < (Config.Units :: any).Bomber.oil
 			and view.economy.oilIncome <= 0
 		then
-			local rig = want("OilRig", spots.oilRig)
+			local rig = want("OilRig", rigSpot)
 			if rig ~= nil then
 				return rig
 			end
@@ -420,8 +429,8 @@ local function chooseBuild(view: BotView, profile: Profile, rng: Rng, atWar: boo
 			return fort
 		end
 	end
-	return want("OilRig", if owned.rigs < Config.Bots.MaxRigs then spots.oilRig else nil)
-		or want("Factory", if owned.factories <= personality.maxFactories then spots.free else nil)
+	return want("OilRig", if owned.rigs < Config.Bots.MaxRigs then rigSpot else nil)
+		or want("Factory", if owned.factories <= personality.maxFactories then factorySpot else nil)
 		or want("Barracks", if atWar or barracks < 2 then spots.barracks else nil)
 		or want("Housing", if (owned.housing or 0) < 1 + owned.factories // 2 then spots.free else nil)
 		-- §15х ч.6: улучшить завод (ур. 3 — +доход, бывший «Рынок»): заводов ур. 3 — до половины maxFactories (улучшение —

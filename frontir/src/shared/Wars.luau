@@ -39,6 +39,8 @@ export type War = {
 	lossesB: number,
 	proposal: Proposal?,
 	lastProposal: { [number]: number }, -- держава → simTime её последнего предложения мира
+	powerA: number, -- §15й Й2: сила войск a и b при объявлении (для «Давида и Голиафа»)
+	powerB: number,
 }
 
 export type WarSet = {
@@ -100,6 +102,8 @@ function Wars.declare(ws: WarSet, a: number, b: number, now: number): War
 		lossesB = 0,
 		proposal = nil,
 		lastProposal = {},
+		powerA = 0,
+		powerB = 0,
 	}
 	table.insert(ws.list, war)
 	ws.byPair[pairKey(a, b)] = war

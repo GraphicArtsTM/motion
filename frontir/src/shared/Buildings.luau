@@ -79,6 +79,13 @@ function Buildings.emptyOwned(): Owned
 end
 
 -- До какого уровня улучшается здание kind (§15д).
+-- §15ч Ч5а: сколько секунд игры строится новое здание вида kind; nearNet — площадка у главной сети дорог.
+function Buildings.siteSec(kind: string, nearNet: boolean): number
+	local cfg = Config.Build.Site
+	local base = (cfg.TimeSec :: any)[kind] or cfg.Default
+	return if nearNet then base * cfg.NetworkMul else base
+end
+
 function Buildings.maxLevel(kind: string): number
 	if kind == "City" then
 		return Config.Economy.MaxCityLevel
@@ -315,6 +322,43 @@ function Buildings.check(
 		end
 	end
 	return cell, nil
+end
+
+-- §15ы: кто мешает поставить здание в клетке cell (для «призрака»): reason — отказ из check ("tooClose" —
+-- ближайшее здание или город в квадрате Build.MinGap, "cityTooClose" — ближайший город в круге
+-- Cities.FoundMinDistance). Возвращает клетку мешающего или nil.
+function Buildings.blocker(
+	set: BuildingSet,
+	map: MapData.MapData,
+	isCity: (cell: number) -> boolean,
+	cell: number,
+	reason: string
+): number?
+	local w, h = map.width, map.height
+	local x, y = cell % w, cell // w
+	local round = reason == "cityTooClose"
+	if not round and reason ~= "tooClose" then
+		return nil
+	end
+	local r = if round then Config.Cities.FoundMinDistance else Config.Build.MinGap - 1
+	local best, bestD = nil :: number?, math.huge
+	for dy = -r, r do
+		local ny = y + dy
+		if ny >= 0 and ny < h then
+			for dx = -r, r do
+				local nx = x + dx
+				if nx >= 0 and nx < w and (not round or dx * dx + dy * dy < r * r) then
+					local j = ny * w + nx
+					local hit = if round then isCity(j) else (set.byCell[j] ~= nil or isCity(j))
+					local d = dx * dx + dy * dy
+					if hit and d < bestD then
+						best, bestD = j, d
+					end
+				end
+			end
+		end
+	end
+	return best
 end
 
 -- Ставит здание в клетке spot провинции province; своё того же типа там уже стоит — следующий уровень (§15д),

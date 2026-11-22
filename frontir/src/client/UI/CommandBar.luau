@@ -11,6 +11,8 @@
 	Подсказка при наведении на клетку — над ней. Числа берёт у MatchHud (values), найм — у ForcesPanel,
 	стройку — у BuildPanel: логика окон не дублируется. Узкий экран — полоса ужимается (UIScale) до MinScale,
 	дальше переносится в два ряда.
+	§15ё телефон (UiScale.isPhone): одна строка ЛЮДИ · АТАКА · ДЕНЬГИ · ВОЙСКА · СТРОЙКА · Арсенал · Магазин;
+	ВОЙСКА и СТРОЙКА — кнопки, нажатие выдвигает над полосой ящик «BarDrawer» с клетками найма или стройки.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -72,12 +74,19 @@ export type CommandBar = {
 	frame: Frame,
 	update: (now: number) -> (),
 	visible: () -> boolean,
+	drawer: Frame, -- §15ё ящик над полосой (телефон)
+	moneyLabel: TextLabel, -- §15й Й4: сюда летят монеты
+	armyLabel: TextLabel, -- §15й Й4: «+N» над готовыми войсками
+	drawerOpen: () -> boolean,
+	closeDrawer: () -> (),
 }
 
 local CommandBar = {}
 
 local NATION_W, PEOPLE_W, ATTACK_W, MONEY_W, SHOP_W = 150, 170, 206, 130, 60
 local GAP, PAD = 12, 10
+-- §15ё телефон: группы уже, кнопки ящиков ВОЙСКА и СТРОЙКА, промежутки меньше.
+local PHONE_PEOPLE_W, PHONE_MONEY_W, PHONE_TAB_W, PHONE_SHOP_W, PHONE_GAP = 120, 104, 62, 56, 8
 local KEY_HIRE = { "Z", "X", "C", "V" }
 local INK = Color3.fromRGB(11, 14, 26) -- Palette Ink
 
@@ -98,8 +107,11 @@ end
 
 function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, deps: Deps): CommandBar
 	local cfg = Config.Render.CommandBar
+	local phoneCfg = Config.Render.Phone.Hud
 	local slotW, slotH = cfg.SlotW, cfg.SlotH
-	local contentH = math.max(cfg.HeightPx - 2 * PAD, 18 + slotH)
+	local pcContentH = math.max(cfg.HeightPx - 2 * PAD, 18 + slotH)
+	local phoneContentH = phoneCfg.BarH - 2 * phoneCfg.BarPad
+	local contentH = pcContentH
 	local function t(key: string): string
 		return Strings.get(key, lang)
 	end
@@ -121,13 +133,17 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 	MenuKit.corner(root, 10)
 	MenuKit.stroke(root, Theme.Colors.PanelBorder, 2)
 	MenuKit.pad(root, PAD, PAD)
+	local rootPad = root:FindFirstChildOfClass("UIPadding") :: UIPadding
 	local list = MenuKit.list(root, GAP, true)
 	list.Wraps = true
 	list.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	local scale = Instance.new("UIScale")
 	scale.Parent = root
 
-	local function section(name: string, width: number, order: number): Frame
+	-- §15ё: ширина и высота групп меняются с раскладкой (компьютер / телефон).
+	type Widths = { pc: number, phone: number }
+	local sectionW: { [Frame]: Widths } = {}
+	local function section(name: string, width: number, order: number, phoneW: number?): Frame
 		local f = Instance.new("Frame")
 		f.Name = name
 		f.LayoutOrder = order
@@ -135,8 +151,10 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 		f.Size = UDim2.fromOffset(width, contentH)
 		f.Parent = root
 		MenuKit.list(f, 3)
+		sectionW[f] = { pc = width, phone = phoneW or width }
 		return f
 	end
+	local dividers: { Frame } = {}
 	local function divider(order: number): Frame
 		local d = Instance.new("Frame")
 		d.Name = "Divider"
@@ -145,6 +163,7 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 		d.BackgroundColor3 = Theme.Colors.Slate
 		d.BorderSizePixel = 0
 		d.Parent = root
+		table.insert(dividers, d)
 		return d
 	end
 
@@ -205,10 +224,10 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 	nameLabel.Size = UDim2.fromOffset(NATION_W - 20, 0)
 	nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
 	local worldLabel = MenuKit.label(nation, "", 13, Theme.Colors.Sky, true, 2)
-	divider(2)
+	local nationDivider = divider(2)
 
 	-- 2. Люди.
-	local people = section("People", PEOPLE_W, 3)
+	local people = section("People", PEOPLE_W, 3, PHONE_PEOPLE_W)
 	local _, growthLabel = caption(people, t("bar.people"))
 	local peopleLabel = MenuKit.label(people, "", 18, Theme.Colors.Text, true, 1)
 	local gauge = Instance.new("Frame")
@@ -272,7 +291,7 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 	divider(6)
 
 	-- 4. Деньги и нефть.
-	local money = section("Money", MONEY_W, 7)
+	local money = section("Money", MONEY_W, 7, PHONE_MONEY_W)
 	local _, incomeLabel = caption(money, t("bar.money"))
 	local moneyLabel = MenuKit.label(money, "", 18, Theme.Colors.Gold, true, 1)
 	local oilLabel = MenuKit.label(money, "", 13, Theme.Colors.Muted, false, 2)
@@ -437,7 +456,7 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 		end)
 		table.insert(hireSlots, s)
 	end
-	divider(10)
+	local hireDivider = divider(10)
 
 	-- 6. Стройка: все здания; первые 10 — клавиши 1–0.
 	local buildKinds: { Types.BuildingKind } = {}
@@ -476,7 +495,70 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 		end)
 		table.insert(buildSlots, s)
 	end
-	divider(12)
+	local buildDivider = divider(12)
+
+	-- §15ё телефон: ВОЙСКА и СТРОЙКА — кнопки; нажатие выдвигает ящик над полосой с клетками найма или стройки.
+	local function tabTile(name: string, text: string, icon: string, order: number): (TextButton, UIStroke, TextLabel)
+		local b, slot = MenuKit.tile(root, name, text, phoneContentH, order)
+		b.Size = UDim2.fromOffset(PHONE_TAB_W, phoneContentH)
+		b.Visible = false
+		slot.Position = UDim2.fromScale(0.5, 0.36)
+		local ic = MenuKit.icon(slot, icon, 3)
+		MenuKit.center(ic)
+		local edge = b:FindFirstChildOfClass("UIStroke") :: UIStroke
+		local badge = MenuKit.label(b, "", 11, Theme.Colors.Sky, true)
+		badge.AnchorPoint = Vector2.new(1, 0)
+		badge.Position = UDim2.new(1, -4, 0, 2)
+		badge.TextXAlignment = Enum.TextXAlignment.Right
+		badge.TextStrokeTransparency = 0.3
+		return b, edge, badge
+	end
+	local troopsTab, troopsEdge, troopsBadge = tabTile("TroopsTab", t("bar.forces"), "army", 9)
+	local buildTab, buildEdge = tabTile("BuildTab", t("bar.build"), "build", 11)
+
+	local drawer = Instance.new("Frame")
+	drawer.Name = "BarDrawer"
+	drawer.AnchorPoint = Vector2.new(0.5, 1)
+	drawer.Position = UDim2.new(0.5, 0, 1, -(phoneCfg.BarH + phoneCfg.BarBottom + phoneCfg.Gap))
+	drawer.AutomaticSize = Enum.AutomaticSize.XY
+	drawer.Size = UDim2.fromOffset(0, 0)
+	drawer.BackgroundColor3 = Theme.Colors.Backdrop
+	drawer.BackgroundTransparency = 0.04
+	drawer.BorderSizePixel = 0
+	drawer.Active = true
+	drawer.Visible = false
+	drawer.ZIndex = 12
+	drawer.Parent = gui
+	MenuKit.corner(drawer, 10)
+	MenuKit.stroke(drawer, Theme.Colors.Gold, 2)
+	MenuKit.pad(drawer, 8, 6)
+	MenuKit.list(drawer, 4)
+	local drawerScale = Instance.new("UIScale")
+	drawerScale.Parent = drawer
+	local drawerHead = MenuKit.box(drawer, "Head", 0)
+	drawerHead.AutomaticSize = Enum.AutomaticSize.None
+	drawerHead.Size = UDim2.new(1, 0, 0, 24)
+	local drawerTitle = MenuKit.label(drawerHead, "", 13, Theme.Colors.Gold, true)
+	drawerTitle.AnchorPoint = Vector2.new(0, 0.5)
+	drawerTitle.Position = UDim2.fromScale(0, 0.5)
+	drawerTitle.RichText = true
+	local drawerClose = Instance.new("TextButton")
+	drawerClose.Name = "Close"
+	drawerClose.AnchorPoint = Vector2.new(1, 0.5)
+	drawerClose.Position = UDim2.fromScale(1, 0.5)
+	drawerClose.Size = UDim2.fromOffset(40, 24)
+	drawerClose.BackgroundColor3 = Theme.Colors.Slate
+	drawerClose.BorderSizePixel = 0
+	drawerClose.FontFace = Theme.FontBold
+	drawerClose.TextSize = 16
+	drawerClose.TextColor3 = Theme.Colors.Text
+	drawerClose.Text = "×"
+	drawerClose.Parent = drawerHead
+	MenuKit.corner(drawerClose, 4)
+	local drawerRows = MenuKit.box(drawer, "Rows", 1)
+	type DrawerKind = "hire" | "build"
+	local drawerOpen: DrawerKind? = nil
+	local phone = false
 
 	-- 7. Арсенал (§15л ч.6): значок взятого в бой предмета; применён — притушен.
 	local arsenalButton, arsenalSlot = MenuKit.tile(root, "Arsenal", t("bar.arsenal"), contentH, 13)
@@ -497,6 +579,52 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 	local shopIcon = MenuKit.icon(shopSlot, "shop", 3)
 	MenuKit.center(shopIcon)
 	Session.connect(shopButton.Activated, deps.shop)
+
+	-- §15ё ящик: ряд клеток переезжает из своей группы в ящик и обратно.
+	local function placeRows()
+		hireRow.Parent = if phone and drawerOpen == "hire" then drawerRows else hire
+		buildRow.Parent = if phone and drawerOpen == "build" then drawerRows else build
+		drawer.Visible = phone and drawerOpen ~= nil and root.Visible
+		troopsEdge.Color = if drawerOpen == "hire" then Theme.Colors.Gold else Theme.Colors.PanelBorder
+		buildEdge.Color = if drawerOpen == "build" then Theme.Colors.Gold else Theme.Colors.PanelBorder
+		local slots = if drawerOpen == "build" then #buildKinds else #Types.LandUnits
+		local wide = slots * slotW + (slots - 1) * 4 + 16
+		local avail = UiScale.size(gui).X - 2 * phoneCfg.Edge
+		drawerScale.Scale = math.clamp(avail / wide, cfg.MinScale, 1)
+	end
+	local function setDrawer(which: DrawerKind?)
+		drawerOpen = which
+		placeRows()
+	end
+	Session.connect(troopsTab.Activated, function()
+		setDrawer(if drawerOpen == "hire" then nil else "hire")
+	end)
+	Session.connect(buildTab.Activated, function()
+		-- §15ё: выбрано здание (ждём нажатия на карту) — кнопка отменяет выбор (на телефоне нет Esc).
+		local selected: Types.BuildingKind? = deps.build.selected()
+		if drawerOpen == nil and selected ~= nil then
+			deps.build.pick(selected :: Types.BuildingKind) -- повторный выбор того же здания — отмена
+			return
+		end
+		setDrawer(if drawerOpen == "build" then nil else "build")
+	end)
+	local buildCaption: TextLabel? = nil
+	for _, d in buildTab:GetChildren() do
+		if d:IsA("TextLabel") and d.Text == t("bar.build") then
+			buildCaption = d
+		end
+	end
+	Session.connect(drawerClose.Activated, function()
+		setDrawer(nil)
+	end)
+	-- Выбрали здание — ящик закрывается: дальше нажатие на карту.
+	for _, s in buildSlots do
+		Session.connect(s.button.Activated, function()
+			if phone then
+				setDrawer(nil)
+			end
+		end)
+	end
 
 	-- Ширина: всё в один ряд, ужимаем до MinScale; дальше (и на узком экране) — две строки (PhoneLayout.bar).
 	local natural = NATION_W
@@ -519,8 +647,75 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 		+ 4 * GAP
 		+ 2 * PAD
 		+ 4
+	-- §15ё телефон: одна строка без державы; войска и стройка — в ящиках.
+	local naturalPhone = PHONE_PEOPLE_W
+		+ ATTACK_W
+		+ PHONE_MONEY_W
+		+ 2 * PHONE_TAB_W
+		+ 2 * PHONE_SHOP_W
+		+ 3 -- три разделителя
+		+ 9 * PHONE_GAP
+		+ 2 * phoneCfg.BarPad
+		+ 4
+	local function applyMode(p: boolean)
+		phone = p
+		contentH = if p then phoneContentH else pcContentH
+		local pad = if p then phoneCfg.BarPad else PAD
+		rootPad.PaddingLeft = UDim.new(0, pad)
+		rootPad.PaddingRight = UDim.new(0, pad)
+		rootPad.PaddingTop = UDim.new(0, pad)
+		rootPad.PaddingBottom = UDim.new(0, pad)
+		list.Padding = UDim.new(0, if p then PHONE_GAP else GAP)
+		list.Wraps = not p
+		for f, w in sectionW do
+			f.Size = UDim2.fromOffset(if p then w.phone else w.pc, contentH)
+		end
+		for _, d in dividers do
+			d.Size = UDim2.fromOffset(1, contentH - 8)
+		end
+		nation.Visible = not p
+		nationDivider.Visible = not p
+		hire.Visible = not p
+		hireDivider.Visible = not p
+		build.Visible = not p
+		buildDivider.Visible = not p
+		troopsTab.Visible = p
+		buildTab.Visible = p
+		-- Клавиша в уголке клетки на телефоне не нужна.
+		for _, s in hireSlots do
+			s.badge.Visible = not p
+		end
+		for k, s in buildSlots do
+			s.badge.Visible = not p and k <= 10
+		end
+		sendsLabel.Visible = not p
+		for _, pb in percentButtons do
+			pb.button.Size = UDim2.fromOffset(buttonW, if p then contentH - 18 else 24)
+			pb.button.TextSize = if p then 14 else 13
+		end
+		local sw = if p then PHONE_SHOP_W else SHOP_W
+		arsenalButton.Size = UDim2.fromOffset(sw, contentH)
+		shopButton.Size = UDim2.fromOffset(sw, contentH)
+		root.Position = UDim2.new(0.5, 0, 1, -(if p then phoneCfg.BarBottom else cfg.BottomPx))
+		if not p then
+			drawerOpen = nil
+		end
+		placeRows()
+	end
 	local function fit()
 		local size = UiScale.size(gui)
+		local p = UiScale.isPhone(gui)
+		if p ~= phone then
+			applyMode(p)
+		end
+		if p then
+			local layout = PhoneLayout.phoneBar(naturalPhone, size.X - 2 * phoneCfg.Edge)
+			scale.Scale = layout.scale
+			root.Size = UDim2.fromOffset(layout.width, 0)
+			rowBreak.Size = UDim2.fromOffset(1, contentH - 8)
+			placeRows()
+			return
+		end
 		local narrow = PhoneLayout.narrow(size.X, RunService:IsStudio() and Config.Dev.PhoneLayout)
 		local layout = PhoneLayout.bar(natural, second, size.X - 24, narrow)
 		scale.Scale = layout.scale
@@ -544,7 +739,13 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 	local function update(now: number)
 		local v = deps.values()
 		local on = v ~= nil and deps.build.canBuild()
-		root.Visible = on
+		if root.Visible ~= on then
+			root.Visible = on
+			if not on then
+				drawerOpen = nil
+			end
+			placeRows()
+		end
 		local item, used = deps.arsenal.info()
 		arsenalButton.Visible = item ~= nil
 		for key, f in arsenalIcons do
@@ -565,7 +766,7 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 		local hovered = tipFor
 		if hovered ~= nil and hovered.Visible then
 			local textFn = tipText[hovered]
-			tip.Text = if textFn ~= nil then textFn() else ""
+			tip.Text = if textFn ~= nil then UiScale.touchText(gui, textFn()) else ""
 			-- §15ц: слой в масштабе экрана — настоящие пиксели переводим в условные.
 			local f = UiScale.factor()
 			local p = (hovered.AbsolutePosition - gui.AbsolutePosition) / f
@@ -597,13 +798,15 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 			else Theme.Colors.Muted
 
 		local pct = deps.percent()
-		attackPercent.Text = string.format("%d%%", math.round(pct * 100))
+		local sends = Strings.formatInt(math.floor(v.people * pct))
+		-- §15ё телефон: «пошлёт N» — в заголовке группы (строки под кнопками нет).
+		attackPercent.Text = string.format("%d%%", math.round(pct * 100)) .. (if phone then " · " .. sends else "")
 		for _, pb in percentButtons do
 			local active = math.abs(pb.value - pct) < 0.001
 			pb.button.BackgroundColor3 = if active then Theme.Colors.Gold else Theme.Colors.Slate
 			pb.button.TextColor3 = if active then INK else Theme.Colors.Text
 		end
-		sendsLabel.Text = string.format(t("bar.sends"), Strings.formatInt(math.floor(v.people * pct)))
+		sendsLabel.Text = string.format(t("bar.sends"), sends)
 
 		moneyLabel.Text = "$" .. Strings.formatInt(v.money)
 		incomeLabel.Text = signed(v.income)
@@ -614,6 +817,16 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 		local total = math.floor(home + front)
 		armyLabel.Text = if total >= 1 then string.format(t("bar.army"), Strings.formatInt(total)) else t("bar.noArmy")
 		armyLabel.TextColor3 = if total >= 1 then Theme.Colors.Sky else Theme.Colors.Alert
+		troopsBadge.Text = if total >= 1 then Strings.formatInt(total) else "0"
+		troopsBadge.TextColor3 = armyLabel.TextColor3
+		drawerTitle.Text = if drawerOpen == "build"
+			then t("bar.build")
+			else string.format(
+				'%s   <font color="#%s">%s</font>',
+				t("bar.forces"),
+				armyLabel.TextColor3:ToHex(),
+				armyLabel.Text
+			)
 		for k, s in hireSlots do
 			local info = deps.hireInfo(k)
 			-- §15ш Ш2: причина замка — на клетке (на телефоне подсказки по наведению нет).
@@ -625,6 +838,11 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 			dim(s, not info.affordable)
 		end
 		local selected = deps.build.selected()
+		local cap = buildCaption
+		if cap ~= nil then
+			cap.Text = if selected ~= nil and drawerOpen == nil then t("bar.cancelBuild") else t("bar.build")
+			cap.TextColor3 = if selected ~= nil and drawerOpen == nil then Theme.Colors.Alert else Theme.Colors.Text
+		end
 		for k, s in buildSlots do
 			local kind: Types.BuildingKind = buildKinds[k]
 			local price = deps.build.price(kind)
@@ -645,6 +863,17 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 		update = update,
 		visible = function(): boolean
 			return root.Visible
+		end,
+		drawer = drawer,
+		moneyLabel = moneyLabel,
+		armyLabel = armyLabel,
+		drawerOpen = function(): boolean
+			return drawer.Visible
+		end,
+		closeDrawer = function()
+			if drawerOpen ~= nil then
+				setDrawer(nil)
+			end
 		end,
 	}
 end

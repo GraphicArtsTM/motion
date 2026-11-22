@@ -759,6 +759,15 @@ ITEMS["unlock.Tanks"] = function(c)
 	unit(c, "Tanks", 12, 7, 2, nation(1))
 	spark(c, 42, 5, "Gold")
 end
+-- §15э Э1б: разведка в блоке — радар с волнами, как у «Разведуправления».
+ITEMS["unlock.Intel"] = function(c)
+	stage(c, { "Ink", "Night", "Teal" }, "Basalt")
+	building(c, "Radar", 12, 3, 2, nation(1))
+	for k = 1, 3 do
+		rect(c, 38 + k * 2, 8 - k, 1, 4 + k * 2, rgb("Sky"))
+	end
+	spark(c, 42, 5, "Gold")
+end
 ITEMS["unlock.Artillery"] = function(c)
 	stage(c, { "Night", "Plum", "Orange" }, "Grass")
 	unit(c, "Artillery", 12, 7, 2, nation(1))

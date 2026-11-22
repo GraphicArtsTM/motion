@@ -69,7 +69,7 @@ function WarFxLayer.new(canvas: Frame, screen: ScreenGui, cs: ClientState, lang:
 	end
 	local function nameOf(id: number): string
 		local n = cs.nations[id]
-		return if n ~= nil then n.name else "?"
+		return if n == nil then "?" elseif lang == "en" then n.nameEn else n.name
 	end
 	local function visible(cell: number): boolean
 		return cs.fog.all or Fog.isVisible(cs.fog, cell)
@@ -552,7 +552,7 @@ function WarFxLayer.new(canvas: Frame, screen: ScreenGui, cs: ClientState, lang:
 	-- «+$» над портом, куда доплыло торговое судно (§15е): поднимается и тает.
 	type Floater = { label: TextLabel, cell: number, born: number }
 	local floaters: { Floater } = {}
-	local function floatText(cell: number, text: string)
+	local function floatText(cell: number, text: string, color: Color3?, size: number?)
 		if #floaters >= cfg.MaxFloats or not visible(cell) then
 			return
 		end
@@ -560,10 +560,10 @@ function WarFxLayer.new(canvas: Frame, screen: ScreenGui, cs: ClientState, lang:
 		l.AnchorPoint = Vector2.new(0.5, 1)
 		l.BackgroundTransparency = 1
 		l.FontFace = Theme.FontBold
-		l.TextSize = 14
-		l.TextColor3 = Theme.Colors.Gold
+		l.TextSize = size or 14
+		l.TextColor3 = color or Theme.Colors.Gold
 		l.TextStrokeTransparency = 0.3
-		l.Size = UDim2.fromOffset(80, 18)
+		l.Size = UDim2.fromOffset(160, (size or 14) + 4)
 		l.ZIndex = 12
 		l.Text = text
 		l.Parent = canvas
@@ -597,12 +597,40 @@ function WarFxLayer.new(canvas: Frame, screen: ScreenGui, cs: ClientState, lang:
 			elseif e.kind == "emoji" and type(e.target) == "number" then
 				showEmoji(e.target, tonumber(e.emoji) or 0)
 				continue
+			elseif e.kind == "taskDone" and e.nation == cs.myNation and type(e.cell) == "number" then
+				-- §15й Й1: награда за задачу — «+$N» над целью.
+				floatText(e.cell, "+$" .. Strings.formatInt(tonumber(e.reward) or 0))
+				continue
 			elseif e.kind == "trainStop" and type(e.cell) == "number" then
 				-- §15ч Ч2: поезд на остановке — «+$N» над станцией (свои — всегда, чужие — тоже видно торговлю).
 				floatText(e.cell, "+$" .. Strings.formatInt(tonumber(e.amount) or 0))
 				continue
 			end
 			if type(e.nation) ~= "number" or type(e.target) ~= "number" then
+				continue
+			end
+			-- §15й Й2: трофей — над городом «+$N трофей» (свой — крупно), у бывшего хозяина — «−$N»; столица — «ТРИУМФ».
+			if e.kind == "trophy" and type(e.cell) == "number" then
+				local amount = Strings.formatInt(tonumber(e.amount) or 0)
+				local tcfg = Config.Render.Trophy
+				if e.nation == me then
+					floatText(
+						e.cell,
+						string.format(Strings.get("fx.trophy", lang), amount),
+						Theme.Colors.Gold,
+						tcfg.MineSize
+					)
+				elseif e.target == me then
+					floatText(e.cell, "−$" .. amount, Theme.Colors.Alert, tcfg.MineSize)
+				else
+					floatText(e.cell, "+$" .. amount, Theme.Colors.Muted, tcfg.OtherSize)
+				end
+				if e.capital == true then
+					showBanner("warfx.triumph", e.nation, e.target, friends[e.nation] == true, Theme.Colors.Gold)
+				end
+				continue
+			elseif e.kind == "underdog" then
+				showBanner("warfx.underdog", e.nation, e.target, friends[e.nation] == true, Theme.Colors.Gold)
 				continue
 			end
 			if e.kind == "tradeDelivered" and type(e.cell) == "number" then
@@ -799,7 +827,15 @@ function WarFxLayer.new(canvas: Frame, screen: ScreenGui, cs: ClientState, lang:
 				bannerStroke.Transparency = 1 - t
 				-- Крупный баннер въезжает сверху и чуть увеличивается.
 				local slide = (1 - t) * 24
-				banner.Position = UDim2.new(0.5, 0, 0.28, -slide)
+				-- §15ё телефон: место задаёт Main.client (атрибут PhoneY — под столбиком сверху по центру).
+				local phoneY = banner:GetAttribute("PhoneY")
+				local phoneBottom = banner:GetAttribute("PhoneBottom")
+				if type(phoneY) == "number" and type(phoneBottom) == "number" then
+					phoneY = math.max(0, math.min(phoneY, phoneBottom - banner.Size.Y.Offset))
+				end
+				banner.Position = if type(phoneY) == "number"
+					then UDim2.new(0.5, 0, 0, phoneY - slide)
+					else UDim2.new(0.5, 0, 0.28, -slide)
 			end
 		end
 		-- Виньетка: три пульса.

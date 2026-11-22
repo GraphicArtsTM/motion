@@ -255,6 +255,7 @@ T.describe("Технологии", function()
 			Tech.grant(m.tech, 1, "Fleet", 3)
 			T.expect(MatchSim.levelAllows(m, 1, "AirDefense", 3)).toBe(true)
 			T.expect((MatchSim.applyIntent(m, 1, { kind = "build", building = "AirDefense", cell = cell }))).toBe(true)
+			MatchSim.finishSites(m) -- §15ч Ч5а
 			T.expect(m.buildings.byCell[cell].level).toBe(3)
 			T.expect(MatchSim.ownedOf(m, 1).longRange).toBe(1)
 		end

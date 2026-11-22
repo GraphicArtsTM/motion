@@ -198,6 +198,35 @@ T.describe("Железные дороги в матче (§15ч Ч1)", function(
 		end
 	)
 
+	-- §15ч Ч3а Умные боты.
+	T.it(
+		"умный бот: место под завод — у станции главной сети, в досягаемости дороги; у Новичка логистики нет",
+		function()
+			local m = solo()
+			-- Столица — на дальнем краю земли: первая свободная провинция в списке (x ≈ 5) далеко от неё.
+			Grid.setCity(m.grid, m.nations[1].capital :: number, false)
+			local cap = 12 * W + 140
+			m.nations[1].capital = cap
+			Grid.setCity(m.grid, cap, true)
+			m.cityOf[-1] = cap
+			local reach = Rails.range(W) * Config.Rail.BotRangeShare
+			MatchSim.setBot(m, 1, "Normal")
+			local free = MatchSim.railSpots(m, m.nations[1])
+			T.expect(free ~= nil).toBe(true)
+			local f = free :: number
+			T.expect(math.abs(f % W - 140) <= reach).toBe(true)
+			-- Завод на этом месте попадает в главную сеть сам.
+			Buildings.place(m.buildings, "Factory", f, (f % W) // 10 + 1)
+			MatchSim.refreshOwned(m)
+			recompute(m)
+			T.expect(MatchSim.railConnected(m, 1, f)).toBe(true)
+			-- Уровни: логистика у Обычного и Генерала, у Новичка — нет.
+			T.expect(Config.BotLevels.Novice.logistics).toBe(false)
+			T.expect(Config.BotLevels.Normal.logistics).toBe(true)
+			T.expect(Config.BotLevels.General.logistics).toBe(true)
+		end
+	)
+
 	T.it("нефтяная вышка в главной сети — нефти больше", function()
 		local m = solo()
 		local rig = place(m, "OilRig", 35)

@@ -36,6 +36,8 @@ export type CommanderPanel = {
 	pickerFrame: Frame, -- §15и: на время лобби переезжает в экран лобби
 	aiming: () -> Types.Warhead?, -- §15х: ждём цель ракеты / бомбы — какой (для прогноза удара)
 	setRaid: (start: () -> ()) -> (), -- §15х ч.4: строка «Налёт» включает выбор цели в AirPanel
+	setCompact: (compact: boolean) -> (), -- §15ё телефон: удары квадратиками без заголовка и подсказки
+	setVertical: (vertical: boolean) -> (), -- §15ё Ё7: квадратики столбиком сверху вниз (иначе строкой)
 }
 
 local CommanderPanel = {}
@@ -194,10 +196,18 @@ function CommanderPanel.new(
 	local barCorner = Instance.new("UICorner")
 	barCorner.CornerRadius = UDim.new(0, 12)
 	barCorner.Parent = bar
-	stroke(bar, Theme.Colors.PanelBorder)
+	local barStroke = stroke(bar, Theme.Colors.PanelBorder)
 	local barScale = Instance.new("UIScale")
 	barScale.Parent = bar
+	local barH = bar.Size.Y.Offset
+	local compact = false -- §15ё телефон: квадратики в верхней строке (место ставит Main.client)
+	local CPX = Config.Render.Phone.Hud.StrikePx
+	local vertical = false -- §15ё Ё7: на телефоне с полосой Roblox — столбиком у левого края
 	local function fitBar()
+		if compact then
+			barScale.Scale = 1
+			return
+		end
 		barScale.Scale = math.clamp(UiScale.size(gui).X * cfgS.MaxScreenShare / bar.Size.X.Offset, 0.6, 1)
 	end
 	UiScale.onResize(gui, fitBar)
@@ -308,12 +318,31 @@ function CommanderPanel.new(
 	hint.TextColor3 = Theme.Colors.Muted
 	hint.Text = Strings.get("strikes.hint", lang)
 
+	-- Что делает удар (на ПК — строка внизу панели при наведении; §15ё на телефоне — в строке прицела).
+	local function descOf(slot: number): string
+		if slot == RAID then
+			return Strings.get("strikes.desc.raid", lang)
+		elseif slot == MISSILE then
+			return Strings.get("strikes.desc.missile", lang)
+		end
+		-- «%%» в описании — шаблонный знак процента; сюда текст идёт аргументом, поэтому — «%».
+		local ability = Commanders.ability(ClientState.myCommander(cs), slot)
+		return (string.gsub(Strings.get("ability.desc." .. ability, lang), "%%%%", "%%"))
+	end
+
 	-- Строка режима цели и действующего эффекта (сверху по центру).
 	local modeLine = Instance.new("TextButton")
 	modeLine.Name = "AbilityMode"
 	modeLine.AnchorPoint = Vector2.new(0.5, 0)
 	modeLine.Position = UDim2.new(0.5, 0, 0, 170)
 	modeLine.Size = UDim2.fromOffset(420, BUTTON)
+	modeLine.AutomaticSize = Enum.AutomaticSize.Y -- §15ё: на телефоне — ещё строка «что делает удар»
+	local modePad = Instance.new("UIPadding")
+	modePad.PaddingLeft = UDim.new(0, 10)
+	modePad.PaddingRight = UDim.new(0, 10)
+	modePad.PaddingTop = UDim.new(0, 6)
+	modePad.PaddingBottom = UDim.new(0, 6)
+	modePad.Parent = modeLine
 	modeLine.BackgroundColor3 = Theme.Colors.Backdrop
 	modeLine.BackgroundTransparency = 0.2
 	modeLine.BorderSizePixel = 0
@@ -330,7 +359,7 @@ function CommanderPanel.new(
 	local startRaid: () -> () = function() end
 	local function showHow(kind: StrikeMenu.Kind, why: string, f: StrikeMenu.Facts)
 		pending = nil
-		modeLine.Text = StrikeStatus.how(kind, why, f, lang)
+		modeLine.Text = UiScale.touchText(gui, StrikeStatus.how(kind, why, f, lang)) -- §15ё: на телефоне без клавиш
 		modeLine.Visible = true
 		howUntil = os.clock() + HOW_SEC
 	end
@@ -412,7 +441,7 @@ function CommanderPanel.new(
 				warhead = 1
 			end
 			pending = slot
-			modeLine.Text = warheadLine()
+			modeLine.Text = warheadLine() .. (if compact then "\n" .. descOf(slot) else "")
 			modeLine.Visible = true
 			return
 		end
@@ -435,6 +464,7 @@ function CommanderPanel.new(
 		end
 		pending = slot
 		modeLine.Text = string.format(Strings.get("ability.target", lang), abilityName(slot))
+			.. (if compact then "\n" .. descOf(slot) else "") -- §15ё: на телефоне наведения нет
 		modeLine.Visible = true
 	end
 	for slot, b in buttons do
@@ -460,6 +490,45 @@ function CommanderPanel.new(
 	-- §15ш Ш2: плитка удара, которому не хватает технологии или здания, — узкая и без картинки; плитки — подряд.
 	local narrowOf: { boolean } = { false, false, false, false }
 	local function layoutTiles()
+		header.Visible = not compact
+		hint.Visible = not compact
+		bar.BackgroundTransparency = if compact then 1 else 0.08
+		barStroke.Enabled = not compact
+		for _, tile in tiles do
+			local key = tile.button:FindFirstChild("Key")
+			if key ~= nil and key:IsA("GuiObject") then
+				key.Visible = not compact
+			end
+			tile.name.Visible = not compact
+		end
+		if compact then
+			-- §15ё телефон: все удары — квадраты CPX, картинка во весь квадрат, снизу — цифра перезарядки или замок.
+			local x = 0
+			for _, tile in tiles do
+				tile.button.Position = if vertical then UDim2.fromOffset(0, x) else UDim2.fromOffset(x, 0)
+				tile.button.Size = UDim2.fromOffset(CPX, CPX)
+				tile.art.Visible = true
+				tile.art.Position = UDim2.fromOffset(3, 3)
+				tile.art.Size = UDim2.fromOffset(CPX - 6, CPX - 6)
+				tile.state.Position = UDim2.new(0, 2, 1, -20)
+				tile.state.Size = UDim2.new(1, -4, 0, 14)
+				tile.state.TextWrapped = false
+				tile.state.TextSize = 12
+				tile.state.TextStrokeTransparency = 0.2
+				x += CPX + GAP
+			end
+			bar.Size = if vertical then UDim2.fromOffset(CPX, x - GAP) else UDim2.fromOffset(x - GAP, CPX)
+			fitBar()
+			return
+		end
+		bar.Size = UDim2.fromOffset(bar.Size.X.Offset, barH)
+		for _, tile in tiles do
+			tile.art.Position = UDim2.fromOffset(4, 4)
+			tile.art.Size = UDim2.fromOffset(TILE_W - 8, ART_H)
+			tile.state.TextSize = 12
+			tile.state.TextStrokeTransparency = 1
+			tile.state.Visible = true
+		end
 		local x = PAD
 		for slot, tile in tiles do
 			local narrow = narrowOf[slot]
@@ -509,7 +578,7 @@ function CommanderPanel.new(
 			end
 			local ready = why == "ok"
 			local active = pending == slot
-			local narrow = StrikeMenu.missing(why) and not active
+			local narrow = StrikeMenu.missing(why) and not active and not compact
 			if narrow ~= narrowOf[slot] then
 				narrowOf[slot] = narrow
 				relayout = true
@@ -532,6 +601,15 @@ function CommanderPanel.new(
 				then Theme.color("Lime")
 				elseif why == "cooldown" then Theme.color("Orange")
 				else Theme.Colors.Muted
+			if compact then
+				-- §15ё телефон: на квадрате — только цифра перезарядки или замок (почему — по нажатию, строка режима).
+				-- leftOf — только у способностей (налёт перезарядки не имеет).
+				tile.state.Text = if why == "cooldown"
+					then tostring(math.ceil(if slot == MISSILE then facts.missileLeft else leftOf(slot, now)))
+					elseif StrikeMenu.missing(why) then "🔒"
+					else ""
+				tile.state.Visible = tile.state.Text ~= ""
+			end
 			tile.name.TextColor3 = if ready then Theme.Colors.Text else Theme.Colors.Muted
 			tile.art.ImageTransparency = if ready or active then 0 else 0.55
 			tile.edge.Color = if active
@@ -547,18 +625,7 @@ function CommanderPanel.new(
 		end
 		-- Подсказка внизу панели: что делает удар под курсором.
 		local h = hovered
-		if h == nil then
-			hint.Text = Strings.get("strikes.hint", lang)
-		elseif h == RAID then
-			hint.Text = Strings.get("strikes.desc.raid", lang)
-		elseif h == MISSILE then
-			hint.Text = Strings.get("strikes.desc.missile", lang)
-		else
-			-- «%%» в описании — шаблонный знак процента; сюда текст идёт аргументом, поэтому — «%».
-			hint.Text = (
-				string.gsub(Strings.get("ability.desc." .. Commanders.ability(commander, h), lang), "%%%%", "%%")
-			)
-		end
+		hint.Text = if h == nil then Strings.get("strikes.hint", lang) else descOf(h)
 		-- Действующий эффект (прорыв, вспышка) — в строке режима, если не ждём цели и нет подсказки.
 		if pending == nil and os.clock() < howUntil then
 			modeLine.Visible = true
@@ -640,6 +707,24 @@ function CommanderPanel.new(
 		pickerFrame = picker,
 		setRaid = function(start: () -> ())
 			startRaid = start
+		end,
+		setCompact = function(c: boolean)
+			if compact ~= c then
+				compact = c
+				for slot = 1, 4 do
+					narrowOf[slot] = false
+				end
+				layoutTiles()
+				update(os.clock())
+			end
+		end,
+		setVertical = function(v: boolean)
+			if vertical ~= v then
+				vertical = v
+				if compact then
+					layoutTiles()
+				end
+			end
 		end,
 		refresh = refresh,
 		update = update,

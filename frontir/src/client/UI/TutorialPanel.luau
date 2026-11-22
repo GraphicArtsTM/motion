@@ -106,7 +106,7 @@ function TutorialPanel.new(
 		local kind = steps[k]
 		if kind ~= nil then
 			current.Text = "▶ " .. t("tutorial." .. kind)
-			hint.Text = t("tutorial.hint." .. kind)
+			hint.Text = UiScale.touchText(gui, t("tutorial.hint." .. kind)) -- §15ё: на телефоне без клавиш
 		else
 			current.Text = "✔ " .. t("tutorial.title")
 			hint.Text = t("tutorial.finished")
@@ -130,19 +130,52 @@ function TutorialPanel.new(
 
 	-- Цель подсветки по пути «Рамка.Дочерняя…» от HUD.
 	local function target(path: string): GuiObject?
-		local node: Instance? = gui
-		for part in string.gmatch(path, "[^%.]+") do
-			node = if node ~= nil then node:FindFirstChild(part) else nil
+		-- §15ё: на телефоне верхний ряд (кнопки окон, удары) — в слое FrontirTopbar над полосой Roblox.
+		local roots: { Instance } = { gui }
+		local topbar = if gui.Parent ~= nil then gui.Parent:FindFirstChild("FrontirTopbar") else nil
+		if topbar ~= nil then
+			table.insert(roots, topbar)
 		end
-		return if node ~= nil and node:IsA("GuiObject") then node else nil
+		for _, root in roots do
+			local node: Instance? = root
+			for part in string.gmatch(path, "[^%.]+") do
+				node = if node ~= nil then node:FindFirstChild(part) else nil
+			end
+			if node ~= nil and node:IsA("GuiObject") then
+				return node
+			end
+		end
+		return nil
 	end
 
+	-- Видно ли на экране: сам и все предки до слоя.
+	local function shown(g: GuiObject?): boolean
+		local node: Instance? = g
+		while node ~= nil and not node:IsA("ScreenGui") do
+			if node:IsA("GuiObject") and not node.Visible then
+				return false
+			end
+			node = node.Parent
+		end
+		return g ~= nil and g.AbsoluteSize.X > 0
+	end
+	local phoneFocus: { [string]: { string } } = Config.Tutorial.PhoneFocus :: any
 	local function update(now: number)
 		local k = stepNow()
 		local kind = if k ~= nil then steps[k] else nil
 		local path = if kind ~= nil then focusPaths[kind] else nil
 		local g = if path ~= nil then target(path) else nil
-		if g == nil or not g.Visible or g.AbsoluteSize.X <= 0 then
+		-- §15ё Ё3: на телефоне клетки найма и стройки — в ящиках: подсвечиваем открытый ящик или его кнопку.
+		if not shown(g) and kind ~= nil and phoneFocus[kind] ~= nil then
+			for _, alt in phoneFocus[kind] do
+				local a = target(alt)
+				if shown(a) then
+					g = a
+					break
+				end
+			end
+		end
+		if g == nil or not shown(g) then
 			focus.Visible = false
 			return
 		end

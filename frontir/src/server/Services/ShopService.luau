@@ -2,8 +2,10 @@
 --[[
 	ShopService — покупки за Robux (GDD §11.1, этап 9а).
 	- Продукты разработчика: MarketplaceService.ProcessReceipt. Начисление только на сервере, идемпотентно по
-	  PurchaseId (Profile.grantProduct), сразу сохраняем профиль; профиль ещё не загружен — NotProcessedYet
-	  (Roblox повторит позже). Буст — в запас; hooks.onStock пробует сразу применить его в идущем матче.
+	  PurchaseId (Profile.grantProduct). PurchaseGranted — только после записи профиля в DataStore
+	  (profiles.grant, правка по аудиту): профиль не загружен, только в памяти или запись не прошла — NotProcessedYet
+	  (Roblox повторит, в т. ч. на другом сервере); в Studio без DataStore — можно и в памяти (тестовые покупки).
+	  Буст — в запас; hooks.onStock пробует сразу применить его в идущем матче.
 	- Геймпассы: UserOwnsGamePassAsync при входе (кеш на сессию), PromptGamePassPurchaseFinished — купил сейчас.
 	- Premium: Player.MembershipType.
 	- Политика (сводная правка ч.4): PolicyService.ArePaidRandomItemsRestricted при входе (не узнали — считаем, что
@@ -16,6 +18,7 @@ local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local PolicyService = game:GetService("PolicyService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
@@ -60,14 +63,15 @@ function ShopService.start(profiles: ProfileStore.ProfileStore, hooks: Hooks): S
 		if noRandom == nil then
 			return Enum.ProductPurchaseDecision.NotProcessedYet
 		end
-		session.data.noPaidRandom = noRandom
 		local purchaseId = tostring(info.PurchaseId)
-		local fresh = not Profile.hasPurchase(session.data, purchaseId)
-		if not Profile.grantProduct(session.data, kind, key, purchaseId, os.time()) then
-			return Enum.ProductPurchaseDecision.NotProcessedYet
-		end
-		-- Сохранить сразу: деньги списаны, начисление не должно потеряться при падении сервера.
-		if session.saving and not profiles.save(info.PlayerId) then
+		local fresh = false
+		-- Начислить и сразу записать: деньги списаны, «куплено» — только когда начисление уже в DataStore.
+		local result = profiles.grant(info.PlayerId, function(data: Profile.Data): boolean
+			data.noPaidRandom = noRandom
+			fresh = not Profile.hasPurchase(data, purchaseId)
+			return Profile.grantProduct(data, kind, key, purchaseId, os.time())
+		end, RunService:IsStudio())
+		if result ~= "granted" then
 			return Enum.ProductPurchaseDecision.NotProcessedYet
 		end
 		if fresh and kind == "boost" then

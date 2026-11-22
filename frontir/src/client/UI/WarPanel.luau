@@ -27,6 +27,7 @@ local MenuKit = require(script.Parent:WaitForChild("MenuKit"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
 local UiScale = require(script.Parent:WaitForChild("UiScale"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
+local NationWindow = require(script.Parent:WaitForChild("NationWindow"))
 
 type ClientState = ClientState.ClientState
 
@@ -129,13 +130,12 @@ function WarPanel.new(
 	lang: Strings.Lang,
 	send: (string, { [string]: any }) -> (),
 	toast: (text: string) -> (),
-	toFront: (x: number, y: number) -> ()
+	toFront: (x: number, y: number) -> (),
+	nationWindow: NationWindow.NationWindow -- §15й Й7: окно державы вместо «Объявить войну»
 ): WarPanel
 	local gold = hex(Theme.Colors.Gold)
 	local selectedKey: number? = nil
 	local flashUntil = 0
-	local declareTarget: number? = nil
-	local declareUntil = 0
 	local peaceTarget: number? = nil
 
 	local function nationName(id: number): string
@@ -234,11 +234,7 @@ function WarPanel.new(
 		MenuKit.list(f, 10)
 		local scale = Instance.new("UIScale")
 		scale.Parent = f
-		local function fit()
-			scale.Scale = math.clamp((UiScale.size(gui).X - 16) / width, 0.45, 1)
-		end
-		UiScale.onResize(gui, fit)
-		fit()
+		UiScale.fitSheet(gui, f, scale, width, 8, 0.45) -- §15ё: на телефоне — и по высоте
 		return f
 	end
 	local function buttonRow(parent: Instance, order: number): Frame
@@ -259,68 +255,6 @@ function WarPanel.new(
 		local n = if id ~= nil then cs.nations[id] else nil
 		return "nation." .. (if n ~= nil and n.colorIndex >= 1 then n.colorIndex else 1)
 	end
-	local function powerText(id: number): string
-		local s = ClientState.statsOf(cs, id)
-		if s == nil then
-			return ""
-		end
-		if s.power < 0 or s.frontPower < 0 then
-			return string.format(Strings.get("diplo.power", lang), "?") -- скрытая мощь (§6.11а)
-		end
-		local v = s.power + s.frontPower
-		return string.format(
-			Strings.get("diplo.power", lang),
-			if v >= 1000 then string.format("%.1fk", v / 1000) else tostring(math.floor(v + 0.5))
-		)
-	end
-
-	-- Окно объявления войны: два портрета держав «против», сила, кнопки.
-	local declarePanel = window("DeclareWar", 460, Theme.Colors.Alert)
-	declarePanel.AnchorPoint = Vector2.new(0.5, 1)
-	declarePanel.Position = UDim2.new(0.5, 0, 1, -150)
-	-- §15я: шапка-картинка «объявление войны» во всю ширину.
-	local declareBanner = CardKit.art(declarePanel, "war.declare", 436, 110)
-	declareBanner.Name = "Banner"
-	declareBanner.LayoutOrder = 0
-	local declareHead = MenuKit.label(declarePanel, Strings.get("war.declare", lang), 20, Theme.Colors.Alert, true, 1)
-	declareHead.Size = UDim2.fromScale(1, 0)
-	declareHead.AutomaticSize = Enum.AutomaticSize.Y
-	declareHead.TextXAlignment = Enum.TextXAlignment.Center
-	local versus = MenuKit.box(declarePanel, "Versus", 2)
-	versus.AutomaticSize = Enum.AutomaticSize.None
-	versus.Size = UDim2.new(1, 0, 0, 136)
-	local function side(x: number, anchor: number): (ImageLabel, TextLabel, TextLabel)
-		local col = MenuKit.box(versus, "Side")
-		col.AutomaticSize = Enum.AutomaticSize.None
-		col.AnchorPoint = Vector2.new(anchor, 0)
-		col.Position = UDim2.fromScale(x, 0)
-		col.Size = UDim2.fromOffset(170, 136)
-		local art = CardKit.art(col, "nation.1", 120, 80)
-		art.AnchorPoint = Vector2.new(0.5, 0)
-		art.Position = UDim2.fromScale(0.5, 0)
-		local name = MenuKit.label(col, "", 14, Theme.Colors.Text, true)
-		name.AutomaticSize = Enum.AutomaticSize.None
-		name.Position = UDim2.fromOffset(0, 84)
-		name.Size = UDim2.new(1, 0, 0, 32)
-		name.TextWrapped = true
-		name.TextXAlignment = Enum.TextXAlignment.Center
-		name.TextYAlignment = Enum.TextYAlignment.Top
-		local power = MenuKit.label(col, "", 12, Theme.Colors.Muted, true)
-		power.AutomaticSize = Enum.AutomaticSize.None
-		power.Position = UDim2.fromOffset(0, 118)
-		power.Size = UDim2.new(1, 0, 0, 16)
-		power.TextXAlignment = Enum.TextXAlignment.Center
-		return art, name, power
-	end
-	local meArt, meName, mePower = side(0, 0)
-	local foeArt, declareTitle, foePower = side(1, 1)
-	local vs = MenuKit.label(versus, Strings.get("war.vs", lang), 30, Theme.Colors.Alert, true)
-	vs.AnchorPoint = Vector2.new(0.5, 0.5)
-	vs.Position = UDim2.new(0.5, 0, 0, 40)
-	vs.TextStrokeTransparency = 0.3
-	local declareRow = buttonRow(declarePanel, 3)
-	local declareButton = wideButton(declareRow, Strings.get("war.declare", lang), "danger", 1)
-	local declareCancel = wideButton(declareRow, Strings.get("war.cancel", lang), "normal", 2)
 
 	-- Окно условий мира: три карточки с картинками.
 	local peacePanel = window("PeaceTerms", 3 * CardKit.CardW + 2 * CardKit.Gap + 24, Theme.Colors.Sky)
@@ -503,48 +437,6 @@ function WarPanel.new(
 		offerPanel.Visible = offerFrom ~= nil
 	end
 
-	local function drawDeclare(now: number)
-		local target = declareTarget
-		if target == nil or now > declareUntil or cs.phase ~= "Play" then
-			declarePanel.Visible = false
-			declareTarget = nil
-			return
-		end
-		local me = cs.myNation
-		local cooldown = if me ~= nil
-			then math.max(0, math.ceil(ClientState.cooldownBetween(cs, me, target) - (now - cs.warsAt)))
-			else 0
-		-- Бот — уровень и личность (§9.1): знать, с кем связываешься.
-		local tn = cs.nations[target]
-		declareTitle.Text = coloredName(target)
-			.. if tn ~= nil
-					and tn.isBot
-					and tn.botLevel ~= nil
-					and tn.personality ~= nil
-				then string.format(
-					' <font size="12" color="#%s">%s, %s</font>',
-					Theme.Colors.Muted:ToHex(),
-					Strings.get("bot.level." .. tn.botLevel, lang),
-					Strings.get("bot.personality." .. tn.personality, lang)
-				)
-				else ""
-		CardKit.repaint(foeArt, portraitKey(target))
-		CardKit.repaint(meArt, portraitKey(me))
-		meName.Text = if me ~= nil then coloredName(me) else ""
-		mePower.Text = if me ~= nil then powerText(me) else ""
-		foePower.Text = powerText(target)
-		if cooldown > 0 then
-			declareButton.Text = string.format(Strings.get("war.declare.cooldown", lang), cooldown)
-			declareButton.TextTransparency = 0.4
-			declareButton.AutoButtonColor = false
-		else
-			declareButton.Text = Strings.get("war.declare", lang)
-			declareButton.TextTransparency = 0
-			declareButton.AutoButtonColor = true
-		end
-		declarePanel.Visible = true
-	end
-
 	local function refresh()
 		local now = os.clock()
 		drawBanner(now)
@@ -660,39 +552,26 @@ function WarPanel.new(
 		end
 	end)
 
-	Session.connect(declareButton.Activated, function()
-		local target = declareTarget
-		local me = cs.myNation
-		if target == nil or me == nil then
-			return
-		end
-		if ClientState.cooldownBetween(cs, me, target) - (os.clock() - cs.warsAt) > 0 then
-			return
-		end
-		send("declare", { target = target })
-		declareTarget = nil
-		declarePanel.Visible = false
-	end)
-	Session.connect(declareCancel.Activated, function()
-		declareTarget = nil
-		declarePanel.Visible = false
-	end)
-
 	Session.connect(UserInputService.InputBegan, function(input: InputObject, gameProcessed: boolean)
 		if gameProcessed or input.KeyCode ~= Enum.KeyCode.Escape then
 			return
 		end
-		declareTarget = nil
-		declarePanel.Visible = false
 		peaceTarget = nil
 		peacePanel.Visible = false
 	end)
 
+	-- §15й Й7: нажатие на чужую державу — окно державы (война, дипломатия, разведка).
 	local function offerDeclare(target: number)
-		declareTarget = target
-		declareUntil = os.clock() + Config.Render.FeedSec
-		drawDeclare(os.clock())
+		nationWindow.open(target)
 	end
+	-- Окно условий мира с этой державой (из окна державы).
+	nationWindow.connect({
+		openPeace = function(target: number)
+			peaceTarget = target
+			peaceTitle.Text = string.format(Strings.get("peace.title", lang), coloredName(target))
+			peacePanel.Visible = true
+		end,
+	})
 
 	local function onEvents(events: { any })
 		local me = cs.myNation
@@ -717,7 +596,6 @@ function WarPanel.new(
 			lastSecond = second
 			drawBanner(now)
 			drawOffer(now)
-			drawDeclare(now)
 		end
 		if now < flashUntil and math.floor(now * 4) % 2 == 0 then
 			banner.BackgroundColor3 = Theme.Colors.Alert
@@ -731,13 +609,8 @@ function WarPanel.new(
 		update = update,
 		offerDeclare = offerDeclare,
 		onEvents = onEvents,
-		declareOpen = function(): boolean
-			return declarePanel.Visible
-		end,
-		closeDeclare = function()
-			declareTarget = nil
-			declarePanel.Visible = false
-		end,
+		declareOpen = nationWindow.isOpen,
+		closeDeclare = nationWindow.close,
 	}
 end
 

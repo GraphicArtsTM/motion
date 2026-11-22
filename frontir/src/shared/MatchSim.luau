@@ -41,7 +41,9 @@ local Forces = require("./Forces")
 local FrontForecast = require("./FrontForecast")
 local Fronts = require("./Fronts")
 local Grid = require("./Grid")
+local Finale = require("./Finale")
 local MapData = require("./MapData")
+local MatchTasks = require("./MatchTasks")
 local Modes = require("./Modes")
 local NameGen = require("./NameGen")
 local NationColors = require("./NationColors")
@@ -166,9 +168,30 @@ export type MatchEvent =
 	| { kind: "tradeDelivered", nation: number, target: number, amount: number, cell: number }
 	| { kind: "merchantSunk", nation: number, by: number, amount: number, x: number, y: number }
 	-- §15ч Ч2 Поезда: отправлен (маршрут строкой направлений — клиент двигает сам), остановка с платой, прибыл / пропал
-	| { kind: "trainStarted", nation: number, id: number, s: number, d: string, start: number, speed: number }
+	| {
+		kind: "trainStarted",
+		nation: number,
+		id: number,
+		s: number,
+		d: string,
+		start: number,
+		speed: number,
+		ally: number?,
+	}
 	| { kind: "trainStop", nation: number, id: number, cell: number, amount: number }
-	| { kind: "trainGone", nation: number, id: number, lost: boolean, cell: number? }
+	-- §15ч Ч3в: дорогу державы перерезали у cell (bridge — рухнул мост); мосты рухнули от удара
+	| { kind: "railCut", nation: number, cell: number, bridge: boolean }
+	-- §15ч Ч5а: стройка закончена — здание заработало
+	| { kind: "built", nation: number, cell: number, building: Types.BuildingKind }
+	-- §15й Й1: задачи матча (только этой державе): новая, выполнена (награда, серия), не успели
+	| { kind: "taskNew", nation: number, id: number, task: MatchTasks.Kind, cell: number, target: number }
+	| { kind: "taskDone", nation: number, id: number, task: MatchTasks.Kind, reward: number, streak: number, cell: number }
+	| { kind: "taskFailed", nation: number, id: number, task: MatchTasks.Kind }
+	-- §15й Й2: трофей за город (capital — столица, тогда и «Триумф» на triumph секунд) и «Давид и Голиаф»
+	| { kind: "trophy", nation: number, target: number, cell: number, amount: number, capital: boolean, triumph: number }
+	| { kind: "underdog", nation: number, target: number, amount: number, ratio: number }
+	| { kind: "bridgeHit", nation: number, cell: number, count: number }
+	| { kind: "trainGone", nation: number, id: number, lost: boolean, cell: number?, war: boolean? }
 	-- Авиация (§6.13, этап 7б-2)
 	| { kind: "planeBuilt", nation: number, plane: Types.PlaneKind }
 	| { kind: "planeShot", nation: number, by: number, plane: Types.PlaneKind }
@@ -200,6 +223,7 @@ export type BotRngs = {
 	ability: Rng,
 	missile: Rng,
 	intel: Rng,
+	logistics: Rng, -- §15ч Ч3в: удар по мосту
 }
 
 -- §15ч Ч1: сети держав, когда проверять, с какой державы начать, версия (клиентам), какие сети сменились,
@@ -217,7 +241,17 @@ export type RailState = {
 	nextTrainId: number,
 	spawnAt: { [number]: number },
 	rigBonus: { [number]: number },
+	-- §15ч Ч3б: стыки с союзниками — ключ "a:b" (a < b) → стык.
+	junctions: { [string]: Junction },
+	junctionFail: { [string]: { sig: string, retryAt: number } }, -- пара без стыка: те же сети — не раньше retryAt
+	-- §15ч Ч3в: разрушенные мосты (клетка → хозяин дороги и когда починят), сети под пересборку после ремонта.
+	damaged: { [number]: { owner: number, repairAt: number } },
+	dirty: { [number]: boolean },
 }
+
+-- §15ч Ч3б: стык главных сетей двух держав с полным доверием. ca — станция a, cb — станция b, path — от ca к cb.
+-- sea — §15ч Ч6: стык по морю между портами.
+export type Junction = { a: number, b: number, ca: number, cb: number, path: { number }, sig: string, sea: boolean? }
 
 export type Match = {
 	map: MapData,
@@ -284,6 +318,8 @@ export type Match = {
 	bombedAt: { [number]: number }, -- держава → когда её последний раз бомбили (боты ставят батарею ПВО)
 	bombedCell: { [number]: number }, -- держава → клетка последнего налёта на неё (Генерал прикрывает её истребителем)
 	hitAt: { [number]: number }, -- клетка здания или города → когда по нему ударили (защита и снос, §15д)
+	-- §15ч Ч5а: стройки — клетка нового здания → когда готово (simTime) и сколько строится всего.
+	sites: { [number]: { doneAt: number, total: number } },
 	aaSpent: { [number]: { number } }, -- клетка батареи ПВО → когда восстановятся потраченные заряды (§15д ч.3)
 	buildingOwner: { [number]: number }, -- клетка здания → хозяин в прошлый тик (захват −1 уровень, §15д ч.3)
 	founded: { [number]: boolean }, -- клетки городов, основанных игроками (§15д ч.4)
@@ -330,8 +366,25 @@ export type Match = {
 	unlocked: { [number]: { [string]: boolean } }, -- держава игрока → открытые генералы (нет записи — все)
 	unitUnlocks: { [number]: { [string]: boolean } }, -- §15э Э1: держава игрока → открытая техника (нет — вся)
 	intel: { [number]: { [number]: number } }, -- разведчик → цель → до какого simTime
+	intelReady: { [number]: number }, -- §15э Э1б: держава → когда снова можно разведать (simTime)
 	radarIntel: { [number]: { [number]: boolean } }, -- держава → державы в радиусе её радаров
 	nextRadarIntelAt: number,
+	-- §15й Й1: задачи матча игроков-людей (держава → состояние), свой поток случайности, когда проверять.
+	tasks: { [number]: MatchTasks.State },
+	taskRng: Rng,
+	taskCheckAt: number,
+	-- §15й Й2: хозяин каждого города в прошлый тик (трофеи) и до какого simTime у державы «Триумф».
+	cityOwner: { [number]: number },
+	triumphUntil: { [number]: number },
+	-- §15й Й3: финал «лидер близко» и блок лидера (лидер, союзники, вассалы) — для «Все против лидера».
+	finaleNear: boolean,
+	finaleBloc: { [number]: boolean }?,
+	finaleCheckAt: number,
+	finaleOff: boolean, -- без «Все против лидера» — только для замеров (tools/bot_arena noFinale)
+	-- §15й Й5: счётчики матча — сколько городов взяла держава и сколько денег трофеев получила.
+	citiesTaken: { [number]: number },
+	trophyMoney: { [number]: number },
+	trophyOff: boolean, -- без трофеев, «Триумфа» и «Давида и Голиафа» — только для замеров (tools/bot_arena noTrophy)
 }
 
 -- Экономика державы за последний тик, в секунду (§6.8).
@@ -399,6 +452,10 @@ function MatchSim.new(map: MapData, seed: number): Match
 			nextTrainId = 1,
 			spawnAt = {},
 			rigBonus = {},
+			junctions = {},
+			junctionFail = {},
+			damaged = {},
+			dirty = {},
 		},
 		councilRng = Rng.stream(seed, 101),
 		stabilityRng = Rng.stream(seed, 102),
@@ -423,6 +480,18 @@ function MatchSim.new(map: MapData, seed: number): Match
 		missileRng = Rng.stream(seed, 301),
 		tradeRng = Rng.stream(seed, 302),
 		trainRng = Rng.stream(seed, 303),
+		tasks = {},
+		taskRng = Rng.stream(seed, 304),
+		taskCheckAt = 0,
+		cityOwner = {},
+		triumphUntil = {},
+		trophyOff = false,
+		citiesTaken = {},
+		trophyMoney = {},
+		finaleNear = false,
+		finaleBloc = nil,
+		finaleCheckAt = 0,
+		finaleOff = false,
 		tradeAt = {},
 		tradeCheckAt = 0,
 		missiles = {},
@@ -435,6 +504,7 @@ function MatchSim.new(map: MapData, seed: number): Match
 		air = Air.new(),
 		bombedAt = {},
 		hitAt = {},
+		sites = {},
 		aaSpent = {},
 		buildingOwner = {},
 		founded = {},
@@ -476,6 +546,7 @@ function MatchSim.new(map: MapData, seed: number): Match
 		unlocked = {},
 		unitUnlocks = {},
 		intel = {},
+		intelReady = {},
 		radarIntel = {},
 		nextRadarIntelAt = 0,
 	}
@@ -795,6 +866,12 @@ function MatchSim.spy(m: Match, n: Nation, target: number): (boolean, string?)
 	if Diplomacy.friends(m.diplo, n.id)[target] then
 		return false, "already" -- мощь друзей и так видна
 	end
+	if not MatchSim.unitAllowed(m, n.id, "Intel") then
+		return false, "intelLocked" -- §15э Э1б: разведка в блоке (Путь, премиум-дорога, магазин)
+	end
+	if m.simTime < (m.intelReady[n.id] or 0) then
+		return false, "intelCooldown" -- §15э Э1б: одна цель за раз
+	end
 	local perks = MatchSim.perksOf(m, n.id) -- «Разведуправление» (§11.1)
 	local cost = math.floor(Config.Intel.Cost * perks.intelCostMul)
 	if n.money < cost then
@@ -807,6 +884,7 @@ function MatchSim.spy(m: Match, n: Nation, target: number): (boolean, string?)
 		m.intel[n.id] = list
 	end
 	list[target] = math.max(list[target] or 0, m.simTime) + (perks.intelDurationSec or Config.Intel.DurationSec)
+	m.intelReady[n.id] = m.simTime + Config.Intel.CooldownSec
 	table.insert(m.events, { kind = "intel", nation = n.id, target = target })
 	return true, nil
 end
@@ -1084,6 +1162,7 @@ local function botRngsOf(m: Match, id: number): BotRngs
 			ability = Rng.stream(m.seed, 206, id),
 			missile = Rng.stream(m.seed, 207, id),
 			intel = Rng.stream(m.seed, 208, id),
+			logistics = Rng.stream(m.seed, 209, id),
 		}
 		m.botRngs[id] = r
 	end
@@ -1574,6 +1653,16 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 		return true, nil
 	end
 
+	if intent.kind == "endSolo" then
+		-- §15й Й5: «Новый матч» после своего выбывания — только один человек в матче и он выбыл.
+		local n = m.nations[nationId]
+		if m.phase ~= "Play" or MatchSim.humans(m) ~= 1 or n == nil or n.alive then
+			return false, "notNow"
+		end
+		MatchSim.finishByTime(m)
+		return true, nil
+	end
+
 	if m.phase ~= "Play" then
 		return false, "phase"
 	end
@@ -1660,7 +1749,13 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 			MatchSim.foundCity(m, nationId, spot)
 			return true, nil
 		end
+		local fresh = existing == nil or existing.kind ~= intent.building
 		Buildings.place(m.buildings, intent.building, spot, MapData.getProvince(m.map, spot))
+		-- §15ч Ч5а: новое здание — леса, заработает через время стройки (у сети — быстрее).
+		if fresh and m.buildings.byCell[spot] ~= nil then
+			local t = MatchSim.siteSec(m, nationId, intent.building, spot)
+			m.sites[spot] = { doneAt = m.simTime + t, total = t }
+		end
 		MatchSim.refreshOwned(m)
 		return true, nil
 	end
@@ -1809,6 +1904,15 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 			return false, "noOffer"
 		end
 		MatchSim.resolveOffer(m, offer, intent.accept, false)
+		return true, nil
+	end
+
+	if intent.kind == "taskSkip" then
+		-- §15й Й1: пропустить задачу матча — новая через Tasks.GapSec, серия с начала.
+		local st = m.tasks[nationId]
+		if st == nil or not MatchTasks.skip(st, m.simTime) then
+			return false, "noTask"
+		end
 		return true, nil
 	end
 
@@ -2022,7 +2126,7 @@ end
 function MatchSim.refreshOwned(m: Match)
 	MatchSim.clearBuildingsCache(m) -- здания могли появиться или выйти из строя
 	m.owned = Buildings.owned(m.buildings, m.grid, MatchSim.cities(m), function(cell: number): boolean
-		return Air.isDisabled(m.air, cell, m.simTime)
+		return MatchSim.isDisabled(m, cell) -- §15ч Ч5а: и стройки
 	end)
 end
 
@@ -2043,6 +2147,54 @@ local function totalPower(m: Match, id: number): number
 	return Forces.total(n.home) + Forces.total(MatchSim.frontForces(m, id))
 end
 MatchSim.totalPower = totalPower
+
+-- §15ч Ч3а: свободные провинции (без нефти и с нефтью) в досягаемости дороги от станции главной сети — ближайшие
+-- к станции, не дальше `Rail.BotRangeShare` × дальность связи. Станции — столица и связанные с ней.
+function MatchSim.railSpots(m: Match, n: Nation): (number?, number?)
+	local g = m.grid
+	local w = g.width
+	local stations: { number } = {}
+	if n.capital ~= nil then
+		table.insert(stations, n.capital :: number)
+	end
+	local net = m.rails.nets[n.id]
+	if net ~= nil then
+		for cell in net.connected do
+			if cell ~= n.capital then
+				table.insert(stations, cell)
+			end
+		end
+	end
+	if #stations == 0 then
+		return nil, nil
+	end
+	local reach = Rails.range(w) * Config.Rail.BotRangeShare
+	local r2 = reach * reach
+	local free: number?, rig: number? = nil, nil
+	local bestFree, bestRig = r2, r2
+	for _, p in m.provinces.list do
+		local c = p.center
+		if Grid.getOwner(g, c) == n.id and m.buildings.byProvince[p.id] == nil then
+			local cx, cy = c % w, c // w
+			local d = math.huge
+			for _, s in stations do
+				local dx, dy = cx - s % w, cy - s // w
+				local dd = dx * dx + dy * dy
+				if dd < d then
+					d = dd
+				end
+			end
+			if p.oil then
+				if d <= bestRig then
+					rig, bestRig = c, d
+				end
+			elseif d <= bestFree then
+				free, bestFree = c, d
+			end
+		end
+	end
+	return free, rig
+end
 
 -- Где боту можно строить: первая подходящая провинция для каждого здания (§6.9).
 local function buildSpots(m: Match, n: Nation): BotBrain.BuildSpots
@@ -2070,6 +2222,11 @@ local function buildSpots(m: Match, n: Nation): BotBrain.BuildSpots
 				end
 			end
 		end
+	end
+	-- §15ч Ч3а: умный бот ставит завод и вышку у дороги — ближайшая к станции главной сети свободная провинция.
+	local profile = m.botProfiles[n.id]
+	if profile ~= nil and profile.level.logistics then
+		spots.railFree, spots.railOilRig = MatchSim.railSpots(m, n)
 	end
 	-- Свои казармы и заводы ниже предела — улучшить (§15д; заводы — §15х ч.6).
 	for cell, b in m.buildings.byCell do
@@ -2174,8 +2331,8 @@ local function buildSpots(m: Match, n: Nation): BotBrain.BuildSpots
 	-- Провинция под аэродром (§6.13): свободная, ближайшая к врагу (к первому, с кем активная война). Ищем только
 	-- для тех, кто строит аэродромы (Агрессор, Хитрец, Генерал), и пока своего аэродрома нет.
 	local enemyCapital: number? = nil
-	local profile = profileOf(m, n.id)
-	local wantsAirfield = (profile.personality.air >= 0.5 or profile.level.smartTarget)
+	local airProfile = profileOf(m, n.id)
+	local wantsAirfield = (airProfile.personality.air >= 0.5 or airProfile.level.smartTarget)
 		and MatchSim.ownedOf(m, n.id).airfields == 0
 		and MatchSim.techAllows(m, n.id, "Airfield") -- «Авиация» (§6.14)
 	local wars: { Wars.War } = if wantsAirfield then Wars.of(m.wars, n.id) else {}
@@ -2449,6 +2606,7 @@ local function botView(m: Match, n: Nation): BotBrain.BotView
 		economy = m.economy[n.id] or { income = 0, oilIncome = 0, upkeep = 0 },
 		owned = MatchSim.ownedOf(m, n.id),
 		spots = buildSpots(m, n),
+		building = MatchSim.hasSite(m, n.id),
 		stability = Stability.summaryOf(m.stability, n.id).average,
 		navy = MatchSim.navyView(m, n, hasNeutral, neighbours),
 		air = MatchSim.airView(m, n),
@@ -2457,7 +2615,36 @@ local function botView(m: Match, n: Nation): BotBrain.BotView
 end
 
 -- Держава выбыла: войска гибнут, её клетки становятся ничьими, атаки на неё заканчиваются.
+-- §15й Й2: «Давид и Голиаф» — winner выбил или заставил капитулировать loser, который при объявлении их войны был
+-- сильнее хотя бы в Trophy.UnderdogRatio раза. Награда — деньги и событие underdog.
+local function underdog(m: Match, war: Wars.War, winner: number, loser: number)
+	local w = m.nations[winner]
+	if w == nil or not w.alive or m.trophyOff then
+		return
+	end
+	local mine = if war.a == winner then war.powerA else war.powerB
+	local theirs = if war.a == winner then war.powerB else war.powerA
+	local cfg = Config.Trophy
+	if theirs <= 0 or theirs < math.max(1, mine) * cfg.UnderdogRatio then
+		return
+	end
+	local e = m.economy[winner]
+	local amount = math.floor(math.max(cfg.Underdog.Min, (if e ~= nil then e.income else 0) * cfg.Underdog.IncomeSec))
+	w.money += amount
+	table.insert(m.events, {
+		kind = "underdog",
+		nation = winner,
+		target = loser,
+		amount = amount,
+		ratio = math.floor(theirs / math.max(1, mine) * 10) / 10,
+	})
+end
+
 local function eliminate(m: Match, n: Nation, by: number)
+	local lastWar = if by ~= 0 then Wars.find(m.wars, by, n.id) else nil
+	if lastWar ~= nil and lastWar.state == "active" then
+		underdog(m, lastWar, by, n.id) -- §15й Й2: до закрытия войн — в войне записана сила сторон
+	end
 	Diplomacy.removeNation(m.diplo, n.id)
 	for k = #m.passages, 1, -1 do
 		if m.passages[k].owner == n.id then
@@ -2542,6 +2729,7 @@ function MatchSim.makePeace(m: Match, war: Wars.War, terms: Types.PeaceTerms, fr
 	-- Капитуляция: предложивший становится вассалом (каждый оставляет захваченное, §8.1).
 	if terms == "capitulate" and from ~= nil then
 		local overlord = Wars.enemyOf(war, from)
+		underdog(m, war, overlord, from) -- §15й Й2
 		Diplomacy.setVassal(m.diplo, from, overlord, m.simTime)
 		table.insert(m.events, { kind = "vassal", nation = from, target = overlord })
 	end
@@ -2628,7 +2816,8 @@ function MatchSim.declareWar(m: Match, a: number, b: number)
 	if Diplomacy.endTrade(m.diplo, a, b) then
 		table.insert(m.events, { kind = "tradeEnded", nation = a, target = b })
 	end
-	Wars.declare(m.wars, a, b, m.simTime)
+	local war = Wars.declare(m.wars, a, b, m.simTime)
+	war.powerA, war.powerB = totalPower(m, a), totalPower(m, b) -- §15й Й2: «Давид и Голиаф»
 	table.insert(m.events, { kind = "warDeclared", nation = a, target = b })
 	for _, ally in Diplomacy.alliesOf(m.diplo, b) do
 		if ally ~= a then
@@ -2986,7 +3175,7 @@ local function stepAttacks(m: Match, simDt: number): number
 				local still = m.simTime - a.lastAdvance >= Config.Fortify.AfterSec
 				local function fortified(cell: number): number
 					return Buildings.fortMul(m.buildings, g, m.map, cell, function(spot: number): boolean
-						return Air.isDisabled(m.air, spot, m.simTime)
+						return MatchSim.isDisabled(m, spot)
 					end)
 				end
 				-- Встречные фронты пары — один бой: потери считаются один раз за тик.
@@ -3028,7 +3217,11 @@ local function stepAttacks(m: Match, simDt: number): number
 					result.ratio,
 					MatchSim.giantOf(m, a.attacker),
 					MatchSim.giantOf(m, a.target)
-				) * MatchSim.surgeMul(m, a.attacker) * MatchSim.openingMul(m, war, a.attacker)
+				) * MatchSim.surgeMul(m, a.attacker) * MatchSim.openingMul(m, war, a.attacker) * Finale.coalitionMul(
+					m.finaleBloc,
+					a.attacker,
+					a.target
+				) -- §15й Й3 «Все против лидера»
 				local allowCities = result.ratio >= Config.Combat.CityCaptureRatio
 				local took = Expansion.advanceFront(
 					m.map,
@@ -3486,9 +3679,15 @@ function MatchSim.abilityDefenseMul(m: Match, a: Attack): number
 	return mul
 end
 
--- Свои фронты идут быстрее (Прорыв).
+-- Свои фронты идут быстрее (Прорыв; §15й Й2 — и «Триумф» после взятой столицы врага, множители перемножаются).
 function MatchSim.surgeMul(m: Match, id: number): number
-	return if Commanders.surging(m.commanders, id, m.simTime) then Config.Commanders.SurgeMul else 1
+	local mul = if Commanders.surging(m.commanders, id, m.simTime) then Config.Commanders.SurgeMul else 1
+	return mul * MatchSim.triumphMul(m, id)
+end
+
+-- §15й Й2: «Триумф» — фронты быстрее, пока не кончился срок.
+function MatchSim.triumphMul(m: Match, id: number): number
+	return if (m.triumphUntil[id] or 0) > m.simTime then Config.Trophy.TriumphSpeed else 1
 end
 
 -- «Первый удар» (§15б): объявивший войну первые Combat.OpeningSec после мобилизации наступает быстрее.
@@ -4159,7 +4358,49 @@ function MatchSim.strikeDamage(m: Match, center: number, r: number, hostile: (ow
 	if hits > 0 then
 		MatchSim.refreshOwned(m)
 	end
+	MatchSim.hitBridges(m, center, r, hostile)
 	return hits
+end
+
+-- §15ч Ч3в: мосты дорог держав hostile(owner) в круге радиуса r у center рушатся на Rail.BridgeRepairSec.
+-- Возвращает, сколько клеток мостов рухнуло.
+function MatchSim.hitBridges(m: Match, center: number, r: number, hostile: (owner: number) -> boolean): number
+	local rs = m.rails
+	local w, h = m.grid.width, m.grid.height
+	local cx, cy = center % w, center // w
+	local ri = math.ceil(r)
+	local owners: { number } = {}
+	for id in rs.nets do
+		if hostile(id) then
+			table.insert(owners, id)
+		end
+	end
+	table.sort(owners)
+	local total = 0
+	for _, id in owners do
+		local net = rs.nets[id]
+		local count, first = 0, nil
+		for dy = -ri, ri do
+			for dx = -ri, ri do
+				local x, y = cx + dx, cy + dy
+				if x >= 0 and y >= 0 and x < w and y < h and dx * dx + dy * dy <= r * r then
+					local cell = y * w + x
+					if net.cells[cell] == 3 and rs.damaged[cell] == nil then
+						rs.damaged[cell] = { owner = id, repairAt = m.simTime + Config.Rail.BridgeRepairSec }
+						count += 1
+						first = first or cell
+					end
+				end
+			end
+		end
+		if count > 0 then
+			rs.changed[id] = true
+			rs.version += 1
+			total += count
+			table.insert(m.events, { kind = "bridgeHit", nation = id, cell = first :: number, count = count })
+		end
+	end
+	return total
 end
 
 -- Захват (§15д ч.3): здание (и улучшенный город) сменило хозяина на другую державу — −1 уровень,
@@ -4472,6 +4713,71 @@ local function stepWorld(m: Match)
 end
 
 -- Бот с шахтой: в войне — пуск по линии фронта врага (своей или его) или по городу врага; без шахты — строит её.
+-- §15ч Ч3в: куда целиться, чтобы задеть целый мост на дорогах врага державы n в активной войне (ближайший к её
+-- столице): река ничья, поэтому прицел — клетка врага не дальше 2 клеток от моста (круг удара больше). fits(cell) —
+-- подходит ли прицел (радиус авиации). nil — мостов нет.
+function MatchSim.enemyBridge(m: Match, n: Nation, fits: ((cell: number) -> boolean)?): number?
+	local rs = m.rails
+	local g = m.grid
+	local w, h = g.width, g.height
+	local cap = n.capital or 0
+	local best: number? = nil
+	local bestD = math.huge
+	for _, war in Wars.of(m.wars, n.id) do
+		if war.state == "active" then
+			local enemy = Wars.enemyOf(war, n.id)
+			local net = rs.nets[enemy]
+			if net ~= nil then
+				for cell, kind in net.cells do
+					if kind == 3 and rs.damaged[cell] == nil then
+						local d = (cell % w - cap % w) ^ 2 + (cell // w - cap // w) ^ 2
+						if d <= bestD then
+							-- Клетка врага рядом с мостом (равные по дальности — меньший номер прицела).
+							local aim: number? = nil
+							local bx, by = cell % w, cell // w
+							for ring = 0, 2 do
+								for dy = -ring, ring do
+									for dx = -ring, ring do
+										local x, y = bx + dx, by + dy
+										if
+											aim == nil
+											and x >= 0
+											and y >= 0
+											and x < w
+											and y < h
+											and Grid.getOwner(g, y * w + x) == enemy
+											and (fits == nil or fits(y * w + x))
+										then
+											aim = y * w + x
+										end
+									end
+								end
+							end
+							if aim ~= nil and (d < bestD or aim < (best :: number)) then
+								best, bestD = aim, d
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+	return best
+end
+
+-- §15ч Ч3в: Генерал иногда (Bots.BridgeStrikeChance) бьёт по мосту врага.
+local function botBridge(m: Match, n: Nation, fits: ((cell: number) -> boolean)?): number?
+	local profile = m.botProfiles[n.id]
+	if profile == nil or not profile.level.smartTarget then
+		return nil
+	end
+	local bridge = MatchSim.enemyBridge(m, n, fits)
+	if bridge ~= nil and Rng.nextFloat(botRngsOf(m, n.id).logistics) < Config.Bots.BridgeStrikeChance then
+		return bridge
+	end
+	return nil
+end
+
 local function botMissile(m: Match, n: Nation, rng: Rng)
 	if Rng.nextFloat(rng) >= Config.Missile.BotChance then
 		return
@@ -4488,6 +4794,9 @@ local function botMissile(m: Match, n: Nation, rng: Rng)
 		return
 	end
 	if MatchSim.ownedOf(m, n.id).silos == 0 then
+		if MatchSim.hasSite(m, n.id) then
+			return -- §15ч Ч5а: шахта (или другое здание) ещё строится
+		end
 		local cfg = Config.Buildings.MissileSilo
 		if
 			MatchSim.techAllows(m, n.id, "MissileSilo")
@@ -4514,9 +4823,9 @@ local function botMissile(m: Match, n: Nation, rng: Rng)
 		end
 		return
 	end
-	-- Цель: клетка врага на линии фронта с наибольшими войсками.
-	local target: number? = nil
-	local most = 0
+	-- Цель: мост врага (Генерал, §15ч Ч3в) или клетка врага на линии фронта с наибольшими войсками.
+	local target: number? = botBridge(m, n, nil)
+	local most = if target ~= nil then math.huge else 0
 	for _, a in m.attacks do
 		local line = a.line
 		if
@@ -4600,7 +4909,7 @@ export type Port = { cell: number, dock: number, owner: number }
 function MatchSim.ports(m: Match): { Port }
 	local out: { Port } = {}
 	for cell, b in m.buildings.byCell do
-		if b.kind == "Port" and not Air.isDisabled(m.air, cell, m.simTime) then
+		if b.kind == "Port" and not MatchSim.isDisabled(m, cell) then
 			local dock = m.sea.docks[MapData.getProvince(m.map, cell)]
 			local owner = Grid.getOwner(m.grid, cell)
 			if dock ~= nil and owner ~= 0 then
@@ -5691,7 +6000,82 @@ end
 
 -- Здание в клетке выведено из строя налётом.
 function MatchSim.isDisabled(m: Match, cell: number): boolean
-	return Air.isDisabled(m.air, cell, m.simTime)
+	return Air.isDisabled(m.air, cell, m.simTime) or m.sites[cell] ~= nil -- §15ч Ч5а: стройка не работает
+end
+
+-- §15ч Ч5а: сколько секунд игры строится новое здание kind державы id в клетке cell: у главной сети дорог (её
+-- станции и столица не дальше дальности связи) — быстрее.
+function MatchSim.siteSec(m: Match, id: number, kind: Types.BuildingKind, cell: number): number
+	local stations: { number } = {}
+	local n = m.nations[id]
+	if n ~= nil and n.capital ~= nil then
+		table.insert(stations, n.capital :: number)
+	end
+	local net = m.rails.nets[id]
+	if net ~= nil then
+		for s in net.connected do
+			table.insert(stations, s)
+		end
+	end
+	return Buildings.siteSec(kind, Rails.nearNetwork(stations, cell, m.grid.width))
+end
+
+-- §15ч Ч5а: стройки — готовые заработали (событие built), снесённые и затопленные — забыты. Раз в тик.
+local function stepSites(m: Match)
+	if next(m.sites) == nil then
+		return
+	end
+	local done: { number } = {}
+	for cell, site in m.sites do
+		if m.buildings.byCell[cell] == nil then
+			m.sites[cell] = nil
+		elseif m.simTime >= site.doneAt then
+			table.insert(done, cell)
+		end
+	end
+	if #done == 0 then
+		return
+	end
+	table.sort(done)
+	for _, cell in done do
+		m.sites[cell] = nil
+		local b = m.buildings.byCell[cell]
+		local owner = Grid.getOwner(m.grid, cell)
+		if b ~= nil and owner ~= 0 then
+			table.insert(m.events, { kind = "built", nation = owner, cell = cell, building = b.kind })
+		end
+	end
+	MatchSim.refreshOwned(m)
+end
+MatchSim.stepSites = stepSites
+
+-- §15ч Ч5а: у державы идёт стройка.
+function MatchSim.hasSite(m: Match, id: number): boolean
+	for cell in m.sites do
+		if Grid.getOwner(m.grid, cell) == id then
+			return true
+		end
+	end
+	return false
+end
+
+-- §15й Й1: строит ли держава здание вида kind.
+function MatchSim.hasSiteOf(m: Match, id: number, kind: string): boolean
+	for cell in m.sites do
+		local b = m.buildings.byCell[cell]
+		if b ~= nil and b.kind == kind and Grid.getOwner(m.grid, cell) == id then
+			return true
+		end
+	end
+	return false
+end
+
+-- §15ч Ч5а: достроить все стройки сразу (F4, тесты).
+function MatchSim.finishSites(m: Match)
+	for _, site in m.sites do
+		site.doneAt = m.simTime
+	end
+	stepSites(m)
 end
 
 -- Работающие здания вида kind (клетка, хозяин по сетке; ничьи и выведенные из строя пропускаются).
@@ -5837,6 +6221,13 @@ function MatchSim.airView(m: Match, n: Nation): BotBrain.AirView
 	end
 	if view.idleBomber then
 		view.raidTarget = function(): number?
+			-- §15ч Ч3в: Генерал иногда бомбит мост врага в радиусе авиации.
+			local bridge = botBridge(m, n, function(c: number): boolean
+				return MatchSim.inAirRange(m, n.id, c)
+			end)
+			if bridge ~= nil then
+				return bridge
+			end
 			-- Линия фронта с врагом: сначала фронт врага против нас (его войска), потом наш фронт против него
 			-- (его гарнизон у линии). Точка — клетка выборки линии в радиусе авиации.
 			for pass = 1, 2 do
@@ -6078,24 +6469,122 @@ end
 function MatchSim.railContext(m: Match, id: number): Rails.Context
 	local g, map = m.grid, m.map
 	local riverId = Types.Terrain.River
+	local damaged = m.rails.damaged
+	local w = g.width
+	local block = Config.Rail.BridgeBlockCells * w / Config.UnitsReferenceMapWidth
+	local block2 = block * block
 	local function river(cell: number): boolean
 		return MapData.getTerrain(map, cell) == riverId
 	end
-	return {
+	-- §15ч Ч3в: переправа у разрушенного моста разбита — новый мост рядом не проложить.
+	local function nearBroken(cell: number): boolean
+		local x, y = cell % w, cell // w
+		for c in damaged do
+			local dx, dy = c % w - x, c // w - y
+			if dx * dx + dy * dy <= block2 then
+				return true
+			end
+		end
+		return false
+	end
+	-- §15ч Ч4: у клетки реки свой берег — хотя бы одна соседняя (4 стороны) клетка — земля державы.
+	local h = g.height
+	local function bank(cell: number): boolean
+		local x, y = cell % w, cell // w
+		return (x > 0 and Grid.getOwner(g, cell - 1) == id)
+			or (x < w - 1 and Grid.getOwner(g, cell + 1) == id)
+			or (y > 0 and Grid.getOwner(g, cell - w) == id)
+			or (y < h - 1 and Grid.getOwner(g, cell + w) == id)
+	end
+	local ctx: Rails.Context = {
 		width = g.width,
 		height = g.height,
 		now = m.simTime,
 		river = river,
+		bank = bank,
 		passable = function(cell: number): number?
+			if damaged[cell] ~= nil then
+				return nil -- §15ч Ч3в: мост разрушен
+			end
 			if Grid.getOwner(g, cell) == id then
 				return 1
 			end
 			if river(cell) then
-				return Config.Rail.BridgeCost
+				return if next(damaged) ~= nil and nearBroken(cell) then nil else Config.Rail.BridgeCost
 			end
 			return nil
 		end,
 	}
+	-- §15ч Ч6: морские линии — море, закрытое эсминцем врага, путь между портами.
+	ctx.isSea = function(cell: number): boolean
+		return Naval.seaAt(m.sea, cell) ~= 0
+	end
+	ctx.seaOk = function(cell: number): boolean
+		return not MatchSim.seaBlocked(m, id, cell)
+	end
+	ctx.seaLink = function(a: number, b: number): { number }?
+		return MatchSim.seaRoute(m, ctx, a, b)
+	end
+	return ctx
+end
+
+-- §15ч Ч6: клетка моря у эсминца врага державы id в активной войне (не дальше Rail.SeaBlockCells).
+function MatchSim.seaBlocked(m: Match, id: number, cell: number): boolean
+	local w = m.grid.width
+	local r = Config.Rail.SeaBlockCells * w / Config.UnitsReferenceMapWidth
+	local r2 = r * r
+	local x, y = cell % w + 0.5, cell // w + 0.5
+	for _, ship in m.fleet.ships do
+		if
+			ship.alive
+			and ship.kind == "Destroyer"
+			and ship.owner ~= id
+			and (ship.x - x) ^ 2 + (ship.y - y) ^ 2 <= r2
+			and Wars.isActive(m.wars, id, ship.owner)
+		then
+			return true
+		end
+	end
+	return false
+end
+
+-- §15ч Ч6: путь между портами a и b по морю: суша до причала порта a, море (путь корабля, клетки подряд), суша от
+-- причала порта b. nil — причалы на разных морях или пути нет.
+function MatchSim.seaRoute(m: Match, ctx: Rails.Context, a: number, b: number): { number }?
+	local docks = m.sea.docks
+	local da, db = docks[MapData.getProvince(m.map, a)], docks[MapData.getProvince(m.map, b)]
+	if da == nil or db == nil or Naval.seaAt(m.sea, da) ~= Naval.seaAt(m.sea, db) then
+		return nil
+	end
+	local landA = Rails.path(ctx, a, da)
+	local landB = Rails.path(ctx, b, db)
+	if landA == nil or landB == nil then
+		return nil
+	end
+	local turns = Naval.path(m.sea, da, db)
+	if turns == nil then
+		return nil
+	end
+	local w = m.grid.width
+	local out: { number } = table.clone(landA :: { number }) -- a … причал a
+	local cur = da
+	for _, t in turns do
+		local x0, y0 = cur % w, cur // w
+		local dx, dy = t % w - x0, t // w - y0
+		local n = math.max(math.abs(dx), math.abs(dy))
+		for k = 1, n do
+			local cell = math.floor(y0 + dy * k / n + 0.5) * w + math.floor(x0 + dx * k / n + 0.5)
+			if cell ~= out[#out] then
+				table.insert(out, cell)
+			end
+		end
+		cur = t
+	end
+	local back = landB :: { number }
+	for k = #back - 1, 1, -1 do -- причал b … b
+		table.insert(out, back[k])
+	end
+	return out
 end
 
 -- Станции главных сетей (снабжают фронт) и провинции с ними (стабильность), доп. нефть вышек (§15ч Ч2) —
@@ -6128,6 +6617,184 @@ local function railDerived(m: Match)
 	end
 end
 
+-- §15ч Ч3б Стыки с союзниками ----------------------------------------------------------------------------
+
+local function junctionKey(a: number, b: number): string
+	return if a < b then a .. ":" .. b else b .. ":" .. a
+end
+
+-- Могут ли a и b иметь стык: обе живы, полное доверие, не воюют, нет эмбарго.
+local function junctionAllowed(m: Match, a: number, b: number): boolean
+	local na, nb = m.nations[a], m.nations[b]
+	return na ~= nil
+		and nb ~= nil
+		and na.alive
+		and nb.alive
+		and Diplomacy.trusted(m.diplo, a, b)
+		and Wars.find(m.wars, a, b) == nil
+		and not Diplomacy.embargoed(m.diplo, a, b)
+end
+
+-- Проходимость пути стыка: земля a или b, река — мост.
+local function junctionContext(m: Match, a: number, b: number): Rails.Context
+	local ctx = MatchSim.railContext(m, a)
+	local g = m.grid
+	local own = ctx.passable
+	ctx.passable = function(cell: number): number?
+		if Grid.getOwner(g, cell) == b then
+			return 1
+		end
+		return own(cell)
+	end
+	return ctx
+end
+
+-- Проложить стык: ближайшие пары станций главных сетей (не дальше дальности связи), до Rail.JunctionTries попыток.
+local function buildJunction(m: Match, a: number, b: number, sig: string): Junction?
+	local na, nb = m.rails.nets[a], m.rails.nets[b]
+	if na == nil or nb == nil then
+		return nil
+	end
+	local w = m.grid.width
+	local range = Rails.range(w)
+	local r2 = range * range
+	type Pair = { ca: number, cb: number, d: number }
+	local pairs: { Pair } = {}
+	for ca in na.connected do
+		for cb in nb.connected do
+			local dx, dy = ca % w - cb % w, ca // w - cb // w
+			local d = dx * dx + dy * dy
+			if d <= r2 then
+				table.insert(pairs, { ca = ca, cb = cb, d = d })
+			end
+		end
+	end
+	table.sort(pairs, function(x: Pair, y: Pair): boolean
+		if x.d ~= y.d then
+			return x.d < y.d
+		end
+		return if x.ca ~= y.ca then x.ca < y.ca else x.cb < y.cb
+	end)
+	local ctx = junctionContext(m, a, b)
+	for k = 1, math.min(#pairs, Config.Rail.JunctionTries) do
+		local pair = pairs[k]
+		local path = Rails.path(ctx, pair.ca, pair.cb)
+		if path ~= nil then
+			return { a = a, b = b, ca = pair.ca, cb = pair.cb, path = path, sig = sig }
+		end
+	end
+	-- §15ч Ч6: по суше не вышло — морем между портами (ближайшие пары, до SeaRangeMul × дальности).
+	local sr2 = (range * Config.Rail.SeaRangeMul) ^ 2
+	local ports: { Pair } = {}
+	for ca in na.connected do
+		if na.kinds[ca] == "Port" then
+			for cb in nb.connected do
+				if nb.kinds[cb] == "Port" then
+					local dx, dy = ca % w - cb % w, ca // w - cb // w
+					local d = dx * dx + dy * dy
+					if d <= sr2 then
+						table.insert(ports, { ca = ca, cb = cb, d = d })
+					end
+				end
+			end
+		end
+	end
+	table.sort(ports, function(x: Pair, y: Pair): boolean
+		if x.d ~= y.d then
+			return x.d < y.d
+		end
+		return if x.ca ~= y.ca then x.ca < y.ca else x.cb < y.cb
+	end)
+	for k = 1, math.min(#ports, Config.Rail.JunctionTries) do
+		local pair = ports[k]
+		local path = MatchSim.seaRoute(m, ctx, pair.ca, pair.cb)
+		if path ~= nil and Rails.intact(ctx, { a = pair.ca, b = pair.cb, path = path, bridges = 0, sea = true }) then
+			return { a = a, b = b, ca = pair.ca, cb = pair.cb, path = path, sig = sig, sea = true }
+		end
+	end
+	return nil
+end
+
+-- Пересчёт стыков (из stepRails): снять те, что больше нельзя или перерезаны, проложить новые.
+local function stepJunctions(m: Match)
+	local rs = m.rails
+	local want: { [string]: { number } } = {}
+	for a, n in m.nations do
+		if n.alive then
+			for _, b in Diplomacy.trustedOf(m.diplo, a) do
+				if a < b and junctionAllowed(m, a, b) then
+					want[junctionKey(a, b)] = { a, b }
+				end
+			end
+		end
+	end
+	local function mark(a: number, b: number)
+		rs.changed[a] = true
+		rs.changed[b] = true
+		rs.version += 1
+	end
+	for key, j in rs.junctions do
+		if want[key] == nil then
+			rs.junctions[key] = nil
+			mark(j.a, j.b)
+		end
+	end
+	local keys: { string } = {}
+	for key in want do
+		table.insert(keys, key)
+	end
+	table.sort(keys)
+	for _, key in keys do
+		local a, b = want[key][1], want[key][2]
+		local na, nb = rs.nets[a], rs.nets[b]
+		local sig = (if na ~= nil then na.signature else "") .. "|" .. (if nb ~= nil then nb.signature else "")
+		local j = rs.junctions[key]
+		local ok = j ~= nil
+			and j.sig == sig
+			and Rails.intact(junctionContext(m, a, b), { a = j.ca, b = j.cb, path = j.path, bridges = 0, sea = j.sea })
+		if not ok then
+			-- Пара без стыка с теми же сетями — не чаще раза в RetryFailedSec.
+			local failed = rs.junctionFail[key]
+			if j == nil and failed ~= nil and failed.sig == sig and m.simTime < failed.retryAt then
+				continue
+			end
+			local fresh = buildJunction(m, a, b, sig)
+			if fresh ~= nil then
+				rs.junctionFail[key] = nil
+				rs.junctions[key] = fresh
+				mark(a, b)
+			else
+				rs.junctionFail[key] = { sig = sig, retryAt = m.simTime + Config.Rail.RetryFailedSec }
+				if j ~= nil then
+					rs.junctions[key] = nil
+					mark(a, b)
+				end
+			end
+		end
+	end
+end
+
+-- Стыки державы id: { станция своя, станция союзника, союзник, ключ }.
+function MatchSim.junctionsOf(m: Match, id: number): { { mine: number, theirs: number, ally: number, key: string } }
+	local out = {}
+	local keys: { string } = {}
+	for key, j in m.rails.junctions do
+		if j.a == id or j.b == id then
+			table.insert(keys, key)
+		end
+	end
+	table.sort(keys)
+	for _, key in keys do
+		local j = m.rails.junctions[key]
+		if j.a == id then
+			table.insert(out, { mine = j.ca, theirs = j.cb, ally = j.b, key = key })
+		else
+			table.insert(out, { mine = j.cb, theirs = j.ca, ally = j.a, key = key })
+		end
+	end
+	return out
+end
+
 -- Поезда (§15ч Ч2): едут и платят на остановках; путь впереди перерезан — поезд пропадает; заводы на дорогах
 -- отправляют новые (раз в Rail.TrainEverySec / уровень, не больше Rail.MaxTrains у державы).
 local function stepTrains(m: Match, simDt: number)
@@ -6150,11 +6817,15 @@ local function stepTrains(m: Match, simDt: number)
 		end
 		local reached, done = Trains.advance(tr, simDt)
 		for _, stop in reached do
-			if Grid.getOwner(g, stop.cell) == tr.owner then
-				n.money += stop.money
+			-- §15ч Ч3б: остановка на земле союзника платит ему (to), конечная у союзника — обоим.
+			local payee = stop.to or tr.owner
+			local holder = Grid.getOwner(g, stop.cell)
+			local pn = m.nations[payee]
+			if pn ~= nil and pn.alive and (holder == tr.owner or (tr.ally ~= nil and holder == tr.ally)) then
+				pn.money += stop.money
 				table.insert(
 					m.events,
-					{ kind = "trainStop", nation = tr.owner, id = id, cell = stop.cell, amount = stop.money }
+					{ kind = "trainStop", nation = payee, id = id, cell = stop.cell, amount = stop.money }
 				)
 			end
 		end
@@ -6165,13 +6836,43 @@ local function stepTrains(m: Match, simDt: number)
 		end
 		if m.simTime >= tr.checkAt then
 			tr.checkAt = m.simTime + Config.Rail.CheckRouteSec
+			-- §15ч Ч3б: поезд к союзнику едет и по его земле, пока стык цел.
+			local ally = if tr.ally ~= nil
+					and tr.junction ~= nil
+					and rs.junctions[tr.junction] ~= nil
+				then tr.ally
+				else -1
 			for k = math.max(1, math.floor(tr.pos)), #tr.cells do
 				local cell = tr.cells[k]
-				if Grid.getOwner(g, cell) ~= tr.owner and MapData.getTerrain(m.map, cell) ~= riverId then
+				local holder = Grid.getOwner(g, cell)
+				-- §15ч Ч6: море — не чужая земля (у эсминца врага судно тонет ниже, как поезд у фронта).
+				local onSea = holder == 0 and Naval.seaAt(m.sea, cell) ~= 0
+				if
+					(not onSea and holder ~= tr.owner and holder ~= ally and MapData.getTerrain(m.map, cell) ~= riverId)
+					or rs.damaged[cell] ~= nil
+				then
 					rs.trains[id] = nil
 					table.insert(m.events, { kind = "trainGone", nation = tr.owner, id = id, lost = true, cell = cell })
 					break
 				end
+			end
+			-- §15ч Ч3в: рядом земля врага в войне — поезд уничтожен. Смотрим, где он сейчас и где будет к следующей
+			-- проверке (иначе поезд проскочит к городу у фронта между проверками).
+			local here = tr.cells[math.max(1, math.floor(tr.pos))]
+			local ahead =
+				tr.cells[math.min(#tr.cells, math.max(1, math.floor(tr.pos + tr.speed * Config.Rail.CheckRouteSec)))]
+			local function danger(c: number): boolean
+				if Naval.seaAt(m.sea, c) ~= 0 then
+					return MatchSim.seaBlocked(m, tr.owner, c) -- §15ч Ч6: эсминец врага рядом — судно тонет
+				end
+				return MatchSim.inWarZone(m, tr.owner, c)
+			end
+			if rs.trains[id] ~= nil and (danger(here) or danger(ahead)) then
+				rs.trains[id] = nil
+				table.insert(
+					m.events,
+					{ kind = "trainGone", nation = tr.owner, id = id, lost = true, cell = here, war = true }
+				)
 			end
 		end
 		if rs.trains[id] ~= nil then
@@ -6204,38 +6905,78 @@ local function stepTrains(m: Match, simDt: number)
 			elseif m.simTime >= at then
 				rs.spawnAt[cell] = m.simTime + every
 				local dests = Trains.destinations(net, cell)
-				if (count[owner] or 0) < Config.Rail.MaxTrains and #dests > 0 then
-					local to = dests[Rng.range(m.trainRng, 1, #dests)]
-					local cells, stops = Trains.plan(net, cell, to, function(c: number): number
-						return Buildings.cityLevel(m.buildings, c)
-					end)
-					if cells ~= nil and stops ~= nil then
-						local id = rs.nextTrainId
-						rs.nextTrainId += 1
-						local speed = Trains.speed(w)
-						rs.trains[id] = {
-							id = id,
-							owner = owner,
-							cells = cells,
-							stops = stops,
-							nextStop = 1,
-							pos = 1,
-							speed = speed,
-							start = m.simTime,
-							checkAt = m.simTime + Config.Rail.CheckRouteSec,
-						}
-						count[owner] = (count[owner] or 0) + 1
-						local s, d = Rails.encode(cells, w)
-						table.insert(m.events, {
-							kind = "trainStarted",
-							nation = owner,
-							id = id,
-							s = s,
-							d = d,
-							start = m.simTime,
-							speed = speed,
-						})
+				local function cityLevelAt(c: number): number
+					return Buildings.cityLevel(m.buildings, c)
+				end
+				-- §15ч Ч3б: стыки с союзниками, до которых завод доезжает по своей сети.
+				local reach: { { mine: number, theirs: number, ally: number, key: string } } = {}
+				if (count[owner] or 0) < Config.Rail.MaxTrains then
+					for _, j in MatchSim.junctionsOf(m, owner) do
+						local allyNet = rs.nets[j.ally]
+						if net.comp[j.mine] == net.comp[cell] and allyNet ~= nil and allyNet.connected[j.theirs] then
+							table.insert(reach, j)
+						end
 					end
+				end
+				local cells: { number }?, stops: { Trains.Stop }? = nil, nil
+				local ally: number?, junction: string? = nil, nil
+				if #reach > 0 and Rng.nextFloat(m.trainRng) < Config.Rail.AllyTrainChance then
+					local j = reach[Rng.range(m.trainRng, 1, #reach)]
+					local allyNet = rs.nets[j.ally]
+					local far = Trains.destinations(allyNet, j.theirs)
+					local kind = allyNet.kinds[j.theirs]
+					if kind == "City" or kind == "Port" then
+						table.insert(far, 1, j.theirs)
+					end
+					if #far > 0 then
+						local to = far[Rng.range(m.trainRng, 1, #far)]
+						local jn = rs.junctions[j.key]
+						local link = jn.path
+						if jn.ca ~= j.mine then
+							link = table.clone(link)
+							for k = 1, #link // 2 do
+								link[k], link[#link - k + 1] = link[#link - k + 1], link[k]
+							end
+						end
+						cells, stops =
+							Trains.planVia(net, allyNet, cell, j.mine, link, j.theirs, to, j.ally, cityLevelAt)
+						if cells ~= nil then
+							ally, junction = j.ally, j.key
+						end
+					end
+				elseif (count[owner] or 0) < Config.Rail.MaxTrains and #dests > 0 then
+					local to = dests[Rng.range(m.trainRng, 1, #dests)]
+					cells, stops = Trains.plan(net, cell, to, cityLevelAt)
+				end
+				if cells ~= nil and stops ~= nil then
+					local id = rs.nextTrainId
+					rs.nextTrainId += 1
+					local speed = Trains.speed(w)
+					rs.trains[id] = {
+						id = id,
+						owner = owner,
+						cells = cells,
+						stops = stops,
+						nextStop = 1,
+						pos = 1,
+						speed = speed,
+						start = m.simTime,
+						checkAt = m.simTime + Config.Rail.CheckRouteSec,
+						ally = ally,
+						junction = junction,
+					}
+					count[owner] = (count[owner] or 0) + 1
+					local s, d = Rails.encode(cells, w)
+					table.insert(m.events, {
+						kind = "trainStarted",
+						nation = owner,
+						id = id,
+						s = s,
+						d = d,
+						start = m.simTime,
+						speed = speed,
+						ally = ally,
+					})
 				end
 			end
 		end
@@ -6250,6 +6991,15 @@ local function stepRails(m: Match)
 		return
 	end
 	rs.nextAt = m.simTime + Config.Rail.RecomputeSec
+	-- §15ч Ч3в: починенные мосты — сеть хозяина собрать заново (пару, что не нашла путь, — пробовать сразу).
+	for cell, d in rs.damaged do
+		if m.simTime >= d.repairAt then
+			rs.damaged[cell] = nil
+			rs.dirty[d.owner] = true
+			rs.changed[d.owner] = true
+			rs.version += 1
+		end
+	end
 	local ids: { number } = {}
 	for id, n in m.nations do
 		if n.alive then
@@ -6270,12 +7020,37 @@ local function stepRails(m: Match)
 		local net = rs.nets[id]
 		local ctx = MatchSim.railContext(m, id)
 		local sig = Rails.signature(stations, n.capital)
-		if net == nil or net.signature ~= sig or not Rails.allIntact(ctx, net) then
+		local intact = net == nil or Rails.allIntact(ctx, net)
+		-- §15ч Ч6: пара без пути (эсминец ушёл, землю вернули) — пробовать снова через Rail.RetryFailedSec.
+		local retry = false
+		if net ~= nil then
+			for _, t in net.failed do
+				if m.simTime - t >= Config.Rail.RetryFailedSec then
+					retry = true
+					break
+				end
+			end
+		end
+		if net == nil or net.signature ~= sig or not intact or rs.dirty[id] or retry then
 			if rebuilt >= Config.Rail.NationsPerStep then
 				rs.cursor = (rs.cursor + k - 1) % #ids -- отсюда — в следующий раз
 				break
 			end
 			rebuilt += 1
+			-- §15ч Ч3в: дорогу перерезали — где (первая непроходимая клетка) и мост ли это.
+			if net ~= nil and not intact then
+				local cut = MatchSim.railCutCell(ctx, net)
+				if cut ~= nil then
+					table.insert(
+						m.events,
+						{ kind = "railCut", nation = id, cell = cut, bridge = rs.damaged[cut] ~= nil }
+					)
+				end
+			end
+			if net ~= nil and rs.dirty[id] then
+				table.clear(net.failed)
+			end
+			rs.dirty[id] = nil
 			rs.nets[id] = if #stations > 0 then Rails.build(stations, n.capital, ctx, net) else Rails.empty()
 			rs.changed[id] = true
 			rs.version += 1
@@ -6285,6 +7060,49 @@ local function stepRails(m: Match)
 	if any then
 		railDerived(m)
 	end
+	stepJunctions(m)
+end
+
+-- §15ч Ч3в: у клетки cell (не дальше Rail.WarZoneCells) земля врага державы id в активной войне.
+function MatchSim.inWarZone(m: Match, id: number, cell: number): boolean
+	if #Wars.of(m.wars, id) == 0 then
+		return false
+	end
+	local g = m.grid
+	local w, h = g.width, g.height
+	local r = math.max(1, math.floor(Config.Rail.WarZoneCells * w / Config.UnitsReferenceMapWidth + 0.5))
+	local cx, cy = cell % w, cell // w
+	local seen: { [number]: boolean } = {}
+	for dy = -r, r do
+		local y = cy + dy
+		if y >= 0 and y < h then
+			for dx = -r, r do
+				local x = cx + dx
+				if x >= 0 and x < w then
+					local o = Grid.getOwner(g, y * w + x)
+					if o ~= 0 and o ~= id and seen[o] == nil then
+						seen[o] = true
+						if Wars.isActive(m.wars, id, o) then
+							return true
+						end
+					end
+				end
+			end
+		end
+	end
+	return false
+end
+
+-- §15ч Ч3в: первая непроходимая клетка на дорогах сети (где перерезали) или nil.
+function MatchSim.railCutCell(ctx: Rails.Context, net: Rails.Net): number?
+	for _, link in net.links do
+		for k = 2, #link.path - 1 do
+			if ctx.passable(link.path[k]) == nil then
+				return link.path[k]
+			end
+		end
+	end
+	return nil
 end
 
 -- Сообщение клиентам: full — все сети, иначе — сменившиеся с прошлого раза (и список сменившихся очищается).
@@ -6292,37 +7110,73 @@ function MatchSim.railsMessage(m: Match, full: boolean): { [string]: any }
 	local rs = m.rails
 	local w = m.grid.width
 	local nations: { [string]: any } = {}
-	local function encode(net: Rails.Net): { [string]: any }
-		local links: { { s: number, d: string } } = {}
+	local function encode(id: number, net: Rails.Net): { [string]: any }
+		local links: { { s: number, d: string, w: boolean?, o: boolean? } } = {}
 		for _, link in net.links do
 			local s, d = Rails.encode(link.path, w)
-			table.insert(links, { s = s, d = d })
+			-- w — водный путь (§15ч Ч4), o — морская линия (§15ч Ч6)
+			table.insert(
+				links,
+				{ s = s, d = d, w = if link.water then true else nil, o = if link.sea then true else nil }
+			)
 		end
 		local connected: { number } = {}
 		for cell in net.connected do
 			table.insert(connected, cell)
 		end
-		return { links = links, connected = connected }
+		-- §15ч Ч3б: стыки — дорога у меньшего номера (рисуется один раз), станции стыка — у обоих.
+		local junctions: { { cell: number, ally: number } } = {}
+		for _, j in MatchSim.junctionsOf(m, id) do
+			table.insert(junctions, { cell = j.mine, ally = j.ally })
+			local jn = rs.junctions[j.key]
+			if jn.a == id then
+				local s, d = Rails.encode(jn.path, w)
+				table.insert(links, { s = s, d = d, o = if jn.sea then true else nil })
+			end
+		end
+		return { links = links, connected = connected, junctions = junctions }
 	end
 	if full then
 		for id, net in rs.nets do
-			nations[tostring(id)] = encode(net)
+			nations[tostring(id)] = encode(id, net)
 		end
 		-- §15ч Ч2: поезда в пути — вошедшему в матч (дальше двигает сам по маршруту).
 		local trains: { { [string]: any } } = {}
 		for id, tr in rs.trains do
 			local s, d = Rails.encode(tr.cells, w)
-			table.insert(trains, { nation = tr.owner, id = id, s = s, d = d, start = tr.start, speed = tr.speed })
+			table.insert(
+				trains,
+				{ nation = tr.owner, id = id, s = s, d = d, start = tr.start, speed = tr.speed, ally = tr.ally }
+			)
 		end
-		return { kind = "rails", full = true, nations = nations, trains = trains, now = m.simTime }
+		return {
+			kind = "rails",
+			full = true,
+			nations = nations,
+			trains = trains,
+			now = m.simTime,
+			damaged = MatchSim.damagedBridges(m),
+		}
 	else
 		for id in rs.changed do
 			local net = rs.nets[id]
-			nations[tostring(id)] = if net ~= nil then encode(net) else false
+			nations[tostring(id)] = if net ~= nil then encode(id, net) else false
 		end
 		table.clear(rs.changed)
 	end
-	return { kind = "rails", full = full, nations = nations }
+	return { kind = "rails", full = full, nations = nations, damaged = MatchSim.damagedBridges(m) }
+end
+
+-- §15ч Ч3в: разрушенные мосты для клиента: { cell, left — секунд игрового времени до ремонта }, по клеткам.
+function MatchSim.damagedBridges(m: Match): { { cell: number, left: number, owner: number } }
+	local out: { { cell: number, left: number, owner: number } } = {}
+	for cell, d in m.rails.damaged do
+		table.insert(out, { cell = cell, left = math.max(0, d.repairAt - m.simTime), owner = d.owner })
+	end
+	table.sort(out, function(a, b): boolean
+		return a.cell < b.cell
+	end)
+	return out
 end
 
 -- Станция державы id — в её главной сети (дорога до столицы).
@@ -6416,6 +7270,316 @@ local function stepStability(m: Match)
 		})
 	end
 	table.clear(m.stability.warnings)
+end
+
+-- §15й Й1 Задачи матча --------------------------------------------------------------------------------------------
+
+-- Счётчик здания вида kind в Buildings.Owned (для задачи «Стройка»).
+local function ownedCount(owned: Buildings.Owned, kind: string): number
+	if kind == "Barracks" then
+		return owned.barracks
+	elseif kind == "Factory" then
+		return owned.factories
+	elseif kind == "Housing" then
+		return owned.housing
+	end
+	return 0
+end
+
+-- Сколько клеток врага enemy сейчас удерживает id в активной войне (nil — активной войны нет).
+local function takenFrom(m: Match, id: number, enemy: number): number?
+	for _, war in Wars.of(m.wars, id) do
+		if war.state == "active" and (war.a == enemy or war.b == enemy) then
+			local byA, byB = Wars.takenCells(war, m.grid)
+			return if war.a == id then byA else byB
+		end
+	end
+	return nil
+end
+
+-- Что держава может сделать сейчас — для выбора задачи (MatchTasks.Facts).
+function MatchSim.taskFacts(m: Match, id: number): MatchTasks.Facts
+	local g = m.grid
+	local w = g.width
+	local n = m.nations[id]
+	local from = if n ~= nil and n.capital ~= nil then n.capital else 0
+	-- Города в своей или соседней со своей землёй провинции, которые можно взять: ничьи и врагов в войне.
+	local cities: { { cell: number, owner: number, d: number } } = {}
+	for province, cell in m.cityOf do
+		local owner = Grid.getOwner(g, cell)
+		if owner ~= id and (owner == 0 or Wars.isActive(m.wars, id, owner)) then
+			local p = m.provinces.list[province]
+			local near = p ~= nil and Grid.provinceCells(g, province, id) > 0
+			if p ~= nil and not near then
+				for _, q in p.neighbours do
+					if Grid.provinceCells(g, q, id) > 0 then
+						near = true
+						break
+					end
+				end
+			end
+			if near then
+				local dx, dy = cell % w - from % w, cell // w - from // w
+				table.insert(cities, { cell = cell, owner = owner, d = dx * dx + dy * dy })
+			end
+		end
+	end
+	table.sort(cities, function(a, b)
+		return a.d < b.d or (a.d == b.d and a.cell < b.cell)
+	end)
+	local list: { { cell: number, owner: number } } = {}
+	for _, c in cities do
+		table.insert(list, { cell = c.cell, owner = c.owner })
+	end
+	local owned = MatchSim.ownedOf(m, id)
+	local missing: { string } = {}
+	for _, kind in Config.Tasks.Build.Order do
+		if ownedCount(owned, kind) == 0 and not MatchSim.hasSiteOf(m, id, kind) then
+			table.insert(missing, kind)
+		end
+	end
+	local enemies: { { id: number, taken: number } } = {}
+	for _, war in Wars.of(m.wars, id) do
+		if war.state == "active" then
+			local enemy = if war.a == id then war.b else war.a
+			local e = m.nations[enemy]
+			if e ~= nil and e.alive then
+				table.insert(enemies, { id = enemy, taken = takenFrom(m, id, enemy) or 0 })
+			end
+		end
+	end
+	local e = m.economy[id]
+	return {
+		now = m.simTime,
+		cells = Grid.cellsOf(g, id),
+		totalLand = g.capturableCount,
+		neutralNear = (Grid.adjacentOwners(g, id)[0] or 0) > 0,
+		cities = list,
+		missing = missing,
+		enemies = enemies,
+		income = if e ~= nil then e.income else 0,
+	}
+end
+
+-- Прогресс задачи; false — задача стала невозможной (город ушёл другу, война кончилась).
+local function taskProgress(m: Match, id: number, task: MatchTasks.Task): boolean
+	local g = m.grid
+	if task.kind == "City" then
+		local owner = Grid.getOwner(g, task.cell)
+		task.have = if owner == id then 1 else 0
+		return owner == id or owner == 0 or owner == task.target or Wars.isActive(m.wars, id, owner)
+	elseif task.kind == "Land" then
+		task.have = Grid.cellsOf(g, id)
+	elseif task.kind == "Build" then
+		task.have = if ownedCount(MatchSim.ownedOf(m, id), task.building) > 0 then 1 else 0
+	elseif task.kind == "Front" then
+		local taken = takenFrom(m, id, task.target)
+		if taken == nil then
+			return task.have >= task.need
+		end
+		task.have = math.max(0, taken - task.base)
+	end
+	return true
+end
+
+-- Закрыть задачу: награда и события.
+local function closeTask(m: Match, n: Nation, st: MatchTasks.State, task: MatchTasks.Task, done: boolean)
+	MatchTasks.finish(st, done, m.simTime)
+	if done then
+		n.money += task.reward
+		local cell = if task.kind == "City" then task.cell else (n.capital or 0)
+		table.insert(m.events, {
+			kind = "taskDone",
+			nation = n.id,
+			id = task.id,
+			task = task.kind,
+			reward = task.reward,
+			streak = st.streak,
+			cell = cell,
+		})
+	else
+		table.insert(m.events, { kind = "taskFailed", nation = n.id, id = task.id, task = task.kind })
+	end
+end
+
+-- Раз в Tasks.CheckSec: прогресс, итоги и новые задачи игрокам-людям (не в «Обучении»).
+local function stepTasks(m: Match)
+	if m.rules.tutorial or m.simTime < m.taskCheckAt then
+		return
+	end
+	m.taskCheckAt = m.simTime + Config.Tasks.CheckSec
+	for _, n in m.nations do
+		if not n.alive then
+			-- Павшей державе задача больше не нужна: снимаем без итога (карточка у клиента пропадёт).
+			local st = m.tasks[n.id]
+			if st ~= nil then
+				st.task = nil
+			end
+		elseif not n.isBot then
+			local st = m.tasks[n.id]
+			if st == nil then
+				st = MatchTasks.new()
+				m.tasks[n.id] = st
+			end
+			local task = st.task
+			if task ~= nil then
+				local possible = taskProgress(m, n.id, task)
+				local outcome = MatchTasks.status(task, m.simTime)
+				if outcome == "done" then
+					closeTask(m, n, st, task, true)
+				elseif outcome == "failed" or not possible then
+					closeTask(m, n, st, task, false)
+				end
+			else
+				local fresh = MatchTasks.choose(st, MatchSim.taskFacts(m, n.id), m.taskRng)
+				if fresh ~= nil then
+					taskProgress(m, n.id, fresh)
+					table.insert(m.events, {
+						kind = "taskNew",
+						nation = n.id,
+						id = fresh.id,
+						task = fresh.kind,
+						cell = fresh.cell,
+						target = fresh.target,
+					})
+				end
+			end
+		end
+	end
+end
+
+-- F4 и тесты: выдать новую задачу сейчас (прежняя уходит без итога).
+function MatchSim.newTask(m: Match, id: number)
+	local st = m.tasks[id] or MatchTasks.new()
+	m.tasks[id] = st
+	st.task = nil
+	st.nextAt = 0
+	m.taskCheckAt = 0
+end
+
+-- F4 и тесты: засчитать текущую задачу (проверка — на следующем шаге).
+function MatchSim.completeTask(m: Match, id: number): boolean
+	local st = m.tasks[id]
+	local task = if st ~= nil then st.task else nil
+	if task == nil then
+		return false
+	end
+	task.need = 0
+	m.taskCheckAt = 0
+	return true
+end
+
+-- §15й Й2 Трофеи ------------------------------------------------------------------------------------------------
+
+-- Сколько денег приносит город: доля денег жертвы (share), не меньше floor и не больше Trophy.Max.
+function MatchSim.trophyAmount(victimMoney: number, share: number, floor: number): number
+	return math.floor(math.clamp(math.max(0, victimMoney) * share, floor, Config.Trophy.Max))
+end
+
+-- Города, сменившие хозяина: взят у державы, с которой идёт война, — трофей; столица — ещё и «Триумф».
+local function stepTrophies(m: Match)
+	local g = m.grid
+	local cfg = Config.Trophy
+	for _, cell in m.cityOf do
+		local owner = Grid.getOwner(g, cell)
+		local prev = m.cityOwner[cell]
+		m.cityOwner[cell] = owner
+		if prev ~= nil and prev ~= owner and owner ~= 0 then
+			m.citiesTaken[owner] = (m.citiesTaken[owner] or 0) + 1 -- §15й Й5: и ничьи, и вражеские
+		end
+		if
+			m.trophyOff
+			or prev == nil
+			or prev == owner
+			or prev == 0
+			or owner == 0
+			or not Wars.isActive(m.wars, owner, prev)
+		then
+			continue
+		end
+		local captor, victim = m.nations[owner], m.nations[prev]
+		if captor == nil or victim == nil then
+			continue
+		end
+		local capital = victim.capital == cell
+		local level = Buildings.cityLevel(m.buildings, cell)
+		local amount = if capital
+			then MatchSim.trophyAmount(victim.money, cfg.CapitalShare, cfg.CapitalMin)
+			else MatchSim.trophyAmount(victim.money, cfg.CityShare * level, cfg.MinPerLevel * level)
+		victim.money = math.max(0, victim.money - amount) -- чего у жертвы нет — «трофейная казна»
+		captor.money += amount
+		m.trophyMoney[owner] = (m.trophyMoney[owner] or 0) + amount
+		local triumph = 0
+		if capital then
+			triumph = cfg.TriumphSec
+			m.triumphUntil[owner] = m.simTime + cfg.TriumphSec
+		end
+		table.insert(m.events, {
+			kind = "trophy",
+			nation = owner,
+			target = prev,
+			cell = cell,
+			amount = amount,
+			capital = capital,
+			triumph = triumph,
+		})
+	end
+end
+
+-- §15й Й3 Финал ------------------------------------------------------------------------------------------------
+
+-- Блок ближе всех к победе: глава (не вассал) и суша блока (держава, союзники и их вассалы) — как в checkVictory.
+function MatchSim.leaderBloc(m: Match): (number, number)
+	local ds = m.diplo
+	local best, bestLand = 0, -1
+	for _, n in m.nations do
+		if n.alive and Diplomacy.overlordOf(ds, n.id) == nil then
+			local land = MatchSim.victoryLandOf(m, n.id)
+			for _, ally in Diplomacy.alliesOf(ds, n.id) do
+				land += MatchSim.victoryLandOf(m, ally)
+			end
+			if
+				land > bestLand
+				or (land == bestLand and MatchSim.victoryLandOf(m, n.id) > MatchSim.victoryLandOf(m, best))
+			then
+				best, bestLand = n.id, land
+			end
+		end
+	end
+	return best, math.max(0, bestLand)
+end
+
+-- Раз в Finale.CheckSec: финал «лидер близко» — блок лидера для «Все против лидера» (иначе nil).
+local function stepFinale(m: Match)
+	if m.simTime < m.finaleCheckAt then
+		return
+	end
+	m.finaleCheckAt = m.simTime + Config.Finale.CheckSec
+	local leader, land = MatchSim.leaderBloc(m)
+	local limit = m.rules.timeLimitSec
+	local st = Finale.state({
+		victoryShare = m.rules.victoryShare,
+		leaderShare = land / math.max(1, m.grid.capturableCount),
+		timeLeft = if limit > 0 then limit - m.time else nil,
+		nearAllowed = Finale.nearAllowed(m.rules) and m.teamCount == 0,
+	}, m.finaleNear)
+	m.finaleNear = st.reason == "near"
+	if not m.finaleNear or leader == 0 or m.finaleOff then
+		m.finaleBloc = nil
+		return
+	end
+	local bloc: { [number]: boolean } = {}
+	local heads = { leader }
+	for _, ally in Diplomacy.alliesOf(m.diplo, leader) do
+		table.insert(heads, ally)
+	end
+	for _, id in heads do
+		bloc[id] = true
+		for _, v in Diplomacy.vassalsOf(m.diplo, id) do
+			bloc[v] = true
+		end
+	end
+	m.finaleBloc = bloc
 end
 
 -- Точка графика доли суши (раз в HistoryEverySec секунд матча).
@@ -6521,6 +7685,31 @@ local function finishMatch(m: Match, winner: number, reason: Types.VictoryReason
 	-- Голосование за карту — в лобби следующего матча (§15к), здесь — только итоги.
 	m.infoDirty = true
 	table.insert(m.events, { kind = "victory", nation = winner, reason = reason })
+end
+
+-- §15й Й5: закончить матч сейчас «по времени» — у кого больше суши (блок лидера), как в checkVictory.
+function MatchSim.finishByTime(m: Match)
+	local leader = MatchSim.leaderBloc(m)
+	finishMatch(m, leader, "time", Diplomacy.alliesOf(m.diplo, leader))
+end
+
+-- §15й Й5: счётчики матча державы — взято городов, деньги трофеев, выполнено задач, пик доли суши (%).
+export type MatchStats = { cities: number, trophies: number, tasks: number, peak: number }
+function MatchSim.matchStats(m: Match, id: number): MatchStats
+	-- Пик — с точностью до десятых: «0.1%», а не «0%» у маленькой державы (точки графика — целые проценты).
+	local peak = Grid.cellsOf(m.grid, id) / math.max(1, m.grid.capturableCount) * 100
+	local shares: { number } = m.history.shares[id] or {}
+	for _, share in shares do
+		peak = math.max(peak, share)
+	end
+	peak = math.floor(peak * 10 + 0.5) / 10
+	local st = m.tasks[id]
+	return {
+		cities = m.citiesTaken[id] or 0,
+		trophies = math.floor(m.trophyMoney[id] or 0),
+		tasks = if st ~= nil then st.done else 0,
+		peak = peak,
+	}
 end
 
 -- «Охота на столицы» (§5.1): сколько исходных столиц врагов держит каждая живая держава; кто держит
@@ -6767,9 +7956,13 @@ function MatchSim.step(m: Match, dt: number)
 	m.lastCaptured = stepAttacks(m, simDt)
 	stepPockets(m)
 	stepCaptures(m) -- захват здания: −1 уровень (§15д ч.3)
+	stepTrophies(m) -- §15й Й2: трофеи за города и «Триумф» (до проверки столиц — столица ещё прежняя)
+	stepSites(m) -- §15ч Ч5а: стройки
 	stepRails(m) -- §15ч Ч1: железные дороги
 	stepTrains(m, simDt) -- §15ч Ч2: поезда и грузы
 	stepStability(m)
+	stepTasks(m) -- §15й Й1: задачи матча
+	stepFinale(m) -- §15й Й3: финал и «Все против лидера»
 
 	-- Столицы и выбывание: держава живёт, пока у неё есть хоть один город.
 	for _, n in m.nations do

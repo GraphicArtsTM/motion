@@ -273,6 +273,7 @@ T.describe("Ракетная шахта", function()
 			Tech.grant(m.tech, 1, "Army", 4)
 			T.expect((MatchSim.applyIntent(m, 1, { kind = "build", building = "MissileSilo", cell = p.center })))
 				.toBe(true)
+			MatchSim.finishSites(m) -- §15ч Ч5а
 			T.expect(MatchSim.ownedOf(m, 1).silos).toBe(1)
 			T.expect(select(2, MatchSim.applyIntent(m, 1, { kind = "missile", cell = target }))).toBe("notAtWar")
 			DevTools.warNow(m, 1, 2)

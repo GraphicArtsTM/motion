@@ -1,8 +1,9 @@
 --!strict
 --[[
-	Генерация звуков и музыки (этап 10б): lune run tools/sfx_gen [имя]
-	Пишет assets/audio/sfx/<Имя>.wav (Config.Sounds) и assets/audio/music/<Имя>.wav (Config.Music) —
-	их загружают в Roblox (Creator Hub → Audio) и вписывают id в Config. Имя — только этот звук или мелодию.
+	Генерация звуков (этап 10б): lune run tools/sfx_gen [имя]
+	Пишет assets/audio/sfx/<Имя>.wav (Config.Sounds) — их загружают в Roblox и вписывают id в Config.
+	Музыка с правки звука (18.11.2026) — настоящие треки assets/audio/music/<Имя>.mp3 (Config.Music); старые
+	синтезированные мелодии пишутся только по имени: lune run tools/sfx_gen song:Finale → build/music/Finale.wav.
 	Звуки описаны в tools/lib/SoundBank.luau, синтезатор — tools/lib/Synth.luau.
 ]]
 
@@ -13,7 +14,7 @@ local SoundBank = require("./lib/SoundBank")
 local Synth = require("./lib/Synth")
 
 local only = process.args[1]
-local dirs = { "assets", "assets/audio", "assets/audio/sfx", "assets/audio/music" }
+local dirs = { "assets", "assets/audio", "assets/audio/sfx", "build", "build/music" }
 for _, d in dirs do
 	if not fs.isDir(d) then
 		fs.writeDir(d)
@@ -41,10 +42,10 @@ for name in SoundBank.Songs do
 end
 table.sort(songs)
 for _, name in songs do
-	if only == nil or only == name then
+	if only == "song:" .. name then
 		local samples = SoundBank.song(SoundBank.Songs[name])
 		local file = Synth.wav(samples, SoundBank.MusicRate)
-		fs.writeFile("assets/audio/music/" .. name .. ".wav", buffer.tostring(file))
+		fs.writeFile("build/music/" .. name .. ".wav", buffer.tostring(file))
 		total += buffer.len(file)
 		print(
 			string.format(

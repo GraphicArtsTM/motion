@@ -12,6 +12,7 @@
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
@@ -20,6 +21,7 @@ local Config = require(Shared:WaitForChild("Config"))
 local DiploMain = require(Shared:WaitForChild("DiploMain"))
 local MapData = require(Shared:WaitForChild("MapData"))
 local NationColors = require(Shared:WaitForChild("NationColors"))
+local OfferQueue = require(Shared:WaitForChild("OfferQueue"))
 local Provinces = require(Shared:WaitForChild("Provinces"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
@@ -39,6 +41,9 @@ export type DiplomacyPanel = {
 	-- Самопроверка (сводная правка, часть 1): открыть/закрыть окно и узнать, открыто ли.
 	toggle: () -> (),
 	isOpen: () -> boolean,
+	-- §15й Й7: из окна державы — открыть дипломатию на этой державе / потребовать у неё провинцию (нажатие на карту).
+	openFor: (target: number) -> (),
+	demand: (target: number) -> (),
 }
 
 local DiplomacyPanel = {}
@@ -255,6 +260,11 @@ function DiplomacyPanel.new(
 	cols.BackgroundTransparency = 1
 	cols.Size = UDim2.new(1, 0, 0, 500) -- §15ц Ц4б: ниже — главная кнопка
 	cols.Parent = page
+	-- §15ё Ё2: на телефоне столбцы — во всю высоту страницы (без двойной прокрутки страницы и списка).
+	win.onFit(function()
+		local h = if win.isPhone() then math.max(200, win.pageHeight() - 64) else 500
+		cols.Size = UDim2.new(1, 0, 0, h)
+	end)
 	local list = Instance.new("ScrollingFrame")
 	list.Name = "Nations"
 	list.BackgroundTransparency = 1
@@ -399,6 +409,17 @@ function DiplomacyPanel.new(
 	-- Разведка (§6.11а): мощь цели видна Intel.DurationSec; цена и проверки — на сервере.
 	local intelButton = act("intel", function()
 		if selected ~= nil and playing() then
+			-- §15э Э1б: разведка в блоке — замок и причина вместо отказа сервера.
+			local open, level = ClientState.unitOpen(cs, "Intel")
+			if not open then
+				toast(string.format(t("diplo.intelLocked"), level or Config.Unlocks.Items.Intel.level))
+				return
+			end
+			local wait = ClientState.intelLeft(cs, os.clock()) / math.max(cs.speed, 1e-6) -- секунды матча
+			if wait > 0 then
+				toast(string.format(t("diplo.intelWait"), math.ceil(wait)))
+				return
+			end
 			send("intel", { target = selected })
 		end
 	end, warGroup)
@@ -722,6 +743,19 @@ function DiplomacyPanel.new(
 		end
 		-- Разведывать есть смысл, только пока мощь скрыта.
 		intelButton.Visible = valid and target ~= nil and powerOf(target) < 0
+		local intelOpen, intelLevel = ClientState.unitOpen(cs, "Intel") -- §15э Э1б
+		local intelWait = ClientState.intelLeft(cs, os.clock()) / math.max(cs.speed, 1e-6)
+		intelButton.Text = if intelOpen and intelWait > 0
+			then string.format(Strings.get("diplo.act.intelWait", lang), math.ceil(intelWait))
+			elseif intelOpen then string.format(
+				Strings.get("diplo.act.intel", lang),
+				Strings.formatInt(Config.Intel.Cost),
+				Config.Intel.DurationSec
+			)
+			else string.format(
+				Strings.get("diplo.act.intelLocked", lang),
+				intelLevel or Config.Unlocks.Items.Intel.level
+			)
 		if valid and me ~= nil and target ~= nil then
 			embargoButton.Text = Strings.get(
 				if ClientState.embargoBy(cs, me, target) then "diplo.act.unembargo" else "diplo.act.embargo",
@@ -786,42 +820,47 @@ function DiplomacyPanel.new(
 		historyText.Text = table.concat(lines, "\n")
 	end
 
-	-- Входящее предложение или требование.
+	-- Входящее предложение или требование. §15й Й6: справа в столбике (Main ставит рамку в TopRight), по одному —
+	-- самое срочное, «ещё N», полоса таймера (OfferQueue).
 	local popup = frame(gui, "DiplomacyOffer")
-	popup.AnchorPoint = Vector2.new(0.5, 0)
-	popup.Position = UDim2.new(0.5, 0, 0, 300)
-	popup.Size = UDim2.fromOffset(380, 0)
+	popup.Size = UDim2.fromOffset(360, 0)
 	popup.AutomaticSize = Enum.AutomaticSize.Y
-	popup.ZIndex = 6
+	popup.ZIndex = 1 -- как соседи по столбику: с ZIndex выше содержимое (z1) рисовалось бы под фоном (ZIndex Global)
+	local popupPop = Instance.new("UIScale")
+	popupPop.Parent = popup
 	local popupText = label(popup, 15, 1)
 	local popupLeft = label(popup, 12, 2)
 	popupLeft.TextColor3 = Theme.Colors.Muted
-	local popupRow = row(popup, 3)
+	local timerHost = Instance.new("Frame")
+	timerHost.BackgroundTransparency = 1
+	timerHost.Size = UDim2.new(1, 0, 0, 6)
+	timerHost.LayoutOrder = 3
+	timerHost.Parent = popup
+	local timerBar = MenuKit.bar(timerHost, 6, Theme.Colors.Gold)
+	local popupRow = row(popup, 4)
 	local acceptButton = button(popupRow, Strings.get("diplo.accept", lang), 170)
 	acceptButton.TextColor3 = Theme.Colors.Sky
 	local refuseButton = button(popupRow, Strings.get("diplo.refuse", lang), 170)
 	refuseButton.TextColor3 = Theme.Colors.Alert
-	local popupFrom: number? = nil
+	local moreLabel = label(popup, 12, 5)
+	moreLabel.TextColor3 = Theme.Colors.Muted
+	local popupKey: string? = nil
 	local answered: { [string]: boolean } = {} -- уже ответили (ждём, пока сервер уберёт предложение)
+	local totals: { [string]: number } = {} -- сколько было времени, когда предложение пришло (полоса таймера)
 
-	local function offerKey(o: ClientState.DiploOffer): string
-		return string.format("%d:%d:%s", o.from, o.to, o.kind)
+	local function leftOf(o: OfferQueue.Offer): number
+		return ClientState.diploLeft(cs, o.left, now, ClientState.simRate(cs))
+	end
+	local function pendingOffers(): { ClientState.DiploOffer }
+		return OfferQueue.pending(cs.diplo.offers :: any, cs.myNation, answered, leftOf :: any) :: any
 	end
 	local function currentOffer(): ClientState.DiploOffer?
-		local me = cs.myNation
-		for _, o in cs.diplo.offers do
-			if o.to == me and not answered[offerKey(o)] then
-				if ClientState.diploLeft(cs, o.left, now, ClientState.simRate(cs)) > 0 then
-					return o
-				end
-			end
-		end
-		return nil
+		return pendingOffers()[1]
 	end
 	local function reply(accept: boolean)
 		local o = currentOffer()
 		if o ~= nil then
-			answered[offerKey(o)] = true
+			answered[OfferQueue.key(o :: any)] = true
 			send("offerReply", { target = o.from, accept = accept })
 		end
 		popup.Visible = false
@@ -834,14 +873,24 @@ function DiplomacyPanel.new(
 	end)
 
 	local function drawPopup()
-		local o = if playing() then currentOffer() else nil
+		local list = if playing() then pendingOffers() else {}
+		local o = list[1]
 		if o == nil then
 			popup.Visible = false
-			popupFrom = nil
+			popupKey = nil
 			return
 		end
-		if popupFrom ~= o.from then
-			popupFrom = o.from
+		local key = OfferQueue.key(o :: any)
+		local left = leftOf(o :: any)
+		if totals[key] == nil then
+			totals[key] = left
+		end
+		if popupKey ~= key then
+			popupKey = key
+			popupPop.Scale = 0.85
+			TweenService:Create(popupPop, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+				Scale = 1,
+			}):Play()
 			if o.kind == "demand" then
 				local p = if o.province ~= nil then provinces.list[o.province] else nil
 				local pname = if p ~= nil then (if lang == "en" then p.nameEn else p.name) else "?"
@@ -852,10 +901,14 @@ function DiplomacyPanel.new(
 				acceptButton.Text = Strings.get("diplo.accept", lang)
 			end
 		end
-		popupLeft.Text = string.format(
-			Strings.get("diplo.offer.left", lang),
-			math.ceil(ClientState.diploLeft(cs, o.left, now, ClientState.simRate(cs)) / cs.speed)
-		)
+		local secLeft = left / math.max(cs.speed, 1e-3)
+		popupLeft.Text = string.format(Strings.get("diplo.offer.left", lang), math.ceil(secLeft))
+		timerBar.set(OfferQueue.share(left, totals[key]))
+		timerBar.fill.BackgroundColor3 = if secLeft <= Config.Render.Offers.UrgentSec
+			then Theme.Colors.Alert
+			else Theme.Colors.Gold
+		moreLabel.Visible = #list > 1
+		moreLabel.Text = string.format(Strings.get("diplo.offer.more", lang), #list - 1)
 		popup.Visible = true
 	end
 
@@ -894,11 +947,16 @@ function DiplomacyPanel.new(
 		-- Новые предложения сервер присылает заново — старые отметки об ответе больше не нужны.
 		local live: { [string]: boolean } = {}
 		for _, o in cs.diplo.offers do
-			live[offerKey(o)] = true
+			live[OfferQueue.key(o :: any)] = true
 		end
 		for key in answered do
 			if not live[key] then
 				answered[key] = nil
+			end
+		end
+		for key in totals do
+			if not live[key] then
+				totals[key] = nil
 			end
 		end
 		if window.Visible then
@@ -949,6 +1007,17 @@ function DiplomacyPanel.new(
 		end,
 		isOpen = function(): boolean
 			return window.Visible
+		end,
+		openFor = function(target: number)
+			selected = target
+			setOpen(true)
+		end,
+		demand = function(target: number)
+			if playing() then
+				demandTarget = target
+				window.Visible = false
+				toast(string.format(t("diplo.demandHint"), nameOf(target)))
+			end
 		end,
 	}
 end

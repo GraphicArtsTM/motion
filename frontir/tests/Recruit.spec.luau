@@ -98,6 +98,11 @@ T.describe("Найм (правка перед 7в-2)", function()
 			local function hiredWith(count: number): (number, number)
 				local m = duo()
 				MatchSim.setBot(m, 2, "General", "Peaceful") -- «в мире»: §15з мобилизация 5 с — Агрессор успевал воевать и терять войска
+				-- Бот не строит (§15ч Ч5а: свои стройки меняли бы число линий по ходу) — сравниваем только линии найма.
+				local profile = m.botProfiles[2]
+				local level = table.clone(profile.level)
+				level.buildChance = 0
+				profile.level = level
 				barracks(m, 2, count)
 				local n = m.nations[2]
 				n.money = 500000
@@ -110,9 +115,10 @@ T.describe("Найм (правка перед 7в-2)", function()
 			end
 			local single = hiredWith(0)
 			local hired, money = hiredWith(3)
-			-- Одна линия (как было) — около 26 юнитов за минуту; с тремя заводами (4 линии) — в 1.5+ раза больше.
+			-- Одна линия — около 17 юнитов за минуту; с тремя казармами (4 линии) — в 1.5+ раза больше (бот не строит:
+			-- раньше порог 40 юнитов включал казармы, которые бот ставил себе сам, — §15ч Ч5а).
 			T.expect(hired >= 1.5 * single).toBe(true)
-			T.expect(hired >= 40 * Forces.stats(INF).strength).toBe(true)
+			T.expect(hired >= 30 * Forces.stats(INF).strength).toBe(true)
 			T.expect(money < 500000).toBe(true) -- тратит больше, чем зарабатывает
 		end
 	)

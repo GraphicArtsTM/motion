@@ -93,6 +93,13 @@ T.describe("Зрелищность (§15х ч.9)", function()
 			end
 			local fw = SpectacleFx.fireworks(10, 10, 1, 3, 12)
 			T.expect(count(fw, "spark")).toBe(36)
+			-- §15й: салют задачи на общем плане — крупнее во столько раз (искры дальше и больше)
+			local big = SpectacleFx.fireworks(10, 10, 1, 1, 12, 3)
+			local small = SpectacleFx.fireworks(10, 10, 1, 1, 12)
+			T.expect(count(big, "spark")).toBe(12)
+			T.expect(math.abs(big[2].dx) + math.abs(big[2].dy) > math.abs(small[2].dx) + math.abs(small[2].dy))
+				.toBe(true)
+			T.expect(big[2].s0 > small[2].s0).toBe(true)
 		end
 	)
 

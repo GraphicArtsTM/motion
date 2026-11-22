@@ -140,6 +140,10 @@ T.describe("Здания", function()
 			T.expect((MatchSim.applyIntent(m, 1, { kind = "build", building = "Factory", cell = cell }))).toBe(true)
 			T.expect(me.money).toBe(money - Config.Buildings.Factory.cost)
 			T.expect(m.buildings.byCell[cell].kind).toBe("Factory")
+			-- §15ч Ч5а: пока леса — не работает; достроили — работает.
+			T.expect(MatchSim.ownedOf(m, 1).factories).toBe(0)
+			T.expect(MatchSim.isDisabled(m, cell)).toBe(true)
+			MatchSim.finishSites(m)
 			T.expect(MatchSim.ownedOf(m, 1).factories).toBe(1)
 			-- §15д: в провинции можно и второе здание; следующее того же типа дороже на CostStep, нажатие на своё —
 			-- улучшение (ур. 2), до maxLevel.
@@ -159,6 +163,14 @@ T.describe("Здания", function()
 			local cap = me.capital :: number
 			T.expect(select(2, MatchSim.checkBuild(m, 1, "Housing", cap + 1))).toBe("tooClose")
 			T.expect(select(2, MatchSim.checkBuild(m, 1, "Housing", 0))).toBe("notOwner")
+			-- §15ы: «призрак» знает, кто мешает: у столицы — сама столица; у завода (MinGap − 1 клеток ниже) — завод.
+			local isCity = function(c: number): boolean
+				return Grid.isCity(m.grid, c)
+			end
+			T.expect(Buildings.blocker(m.buildings, m.map, isCity, cap + 1, "tooClose")).toBe(cap)
+			local below = cell + (Config.Build.MinGap - 1) * m.map.width
+			T.expect(Buildings.blocker(m.buildings, m.map, isCity, below, "tooClose")).toBe(cell)
+			T.expect(Buildings.blocker(m.buildings, m.map, isCity, below, "notOwner")).toBe(nil)
 			-- Чужая провинция — нельзя.
 			for _, q in m.provinces.list do
 				local o = Grid.getOwner(m.grid, q.center)
@@ -180,6 +192,7 @@ T.describe("Здания", function()
 					break
 				end
 			end
+			MatchSim.finishSites(m) -- §15ч Ч5а: вышка достроена
 			MatchSim.step(m, DT)
 			T.expect(m.economy[1].oilIncome).toBe(Config.Oil.PerRigPerSec)
 			-- Провинция сменила владельца — здание у нового.

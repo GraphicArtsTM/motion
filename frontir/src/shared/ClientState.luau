@@ -197,6 +197,30 @@ export type CommanderMessage = {
 	left: { number },
 	surge: number,
 	reveal: number,
+	triumph: number, -- §15й Й2: секунд «Триумфа» (игровых)
+}
+
+-- §15й Й1: задача матча игрока (left — игровые секунды до конца; nextIn — до новой, если задачи нет).
+export type TaskInfo = {
+	id: number,
+	kind: string, -- "City" | "Land" | "Build" | "Front"
+	cell: number,
+	target: number,
+	building: string,
+	need: number,
+	have: number,
+	base: number,
+	left: number,
+	total: number,
+	reward: number,
+}
+export type TaskMessage = {
+	kind: "task",
+	task: TaskInfo?,
+	streak: number,
+	nextIn: number,
+	land: number, -- вся захватываемая суша карты (для «до N% суши»)
+	stats: { cities: number, trophies: number, tasks: number, peak: number }?, -- §15й Й5: счётчики матча
 }
 
 -- Мир (§6.16, §6.9, этап 7г): шторм, аукцион наёмников, ракеты в полёте, новые нефтяные поля, своя шахта.
@@ -209,11 +233,16 @@ export type WorldMessage = {
 	oilExtra: { number },
 	silo: boolean, -- у меня есть работающая шахта
 	missileLeft: number, -- до готовности пуска
+	intelLeft: number?, -- §15э Э1б: до следующей разведки (секунды игры)
 	batteries: { { cell: number, ready: number, max: number } }?, -- заряды батарей ПВО (§15д ч.3, видны всем)
 	fallout: { { cell: number, radius: number, left: number } }?, -- заражённые зоны (§15ж)
 	doom: DoomInfo?, -- «часы судного дня» (§15з)
 	pockets: { PocketInfo }?, -- котлы (§15х ч.8)
+	sites: { SiteInfo }?, -- §15ч Ч5а: стройки
 }
+
+-- §15ч Ч5а: стройка — клетка, секунд игры до готовности (на момент cs.worldAt) и всего.
+export type SiteInfo = { cell: number, left: number, total: number }
 
 -- Котёл (§15х ч.8): чей, клетка в нём (от неё клиент находит кусок), клеток, секунд до сдачи (-1 — не сдаётся).
 export type PocketInfo = { owner: number, cell: number, cells: number, left: number }
@@ -232,8 +261,25 @@ export type ApplyResult = "snapshot" | "delta" | "stats" | "forces" | "wars" | "
 
 -- §15ч Ч1: железные дороги. cells — клетка дороги → 1 / 2 (рельсы, шпала через клетку) или 3 (мост);
 -- nets — по державам: пути и станции главной сети (со столицей).
-export type RailNet = { paths: { { number } }, connected: { [number]: boolean } }
-export type RailsState = { nets: { [number]: RailNet }, cells: { [number]: number }, owner: { [number]: number } }
+-- junctions — §15ч Ч3б: станция стыка → союзник.
+-- water — §15ч Ч4: номера путей в paths, которые идут по реке (водные пути); sea — §15ч Ч6: морские линии.
+export type RailNet = {
+	paths: { { number } },
+	water: { [number]: boolean },
+	sea: { [number]: boolean },
+	connected: { [number]: boolean },
+	junctions: { [number]: number },
+}
+-- damaged — §15ч Ч3в: разрушенные мосты, клетка → когда починят (время матча, ClientState.matchTime).
+export type RailsState = {
+	nets: { [number]: RailNet },
+	cells: { [number]: number },
+	owner: { [number]: number },
+	damaged: { [number]: number },
+	damagedOwner: { [number]: number }, -- §15ч Ч5б: чей мост разрушен
+	waterway: { [number]: number }, -- §15ч Ч4: клетка реки на водном пути → держава
+	seaway: { [number]: number }, -- §15ч Ч6: клетка моря на морской линии → держава
+}
 
 export type ClientState = {
 	width: number,
@@ -275,6 +321,8 @@ export type ClientState = {
 	tech: TechMessage, -- свои технологии (§6.14)
 	commander: CommanderMessage, -- свой генерал и способности (§6.15)
 	commanderAt: number, -- когда пришло commander (часы клиента; для обратных отсчётов)
+	task: TaskMessage?, -- §15й Й1: задача матча (nil — ещё не приходила)
+	taskAt: number,
 	world: WorldMessage, -- события и ракеты (§6.16, §6.9)
 	worldAt: number,
 	mode: ModeInfo, -- режим (§5.1)
@@ -398,7 +446,7 @@ function ClientState.new(width: number, height: number): ClientState
 		myForces = nil,
 		wars = { wars = {}, cooldowns = {} },
 		buildings = {},
-		rails = { nets = {}, cells = {}, owner = {} },
+		rails = { nets = {}, cells = {}, owner = {}, damaged = {}, damagedOwner = {}, waterway = {}, seaway = {} },
 		matchId = 0,
 		targetNations = 0,
 		timeLimit = 0,
@@ -434,6 +482,8 @@ function ClientState.new(width: number, height: number): ClientState
 		tech = ClientState.emptyTech(),
 		commander = ClientState.emptyCommander(),
 		commanderAt = 0,
+		task = nil,
+		taskAt = 0,
 		world = ClientState.emptyWorld(),
 		worldAt = 0,
 	}
@@ -513,6 +563,14 @@ function ClientState.applyWorld(cs: ClientState, msg: any, now: number): { numbe
 			end
 		end
 	end
+	local sites: { SiteInfo } = {}
+	if type(msg.sites) == "table" then
+		for _, s in msg.sites :: { any } do
+			if type(s) == "table" then
+				table.insert(sites, { cell = num(s.cell), left = num(s.left), total = math.max(num(s.total), 1e-6) })
+			end
+		end
+	end
 	local doom: DoomInfo? = nil
 	if type(msg.doom) == "table" then
 		local d = msg.doom :: any
@@ -540,17 +598,72 @@ function ClientState.applyWorld(cs: ClientState, msg: any, now: number): { numbe
 		oilExtra = oil,
 		silo = msg.silo == true,
 		missileLeft = num(msg.missileLeft),
+		intelLeft = num(msg.intelLeft),
 		batteries = batteries,
 		fallout = fallout,
 		doom = doom,
 		pockets = pockets,
+		sites = sites,
 	}
 	cs.worldAt = now
 	return fresh
 end
 
 function ClientState.emptyCommander(): CommanderMessage
-	return { kind = "commander", commander = "Marshal", left = { 0, 0 }, surge = 0, reveal = 0 }
+	return { kind = "commander", commander = "Marshal", left = { 0, 0 }, surge = 0, reveal = 0, triumph = 0 }
+end
+
+-- §15й Й1: задача матча (сообщение task). Неверное сообщение не меняет состояние.
+function ClientState.applyTask(cs: ClientState, msg: any, now: number)
+	if type(msg) ~= "table" then
+		return
+	end
+	local function num(v: any): number
+		return if type(v) == "number" and v == v and v < math.huge then v else 0
+	end
+	local task: TaskInfo? = nil
+	local t = msg.task
+	if type(t) == "table" and table.find({ "City", "Land", "Build", "Front" }, t.kind) ~= nil then
+		task = {
+			id = num(t.id),
+			kind = t.kind,
+			cell = num(t.cell),
+			target = num(t.target),
+			building = if type(t.building) == "string" then t.building else "",
+			need = num(t.need),
+			have = num(t.have),
+			base = num(t.base),
+			left = math.max(0, num(t.left)),
+			total = math.max(1, num(t.total)),
+			reward = math.max(0, num(t.reward)),
+		}
+	end
+	cs.task = {
+		kind = "task",
+		task = task,
+		streak = math.max(0, num(msg.streak)),
+		nextIn = math.max(0, num(msg.nextIn)),
+		land = math.max(1, num(msg.land)),
+		stats = if type(msg.stats) == "table"
+			then {
+				cities = math.max(0, num(msg.stats.cities)),
+				trophies = math.max(0, num(msg.stats.trophies)),
+				tasks = math.max(0, num(msg.stats.tasks)),
+				peak = math.max(0, num(msg.stats.peak)),
+			}
+			else nil,
+	}
+	cs.taskAt = now
+end
+
+-- §15й Й1: сколько игровых секунд осталось у задачи сейчас (между сообщениями — по часам клиента).
+function ClientState.taskLeft(cs: ClientState, now: number): number
+	local msg = cs.task
+	local t = if msg ~= nil then msg.task else nil
+	if t == nil then
+		return 0
+	end
+	return math.max(0, t.left - (now - cs.taskAt) * ClientState.simRate(cs))
 end
 
 -- Генерал (сообщение commander). Неверное сообщение не меняет состояние.
@@ -567,6 +680,7 @@ function ClientState.applyCommander(cs: ClientState, msg: any, now: number)
 		left = { num(msg.left[1]), num(msg.left[2]) },
 		surge = num(msg.surge),
 		reveal = num(msg.reveal),
+		triumph = num(msg.triumph),
 	}
 	cs.commanderAt = now
 end
@@ -660,7 +774,8 @@ function ClientState.applyInfo(cs: ClientState, info: Info, now: number): boolea
 			cs.wars = { wars = {}, cooldowns = {} }
 			cs.diplo = ClientState.emptyDiplo()
 			table.clear(cs.buildings)
-			cs.rails = { nets = {}, cells = {}, owner = {} }
+			cs.rails =
+				{ nets = {}, cells = {}, owner = {}, damaged = {}, damagedOwner = {}, waterway = {}, seaway = {} }
 			cs.fog = Fog.new(cs.width, cs.height)
 			cs.stability = ClientState.emptyStability()
 			cs.rebelSet = {}
@@ -813,12 +928,34 @@ end
 -- §15ч Ч1: сообщение rails (MatchSim.railsMessage): nations[id] = { links = { { s, d } }, connected = { клетки } }
 -- или false (сети нет). full — весь список (прежние сети забыть). isRiver — клетка реки (мост).
 -- Возвращает клетки, у которых сменился вид (старые и новые рельсы) — их перерисовать.
-function ClientState.applyRails(cs: ClientState, msg: any, isRiver: (cell: number) -> boolean): { number }
+-- §15ч Ч3в: damaged = { { cell, left } } — разрушенные мосты (весь список); now — os.clock() для matchTime.
+-- isSea — §15ч Ч6: клетка моря (морские линии; нет — морские клетки считаются рельсами).
+function ClientState.applyRails(
+	cs: ClientState,
+	msg: any,
+	isRiver: (cell: number) -> boolean,
+	now: number?,
+	isSea: ((cell: number) -> boolean)?
+): { number }
 	local changed: { number } = {}
 	if type(msg) ~= "table" or type(msg.nations) ~= "table" then
 		return changed
 	end
 	local rails = cs.rails
+	if type(msg.damaged) == "table" then
+		table.clear(rails.damaged)
+		table.clear(rails.damagedOwner)
+		local t = ClientState.matchTime(cs, now or cs.timeAt)
+		local speed = math.max(cs.speed, 1e-6)
+		for _, d in msg.damaged do
+			if type(d) == "table" and type(d.cell) == "number" and type(d.left) == "number" then
+				rails.damaged[d.cell] = t + d.left / speed
+				if type(d.owner) == "number" then
+					rails.damagedOwner[d.cell] = d.owner
+				end
+			end
+		end
+	end
 	local function forget(id: number)
 		local old = rails.nets[id]
 		if old == nil then
@@ -830,6 +967,12 @@ function ClientState.applyRails(cs: ClientState, msg: any, isRiver: (cell: numbe
 					rails.cells[cell] = nil
 					rails.owner[cell] = nil
 					table.insert(changed, cell)
+				end
+				if rails.waterway[cell] == id then
+					rails.waterway[cell] = nil
+				end
+				if rails.seaway[cell] == id then
+					rails.seaway[cell] = nil
 				end
 			end
 		end
@@ -845,17 +988,32 @@ function ClientState.applyRails(cs: ClientState, msg: any, isRiver: (cell: numbe
 		if id ~= nil then
 			forget(id)
 			if type(data) == "table" and type(data.links) == "table" then
-				local net: RailNet = { paths = {}, connected = {} }
+				local net: RailNet = { paths = {}, water = {}, sea = {}, connected = {}, junctions = {} }
 				for _, link in data.links do
 					if type(link) == "table" and type(link.s) == "number" and type(link.d) == "string" then
 						local path = Rails.decode(link.s, link.d, cs.width)
 						table.insert(net.paths, path)
-						-- Концы пути — станции (здание или город), рельсы между ними.
+						local water = link.w == true
+						if water then
+							net.water[#net.paths] = true
+						end
+						local sea = link.o == true -- §15ч Ч6: морская линия (клетки моря — не рельсы)
+						if sea then
+							net.sea[#net.paths] = true
+						end
+						-- Концы пути — станции (здание или город), рельсы между ними; §15ч Ч4: река водного пути —
+						-- не рельсы (рисует RailLayer линией вдоль реки).
 						for k = 2, #path - 1 do
 							local cell = path[k]
-							rails.cells[cell] = if isRiver(cell) then 3 else 1 + (k % 2)
-							rails.owner[cell] = id
-							table.insert(changed, cell)
+							if water and isRiver(cell) then
+								rails.waterway[cell] = id
+							elseif sea and isSea ~= nil and isSea(cell) then
+								rails.seaway[cell] = id
+							else
+								rails.cells[cell] = if isRiver(cell) then 3 else 1 + (k % 2)
+								rails.owner[cell] = id
+								table.insert(changed, cell)
+							end
 						end
 					end
 				end
@@ -866,11 +1024,67 @@ function ClientState.applyRails(cs: ClientState, msg: any, isRiver: (cell: numbe
 						end
 					end
 				end
+				if type(data.junctions) == "table" then
+					for _, j in data.junctions do
+						if type(j) == "table" and type(j.cell) == "number" and type(j.ally) == "number" then
+							net.junctions[j.cell] = j.ally
+						end
+					end
+				end
 				rails.nets[id] = net
 			end
 		end
 	end
 	return changed
+end
+
+-- §15э Э1б: секунд игры до следующей разведки (0 — можно).
+function ClientState.intelLeft(cs: ClientState, now: number): number
+	return math.max(0, (cs.world.intelLeft or 0) - (now - cs.worldAt) * ClientState.simRate(cs))
+end
+
+-- §15ч Ч5а: клетка у главной сети дорог державы id (её станции и столица не дальше дальности связи) — стройка
+-- быстрее (как MatchSim.siteSec).
+function ClientState.nearRailNetwork(cs: ClientState, id: number, cell: number): boolean
+	local stations: { number } = {}
+	local n = cs.nations[id]
+	if n ~= nil and n.capital ~= nil then
+		table.insert(stations, n.capital :: number)
+	end
+	local net = cs.rails.nets[id]
+	if net ~= nil then
+		for s in net.connected do
+			table.insert(stations, s)
+		end
+	end
+	return Rails.nearNetwork(stations, cell, cs.width)
+end
+
+-- §15ч Ч5а: стройка в клетке — секунд игры до готовности и доля готовности (0..1); nil — не стройка.
+function ClientState.siteAt(cs: ClientState, cell: number, now: number): (number?, number)
+	local sites = cs.world.sites
+	if sites == nil then
+		return nil, 1
+	end
+	for _, s in sites do
+		if s.cell == cell then
+			local left = math.max(0, s.left - (now - cs.worldAt) * ClientState.simRate(cs))
+			return left, math.clamp(1 - left / s.total, 0, 1)
+		end
+	end
+	return nil, 1
+end
+
+-- §15ч Ч3в: мост в клетке разрушен — через сколько секунд матча починят (nil — цел или не мост).
+function ClientState.bridgeRepairIn(cs: ClientState, cell: number, now: number): number?
+	local at = cs.rails.damaged[cell]
+	return if at ~= nil then math.max(0, at - ClientState.matchTime(cs, now)) else nil
+end
+
+-- §15ч Ч3б: станция державы id — стык с союзником (его номер) или nil.
+function ClientState.railJunction(cs: ClientState, id: number, cell: number): number?
+	local net = cs.rails.nets[id]
+	return if net ~= nil then net.junctions[cell] else nil
 end
 
 -- §15ч Ч1: станция (город, завод, порт) державы id — в её главной сети (дорога до столицы)?

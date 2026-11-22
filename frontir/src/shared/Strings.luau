@@ -14,7 +14,7 @@ local DEFAULT_LANG: Lang = "ru"
 local LANGS: { Lang } = { "ru", "en" }
 
 local TABLE: { [string]: Entry } = {
-	["game.title"] = { ru = "Фронтир", en = "Frontir" },
+	["game.title"] = { ru = "World Conquer", en = "World Conquer" },
 	["map.Pangea"] = { ru = "Пангея", en = "Pangaea" },
 
 	["terrain.Water"] = { ru = "вода", en = "water" },
@@ -91,6 +91,68 @@ local TABLE: { [string]: Entry } = {
 	["rail.notConnected"] = {
 		ru = "Нет дороги до столицы: поставьте город, завод или порт ближе — дорога проложится сама",
 		en = "No rail to the capital: put a city, factory or port closer — the rail builds itself",
+	},
+	["rail.junction"] = {
+		ru = "🤝 Стык с союзником %s: часть поездов везёт товары к нему — конечная платит обоим",
+		en = "🤝 Junction with ally %s: some trains carry goods to them — the last stop pays you both",
+	},
+	-- §15ч Ч3в Война и логистика
+	["rail.bridgeBroken"] = {
+		ru = "💥 Мост разрушен: дорога через реку оборвана, починят через %d с",
+		en = "💥 Bridge destroyed: the line across the river is cut, repaired in %d s",
+	},
+	["event.railCut"] = {
+		ru = "✂ Дорогу перерезали у %s — поезда и снабжение по ней встали",
+		en = "✂ Railway cut near %s — trains and supply on it stopped",
+	},
+	["event.bridgeCut"] = {
+		ru = "💥 Мост у %s разрушен — дорога через реку оборвана до ремонта",
+		en = "💥 Bridge near %s destroyed — the line across the river is cut until repaired",
+	},
+	-- §15ч Ч5а Стройка с лесами
+	["build.siteNear"] = {
+		ru = "🏗 Стройка: %d с (у дороги — вдвое быстрее)",
+		en = "🏗 Construction: %d s (by the railway — twice as fast)",
+	},
+	["build.siteFar"] = {
+		ru = "🏗 Стройка: %d с (у дороги было бы вдвое быстрее)",
+		en = "🏗 Construction: %d s (by a railway it would be twice as fast)",
+	},
+	-- §15ч Ч5б: «призрак» дороги
+	["build.railOk"] = {
+		ru = "🚂 Дорога к сети: %d клеток",
+		en = "🚂 Rail to the network: %d cells",
+	},
+	["build.railFar"] = {
+		ru = "Дороги не будет: станции сети дальше %d клеток (ближайшая — %d)",
+		en = "No rail: network stations are farther than %d cells (nearest — %d)",
+	},
+	["build.railNoPath"] = {
+		ru = "Дороги не будет: нет пути по своей земле до сети",
+		en = "No rail: no path over your land to the network",
+	},
+	["build.siteLeft"] = { ru = "🏗 Строится: ещё %d с", en = "🏗 Under construction: %d s left" },
+	["event.built"] = { ru = "🏗 Достроено: %s", en = "🏗 Completed: %s" },
+	["dev.finishSites"] = { ru = "Достроить всё", en = "Finish construction" },
+	["dev.taskNew"] = { ru = "Задача: новая", en = "Task: new" },
+	["dev.fall"] = {
+		ru = "Сдаться (проверка «Держава пала»)",
+		en = "Fall (check the defeat screen)",
+	},
+	["dev.finaleNear"] = { ru = "Финал: я почти победил", en = "Final: I'm near victory" },
+	["dev.finaleBot"] = { ru = "Финал: бот почти победил", en = "Final: bot near victory" },
+	["dev.finaleTime"] = { ru = "Финал: 3 мин до конца", en = "Final: 3 min left" },
+	["dev.takeCapital"] = { ru = "Взять столицу врага", en = "Take enemy capital" },
+	["dev.taskDone"] = { ru = "Задача: выполнить", en = "Task: complete" },
+	["rail.waterway"] = { ru = "Водный путь", en = "Waterway" },
+	["rail.seaway"] = { ru = "Морская линия", en = "Sea line" },
+	["rail.seawayHint"] = {
+		ru = "грузы и снабжение за море; эсминец врага рядом закрывает её",
+		en = "cargo and supply overseas; an enemy destroyer nearby closes it",
+	},
+	["rail.waterwayHint"] = {
+		ru = "баржи и снабжение по реке; враг на берегу рвёт путь",
+		en = "barges and supply along the river; an enemy on the bank cuts it",
 	},
 	["rail.track"] = { ru = "Железная дорога", en = "Railway" },
 	["rail.bridge"] = { ru = "Мост", en = "Bridge" },
@@ -310,6 +372,46 @@ local TABLE: { [string]: Entry } = {
 		en = "Full trust — once the alliance lasts a minute",
 	},
 	["reject.noTrust"] = { ru = "Полного доверия нет", en = "No full trust" },
+	["reject.noTask"] = { ru = "Задачи нет", en = "No task" },
+	["reject.notNow"] = { ru = "Сейчас нельзя", en = "Not now" },
+	-- §15й Й1: задачи матча
+	["task.title"] = { ru = "ЗАДАЧА", en = "TASK" },
+	["task.City"] = { ru = "Возьмите город %s", en = "Take the city of %s" },
+	["task.City.hint"] = {
+		ru = "Нужны войска: наймите пехоту (клавиша Z) и нажмите на город",
+		en = "Needs troops: hire infantry (key Z), then tap the city",
+	},
+	["task.City.enemy"] = {
+		ru = "Город врага — ведите фронт к нему",
+		en = "Enemy city — push your front to it",
+	},
+	["task.Land"] = { ru = "Расширьтесь до %s%% суши", en = "Grow to %s%% of the land" },
+	["task.Land.hint"] = {
+		ru = "Нажимайте на ничью землю у границы",
+		en = "Tap unclaimed land at your border",
+	},
+	["task.Build"] = { ru = "Постройте: %s", en = "Build: %s" },
+	["task.Build.hint"] = {
+		ru = "Место — на своей земле (клавиша %s)",
+		en = "Pick a spot on your land (key %s)",
+	},
+	["task.Front"] = { ru = "Отбейте %s клеток у %s", en = "Take %s cells from %s" },
+	["task.Front.hint"] = {
+		ru = "Нажмите на врага — туда пойдёт главный удар",
+		en = "Tap the enemy — your main push goes there",
+	},
+	["task.progress"] = { ru = "%s / %s", en = "%s / %s" },
+	["task.reward"] = { ru = "+$%s", en = "+$%s" },
+	["task.streak"] = { ru = "серия ×%s", en = "streak ×%s" },
+	["task.done"] = { ru = "Выполнено! +$%s", en = "Done! +$%s" },
+	["task.failed"] = { ru = "Не успели", en = "Time's up" },
+	["task.skip"] = { ru = "Пропустить", en = "Skip" },
+	["task.next"] = { ru = "Новая задача через %s с", en = "Next task in %s s" },
+	["task.new"] = { ru = "Новая задача!", en = "New task!" },
+	["reject.noBridge"] = {
+		ru = "Мостов на ваших дорогах нет",
+		en = "No bridges on your railways",
+	},
 	["reject.tooManyPassages"] = {
 		ru = "Уже два отряда идут через союзника",
 		en = "Two units are already marching through an ally",
@@ -828,6 +930,15 @@ local TABLE: { [string]: Entry } = {
 	["res.land"] = { ru = "суша", en = "land" },
 	["res.perSec"] = { ru = "/с", en = "/s" },
 	["build.found"] = { ru = "Основать город «%s»  $%s", en = "Found the city of %s  $%s" },
+	-- §15ы: «призрак» стройки называет, кто мешает.
+	["reject.tooCloseTo"] = {
+		ru = "Слишком близко к «%s» — нужно %d кл. между зданиями",
+		en = "Too close to %s — keep %d cells apart",
+	},
+	["reject.cityTooCloseTo"] = {
+		ru = "Слишком близко к городу «%s» — нужно %d кл. между городами",
+		en = "Too close to %s — keep %d cells apart",
+	},
 	["reject.cityTooClose"] = {
 		ru = "Слишком близко к другому городу",
 		en = "Too close to another city",
@@ -872,6 +983,10 @@ local TABLE: { [string]: Entry } = {
 	["hire.lockPath"] = { -- §15э Э1
 		ru = "Закрыто: откроется на ур. %d «Пути командира» или в магазине (вкладка «Техника»)",
 		en = "Locked: unlocks at Commander Path level %d or in the shop («Vehicles» tab)",
+	},
+	["reject.intelLocked"] = {
+		ru = "Разведка закрыта — откройте на «Пути командира» или в магазине",
+		en = "Scouting is locked — unlock it on the Commander Path or in the shop",
 	},
 	["reject.unitLocked"] = {
 		ru = "Техника закрыта — откройте на «Пути командира» или в магазине",
@@ -1049,6 +1164,7 @@ local TABLE: { [string]: Entry } = {
 		ru = "Союзник-доверие и враг за ним",
 		en = "Trusted ally + enemy behind",
 	},
+	["dev.bridgeHit"] = { ru = "Разрушить свой мост", en = "Destroy own bridge" },
 	["dev.botLanding"] = { ru = "Бот: десант на вас", en = "Bot: lands on you" },
 	-- Этап 7б-2: авиация
 	["building.Airfield"] = { ru = "Аэродром", en = "Airfield" },
@@ -1313,6 +1429,26 @@ local TABLE: { [string]: Entry } = {
 			.. '<font color="#%s">Protected from missiles: %d of %d of your cities and buildings</font>',
 	},
 	["threat.showHole"] = { ru = "Показать дыру", en = "Show a hole" },
+	-- §15ч Ч5б: режим карты «Логистика»
+	["dock.logistics"] = { ru = "Логистика", en = "Logistics" },
+	["logistics.title"] = { ru = "ЛОГИСТИКА", en = "LOGISTICS" },
+	["logistics.legend.main"] = { ru = "дорога до столицы", en = "rail to the capital" },
+	["logistics.legend.other"] = { ru = "оторванная дорога", en = "cut-off rail" },
+	["logistics.legend.on"] = { ru = "станция в сети", en = "station on the network" },
+	["logistics.legend.off"] = { ru = "станция без дороги", en = "station without a rail" },
+	["logistics.legend.water"] = { ru = "водный путь", en = "waterway" },
+	["logistics.legend.broken"] = { ru = "обрыв, разрушенный мост", en = "cut, destroyed bridge" },
+	["logistics.stats"] = {
+		ru = '<font color="#%s">Станций в сети: %d из %d</font>\n'
+			.. "Водных путей: %d · морских линий: %d · стыков с союзниками: %d · мостов разрушено: %d · поездов в пути: %d",
+		en = '<font color="#%s">Stations on the network: %d of %d</font>\n'
+			.. "Waterways: %d · sea lines: %d · ally junctions: %d · bridges destroyed: %d · trains en route: %d",
+	},
+	["logistics.showOffline"] = {
+		ru = "Показать станцию без дороги",
+		en = "Show a station without a rail",
+	},
+	["logistics.close"] = { ru = "Закрыть (I)", en = "Close (I)" },
 	["threat.close"] = { ru = "Закрыть (L)", en = "Close (L)" },
 	["ring.missile"] = { ru = "Ракета", en = "Missile" },
 	["ring.raid"] = { ru = "Налёт", en = "Air raid" },
@@ -1468,6 +1604,8 @@ local TABLE: { [string]: Entry } = {
 		en = "Some parts are locked — pick unlocked ones or buy them in the wardrobe (K)",
 	},
 	["help.title"] = { ru = "Как играть", en = "How to play" },
+	-- §15ё Ё8: заголовок окна — заглавными, как у остальных окон.
+	["help.titleBig"] = { ru = "КАК ИГРАТЬ", en = "HOW TO PLAY" },
 	["help.start"] = {
 		ru = "<b>Старт.</b> Нажмите на сушу, где начнёте: там появится столица.",
 		en = "<b>Start.</b> Tap the land where you begin: your capital appears there.",
@@ -1558,6 +1696,7 @@ local TABLE: { [string]: Entry } = {
 	["handbook.section.strikes"] = { ru = "Удары и защита", en = "Strikes & defence" },
 	["handbook.section.army"] = { ru = "Войска и фронт", en = "Troops & front" },
 	["handbook.section.build"] = { ru = "Стройка и экономика", en = "Building & economy" },
+	["handbook.section.logistics"] = { ru = "Логистика", en = "Logistics" },
 	["handbook.section.air"] = { ru = "Флот и авиация", en = "Navy & air" },
 	["handbook.section.order"] = { ru = "Стабильность и победа", en = "Stability & victory" },
 	["handbook.section.diplo"] = { ru = "Дипломатия", en = "Diplomacy" },
@@ -1743,6 +1882,85 @@ local TABLE: { [string]: Entry } = {
 	["handbook.district.hinder"] = {
 		ru = "Ракета по городу снимает его уровень — весь район слабеет. Взятый город забирает район целиком.",
 		en = "A missile on a city removes its level — the whole district weakens. Taking the city takes the district.",
+	},
+	-- §15ч Ч5б: справочник — логистика
+	["handbook.rails.name"] = { ru = "Железные дороги", en = "Railways" },
+	["handbook.rails.what"] = {
+		ru = "Свои города, заводы, порты и вышки соединяются дорогами сами. Сеть со столицей снабжает фронт и успокаивает дальние провинции.",
+		en = "Your cities, factories, ports and rigs link up by rail on their own. The network with the capital supplies fronts and calms far provinces.",
+	},
+	["handbook.rails.how"] = {
+		ru = "Ставьте станции не дальше дальности связи от сети — при выборе места видно пунктир будущей дороги. Режим «Логистика» (I) показывает станции без дороги.",
+		en = "Place stations within link range of the network — the dashed future rail shows while choosing a spot. The Logistics view (I) shows stations without a rail.",
+	},
+	["handbook.rails.defense"] = {
+		ru = "Дорогу рвёт захват земли под ней: держите фронт подальше от путей, а мосты прикрывайте ПВО.",
+		en = "Losing the land under a rail cuts it: keep fronts away from lines and cover bridges with AA.",
+	},
+	["handbook.trains.name"] = { ru = "Поезда и грузы", en = "Trains and cargo" },
+	["handbook.trains.what"] = {
+		ru = "Завод на дороге отправляет поезда к своим городам и портам: каждая остановка платит «+$». Вышка в сети даёт больше нефти.",
+		en = "A factory on the rail sends trains to your cities and ports: every stop pays “+$”. A rig on the network gives more oil.",
+	},
+	["handbook.trains.how"] = {
+		ru = "Ставьте заводы у дорог, а города — по пути: чем больше уровень города, тем больше плата.",
+		en = "Put factories by the rails and cities along the way: the higher the city level, the bigger the pay.",
+	},
+	["handbook.trains.hinder"] = {
+		ru = "Поезд гибнет у фронта и пропадает, если путь впереди перерезан: возьмите землю под дорогой врага.",
+		en = "A train dies near the front and vanishes if the line ahead is cut: take the land under the enemy rail.",
+	},
+	["handbook.junction.name"] = { ru = "Стык с союзником", en = "Ally junction" },
+	["handbook.junction.what"] = {
+		ru = "При полном доверии ваша сеть и сеть союзника соединяются стыком: часть поездов едет к нему, конечная платит обоим.",
+		en = "With full trust your network and your ally's link by a junction: some trains go to them, the last stop pays you both.",
+	},
+	["handbook.junction.how"] = {
+		ru = "Дипломатия (T): союз, затем «Полное доверие». Нужны станции обеих сетей не дальше дальности связи.",
+		en = "Diplomacy (T): alliance, then “Full trust”. Stations of both networks must be within link range.",
+	},
+	["handbook.junction.defense"] = {
+		ru = "Стык рвут война, эмбарго, снятое доверие и захват земли под ним.",
+		en = "War, embargo, removed trust and land taken under it cut the junction.",
+	},
+	["handbook.railWar.name"] = { ru = "Война на дорогах", en = "War on the rails" },
+	["handbook.railWar.what"] = {
+		ru = "Мост — уязвимое место: ракета или налёт рушат его на время, и дорога через реку рвётся. Выведенная из строя станция выпадает из сети.",
+		en = "A bridge is the weak spot: a missile or raid destroys it for a while and the line across the river is cut. A disabled station drops out of the network.",
+	},
+	["handbook.railWar.how"] = {
+		ru = "Обрыв видно: строка в ленте и красный крест на карте; разрушенный мост чинится сам.",
+		en = "A cut is visible: a feed line and a red cross on the map; a destroyed bridge repairs itself.",
+	},
+	["handbook.railWar.hinder"] = {
+		ru = "Бейте ракетой или налётом по мосту врага — его фронт за рекой останется без снабжения.",
+		en = "Hit an enemy bridge with a missile or raid — their front across the river loses supply.",
+	},
+	["handbook.rivers.name"] = { ru = "Реки — водные пути", en = "Rivers — waterways" },
+	["handbook.rivers.what"] = {
+		ru = "Станция у реки — пристань. Две пристани на одной реке без дороги по суше соединяются водным путём: баржи и снабжение по реке.",
+		en = "A station by a river is a pier. Two piers on one river with no land rail link by a waterway: barges and supply along the river.",
+	},
+	["handbook.rivers.how"] = {
+		ru = "Ставьте города и заводы у одной реки — дальше дальности связи по суше тоже можно.",
+		en = "Place cities and factories by the same river — even beyond the land link range.",
+	},
+	["handbook.rivers.defense"] = {
+		ru = "Водный путь рвётся, если враг занял берег или рядом разрушен мост.",
+		en = "A waterway is cut if the enemy takes the bank or a bridge nearby is destroyed.",
+	},
+	["handbook.sites.name"] = { ru = "Стройка", en = "Construction" },
+	["handbook.sites.what"] = {
+		ru = "Новое здание строится несколько секунд — пока стоят леса, оно не работает. Улучшение — сразу.",
+		en = "A new building takes a few seconds — while scaffolding stands, it does not work. Upgrades are instant.",
+	},
+	["handbook.sites.how"] = {
+		ru = "У дороги (станция сети или столица рядом) стройка вдвое быстрее — это видно в подсказке при выборе места.",
+		en = "By the rail (a network station or the capital nearby) construction is twice as fast — the hint shows it while choosing a spot.",
+	},
+	["handbook.sites.defense"] = {
+		ru = "Не ставьте стройку у фронта: захваченные леса достаются врагу.",
+		en = "Do not build near the front: captured scaffolding goes to the enemy.",
 	},
 	["handbook.oil.name"] = { ru = "Нефть", en = "Oil" },
 	["handbook.oil.what"] = {
@@ -2239,6 +2457,7 @@ local TABLE: { [string]: Entry } = {
 	["bar.oil"] = { ru = "нефть %s", en = "oil %s" },
 	["bar.hire"] = { ru = "НАЙМ", en = "RECRUIT" },
 	["bar.build"] = { ru = "СТРОЙКА", en = "BUILD" },
+	["bar.cancelBuild"] = { ru = "ОТМЕНА", en = "CANCEL" }, -- §15ё: телефон — выбрано здание, кнопка СТРОЙКА отменяет
 	["bar.shop"] = { ru = "МАГАЗИН", en = "SHOP" },
 	["bar.queued"] = { ru = "+%d", en = "+%d" },
 	["build.locked"] = { ru = "Нужна технология (Y)", en = "Needs a technology (Y)" },
@@ -2385,6 +2604,25 @@ local TABLE: { [string]: Entry } = {
 	["dev.mode"] = { ru = "Режим: %s", en = "Mode: %s" },
 	-- Разведка (§6.11а)
 	["diplo.act.intel"] = { ru = "Разведка $%s (%d с)", en = "Scout $%s (%d s)" },
+	-- §15э Э1б: разведка в блоке
+	["diplo.act.intelWait"] = { ru = "⏳ Разведка через %d с", en = "⏳ Scouting in %d s" },
+	["diplo.intelWait"] = {
+		ru = "Разведка ещё не готова: следующая — через %d с (одна цель за раз)",
+		en = "Scouting is not ready: the next one in %d s (one target at a time)",
+	},
+	["reject.intelCooldown"] = {
+		ru = "Разведка ещё не готова — одна цель за раз",
+		en = "Scouting is not ready yet — one target at a time",
+	},
+	["diplo.act.intelLocked"] = {
+		ru = "🔒 Разведка — ур. %d «Пути»",
+		en = "🔒 Scouting — Path level %d",
+	},
+	["diplo.intelLocked"] = {
+		ru = "Разведка закрыта: откроется на ур. %d «Пути командира» или в магазине (вкладка «Техника»)",
+		en = "Scouting is locked: it opens at Commander Path level %d or in the shop (Units tab)",
+	},
+	["unit.Intel"] = { ru = "Разведка", en = "Scouting" },
 	["event.intelOnYou"] = {
 		ru = "%s провела разведку против вас: ваши силы видны ей",
 		en = "%s scouted you: your forces are visible to them",
@@ -2712,6 +2950,156 @@ local TABLE: { [string]: Entry } = {
 	["warfx.war"] = { ru = "⚔ ВОЙНА ⚔", en = "⚔ WAR ⚔" },
 	["warfx.offensive"] = { ru = "НАСТУПЛЕНИЕ!", en = "OFFENSIVE!" },
 	["warfx.vs"] = { ru = "%s → %s", en = "%s → %s" },
+	["fx.built"] = { ru = "Готово!", en = "Done!" },
+	["fx.go"] = { ru = "В БОЙ!", en = "FIGHT!" },
+	["defeat.title"] = { ru = "ДЕРЖАВА ПАЛА", en = "YOUR NATION HAS FALLEN" },
+	["defeat.by"] = {
+		ru = "Вас добил %s · продержались %s",
+		en = "Finished off by %s · lasted %s",
+	},
+	["defeat.nobody"] = {
+		ru = "Восстание или вода · продержались %s",
+		en = "Revolt or flood · lasted %s",
+	},
+	["defeat.peak"] = { ru = "ПИК СУШИ", en = "PEAK LAND" },
+	["defeat.cities"] = { ru = "ВЗЯТО ГОРОДОВ", en = "CITIES TAKEN" },
+	["defeat.tasks"] = { ru = "ЗАДАЧ ВЫПОЛНЕНО", en = "TASKS DONE" },
+	["defeat.trophies"] = { ru = "ТРОФЕИ", en = "LOOT" },
+	["defeat.watch"] = { ru = "Смотреть", en = "Watch" },
+	["defeat.again"] = { ru = "Новый матч", en = "New match" },
+	["defeat.menu"] = { ru = "В меню", en = "Menu" },
+	["spectate.off"] = { ru = "Следить за лидером", en = "Follow the leader" },
+	["spectate.on"] = { ru = "Слежу за лидером ✓", en = "Following the leader ✓" },
+	["result.mine"] = {
+		ru = "Ваш матч: взято городов %s · задач %s · трофеи $%s",
+		en = "Your match: cities taken %s · tasks %s · loot $%s",
+	},
+	["diplo.offer.more"] = { ru = "ещё предложений: %d", en = "%d more offers" },
+	-- §15й Й7: окно державы
+	["nation.player"] = { ru = "игрок", en = "player" },
+	["nation.group.war"] = { ru = "ВОЙНА", en = "WAR" },
+	["nation.group.diplo"] = { ru = "ДИПЛОМАТИЯ", en = "DIPLOMACY" },
+	["nation.group.intel"] = { ru = "РАЗВЕДКА", en = "INTELLIGENCE" },
+	["nation.group.more"] = { ru = "ЕЩЁ", en = "MORE" },
+	["nation.act.declare"] = { ru = "Объявить войну", en = "Declare war" },
+	["nation.act.front"] = { ru = "К фронту", en = "To the front" },
+	["nation.act.peace"] = { ru = "Предложить мир", en = "Offer peace" },
+	["nation.act.demand"] = { ru = "Требование", en = "Demand land" },
+	["nation.act.alliance"] = { ru = "Союз", en = "Alliance" },
+	["nation.act.pact"] = { ru = "Пакт", en = "Pact" },
+	["nation.act.trade"] = { ru = "Торговля", en = "Trade" },
+	["nation.act.trust"] = { ru = "Полное доверие", en = "Full trust" },
+	["nation.act.gift"] = { ru = "Подарок", en = "Gift" },
+	["nation.act.intel"] = { ru = "Разведка", en = "Intelligence" },
+	["nation.act.capital"] = { ru = "К столице", en = "To the capital" },
+	["nation.act.diplomacy"] = { ru = "Вся дипломатия", en = "All diplomacy" },
+	["nation.hint.declare"] = {
+		ru = "Мобилизация %d с, потом фронт",
+		en = "Mobilization %d s, then the front",
+	},
+	["nation.hint.front"] = { ru = "Камера к линии фронта", en = "Camera to the front line" },
+	["nation.hint.peace"] = {
+		ru = "Белый мир, уступка или капитуляция",
+		en = "White peace, concession or surrender",
+	},
+	["nation.hint.demand"] = {
+		ru = "Отдать провинцию у границы — или война",
+		en = "Hand over a border province — or war",
+	},
+	["nation.hint.alliance"] = {
+		ru = "Общее снабжение, побеждаете вместе",
+		en = "Shared supply, win together",
+	},
+	["nation.hint.pact"] = { ru = "Ненападение %d мин", en = "No attacks for %d min" },
+	["nation.hint.trade"] = { ru = "+%d%% дохода обоим", en = "+%d%% income for both" },
+	["nation.hint.trust"] = {
+		ru = "Удар через союзника, общий обзор",
+		en = "Strike through the ally, shared vision",
+	},
+	["nation.hint.gift"] = { ru = "Передать $%s", en = "Send $%s" },
+	["nation.hint.intel"] = { ru = "$%s · сила видна %d с", en = "$%s · strength visible %d s" },
+	["nation.hint.capital"] = { ru = "Камера к столице", en = "Camera to the capital" },
+	["nation.hint.diplomacy"] = {
+		ru = "Переводы, эмбарго, история",
+		en = "Transfers, embargo, history",
+	},
+	["nation.warn.betray"] = {
+		ru = "Договор порвётся — метка «Предатель»",
+		en = "Breaks the treaty — «Traitor» mark",
+	},
+	["nation.why.cooldown"] = { ru = "Мир ещё %d с", en = "Peace for %d more s" },
+	["nation.why.mobilizing"] = { ru = "Идёт мобилизация", en = "Mobilizing" },
+	["nation.why.breaking"] = { ru = "Договор рвётся", en = "Treaty is breaking" },
+	["nation.why.trustWait"] = { ru = "Через %s", en = "In %s" },
+	["nation.why.money"] = { ru = "Не хватает денег", en = "Not enough money" },
+	["nation.why.locked"] = { ru = "Откроется на ур. %d", en = "Unlocks at level %d" },
+	["nation.why.known"] = { ru = "Сила уже видна", en = "Strength already visible" },
+	["nation.why.intelWait"] = { ru = "Через %d с", en = "In %d s" },
+	["nation.rel.peace"] = { ru = "МИР", en = "PEACE" },
+	["nation.rel.pact"] = { ru = "ПАКТ", en = "PACT" },
+	["nation.rel.alliance"] = { ru = "СОЮЗ", en = "ALLIANCE" },
+	["nation.rel.trust"] = { ru = "ПОЛНОЕ ДОВЕРИЕ", en = "FULL TRUST" },
+	["nation.rel.war"] = { ru = "ВОЙНА", en = "WAR" },
+	["nation.rel.mobilizing"] = { ru = "МОБИЛИЗАЦИЯ", en = "MOBILIZING" },
+	["nation.rel.traitor"] = { ru = "ПРЕДАТЕЛЬ", en = "TRAITOR" },
+	["nation.cmp.land"] = { ru = "СУША", en = "LAND" },
+	["nation.cmp.power"] = { ru = "СИЛА", en = "STRENGTH" },
+	["nation.cmp.cities"] = { ru = "ГОРОДА", en = "CITIES" },
+	["nation.cmp.you"] = { ru = "у вас: %s", en = "you: %s" },
+	["nation.bal.mine"] = { ru = "Перевес у вас ×%s", en = "You are ×%s stronger" },
+	["nation.bal.theirs"] = { ru = "Перевес у них ×%s", en = "They are ×%s stronger" },
+	["nation.bal.even"] = { ru = "Силы примерно равны", en = "Roughly equal strength" },
+	["nation.bal.hidden"] = {
+		ru = "Сила скрыта — нужна разведка",
+		en = "Strength hidden — use intelligence",
+	},
+	["nation.sent"] = { ru = "Отправлено: %s → %s", en = "Sent: %s → %s" },
+	["nation.gifted"] = { ru = "Подарок $%s → %s", en = "Gift $%s → %s" },
+	["nation.intelSent"] = { ru = "Разведка: %s", en = "Intelligence: %s" },
+	["finale.title"] = { ru = "ФИНАЛ", en = "FINAL" },
+	["finale.near"] = {
+		ru = "%s — %s%% из %s%%: все против лидера, фронты против него +%d%%",
+		en = "%s — %s%% of %s%%: everyone vs the leader, fronts against them +%d%%",
+	},
+	["finale.nearMe"] = {
+		ru = "Вы — %s%% из %s%%: держитесь, против вас все",
+		en = "You — %s%% of %s%%: hold on, everyone is against you",
+	},
+	["finale.time"] = {
+		ru = "До конца %s — побеждает тот, у кого больше суши",
+		en = "%s left — the biggest land wins",
+	},
+	["finale.stripNear"] = {
+		ru = "%s · %s%% / %s%% · против лидера фронты +%d%%",
+		en = "%s · %s%% / %s%% · fronts vs the leader +%d%%",
+	},
+	["finale.stripNearMe"] = {
+		ru = "Вы лидер · %s%% / %s%% · против вас фронты +%d%%",
+		en = "You lead · %s%% / %s%% · fronts against you +%d%%",
+	},
+	["finale.nearOurs"] = {
+		ru = "Ваш союз (%s) — %s%% из %s%%: держитесь, против вас все",
+		en = "Your alliance (%s) — %s%% of %s%%: hold on, everyone is against you",
+	},
+	["finale.stripNearOurs"] = {
+		ru = "Ваш союз (%s) · %s%% / %s%% · против вас фронты +%d%%",
+		en = "Your alliance (%s) · %s%% / %s%% · fronts against you +%d%%",
+	},
+	["finale.stripTime"] = { ru = "до конца %s · лидер %s %s%%", en = "%s left · leader %s %s%%" },
+	["warfx.triumph"] = { ru = "★ ТРИУМФ ★", en = "★ TRIUMPH ★" },
+	["warfx.underdog"] = { ru = "ДАВИД И ГОЛИАФ", en = "DAVID AND GOLIATH" },
+	["fx.trophy"] = { ru = "+$%s трофей", en = "+$%s loot" },
+	["fx.triumph"] = { ru = "ТРИУМФ · фронты +%d%% · %d с", en = "TRIUMPH · fronts +%d%% · %d s" },
+	["event.trophy"] = { ru = "Трофей: +$%s за город %s", en = "Loot: +$%s for the city of %s" },
+	["event.trophyLost"] = { ru = "%s взял ваш город %s: −$%s", en = "%s took your city of %s: −$%s" },
+	["event.triumph"] = {
+		ru = "ТРИУМФ: столица %s взята, +$%s — фронты +%d%% на %d с",
+		en = "TRIUMPH: %s's capital taken, +$%s — fronts +%d%% for %d s",
+	},
+	["event.underdog"] = {
+		ru = "«Давид и Голиаф»: %s победил %s, который был сильнее ×%s (+$%s)",
+		en = "David and Goliath: %s beat %s, who was ×%s stronger (+$%s)",
+	},
 	-- §15м: живой фронт и зрелищный матч.
 	["fx.breakthrough"] = { ru = "ПРОРЫВ ×%s", en = "BREAKTHROUGH ×%s" },
 	["fx.breakthroughPop"] = { ru = "ПРОРЫВ!", en = "BREAKTHROUGH!" },

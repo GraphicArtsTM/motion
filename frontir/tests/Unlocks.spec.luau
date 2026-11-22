@@ -119,6 +119,44 @@ T.describe("Закрытая техника: матч (§15э Э1)", function()
 	)
 
 	T.it(
+		"§15э Э1б: разведка в блоке (ур. 12 Пути, ур. 7 премиум, покупка, «Разведуправление»; бот — всегда) и перерыв",
+		function()
+			local m = match()
+			m.nations[1].money = 1e6
+			m.nations[2].money = 1e6
+			MatchSim.setUnitUnlocks(m, 1, {})
+			local ok, reason = MatchSim.applyIntent(m, 1, { kind = "intel", target = 2 })
+			T.expect(ok).toBe(false)
+			T.expect(reason).toBe("intelLocked")
+			T.expect((MatchSim.applyIntent(m, 2, { kind = "intel", target = 1 }))).toBe(true) -- бот: без набора
+			MatchSim.setUnitUnlocks(m, 1, { Intel = true })
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "intel", target = 2 }))).toBe(true)
+			-- Перерыв: сразу вторую — нельзя (одна цель за раз); через Intel.CooldownSec — можно.
+			local again, why = MatchSim.applyIntent(m, 1, { kind = "intel", target = 2 })
+			T.expect(again).toBe(false)
+			T.expect(why).toBe("intelCooldown")
+			m.simTime += Config.Intel.CooldownSec
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "intel", target = 2 }))).toBe(true)
+			-- Профиль: уровни Пути и премиум-дорога, «Разведуправление».
+			local item = Config.Unlocks.Items.Intel
+			T.expect(item.level).toBe(12)
+			T.expect(item.premiumLevel).toBe(7)
+			local d = Profile.new()
+			d.xp = xpFor(11)
+			T.expect(Profile.unlockedUnits(d).Intel).toBe(nil)
+			T.expect(Profile.unlockedUnits(d, { Intel = true }).Intel).toBe(true)
+			d.xp = xpFor(12)
+			T.expect(Profile.unlockedUnits(d).Intel).toBe(true)
+			local p = Profile.new()
+			p.xp = xpFor(7)
+			p.pathPremium = true
+			T.expect(Profile.unlockedUnits(p).Intel).toBe(true)
+			T.expect(Profile.pathReward(12).unit).toBe("Intel")
+			T.expect(Profile.premiumReward(7).unit).toBe("Intel")
+		end
+	)
+
+	T.it(
 		"открытая техника — по обычным правилам; без профиля (бот) — открыто всё",
 		function()
 			local m = match()

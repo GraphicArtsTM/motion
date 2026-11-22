@@ -347,6 +347,37 @@ function MatchStats.commander(m: MatchSim.Match, viewer: number): CommanderMessa
 		},
 		surge = math.max(0, math.ceil((st.surgeUntil[viewer] or 0) - now)),
 		reveal = math.max(0, math.ceil((st.revealUntil[viewer] or 0) - now)),
+		triumph = math.max(0, math.ceil((m.triumphUntil[viewer] or 0) - now)), -- §15й Й2
+	}
+end
+
+-- §15й Й1: задача матча игроку viewer. Таблица task (раз в секунду, вместе с tech и commander).
+function MatchStats.task(m: MatchSim.Match, viewer: number): ClientState.TaskMessage
+	local st = m.tasks[viewer]
+	local t = if st ~= nil then st.task else nil
+	local info: ClientState.TaskInfo? = nil
+	if t ~= nil then
+		info = {
+			id = t.id,
+			kind = t.kind :: string,
+			cell = t.cell,
+			target = t.target,
+			building = t.building,
+			need = t.need,
+			have = t.have,
+			base = t.base,
+			left = math.max(0, t.deadline - m.simTime),
+			total = math.max(1, t.deadline - t.startAt),
+			reward = t.reward,
+		}
+	end
+	return {
+		kind = "task",
+		task = info,
+		streak = if st ~= nil then st.streak else 0,
+		nextIn = if st ~= nil and t == nil then math.max(0, st.nextAt - m.simTime) else 0,
+		land = m.grid.capturableCount,
+		stats = MatchSim.matchStats(m, viewer), -- §15й Й5
 	}
 end
 
@@ -435,6 +466,8 @@ function MatchStats.world(m: MatchSim.Match, viewer: number?): WorldMessage
 		oilExtra = table.clone(st.oilExtra),
 		silo = silo,
 		missileLeft = if viewer ~= nil then math.max(0, (m.missileReady[viewer] or 0) - now) else 0,
+		-- §15э Э1б: до следующей разведки (секунды игры).
+		intelLeft = if viewer ~= nil then math.max(0, (m.intelReady[viewer] or 0) - now) else 0,
 		batteries = batteries,
 		doom = (function(): ClientState.DoomInfo?
 			-- §15з «часы судного дня»: планка, до следующей волны / до начала, кто под угрозой и сколько осталось.
@@ -467,6 +500,17 @@ function MatchStats.world(m: MatchSim.Match, viewer: number?): WorldMessage
 					table.insert(out, { cell = f.cell, radius = f.radius, left = f.untilTime - now })
 				end
 			end
+			return out
+		end)(),
+		-- §15ч Ч5а: стройки (видны всем): клетка, сколько осталось и всего (секунды игры).
+		sites = (function(): { ClientState.SiteInfo }
+			local out: { ClientState.SiteInfo } = {}
+			for cell, site in m.sites do
+				table.insert(out, { cell = cell, left = math.max(0, site.doneAt - now), total = site.total })
+			end
+			table.sort(out, function(a: ClientState.SiteInfo, b: ClientState.SiteInfo): boolean
+				return a.cell < b.cell
+			end)
 			return out
 		end)(),
 	}

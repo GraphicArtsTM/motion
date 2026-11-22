@@ -16,6 +16,7 @@ local Types = require(Shared:WaitForChild("Types"))
 local MapThumb = require(script.Parent:WaitForChild("MapThumb"))
 local MenuKit = require(script.Parent:WaitForChild("MenuKit"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local UiScale = require(script.Parent:WaitForChild("UiScale"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 export type Kind = "solo" | "own"
@@ -328,12 +329,67 @@ function MatchSetup.new(parent: Instance, lang: Strings.Lang, act: Actions): Mat
 
 	-- Окно не выше экрана: ужимаем (в условных пикселях слоя).
 	-- Обе величины — в настоящих пикселях, их отношение от масштаба слоя не зависит.
+	-- §15ё Ё3 телефон: середина (карты, режимы, сила ботов) — в прокрутке, «ИГРАТЬ» всегда на экране, масштаб не
+	-- мельче Phone.Hud.WindowMinScale.
+	local body = Instance.new("ScrollingFrame")
+	body.Name = "Body"
+	body.BackgroundTransparency = 1
+	body.BorderSizePixel = 0
+	body.LayoutOrder = 2
+	body.Size = UDim2.new(1, 0, 0, 160)
+	body.CanvasSize = UDim2.new()
+	body.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	body.ScrollingDirection = Enum.ScrollingDirection.Y
+	body.ScrollBarThickness = 6
+	body.ScrollBarImageColor3 = Theme.Colors.PanelBorder
+	body.Visible = false
+	body.Parent = panel
+	local bodyPad = Instance.new("UIPadding")
+	bodyPad.PaddingRight = UDim.new(0, 10)
+	bodyPad.Parent = body
+	MenuKit.list(body, 12)
+	local phone: boolean? = nil
+	local function setPhone(p: boolean)
+		if phone == p then
+			return
+		end
+		phone = p
+		local from: Instance = if p then panel else body
+		local to: Instance = if p then body else panel
+		for _, c in from:GetChildren() do
+			if c ~= body and c:IsA("GuiObject") and c.LayoutOrder >= 2 and c.LayoutOrder <= 8 then
+				c.Parent = to
+			end
+		end
+		body.Visible = p
+	end
 	local function fit()
+		local layer = shade:FindFirstAncestorWhichIsA("ScreenGui")
+		local p = layer ~= nil and UiScale.isPhone(layer)
+		setPhone(p)
 		local natural = panel.AbsoluteSize / math.max(0.01, scale.Scale)
 		local room = shade.AbsoluteSize
-		if natural.X > 0 and natural.Y > 0 and room.X > 0 then
-			scale.Scale = math.clamp(math.min((room.X - 24) / natural.X, (room.Y - 24) / natural.Y), 0.5, 1)
+		if natural.X <= 0 or natural.Y <= 0 or room.X <= 0 then
+			return
 		end
+		if p then
+			-- Всё в настоящих пикселях при масштабе окна 1; высота прокрутки — в условных (÷ масштаб слоя).
+			local cfg = Config.Render.Phone.Hud
+			local f = UiScale.factor()
+			-- Слой меню — во весь экран: окно — ниже полосы Roblox сверху (её кнопки слева заходили на заголовок).
+			local _, band = UiScale.topbar()
+			panel.Position = UDim2.new(0.5, 0, 0.5, band / 2)
+			local k = math.clamp((room.X - 24 * f) / natural.X, cfg.WindowMinScale, 1)
+			local other = natural.Y - body.AbsoluteSize.Y / math.max(0.01, scale.Scale)
+			local want = math.max(120, ((room.Y - (band + 2 * cfg.WindowEdge) * f) / k - other) / f)
+			if math.abs(body.Size.Y.Offset - want) > 1 then
+				body.Size = UDim2.new(1, 0, 0, want)
+			end
+			scale.Scale = k
+			return
+		end
+		panel.Position = UDim2.fromScale(0.5, 0.5)
+		scale.Scale = math.clamp(math.min((room.X - 24) / natural.X, (room.Y - 24) / natural.Y), 0.5, 1)
 	end
 	Session.connect(shade:GetPropertyChangedSignal("AbsoluteSize"), fit)
 	Session.connect(panel:GetPropertyChangedSignal("AbsoluteSize"), fit)

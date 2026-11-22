@@ -5,6 +5,8 @@
 	с превью), цвет — цвет державы. Чужой корабль вне обзора не рисуется (туман, §6.11; сервер и так шлёт только
 	то, что в грубом обзоре). Выбранный корабль — золотая обводка, у эсминца — круг дальности.
 	У заблокированного порта — красная рамка.
+	§15ы: корабль крупнее (MapIcons.shipSide — от зума), картинка слегка в цвет державы (Render.ShipAnim.Tint), под
+	корпусом — «лодочка» цвета державы со светлым кантом (тёмный пропадал на тёмной воде).
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -19,6 +21,8 @@ local Protocol = require(Shared:WaitForChild("Net"):WaitForChild("Protocol"))
 local ShipSprites = require(Shared:WaitForChild("ShipSprites"))
 local UnitSprites = require(Shared:WaitForChild("UnitSprites"))
 local IconArt = require(Shared:WaitForChild("IconArt"))
+local MapArt = require(Shared:WaitForChild("MapArt"))
+local MapIcons = require(Shared:WaitForChild("MapIcons"))
 
 local IconImage = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("IconImage"))
 local Theme = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("Theme"))
@@ -56,6 +60,8 @@ type Sprite = {
 	image: ImageLabel?,
 	base: Frame?,
 	shownFlip: boolean?, -- в какую сторону сейчас смотрит картинка
+	smooth: boolean, -- §15ы Ы4: гладкая картинка MapArt (обрезана по кораблю, h/w — aspect)
+	aspect: number,
 	phase: number, -- покачивание на волне
 }
 
@@ -103,23 +109,30 @@ function ShipLayer.new(canvas: Frame, cs: ClientState): ShipLayer
 		stroke.Enabled = false
 		stroke.Parent = root
 		local parts: { Frame } = {}
-		local content = if IconArt.has(info.kind) then IconImage.content(info.kind) else nil
+		-- §15ы Ы4: сначала гладкая картинка MapArt (корабль во всю ширину, с контуром), иначе — иконка палитры.
+		local smoothContent = IconImage.mapArt(info.kind)
+		local content = smoothContent or (if IconArt.has(info.kind) then IconImage.content(info.kind) else nil)
+		local artW, artH = MapArt.size(info.kind)
+		local smooth = smoothContent ~= nil and artW > 0
 		local image: ImageLabel? = nil
 		local base: Frame? = nil
 		if content ~= nil then
+			local owner = colorOf(info.owner)
 			local b = Instance.new("Frame")
 			b.Name = "Base"
 			b.AnchorPoint = Vector2.new(0.5, 0.5)
-			b.BackgroundColor3 = colorOf(info.owner)
-			b.BackgroundTransparency = 0.2
+			b.BackgroundColor3 = owner
+			b.BackgroundTransparency = 0
 			b.BorderSizePixel = 0
 			b.ZIndex = 9
 			local bc = Instance.new("UICorner")
 			bc.CornerRadius = UDim.new(0.5, 0)
 			bc.Parent = b
+			-- §15ы: светлый кант — «лодочку» видно на тёмной воде.
 			local bs = Instance.new("UIStroke")
-			bs.Color = Theme.Colors.Backdrop
-			bs.Thickness = 1
+			bs.Color = Theme.color("White")
+			bs.Thickness = 1.5
+			bs.Transparency = 0.15
 			bs.Parent = b
 			b.Parent = root
 			base = b
@@ -128,8 +141,10 @@ function ShipLayer.new(canvas: Frame, cs: ClientState): ShipLayer
 			img.AnchorPoint = Vector2.new(0.5, 0.5)
 			img.BackgroundTransparency = 1
 			img.ScaleType = Enum.ScaleType.Fit
-			img.ResampleMode = Enum.ResamplerMode.Pixelated
+			img.ResampleMode = if smooth then Enum.ResamplerMode.Default else Enum.ResamplerMode.Pixelated
 			img.ImageContent = content
+			-- §15ы: серый корпус чуть в цвет державы — свой и чужой флот различимы и без «лодочки».
+			img.ImageColor3 = Color3.new(1, 1, 1):Lerp(owner, Config.Render.ShipAnim.Tint)
 			img.ZIndex = 10
 			img.Parent = root
 			image = img
@@ -164,6 +179,8 @@ function ShipLayer.new(canvas: Frame, cs: ClientState): ShipLayer
 			image = image,
 			base = base,
 			shownFlip = nil,
+			smooth = smooth,
+			aspect = if smooth then artH / artW else 1,
 			phase = (info.id * 0.7) % (math.pi * 2),
 		}
 	end
@@ -242,21 +259,37 @@ function ShipLayer.new(canvas: Frame, cs: ClientState): ShipLayer
 					-- §15я Я4: картинка по ходу движения, покачивается на волне; овал цвета державы — под корпусом.
 					if s.shownFlip ~= s.flip then
 						s.shownFlip = s.flip
-						local content = if IconArt.mirror(s.kind, s.flip)
-							then IconImage.mirrored(s.kind)
+						local mirror = IconArt.mirror(s.kind, s.flip)
+						local content = if s.smooth
+							then IconImage.mapArt(s.kind, mirror)
+							elseif mirror then IconImage.mirrored(s.kind)
 							else IconImage.content(s.kind)
 						if content ~= nil then
 							img.ImageContent = content
 						end
 					end
 					local a = Config.Render.ShipAnim
-					local side = math.round(sw * a.SizeMul)
+					-- §15ы: сторона картинки — от зума; корпус на ней — примерно 0.9 ширины и 0.35 высоты.
+					local side = MapIcons.shipSide(zoom)
 					local wave = math.sin(now * a.Rate + s.phase)
-					img.Size = UDim2.fromOffset(side, side)
-					img.Position = UDim2.new(0.5, 0, 0.5, math.round(-side * 0.12 + wave * a.BobPx * scale))
+					local bob = wave * a.BobPx * scale
 					img.Rotation = wave * a.RollDeg
-					base.Size = UDim2.fromOffset(math.round(side * 0.85), math.max(3, math.round(sh * 0.7)))
-					base.Position = UDim2.new(0.5, 0, 0.5, math.round(side * 0.18))
+					if s.smooth then
+						-- §15ы Ы4: гладкая картинка обрезана по кораблю — во всю ширину, высота по её пропорции;
+						-- «лодочка» цвета державы — под нижней частью корпуса (ватерлиния).
+						local imgH = math.round(side * s.aspect)
+						s.root.Size = UDim2.fromOffset(side, imgH)
+						img.Size = UDim2.fromOffset(side, imgH)
+						img.Position = UDim2.new(0.5, 0, 0.5, math.round(-imgH * 0.06 + bob))
+						base.Size = UDim2.fromOffset(math.round(side * 0.86), math.max(6, math.round(side * 0.17)))
+						base.Position = UDim2.new(0.5, 0, 0.5, math.round(imgH * 0.3))
+					else
+						s.root.Size = UDim2.fromOffset(side, math.round(side * 0.5))
+						img.Size = UDim2.fromOffset(side, side)
+						img.Position = UDim2.new(0.5, 0, 0.5, math.round(-side * 0.08 + bob))
+						base.Size = UDim2.fromOffset(math.round(side * 0.82), math.max(6, math.round(side * 0.2)))
+						base.Position = UDim2.new(0.5, 0, 0.5, math.round(side * 0.14))
+					end
 				else
 					for k, p in ShipSprites.Shapes[s.kind] do
 						local px = if s.flip then ShipSprites.Width - p.x - p.w else p.x

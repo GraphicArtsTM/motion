@@ -158,7 +158,15 @@ function ResultsPanel.new(
 	local scale = Instance.new("UIScale")
 	scale.Parent = panel
 	local expanded = false -- «Подробнее»: места и график
+	local phoneFit = UiScale.scrollHost(gui, panel, scale) -- §15ё Ё3: на телефоне — по ширине, по высоте прокрутка
 	local function fit()
+		-- §15ё: в прокрутке AutomaticSize по ширине тянется на всю прокрутку — там ширина задана явно.
+		local phoneNow = UiScale.isPhone(gui)
+		panel.AutomaticSize = if phoneNow then Enum.AutomaticSize.Y else Enum.AutomaticSize.XY
+		panel.Size = if phoneNow then UDim2.fromOffset(TILES_W + 28, 0) else UDim2.new()
+		if phoneFit(TILES_W + 28) then
+			return
+		end
 		local s = UiScale.size(gui)
 		local h = if expanded then CHART_H + 900 else 780
 		scale.Scale = math.clamp(math.min(s.X / (TILES_W + 60), s.Y / h), 0.45, 1)
@@ -402,6 +410,16 @@ function ResultsPanel.new(
 			Strings.get("result.mode", lang),
 			Strings.get("mode." .. cs.mode.mode, lang)
 		)
+		-- §15й Й5: «Ваш матч» — счётчики своей державы (у зрителя без державы строки нет).
+		local myStats = if me ~= nil and cs.task ~= nil then cs.task.stats else nil
+		if myStats ~= nil then
+			reason.Text ..= string.char(10) .. string.format(
+				Strings.get("result.mine", lang),
+				Strings.formatInt(myStats.cities),
+				Strings.formatInt(myStats.tasks),
+				Strings.formatInt(myStats.trophies)
+			)
+		end
 
 		local mine = 0
 		for place, id in result.places do

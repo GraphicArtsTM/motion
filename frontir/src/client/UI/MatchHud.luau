@@ -46,6 +46,11 @@ export type Hud = {
 	percent: () -> number, -- ползунок «Атака» (доля 0..1): им же — сколько войск на высадку (§6.12)
 	setPercent: (p: number) -> (), -- §15л ч.2: кнопки доли атаки в командной полосе
 	values: () -> ResourceBar.Values?, -- §15л ч.2: ресурсы своей державы (для командной полосы)
+	-- §15ё телефон: верх матча коротко, лента — меньше строк и мельче (ширина ленты — feedW условных px)
+	setCompact: (compact: boolean, feedW: number) -> (),
+	-- §15ё Ё6 телефон: время и «Контроль суши» — в рамке host (полоса Roblox сверху); nil — обратно в баннер.
+	setBandTop: (host: GuiObject?) -> (),
+	topShown: () -> boolean, -- плашка «время | Контроль суши» сейчас нужна (идёт игра)
 }
 
 local MatchHud = {}
@@ -188,6 +193,8 @@ function MatchHud.new(
 	top.LayoutOrder = 0
 	top.Visible = false
 	top.Parent = banner
+	local bandTop = false -- §15ё Ё6: плашка в полосе Roblox — в баннере без строки «Режим: …»
+	local compactTop = false -- §15ё Ё7: телефон — строка под полосой короче («с блоком» и «Лидер:» не пишем)
 	local topList = Instance.new("UIListLayout")
 	topList.FillDirection = Enum.FillDirection.Horizontal
 	topList.VerticalAlignment = Enum.VerticalAlignment.Center
@@ -261,6 +268,7 @@ function MatchHud.new(
 	myMark.Parent = leaderBar
 	local controlText = richLabel(controlCol, 13)
 	controlText.LayoutOrder = 3
+	local topDivider = divider
 	-- Справа сверху — место по суше «#N · M%» (стоит первым в столбике TopRight, Main.client).
 	local placeChip = panel(gui, "PlaceChip")
 	placeChip.AnchorPoint = Vector2.new(1, 0)
@@ -307,6 +315,10 @@ function MatchHud.new(
 	bottomLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
 	bottomLayout.Padding = UDim.new(0, 6)
 	bottomLayout.Parent = bottom
+	local bottomScale = Instance.new("UIScale") -- §15ё телефон: лента и подсказка мельче
+	bottomScale.Parent = bottom
+	local feedMax = Config.Render.FeedLines
+	local feedWidth = 320 -- §15ё: на телефоне — по месту слева от фишек атак (setCompact)
 
 	-- Лента событий (GDD §10): до FeedLines строк, каждая гаснет через FeedSec; новые — снизу.
 	local feed = Instance.new("Frame")
@@ -440,7 +452,7 @@ function MatchHud.new(
 			linePad.PaddingBottom = UDim.new(0, 3)
 			linePad.Parent = made
 			made.AutomaticSize = Enum.AutomaticSize.Y
-			made.Size = UDim2.fromOffset(320, 0)
+			made.Size = UDim2.fromOffset(feedWidth, 0)
 			feedOrder += 1
 			made.LayoutOrder = feedOrder
 			feedLabels[line] = made
@@ -448,6 +460,19 @@ function MatchHud.new(
 		end
 		local shown = label :: TextLabel
 		shown.Text = escape(EventFeed.textOf(line))
+		-- §15ё телефон: видны только последние feedMax строк.
+		local labels: { TextLabel } = {}
+		for _, l in feedLabels do
+			if l ~= nil then
+				table.insert(labels, l)
+			end
+		end
+		table.sort(labels, function(a: TextLabel, b: TextLabel): boolean
+			return a.LayoutOrder > b.LayoutOrder
+		end)
+		for k, l in labels do
+			l.Visible = k <= feedMax
+		end
 		shown.TextColor3 = if line.level == "critical"
 			then alertColor()
 			else levelColor[line.level] or Theme.Colors.Gold
@@ -738,7 +763,11 @@ function MatchHud.new(
 					end
 				end
 			end
-			text ..= string.format('<font color="%s" size="14">%s</font>', sky, line)
+			-- §15ё Ё6: на телефоне (плашка в полосе Roblox) голое «Режим: …» не дублируем — оно в меню игры.
+			local plainMode = (me == nil or me.team == nil) and not cs.rules.capitalHunt
+			if not (bandTop and plainMode) then
+				text ..= string.format('<font color="%s" size="14">%s</font>', sky, line)
+			end
 			-- «Потоп» (§5.3): отсчёт до следующей ступени.
 			local flood = cs.flood
 			if flood ~= nil and flood.step < Config.Flood.MaxSteps then
@@ -807,7 +836,7 @@ function MatchHud.new(
 					'<font color="%s">■</font> %s  ',
 					nationHex(cs.myNation),
 					string.format(Strings.get("hud.youShare", lang), myVictory * 100)
-						.. (if myWithBloc then " " .. Strings.get("hud.withBloc", lang) else "")
+						.. (if myWithBloc and not compactTop then " " .. Strings.get("hud.withBloc", lang) else "")
 				)
 				else ""
 			-- §15ш Ш1: лидер словами — знака короны нет в шрифте интерфейса (был пустой квадрат).
@@ -816,11 +845,11 @@ function MatchHud.new(
 				else you .. string.format(
 					'<font color="%s">%s</font> <font color="%s">■</font> %s %.1f%%%s',
 					gold,
-					Strings.get("hud.leaderLabel", lang),
+					if compactTop then "·" else Strings.get("hud.leaderLabel", lang),
 					nationHex(best),
 					escape(nationName(best)),
 					share * 100,
-					if bestWithBloc then " " .. Strings.get("hud.withBloc", lang) else ""
+					if bestWithBloc and not compactTop then " " .. Strings.get("hud.withBloc", lang) else ""
 				)
 			local n = cs.nations[best]
 			leaderFill.BackgroundColor3 = if n ~= nil and n.colorIndex >= 1
@@ -837,8 +866,10 @@ function MatchHud.new(
 		end
 		-- §15и: в лобби карточку «Следующий матч» показывает экран лобби — баннер не дублирует.
 		local lobby = cs.phase == "Lobby" or cs.phase == "Waiting"
-		if banner.Visible == lobby then
-			banner.Visible = not lobby
+		-- Пустой баннер (плашка уехала в полосу Roblox, строк нет) — не показываем.
+		local want = not lobby and (top.Parent == banner or bannerText.Text ~= "")
+		if banner.Visible ~= want then
+			banner.Visible = want
 		end
 		for _, line in EventFeed.expire(feedState, os.clock()) do
 			local label = feedLabels[line]
@@ -1166,6 +1197,36 @@ function MatchHud.new(
 				else
 					toast(string.format(Strings.get("event.raid", lang), b, lost, count))
 				end
+			elseif e.kind == "trophy" and (e.nation == cs.myNation or e.target == cs.myNation) then
+				-- §15й Й2: трофей за город и «Триумф» — своим; потерю города — как трофей врага.
+				local name = Provinces.cityName(provinces, map, tonumber(e.cell) or 0)
+				local city = if lang == "en" then name.en else name.ru
+				local amount = Strings.formatInt(tonumber(e.amount) or 0)
+				local tr = Config.Trophy
+				if e.nation ~= cs.myNation then
+					alertLine(string.format(Strings.get("event.trophyLost", lang), a, city, amount))
+				elseif e.capital == true then
+					toast(
+						string.format(
+							Strings.get("event.triumph", lang),
+							b,
+							amount,
+							math.round((tr.TriumphSpeed - 1) * 100),
+							tr.TriumphSec
+						)
+					)
+				else
+					toast(string.format(Strings.get("event.trophy", lang), amount, city))
+				end
+			elseif e.kind == "underdog" then
+				toast(string.format(
+					Strings.get("event.underdog", lang),
+					a,
+					b,
+					-- без армии у победителя множитель бессмысленно велик («×300») — «×10+»
+					if (tonumber(e.ratio) or 0) >= 10 then "10+" else tostring(tonumber(e.ratio) or 0),
+					Strings.formatInt(tonumber(e.amount) or 0)
+				))
 			elseif e.kind == "cityFounded" then
 				-- Новый город (§15д ч.4).
 				local name = Provinces.cityName(provinces, map, tonumber(e.cell) or 0)
@@ -1177,6 +1238,23 @@ function MatchHud.new(
 				local province = provinces.list[tonumber(e.province) or 0]
 				local where = if province ~= nil then (if lang == "en" then province.nameEn else province.name) else "?"
 				alertLine(string.format(Strings.get("event.revoltSoon", lang), where, tonumber(e.sec) or 0))
+			elseif e.kind == "built" and e.nation == cs.myNation then
+				-- §15ч Ч5а: своя стройка закончена.
+				toast(
+					string.format(
+						Strings.get("event.built", lang),
+						Strings.get("building." .. tostring(e.building), lang)
+					)
+				)
+			elseif e.kind == "railCut" and e.nation == cs.myNation then
+				-- §15ч Ч3в: свою дорогу перерезали (или рухнул мост) — красной строкой, с провинцией.
+				local province = provinces.list[MapDataModule.getProvince(map, tonumber(e.cell) or 0)]
+				local where = if province ~= nil
+					then Provinces.shortName(if lang == "en" then province.nameEn else province.name)
+					else "?"
+				alertLine(
+					string.format(Strings.get(if e.bridge then "event.bridgeCut" else "event.railCut", lang), where)
+				)
 			elseif e.kind == "raidIntercepted" then
 				-- Заряд ПВО перехватил налёт (§15д): по нам — золотом, наш налёт сбит — красным.
 				local text =
@@ -1222,6 +1300,52 @@ function MatchHud.new(
 		setPercent = setPercent,
 		values = function(): ResourceBar.Values?
 			return lastValues
+		end,
+		setBandTop = function(host: GuiObject?)
+			bandTop = host ~= nil
+			top.Parent = if host ~= nil then host else banner
+			lastBanner = "~" -- пересобрать строки баннера
+		end,
+		topShown = function(): boolean
+			return top.Visible
+		end,
+		setCompact = function(c: boolean, feedW: number)
+			local phoneCfg = Config.Render.Phone.Hud
+			feedMax = if c then phoneCfg.FeedLines else Config.Render.FeedLines
+			-- Текст — постоянного размера (FeedScale), ширина ленты и подсказки — сколько есть места.
+			bottomScale.Scale = if c then phoneCfg.FeedScale else 1
+			feedWidth = if c then math.floor(feedW / phoneCfg.FeedScale) else 320
+			bottom.Size = UDim2.fromOffset(feedWidth, 0)
+			feed.Size = UDim2.fromOffset(feedWidth, 0)
+			for _, l in feedLabels do
+				if l ~= nil then
+					l.Size = UDim2.fromOffset(feedWidth, 0)
+				end
+			end
+			local hintFrame = bottom:FindFirstChild("HintPanel")
+			if hintFrame ~= nil and hintFrame:IsA("GuiObject") then
+				hintFrame.Size = UDim2.fromOffset(feedWidth, 0)
+			end
+			timeHead.Visible = not c
+			timeSub.Visible = not c
+			controlTitle.Visible = not c
+			timeBig.TextSize = if c then 20 else 26
+			bannerText.TextSize = if c then 14 else 18
+			controlText.TextSize = if c then 12 else 13
+			-- §15ё Ё7: на телефоне строка не шире полосы (иначе плашка расползается и время уходит под «⚙»).
+			compactTop = c
+			controlText.AutomaticSize = if c then Enum.AutomaticSize.None else Enum.AutomaticSize.XY
+			controlText.TextTruncate = if c then Enum.TextTruncate.AtEnd else Enum.TextTruncate.None
+			lastBanner = "~" -- пересобрать строку
+			topList.Padding = UDim.new(0, if c then 10 else 16)
+			topDivider.Size = UDim2.fromOffset(2, if c then 30 else 44)
+			local barW = if c then 170 else 320
+			controlHead.Size = UDim2.fromOffset(barW, if c then 14 else 16)
+			leaderBar.Size = UDim2.fromOffset(barW, if c then 8 else 10)
+			if c then
+				controlText.Size = UDim2.fromOffset(barW, 14)
+			end
+			placeText.TextSize = if c then 16 else 20
 		end,
 	}
 end

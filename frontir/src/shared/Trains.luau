@@ -11,7 +11,8 @@
 local Config = require("./Config")
 local Rails = require("./Rails")
 
-export type Stop = { index: number, cell: number, money: number }
+-- to — кому платит остановка (nil — хозяину поезда; §15ч Ч3б — союзнику на его земле).
+export type Stop = { index: number, cell: number, money: number, to: number? }
 export type Train = {
 	id: number,
 	owner: number,
@@ -22,6 +23,8 @@ export type Train = {
 	speed: number, -- клеток в секунду
 	start: number, -- игровое время отправления
 	checkAt: number, -- когда проверить путь впереди
+	ally: number?, -- §15ч Ч3б: едет к союзнику (через стык)
+	junction: string?, -- §15ч Ч3б: ключ стыка, по которому едет
 }
 
 local Trains = {}
@@ -136,6 +139,72 @@ function Trains.plan(
 			table.insert(stops, { index = index[cell], cell = cell, money = money })
 		end
 	end
+	return cells, stops
+end
+
+-- §15ч Ч3б: поезд держав owner → ally через стык. Своя сеть: from → mine (станция стыка своя); путь стыка
+-- (от mine к theirs); сеть союзника: theirs → to. Остановки на своей части платят хозяину, на части союзника —
+-- союзнику (to = ally); конечная платит обоим по Rail.AllyTradeMoney. nil — пути нет.
+function Trains.planVia(
+	mineNet: Rails.Net,
+	allyNet: Rails.Net,
+	from: number,
+	mine: number,
+	link: { number },
+	theirs: number,
+	to: number,
+	ally: number,
+	cityLevel: (cell: number) -> number
+): ({ number }?, { Stop }?)
+	local first, order1 = Trains.route(mineNet, from, mine)
+	if from == mine then
+		first, order1 = { from }, { from }
+	end
+	local last, order2 = Trains.route(allyNet, theirs, to)
+	if theirs == to then
+		last, order2 = { to }, { to }
+	end
+	if first == nil or order1 == nil or last == nil or order2 == nil then
+		return nil, nil
+	end
+	local cells: { number } = table.clone(first)
+	for j = 2, #link do
+		table.insert(cells, link[j])
+	end
+	local base = #cells
+	for j = 2, #last do
+		table.insert(cells, last[j])
+	end
+	local stops: { Stop } = {}
+	local cfg = Config.Rail
+	local function add(index: number, cell: number, money: number, payee: number?)
+		if money > 0 and #stops < cfg.MaxPaidStops then
+			table.insert(stops, { index = index, cell = cell, money = money, to = payee })
+		end
+	end
+	-- Своя часть: станции после from (станция стыка — тоже остановка).
+	for k = 2, #order1 do
+		local cell = order1[k]
+		add(table.find(cells, cell) or 1, cell, Trains.stopMoney(mineNet.kinds[cell] or "", cityLevel(cell)), nil)
+	end
+	-- Часть союзника: станция стыка и дальше, кроме конечной.
+	local function indexInLast(cell: number): number
+		if cell == theirs then
+			return base
+		end
+		return base + (table.find(last :: { number }, cell) :: number) - 1
+	end
+	for k = 1, #order2 - 1 do
+		local cell = order2[k]
+		add(indexInLast(cell), cell, Trains.stopMoney(allyNet.kinds[cell] or "", cityLevel(cell)), ally)
+	end
+	-- Конечная: торговля — обоим (не больше MaxPaidStops: последние места — ей).
+	while #stops > cfg.MaxPaidStops - 2 do
+		table.remove(stops)
+	end
+	local endIndex = #cells
+	table.insert(stops, { index = endIndex, cell = to, money = cfg.AllyTradeMoney })
+	table.insert(stops, { index = endIndex, cell = to, money = cfg.AllyTradeMoney, to = ally })
 	return cells, stops
 end
 

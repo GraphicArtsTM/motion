@@ -11,6 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local CardArt = require(Shared:WaitForChild("CardArt"))
 local IconArt = require(Shared:WaitForChild("IconArt"))
+local MapArt = require(Shared:WaitForChild("MapArt"))
 local RankArt = require(Shared:WaitForChild("RankArt"))
 
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
@@ -78,6 +79,17 @@ function IconImage.mirrored(name: string): Content?
 		end
 	end
 	return make(key, out, n, n)
+end
+
+-- §15ы Ы4: гладкая картинка на карте (город, корабль — MapArt, w × h, прозрачный фон); mirror — зеркально.
+-- nil — картинки нет (тогда — прежняя иконка IconArt). Показывать с ResampleMode Default (плавно), не Pixelated.
+function IconImage.mapArt(name: string, mirror: boolean?): Content?
+	local key = (if mirror then "mapMirror:" else "map:") .. name
+	if cache[key] then
+		return cache[key]
+	end
+	local w, h = MapArt.size(name)
+	return make(key, MapArt.paint(name, mirror), w, h)
 end
 
 -- §15ш Ш8: карточка удара (CardArt, полный цвет, W × H).

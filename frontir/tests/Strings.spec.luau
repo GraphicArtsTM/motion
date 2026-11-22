@@ -15,8 +15,9 @@ T.describe("Strings", function()
 	end)
 
 	T.it("get возвращает перевод и ключ при отсутствии", function()
-		T.expect(Strings.get("game.title", "ru")).toBe("Фронтир")
-		T.expect(Strings.get("game.title", "en")).toBe("Frontir")
+		T.expect(Strings.get("game.title", "ru")).toBe("World Conquer") -- название игры одно на всех языках
+		T.expect(Strings.get("mode.Duel", "ru")).toBe("Дуэль")
+		T.expect(Strings.get("mode.Duel", "en")).toBe("Duel")
 		T.expect(Strings.get("no.such.key", "en")).toBe("no.such.key")
 	end)
 

@@ -30,8 +30,6 @@ T.describe("Звук и музыка (этап 10б)", function()
 			T.expect(table.concat(keys(SoundBank.Sounds :: any), ","))
 				.toBe(table.concat(sorted(AudioCues.SoundNames), ","))
 			T.expect(table.concat(keys(Config.Music :: any), ",")).toBe(table.concat(sorted(AudioCues.MusicNames), ","))
-			T.expect(table.concat(keys(SoundBank.Songs :: any), ","))
-				.toBe(table.concat(sorted(AudioCues.MusicNames), ","))
 			for _, group in { Config.Sounds, Config.Music } :: { any } do
 				for name, entry in group do
 					T.expect(type(entry.id)).toBe("string")
@@ -83,21 +81,69 @@ T.describe("Звук и музыка (этап 10б)", function()
 	)
 
 	T.it(
-		"музыка: лобби вне игры, игра, финал — лидер ближе 10% к победе или мало времени",
+		"музыка: меню (меню, хаб, ожидание, итоги), матч (выбор старта, мир), война (война или финал)",
 		function()
-			local cfg = Config.Audio
-			T.expect(AudioCues.music({ phase = "Lobby", leaderShare = 0, victoryShare = 0.6 })).toBe("Lobby")
-			T.expect(AudioCues.music({ phase = "Over", leaderShare = 0.7, victoryShare = 0.6 })).toBe("Lobby")
+			local cfg = Config.Finale
+			T.expect(
+				AudioCues.music({ phase = "Play", menu = true, atWar = true, leaderShare = 0, victoryShare = 0.6 })
+			)
+				.toBe("Menu")
+			T.expect(AudioCues.music({ phase = "Lobby", leaderShare = 0, victoryShare = 0.6 })).toBe("Menu")
+			T.expect(AudioCues.music({ phase = "Waiting", leaderShare = 0, victoryShare = 0.6 })).toBe("Menu")
+			T.expect(AudioCues.music({ phase = "Over", leaderShare = 0.7, victoryShare = 0.6 })).toBe("Menu")
+			T.expect(AudioCues.music({ phase = "Pick", leaderShare = 0, victoryShare = 0.6 })).toBe("Match")
 			T.expect(AudioCues.music({ phase = "Play", leaderShare = 0.3, victoryShare = 0.6, timeLeft = 600 }))
-				.toBe("Calm")
-			T.expect(AudioCues.music({ phase = "Play", leaderShare = 0.6 - cfg.FinaleMargin, victoryShare = 0.6 }))
-				.toBe("Finale")
+				.toBe("Match")
+			T.expect(AudioCues.music({ phase = "Play", atWar = true, leaderShare = 0.3, victoryShare = 0.6 }))
+				.toBe("War")
+			T.expect(AudioCues.music({ phase = "Play", leaderShare = 0.6 - cfg.Margin, victoryShare = 0.6 }))
+				.toBe("War")
 			T.expect(AudioCues.music({
 				phase = "Play",
 				leaderShare = 0.2,
 				victoryShare = 0.6,
-				timeLeft = cfg.FinaleTimeSec - 1,
-			})).toBe("Finale")
+				timeLeft = cfg.Sec - 1,
+			})).toBe("War")
+		end
+	)
+
+	T.it(
+		"война держится WarHoldSec; громкие звуки глушат музыку; частые звуки чуть разной высоты",
+		function()
+			local hold = Config.Audio.WarHoldSec
+			T.expect(AudioCues.warHold(nil, 100)).toBe(false)
+			T.expect(AudioCues.warHold(100, 100 + hold - 0.1)).toBe(true)
+			T.expect(AudioCues.warHold(100, 100 + hold)).toBe(false)
+			T.expect(AudioCues.ducks("Siren")).toBe(true)
+			T.expect(AudioCues.ducks("Click")).toBe(false)
+			for _, name in Config.Audio.Duck.Names do
+				T.expect(table.find(AudioCues.SoundNames, name) ~= nil).toBe(true)
+			end
+			T.expect(AudioCues.pitch("Victory", 0)).toBe(1)
+			local j = Config.Audio.Pitch.Click
+			T.expect(AudioCues.pitch("Click", 0)).toBeNear(1 - j, 1e-9)
+			T.expect(AudioCues.pitch("Click", 1)).toBeNear(1 + j, 1e-9)
+			for name in Config.Audio.Pitch :: any do
+				T.expect(table.find(AudioCues.SoundNames, name) ~= nil).toBe(true)
+			end
+		end
+	)
+
+	T.it(
+		"новые звуки: война пошла, пала столица, добили державу, мир, приняли предложение, стройка, провал задачи",
+		function()
+			local function cue(e: { [string]: any }): string?
+				return AudioCues.cueOf(e, 1)
+			end
+			T.expect(cue({ kind = "warStarted", nation = 2, target = 1 })).toBe("Battle")
+			T.expect(cue({ kind = "warStarted", nation = 2, target = 3 })).toBe(nil)
+			T.expect(cue({ kind = "capitalLost", nation = 1, by = 2 })).toBe("Siren")
+			T.expect(cue({ kind = "eliminated", nation = 3, by = 1 })).toBe("Victory")
+			T.expect(cue({ kind = "eliminated", nation = 3, by = 2 })).toBe(nil)
+			T.expect(cue({ kind = "peace", nation = 2, target = 1 })).toBe("Notify")
+			T.expect(cue({ kind = "offerAccepted", nation = 2, target = 1 })).toBe("Notify")
+			T.expect(cue({ kind = "built", nation = 1, cell = 5 })).toBe("Build")
+			T.expect(cue({ kind = "taskFailed", nation = 1 })).toBe("Error")
 		end
 	)
 

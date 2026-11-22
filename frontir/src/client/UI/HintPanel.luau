@@ -16,6 +16,7 @@ local Strings = require(Shared:WaitForChild("Strings"))
 
 local MenuKit = require(script.Parent:WaitForChild("MenuKit"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local UiScale = require(script.Parent:WaitForChild("UiScale"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
@@ -210,7 +211,7 @@ function HintPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang): Hin
 		if key ~= current then
 			current = key
 			if key ~= nil then
-				text.Text = Strings.get("hint." .. key, lang)
+				text.Text = UiScale.touchText(gui, Strings.get("hint." .. key, lang)) -- §15ё: на телефоне без клавиш
 				panel.Visible = true
 				Theme.popIn(panel)
 			else

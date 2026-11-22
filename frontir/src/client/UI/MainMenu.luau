@@ -198,6 +198,20 @@ function MainMenu.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, mapNa
 	listCount.Position = UDim2.fromScale(1, 0.5)
 	listCount.TextXAlignment = Enum.TextXAlignment.Right
 
+	-- §15ё Ё3: на телефоне список матчей — в прокрутке своей высоты (карточка влезает в экран).
+	local matchScroll = Instance.new("ScrollingFrame")
+	matchScroll.Name = "MatchScroll"
+	matchScroll.BackgroundTransparency = 1
+	matchScroll.BorderSizePixel = 0
+	matchScroll.LayoutOrder = 4
+	matchScroll.Size = UDim2.new(1, 0, 0, ROW_H)
+	matchScroll.CanvasSize = UDim2.new()
+	matchScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	matchScroll.ScrollingDirection = Enum.ScrollingDirection.Y
+	matchScroll.ScrollBarThickness = 5
+	matchScroll.ScrollBarImageColor3 = Theme.Colors.PanelBorder
+	matchScroll.Visible = false
+	matchScroll.Parent = card
 	-- Строки матчей.
 	local matchList = MenuKit.box(card, "Matches", 4)
 	matchList.Size = UDim2.fromScale(1, 0)
@@ -497,9 +511,101 @@ function MainMenu.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, mapNa
 	end)
 
 	------------------------------------------------------------------ раскладка под экран
+	-- §15ё Ё3 телефон: слева карточка «ИГРАТЬ» (список матчей прокручивается), справа логотип и плитки сеткой.
+	local phoneCfg = Config.Render.Phone.Hud
+	local phoneSide = Instance.new("Frame")
+	phoneSide.Name = "PhoneSide"
+	phoneSide.BackgroundTransparency = 1
+	phoneSide.AnchorPoint = Vector2.new(1, 0.5)
+	phoneSide.Position = UDim2.new(1, -phoneCfg.Edge, 0.5, 0)
+	phoneSide.Size = UDim2.fromOffset(0, 0)
+	phoneSide.AutomaticSize = Enum.AutomaticSize.XY
+	phoneSide.Visible = false
+	phoneSide.Parent = root
+	local sideScale = Instance.new("UIScale")
+	sideScale.Parent = phoneSide
+	MenuKit.list(phoneSide, 8, false, Enum.HorizontalAlignment.Center)
+	local logoScale = Instance.new("UIScale")
+	logoScale.Parent = logoBox
+	local tilesList = tiles:FindFirstChildOfClass("UIListLayout") :: UIListLayout
+	local phone: boolean? = nil
+	local function setPhone(p: boolean)
+		if phone == p then
+			return
+		end
+		phone = p
+		local tilePx = if p then phoneCfg.MenuTilePx else TILE
+		for _, b in tiles:GetChildren() do
+			if b:IsA("TextButton") then
+				b.Size = UDim2.fromOffset(tilePx, tilePx)
+			end
+		end
+		tilesList.Wraps = p
+		tilesList.HorizontalAlignment = if p then Enum.HorizontalAlignment.Center else Enum.HorizontalAlignment.Left
+		tilesList.Padding = UDim.new(0, if p then 8 else 10)
+		tiles.AutomaticSize = if p then Enum.AutomaticSize.Y else Enum.AutomaticSize.X
+		tiles.Size = if p
+			then UDim2.fromOffset(phoneCfg.MenuTileColumns * (tilePx + 8) - 8, 0)
+			else UDim2.fromOffset(0, TILE)
+		tiles.AnchorPoint = if p then Vector2.new(0, 0) else Vector2.new(0.5, 1)
+		tiles.Position = if p then UDim2.new() else UDim2.new(0.5, 0, 1, -16)
+		tiles.LayoutOrder = 2
+		tiles.Parent = if p then phoneSide else root
+		tilesScale.Scale = 1
+		logoBox.Parent = if p then phoneSide else center
+		logoBox.LayoutOrder = 1
+		logoScale.Scale = if p then phoneCfg.MenuLogoScale else 1
+		tagline.Visible = not p
+		phoneSide.Visible = p
+		matchScroll.Visible = p
+		matchList.Parent = if p then matchScroll else card
+		center.Size = UDim2.fromOffset(CENTER_W, 0)
+		center.AnchorPoint = if p then Vector2.new(0, 0.5) else Vector2.new(0.5, 0)
+		center.Position = if p then UDim2.new(0, phoneCfg.Edge, 0.5, 0) else UDim2.new(0.5, 0, 0, 16)
+	end
+	local function fitPhone(s: Vector2, f: number)
+		left.Visible = false
+		right.Visible = false
+		local e = phoneCfg.Edge
+		-- Слой меню — во весь экран: сверху полоса Roblox (её кнопки слева) — карточку и плитки ставим ниже неё.
+		local _, band = UiScale.topbar()
+		center.Position = UDim2.new(0, e, 0.5, band / 2)
+		phoneSide.Position = UDim2.new(1, -e, 0.5, band / 2)
+		s = Vector2.new(s.X, s.Y - band)
+		-- Справа: логотип и плитки — по высоте экрана.
+		local sideH = UiScale.units(phoneSide.AbsoluteSize.Y) / math.max(0.01, sideScale.Scale)
+		if sideH > 0 then
+			sideScale.Scale = math.clamp((s.Y - 2 * e) / sideH, 0.6, 1)
+		end
+		local sideW = UiScale.units(phoneSide.AbsoluteSize.X)
+		-- Слева: карточка — в оставшуюся ширину (уже, а не мельче: масштаб не ниже WindowMinScale); список матчей —
+		-- сколько влезает по высоте.
+		local availW = s.X - sideW - 3 * e
+		local k = math.clamp(availW / CENTER_W, phoneCfg.WindowMinScale, 1)
+		local cardW = math.floor(math.min(CENTER_W, availW / k))
+		if center.Size.X.Offset ~= cardW then
+			center.Size = UDim2.fromOffset(cardW, 0)
+		end
+		local natural = center.AbsoluteSize.Y / f / math.max(0.01, centerScale.Scale)
+		local scrollH = matchScroll.Size.Y.Offset
+		local other = natural - scrollH
+		local rowsH = UiScale.units(matchList.AbsoluteSize.Y)
+		local want = math.clamp((s.Y - 2 * e) / k - other, ROW_H, math.max(ROW_H, rowsH))
+		if math.abs(want - scrollH) > 1 then
+			matchScroll.Size = UDim2.new(1, 0, 0, want)
+		end
+		local total = other + want
+		centerScale.Scale = math.clamp(math.min(k, (s.Y - 2 * e) / math.max(1, total)), 0.5, 1)
+	end
 	local function fit()
 		local s = UiScale.size(gui)
 		local f = UiScale.factor()
+		local p = UiScale.isPhone(gui)
+		setPhone(p)
+		if p then
+			fitPhone(s, f)
+			return
+		end
 		-- Боковые колонки — если по бокам от карточки есть место.
 		local sides = s.X >= CENTER_W + 2 * SIDE_W + 4 * EDGE
 		left.Visible = sides
@@ -517,6 +623,10 @@ function MainMenu.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, mapNa
 	Session.connect(center:GetPropertyChangedSignal("AbsoluteSize"), function()
 		task.defer(fit)
 	end)
+	Session.connect(phoneSide:GetPropertyChangedSignal("AbsoluteSize"), function()
+		task.defer(fit)
+	end)
+	UiScale.onTopbar(fit)
 	fit()
 
 	------------------------------------------------------------------ действия

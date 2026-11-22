@@ -295,7 +295,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				bonusXp = bonusXp,
 				bonusPer = bonusPer,
 			},
-			unitUnlocks = Profile.unlockedUnits(d), -- §15э Э1
+			unitUnlocks = Profile.unlockedUnits(d, passes), -- §15э Э1 (Э1б: «Разведуправление» открывает разведку)
 			pathPasses = Profile.pathPasses(d), -- §15я Я1: какие улучшения даны «Путём» (магазин пишет «с Пути»)
 			ownedPasses = shop.passes(player), -- …и какие куплены геймпассом
 			xpBoostLeft = Profile.xpBoostLeft(d, now), -- §15я: ускоритель опыта
@@ -378,7 +378,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		MatchSim.setArsenal(m, id, session.data.loadout) -- §15л ч.6: предмет Арсенала в этот матч
 		local open = Profile.unlockedCommanders(session.data, passes.AllCommanders == true)
 		MatchSim.setUnlocked(m, id, open)
-		MatchSim.setUnitUnlocks(m, id, Profile.unlockedUnits(session.data)) -- §15э Э1
+		MatchSim.setUnitUnlocks(m, id, Profile.unlockedUnits(session.data, passes)) -- §15э Э1, Э1б
 		local chosen = Commanders.of(m.commanders, id)
 		if chosen ~= nil and not open[chosen] and m.phase ~= "Play" then
 			Commanders.choose(m.commanders, id, "Marshal")
@@ -979,6 +979,10 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		-- Профиль грузится в фоне (DataStore может ждать блокировку сессии).
 		task.spawn(function()
 			local session = profiles.load(player.UserId)
+			-- Игрок ушёл, пока профиль грузился: загрузка уже сняла блокировку, сессии нет — ничего не делаем.
+			if session.released then
+				return
+			end
 			shop.loadPasses(player)
 			session.data.noPaidRandom = shop.noPaidRandom(player) ~= false
 			if player.Parent ~= nil then
@@ -1155,9 +1159,9 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		end
 		-- §15ф Ф1: «Выйти» из ожидания игроков — держава убирается, игрок снова в меню.
 		if kind == "leaveMatch" then
-			local id = nationOf[player]
-			if id ~= nil and (m.phase == "Waiting" or m.phase == "Lobby") then
-				MatchSim.removePlayer(m, id)
+			local leaving = nationOf[player]
+			if leaving ~= nil and (m.phase == "Waiting" or m.phase == "Lobby") then
+				MatchSim.removePlayer(m, leaving)
 				nationOf[player] = nil
 				joined[player] = nil
 				m.infoDirty = true
@@ -1364,6 +1368,27 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				ok, reason = DevTools.giant(m, id) -- §15м «Сверхдержава»
 			elseif action == "trustAlly" then
 				ok, reason = DevTools.trustAlly(m, id) -- §15у: союзник с полным доверием и враг за ним
+			elseif action == "finishSites" then
+				MatchSim.finishSites(m) -- §15ч Ч5а: достроить всё
+				ok = true
+			elseif action == "fall" then
+				ok, reason = DevTools.fall(m, id) -- §15й Й5: «Держава пала»
+			elseif action == "finaleBot" and target ~= nil then
+				ok, reason = DevTools.finaleNear(m, target, id) -- §15й Й3: бот-лидер (контур на карте)
+			elseif action == "finaleNear" then
+				ok, reason = DevTools.finaleNear(m, id) -- §15й Й3
+			elseif action == "finaleTime" then
+				ok, reason = DevTools.finaleTime(m)
+			elseif action == "takeCapital" then
+				ok, reason = DevTools.takeCapital(m, id) -- §15й Й2: трофей и «Триумф»
+			elseif action == "taskNew" then
+				MatchSim.newTask(m, id) -- §15й Й1: новая задача сейчас
+				ok = true
+			elseif action == "taskDone" then
+				ok = MatchSim.completeTask(m, id) -- §15й Й1: засчитать задачу
+				reason = if ok then nil else "noTask"
+			elseif action == "bridgeHit" then
+				ok, reason = DevTools.bridgeHit(m, id) -- §15ч Ч3в: свой мост рушится
 			elseif action == "botLanding" and target ~= nil then
 				ok, reason = DevTools.botLanding(m, target, id)
 			elseif action == "airForce" then
@@ -1557,6 +1582,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			if id ~= nil then
 				matchEvent:FireClient(player, MatchStats.tech(m, id)) -- технологии (§6.14) — тем же темпом
 				matchEvent:FireClient(player, MatchStats.commander(m, id)) -- генерал (§6.15)
+				matchEvent:FireClient(player, MatchStats.task(m, id)) -- §15й Й1: задача матча
 			end
 			matchEvent:FireClient(player, MatchStats.world(m, id)) -- события и ракеты (§6.16, §6.9)
 		end

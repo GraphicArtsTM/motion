@@ -13,12 +13,18 @@ local Config = require("./Config")
 
 local UiFit = {}
 
-function UiFit.scale(w: number, h: number): number
+-- touch: экран с касанием (§15ё): узкий сенсорный экран (планшет) растёт до условного TouchRefWidthPx ×
+-- TouchRefHeightPx — иначе на планшете всё размером с телефон и много пустоты. Компьютер с сенсорным экраном
+-- (широкий в условных пикселях) — как раньше.
+function UiFit.scale(w: number, h: number, touch: boolean?): number
 	local cfg = Config.Render.UiScale
 	if w <= 0 or h <= 0 then
 		return cfg.Min
 	end
 	local raw = math.min(h / cfg.RefHeightPx, w / cfg.RefWidthPx)
+	if touch and w / math.max(cfg.Min, raw) < Config.Render.NarrowScreenPx then
+		raw = math.max(raw, math.min(h / cfg.TouchRefHeightPx, w / cfg.TouchRefWidthPx))
+	end
 	local stepped = math.floor(raw * cfg.StepsPerUnit + 0.5) / cfg.StepsPerUnit
 	return math.clamp(stepped, cfg.Min, cfg.Max)
 end
@@ -27,8 +33,8 @@ function UiFit.toUnits(px: number, scale: number): number
 	return px / math.max(scale, 0.01)
 end
 
-function UiFit.unitsSize(w: number, h: number): (number, number)
-	local s = UiFit.scale(w, h)
+function UiFit.unitsSize(w: number, h: number, touch: boolean?): (number, number)
+	local s = UiFit.scale(w, h, touch)
 	return UiFit.toUnits(w, s), UiFit.toUnits(h, s)
 end
 

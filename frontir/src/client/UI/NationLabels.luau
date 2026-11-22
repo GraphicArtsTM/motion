@@ -3,6 +3,8 @@
 	NationLabels — города, столицы и названия держав на карте (GDD §6.5).
 	- Город (§15д ч.4): пиксельный город по уровню (Shared.CitySprites) — от домиков до небоскрёбов, цветом
 	  владельца (ничей — серый); столица — с флагом, своя — с золотой рамкой; над столицей — название державы.
+	- §15ы: город картинкой — на круглом жетоне цвета хозяина (ничей — Render.MapIcons.NeutralCity) с тёмным кантом
+	  и светлым кольцом: читается и на траве, и у воды; своя столица — золотой кант. Размер — MapIcons.citySide.
 	До раздачи цветов (выбор старта) выбранные точки — белые квадраты с именем.
 	Метки живут на холсте карты и едут вместе с камерой; при смене зума пересчитываются позиции,
 	при смене владельца клеток (recolor) — цвета городов. Спрайты города и столицы — docs/ART_LIST.md.
@@ -20,6 +22,7 @@ local Strings = require(Shared:WaitForChild("Strings"))
 local UnitSprites = require(Shared:WaitForChild("UnitSprites"))
 
 local IconArt = require(Shared:WaitForChild("IconArt"))
+local MapIcons = require(Shared:WaitForChild("MapIcons"))
 
 local FlagView = require(script.Parent:WaitForChild("FlagView"))
 local IconImage = require(script.Parent:WaitForChild("IconImage"))
@@ -38,6 +41,8 @@ type Marker = {
 	parts: { Frame },
 	shapes: { CitySprites.Part },
 	picture: boolean, -- §15я: город картинкой (assets/icons/buildings/City<уровень>.png или City.png)
+	badge: Frame?, -- §15ы: жетон цвета хозяина под картинкой (frame — тёмный или золотой кант вокруг)
+	around: { { dx: number, dy: number } }, -- §15ы: здания рядом — жетон уступает им место (MapIcons.citySideAmong)
 }
 
 export type NationLabels = {
@@ -47,6 +52,9 @@ export type NationLabels = {
 }
 
 local NationLabels = {}
+
+-- §15ы: здания не дальше стольких клеток от города учитываются в размере жетона (как в BuildingLayer).
+local NEAR_BUILDINGS = 10
 
 function NationLabels.new(canvas: Frame, cs: ClientState, lang: Strings.Lang, mapWidth: number): NationLabels
 	local markers: { Marker } = {}
@@ -73,24 +81,30 @@ function NationLabels.new(canvas: Frame, cs: ClientState, lang: Strings.Lang, ma
 	end
 
 	-- §15я: картинка города уровня level: столица — CityCapital, иначе City1…City5, иначе общая City;
-	-- nil — нет (пиксельный город).
-	local function cityPicture(level: number, capital: boolean): Content?
-		if capital and IconArt.has("CityCapital") then
-			return IconImage.content("CityCapital")
+	-- nil — нет (пиксельный город). §15ы Ы4: сначала гладкая (MapArt — без пустых полей, плавно), второе значение —
+	-- гладкая ли (её показывать без Pixelated).
+	local function cityPicture(level: number, capital: boolean): (Content?, boolean)
+		local name = if capital then "CityCapital" else "City" .. math.clamp(level, 1, 5)
+		for _, n in { name, "City" } do
+			local smooth = IconImage.mapArt(n)
+			if smooth ~= nil then
+				return smooth, true
+			end
+			if IconArt.has(n) then
+				return IconImage.content(n), false
+			end
 		end
-		local name = "City" .. math.clamp(level, 1, 5)
-		if IconArt.has(name) then
-			return IconImage.content(name)
-		end
-		return if IconArt.has("City") then IconImage.content("City") else nil
+		return nil, false
 	end
 
 	-- Цвета деталей города (тон → цвет хозяина с оттенком или свой цвет).
 	local function paintParts(m: Marker)
 		local body = ownerColor(m.owner)
-		if m.picture then
-			-- Картинка своего цвета — подложка квартала цветом хозяина.
-			m.frame.BackgroundColor3 = body
+		local badge = m.badge
+		if badge ~= nil then
+			-- §15ы: жетон цветом хозяина; ничей — светлый нейтральный (заметный, но без цвета державы).
+			local ci = ClientState.colorIndexOf(cs, m.owner)
+			badge.BackgroundColor3 = if ci >= 1 then body else Theme.color(Config.Render.MapIcons.NeutralCity)
 			return
 		end
 		local r, g, b = math.round(body.R * 255), math.round(body.G * 255), math.round(body.B * 255)
@@ -116,7 +130,10 @@ function NationLabels.new(canvas: Frame, cs: ClientState, lang: Strings.Lang, ma
 		local left, top = CameraMath.cellEdge(zoom, cx), CameraMath.cellEdge(zoom, cy)
 		local cellW = CameraMath.cellEdge(zoom, cx + 1) - left
 		local scale = cityScale()
-		local side = if m.picture then CitySprites.pictureSide(m.level, scale) else CitySprites.size(m.level) * scale
+		-- §15ы: жетон — от зума (MapIcons.citySide) + кант с двух сторон.
+		local side = if m.picture
+			then MapIcons.citySideAmong(m.level, zoom, m.around) + 2 * Config.Render.MapIcons.CityRingPx
+			else CitySprites.size(m.level) * scale
 		local centerX, centerY = left + cellW / 2, top + (CameraMath.cellEdge(zoom, cy + 1) - top) / 2
 		m.frame.Size = UDim2.fromOffset(side, side)
 		m.frame.Position = UDim2.fromOffset(centerX, centerY)
@@ -157,7 +174,7 @@ function NationLabels.new(canvas: Frame, cs: ClientState, lang: Strings.Lang, ma
 		stroke.Transparency = if isMe then 0 else 0.4
 		stroke.Parent = frame
 		local level = ClientState.cityLevel(cs, cell)
-		local picture = cityPicture(level, capitalOf ~= nil)
+		local picture, smooth = cityPicture(level, capitalOf ~= nil)
 		local shapes: { CitySprites.Part } = if picture ~= nil then {} else CitySprites.parts(level, capitalOf ~= nil)
 		local parts: { Frame } = {}
 		for _ in shapes do
@@ -167,30 +184,53 @@ function NationLabels.new(canvas: Frame, cs: ClientState, lang: Strings.Lang, ma
 			f.Parent = frame
 			table.insert(parts, f)
 		end
+		local badge: Frame? = nil
 		if picture ~= nil then
-			-- §15я: город картинкой — растёт с уровнем (CitySprites.size), подложка цветом хозяина, у столицы — звезда.
-			frame.BackgroundTransparency = 0.2
-			frame.ZIndex = 6 -- поверх подписей провинций (ZIndex 4): город не тонет в тексте
+			-- §15ы: круглый жетон: frame — кант (тёмный, у своей столицы — золотой), внутри — круг цвета хозяина со
+			-- светлым кольцом, поверх — картинка города. Поверх подписей провинций (ZIndex 4).
+			local ring = Config.Render.MapIcons.CityRingPx
+			frame.BackgroundColor3 = if isMe then Theme.Colors.Gold else Theme.Colors.Backdrop
+			frame.BackgroundTransparency = 0
+			frame.ZIndex = 6
+			stroke.Enabled = false
 			local corner = Instance.new("UICorner")
-			corner.CornerRadius = UDim.new(0.2, 0)
+			corner.CornerRadius = UDim.new(0.5, 0)
 			corner.Parent = frame
+			local disc = Instance.new("Frame")
+			disc.Name = "Badge"
+			disc.AnchorPoint = Vector2.new(0.5, 0.5)
+			disc.Position = UDim2.fromScale(0.5, 0.5)
+			disc.Size = UDim2.new(1, -2 * ring, 1, -2 * ring)
+			disc.BorderSizePixel = 0
+			disc.ZIndex = 6
+			disc.Parent = frame
+			local dc = Instance.new("UICorner")
+			dc.CornerRadius = UDim.new(0.5, 0)
+			dc.Parent = disc
+			local light = Instance.new("UIStroke")
+			light.Color = Theme.color("White")
+			light.Thickness = 1.5
+			light.Transparency = 0.25
+			light.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+			light.Parent = disc
+			badge = disc
 			local img = Instance.new("ImageLabel")
 			img.Name = "Picture"
 			img.BackgroundTransparency = 1
 			img.AnchorPoint = Vector2.new(0.5, 0.5)
 			img.Position = UDim2.fromScale(0.5, 0.5)
-			img.Size = UDim2.fromScale(0.95, 0.95)
+			img.Size = UDim2.fromScale(0.9, 0.9)
 			img.ScaleType = Enum.ScaleType.Fit
-			img.ResampleMode = Enum.ResamplerMode.Pixelated
+			img.ResampleMode = if smooth then Enum.ResamplerMode.Default else Enum.ResamplerMode.Pixelated
 			img.ImageContent = picture
 			img.ZIndex = 7
-			img.Parent = frame
+			img.Parent = disc
 			if capitalOf ~= nil then
 				local star = Instance.new("TextLabel")
 				star.Name = "CapitalStar"
 				star.AnchorPoint = Vector2.new(0.5, 0.5)
-				star.Position = UDim2.fromScale(1, 0)
-				star.Size = UDim2.fromScale(0.45, 0.45)
+				star.Position = UDim2.fromScale(0.88, 0.12)
+				star.Size = UDim2.fromScale(0.42, 0.42)
 				star.BackgroundTransparency = 1
 				star.Text = "★"
 				star.TextScaled = true
@@ -268,6 +308,8 @@ function NationLabels.new(canvas: Frame, cs: ClientState, lang: Strings.Lang, ma
 			parts = parts,
 			shapes = shapes,
 			picture = picture ~= nil,
+			badge = badge,
+			around = MapIcons.buildingsNear(cs.buildings, cell, mapWidth, NEAR_BUILDINGS),
 		}
 		paintParts(m)
 		place(m)

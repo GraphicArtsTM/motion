@@ -265,7 +265,8 @@ function WardrobePanel.new(
 				then Theme.Colors.Gold
 				elseif owned then Theme.Colors.Good
 				else Theme.Colors.PanelBorder
-			row.card.price.Text = if owned then "" else row.action.Text
+			-- §15ё Ё8: цена и условие — на кнопке; строка цены их не повторяет (было «Купить 800» дважды).
+			row.card.price.Text = ""
 			row.card.dim.Visible = not owned and not canBuy
 			-- §15я: надетое — первым, потом своё, потом остальное.
 			row.card.frame.LayoutOrder = if worn then 0 elseif owned then row.order else 1000 + row.order

@@ -95,12 +95,22 @@ function LobbyScreen.new(
 	local root = Instance.new("Frame")
 	root.Name = "LobbyScreen"
 	root.Size = UDim2.new(1, 0, 1, -cfg.DockSpacePx)
-	root.BackgroundColor3 = Theme.Colors.Backdrop
-	root.BackgroundTransparency = cfg.ShadeAlpha
+	root.BackgroundTransparency = 1
 	root.BorderSizePixel = 0
 	root.Visible = false
 	root.ZIndex = 0 -- под окнами (магазин, гардероб открываются поверх лобби)
 	root.Parent = gui
+	-- §15ё Ё8: затемнение — на весь экран, и за безопасной зоной HUD (вырез телефона, полоса Roblox сверху); раньше
+	-- оно кончалось у краёв HUD, и на телефоне по краям была светлая рамка карты.
+	local shadeFrame = Instance.new("Frame")
+	shadeFrame.Name = "Shade"
+	shadeFrame.Position = UDim2.fromOffset(-cfg.ShadeBleedPx, -cfg.ShadeBleedPx)
+	shadeFrame.Size = UDim2.new(1, 2 * cfg.ShadeBleedPx, 1, 2 * cfg.ShadeBleedPx + cfg.DockSpacePx)
+	shadeFrame.BackgroundColor3 = Theme.Colors.Backdrop
+	shadeFrame.BackgroundTransparency = cfg.ShadeAlpha
+	shadeFrame.BorderSizePixel = 0
+	shadeFrame.ZIndex = 0
+	shadeFrame.Parent = root
 	local shade = Instance.new("UIGradient")
 	shade.Rotation = 90
 	shade.Transparency = NumberSequence.new({
@@ -108,18 +118,29 @@ function LobbyScreen.new(
 		NumberSequenceKeypoint.new(0.5, 0.35),
 		NumberSequenceKeypoint.new(1, 0),
 	})
-	shade.Parent = root
+	shade.Parent = shadeFrame
 
 	local content = column(root, "Content", 1, 10)
 	content.AnchorPoint = Vector2.new(0.5, 0)
 	content.Position = UDim2.new(0.5, 0, 0, cfg.TopPx)
 	local scale = Instance.new("UIScale")
 	scale.Parent = content
+	-- §15ё Ё8: масштаб — по настоящему размеру содержимого (раньше — по HeightPx с запасом, и на телефоне всё было
+	-- мельче нужного); сверху — меньше отступ, если экран низкий.
 	local function fit()
 		local s = UiScale.size(gui)
-		scale.Scale = math.clamp(math.min((s.X - 24) / cfg.WidthPx, (s.Y - cfg.DockSpacePx) / cfg.HeightPx), 0.5, 1)
+		local k = math.max(0.01, scale.Scale)
+		local natural = UiScale.units(content.AbsoluteSize.Y) / k
+		local h = if natural > 0 then natural else cfg.HeightPx
+		local top = math.min(cfg.TopPx, math.max(8, (s.Y - cfg.DockSpacePx - h) / 2))
+		content.Position = UDim2.new(0.5, 0, 0, top)
+		local want = math.clamp(math.min((s.X - 24) / cfg.WidthPx, (s.Y - cfg.DockSpacePx - top - 8) / h), 0.5, 1)
+		if math.abs(want - scale.Scale) > 0.01 then
+			scale.Scale = want
+		end
 	end
 	UiScale.onResize(gui, fit)
+	Session.connect(content:GetPropertyChangedSignal("AbsoluteSize"), fit)
 	fit()
 
 	-- Заголовок.

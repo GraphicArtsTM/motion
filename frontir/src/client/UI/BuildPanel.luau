@@ -22,6 +22,7 @@ local MapDataModule = require(Shared:WaitForChild("MapData"))
 local Naval = require(Shared:WaitForChild("Naval"))
 local NationColors = require(Shared:WaitForChild("NationColors"))
 local Provinces = require(Shared:WaitForChild("Provinces"))
+local Rails = require(Shared:WaitForChild("Rails"))
 local Strings = require(Shared:WaitForChild("Strings"))
 local Types = require(Shared:WaitForChild("Types"))
 
@@ -237,6 +238,62 @@ function BuildPanel.new(
 		)
 	end
 
+	-- §15ч Ч5б: будущая дорога от места станции к сети — как построит сервер (Rails.ghost); кеш по месту и виду.
+	local railKey = ""
+	local railPath: { number }? = nil
+	local railWhy = ""
+	local railDist = 0
+	local riverId = Types.Terrain.River
+	local function railGhost(kind: string, spot: number): ({ number }?, string?)
+		local me = cs.myNation
+		if me == nil or table.find(Config.Rail.Stations, kind) == nil then
+			return nil, nil
+		end
+		local key = kind .. ":" .. spot
+		if key ~= railKey then
+			railKey = key
+			local function river(c: number): boolean
+				return MapDataModule.getTerrain(map, c) == riverId
+			end
+			local ctx: Rails.Context = {
+				width = cs.width,
+				height = cs.height,
+				now = 0,
+				river = river,
+				passable = function(c: number): number?
+					if cs.rails.damaged[c] ~= nil then
+						return nil
+					end
+					if ClientState.ownerAt(cs, c) == me then
+						return 1
+					end
+					return if river(c) then Config.Rail.BridgeCost else nil
+				end,
+			}
+			local stations: { number } = {}
+			local n = cs.nations[me]
+			if n ~= nil and n.capital ~= nil then
+				table.insert(stations, n.capital :: number)
+			end
+			local net = cs.rails.nets[me]
+			if net ~= nil then
+				for s in net.connected do
+					table.insert(stations, s)
+				end
+			end
+			railPath, railWhy, railDist = Rails.ghost(ctx, spot, stations)
+		end
+		local line = if railWhy == "ok" and railPath ~= nil
+			then string.format(Strings.get("build.railOk", lang), #railPath - 1)
+			elseif railWhy == "far" then string.format(
+				Strings.get("build.railFar", lang),
+				math.floor(Rails.range(cs.width)),
+				math.floor(railDist)
+			)
+			else Strings.get("build.railNoPath", lang)
+		return railPath, line
+	end
+
 	local function showGhost(cell: number)
 		local kind: Types.BuildingKind? = selected
 		if kind == nil then
@@ -248,7 +305,30 @@ function BuildPanel.new(
 		local cost = price(kind, spot or cell)
 		local ok = spot ~= nil and cost ~= nil and money >= cost
 		local label: string
-		if spot == nil then
+		local blocker: number? = nil
+		if spot == nil and (reason == "tooClose" or reason == "cityTooClose") then
+			-- §15ы: кто мешает — красная зона у него и его имя в причине.
+			local citySet: { [number]: boolean } = {}
+			for _, c in cs.cities do
+				citySet[c] = true
+			end
+			blocker = Buildings.blocker(Buildings.fromList(cs.buildings, map), map, function(c: number): boolean
+				return citySet[c] == true
+			end, cell, reason :: string)
+		end
+		if spot == nil and blocker ~= nil then
+			local b = cs.buildings[blocker]
+			local name: string
+			if isCityCell(blocker) or (b ~= nil and b.kind == "City") then
+				local n = Provinces.cityName(provinces, map, blocker)
+				name = if lang == "en" then n.en else n.ru
+			else
+				name = Strings.get("building." .. (if b ~= nil then b.kind else "City"), lang)
+			end
+			label = if reason == "cityTooClose"
+				then string.format(Strings.get("reject.cityTooCloseTo", lang), name, Config.Cities.FoundMinDistance)
+				else string.format(Strings.get("reject.tooCloseTo", lang), name, Config.Build.MinGap)
+		elseif spot == nil then
 			label = Strings.get("reject." .. (reason or "focus"), lang)
 		elseif cost == nil then
 			label = Strings.get("reject.maxLevel", lang)
@@ -277,17 +357,37 @@ function BuildPanel.new(
 					Strings.formatInt(cost)
 				)
 				else string.format("%s  $%s", Strings.get("building." .. kind, lang), Strings.formatInt(cost))
+			-- §15ч Ч5а: новое здание строится — сколько и быстрее ли у дороги.
+			local me = cs.myNation
+			if (here == nil or here.kind ~= kind) and me ~= nil then
+				local near = ClientState.nearRailNetwork(cs, me, spot)
+				label ..= "\n" .. string.format(
+					Strings.get(if near then "build.siteNear" else "build.siteFar", lang),
+					math.ceil(Buildings.siteSec(kind, near) / math.max(cs.speed, 1e-6)) -- секунды матча
+				)
+			end
 			if touch then
 				label ..= "\n" .. Strings.get("build.tapAgain", lang)
 			end
 		end
+		-- §15ч Ч5б: у станции — пунктир будущей дороги и строка о ней.
+		local rail: { number }? = nil
+		if spot ~= nil and cost ~= nil then
+			local path, line = railGhost(kind, spot)
+			rail = path
+			if line ~= nil then
+				label ..= "\n" .. line
+			end
+		end
 		ghost.show({
+			rail = rail,
 			kind = kind,
 			cell = spot or cell,
 			ok = ok,
 			label = label,
 			range = if ok or spot ~= nil then Buildings.rangeOf(kind, map.width) else nil,
 			color = myColor(),
+			blocker = blocker,
 		})
 	end
 
@@ -324,11 +424,7 @@ function BuildPanel.new(
 	MenuKit.list(menu, 8)
 	local menuScale = Instance.new("UIScale")
 	menuScale.Parent = menu
-	local function fitMenu()
-		menuScale.Scale = math.clamp((UiScale.size(gui).X - 24) / MENU_W, 0.45, 1)
-	end
-	UiScale.onResize(gui, fitMenu)
-	fitMenu()
+	UiScale.fitSheet(gui, menu, menuScale, MENU_W, 12, 0.45) -- §15ё: на телефоне — и по высоте
 	local menuHead = Instance.new("Frame")
 	menuHead.BackgroundTransparency = 1
 	menuHead.Size = UDim2.new(1, 0, 0, 24)
@@ -338,6 +434,7 @@ function BuildPanel.new(
 	local keysHint = MenuKit.label(menuHead, Strings.get("build.keys", lang), 12, Theme.Colors.Muted)
 	keysHint.AnchorPoint = Vector2.new(1, 0)
 	keysHint.Position = UDim2.new(1, 0, 0, 4)
+	local badges: { GuiObject } = {} -- клавиши на карточках (на телефоне их нет — §15ё Ё8)
 	local grid = Instance.new("Frame")
 	grid.Name = "Grid"
 	grid.BackgroundTransparency = 1
@@ -426,6 +523,7 @@ function BuildPanel.new(
 			badge.BackgroundTransparency = 0
 			badge.BackgroundColor3 = Theme.color("Ink")
 			badge.ZIndex = 3
+			table.insert(badges, badge)
 		end
 		local name = MenuKit.label(b, Strings.get("building." .. kind, lang), 13, Theme.Colors.Text, true)
 		name.AutomaticSize = Enum.AutomaticSize.None
@@ -447,6 +545,17 @@ function BuildPanel.new(
 			pick(kind :: Types.BuildingKind)
 		end)
 	end
+
+	-- §15ё Ё8: на телефоне клавиш нет — без строки «1–9 — выбрать…» и цифр на карточках.
+	local function touchLook()
+		local phone = UiScale.isPhone(gui)
+		keysHint.Visible = not phone
+		for _, badge in badges do
+			badge.Visible = not phone
+		end
+	end
+	UiScale.onResize(gui, touchLook)
+	touchLook()
 
 	main.Text = Strings.get("build.button", lang)
 	local function toggleMenu()
@@ -488,12 +597,16 @@ function BuildPanel.new(
 			local cost = price(kind :: Types.BuildingKind, nil) or 0
 			-- Радар и аэродром открывает технология (§6.14): без неё — какая нужна.
 			local open, need = techOpen(kind)
-			c.hint.Text = if open
-				then Strings.get("building." .. kind .. ".hint", lang)
-				else string.format(
-					Strings.get("build.needTech", lang),
-					Strings.get("tech." .. need.branch .. "." .. need.level, lang)
-				)
+			-- §15ё Ё8: на телефоне — без клавиш («(Y)»).
+			c.hint.Text = UiScale.touchText(
+				gui,
+				if open
+					then Strings.get("building." .. kind .. ".hint", lang)
+					else string.format(
+						Strings.get("build.needTech", lang),
+						Strings.get("tech." .. need.branch .. "." .. need.level, lang)
+					)
+			)
 			c.price.Text = "$" .. Strings.formatInt(cost)
 			local can = money >= cost and open
 			c.price.TextColor3 = if can

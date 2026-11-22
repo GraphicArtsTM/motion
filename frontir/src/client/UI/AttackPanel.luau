@@ -28,6 +28,7 @@ export type AttackPanel = {
 	update: (now: number) -> (),
 	setBlocked: (blocked: boolean) -> (), -- снизу открыто окно — фишки прячем
 	setCollapsed: (collapsed: boolean) -> (), -- §15ц Ц5в: на узком экране панель стартует свёрнутой
+	setCompact: (compact: boolean) -> (), -- §15ё телефон: свёрнутая — узкая, фишки — столбиком и не больше ChipsMax
 	list: Frame, -- «Attacks» (справа, в столбике TopRight)
 	chips: Frame, -- «AttackChips» (над полосой, ставит aboveBar)
 }
@@ -104,6 +105,7 @@ function AttackPanel.new(
 	count.Position = UDim2.new(1, 0, 0, 5)
 	count.TextXAlignment = Enum.TextXAlignment.Right
 	local collapsed = false
+	local compact = false
 
 	type Row = {
 		frame: Frame,
@@ -209,7 +211,7 @@ function AttackPanel.new(
 	chips.AutomaticSize = Enum.AutomaticSize.X
 	chips.Visible = false
 	chips.Parent = gui
-	MenuKit.list(chips, 8, true)
+	local chipsList = MenuKit.list(chips, 8, true)
 	type Chip = { frame: Frame, text: TextLabel, close: TextButton, target: number }
 	local chipPool: { Chip } = {}
 	for k = 1, cfg.MaxChips do
@@ -265,6 +267,7 @@ function AttackPanel.new(
 		local myId = if playing then cs.myNation else nil
 		local shown, counts = AttackList.rows(attacks, myId, cfg.MaxRows)
 		list.Visible = #shown > 0
+		list.Size = UDim2.fromOffset(if compact and collapsed then Config.Render.Phone.Hud.SideW else cfg.WidthPx, 0)
 		-- §15ш Ш2: «на вас N» — крупнее и красным, когда на вас атакуют.
 		local incText = string.format(t("attacks.countIn"), counts.inc)
 		count.Text = string.format(t("attacks.countOut"), counts.out)
@@ -273,6 +276,8 @@ function AttackPanel.new(
 				then string.format('<font color="#%s" size="15"><b>%s</b></font>', Theme.Colors.Alert:ToHex(), incText)
 				else incText)
 			.. (if collapsed then "  ▸" else "  ▾")
+		-- §15ё телефон: свёрнутая панель узкая — заголовок одним значком, чтобы не налезал на счётчик.
+		title.Text = if compact and collapsed then "⚔" else "⚔  " .. t("attacks.title")
 		local anyHidden, anyOut, anyIn = false, false, false
 		for k, row in rows do
 			local r = shown[k]
@@ -314,7 +319,7 @@ function AttackPanel.new(
 		more.Visible = not collapsed and counts.hidden > 0
 		more.Text = string.format(t("attacks.more"), counts.hidden)
 
-		local own = AttackList.chips(attacks, myId, cfg.MaxChips)
+		local own = AttackList.chips(attacks, myId, if compact then Config.Render.Phone.Hud.ChipsMax else cfg.MaxChips)
 		chips.Visible = #own > 0 and not blocked
 		for k, chip in chipPool do
 			local r = own[k]
@@ -347,6 +352,14 @@ function AttackPanel.new(
 				collapsed = c
 				nextAt = 0
 			end
+		end,
+		setCompact = function(c: boolean)
+			compact = c
+			chipsList.FillDirection = if c then Enum.FillDirection.Vertical else Enum.FillDirection.Horizontal
+			chipsList.HorizontalAlignment = if c then Enum.HorizontalAlignment.Right else Enum.HorizontalAlignment.Left
+			chips.AutomaticSize = if c then Enum.AutomaticSize.XY else Enum.AutomaticSize.X
+			chips.Size = UDim2.fromOffset(0, if c then 0 else cfg.ChipPx)
+			nextAt = 0
 		end,
 		list = list,
 		chips = chips,

@@ -106,7 +106,14 @@ function DoomBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, totalL
 				warn.Text = string.format(Strings.get("doom.you", lang), clock(left))
 			else
 				local n = cs.nations[e.id]
-				table.insert(names, string.format("%s %s", if n ~= nil then n.name else "?", clock(left)))
+				table.insert(
+					names,
+					string.format(
+						"%s %s",
+						if n == nil then "?" elseif lang == "en" then n.nameEn else n.name,
+						clock(left)
+					)
+				)
 			end
 		end
 		others.Visible = #names > 0

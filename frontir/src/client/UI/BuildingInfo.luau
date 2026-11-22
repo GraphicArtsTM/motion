@@ -67,11 +67,7 @@ function BuildingInfo.new(
 	MenuKit.list(card, 8)
 	local scale = Instance.new("UIScale")
 	scale.Parent = card
-	local function fit()
-		scale.Scale = math.clamp((UiScale.size(gui).X - 16) / WIDTH, 0.5, 1)
-	end
-	UiScale.onResize(gui, fit)
-	fit()
+	UiScale.fitSheet(gui, card, scale, WIDTH, 8, 0.5) -- §15ё: на телефоне — и по высоте
 
 	local head = MenuKit.box(card, "Head", 1)
 	head.AutomaticSize = Enum.AutomaticSize.None

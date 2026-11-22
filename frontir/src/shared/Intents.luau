@@ -141,6 +141,10 @@ function Intents.parse(kind: any, payload: any): (Types.Intent?, string?)
 		return { kind = "distrust", target = target }, nil
 	elseif kind == "rebel" then
 		return { kind = "rebel" }, nil
+	elseif kind == "taskSkip" then
+		return { kind = "taskSkip" }, nil
+	elseif kind == "endSolo" then
+		return { kind = "endSolo" }, nil
 	elseif kind == "transfer" then
 		local target = payload.target
 		if not isInt(target) or target <= 0 then

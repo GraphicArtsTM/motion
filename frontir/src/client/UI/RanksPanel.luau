@@ -232,7 +232,11 @@ function RanksPanel.new(
 	MenuKit.stroke(window, Theme.Colors.PanelBorder, 2)
 	local scale = Instance.new("UIScale")
 	scale.Parent = window
+	local phoneFit = UiScale.scrollHost(gui, window, scale) -- §15ё Ё3: на телефоне — по ширине, по высоте прокрутка
 	local function fit()
+		if phoneFit(W) then
+			return
+		end
 		local s = UiScale.size(gui)
 		scale.Scale = math.clamp(math.min((s.X - 24) / W, (s.Y - 24) / (H + BANNER)), 0.4, 1)
 	end
@@ -1476,13 +1480,19 @@ function RanksPanel.new(
 			scrolledTo = -1
 			lastFill = -1
 			detail.Text = ""
-			-- Въезд снизу с пружинкой.
-			window.Position = openPos + UDim2.fromOffset(0, 40)
-			TweenService:Create(
-				window,
-				TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-				{ Position = openPos }
-			):Play()
+			-- Въезд снизу с пружинкой (§15ё: на телефоне окно в прокрутке — у верхнего края).
+			fit()
+			local target = if UiScale.isPhone(gui)
+				then UDim2.new(0.5, 0, 0, Config.Render.Phone.Hud.WindowEdge)
+				else openPos
+			window.Position = target + UDim2.fromOffset(0, 40)
+			TweenService
+				:Create(
+					window,
+					TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+					{ Position = target }
+				)
+				:Play()
 			draw()
 			checkPremium()
 		end

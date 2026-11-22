@@ -27,6 +27,11 @@
 	- botMissile: выбранный бот (война сразу) получает шахту и пускает ракету по вашему городу.
 	- selfAbility / worldEventKind: для самопроверки в Studio — своя способность с подбором цели, событие по имени.
 	- trustAlly: сосед — союзник с полным доверием, его сосед (не ваш) — враг в войне сразу (§15у).
+	- finishSites: достроить все стройки сразу (§15ч Ч5а).
+	- finaleNear / finaleTime: финал «лидер близко» (своя держава почти у победы) и «время» (3 мин до конца) (§15й Й3).
+	- fall: свои города отходят первой другой живой державе — на следующем шаге держава выбывает (§15й Й5).
+	- takeCapital: столица врага по активной войне становится вашей — трофей и «Триумф» (§15й Й2).
+	- bridgeHit: удар по своему мосту, ближайшему к столице (§15ч Ч3в): мост рушится, дорога рвётся до ремонта.
 	Ускорение времени — в MatchService (шагов симуляции за кадр больше).
 ]]
 
@@ -120,6 +125,44 @@ function DevTools.warNow(m: Match, a: number, b: number): (boolean, string?)
 	return true, nil
 end
 
+-- §15й Й5: проверка «Держава пала» — все свои города переходят первой другой живой державе (она «добила»).
+function DevTools.fall(m: Match, id: number): (boolean, string?)
+	local n = m.nations[id]
+	if n == nil or not n.alive or m.phase ~= "Play" then
+		return false, "dead"
+	end
+	local by = 0
+	for _, other in m.nations do
+		if other.id ~= id and other.alive then
+			by = other.id
+			break
+		end
+	end
+	if by == 0 then
+		return false, "target"
+	end
+	for _, cell in m.cityOf do
+		if Grid.getOwner(m.grid, cell) == id then
+			Grid.setOwner(m.grid, cell, by)
+		end
+	end
+	return true, nil
+end
+
+-- §15й Й2: взять столицу первого врага по активной войне (клетка столицы — ваша; трофей посчитает шаг).
+function DevTools.takeCapital(m: Match, id: number): (boolean, string?)
+	for _, war in Wars.of(m.wars, id) do
+		if war.state == "active" then
+			local enemy = m.nations[Wars.enemyOf(war, id)]
+			if enemy ~= nil and enemy.alive and enemy.capital ~= nil then
+				Grid.setOwner(m.grid, enemy.capital :: number, id)
+				return true, nil
+			end
+		end
+	end
+	return false, "notAtWar"
+end
+
 function DevTools.peaceNow(m: Match, a: number, b: number): (boolean, string?)
 	local war = Wars.find(m.wars, a, b)
 	if war == nil then
@@ -142,6 +185,7 @@ function DevTools.endMatch(m: Match): (boolean, string?)
 		return false, "phase"
 	end
 	m.time = math.max(m.time, m.rules.timeLimitSec - Config.Dev.EndLeadSec)
+	m.infoDirty = true -- §15й Й3: часы клиента — сразу (обратный отсчёт финала)
 	return true, nil
 end
 
@@ -215,36 +259,72 @@ end
 
 -- «Сверхдержава» (§15м): держава прирастает ничьей землёй вокруг своей (обходом в ширину) до полной доли
 -- Combat.Giant.FullShare — чтобы увидеть корону, плашку и бонус фронта. Ничьей земли мало — «noLand».
+-- Держава прирастает ничьей землёй (заливкой от своей) до доли share всей суши.
+-- §15й: ничьей земли не хватило (середина матча) и задано keep — берём и землю других держав, кроме keep (игрок) и
+-- городов.
+local function growTo(m: Match, id: number, share: number, keep: number?)
+	local g = m.grid
+	local need = math.ceil(g.capturableCount * share) - Grid.cellsOf(g, id)
+	for pass = 1, if keep ~= nil then 2 else 1 do
+		local queue: { number } = {}
+		local seen: { [number]: boolean } = {}
+		for i = 0, g.size - 1 do
+			if Grid.getOwner(g, i) == id then
+				table.insert(queue, i)
+				seen[i] = true
+			end
+		end
+		local head = 1
+		while head <= #queue and need > 0 do
+			Grid.forNeighbours(g, queue[head], function(j: number)
+				if need <= 0 or seen[j] or not Grid.isCapturable(g, j) then
+					return
+				end
+				local owner = Grid.getOwner(g, j)
+				local free = owner == 0 or (pass == 2 and owner ~= id and owner ~= keep and not Grid.isCity(g, j))
+				if free then
+					seen[j] = true
+					Grid.setOwner(g, j, id)
+					table.insert(queue, j)
+					need -= 1
+				end
+			end)
+			head += 1
+		end
+	end
+	m.infoDirty = true
+end
+
 function DevTools.giant(m: Match, id: number): (boolean, string?)
 	local n = m.nations[id]
 	if n == nil or not n.alive then
 		return false, "dead"
 	end
-	local g = m.grid
-	local need = math.ceil(g.capturableCount * Config.Combat.Giant.FullShare) - Grid.cellsOf(g, id)
-	local queue: { number } = {}
-	local seen: { [number]: boolean } = {}
-	for i = 0, g.size - 1 do
-		if Grid.getOwner(g, i) == id then
-			table.insert(queue, i)
-			seen[i] = true
-		end
-	end
-	local head = 1
-	while head <= #queue and need > 0 do
-		Grid.forNeighbours(g, queue[head], function(j: number)
-			if need > 0 and not seen[j] and Grid.isCapturable(g, j) and Grid.getOwner(g, j) == 0 then
-				seen[j] = true
-				Grid.setOwner(g, j, id)
-				table.insert(queue, j)
-				need -= 1
-			end
-		end)
-		head += 1
-	end
+	growTo(m, id, Config.Combat.Giant.FullShare)
 	if MatchSim.giantOf(m, id) <= 0 then
 		return false, "noLand"
 	end
+	return true, nil
+end
+
+-- §15й Й3: финал «лидер близко» — держава прирастает ничьей землёй до середины запаса Finale.Margin до победы.
+-- keep — чью землю не трогать (игрок, когда «почти победил» бот).
+function DevTools.finaleNear(m: Match, id: number, keep: number?): (boolean, string?)
+	local n = m.nations[id]
+	if n == nil or not n.alive then
+		return false, "dead"
+	end
+	growTo(m, id, m.rules.victoryShare - Config.Finale.Margin / 2, keep or id)
+	m.finaleCheckAt = 0
+	return true, nil
+end
+
+-- §15й Й3: финал «время» — до лимита остаётся чуть меньше Finale.Sec.
+function DevTools.finaleTime(m: Match): (boolean, string?)
+	if m.phase ~= "Play" then
+		return false, "phase"
+	end
+	m.time = math.max(m.time, m.rules.timeLimitSec - Config.Finale.Sec + 2)
 	m.infoDirty = true
 	return true, nil
 end
@@ -252,6 +332,33 @@ end
 -- §15у: «Союзник с полным доверием и враг за ним». Сосед id становится союзником с полным доверием, а держава,
 -- которая граничит с ним, но не с id, — врагом в активной войне (чтобы сразу проверить удар через союзника).
 -- Возвращает ещё союзника и врага (для самопроверки).
+-- §15ч Ч3в: разрушить свой мост, ближайший к столице (радиус как у ракеты).
+function DevTools.bridgeHit(m: Match, id: number): (boolean, string?)
+	local n = m.nations[id]
+	local net = m.rails.nets[id]
+	if n == nil or net == nil then
+		return false, "noBridge"
+	end
+	local w = m.grid.width
+	local cap = n.capital or 0
+	local best: number? = nil
+	local bestD = math.huge
+	for cell, kind in net.cells do
+		local d = (cell % w - cap % w) ^ 2 + (cell // w - cap // w) ^ 2
+		if kind == 3 and (d < bestD or (d == bestD and cell < (best :: number))) then
+			best, bestD = cell, d
+		end
+	end
+	if best == nil then
+		return false, "noBridge"
+	end
+	MatchSim.hitBridges(m, best, Config.Buildings.MissileSilo.strikeRadius, function(owner: number): boolean
+		return owner == id
+	end)
+	m.rails.nextAt = 0 -- обрыв — сразу
+	return true, nil
+end
+
 function DevTools.trustAlly(m: Match, id: number): (boolean, string?, number?, number?)
 	local n = m.nations[id]
 	if n == nil or not n.alive then

@@ -23,6 +23,7 @@ local TerritoryPaint = require(Shared:WaitForChild("TerritoryPaint"))
 local CardKit = require(script.Parent:WaitForChild("CardKit"))
 local MenuKit = require(script.Parent:WaitForChild("MenuKit"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local UiScale = require(script.Parent:WaitForChild("UiScale"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
@@ -133,6 +134,10 @@ function StabilityPanel.new(
 	up.RichText = true
 	local down = MenuKit.wrapLabel(tips, t("stability.down"), 13, Theme.color("Orange"), 2)
 	down.RichText = true
+	-- §15ё Ё7: на телефоне — без клавиш («(Y)»).
+	win.onFit(function()
+		up.Text = UiScale.touchText(gui, t("stability.up"))
+	end)
 	local summary = MenuKit.wrapLabel(page, "", 13, Theme.Colors.Sky, 2)
 	summary.Text = t("stability.listHead")
 	local empty = MenuKit.wrapLabel(page, t("stability.none"), 14, Theme.Colors.Muted, 3)
@@ -235,7 +240,8 @@ function StabilityPanel.new(
 			row.button.Visible = true
 			row.province = r.province
 			local p = provinces.list[r.province]
-			row.name.Text = if p == nil then "?" elseif lang == "en" then p.nameEn else p.name
+			-- §15ё Ё7: имя без «-N», как на карте (§15ш Ш1).
+			row.name.Text = if p == nil then "?" else Provinces.shortName(if lang == "en" then p.nameEn else p.name)
 			local cr, cg, cb = TerritoryPaint.stabilityColor(r.value)
 			local color = Color3.fromRGB(cr, cg, cb)
 			row.value.Text = tostring(r.value)

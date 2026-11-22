@@ -21,6 +21,8 @@ local UserInputService = game:GetService("UserInputService")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local CameraMath = require(Shared:WaitForChild("CameraMath"))
 local CitySprites = require(Shared:WaitForChild("CitySprites"))
+local IconArt = require(Shared:WaitForChild("IconArt"))
+local MapIcons = require(Shared:WaitForChild("MapIcons"))
 local ClientState = require(Shared:WaitForChild("ClientState"))
 local Config = require(Shared:WaitForChild("Config"))
 local Fog = require(Shared:WaitForChild("Fog"))
@@ -473,6 +475,26 @@ function BattleFxLayer.new(
 	chipText.AutomaticSize = Enum.AutomaticSize.X
 	chipText.Parent = chip
 
+	-- §15й Й2: плашка «Триумф» (после взятой столицы врага) — тот же вид, что «Сверхдержава», отсчёт сам.
+	local triumphChip = chip:Clone()
+	triumphChip.Name = "TriumphChip"
+	triumphChip.Parent = hud
+	local triumphText = triumphChip:FindFirstChildOfClass("TextLabel") :: TextLabel
+	local function refreshTriumph(now: number)
+		local left = cs.commander.triumph - (now - cs.commanderAt) * ClientState.simRate(cs)
+		local on = cs.phase == "Play" and cs.myNation ~= nil and left > 0
+		if triumphChip.Visible ~= on then
+			triumphChip.Visible = on
+		end
+		if on then
+			triumphText.Text = string.format(
+				Strings.get("fx.triumph", lang),
+				math.round((Config.Trophy.TriumphSpeed - 1) * 100),
+				math.ceil(left / math.max(ClientState.simRate(cs), 1e-3))
+			)
+		end
+	end
+
 	local function giantOf(id: number): number
 		local stats = cs.stats
 		if stats == nil or land <= 0 then
@@ -562,10 +584,13 @@ function BattleFxLayer.new(
 				if cell ~= nil and visible(cell) then
 					firework(cell, if by ~= 0 then colorOf(by) else Theme.Colors.Gold)
 				end
-				elimText.Text = string.format(Strings.get("fx.eliminated", lang), nameOf(e.nation))
-				elimStroke.Color = if by ~= 0 then colorOf(by) else colorOf(e.nation)
-				elimFrom = os.clock()
-				elim.Visible = true
+				-- §15й Й5: своё выбывание — карточка «Держава пала» (DefeatScreen), малый баннер не нужен.
+				if e.nation ~= me then
+					elimText.Text = string.format(Strings.get("fx.eliminated", lang), nameOf(e.nation))
+					elimStroke.Color = if by ~= 0 then colorOf(by) else colorOf(e.nation)
+					elimFrom = os.clock()
+					elim.Visible = true
+				end
 			end
 		end
 	end
@@ -609,6 +634,7 @@ function BattleFxLayer.new(
 
 	local giantAt = -math.huge
 	local function update(now: number, state: CameraState)
+		refreshTriumph(os.clock())
 		lastState = state
 		local dt = math.clamp(now - lastNow, 0, 0.1)
 		lastNow = now
@@ -741,7 +767,11 @@ function BattleFxLayer.new(
 				local cx, cy = cell % w, cell // w
 				local left, top = CameraMath.cellEdge(zoom, cx), CameraMath.cellEdge(zoom, cy)
 				local cellW = CameraMath.cellEdge(zoom, cx + 1) - left
-				local side = CitySprites.size(ClientState.cityLevel(cs, cell)) * cityScale(zoom)
+				local level = ClientState.cityLevel(cs, cell)
+				-- §15ы: город картинкой — жетон MapIcons (как в NationLabels), иначе пиксельный город.
+				local side = if IconArt.has("City")
+					then MapIcons.citySide(level, zoom) + 2 * Config.Render.MapIcons.CityRingPx
+					else CitySprites.size(level) * cityScale(zoom)
 				local centerY = top + cellW / 2
 				local labelTop = centerY - side / 2 - 2 - (Config.Render.NationLabelSize + 4)
 				c.root.Visible = visible(cell)

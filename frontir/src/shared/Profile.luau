@@ -723,12 +723,16 @@ function Profile.unitUnlocked(d: Data, key: string): boolean
 	return level >= item.level or (d.pathPremium and level >= item.premiumLevel) -- §15ю Ю2
 end
 
-function Profile.unlockedUnits(d: Data): { [string]: boolean }
+-- passes — купленные пропуска: §15э Э1б «Разведуправление» (Intel) открывает и разведку.
+function Profile.unlockedUnits(d: Data, passes: { [string]: boolean }?): { [string]: boolean }
 	local out: { [string]: boolean } = {}
 	for _, key in Config.Unlocks.Order do
 		if Profile.unitUnlocked(d, key) then
 			out[key] = true
 		end
+	end
+	if passes ~= nil and passes.Intel then
+		out.Intel = true
 	end
 	return out
 end

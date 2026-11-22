@@ -143,6 +143,13 @@ function CameraMath.centerOn(s: CameraState, wx: number, wy: number)
 	CameraMath.clamp(s)
 end
 
+-- §15й Й6: клетка мира (wx, wy) — в точке экрана (sx, sy) (центр свободной части, а не всего экрана).
+function CameraMath.showAt(s: CameraState, wx: number, wy: number, sx: number, sy: number)
+	s.x = wx - sx / s.zoom
+	s.y = wy - sy / s.zoom
+	CameraMath.clamp(s)
+end
+
 -- Смещение левого верхнего угла карты на экране в целых пикселях.
 function CameraMath.canvasOffset(s: CameraState): (number, number)
 	return math.round(-s.x * s.zoom), math.round(-s.y * s.zoom)

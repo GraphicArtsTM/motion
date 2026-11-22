@@ -25,6 +25,7 @@ local Strings = require(Shared:WaitForChild("Strings"))
 local Types = require(Shared:WaitForChild("Types"))
 
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local UiScale = require(script.Parent:WaitForChild("UiScale"))
 
 type ClientState = ClientState.ClientState
 
@@ -360,6 +361,15 @@ function MapTooltip.new(
 				lang
 			)
 		)
+		-- §15ч Ч5а: стройка — сколько осталось.
+		local siteLeft = ClientState.siteAt(cs, cell, os.clock())
+		if siteLeft ~= nil then
+			line ..= string.format(
+				'\n<font color="%s">%s</font>',
+				gold,
+				string.format(Strings.get("build.siteLeft", lang), math.ceil(siteLeft / math.max(cs.speed, 1e-6)))
+			)
+		end
 		local batteries: { { cell: number, ready: number, max: number } } = cs.world.batteries or {}
 		for _, bt in batteries do
 			if bt.cell == cell then
@@ -379,12 +389,48 @@ function MapTooltip.new(
 				if onNet then sky else alert,
 				Strings.get(if onNet then "rail.connected" else "rail.notConnected", lang)
 			)
+			-- §15ч Ч3б: стык с союзником.
+			local ally = ClientState.railJunction(cs, me, cell)
+			if ally ~= nil then
+				line ..= string.format(
+					'\n<font color="%s">%s</font>',
+					sky,
+					string.format(Strings.get("rail.junction", lang), nationName(ally))
+				)
+			end
 		end
 		return line
 	end
 
 	-- §15ч Ч1: клетка железной дороги или моста.
 	local function railLine(cell: number): string?
+		-- §15ч Ч3в: разрушенный мост — сколько до ремонта.
+		local repair = ClientState.bridgeRepairIn(cs, cell, os.clock())
+		if repair ~= nil then
+			return string.format(
+				'<font color="%s">%s</font>',
+				alert,
+				string.format(Strings.get("rail.bridgeBroken", lang), math.ceil(repair))
+			)
+		end
+		-- §15ч Ч4: река водного пути.
+		-- §15ч Ч6: морская линия.
+		if cs.rails.seaway[cell] ~= nil then
+			return string.format(
+				'<font color="%s"><b>%s</b></font>  %s',
+				sky,
+				Strings.get("rail.seaway", lang),
+				Strings.get("rail.seawayHint", lang)
+			)
+		end
+		if cs.rails.waterway[cell] ~= nil then
+			return string.format(
+				'<font color="%s"><b>%s</b></font>  %s',
+				sky,
+				Strings.get("rail.waterway", lang),
+				Strings.get("rail.waterwayHint", lang)
+			)
+		end
 		local kind = cs.rails.cells[cell]
 		if kind == nil then
 			return nil
@@ -545,7 +591,12 @@ function MapTooltip.new(
 			text.Text = describe(cell, percent)
 		end
 		lastX, lastY = x, y
-		box.Position = UDim2.fromOffset(x + 18, y + 18)
+		-- §15ё: не уходит за край экрана (телефон) — у правого / нижнего края переезжает по другую сторону пальца.
+		local screen = UiScale.size(gui)
+		local size = box.AbsoluteSize / UiScale.factor()
+		local bx = if x + 18 + size.X > screen.X - 8 then math.max(8, x - 18 - size.X) else x + 18
+		local by = if y + 18 + size.Y > screen.Y - 8 then math.max(8, y - 18 - size.Y) else y + 18
+		box.Position = UDim2.fromOffset(bx, by)
 		box.Visible = true
 	end
 

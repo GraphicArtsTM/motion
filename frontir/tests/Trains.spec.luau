@@ -102,6 +102,53 @@ T.describe("Поезда (§15ч Ч2)", function()
 		end
 	)
 
+	T.it(
+		"§15ч Ч3б через стык: своя остановка — хозяину, у союзника — ему, конечная — обоим по AllyTradeMoney",
+		function()
+			local mine = line() -- завод 10 — город 17 — порт 24
+			local ally = Rails.build({
+				{ cell = at(40, 10), kind = "City" },
+				{ cell = at(47, 10), kind = "Port" },
+			}, at(40, 10), ctx, nil)
+			local link: { number } = {}
+			for x = 24, 40 do
+				table.insert(link, at(x, 10))
+			end
+			local cells, stops = Trains.planVia(
+				mine,
+				ally,
+				at(10, 10),
+				at(24, 10),
+				link,
+				at(40, 10),
+				at(47, 10),
+				2,
+				function(): number
+					return 1
+				end
+			)
+			local c = cells :: { number }
+			T.expect(c[1]).toBe(at(10, 10))
+			T.expect(c[#c]).toBe(at(47, 10))
+			for k = 2, #c do
+				T.expect(c[k] - c[k - 1]).toBe(1) -- подряд, без повторов стыков
+			end
+			local s = stops :: { Trains.Stop }
+			-- Город 17 и порт 24 — хозяину, город союзника 40 — союзнику, порт 47 — обоим.
+			T.expect(#s).toBe(5)
+			T.expect(s[1].cell).toBe(at(17, 10))
+			T.expect(s[1].to).toBe(nil)
+			T.expect(s[2].cell).toBe(at(24, 10))
+			T.expect(s[3].cell).toBe(at(40, 10))
+			T.expect(s[3].to).toBe(2)
+			T.expect(s[3].index).toBe(31)
+			T.expect(s[4].money).toBe(Config.Rail.AllyTradeMoney)
+			T.expect(s[4].to).toBe(nil)
+			T.expect(s[5].to).toBe(2)
+			T.expect(s[5].index).toBe(#c)
+		end
+	)
+
 	T.it("оплачиваемых остановок не больше MaxPaidStops", function()
 		local stations: { Rails.Station } = { { cell = at(4, 10), kind = "Factory" } }
 		for k = 1, Config.Rail.MaxPaidStops + 3 do

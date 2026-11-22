@@ -28,6 +28,7 @@ local BY_KEY: { [string]: string } = {
 	["shop.PathPremium"] = "shop_pathpremium",
 	["shop.PathPremiumPlus"] = "shop_pathpremiumplus",
 	["unlock.Tanks"] = "unlock_tanks",
+	["unlock.Intel"] = "pass_intel", -- §15э Э1б: пока картинка «Разведуправления»
 	["unlock.Artillery"] = "unlock_artillery",
 	["unlock.AntiAir"] = "unlock_antiair",
 	["unlock.Missile"] = "unlock_missile",

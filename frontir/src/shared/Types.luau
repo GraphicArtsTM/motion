@@ -236,6 +236,8 @@ export type Intent =
 	| OfferReplyIntent
 	| BreakIntent
 	| DistrustIntent
+	| TaskSkipIntent
+	| EndSoloIntent
 	| RebelIntent
 	| TransferIntent
 	| EmbargoIntent
@@ -289,6 +291,7 @@ export type BotLevelParams = {
 	peaceAfterSec: number, -- раньше мира не просит
 	incomeBonus: number, -- доля к доходу (только Генерал, §9)
 	secondWar: boolean, -- вторая война, если первая выиграна
+	logistics: boolean, -- §15ч Ч3а: завод и вышка — у дороги главной сети
 }
 
 -- Что бот любит (Config.BotPersonalities): множители к уровню.
@@ -327,6 +330,8 @@ export type OfferIntent = { kind: "offer", target: NationId, offer: OfferKind, p
 export type OfferReplyIntent = { kind: "offerReply", target: NationId, accept: boolean }
 export type BreakIntent = { kind: "breakTreaty", target: NationId }
 export type DistrustIntent = { kind: "distrust", target: NationId } -- §15у: снять полное доверие
+export type TaskSkipIntent = { kind: "taskSkip" } -- §15й Й1: пропустить задачу матча
+export type EndSoloIntent = { kind: "endSolo" } -- §15й Й5: «Новый матч» после выбывания (один человек в матче)
 export type RebelIntent = { kind: "rebel" }
 -- Флот (§6.12, этап 7б-1).
 export type ShipKind = "Transport" | "Destroyer"

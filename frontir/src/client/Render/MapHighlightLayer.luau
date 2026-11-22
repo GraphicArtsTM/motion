@@ -31,6 +31,7 @@ type CameraState = CameraMath.CameraState
 
 export type MapHighlightLayer = {
 	setHover: (owner: number?) -> (), -- держава под курсором (nil / 0 — никого)
+	setLeader: (id: number) -> (), -- §15й Й3: лидер в финале — золотой контур (0 — нет)
 	update: (now: number, state: CameraState) -> (),
 }
 
@@ -46,6 +47,7 @@ function MapHighlightLayer.new(canvas: Frame, cs: ClientState, lang: Strings.Lan
 		return if phone and p ~= nil then p else (cfg :: any)[name]
 	end
 	local maxWar, maxHover, maxPocket = limit("WarDots"), limit("HoverDots"), limit("PocketDots")
+	local maxLeader = limit("LeaderDots")
 	local w, h = cs.width, cs.height
 	local function ownerAt(i: number): number
 		return ClientState.ownerAt(cs, i)
@@ -69,6 +71,8 @@ function MapHighlightLayer.new(canvas: Frame, cs: ClientState, lang: Strings.Lan
 	end
 
 	local hover = 0
+	local leader = 0
+	local leaderCells: { number } = {}
 	local warCells: { number } = {}
 	local hoverCells: { number } = {}
 	local pockets: { Pocket } = {}
@@ -135,6 +139,13 @@ function MapHighlightLayer.new(canvas: Frame, cs: ClientState, lang: Strings.Lan
 				for _, c in WarFx.borderSamples(ownerAt, w, h, me, e, x0, y0, x1, y1, stride, per) do
 					table.insert(warCells, c)
 				end
+			end
+		end
+		-- §15й Й3: лидер в финале.
+		table.clear(leaderCells)
+		if leader ~= 0 and leader ~= hover then
+			for _, c in MapOutline.outline(ownerAt, w, h, leader, x0, y0, x1, y1, stride, maxLeader) do
+				table.insert(leaderCells, c)
 			end
 		end
 		-- Держава под курсором.
@@ -205,6 +216,13 @@ function MapHighlightLayer.new(canvas: Frame, cs: ClientState, lang: Strings.Lan
 			local wave = 0.5 + 0.5 * math.sin(phase - k * 0.35)
 			put(c, red, 0.85 - 0.7 * wave)
 		end
+		-- §15й Й3: контур лидера в финале — золотой, «дышит» медленнее наведения.
+		if #leaderCells > 0 then
+			local breath = 0.5 + 0.5 * math.sin(phase * 0.5)
+			for _, c in leaderCells do
+				put(c, Theme.Colors.Gold, 0.45 - 0.35 * breath)
+			end
+		end
 		-- Контур державы под курсором.
 		if hover ~= 0 and #hoverCells > 0 then
 			local color = nationColor(hover):Lerp(Theme.color("White"), cfg.HoverLighten)
@@ -247,6 +265,12 @@ function MapHighlightLayer.new(canvas: Frame, cs: ClientState, lang: Strings.Lan
 			if o ~= hover then
 				hover = o
 				nextScan = 0 -- контур — сразу
+			end
+		end,
+		setLeader = function(id: number)
+			if id ~= leader then
+				leader = id
+				nextScan = 0
 			end
 		end,
 		update = update,

@@ -32,16 +32,19 @@ local function inCircle(rng: Rng.Rng, x: number, y: number, r: number): (number,
 	return x + math.cos(a) * d, y + math.sin(a) * d
 end
 
-function SpectacleFx.wake(x: number, y: number, dx: number, dy: number, seed: number): { Part }
+-- back — от центра корабля до кормы, клеток (§15ы: картинка корабля крупнее — след начинается у кормы).
+function SpectacleFx.wake(x: number, y: number, dx: number, dy: number, seed: number, back: number?): { Part }
 	local cfg = Config.Render.Spectacle
 	local ux, uy = StrikeFx.direction(dx, dy)
 	local rng = Rng.new(seed)
 	local out: { Part } = {}
-	-- Два клуба позади кормы: расходятся в стороны «усами».
+	local b = back or 1.2
+	-- Два небольших бледных клуба у кормы: расходятся в стороны «усами» (§15ы: короткий след).
+	local s0, s1 = cfg.WakeSize[1], cfg.WakeSize[2]
 	for k = -1, 1, 2 do
-		local p = make("wake", 0, cfg.WakeSec, x - ux * 1.2, y - uy * 1.2, 0.7, 2.2, "White")
-		p.dx = -ux * 0.8 + -uy * k * 0.7 + (Rng.nextFloat(rng) - 0.5) * 0.2
-		p.dy = -uy * 0.8 + ux * k * 0.7 + (Rng.nextFloat(rng) - 0.5) * 0.2
+		local p = make("wake", 0, cfg.WakeSec, x - ux * b, y - uy * b, s0, s1, "White")
+		p.dx = -ux * 0.4 + -uy * k * 0.35 + (Rng.nextFloat(rng) - 0.5) * 0.1
+		p.dy = -uy * 0.4 + ux * k * 0.35 + (Rng.nextFloat(rng) - 0.5) * 0.1
 		table.insert(out, p)
 	end
 	return out
@@ -180,20 +183,29 @@ function SpectacleFx.order(x: number, y: number, reach: number?): { Part }
 	return out
 end
 
-function SpectacleFx.fireworks(x: number, y: number, seed: number, volleys: number, sparks: number): { Part }
+-- scale — во сколько раз крупнее (§15й: салют задачи на общем плане, где клетка — пара пикселей).
+function SpectacleFx.fireworks(
+	x: number,
+	y: number,
+	seed: number,
+	volleys: number,
+	sparks: number,
+	scale: number?
+): { Part }
 	local cfg = Config.Render.Spectacle
+	local k0 = math.max(1, scale or 1)
 	local rng = Rng.new(seed)
 	local out: { Part } = {}
 	for v = 1, volleys do
 		local t = (v - 1) * cfg.VictoryEverySec
-		local cx, cy = inCircle(rng, x, y - 4, 4)
-		table.insert(out, make("flash", t, 0.25, cx, cy, 1, 4, "White"))
+		local cx, cy = inCircle(rng, x, y - 4 * k0, 4 * k0)
+		table.insert(out, make("flash", t, 0.25, cx, cy, k0, 4 * k0, "White"))
 		for k = 1, sparks do
 			local a = k / sparks * math.pi * 2 + Rng.nextFloat(rng) * 0.2
-			local d = 5 + Rng.nextFloat(rng) * 3
+			local d = (5 + Rng.nextFloat(rng) * 3) * k0
 			local color = if k % 4 == 0 then "Gold" elseif k % 4 == 1 then "White" else "nation"
-			local p = make("spark", t, 1.3, cx, cy, 0.8, 0.3, color)
-			p.dx, p.dy = math.cos(a) * d, math.sin(a) * d + 1.5 -- искры чуть оседают
+			local p = make("spark", t, 1.3, cx, cy, 0.8 * k0, 0.3 * k0, color)
+			p.dx, p.dy = math.cos(a) * d, math.sin(a) * d + 1.5 * k0 -- искры чуть оседают
 			table.insert(out, p)
 		end
 	end

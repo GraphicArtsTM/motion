@@ -45,6 +45,7 @@ local MINE_CRITICAL: { [string]: boolean } = {
 	doomWarning = true,
 	revoltSoon = true,
 	revolt = true,
+	railCut = true, -- §15ч Ч3в
 	blockade = true,
 }
 -- Своя рутина — фон, даже если касается нас.
@@ -60,6 +61,7 @@ local ROUTINE: { [string]: boolean } = {
 }
 -- Большие события мира — важно всем.
 local WORLD: { [string]: boolean } = {
+	underdog = true, -- §15й Й2: «Давид и Голиаф» — видят все
 	eliminated = true,
 	capitalLost = true,
 	victory = true,

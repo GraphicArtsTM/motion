@@ -56,4 +56,22 @@ T.describe("Масштаб интерфейса (§15ц Ц1)", function()
 			T.expect(pw < Config.Render.NarrowScreenPx).toBe(true)
 		end
 	)
+
+	T.it(
+		"§15ё сенсорный экран: планшет крупнее, телефон и компьютер — как без касания",
+		function()
+			-- iPad 1024×768: без касания — 1 (всё размером с телефон), с касанием — экран ~900×670 условных.
+			T.expect(UiFit.scale(1024, 768)).toBe(1)
+			local ipad = UiFit.scale(1024, 768, true)
+			T.expect(ipad > 1.1 and ipad < 1.2).toBe(true)
+			-- Большой планшет (1366 по ширине) — уже не узкий: раскладка и масштаб компьютера.
+			T.expect(UiFit.scale(1366, 1024, true)).toBe(UiFit.scale(1366, 1024))
+			-- Телефоны — масштаб 1, как раньше.
+			T.expect(UiFit.scale(750, 381, true)).toBe(1)
+			T.expect(UiFit.scale(932, 430, true)).toBe(1)
+			-- Компьютер с сенсорным экраном (широкий) — как без касания.
+			T.expect(UiFit.scale(1920, 1080, true)).toBe(UiFit.scale(1920, 1080))
+			T.expect(UiFit.scale(2560, 1440, true)).toBe(UiFit.scale(2560, 1440))
+		end
+	)
 end)

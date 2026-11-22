@@ -4,6 +4,10 @@
 	зелёная рамка — можно, красная — нельзя; у радара, батареи ПВО и аэродрома — круг действия; над значком —
 	цена или причина отказа. Логику (можно ли) решает UI/BuildPanel тем же Buildings.check, что и сервер.
 
+	§15ч Ч5б: у станции (город, завод, порт, вышка) — пунктир будущей дороги к сети (rail, клетки пути; Rails.ghost).
+	§15ы: значок призрака — того же размера и на том же месте, что будущий значок (MapIcons, центр в клетке);
+	слишком близко — у мешающего здания или города красная зона «здесь не строить» (blocker).
+
 	Плюс эффект постройки: новое здание «вырастает» (UIScale с пружинкой), пыль разлетается, своё — «−$цена».
 ]]
 
@@ -16,6 +20,7 @@ local CitySprites = require(Shared:WaitForChild("CitySprites"))
 local CameraMath = require(Shared:WaitForChild("CameraMath"))
 local Config = require(Shared:WaitForChild("Config"))
 local IconArt = require(Shared:WaitForChild("IconArt"))
+local MapIcons = require(Shared:WaitForChild("MapIcons"))
 
 local IconImage = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("IconImage"))
 local Theme = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("Theme"))
@@ -29,6 +34,8 @@ export type GhostView = {
 	label: string,
 	range: number?,
 	color: Color3, -- цвет державы игрока
+	rail: { number }?, -- §15ч Ч5б: будущая дорога к сети (клетки)
+	blocker: number?, -- §15ы: клетка здания или города, из-за которого «слишком близко»
 }
 
 export type BuildGhost = {
@@ -40,7 +47,7 @@ export type BuildGhost = {
 
 local BuildGhost = {}
 
-local GHOST_SCALE = 2 -- значок призрака крупный, чтобы было видно, что ставишь
+local GHOST_SCALE = 2 -- пиксельный значок (без картинки) — в клетках спрайта; сторона — MapIcons.buildingBase
 
 function BuildGhost.new(canvas: Frame, mapWidth: number): BuildGhost
 	local zoom = 1
@@ -73,6 +80,8 @@ function BuildGhost.new(canvas: Frame, mapWidth: number): BuildGhost
 	plateStroke.Parent = plate
 
 	local parts: { Frame } = {}
+	type Rect = { x: number, y: number, w: number, h: number }
+	local partRects: { Rect } = {}
 	local shown = ""
 
 	-- §15я Я4: картинка здания (та же, что на карте и в полосе стройки); у «Города» — посёлок City1.
@@ -80,7 +89,7 @@ function BuildGhost.new(canvas: Frame, mapWidth: number): BuildGhost
 	picture.Name = "Picture"
 	picture.AnchorPoint = Vector2.new(0.5, 0.5)
 	picture.Position = UDim2.fromScale(0.5, 0.5)
-	picture.Size = UDim2.fromScale(1.6, 1.6)
+	picture.Size = UDim2.fromScale(1.05, 1.05)
 	picture.BackgroundTransparency = 1
 	picture.ScaleType = Enum.ScaleType.Fit
 	picture.ResampleMode = Enum.ResamplerMode.Pixelated
@@ -90,6 +99,12 @@ function BuildGhost.new(canvas: Frame, mapWidth: number): BuildGhost
 
 	local function pictureOf(kind: string): Content?
 		local name = if BuildingSprites.Shapes[kind] == nil then "City1" else kind
+		-- §15ы Ы4: город — гладкой картинкой, как на карте (плавно, без Pixelated).
+		local smooth = if name == "City1" then IconImage.mapArt(name) else nil
+		picture.ResampleMode = if smooth ~= nil then Enum.ResamplerMode.Default else Enum.ResamplerMode.Pixelated
+		if smooth ~= nil then
+			return smooth
+		end
 		if not IconArt.has(name) then
 			name = if name == "City1" then "City" else name
 		end
@@ -101,6 +116,7 @@ function BuildGhost.new(canvas: Frame, mapWidth: number): BuildGhost
 			f:Destroy()
 		end
 		table.clear(parts)
+		table.clear(partRects)
 		local content = pictureOf(kind)
 		picture.Visible = content ~= nil
 		if content ~= nil then
@@ -143,6 +159,7 @@ function BuildGhost.new(canvas: Frame, mapWidth: number): BuildGhost
 			f.ZIndex = 41
 			f.Parent = root
 			table.insert(parts, f)
+			table.insert(partRects, { x = p.x, y = p.y, w = p.w, h = p.h })
 		end
 	end
 
@@ -189,6 +206,21 @@ function BuildGhost.new(canvas: Frame, mapWidth: number): BuildGhost
 	ringStroke.Transparency = 0.2
 	ringStroke.Parent = ring
 
+	-- §15ы: зона «здесь не строить» вокруг мешающего здания или города (Build.MinGap клеток во все стороны).
+	local zone = Instance.new("Frame")
+	zone.Name = "Blocker"
+	zone.AnchorPoint = Vector2.new(0.5, 0.5)
+	zone.BackgroundColor3 = Theme.Colors.Alert
+	zone.BackgroundTransparency = 0.8
+	zone.BorderSizePixel = 0
+	zone.ZIndex = 39
+	zone.Visible = false
+	zone.Parent = canvas
+	local zoneStroke = Instance.new("UIStroke")
+	zoneStroke.Color = Theme.Colors.Alert
+	zoneStroke.Thickness = 2
+	zoneStroke.Parent = zone
+
 	local function cellCenter(cell: number): (number, number)
 		local cx, cy = cell % mapWidth, cell // mapWidth
 		local left = CameraMath.cellEdge(zoom, cx)
@@ -197,14 +229,78 @@ function BuildGhost.new(canvas: Frame, mapWidth: number): BuildGhost
 			top + (CameraMath.cellEdge(zoom, cy + 1) - top) / 2
 	end
 
+	-- §15ч Ч5б: пунктир будущей дороги — кусок через Render.Rail.GhostDash клеток, промежуток такой же.
+	local railRoot = Instance.new("Frame")
+	railRoot.Name = "GhostRail"
+	railRoot.BackgroundTransparency = 1
+	railRoot.Size = UDim2.fromScale(1, 1)
+	railRoot.ZIndex = 39
+	railRoot.Parent = canvas
+	type Dash = { frame: Frame, a: number, b: number }
+	local dashes: { Dash } = {}
+	local railShown: { number }? = nil
+	local railCfg = Config.Render.Rail
+	local function setRail(path: { number }?)
+		if path == railShown then
+			return
+		end
+		railShown = path
+		for _, d in dashes do
+			d.frame:Destroy()
+		end
+		table.clear(dashes)
+		if path == nil then
+			return
+		end
+		local step = railCfg.GhostDash
+		local k = 1
+		while k < #path do
+			local nextK = math.min(#path, k + step)
+			local f = Instance.new("Frame")
+			f.AnchorPoint = Vector2.new(0.5, 0.5)
+			f.BorderSizePixel = 0
+			f.BackgroundColor3 = Theme.color(railCfg.GhostColor)
+			f.ZIndex = 39
+			f.Parent = railRoot
+			table.insert(dashes, { frame = f, a = path[k], b = path[nextK] })
+			k = nextK + step
+		end
+	end
+	local function placeRail()
+		for _, d in dashes do
+			local ax, ay = (d.a % mapWidth + 0.5) * zoom, (d.a // mapWidth + 0.5) * zoom
+			local bx, by = (d.b % mapWidth + 0.5) * zoom, (d.b // mapWidth + 0.5) * zoom
+			local dx, dy = bx - ax, by - ay
+			d.frame.Position = UDim2.fromOffset((ax + bx) / 2, (ay + by) / 2)
+			d.frame.Size = UDim2.fromOffset(math.sqrt(dx * dx + dy * dy) + railCfg.GhostPx, railCfg.GhostPx)
+			d.frame.Rotation = math.deg(math.atan2(dy, dx))
+		end
+	end
+
 	local function place()
 		local v = current
 		if v == nil then
 			return
 		end
+		placeRail()
 		local x, y = cellCenter(v.cell)
-		local px = size * GHOST_SCALE
-		root.Position = UDim2.fromOffset(math.round(x - px / 2), math.round(y - px))
+		-- §15ы: как будущий значок — сторона от зума, центр в клетке.
+		local px = MapIcons.buildingBase(zoom)
+		root.Size = UDim2.fromOffset(px, px)
+		root.Position = UDim2.fromOffset(math.round(x - px / 2), math.round(y - px / 2))
+		local k = px / size
+		for i, r in partRects do
+			parts[i].Position = UDim2.fromOffset(math.floor(r.x * k), math.floor(r.y * k))
+			parts[i].Size = UDim2.fromOffset(math.ceil(r.w * k), math.ceil(r.h * k))
+		end
+		local b = v.blocker
+		zone.Visible = b ~= nil
+		if b ~= nil then
+			local bx, by = cellCenter(b)
+			local d = (2 * Config.Build.MinGap - 1) * zoom
+			zone.Size = UDim2.fromOffset(d, d)
+			zone.Position = UDim2.fromOffset(math.round(bx), math.round(by))
+		end
 		if v.range ~= nil then
 			local d = math.max(4, v.range * 2 * zoom)
 			ring.Size = UDim2.fromOffset(d, d)
@@ -228,6 +324,7 @@ function BuildGhost.new(canvas: Frame, mapWidth: number): BuildGhost
 		ring.BackgroundColor3 = tone
 		ringStroke.Color = tone
 		root.Visible = true
+		setRail(v.rail)
 		place()
 	end
 
@@ -235,6 +332,8 @@ function BuildGhost.new(canvas: Frame, mapWidth: number): BuildGhost
 		current = nil
 		root.Visible = false
 		ring.Visible = false
+		zone.Visible = false
+		setRail(nil)
 	end
 
 	-- Эффект постройки: вспышка-кольцо, пыль, «−$цена».

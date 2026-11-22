@@ -280,6 +280,38 @@ function DevPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, selfC
 	button(Strings.get("dev.trustAlly", lang), function()
 		fire("trustAlly", nil)
 	end)
+	-- §15ч Ч5а: достроить все стройки.
+	button(Strings.get("dev.finishSites", lang), function()
+		fire("finishSites", nil)
+	end)
+	-- §15й Й5: своя держава выбывает — экран «Держава пала».
+	button(Strings.get("dev.fall", lang), function()
+		fire("fall", nil)
+	end)
+	-- §15й Й3: финал — «я почти победил» и «3 минуты до конца».
+	button(Strings.get("dev.finaleNear", lang), function()
+		fire("finaleNear", nil)
+	end)
+	-- §15й: выбранный бот почти у победы — золотой контур лидера на карте и полоса «X — 55% из 60%».
+	button(Strings.get("dev.finaleBot", lang), withBot("finaleBot", same))
+	button(Strings.get("dev.finaleTime", lang), function()
+		fire("finaleTime", nil)
+	end)
+	-- §15й Й2: взять столицу врага (после «Война сейчас») — трофей и «Триумф».
+	button(Strings.get("dev.takeCapital", lang), function()
+		fire("takeCapital", nil)
+	end)
+	-- §15й Й1: задачи матча.
+	button(Strings.get("dev.taskNew", lang), function()
+		fire("taskNew", nil)
+	end)
+	button(Strings.get("dev.taskDone", lang), function()
+		fire("taskDone", nil)
+	end)
+	-- §15ч Ч3в: разрушить свой мост — обрыв дороги и ремонт.
+	button(Strings.get("dev.bridgeHit", lang), function()
+		fire("bridgeHit", nil)
+	end)
 	-- Этап 7б-1: флот (§6.12).
 	button(Strings.get("dev.navy", lang), function()
 		fire("navy", nil)

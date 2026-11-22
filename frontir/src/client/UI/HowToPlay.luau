@@ -45,7 +45,7 @@ function HowToPlay.new(gui: ScreenGui, lang: Strings.Lang, openHandbook: (tab: s
 	local win = CardKit.window(
 		gui,
 		"HowToPlay",
-		t("help.title"),
+		t("help.titleBig"),
 		t("help.subtitle"),
 		cfg.WidthPx,
 		cfg.HeightPx,

@@ -28,6 +28,10 @@ local rivals = tonumber(process.args[4]) or 3
 local oldAlliance = process.args[5] == "oldAlliance" or process.args[5] == "noTrust"
 -- «noTrust» — как до §15у целиком: ещё и боты не предлагают полное доверие (нет удара через союзника).
 local noTrust = process.args[5] == "noTrust"
+-- §15й Й2: «noTrophy» — без трофеев за города, «Триумфа» и «Давида и Голиафа» (сравнение на тех же сидах).
+local noTrophy = process.args[5] == "noTrophy"
+-- §15й Й3: «noFinale» — без «Все против лидера».
+local noFinale = process.args[5] == "noFinale"
 
 local map = MapFormat.fromModule((require :: any)("../maps/" .. mapName) :: MapFormat.MapModule)
 local dt = 1 / Config.Sim.TickRate
@@ -43,6 +47,8 @@ local function play(level: any, seed: number, commander: Types.CommanderId): Out
 	local m = MatchSim.new(map, seed)
 	m.trustGateOff = oldAlliance
 	m.trustOff = noTrust
+	m.trophyOff = noTrophy
+	m.finaleOff = noFinale
 	MatchSim.addPlayer(m, 1, "Игрок")
 	m.targetNations = rivals + 1
 	MatchSim.startPick(m)
@@ -82,6 +88,7 @@ print(
 for level in string.gmatch(levelsArg, "[^,]+") do
 	local lvl = (level :: any) :: Types.BotLevel
 	local places, shares, wins = 0, 0, 0
+	local placesSq = 0 -- для погрешности среднего места
 	local lines: { string } = {}
 	for k = 1, seeds do
 		local seed = 1000 + k * 77
@@ -89,6 +96,7 @@ for level in string.gmatch(levelsArg, "[^,]+") do
 		local commander: Types.CommanderId = commanderFor(k)
 		local o = play(lvl, seed, commander)
 		places += o.place
+		placesSq += o.place * o.place
 		shares += o.share
 		if o.place == 1 then
 			wins += 1
@@ -109,13 +117,18 @@ for level in string.gmatch(levelsArg, "[^,]+") do
 			)
 		)
 	end
+	-- Погрешность среднего места (стандартная ошибка): партии хаотичны, на 20 сидах она ≈ 0.17 места — разница меньше
+	-- двух погрешностей между прогонами — шум, а не изменение силы (см. docs/BALANCE.md, §15ы).
+	local mean = places / seeds
+	local se = math.sqrt(math.max(0, placesSq / seeds - mean * mean) / math.max(1, seeds - 1))
 	print(
 		string.format(
-			"  против %-8s: «игрок» первый в %d из %d, среднее место %.2f, средняя суша %.1f%%",
+			"  против %-8s: «игрок» первый в %d из %d, среднее место %.2f ± %.2f, средняя суша %.1f%%",
 			level,
 			wins,
 			seeds,
-			places / seeds,
+			mean,
+			se,
 			shares / seeds * 100
 		)
 	)
@@ -135,15 +148,22 @@ for level in string.gmatch(levelsArg, "[^,]+") do
 			)
 		)
 	elseif lvl == "General" then
-		local avg = places / seeds
+		local avg = mean
 		local ok = avg > cfg.ArenaGeneralBestPlace and avg <= cfg.ArenaGeneralWorstPlace
+		-- Ближе к порогу, чем две погрешности, — итог по этим сидам ненадёжен: нужен прогон на 60 сидах.
+		local near = math.abs(avg - cfg.ArenaGeneralWorstPlace) < 2 * se
+			or math.abs(avg - cfg.ArenaGeneralBestPlace) < 2 * se
 		print(
 			string.format(
-				"  ПОРОГ Генералы: среднее место %.2f (нужно хуже %.1f и не хуже %.1f) — %s",
+				"  ПОРОГ Генералы: среднее место %.2f ± %.2f (нужно хуже %.1f и не хуже %.1f) — %s%s",
 				avg,
+				se,
 				cfg.ArenaGeneralBestPlace,
 				cfg.ArenaGeneralWorstPlace,
-				if ok then "выполнен" else "НЕ ВЫПОЛНЕН"
+				if ok then "выполнен" else "НЕ ВЫПОЛНЕН",
+				if near
+					then " (у порога — в пределах погрешности, проверьте на 60 сидах)"
+					else ""
 			)
 		)
 	end

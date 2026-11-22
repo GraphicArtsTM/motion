@@ -19,7 +19,7 @@ Handbook.Tabs = table.freeze({ "war", "nation", "peace" })
 -- Разделы вкладки по порядку (тексты — Strings «handbook.section.<раздел>»).
 Handbook.Sections = table.freeze({
 	war = { "army", "strikes", "air" },
-	nation = { "build", "order" },
+	nation = { "build", "logistics", "order" },
 	peace = { "diplo", "world" },
 } :: { [string]: { string } })
 
@@ -46,6 +46,13 @@ Handbook.Entries = table.freeze({
 	{ key = "district", tab = "nation", section = "build", art = "building.Housing", hinder = true },
 	{ key = "oil", tab = "nation", section = "build", art = "building.OilRig" },
 	{ key = "tech", tab = "nation", section = "build", art = "shop.Research", hinder = true },
+	-- ДЕРЖАВА · Логистика (§15ч)
+	{ key = "rails", tab = "nation", section = "logistics", art = "building.City" },
+	{ key = "trains", tab = "nation", section = "logistics", art = "building.Factory", hinder = true },
+	{ key = "junction", tab = "nation", section = "logistics", art = "council.aid" },
+	{ key = "railWar", tab = "nation", section = "logistics", art = "strike.raid", hinder = true },
+	{ key = "rivers", tab = "nation", section = "logistics", art = "building.Port" },
+	{ key = "sites", tab = "nation", section = "logistics", art = "building.Barracks" },
 	-- ДЕРЖАВА · Стабильность и победа
 	{ key = "stability", tab = "nation", section = "order", art = "quest.cities" },
 	{ key = "doomsday", tab = "nation", section = "order", art = "results.time" },

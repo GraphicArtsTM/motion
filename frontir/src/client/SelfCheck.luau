@@ -5,6 +5,7 @@
 	все случайные события, ракета, две смены карты. После каждого шага в Output — PASS / FAIL с причиной (SKIP —
 	шаг здесь невозможен, в итог не входит), в конце «Итог: N из M». Ошибки скриптов клиента и сервера за время
 	проверки тоже считаются как FAIL.
+	§15ч Ч5б: блок «Логистика» — сеть дорог пришла клиенту, F4 «Достроить всё» убирает свои стройки.
 	§15ц Ц5г: окна ещё проверяются на «влезает в экран» (frame), блок «Экран матча» — заголовки групп полосы, кнопки
 	у мини-карты, без наложений главных рамок HUD, одно окно за раз.
 
@@ -18,8 +19,11 @@ local ScriptContext = game:GetService("ScriptContext")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local ClientState = require(Shared:WaitForChild("ClientState"))
+local Config = require(Shared:WaitForChild("Config"))
 local Types = require(Shared:WaitForChild("Types"))
 local WorldEvents = require(Shared:WaitForChild("WorldEvents"))
+
+local UiScale = require(script.Parent:WaitForChild("UI"):WaitForChild("UiScale"))
 
 type ClientState = ClientState.ClientState
 
@@ -115,16 +119,32 @@ local function findFrame(hud: ScreenGui, name: string): GuiObject?
 	for _, layer in pg:GetChildren() do
 		if layer:IsA("ScreenGui") then
 			local f = layer:FindFirstChild(name)
+			-- §15ё: на телефоне большое окно живёт в прокрутке «<имя>Scroll» (UiScale.scrollHost).
+			local host = layer:FindFirstChild(name .. "Scroll")
+			if f == nil and host ~= nil then
+				f = host:FindFirstChild(name)
+			end
 			if f ~= nil and f:IsA("GuiObject") then
 				return f
 			end
 		end
+	end
+	-- Плашки сверху (Логистика, Угрозы) лежат в столбиках TopCenter / TopRight — вглубь, только если прямо нет
+	-- (имя может совпасть с рамкой внутри главного меню).
+	local hudFound = hud:FindFirstChild(name, true)
+	if hudFound ~= nil and hudFound:IsA("GuiObject") then
+		return hudFound
 	end
 	return nil
 end
 
 -- Рамка целиком в своём слое (±2 px); иначе — что вылезло.
 local function insideLayer(g: GuiObject): (boolean, string?)
+	-- §15ё: окно в прокрутке (телефон) влезает, если влезает прокрутка — дальше листается.
+	local host = g.Parent
+	if host ~= nil and host:IsA("ScrollingFrame") and host.Name == g.Name .. "Scroll" then
+		g = host
+	end
 	local layer = g:FindFirstAncestorWhichIsA("ScreenGui")
 	if layer == nil then
 		return false, "нет слоя"
@@ -285,7 +305,9 @@ local function run()
 			return true, nil
 		end)
 		step("кнопки окон и зум у мини-карты", function(): (boolean?, string?)
+			local topbarLayer = if hud.Parent ~= nil then hud.Parent:FindFirstChild("FrontirTopbar") else nil
 			local buttons = hud:FindFirstChild("MapButtons")
+				or (if topbarLayer ~= nil then topbarLayer:FindFirstChild("MapButtons") else nil)
 			local zoom = hud:FindFirstChild("ZoomButtons")
 			if buttons == nil or not buttons:IsA("GuiObject") or not shown(buttons) then
 				return false, "кнопок окон нет на экране"
@@ -315,10 +337,14 @@ local function run()
 					"AttackArea",
 					"AttackChips",
 					"MenuButton",
+					"HomeButton", -- §15ё телефон: «🏠» в строке квадратов у мини-карты
+					"Tutorial",
 				}
 				local frames: { GuiObject } = {}
+				local topbarLayer = if hud.Parent ~= nil then hud.Parent:FindFirstChild("FrontirTopbar") else nil
 				for _, name in names do
 					local g = hud:FindFirstChild(name)
+						or (if topbarLayer ~= nil then topbarLayer:FindFirstChild(name) else nil)
 					if g ~= nil and g:IsA("GuiObject") and shown(g) then
 						table.insert(frames, g)
 					end
@@ -368,6 +394,127 @@ local function run()
 			end
 		)
 
+		-- 1б. §15ё Телефон: только в раскладке телефона (на мониторе — Dev.PhoneLayout и Dev.PhoneScreenW/H).
+		-- Верхний ряд («≡», удары, кнопки окон) на телефоне бывает в слое FrontirTopbar над полосой Roblox.
+		local topbar = if hud.Parent ~= nil then hud.Parent:FindFirstChild("FrontirTopbar") else nil
+		local function inHud(name: string): Instance?
+			return hud:FindFirstChild(name) or (if topbar ~= nil then topbar:FindFirstChild(name) else nil)
+		end
+		if UiScale.isPhone(hud) then
+			local phoneNames = {
+				"MenuButton",
+				"Abilities",
+				"MapButtons",
+				"TopCenter",
+				"TopRight",
+				"CommandBar",
+				"Minimap",
+				"ZoomButtons",
+				"HomeButton",
+				"AttackArea",
+				"AttackChips",
+			}
+			step("телефон: всё в экране", function(): (boolean?, string?)
+				local bad: { string } = {}
+				for _, name in phoneNames do
+					local g = inHud(name)
+					if g ~= nil and g:IsA("GuiObject") and shown(g) then
+						local ok, why = insideLayer(g)
+						if not ok then
+							table.insert(bad, name .. ": " .. tostring(why))
+						end
+					end
+				end
+				return #bad == 0, table.concat(bad, "; ")
+			end)
+			step("телефон: кнопки не меньше пальца", function(): (boolean?, string?)
+				local minPx = Config.Render.Phone.Hud.MinTouchPx
+				local f = UiScale.factor()
+				local bad: { string } = {}
+				local function check(g: Instance?)
+					if g == nil then
+						return
+					end
+					for _, b in g:GetDescendants() do
+						if b:IsA("GuiButton") and shown(b) then
+							local side = math.min(b.AbsoluteSize.X, b.AbsoluteSize.Y) / f
+							-- Прозрачные кнопки-«крестики» внутри карточек и подсказок — не цель пальца.
+							if side < minPx and b.BackgroundTransparency < 1 then
+								table.insert(
+									bad,
+									string.format(
+										"%s %d",
+										b:GetFullName():match("[^%.]+%.[^%.]+$") or b.Name,
+										math.floor(side)
+									)
+								)
+							end
+						end
+					end
+				end
+				for _, name in { "Abilities", "MapButtons", "ZoomButtons", "CommandBar" } do
+					check(inHud(name))
+				end
+				for _, name in { "MenuButton", "HomeButton" } do
+					local b = inHud(name)
+					if b ~= nil and b:IsA("GuiButton") and shown(b) then
+						local side = math.min(b.AbsoluteSize.X, b.AbsoluteSize.Y) / f
+						if side < minPx then
+							table.insert(bad, string.format("%s %d", name, math.floor(side)))
+						end
+					end
+				end
+				return #bad == 0, table.concat(bad, ", ")
+			end)
+			step("телефон: у каждой клавиши — кнопка", function(): (boolean?, string?)
+				local missing: { string } = {}
+				local function count(frameName: string): number
+					local g = inHud(frameName)
+					local n = 0
+					if g ~= nil and g:IsA("GuiObject") and shown(g) then
+						for _, b in g:GetChildren() do
+							if b:IsA("GuiButton") and b.Visible then
+								n += 1
+							end
+						end
+					end
+					return n
+				end
+				local function visible(path: { string }): boolean
+					local node: Instance? = inHud(path[1])
+					for k = 2, #path do
+						node = if node ~= nil then node:FindFirstChild(path[k]) else nil
+					end
+					return node ~= nil and node:IsA("GuiObject") and shown(node)
+				end
+				if count("Abilities") < 4 then
+					table.insert(missing, "Q / E / R / налёт")
+				end
+				if count("MapButtons") < 4 then
+					table.insert(missing, "T / Y / N / F")
+				end
+				if count("ZoomButtons") < 3 then
+					table.insert(missing, "L / G / I")
+				end
+				if not visible({ "CommandBar", "TroopsTab" }) then
+					table.insert(missing, "Z X C V (ВОЙСКА)")
+				end
+				if not visible({ "CommandBar", "BuildTab" }) then
+					table.insert(missing, "1–0, B (СТРОЙКА)")
+				end
+				if not visible({ "CommandBar", "Shop" }) then
+					table.insert(missing, "M (Магазин)")
+				end
+				if not visible({ "MenuButton" }) then
+					table.insert(missing, "Tab, P, H, K, J, U, O (меню ≡)")
+				end
+				if not visible({ "HomeButton" }) then
+					table.insert(missing, "Space (🏠)")
+				end
+				return #missing == 0, "нет кнопки: " .. table.concat(missing, ", ")
+			end)
+		end
+
 		-- 2. Действия F4 (основные кнопки).
 		local bot = anyBot(cs)
 		-- §15ц Ц5г: сначала земля — со стартом в одну провинцию внутри материка нет берега (порт, десант), провинции
@@ -404,6 +551,32 @@ local function run()
 		else
 			report("F4: действия с ботом", nil, "нет живого бота")
 		end
+
+		-- §15ч Ч5б: логистика.
+		step("логистика: сеть дорог пришла клиенту", function(): (boolean?, string?)
+			local me = cs.myNation
+			if me == nil then
+				return nil, "нет державы"
+			end
+			local ok = waitFor(function(): boolean
+				return cs.rails.nets[me] ~= nil
+			end, 5)
+			return ok, if ok then nil else "нет сообщения rails со своей сетью"
+		end)
+		f4("достроить всё", "finishSites", nil)
+		step("логистика: своих строек не осталось", function(): (boolean?, string?)
+			local me = cs.myNation
+			local ok = waitFor(function(): boolean
+				local sites: { ClientState.SiteInfo } = cs.world.sites or {}
+				for _, s in sites do
+					if ClientState.ownerAt(cs, s.cell) == me then
+						return false
+					end
+				end
+				return true
+			end, 3)
+			return ok, if ok then nil else "стройка осталась после «Достроить всё»"
+		end)
 
 		-- 3. Меню аэродрома и порта.
 		local function menu(name: string, action: string, kind: string, m: Menu)

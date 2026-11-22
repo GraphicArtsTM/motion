@@ -18,6 +18,7 @@ local Strings = require(Shared:WaitForChild("Strings"))
 
 local MenuKit = require(script.Parent:WaitForChild("MenuKit"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
+local UiScale = require(script.Parent:WaitForChild("UiScale"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
 
 type ClientState = ClientState.ClientState
@@ -95,31 +96,53 @@ function GameMenu.new(
 	MenuKit.corner(window, 8)
 	MenuKit.stroke(window, Theme.Colors.PanelBorder, 2)
 	MenuKit.pad(window, 18, 16)
-	MenuKit.list(window, 10)
+	-- §15ё Ё2: содержимое — в прокрутке; высота — сколько влезает в экран (телефон), иначе — вся.
+	local body = Instance.new("ScrollingFrame")
+	body.Name = "Body"
+	body.BackgroundTransparency = 1
+	body.BorderSizePixel = 0
+	body.Size = UDim2.fromScale(1, 0)
+	body.CanvasSize = UDim2.new()
+	body.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	body.ScrollingDirection = Enum.ScrollingDirection.Y
+	body.ScrollBarThickness = 6
+	body.ScrollBarImageColor3 = Theme.Colors.PanelBorder
+	body.Parent = window
+	local bodyPad = Instance.new("UIPadding")
+	bodyPad.PaddingRight = UDim.new(0, 10) -- под полосу прокрутки
+	bodyPad.Parent = body
+	local bodyList = MenuKit.list(body, 10)
+	local function fitBody()
+		local avail = UiScale.size(windows).Y - 2 * Config.Render.Phone.Hud.WindowEdge - 32
+		local content = UiScale.units(bodyList.AbsoluteContentSize.Y)
+		body.Size = UDim2.new(1, 0, 0, math.max(0, math.min(content, avail)))
+	end
+	Session.connect(bodyList:GetPropertyChangedSignal("AbsoluteContentSize"), fitBody)
+	UiScale.onResize(windows, fitBody)
 
-	MenuKit.label(window, t("gamemenu.title"), 26, Theme.Colors.Gold, true, 1)
-	local sub = MenuKit.label(window, "", 13, Theme.Colors.Muted, false, 2)
+	MenuKit.label(body, t("gamemenu.title"), 26, Theme.Colors.Gold, true, 1)
+	local sub = MenuKit.label(body, "", 13, Theme.Colors.Muted, false, 2)
 	local line = Instance.new("Frame")
 	line.LayoutOrder = 3
 	line.Size = UDim2.new(1, 0, 0, 1)
 	line.BackgroundColor3 = Theme.Colors.Slate
 	line.BorderSizePixel = 0
-	line.Parent = window
+	line.Parent = body
 
-	local resume = MenuKit.button(window, "▶  " .. t("gamemenu.resume"), "good", 52, 4)
+	local resume = MenuKit.button(body, "▶  " .. t("gamemenu.resume"), "good", 52, 4)
 	-- §15я: разделы с заголовками — ИГРА · ДЕРЖАВА · ПРОФИЛЬ · НАСТРОЙКИ; пункт — плитка «значок · название».
 	type Section = { header: TextLabel, grid: Frame, items: { TextButton } }
 	local sections: { [string]: Section } = {}
 	local SECTION_ORDER = { "game", "state", "profile", "settings" }
 	for k, key in SECTION_ORDER do
-		local header = MenuKit.label(window, t("gamemenu.section." .. key), 12, Theme.Colors.Sky, true, 4 + k * 2)
+		local header = MenuKit.label(body, t("gamemenu.section." .. key), 12, Theme.Colors.Sky, true, 4 + k * 2)
 		local grid = Instance.new("Frame")
 		grid.Name = "Grid_" .. key
 		grid.BackgroundTransparency = 1
 		grid.LayoutOrder = 5 + k * 2
 		grid.Size = UDim2.fromScale(1, 0)
 		grid.AutomaticSize = Enum.AutomaticSize.Y
-		grid.Parent = window
+		grid.Parent = body
 		local gridLayout = Instance.new("UIGridLayout")
 		gridLayout.CellSize = UDim2.new(0.5, -5, 0, MenuKit.Touch)
 		gridLayout.CellPadding = UDim2.fromOffset(10, 8)
@@ -133,7 +156,7 @@ function GameMenu.new(
 		local b = MenuKit.button(sec.grid, "", "normal", nil, order)
 		b.TextXAlignment = Enum.TextXAlignment.Left
 		b.TextSize = 15
-		b.Text = text
+		b.Text = UiScale.touchText(windows, text) -- §15ё: на телефоне без «[T]»
 		local pad = Instance.new("UIPadding")
 		pad.PaddingLeft = UDim.new(0, if icon ~= nil then 40 else 12)
 		pad.Parent = b
@@ -163,9 +186,9 @@ function GameMenu.new(
 	local extras: { Extra } = {}
 	local line2 = line:Clone()
 	line2.LayoutOrder = 20
-	line2.Parent = window
-	local main = MenuKit.button(window, "🏠  " .. t("gamemenu.main"), "danger", nil, 21)
-	local note = MenuKit.wrapLabel(window, t("gamemenu.note"), 12, Theme.Colors.Muted, 22)
+	line2.Parent = body
+	local main = MenuKit.button(body, "🏠  " .. t("gamemenu.main"), "danger", nil, 21)
+	local note = MenuKit.wrapLabel(body, t("gamemenu.note"), 12, Theme.Colors.Muted, 22)
 
 	local function close()
 		window.Visible = false
@@ -182,12 +205,13 @@ function GameMenu.new(
 	local function toggle()
 		window.Visible = not window.Visible
 		if window.Visible then
+			fitBody()
 			for _, e in extras do
 				local fn = e.visible
 				e.button.Visible = fn == nil or fn()
 				local textFn = e.text
 				if textFn ~= nil then
-					e.button.Text = textFn()
+					e.button.Text = UiScale.touchText(windows, textFn())
 				end
 			end
 			-- Раздел без видимых пунктов — без заголовка; погон «Пути» — по текущему званию.
