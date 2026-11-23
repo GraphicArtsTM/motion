@@ -1590,6 +1590,23 @@ local TABLE: { [string]: Entry } = {
 	["pocket.mineLeft"] = { ru = "ВЫ В КОТЛЕ · %d с", en = "ENCIRCLED · %d s" },
 	["tip.yours"] = { ru = "Ваша земля", en = "Your land" },
 	["tip.expand"] = { ru = "Клик: расширение с %s людьми", en = "Click: expand with %s people" },
+	-- §15ъ Выжженная земля (авиаудар).
+	["tip.scorchAim"] = {
+		ru = "Авиаудар выжжет %d клеток врага: %d с занять их сможете только вы",
+		en = "The airstrike will scorch %d enemy cells: only you can claim them for %d s",
+	},
+	["tip.scorchNone"] = {
+		ru = "Земли врага для выжигания здесь нет — только урон фронтам",
+		en = "No enemy land to scorch here — front damage only",
+	},
+	["tip.scorchMine"] = {
+		ru = "Выжжено вами: занимайте — враг не может ещё %d с",
+		en = "Scorched by you: claim it — the enemy can't for %d s",
+	},
+	["tip.scorchOther"] = {
+		ru = "Выжжено (%s): занять нельзя ещё %d с",
+		en = "Scorched (%s): can't be claimed for %d s",
+	},
 	-- §15ъ: ничейный город — только войсками (гарнизон Combat.NeutralCityGarrison).
 	["tip.cityTake"] = {
 		ru = "Город: войска (%s силы) возьмут его, гарнизон %s",
@@ -3104,6 +3121,10 @@ local TABLE: { [string]: Entry } = {
 	["event.triumph"] = {
 		ru = "ТРИУМФ: столица %s взята, +$%s — фронты +%d%% на %d с",
 		en = "TRIUMPH: %s's capital taken, +$%s — fronts +%d%% for %d s",
+	},
+	["event.scorched"] = {
+		ru = "Авиаудар %s: выжжено %d клеток %s — %d с занять их может только он",
+		en = "%s's airstrike scorched %d cells of %s — only they can claim them for %d s",
 	},
 	["event.underdog"] = {
 		ru = "«Давид и Голиаф»: %s победил %s, который был сильнее ×%s (+$%s)",

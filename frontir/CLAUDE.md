@@ -422,6 +422,9 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
 - Перед закрытым тестом: кадр матча — `frame` в `xpcall` (ошибка — в лог с трассировкой, `Sim.TickErrorLimit` подряд —
   `startNewMatch`); `sync` — не чаще `Sim.SyncMinSec` (`syncAt`). Новое намерение — добавить вид в `KINDS` и поля в
   `IntentFuzz.spec` (плохие клетки и id не должны ронять матч).
+- §15ъ выжженная земля: `MatchSim.scorch / scorchCells / scorchedBy`, `m.scorched`, запрет — `landCost` в `stepAttacks`
+  (hooks.costMul и в фронтах, и в `captureEnclaves`); клиент — `ClientState.noteScorched / scorchedAt / scorchPreview`,
+  `StrikeFx` вид `scorch`, раздувание на зуме — `Render.StrikeFx.StrikeMinRadiusPx`; тесты — `Scorch.spec`.
 
 ## Платные части, пропуск, ящики (этап 9б)
 - Бусты `Guards`, `Airstrike` (цель — `cell`, `MatchSim.strikeAt`), `Squadron`, `AirWing` — в `MatchSim.useBoost`.

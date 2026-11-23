@@ -382,6 +382,8 @@ function Expansion.captureEnclaves(
 	local cfg = Config.Expansion
 	local canTake = if hooks ~= nil then hooks.canTake else nil
 	local record = if hooks ~= nil then hooks.record else nil
+	-- Клетки, которые брать нельзя (заражённая зона §15ж, чужая выжженная земля §15ъ), не заливаются и анклавом.
+	local costMul = if hooks ~= nil then hooks.costMul else nil
 	local function recentlyOpen(i: number): boolean
 		local stamp = buffer.readu32(g.openStamp, i * 4)
 		return stamp > 0 and tick - stamp < cfg.EnclaveRecheckTicks
@@ -407,7 +409,13 @@ function Expansion.captureEnclaves(
 			while head <= #piece and enclosed do
 				local i = piece[head]
 				head += 1
-				if i == capital or Grid.isCity(g, i) or #piece > cfg.EnclaveMaxCells or recentlyOpen(i) then
+				if
+					i == capital
+					or Grid.isCity(g, i)
+					or #piece > cfg.EnclaveMaxCells
+					or recentlyOpen(i)
+					or (costMul ~= nil and costMul(i) == math.huge)
+				then
 					enclosed = false
 					break
 				end

@@ -37,6 +37,7 @@ local ON_ME: { [string]: boolean } = {
 	breakAnnounced = true,
 	ability = true,
 	raid = true,
+	scorched = true, -- §15ъ: авиаудар выжег нашу землю
 }
 -- У нас (nation — мы): критично.
 local MINE_CRITICAL: { [string]: boolean } = {

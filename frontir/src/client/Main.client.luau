@@ -2092,6 +2092,11 @@ local function runSession(mapId: string, resync: boolean)
 			for _, name in AudioCues.fromEvents(events, cs.myNation) do
 				sound(name)
 			end
+			for _, e in events do
+				if type(e) == "table" and e.kind == "scorched" then
+					ClientState.noteScorched(cs, e, os.clock()) -- §15ъ: зоны гари для подсказки
+				end
+			end
 			hud.onEvents(events)
 			hints.onEvents(events)
 			wars.onEvents(events)
@@ -2333,6 +2338,7 @@ local function runSession(mapId: string, resync: boolean)
 	tooltip.setAiming(function(): any
 		return commanderPanel.aiming() or (if airPanel.aiming() then "raid" else nil)
 	end)
+	tooltip.setAbilityAim(commanderPanel.abilityAim) -- §15ъ: «Авиаудар» — сколько земли выжжет
 	-- Подсказка, подсветка державы и «призрак» стройки у точки экрана: курсор мыши или палец (§15ш Ш3).
 	local function pointAt(p: Vector3)
 		local inset = viewport.AbsolutePosition

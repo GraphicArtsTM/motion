@@ -318,6 +318,8 @@ export type ClientState = {
 	air: Protocol.AirMessage, -- самолёты в обзоре, выведенные из строя здания, своя очередь (§6.13)
 	airAt: number,
 	rebelSet: { [number]: boolean }, -- провинции повстанцев (из stability)
+	-- §15ъ: выжженная авиаударом земля (из событий scorched): круг, кто может занять, до какого os.clock.
+	scorchZones: { { cell: number, radius: number, owner: number, untilAt: number } },
 	tech: TechMessage, -- свои технологии (§6.14)
 	commander: CommanderMessage, -- свой генерал и способности (§6.15)
 	commanderAt: number, -- когда пришло commander (часы клиента; для обратных отсчётов)
@@ -403,6 +405,69 @@ function ClientState.clockRate(cs: ClientState): number
 end
 
 -- Темп игрового времени относительно часов клиента (обратные отсчёты сроков, перезарядок).
+-- §15ъ Выжженная земля: запомнить зону из события scorched (срок — игровые секунды, переведённые в настоящие).
+function ClientState.noteScorched(cs: ClientState, e: { [string]: any }, now: number)
+	local cell, sec = tonumber(e.cell), tonumber(e.sec)
+	if cell == nil or sec == nil then
+		return
+	end
+	local keep = {}
+	for _, z in cs.scorchZones do
+		if z.untilAt > now then
+			table.insert(keep, z)
+		end
+	end
+	table.insert(keep, {
+		cell = cell,
+		radius = tonumber(e.radius) or 0,
+		owner = tonumber(e.nation) or 0,
+		untilAt = now + sec / math.max(ClientState.simRate(cs), 1e-3),
+	})
+	cs.scorchZones = keep
+end
+
+-- Ничья клетка в живой зоне гари: кто может её занять и сколько секунд ещё; nil — не выжжена.
+function ClientState.scorchedAt(cs: ClientState, cell: number, now: number): (number?, number)
+	if ClientState.ownerAt(cs, cell) ~= 0 then
+		return nil, 0
+	end
+	local w = cs.width
+	for _, z in cs.scorchZones do
+		local dx, dy = cell % w - z.cell % w, cell // w - z.cell // w
+		if z.untilAt > now and dx * dx + dy * dy <= z.radius * z.radius then
+			return z.owner, z.untilAt - now
+		end
+	end
+	return nil, 0
+end
+
+-- Прогноз прицела «Авиаудара»: сколько клеток врага (в активной войне с me) выжжет удар по at. burnable — можно ли
+-- выжечь клетку (суша, не город, не здание, не столица: решает вызывающий — у него карта).
+function ClientState.scorchPreview(
+	cs: ClientState,
+	me: number,
+	at: number,
+	radius: number,
+	burnable: (cell: number) -> boolean
+): number
+	local w, h = cs.width, cs.height
+	local count = 0
+	for dy = -radius, radius do
+		for dx = -radius, radius do
+			local x, y = at % w + dx, at // w + dy
+			if x >= 0 and y >= 0 and x < w and y < h and dx * dx + dy * dy <= radius * radius then
+				local cell = y * w + x
+				local o = ClientState.ownerAt(cs, cell)
+				local war = if o ~= 0 and o ~= me then ClientState.warBetween(cs, me, o) else nil
+				if war ~= nil and (war :: any).active and burnable(cell) then
+					count += 1
+				end
+			end
+		end
+	end
+	return count
+end
+
 function ClientState.simRate(cs: ClientState): number
 	return cs.speed * ClientState.clockRate(cs)
 end
@@ -475,6 +540,7 @@ function ClientState.new(width: number, height: number): ClientState
 		speed = Config.Match.Speed,
 		stability = ClientState.emptyStability(),
 		rebelSet = {},
+		scorchZones = {},
 		ships = { ships = {}, blocked = {}, queue = {} },
 		shipsAt = 0,
 		air = { planes = {}, disabled = {}, queue = {} },

@@ -44,6 +44,10 @@ type Live = {
 	stroke: UIStroke?,
 	color: Color3,
 	phase: number,
+	-- §15ъ: центр и радиус удара (клетки) — на далёком зуме зрелище раздувается от центра до StrikeMinRadiusPx.
+	cx: number?,
+	cy: number?,
+	radius: number?,
 }
 
 local StrikeFxLayer = {}
@@ -241,7 +245,16 @@ function StrikeFxLayer.new(canvas: Frame, cs: ClientState, shake: (px: number) -
 		end
 	end
 
-	local pending: { { part: StrikeFx.Part, at: number, owner: number, low: boolean } } = {}
+	type Pending = {
+		part: StrikeFx.Part,
+		at: number,
+		owner: number,
+		low: boolean,
+		cx: number?,
+		cy: number?,
+		radius: number?,
+	}
+	local pending: { Pending } = {}
 	local live: { Live } = {}
 	local shakes: { { at: number, px: number } } = {}
 
@@ -250,7 +263,7 @@ function StrikeFxLayer.new(canvas: Frame, cs: ClientState, shake: (px: number) -
 	end
 
 	local lowLimit = math.floor(maxParts * Config.Render.Spectacle.LowShare)
-	local function activate(p: StrikeFx.Part, at: number, owner: number, low: boolean)
+	local function activate(p: StrikeFx.Part, at: number, owner: number, low: boolean, q: Pending?)
 		if #live >= maxParts or (low and #live >= lowLimit) then
 			return -- предел частиц: лишнее не рисуем
 		end
@@ -280,10 +293,17 @@ function StrikeFxLayer.new(canvas: Frame, cs: ClientState, shake: (px: number) -
 			end
 			frame = f
 		end
-		table.insert(
-			live,
-			{ part = p, start = at, frame = frame, stroke = stroke, color = color, phase = math.random() * 6.283 }
-		)
+		table.insert(live, {
+			part = p,
+			start = at,
+			frame = frame,
+			stroke = stroke,
+			color = color,
+			phase = math.random() * 6.283,
+			cx = if q ~= nil then q.cx else nil,
+			cy = if q ~= nil then q.cy else nil,
+			radius = if q ~= nil then q.radius else nil,
+		})
 	end
 
 	-- Запустить план удара kind в клетке cell от державы owner.
@@ -293,7 +313,8 @@ function StrikeFxLayer.new(canvas: Frame, cs: ClientState, shake: (px: number) -
 		radius: number,
 		owner: number,
 		delay: number,
-		withBuildings: boolean
+		withBuildings: boolean,
+		life: number?
 	)
 		if not visible(cell) then
 			return
@@ -324,11 +345,15 @@ function StrikeFxLayer.new(canvas: Frame, cs: ClientState, shake: (px: number) -
 			dirX = dirX,
 			dirY = dirY,
 			buildings = hit,
+			life = life,
 		})
 		local now = os.clock()
 		local firstBoom = math.huge
 		for _, p in parts do
-			table.insert(pending, { part = p, at = now + delay + p.t, owner = owner, low = false })
+			table.insert(
+				pending,
+				{ part = p, at = now + delay + p.t, owner = owner, low = false, cx = x, cy = y, radius = radius }
+			)
 			if p.kind == "burst" or p.kind == "ring" or p.kind == "debris" then
 				firstBoom = math.min(firstBoom, p.t)
 			end
@@ -362,6 +387,20 @@ function StrikeFxLayer.new(canvas: Frame, cs: ClientState, shake: (px: number) -
 			elseif e.kind == "nukeHit" then
 				local kind: StrikeFx.Kind = if e.warhead == "hydrogen" then "hydrogen" else "atom"
 				play(kind, cell, tonumber(e.radius) or 10, owner, 0, true)
+			elseif e.kind == "scorched" then
+				-- §15ъ: гарь держится столько, сколько длится запрет (игровые секунды → настоящие).
+				local rate = math.max(ClientState.simRate(cs), 1e-3)
+				local life = (tonumber(e.sec) or Config.Commanders.StrikeScorchSec) / rate
+				local delay = 0.25 + Config.Render.StrikeFx.JetSec * 0.6 -- после ковра разрывов
+				play(
+					"scorch",
+					cell,
+					tonumber(e.radius) or Config.Commanders.StrikeScorchRadius,
+					owner,
+					delay,
+					false,
+					life
+				)
 			elseif e.kind == "missileShot" then
 				-- Перехватчик летит Render.WarFx.InterceptSec (WarFxLayer) — кольцо в конце его пути.
 				play("intercept", cell, 2, owner, Config.Render.WarFx.InterceptSec, false)
@@ -377,7 +416,7 @@ function StrikeFxLayer.new(canvas: Frame, cs: ClientState, shake: (px: number) -
 		while k <= #pending do
 			local q = pending[k]
 			if now >= q.at then
-				activate(q.part, q.at, q.owner, q.low)
+				activate(q.part, q.at, q.owner, q.low, q)
 				pending[k] = pending[#pending]
 				pending[#pending] = nil
 			else
@@ -409,6 +448,16 @@ function StrikeFxLayer.new(canvas: Frame, cs: ClientState, shake: (px: number) -
 			local e = StrikeFx.ease(p.kind, t)
 			local x, y = p.x + p.dx * e, p.y + p.dy * e
 			local size = p.s0 + (p.s1 - p.s0) * e
+			-- §15ъ: удар на далёком зуме не теряется — зрелище раздувается от центра (гарь и воронки — нет: они
+			-- показывают настоящую выжженную землю).
+			local cx, cy, radius = l.cx, l.cy, l.radius
+			if cx ~= nil and cy ~= nil and radius ~= nil and p.kind ~= "scorch" and p.kind ~= "scar" then
+				local grow = math.max(1, cfg.StrikeMinRadiusPx / math.max(radius * zoom, 1e-3))
+				if grow > 1 then
+					x, y = cx + (x - cx) * grow, cy + (y - cy) * grow
+					size *= grow
+				end
+			end
 			local f = l.frame
 			local flicker = 0.5 + 0.5 * math.sin(now * 14 + l.phase)
 			local alpha = 0 -- прозрачность фона

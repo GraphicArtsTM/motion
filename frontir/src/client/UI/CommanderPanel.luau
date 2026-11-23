@@ -35,6 +35,7 @@ export type CommanderPanel = {
 	isOpen: () -> boolean, -- самопроверка: карточки (лобби) или кнопки способностей (игра) на экране
 	pickerFrame: Frame, -- §15и: на время лобби переезжает в экран лобби
 	aiming: () -> Types.Warhead?, -- §15х: ждём цель ракеты / бомбы — какой (для прогноза удара)
+	abilityAim: () -> string?, -- §15ъ: способность, ждущая цели (например «Airstrike»), — для прогноза подсказки
 	setRaid: (start: () -> ()) -> (), -- §15х ч.4: строка «Налёт» включает выбор цели в AirPanel
 	setCompact: (compact: boolean) -> (), -- §15ё телефон: удары квадратиками без заголовка и подсказки
 	setVertical: (vertical: boolean) -> (), -- §15ё Ё7: квадратики столбиком сверху вниз (иначе строкой)
@@ -703,6 +704,13 @@ function CommanderPanel.new(
 	return {
 		aiming = function(): Types.Warhead?
 			return if pending == MISSILE then WARHEADS[warhead] else nil
+		end,
+		abilityAim = function(): string?
+			local slot = pending
+			if slot == 1 or slot == 2 then
+				return Commanders.ability(ClientState.myCommander(cs), slot :: number)
+			end
+			return nil
 		end,
 		pickerFrame = picker,
 		setRaid = function(start: () -> ())

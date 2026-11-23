@@ -1218,6 +1218,17 @@ function MatchHud.new(
 				else
 					toast(string.format(Strings.get("event.trophy", lang), amount, city))
 				end
+			elseif e.kind == "scorched" then
+				-- §15ъ: авиаудар выжег землю врага — кто, сколько и на сколько секунд она ничья.
+				toast(
+					string.format(
+						Strings.get("event.scorched", lang),
+						a,
+						tonumber(e.cells) or 0,
+						b,
+						tonumber(e.sec) or Config.Commanders.StrikeScorchSec
+					)
+				)
 			elseif e.kind == "underdog" then
 				toast(string.format(
 					Strings.get("event.underdog", lang),

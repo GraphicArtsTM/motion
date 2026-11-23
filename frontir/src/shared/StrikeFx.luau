@@ -12,13 +12,15 @@
 	- missile — обломки разлетаются, воронки, дым над целью (огненный шар и волна — WarFxLayer);
 	- atom / hydrogen — то же крупнее, две ударные волны, выжженная земля и тлеющие угли;
 	- intercept — белое кольцо и осколки в точке перехвата; flak — разрывы зениток над целью (налёт сбит).
+	- scorch (§15ъ) — выжженная авиаударом земля: вспышка-кольцо, огненный вал по кругу, пятно гари с тлеющими
+	  углями и пеплом на всё время запрета (options.life), столбы дыма; у airstrike — ударная волна после ковра.
 	Задетые здания (options.buildings — центры клеток) — вторичный взрыв, пожар и дым.
 ]]
 
 local Config = require("./Config")
 local Rng = require("./Rng")
 
-export type Kind = "airstrike" | "raid" | "missile" | "atom" | "hydrogen" | "intercept" | "flak"
+export type Kind = "airstrike" | "raid" | "missile" | "atom" | "hydrogen" | "intercept" | "flak" | "scorch"
 export type PartKind =
 	"cross"
 	| "jet"
@@ -69,6 +71,7 @@ export type Options = {
 	dirX: number?, -- направление захода самолётов (не обязательно единичное)
 	dirY: number?,
 	buildings: { Point }?, -- задетые здания и города (центры клеток)
+	life: number?, -- scorch: сколько секунд держится выжженное пятно (на клиенте — срок запрета / скорость матча)
 }
 
 local StrikeFx = {}
@@ -319,6 +322,11 @@ function StrikeFx.plan(kind: Kind, x: number, y: number, opt: Options): { Part }
 			local s = (along + margin + back[lane]) / (2 * margin)
 			return 0.25 + math.clamp(s, 0, 1) * cfg.JetSec
 		end)
+		-- §15ъ: ударная волна после ковра — белая быстрая и огненная медленная.
+		local tEnd = 0.25 + cfg.JetSec * 0.6
+		table.insert(out, part("ring", tEnd, 0.7, x, y, r * 0.5, r * 2 * cfg.StrikeWaveReach, "White"))
+		table.insert(out, part("ring", tEnd + 0.1, 1.3, x, y, r * 0.4, r * 1.6 * cfg.StrikeWaveReach, "Orange"))
+		table.insert(out, part("flash", tEnd, 0.25, x, y, r, r * 2.2, "White"))
 	elseif kind == "raid" then
 		local lanes = { -r * 0.3, r * 0.3 }
 		carpet(out, rng, x, y, r, ux, uy, lanes, function(_lane: number, along: number): number
@@ -369,6 +377,54 @@ function StrikeFx.plan(kind: Kind, x: number, y: number, opt: Options): { Part }
 				"Steel"
 			)
 			s.dx, s.dy = r * 0.15, -r * 0.6
+			table.insert(out, s)
+		end
+	elseif kind == "scorch" then
+		-- §15ъ Выжженная земля: вал огня по кругу, гарь с углями и пеплом на всё время запрета, дым.
+		local life = math.max(2, opt.life or cfg.ScarSec)
+		table.insert(out, part("ring", 0, 0.9, x, y, r * 0.3, r * 2.4, "Orange"))
+		for k, f in { 1.15, 0.85, 0.5 } do
+			table.insert(out, part("scorch", 0.05 + k * 0.05, life, x, y, r * f * 1.6, r * f * 2, "Basalt"))
+		end
+		local flames = math.min(cfg.MaxScorchFlames, math.floor(r * cfg.ScorchFlamesPerRadius) + 3)
+		for k = 1, flames do
+			local a = (k / flames) * math.pi * 2 + Rng.nextFloat(rng) * 0.4
+			local d = r * (0.55 + 0.4 * Rng.nextFloat(rng))
+			local fx, fy = x + math.cos(a) * d, y + math.sin(a) * d
+			table.insert(
+				out,
+				part("fire", 0.1 + Rng.nextFloat(rng) * 0.5, cfg.ScorchFlameSec, fx, fy, 1.2, 2.2, "Orange")
+			)
+		end
+		local embers = math.min(cfg.MaxEmbers, math.floor(r * cfg.EmbersPerRadius * 2) + 4)
+		for _ = 1, embers do
+			local ex, ey = inCircle(rng, x, y, r * 0.95)
+			table.insert(
+				out,
+				part(
+					"ember",
+					0.4 + Rng.nextFloat(rng),
+					life * (0.5 + 0.5 * Rng.nextFloat(rng)),
+					ex,
+					ey,
+					0.9,
+					0.5,
+					"Orange"
+				)
+			)
+		end
+		for k = 1, 3 do
+			local s = part(
+				"smoke",
+				0.4 + k * 0.4,
+				3.2,
+				x + (Rng.nextFloat(rng) - 0.5) * r,
+				y + (Rng.nextFloat(rng) - 0.5) * r * 0.5,
+				r * 0.5,
+				r * 1.3,
+				"Steel"
+			)
+			s.dx, s.dy = r * 0.2, -r * 0.8
 			table.insert(out, s)
 		end
 	elseif kind == "intercept" then

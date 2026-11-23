@@ -190,6 +190,8 @@ export type MatchEvent =
 	-- §15й Й2: трофей за город (capital — столица, тогда и «Триумф» на triumph секунд) и «Давид и Голиаф»
 	| { kind: "trophy", nation: number, target: number, cell: number, amount: number, capital: boolean, triumph: number }
 	| { kind: "underdog", nation: number, target: number, amount: number, ratio: number }
+	-- §15ъ: авиаудар выжег землю (cells клеток в радиусе radius у cell; запрет на sec игровых секунд)
+	| { kind: "scorched", nation: number, target: number, cell: number, cells: number, radius: number, sec: number }
 	| { kind: "bridgeHit", nation: number, cell: number, count: number }
 	| { kind: "trainGone", nation: number, id: number, lost: boolean, cell: number?, war: boolean? }
 	-- Авиация (§6.13, этап 7б-2)
@@ -309,6 +311,8 @@ export type Match = {
 	missiles: { Missile }, -- ракеты в полёте (§6.9)
 	passages: { PassageMarch }, -- §15у: отряды в пути через союзников
 	fallout: { Fallout }, -- заражённые зоны после ядерных ударов (§15ж)
+	-- §15ъ: выжженная авиаударом земля — клетка → кто может занять и до какого времени (simTime); остальным нельзя.
+	scorched: { [number]: { owner: number, untilTime: number } },
 	doomSince: { [number]: number }, -- §15з: держава → m.time, с какого она ниже планки судного дня
 	doomCheckAt: number,
 	emojiAt: { [number]: number }, -- держава → simTime последнего эмодзи (§15ж)
@@ -497,6 +501,7 @@ function MatchSim.new(map: MapData, seed: number): Match
 		missiles = {},
 		passages = {},
 		fallout = {},
+		scorched = {},
 		doomSince = {},
 		doomCheckAt = 0,
 		emojiAt = {},
@@ -3090,6 +3095,27 @@ local function stepAttacks(m: Match, simDt: number): number
 				else 1
 		end
 	end
+	-- §15ъ: выжженная чужим авиаударом земля не берётся (ни ростом, ни заливкой анклавов), пока не истёк срок.
+	if next(m.scorched) ~= nil and m.tick % Config.Sim.TickRate == 0 then
+		for cell, s in m.scorched do
+			if m.simTime >= s.untilTime then
+				m.scorched[cell] = nil -- раз в секунду: истёкшие — долой
+			end
+		end
+	end
+	local scorching = next(m.scorched) ~= nil
+	local function landCost(attacker: number): ((cell: number) -> number)?
+		if not scorching then
+			return rebelCost
+		end
+		return function(cell: number): number
+			local by = MatchSim.scorchedBy(m, cell)
+			if by ~= nil and by ~= attacker then
+				return math.huge
+			end
+			return if rebelCost ~= nil then rebelCost(cell) else 1
+		end
+	end
 	local battled: { [Attack]: boolean } = {}
 	local truce = Council.active(m.council, "truce", m.simTime) ~= nil
 	local k = 1
@@ -3111,7 +3137,7 @@ local function stepAttacks(m: Match, simDt: number): number
 					cityAllowed = cityAllowed,
 					canTake = enclaveRule(m, a.attacker),
 					record = record,
-					costMul = rebelCost,
+					costMul = landCost(a.attacker),
 				}, line)
 			done = d
 			captured += cells
@@ -3239,7 +3265,7 @@ local function stepAttacks(m: Match, simDt: number): number
 					m.tick,
 					m.seed,
 					simDt,
-					{ canTake = enclaveRule(m, a.attacker), record = record }
+					{ canTake = enclaveRule(m, a.attacker), record = record, costMul = landCost(a.attacker) }
 				)
 				if took > 0 then
 					a.lastAdvance = m.simTime
@@ -3756,7 +3782,91 @@ function MatchSim.strikeAt(m: Match, n: Nation, at: number, loss: number): (bool
 		end
 	end
 	table.insert(m.commanders.strikes, { owner = n.id, cell = at, untilTime = m.simTime + cfg.StrikeSec })
+	MatchSim.scorch(m, n.id, at)
 	return true, nil
+end
+
+-- Клетки, которые авиаудар по at выжжет: земля врага в войне во внутреннем круге, кроме городов, столиц и зданий.
+-- (Тот же расчёт — у прогноза прицела на клиенте, см. ClientState.scorchPreview.)
+function MatchSim.scorchCells(m: Match, id: number, at: number): { number }
+	local g = m.grid
+	local w = g.width
+	local r = Config.Commanders.StrikeScorchRadius
+	local out: { number } = {}
+	if at < 0 or at >= g.size then
+		return out
+	end
+	for dy = -r, r do
+		for dx = -r, r do
+			local x, y = at % w + dx, at // w + dy
+			if x >= 0 and y >= 0 and x < w and y < g.height and dx * dx + dy * dy <= r * r then
+				local cell = y * w + x
+				local o = Grid.getOwner(g, cell)
+				local victim = m.nations[o]
+				if
+					o ~= 0
+					and o ~= id
+					and victim ~= nil
+					and Wars.isActive(m.wars, id, o)
+					and Grid.isCapturable(g, cell)
+					and not Grid.isCity(g, cell)
+					and victim.capital ~= cell
+					and m.buildings.byCell[cell] == nil
+				then
+					table.insert(out, cell)
+				end
+			end
+		end
+	end
+	return out
+end
+
+-- §15ъ Выжечь землю врага у точки удара: клетки — ничьи; занять их StrikeScorchSec может только id. Событие
+-- «scorched» — ленте и зрелищу (пятно гари на время запрета).
+function MatchSim.scorch(m: Match, id: number, at: number): number
+	local cells = MatchSim.scorchCells(m, id, at)
+	if #cells == 0 then
+		return 0
+	end
+	local cfg = Config.Commanders
+	local untilTime = m.simTime + cfg.StrikeScorchSec
+	local lost: { [number]: number } = {}
+	for _, cell in cells do
+		local o = Grid.getOwner(m.grid, cell)
+		lost[o] = (lost[o] or 0) + 1
+		Grid.setOwner(m.grid, cell, 0)
+		m.scorched[cell] = { owner = id, untilTime = untilTime }
+	end
+	-- Кому досталось больше всего — в событие (обычно один враг).
+	local victim, most = 0, 0
+	for o, k in lost do
+		if k > most then
+			victim, most = o, k
+		end
+	end
+	table.insert(m.events, {
+		kind = "scorched",
+		nation = id,
+		target = victim,
+		cell = at,
+		cells = #cells,
+		radius = cfg.StrikeScorchRadius,
+		sec = cfg.StrikeScorchSec,
+	})
+	return #cells
+end
+
+-- Можно ли державе id занять клетку (выжженная чужим ударом — нет, пока не истёк срок).
+function MatchSim.scorchedBy(m: Match, cell: number): number?
+	local s = m.scorched[cell]
+	if s == nil then
+		return nil
+	end
+	if m.simTime >= s.untilTime then
+		m.scorched[cell] = nil
+		return nil
+	end
+	return s.owner
 end
 
 -- Применить способность слота slot (1 — Q, 2 — E). percent — доля войск для десантов.

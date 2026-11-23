@@ -35,6 +35,7 @@ export type MapTooltip = {
 	tick: (percent: number) -> (),
 	-- §15х: чем целимся сейчас (nil — ничем): подсказка показывает прогноз «собьют / дойдёт».
 	setAiming: (aiming: () -> StrikeForecast.Kind?) -> (),
+	setAbilityAim: (aim: () -> string?) -> (), -- §15ъ: способность, ждущая цели («Airstrike» — прогноз выжигания)
 	-- §15х: прогноз удара по клетке (nil — не целимся или нечего показать) — для кругов защиты на карте.
 	forecast: (cell: number) -> StrikeForecast.Result?,
 	-- §15х ч.2: здание или город под курсором с кругом действия: радиус и цвет (nil — нет).
@@ -234,6 +235,56 @@ function MapTooltip.new(
 	-- §15х: прогноз удара по клетке тем, чем сейчас целимся.
 	local aimingFn: () -> StrikeForecast.Kind? = function(): StrikeForecast.Kind?
 		return nil
+	end
+	local abilityAimFn: () -> string? = function(): string?
+		return nil
+	end
+	-- §15ъ Выжженная земля: прогноз прицела «Авиаудара» и строка над выжженной клеткой.
+	local function scorchLine(cell: number): string?
+		local me = cs.myNation
+		if me == nil or cs.phase ~= "Play" then
+			return nil
+		end
+		if abilityAimFn() == "Airstrike" then
+			local n = ClientState.scorchPreview(
+				cs,
+				me,
+				cell,
+				Config.Commanders.StrikeScorchRadius,
+				function(c: number): boolean
+					local o = ClientState.ownerAt(cs, c)
+					local victim = cs.nations[o]
+					return Config.Terrain[MapDataModule.getTerrain(map, c)].borderPassable
+						and not isCityCell(c)
+						and cs.buildings[c] == nil
+						and (victim == nil or victim.capital ~= c)
+				end
+			)
+			if n == 0 then
+				return string.format('<font color="%s">%s</font>', muted, Strings.get("tip.scorchNone", lang))
+			end
+			return string.format(
+				'<font color="%s">%s</font>',
+				gold,
+				string.format(Strings.get("tip.scorchAim", lang), n, Config.Commanders.StrikeScorchSec)
+			)
+		end
+		local by, left = ClientState.scorchedAt(cs, cell, os.clock())
+		if by == nil then
+			return nil
+		end
+		if by == me then
+			return string.format(
+				'<font color="%s">%s</font>',
+				gold,
+				string.format(Strings.get("tip.scorchMine", lang), math.ceil(left))
+			)
+		end
+		return string.format(
+			'<font color="%s">%s</font>',
+			alert,
+			string.format(Strings.get("tip.scorchOther", lang), nationName(by), math.ceil(left))
+		)
 	end
 	local function strikeForecast(cell: number): StrikeForecast.Result?
 		local kind: StrikeForecast.Kind? = aimingFn()
@@ -542,6 +593,10 @@ function MapTooltip.new(
 		if building ~= nil then
 			head ..= "\n" .. building
 		end
+		local scorch = scorchLine(cell)
+		if scorch ~= nil then
+			head ..= "\n" .. scorch
+		end
 		local rail = if cs.phase == "Play" and building == nil then railLine(cell) else nil
 		if rail ~= nil then
 			head ..= "\n" .. rail
@@ -641,6 +696,9 @@ function MapTooltip.new(
 			else
 				show(lastCell, lastX, lastY, percent)
 			end
+		end,
+		setAbilityAim = function(fn: () -> string?)
+			abilityAimFn = fn
 		end,
 		setAiming = function(fn: () -> StrikeForecast.Kind?)
 			aimingFn = fn

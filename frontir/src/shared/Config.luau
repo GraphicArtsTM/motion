@@ -1399,7 +1399,13 @@ Config.Render = {
 		WaveReach = { 2.4, 1.6 }, -- радиус волн в радиусах удара
 		InterceptRingSec = 0.7,
 		InterceptRingSize = 9,
-		ShakePx = { airstrike = 3, raid = 3, missile = 5, atom = 10, hydrogen = 14 },
+		ShakePx = { airstrike = 5, raid = 3, missile = 5, atom = 10, hydrogen = 14, scorch = 2 },
+		-- §15ъ: ударная волна авиаудара (в радиусах удара) и выжженная земля.
+		StrikeWaveReach = 1.8,
+		StrikeMinRadiusPx = 46, -- на далёком зуме зрелище удара не меньше этого радиуса на экране (раздувается)
+		ScorchFlameSec = 4, -- вал огня по краю выжженного круга
+		ScorchFlamesPerRadius = 3,
+		MaxScorchFlames = 14,
 	},
 	Shake = {
 		NukePx = 10, -- ядерный взрыв в кадре
@@ -2444,6 +2450,10 @@ Config.Commanders = {
 	StrikeLoss = 0.25, -- …фронты врагов в круге теряют эту долю силы (ПВО в составе снижает)
 	StrikeDefenseMul = 0.7, -- …оборона врага на линиях, касающихся круга
 	StrikeSec = 15,
+	-- §15ъ Выжженная земля: во внутреннем круге удара земля врага в войне — ничья; занять её StrikeScorchSec
+	-- игровых секунд может только ударивший (города, столицы, здания не выжигаются).
+	StrikeScorchRadius = 3,
+	StrikeScorchSec = 30,
 	SurgeMul = 1.5, -- Прорыв: скорость своих фронтов
 	SurgeSec = 15,
 	BlockadeRadius = 30, -- Блокада: круг (ref)
