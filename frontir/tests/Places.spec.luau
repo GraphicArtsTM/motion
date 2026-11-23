@@ -196,7 +196,7 @@ T.describe("Лобби в общем списке и приглашения (§1
 				max = 50,
 				left = 20,
 				at = NOW,
-				users = { 5, "x", 7.5, 9 },
+				users = { 5, "x", 7.5, 9 } :: { any }, -- мусор — нарочно
 			}
 			local entry = Places.entry(raw, NOW) :: Places.Entry
 			T.expect(entry.users).toEqual({ 5, 9 })
