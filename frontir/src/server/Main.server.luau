@@ -67,7 +67,10 @@ local function loadMap(mapId: string): MapData.MapData
 end
 
 -- §15л ч.3: роль сервера — хаб (меню без матча), матч или как раньше (меню поверх матча).
-local role: Places.Role = Places.role(game.PlaceId, RunService:IsStudio(), game.PrivateServerOwnerId, Config.Dev.Role)
+-- Резервный сервер (поднят хабом, без владельца): в игре из одного места это сервер матча.
+local reserved = game.PrivateServerId ~= "" and game.PrivateServerOwnerId == 0
+local role: Places.Role =
+	Places.role(game.PlaceId, RunService:IsStudio(), game.PrivateServerOwnerId, Config.Dev.Role, reserved)
 print("[Frontir] server: роль " .. role .. ", место " .. tostring(game.PlaceId))
 local firstMap = if Config.Dev.Map ~= "" then Config.Dev.Map else Config.Match.DefaultMap
 MatchService.start(loadMap(firstMap), loadMap, role)

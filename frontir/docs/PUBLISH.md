@@ -143,8 +143,8 @@ Offer, Betrayal, Victory, Defeat, Notify, Coin, Hire, Build.
 
 ## 7. Товары (можно позже — для закрытого теста не обязательно)
 
-> **Игра:** «WORLD CONQUER: Global Strategy», universe `10778535396`, место `110452094639889` (одно — режим
-> «всё в одном», `Config.Places` = 0).
+> **Игра:** «WORLD CONQUER: Global Strategy», universe `10778535396`, место `110452094639889` — одно: обычные
+> серверы — хаб, матчи — резервные серверы того же места (`Config.Places.Hub` = id места, `Match` = 0).
 >
 > **Готово (22.11.2026):** все 30 (4 пропуска и 26 товаров) созданы инструментом
 > `lune run tools/roblox_publish products` — цены из `Config` (инструмент сверяет), названия «русское · английское»,

@@ -32,7 +32,15 @@ local PHASES = { Waiting = true, Lobby = true, Pick = true, Play = true, Over = 
 local TIER: { [string]: number } = { Waiting = 1, Lobby = 1, Pick = 2, Over = 3 }
 
 -- Роль сервера. devRole — Config.Dev.Role (только в Studio); privateOwner — PrivateServerOwnerId (0 — не частный).
-function Places.role(placeId: number, isStudio: boolean, privateOwner: number, devRole: string): Role
+-- reserved — резервный сервер (PrivateServerId есть, владельца нет: его поднял хаб). Игра из одного места
+-- (Config.Places.Match = 0): обычные серверы места хаба — хаб, резервные — серверы матчей.
+function Places.role(
+	placeId: number,
+	isStudio: boolean,
+	privateOwner: number,
+	devRole: string,
+	reserved: boolean?
+): Role
 	if isStudio then
 		if devRole == "hub" or devRole == "match" then
 			return devRole :: Role
@@ -44,11 +52,16 @@ function Places.role(placeId: number, isStudio: boolean, privateOwner: number, d
 		return "combined"
 	end
 	if placeId == Config.Places.Hub and placeId ~= 0 then
-		return "hub"
+		return if Config.Places.Match == 0 and reserved == true then "match" else "hub"
 	elseif placeId == Config.Places.Match and placeId ~= 0 then
 		return "match"
 	end
 	return "combined"
+end
+
+-- Куда ехать в матч: отдельное место матча или (одно место) резервный сервер места хаба.
+function Places.matchPlace(): number
+	return if Config.Places.Match ~= 0 then Config.Places.Match else Config.Places.Hub
 end
 
 local function isInt(v: any): boolean

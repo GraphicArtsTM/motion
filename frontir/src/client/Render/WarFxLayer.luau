@@ -1,8 +1,9 @@
 --!strict
 --[[
 	WarFxLayer — зрелищная война (GDD §15б). Расчёты — Shared.WarFx, числа — Config.Render.WarFx.
-	- Объявление войны (warDeclared): баннер «ВОЙНА» с цветами держав по центру экрана (крупный — если война касается
-	  вас или союзника), красные искры на общей границе; война против вас — красная виньетка по краям экрана.
+	- Объявление войны (warDeclared): баннер «ВОЙНА» с цветами держав по центру экрана — только если нападаете вы или
+	  нападают на вас (решение геймдизайнера: чужие войны — в ленте событий внизу слева); красные искры на общей
+	  границе — всегда; война против вас — красная виньетка по краям экрана.
 	- Начало боёв (warStarted): баннер «НАСТУПЛЕНИЕ», искры цветом нападающего; «Первый удар» — стрелки ярче.
 	- Стрелки наступления: шевроны цвета нападающего на видимых фронтах против держав бегут к врагу; побеждающий
 	  фронт — быстрее и ярче.
@@ -625,12 +626,14 @@ function WarFxLayer.new(canvas: Frame, screen: ScreenGui, cs: ClientState, lang:
 				else
 					floatText(e.cell, "+$" .. amount, Theme.Colors.Muted, tcfg.OtherSize)
 				end
-				if e.capital == true then
-					showBanner("warfx.triumph", e.nation, e.target, friends[e.nation] == true, Theme.Colors.Gold)
+				if e.capital == true and (e.nation == me or e.target == me) then
+					showBanner("warfx.triumph", e.nation, e.target, true, Theme.Colors.Gold)
 				end
 				continue
 			elseif e.kind == "underdog" then
-				showBanner("warfx.underdog", e.nation, e.target, friends[e.nation] == true, Theme.Colors.Gold)
+				if e.nation == me or e.target == me then
+					showBanner("warfx.underdog", e.nation, e.target, true, Theme.Colors.Gold)
+				end
 				continue
 			end
 			if e.kind == "tradeDelivered" and type(e.cell) == "number" then
@@ -648,15 +651,20 @@ function WarFxLayer.new(canvas: Frame, screen: ScreenGui, cs: ClientState, lang:
 				finishMarch(a, tonumber(e.ally) or 0, b)
 				continue
 			end
-			local big = friends[a] == true or friends[b] == true
+			-- Баннер — только своей войне (нападаете вы или на вас); чужие — в ленте событий, на карте — искры границы.
+			local mine = me ~= nil and (a == me or b == me)
 			if e.kind == "warDeclared" then
-				showBanner("warfx.war", a, b, big, Theme.Colors.Alert)
+				if mine then
+					showBanner("warfx.war", a, b, true, Theme.Colors.Alert)
+				end
 				borderFlash(a, b, Theme.Colors.Alert)
 				if me ~= nil and b == me then
 					vignetteUntil = now + cfg.VignetteSec
 				end
 			elseif e.kind == "warStarted" then
-				showBanner("warfx.offensive", a, b, big, colorOf(a))
+				if mine then
+					showBanner("warfx.offensive", a, b, true, colorOf(a))
+				end
 				borderFlash(a, b, colorOf(a))
 				local rate = math.max(ClientState.simRate(cs), 1e-3)
 				opening[a * 65536 + b] = now + Config.Combat.OpeningSec / rate

@@ -32,6 +32,17 @@ T.describe("Хаб и матч (§15л ч.3)", function()
 			T.expect(Config.Dev.Role).toBe("")
 			return
 		end
+		-- Одно место (Match = 0): обычный сервер — хаб, резервный (поднял хаб) — матч, частный — как раньше.
+		if match == 0 then
+			T.expect(Places.role(hub, false, 0, "", false)).toBe("hub")
+			T.expect(Places.role(hub, false, 0, "", true)).toBe("match")
+			T.expect(Places.role(hub, false, 42, "", true)).toBe("combined")
+			T.expect(Places.role(123, false, 0, "", true)).toBe("combined")
+			T.expect(Places.role(hub, true, 0, "", true)).toBe("combined") -- Studio
+			T.expect(Places.matchPlace()).toBe(hub)
+			T.expect(Config.Dev.Role).toBe("")
+			return
+		end
 		T.expect(Places.role(hub, false, 0, "")).toBe("hub")
 		T.expect(Places.role(match, false, 0, "")).toBe("match")
 		T.expect(Places.role(123, false, 0, "")).toBe("combined")

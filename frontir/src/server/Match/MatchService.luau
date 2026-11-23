@@ -672,7 +672,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				else
 					options.ServerInstanceId = e.id
 				end
-				travel({ player }, Config.Places.Match, options)
+				travel({ player }, Places.matchPlace(), options)
 				return
 			end
 			-- Свободного матча нет — новый резервный сервер пары (карта и режим — в данных перехода); кто нажал за
@@ -702,7 +702,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			if lobby ~= nil then
 				options:SetTeleportData({ lobby = lobby })
 			end
-			local result = travel(group, Config.Places.Match, options)
+			local result = travel(group, Places.matchPlace(), options)
 			if result ~= nil and list ~= nil and (req == nil or not req.solo) then
 				list.remember(result.PrivateServerId, result.ReservedServerAccessCode)
 			end
@@ -735,7 +735,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				code = code,
 				lobby = if req ~= nil then { map = req.map, mode = req.mode } else nil,
 			})
-			local result = travel({ player }, Config.Places.Match, options)
+			local result = travel({ player }, Places.matchPlace(), options)
 			if result ~= nil then
 				list.savePrivate(code, {
 					access = result.ReservedServerAccessCode,
@@ -765,7 +765,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			local options = Instance.new("TeleportOptions")
 			options.ReservedServerAccessCode = rec.access
 			options:SetTeleportData({ code = code })
-			travel({ player }, Config.Places.Match, options)
+			travel({ player }, Places.matchPlace(), options)
 		end)
 	end
 	-- Сервер матча: пришёл игрок с кодом — проверить код и стать «своим матчем» (владелец — создатель кода).
