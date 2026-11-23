@@ -172,6 +172,17 @@ function MapTooltip.new(
 	-- §15у: путь через союзника с полным доверием к врагу owner у клетки cell (строка подсказки или nil).
 	local cityCells: { [number]: boolean } = {}
 	local cityList: { number }? = nil
+	-- Клетка — город (список городов приходит в info; набор пересобирается, когда список сменился).
+	local function isCityCell(cell: number): boolean
+		if cityList ~= cs.cities then
+			cityList = cs.cities
+			table.clear(cityCells)
+			for _, c in cs.cities do
+				cityCells[c] = true
+			end
+		end
+		return cityCells[cell] == true
+	end
 	local function passageLine(me: number, owner: number, cell: number): string?
 		local allies: { [number]: boolean } = {}
 		for _, t in cs.diplo.treaties do
@@ -550,11 +561,29 @@ function MapTooltip.new(
 		elseif overSea(cell) then
 			action = string.format('<font color="%s">%s</font>', sky, Strings.get("tip.boat", lang))
 		elseif owner == 0 then
-			action = string.format(
+			local text = string.format(
 				'<font color="%s">%s</font>',
 				gold,
 				string.format(Strings.get("tip.expand", lang), short(mine.people * percent))
 			)
+			-- §15ъ: ничейный город люди не берут — нужно войско в атаке не слабее гарнизона (у повстанцев — больше).
+			if isCityCell(cell) then
+				local rebel = cs.rebelSet[MapDataModule.getProvince(map, cell)] == true
+				local garrison = if rebel then Config.Stability.RebelGarrison else Config.Combat.NeutralCityGarrison
+				local home = 0
+				if cs.myForces ~= nil then
+					for _, k in cs.myForces.kinds do
+						home += k.home
+					end
+				end
+				local send = home * percent
+				local enough = send >= garrison
+				local line = if enough
+					then string.format(Strings.get("tip.cityTake", lang), short(send), short(garrison))
+					else string.format(Strings.get("tip.cityNeedArmy", lang), short(garrison), short(send))
+				text ..= string.format('\n<font color="%s">%s</font>', if enough then gold else alert, line)
+			end
+			action = text
 		else
 			action = string.format('<font color="%s">%s</font>', alert, Strings.get("tip.attack", lang))
 		end

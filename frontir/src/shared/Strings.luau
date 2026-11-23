@@ -1590,6 +1590,15 @@ local TABLE: { [string]: Entry } = {
 	["pocket.mineLeft"] = { ru = "ВЫ В КОТЛЕ · %d с", en = "ENCIRCLED · %d s" },
 	["tip.yours"] = { ru = "Ваша земля", en = "Your land" },
 	["tip.expand"] = { ru = "Клик: расширение с %s людьми", en = "Click: expand with %s people" },
+	-- §15ъ: ничейный город — только войсками (гарнизон Combat.NeutralCityGarrison).
+	["tip.cityTake"] = {
+		ru = "Город: войска (%s силы) возьмут его, гарнизон %s",
+		en = "City: your troops (%s strength) will take it, garrison %s",
+	},
+	["tip.cityNeedArmy"] = {
+		ru = "Город люди не берут: нужно ≥%s силы войск в атаке (сейчас %s) — найми войска или подними %%",
+		en = "People can't take a city: need ≥%s troop strength in the attack (now %s) — hire troops or raise %%",
+	},
 	["tip.attack"] = { ru = "Клик: атака (идёт война)", en = "Click: attack (at war)" },
 	["tip.declare"] = { ru = "Клик: объявить войну", en = "Click: declare war" },
 	["tip.mobilizing"] = { ru = "Мобилизация — бои скоро", en = "Mobilizing — fighting soon" },

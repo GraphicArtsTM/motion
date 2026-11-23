@@ -581,6 +581,11 @@ function MatchSim.setMode(m: Match, mode: Types.ModeId)
 	end
 	m.speed = Config.Match.Speed * m.rules.speed
 	m.infoDirty = true
+	-- §15ъ: высоты «Потопа» считаются один раз на карту и долго (на «Европе» ~0.6 с) — сразу при выборе режима
+	-- (до выбора старта), а не на первом подъёме воды посреди войны.
+	if m.rules.flood then
+		Flood.levels(m.map)
+	end
 end
 
 -- Магазин (§11.1, этап 9а) ------------------------------------------------------------------------

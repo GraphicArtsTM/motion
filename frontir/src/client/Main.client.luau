@@ -1813,6 +1813,11 @@ local function runSession(mapId: string, resync: boolean)
 	buffer.copy(baseColors, 0, colors)
 	local floodShown = 0
 	local function syncFlood()
+		-- §15ъ: высоты «Потопа» (~0.6 с на «Европе», на телефоне дольше) — сразу, как стал известен режим (выбор
+		-- старта), а не на первом подъёме воды посреди игры.
+		if cs.mode.mode == "Flood" and cs.phase ~= "Play" then
+			Flood.levels(map)
+		end
 		local target = if cs.flood ~= nil then cs.flood.step else 0
 		if target == floodShown then
 			return
