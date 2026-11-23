@@ -21,6 +21,7 @@ local LocalizationService = game:GetService("LocalizationService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
 local SocialService = game:GetService("SocialService")
 local StarterGui = game:GetService("StarterGui")
 local TextChatService = game:GetService("TextChatService")
@@ -539,12 +540,36 @@ local function runSession(mapId: string, resync: boolean)
 	end)
 	-- Экран лобби (§15и): «Следующий матч», голосование и выбор генерала переезжают в него на время лобби.
 	-- §15ф Ф1: «Выйти» из ожидания — держава убирается, главное меню (сервер матча — в хаб).
+	-- §15ъ: «Пригласить друзей» — окно приглашения Roblox; на сервере матча в приглашении — этот матч (psid или код
+	-- своего матча): друг входит в хаб, и хаб сразу ведёт его сюда (MatchService.routeToFriend).
+	local function inviteFriends()
+		task.spawn(function()
+			local okCan, can = pcall(function(): boolean
+				return SocialService:CanSendGameInviteAsync(player)
+			end)
+			if not (okCan and can) then
+				hud.toast(Strings.get("menu.inviteNo", lang))
+				return
+			end
+			local options = Instance.new("ExperienceInviteOptions")
+			options.PromptMessage = Strings.get("invite.prompt", lang)
+			local inv = cs.invite
+			if inv ~= nil then
+				options.LaunchData = HttpService:JSONEncode({ psid = inv.psid, code = inv.code })
+			end
+			pcall(function()
+				SocialService:PromptGameInvite(player, options)
+			end)
+		end)
+	end
 	local lobby = LobbyScreen.new(hudGui, cs, lang, map.name, send, function()
 		if cs.place ~= "match" then
 			send("leaveMatch", {})
 		end
 		openMainMenu()
-	end)
+	end, function(): boolean
+		return cs.invite ~= nil
+	end, inviteFriends)
 	lobby.attach(modePanel.voteFrame, commanderPanel.pickerFrame, modePanel.mapVoteFrame)
 	-- Док снизу по центру (§15з): все окна — отсюда; прежние кнопки окон прячутся, их состояние — в подсказке.
 	local dock = Dock.new(hudGui, lang, {
@@ -913,21 +938,7 @@ local function runSession(mapId: string, resync: boolean)
 				send("playTutorial", {})
 			end
 		end,
-		invite = function()
-			-- §15л ч.7: окно приглашения Roblox (если игроку можно приглашать).
-			task.spawn(function()
-				local okCan, can = pcall(function(): boolean
-					return SocialService:CanSendGameInviteAsync(player)
-				end)
-				if okCan and can then
-					pcall(function()
-						SocialService:PromptGameInvite(player)
-					end)
-				else
-					hud.toast(Strings.get("menu.inviteNo", lang))
-				end
-			end)
-		end,
+		invite = inviteFriends, -- §15л ч.7, §15ъ: на сервере матча — приглашение прямо в этот матч
 		privateCreate = function(req: MainMenu.Request?)
 			cs.travel = "going"
 			cs.travelReason = nil
@@ -962,6 +973,16 @@ local function runSession(mapId: string, resync: boolean)
 	end
 	openMainMenu = toMainMenu -- «В меню» на экране итогов
 	local menuExtra: { GameMenu.MenuItem } = {
+		-- §15ъ: пригласить друзей прямо в этот матч (на сервере матча, не «одному»).
+		{
+			label = Strings.get("invite.friends", lang),
+			action = inviteFriends,
+			visible = function(): boolean
+				return cs.invite ~= nil
+			end,
+			icon = "people",
+			group = "game",
+		},
 		-- §15ц Ц3: пауза и ×2 «одному» — здесь и клавишей P (плашка «ПАУЗА» — сверху по центру).
 		{
 			label = Strings.get("solo.pause", lang),

@@ -88,7 +88,9 @@ function LobbyScreen.new(
 	lang: Strings.Lang,
 	mapName: string,
 	send: (string, { [string]: any }) -> (),
-	leave: (() -> ())? -- §15ф Ф1: «Выйти» — в главное меню (Main.client)
+	leave: (() -> ())?, -- §15ф Ф1: «Выйти» — в главное меню (Main.client)
+	canInvite: (() -> boolean)?, -- §15ъ: можно ли звать друзей в этот матч (сервер матча, не «одному»)
+	invite: (() -> ())? -- §15ъ: «Пригласить друзей» — окно приглашения Roblox с этим матчем
 ): LobbyScreen
 	local cfg = Config.Render.Lobby
 	-- Затемнение поверх карты (снизу оставляем место доку).
@@ -258,6 +260,18 @@ function LobbyScreen.new(
 			send("difficulty", { level = level })
 		end)
 	end
+	-- §15ъ «Пригласить друзей» — сразу в этот матч (друг входит в хаб, хаб ведёт его сюда).
+	local inviteButton = smallButton(card, Strings.get("invite.friends", lang), 220, BTN + 4)
+	inviteButton.LayoutOrder = 8
+	inviteButton.TextSize = 17
+	inviteButton.BackgroundColor3 = Theme.Colors.Gold
+	inviteButton.TextColor3 = Theme.Colors.Backdrop
+	inviteButton.Visible = false
+	Session.connect(inviteButton.Activated, function()
+		if invite ~= nil then
+			invite()
+		end
+	end)
 	-- «Выйти» — в главное меню.
 	local leaveButton = smallButton(card, Strings.get("lobby.leave", lang), 220, BTN + 4)
 	leaveButton.LayoutOrder = 9
@@ -374,6 +388,7 @@ function LobbyScreen.new(
 			b.TextColor3 = if on then Theme.Colors.Backdrop else Theme.Colors.Text
 		end
 		leaveButton.Visible = leave ~= nil
+		inviteButton.Visible = invite ~= nil and canInvite ~= nil and canInvite()
 		if cs.phase == "Waiting" then
 			countdown.Text = Strings.get("lobby.waitingMore", lang)
 			fill.Size = UDim2.fromScale(0.15 + 0.1 * math.sin(now * 3), 1)

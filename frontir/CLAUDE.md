@@ -425,6 +425,10 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
 - §15ъ выжженная земля: `MatchSim.scorch / scorchCells / scorchedBy`, `m.scorched`, запрет — `landCost` в `stepAttacks`
   (hooks.costMul и в фронтах, и в `captureEnclaves`); клиент — `ClientState.noteScorched / scorchedAt / scorchPreview`,
   `StrikeFx` вид `scorch`, раздувание на зуме — `Render.StrikeFx.StrikeMinRadiusPx`; тесты — `Scorch.spec`.
+- §15ъ лобби и друзья: запись о сервере матча — режим `MatchSim.lobbyMode` (не `Modes.tally`), `users`, переписать —
+  `publishDirty`; приглашение — `info.invite` → `cs.invite` → `inviteFriends` в `Main.client` (`LaunchData`), в хабе —
+  `routeToFriend` (`Places.invite`, `Places.serverOf`, `FollowUserId`). После матча — `sentHome` (в хаб через
+  `Places.ResultsToHubSec`), новый матч сам не начинается.
 
 ## Платные части, пропуск, ящики (этап 9б)
 - Бусты `Guards`, `Airstrike` (цель — `cell`, `MatchSim.strikeAt`), `Squadron`, `AirWing` — в `MatchSim.useBoost`.

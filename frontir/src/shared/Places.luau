@@ -23,6 +23,7 @@ export type Entry = {
 	max: number,
 	left: number, -- секунд до конца фазы (Lobby, Pick, Over) или секунд игры (Play)
 	at: number, -- когда записано (os.time)
+	users: { number }?, -- §15ъ: UserId игроков сервера (хаб находит, где друг)
 }
 
 local Places = {}
@@ -90,6 +91,19 @@ function Places.entry(raw: any, now: number): Entry?
 		return nil
 	end
 	local psid = if type(r.psid) == "string" and #r.psid <= 64 then r.psid else ""
+	local users: { number }? = nil
+	if type(r.users) == "table" then
+		local list: { number } = {}
+		for k, u in r.users :: { any } do
+			if k > Config.Places.MaxUsersInEntry then
+				break
+			end
+			if isInt(u) then
+				table.insert(list, u)
+			end
+		end
+		users = list
+	end
 	return {
 		id = r.id,
 		psid = psid,
@@ -100,7 +114,32 @@ function Places.entry(raw: any, now: number): Entry?
 		max = r.max,
 		left = r.left,
 		at = r.at,
+		users = users,
 	}
+end
+
+-- §15ъ: сервер матча, на котором сейчас игрок userId (вход «за другом»); nil — нет в списке.
+function Places.serverOf(entries: { Entry }, userId: number): Entry?
+	for _, e in entries do
+		if e.users ~= nil and table.find(e.users, userId) ~= nil then
+			return e
+		end
+	end
+	return nil
+end
+
+-- §15ъ: данные приглашения (LaunchData — JSON, который уже разобрал вызывающий) → куда вести: сервер (psid
+-- резервного сервера) или код своего матча. Что угодно другое — nil.
+function Places.invite(raw: any): { psid: string?, code: string? }?
+	if type(raw) ~= "table" then
+		return nil
+	end
+	local psid = if type(raw.psid) == "string" and #raw.psid > 0 and #raw.psid <= 64 then raw.psid else nil
+	local code = Places.normalizeCode(raw.code)
+	if psid == nil and code == nil then
+		return nil
+	end
+	return { psid = psid, code = code }
 end
 
 function Places.action(e: Entry): Action

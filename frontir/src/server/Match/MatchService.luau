@@ -14,6 +14,7 @@
 	«Главное меню» — переход в хаб), «combined» — как раньше (меню поверх матча).
 ]]
 
+local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -81,6 +82,8 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 	-- §15л ч.4 Свой матч по коду: резервный сервер узнаёт, что он «свой», по коду первого игрока (проверка — по
 	-- записи в MemoryStore). До проверки о себе в общий список не пишет.
 	local privateCode: string? = nil
+	local publishDirty = true -- §15ъ: сервер матча — переписать себя в список сразу (вошли, вышли)
+	local sentHome = false -- §15ъ: сервер матча после итогов уже отправил всех в главное меню
 	local privateState: string = if role == "match" and game.PrivateServerId ~= "" then "pending" else "public"
 	-- §15ц Ц2: карта и режим сервера, выбранные первым игроком (строка плейлиста, «Играть одному», «Свой матч»);
 	-- сервер держит их и после итогов. soloServer — «одному»: в общий список не пишет, ботам — выбранная сила.
@@ -168,6 +171,12 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			mapId = map.name,
 			place = role, -- §15л ч.3: хаб, матч или «как раньше»
 			demo = demoRunning, -- §15л ч.7: за меню — показательный бой (матча ещё нет)
+			-- §15ъ: что вписать в приглашение друзьям — этот сервер матча (или код своего матча); «одному» — нет.
+			invite = if role == "match"
+					and not soloServer
+					and privateState ~= "solo"
+				then { psid = game.PrivateServerId, code = privateCode }
+				else nil,
 			tutorialStep = if m.rules.tutorial then m.tutorialStep else nil, -- «Обучение» (§5.5)
 			server = if settings ~= nil
 				then {
@@ -836,34 +845,49 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		end)
 	end
 
-	-- Сервер матча: раз в PublishSec — о себе в список (режим в лобби — лидер голосования).
+	-- Сервер матча: о себе в список — раз в PublishSec и сразу, когда кто-то вошёл, вышел или сменилась фаза
+	-- (§15ъ: лобби видно в хабе через секунды, а не через минуту).
 	if role == "match" and serverList ~= nil then
 		local list = serverList
+		local lastAt, lastPhase = -math.huge, ""
 		task.spawn(function()
 			while true do
-				-- Свой матч (§15л ч.4) и сервер, который ещё проверяет код, в общий список не пишут.
-				if privateState ~= "public" or soloServer then
-					task.wait(Config.Places.PublishSec)
-					continue
+				-- Свой матч (§15л ч.4), «одному» и сервер, который ещё проверяет код, в общий список не пишут.
+				local due = publishDirty or m.phase ~= lastPhase or os.clock() - lastAt >= Config.Places.PublishSec
+				if m.phase == "Over" then
+					-- §15ъ: матч кончился, нового на этом сервере не будет — из списка долой (входить некуда).
+					if lastPhase ~= "Over" then
+						lastPhase = "Over"
+						list.remove()
+					end
+				elseif due and privateState == "public" and not soloServer then
+					publishDirty = false
+					lastAt, lastPhase = os.clock(), m.phase
+					-- §15ъ: в лобби — режим, который будет (голосования нет: Tally по пустым вариантам давал nil, и
+					-- хаб отбрасывал запись — лобби никто не видел).
+					local mode: string = if m.phase == "Lobby" or m.phase == "Waiting"
+						then MatchSim.lobbyMode(m)
+						else m.mode
+					local users: { number } = {}
+					for _, p in Players:GetPlayers() do
+						table.insert(users, p.UserId)
+					end
+					list.publish({
+						id = game.JobId,
+						psid = game.PrivateServerId,
+						map = map.name,
+						mode = mode,
+						phase = m.phase,
+						players = #users,
+						max = Players.MaxPlayers,
+						left = if m.phase == "Play"
+							then math.max(0, math.floor(m.time))
+							else math.max(0, math.ceil(m.phaseLeft)),
+						at = os.time(),
+						users = users, -- §15ъ: хаб находит, где друг (вход «за другом» и приглашение)
+					})
 				end
-				local mode: string = m.mode
-				if m.phase == "Lobby" or m.phase == "Waiting" then
-					mode = Modes.tally(m.modeOptions, m.modeVotes)
-				end
-				list.publish({
-					id = game.JobId,
-					psid = game.PrivateServerId,
-					map = map.name,
-					mode = mode,
-					phase = m.phase,
-					players = #Players:GetPlayers(),
-					max = Players.MaxPlayers,
-					left = if m.phase == "Play"
-						then math.max(0, math.floor(m.time))
-						else math.max(0, math.ceil(m.phaseLeft)),
-					at = os.time(),
-				})
-				task.wait(Config.Places.PublishSec)
+				task.wait(Config.Places.PublishCheckSec)
 			end
 		end)
 		game:BindToClose(function()
@@ -945,10 +969,56 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		sendProfile(player)
 	end
 
+	-- §15ъ Приглашение и вход «за другом»: хаб сразу ведёт игрока в матч друга — по данным приглашения
+	-- (LaunchData: psid сервера или код своего матча) или по FollowUserId (кнопка «Присоединиться» в Roblox: в
+	-- резервный сервер Roblox сам не пускает, игрок попадает в хаб — отсюда и переход).
+	local function routeToFriend(player: Player)
+		local list = serverList
+		if list == nil then
+			return
+		end
+		local okJoin, join = pcall(function(): any
+			return player:GetJoinData()
+		end)
+		local launch = if okJoin and type(join) == "table" then join.LaunchData else nil
+		local inv: { psid: string?, code: string? }? = nil
+		if type(launch) == "string" and #launch > 0 and #launch <= 500 then
+			local okJson, data = pcall(function(): any
+				return HttpService:JSONDecode(launch)
+			end)
+			if okJson then
+				inv = Places.invite(data)
+			end
+		end
+		local follow = player.FollowUserId
+		if inv == nil and follow == 0 then
+			return
+		end
+		if inv ~= nil and inv.code ~= nil then
+			privateJoin(player, inv.code)
+			return
+		end
+		matches = list.read()
+		local target: Places.Entry? = nil
+		if inv ~= nil and inv.psid ~= nil then
+			for _, e in matches do
+				if e.psid == inv.psid then
+					target = e
+				end
+			end
+		else
+			target = Places.serverOf(matches, follow)
+		end
+		if target ~= nil and Places.action(target) ~= "full" then
+			travelToMatch(player, target.id, nil)
+		end
+	end
+
 	local function onPlayerAdded(player: Player)
 		if nationOf[player] ~= nil then
 			return
 		end
+		publishDirty = true
 		if isPrivate and ownerId == nil then
 			ownerId = player.UserId -- Studio (Dev.PrivateServer): владелец — первый вошедший
 		end
@@ -978,6 +1048,9 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		end
 		if isHub or role == "combined" then
 			sendServers(player)
+		end
+		if isHub then
+			task.spawn(routeToFriend, player) -- §15ъ: пришёл по приглашению или «за другом» — сразу в его матч
 		end
 		checkPrivate(player)
 		-- Профиль грузится в фоне (DataStore может ждать блокировку сессии).
@@ -1046,6 +1119,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		nationOf[player] = nil
 		joined[player] = nil
 		limiters[player] = nil
+		publishDirty = true
 		travelling[player] = nil
 		syncAt[player] = nil
 		rewards[player] = nil
@@ -1755,23 +1829,26 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		end
 		-- Результаты показаны — новый матч на той же карте (её меняет голосование в лобби, §15к), из F4 или
 		-- настроек частного сервера (§5.4): все игроки снова в лобби.
+		-- §15ъ (решение геймдизайнера): после итогов новый матч сам НЕ начинается. Сервер матча — все в главное меню
+		-- (хаб) через Places.ResultsToHubSec после конца; хаб и «как раньше» — показательный бой за меню.
+		-- Исключение — карта, выбранная в F4 (Studio): там следующий матч сразу на ней.
 		if m.phase == "Over" and m.phaseLeft <= 0 then
-			local anyone = false
-			for player in joined do
-				if player.Parent ~= nil then
-					anyone = true
+			if role == "match" then
+				if not sentHome then
+					sentHome = true
+					task.delay(math.max(0, Config.Places.ResultsToHubSec - Config.Match.ResultsSec), function()
+						local everyone = Players:GetPlayers()
+						if #everyone > 0 then
+							travel(everyone, Config.Places.Hub, nil)
+						end
+					end)
 				end
-			end
-			if isHub or (role == "combined" and not anyone) then
-				startDemo() -- показательный бой: хаб — следующая карта; «как раньше» — все в меню (§15л ч.7)
-			else
-				-- §15ф Ф1: без голосований — следующая карта по кругу пула.
-				local nextMap = devMap
-					or serverMap
-					or (if settings ~= nil then settings.map else nil)
-					or (if m.lobbyVotes then map.name else Modes.nextMap(map.name))
+			elseif devMap ~= nil then
+				local nextMap = devMap :: string
 				devMap = nil
 				startNewMatch(nextMap)
+			else
+				startDemo() -- все в меню (§15л ч.7): играть снова — по «В БОЙ» / «Играть одному»
 			end
 		end
 		if m.phase == "Play" and statsAcc >= 1 / Config.Net.StatsHz then

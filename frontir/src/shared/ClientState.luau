@@ -66,9 +66,11 @@ export type Info = {
 	mapVote: MapVoteInfo?, -- голосование за карту на экране итогов
 	flood: { step: number, nextIn: number }?, -- «Потоп» (§5.3): ступень воды и секунд (часы матча) до следующей
 	server: ServerInfo?, -- частный сервер (§5.4)
+	invite: InviteInfo?, -- §15ъ: что вписать в приглашение друзьям (сервер матча)
 	tutorialStep: number?, -- «Обучение» (§5.5): текущий шаг
 }
 
+export type InviteInfo = { psid: string, code: string? } -- §15ъ: сервер матча и код своего матча
 export type ServerInfo = { settings: ServerSettings.Settings, isOwner: boolean, code: string? } -- code — свой матч (§15л ч.4)
 
 -- Профиль игрока (§11.2, этап 9а): сообщение profile от сервера.
@@ -332,6 +334,7 @@ export type ClientState = {
 	flood: { step: number, nextIn: number }?, -- «Потоп» (§5.3)
 	floodAt: number, -- когда пришла ступень (часы клиента)
 	server: ServerInfo?, -- частный сервер (§5.4): настройки и владелец ли я
+	invite: InviteInfo?, -- §15ъ: приглашение друзей в этот матч (nil — нельзя: хаб, «одному»)
 	place: string, -- §15л ч.3: роль сервера ("hub", "match", "combined")
 	demo: boolean, -- §15л ч.7: за меню — показательный бой
 	servers: { ServerRow }, -- хаб: серверы матча
@@ -527,6 +530,7 @@ function ClientState.new(width: number, height: number): ClientState
 		flood = nil,
 		floodAt = 0,
 		server = nil,
+		invite = nil,
 		place = "combined",
 		demo = false,
 		servers = {},
@@ -861,6 +865,7 @@ function ClientState.applyInfo(cs: ClientState, info: Info, now: number): boolea
 	cs.demo = info.demo == true
 	cs.flood = info.flood
 	cs.server = info.server
+	cs.invite = info.invite
 	cs.tutorialStep = info.tutorialStep
 	cs.floodAt = now
 	local mode = info.mode

@@ -153,3 +153,73 @@ T.describe("Хаб и матч (§15л ч.3)", function()
 		end
 	)
 end)
+
+T.describe("Лобби в общем списке и приглашения (§15ъ)", function()
+	local MatchSim = require("../src/shared/MatchSim")
+	local TinyMap = require("./lib/TinyMap")
+
+	T.it(
+		"запись лобби (Waiting / Lobby) проходит проверку хаба: режим — не nil",
+		function()
+			local m = MatchSim.new(TinyMap.plains(64, 32), 3)
+			for _, phase in { "Waiting", "Lobby" } do
+				m.phase = phase :: any
+				local raw = {
+					id = "job-1",
+					psid = "ps-1",
+					map = "Europe",
+					mode = MatchSim.lobbyMode(m), -- так пишет сервер матча (раньше — Modes.tally по пустым вариантам = nil)
+					phase = phase,
+					players = 1,
+					max = 50,
+					left = 30,
+					at = NOW,
+					users = { 111 },
+				}
+				local entry = Places.entry(raw, NOW)
+				T.expect(entry ~= nil).toBe(true)
+				T.expect(Places.action(entry :: Places.Entry)).toBe("join")
+			end
+		end
+	)
+
+	T.it(
+		"сервер друга по UserId; список игроков проверяется, мусор отбрасывается",
+		function()
+			local raw = {
+				id = "job-2",
+				psid = "ps-2",
+				map = "World",
+				mode = "Ffa",
+				phase = "Lobby",
+				players = 3,
+				max = 50,
+				left = 20,
+				at = NOW,
+				users = { 5, "x", 7.5, 9 },
+			}
+			local entry = Places.entry(raw, NOW) :: Places.Entry
+			T.expect(entry.users).toEqual({ 5, 9 })
+			local other = e("job-3", "Lobby", 1)
+			T.expect(Places.serverOf({ other, entry }, 9)).toBe(entry)
+			T.expect(Places.serverOf({ other, entry }, 42)).toBe(nil)
+		end
+	)
+
+	T.it(
+		"данные приглашения: сервер или код своего матча; мусор — nil",
+		function()
+			local a = Places.invite({ psid = "abc" }) :: any
+			T.expect(a.psid).toBe("abc")
+			T.expect(a.code).toBe(nil)
+			T.expect(Places.invite({ psid = "" })).toBe(nil)
+			T.expect(Places.invite("nope")).toBe(nil)
+			T.expect(Places.invite({ psid = 5 })).toBe(nil)
+			local code = Places.newCode(function(_n: number): number
+				return 1
+			end)
+			local b = Places.invite({ psid = "abc", code = code }) :: any
+			T.expect(b.code).toBe(code)
+		end
+	)
+end)

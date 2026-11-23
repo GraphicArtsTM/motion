@@ -1591,6 +1591,9 @@ local TABLE: { [string]: Entry } = {
 	["tip.yours"] = { ru = "Ваша земля", en = "Your land" },
 	["tip.expand"] = { ru = "Клик: расширение с %s людьми", en = "Click: expand with %s people" },
 	-- §15ъ Выжженная земля (авиаудар).
+	-- §15ъ Приглашение друзей в свой матч.
+	["invite.friends"] = { ru = "Пригласить друзей", en = "Invite friends" },
+	["invite.prompt"] = { ru = "Заходи ко мне в матч!", en = "Join my match!" },
 	["tip.scorchAim"] = {
 		ru = "Авиаудар выжжет %d клеток врага: %d с занять их сможете только вы",
 		en = "The airstrike will scorch %d enemy cells: only you can claim them for %d s",

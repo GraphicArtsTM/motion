@@ -80,10 +80,25 @@ function SoundPanel.new(
 	MenuKit.stroke(window, Theme.Colors.PanelBorder, 2)
 	MenuKit.pad(window, 14, 12)
 	MenuKit.list(window, 10)
+	-- Заголовок во всю ширину: слева значок и название, справа «×» (§15ъ: закрыть окно было нечем, кроме «🔊»).
 	local head = MenuKit.box(window, "Head", 1)
-	MenuKit.list(head, 8, true)
-	MenuKit.icon(head, "sound", 3, 1)
-	MenuKit.label(head, Strings.get("sound.title", lang), 18, Theme.Colors.Gold, true, 2)
+	head.AutomaticSize = Enum.AutomaticSize.None
+	head.Size = UDim2.new(1, 0, 0, BUTTON)
+	local title = MenuKit.box(head, "Title", 1)
+	title.AnchorPoint = Vector2.new(0, 0.5)
+	title.Position = UDim2.fromScale(0, 0.5)
+	MenuKit.list(title, 8, true)
+	MenuKit.icon(title, "sound", 3, 1)
+	MenuKit.label(title, Strings.get("sound.title", lang), 18, Theme.Colors.Gold, true, 2)
+	local close = MenuKit.button(head, "×", "normal", BUTTON)
+	close.Name = "Close"
+	close.AnchorPoint = Vector2.new(1, 0)
+	close.Position = UDim2.fromScale(1, 0)
+	close.Size = UDim2.fromOffset(BUTTON, BUTTON)
+	close.TextSize = 22
+	Session.connect(close.Activated, function()
+		window.Visible = false
+	end)
 
 	local sfx, music = Audio.volumes()
 	local saved = { sfx = sfx, music = music } -- до «Без звука»
