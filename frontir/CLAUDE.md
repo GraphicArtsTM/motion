@@ -172,7 +172,7 @@ lune run tools/map_thumbs      # миниатюры карт для хаба →
 lune run tools/icon_pack       # иконки зданий и юнитов assets/icons → src/shared/IconData.luau (превью build/icons_pack.png)
 lune run tools/card_pack       # карточки ударов assets/cards → src/shared/CardData.luau (превью build/cards_pack.png)
 lune run tools/map_art_pack    # города и корабли гладко → src/shared/MapArtData.luau (+ части; потом stylua), превью build/map_art_pack.png
-lune run tools/roblox_publish products|sounds <UserId>|place [--saved] [--dry]  # товары, звуки и публикация места (Open Cloud, ключ FRONTIR_API_KEY)
+lune run tools/roblox_publish products|prices|sounds <UserId>|place [--saved] [--dry]  # товары, цены товаров на Roblox (как в Config), звуки и публикация места (Open Cloud, ключ FRONTIR_API_KEY)
 lune run tools/soak 300 1 all all  # выносливость: матчи ботов на всех картах и режимах, ошибки тика и худший тик
 lune run tools/bench World 60 180  # нагрузка: время тика и трафик на 60 ботах
 lune run tools/genmap Pangea   # пересоздать тестовую maps/Pangea.luau (+ превью build/Pangea.bmp)

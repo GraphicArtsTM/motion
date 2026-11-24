@@ -5,6 +5,8 @@
 	  lune run tools/roblox_publish products [--dry]          — 4 пропуска и 26 товаров разработчика: создаёт
 	      недостающие (по названию — повторный запуск не плодит дубли), значок — центр карточки магазина
 	      (assets/cards), id — в src/shared/Config.luau.
+	  lune run tools/roblox_publish prices [--dry]            — цены уже созданных товаров на Roblox — как в Config
+	      (меняет только отличающиеся и перечитывает; --dry — только список).
 	  lune run tools/roblox_publish place [--saved] [--dry] — собрать проект Rojo и опубликовать место (по умолчанию
 	      Published — сразу в игре; --saved — только версия). Право ключа: universe-places write.
 	  lune run tools/roblox_publish sounds <userId|group:ID> [--dry] — 17 звуков и 3 мелодии (assets/audio) как Audio
@@ -114,7 +116,7 @@ local PRODUCTS: { Product } = {
 		"Boosts",
 		"Reserve",
 		"Резерв генерала · Commander Reserve",
-		25,
+		29,
 		"boost_reserve",
 		"Перезарядка генерала сразу. Resets commander cooldowns."
 	),
@@ -154,7 +156,7 @@ local PRODUCTS: { Product } = {
 		"Packs",
 		"Recruit",
 		"Набор новобранца · Recruit Pack",
-		99,
+		79,
 		"shop_recruit",
 		"Жетоны и медали для старта. Tokens and medals to start."
 	),
@@ -171,7 +173,7 @@ local PRODUCTS: { Product } = {
 		"Packs",
 		"Crate1",
 		"Ящик снабжения · Supply Crate",
-		49,
+		39,
 		"shop_crates",
 		"1 ящик снабжения. 1 supply crate."
 	),
@@ -179,7 +181,7 @@ local PRODUCTS: { Product } = {
 		"Packs",
 		"Crate5",
 		"5 ящиков · 5 Crates",
-		199,
+		149,
 		"shop_crates",
 		"5 ящиков снабжения. 5 supply crates."
 	),
@@ -187,7 +189,7 @@ local PRODUCTS: { Product } = {
 		"Packs",
 		"PathPremium",
 		"Премиум-дорога · Premium Path",
-		499,
+		399,
 		"shop_pathpremium",
 		"Премиум-дорога «Пути командира» навсегда. Commander's Path premium track."
 	),
@@ -195,7 +197,7 @@ local PRODUCTS: { Product } = {
 		"Packs",
 		"Weekly",
 		"Предложение недели · Weekly Offer",
-		119,
+		99,
 		"shop_weekly",
 		"Набор недели. This week's bundle."
 	),
@@ -203,7 +205,7 @@ local PRODUCTS: { Product } = {
 		"Packs",
 		"PathPremiumPlus",
 		"Премиум + 10 уровней · Premium +10",
-		699,
+		599,
 		"shop_pathpremiumplus",
 		"Премиум-дорога и сразу +10 уровней. Premium track and +10 levels."
 	),
@@ -219,7 +221,7 @@ local PRODUCTS: { Product } = {
 		"Packs",
 		"XpBoost1",
 		"Опыт ×2 на сутки · XP ×2 Day",
-		79,
+		49,
 		"shop_xpboost",
 		"Двойной опыт на 24 часа. Double XP for 24 hours."
 	),
@@ -422,9 +424,8 @@ local function icon(art: string): string
 	return path
 end
 
-local function products()
-	local text = fs.readFile(CONFIG)
-	-- Цены в инструменте и в Config должны совпадать (иначе игра покажет одну цену, а Roblox спишет другую).
+-- Цены в инструменте и в Config должны совпадать (иначе игра покажет одну цену, а Roblox спишет другую).
+local function checkPrices(text: string)
 	for _, p in PRODUCTS do
 		local price = priceOf(text, p.section, p.key)
 		assert(
@@ -438,6 +439,11 @@ local function products()
 			)
 		)
 	end
+end
+
+local function products()
+	local text = fs.readFile(CONFIG)
+	checkPrices(text)
 	local existing: { [string]: number } = {}
 	if not dry then
 		for _, g in listAll("/game-passes/v1/universes/" .. UNIVERSE .. "/game-passes/creator", "gamePasses") do
@@ -501,6 +507,50 @@ local function products()
 			made,
 			reused,
 			skipped
+		)
+	)
+end
+
+-- Цены уже созданных товаров на Roblox — как в Config: читает каждый товар и меняет цену, только если она другая.
+local function prices()
+	local text = fs.readFile(CONFIG)
+	checkPrices(text)
+	local changed, same = 0, 0
+	for _, p in PRODUCTS do
+		local id = idField(text, p.section, p.key)
+		if id == nil or id == "0" then
+			print(string.format("  ? %s.%s — нет id (сначала products)", p.section, p.key))
+			continue
+		end
+		local path = if p.pass
+			then "/game-passes/v1/universes/" .. UNIVERSE .. "/game-passes/" .. id
+			else "/developer-products/v2/universes/" .. UNIVERSE .. "/developer-products/" .. id
+		local ok, res = curl({ API .. path .. "/creator" })
+		assert(ok, string.format("%s.%s не прочитан: %s", p.section, p.key, tostring(res)))
+		local now = res.priceInformation and res.priceInformation.defaultPriceInRobux
+		if now == p.price then
+			same += 1
+			continue
+		end
+		print(string.format("  ~ %s.%s «%s»: R$%s → R$%d", p.section, p.key, p.name, tostring(now), p.price))
+		if not dry then
+			local okSet, err = curl({ "-X", "PATCH", API .. path, "--form-string", "price=" .. tostring(p.price) })
+			assert(okSet, string.format("%s.%s: цена не изменена: %s", p.section, p.key, tostring(err)))
+			local okGet, after = curl({ API .. path .. "/creator" })
+			local got = okGet and after.priceInformation and after.priceInformation.defaultPriceInRobux
+			assert(
+				got == p.price,
+				string.format("%s.%s: на Roblox осталось R$%s", p.section, p.key, tostring(got))
+			)
+			changed += 1
+		end
+	end
+	print(
+		string.format(
+			"цены: изменено %d, уже верные %d%s",
+			changed,
+			same,
+			if dry then " (проверка, без записи)" else ""
 		)
 	)
 end
@@ -602,10 +652,12 @@ end
 
 if mode == "products" then
 	products()
+elseif mode == "prices" then
+	prices()
 elseif mode == "sounds" then
 	sounds(args[2])
 elseif mode == "place" then
 	place()
 else
-	print("lune run tools/roblox_publish products | sounds <userId|group:ID> | place [--saved] [--dry]")
+	print("lune run tools/roblox_publish products | prices | sounds <userId|group:ID> | place [--saved] [--dry]")
 end

@@ -187,7 +187,7 @@ Config.Shop = {
 		Mobilize = { id = 3734923945, price = 49, garrisonShare = 0.15 },
 		Loan = { id = 3734923961, price = 39, money = 2000 },
 		Research = { id = 3734923984, price = 29 },
-		Reserve = { id = 3734924056, price = 25 },
+		Reserve = { id = 3734924056, price = 29 },
 		-- Платные части (этап 9б, §11.3).
 		Guards = { id = 3734924069, price = 59, powerShare = 0.12, minStrength = 400, xp = 3 }, -- танки 2⭐ (Forces.StarXp)
 		Airstrike = { id = 3734924087, price = 45, frontLoss = 0.15 }, -- по клетке; радиус — Commanders.StrikeRadius
@@ -195,20 +195,20 @@ Config.Shop = {
 		AirWing = { id = 3734924116, price = 49 }, -- истребитель и бомбардировщик у своего аэродрома
 	},
 	Packs = {
-		Recruit = { id = 3734924134, price = 99, tokens = 3, medals = 1500, maxLevel = 10, once = true },
+		Recruit = { id = 3734924134, price = 79, tokens = 3, medals = 1500, maxLevel = 10, once = true },
 		Medals = { id = 3734924145, price = 79, medals = 2000, tokens = 0 },
 		Tokens = { id = 3734924160, price = 99, tokens = 3, medals = 0 },
 		-- Этап 9б (§11.3): ящики, пропуск сезона, предложение недели.
-		Crate1 = { id = 3734924173, price = 49, crates = 1, tokens = 0, medals = 0 },
-		Crate5 = { id = 3734924188, price = 199, crates = 5, tokens = 0, medals = 0 },
+		Crate1 = { id = 3734924173, price = 39, crates = 1, tokens = 0, medals = 0 },
+		Crate5 = { id = 3734924188, price = 149, crates = 5, tokens = 0, medals = 0 },
 		-- §15ю Ю1: премиум-дорога «Пути командира» — навсегда (заменила пропуск сезона).
-		PathPremium = { id = 3734924202, price = 499, premiumPath = true, tokens = 0, medals = 0 },
-		-- §15я Я1: 119 — дешевле частей в каждую неделю (при 149 одна неделя стоила дороже частей).
-		Weekly = { id = 3734924217, price = 119, weekly = true, tokens = 0, medals = 0 },
+		PathPremium = { id = 3734924202, price = 399, premiumPath = true, tokens = 0, medals = 0 },
+		-- §15я Я1: дешевле частей в каждую неделю; §15ъ цены под рынок: 99 (было 119).
+		Weekly = { id = 3734924217, price = 99, weekly = true, tokens = 0, medals = 0 },
 		-- §15я Я2: премиум + уровни, уровни, ускоритель опыта, разовый набор оформления (эксклюзив магазина).
-		PathPremiumPlus = { id = 3734924231, price = 699, premiumPath = true, levels = 10, tokens = 0, medals = 0 },
+		PathPremiumPlus = { id = 3734924231, price = 599, premiumPath = true, levels = 10, tokens = 0, medals = 0 },
 		Levels5 = { id = 3734924241, price = 149, levels = 5, tokens = 0, medals = 0 },
-		XpBoost1 = { id = 3734924259, price = 79, xpBoostHours = 24, tokens = 0, medals = 0 },
+		XpBoost1 = { id = 3734924259, price = 49, xpBoostHours = 24, tokens = 0, medals = 0 },
 		XpBoost7 = { id = 3734924272, price = 249, xpBoostHours = 168, tokens = 0, medals = 0 },
 		ParadeSet = {
 			id = 3734924284,
