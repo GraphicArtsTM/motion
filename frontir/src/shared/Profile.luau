@@ -758,12 +758,25 @@ function Profile.grantProduct(d: Data, kind: string, key: string, purchaseId: st
 	if kind == "boost" and Shop.isBoost(key) then
 		d.stock[key] = (d.stock[key] or 0) + 1
 	elseif kind == "unlock" then
-		-- §15э Э1: техника навсегда; «All» — вся.
+		-- §15э Э1: техника навсегда; «All» — вся. §15ъ: уже открытое — медалями по цене (окно такое не продаёт,
+		-- но двойное нажатие или старое окно — Robux списаны).
 		if key == "All" then
+			local total, had = 0, 0
 			for _, k in Config.Unlocks.Order do
+				local price = Config.Unlocks.Items[k].price
+				total += price
+				if Profile.unitUnlocked(d, k) then
+					had += price
+				end
 				d.unlocks[k] = true
 			end
+			if had > 0 and total > 0 then
+				d.medals += Shop.robuxMedals(Config.Unlocks.All.price * had / total)
+			end
 		elseif Config.Unlocks.Items[key] ~= nil then
+			if Profile.unitUnlocked(d, key) then
+				d.medals += Shop.robuxMedals(Config.Unlocks.Items[key].price)
+			end
 			d.unlocks[key] = true
 		else
 			return false
@@ -786,6 +799,10 @@ function Profile.grantProduct(d: Data, kind: string, key: string, purchaseId: st
 			)
 		)
 		if pack.premiumPath then
+			-- §15ъ: премиум уже есть — его цена медалями (у «Премиум + 10» уровни ниже начисляются как обычно).
+			if d.pathPremium then
+				d.medals += Shop.robuxMedals(Config.Shop.Packs.PathPremium.price)
+			end
 			d.pathPremium = true -- §15ю Ю1: премиум пройденных уровней ждёт на дороге («Забрать всё»)
 		end
 		if pack.weekly then
@@ -809,6 +826,9 @@ function Profile.grantProduct(d: Data, kind: string, key: string, purchaseId: st
 		end
 		if pack.cosmetics ~= nil then
 			for _, key in pack.cosmetics :: { string } do
+				if d.cosmetics[key] then
+					d.medals += cosmeticRefund(key) -- §15ъ: вещь уже есть — её цена медалями
+				end
 				d.cosmetics[key] = true
 			end
 		end

@@ -177,6 +177,11 @@ Config.Profile = {
 -- §11.1 Магазин (этап 9а). id — на сайте Roblox (0 — товар ещё не создан: кнопка «скоро»), price — Robux для подписи.
 Config.Shop = {
 	MaxEdge = 0.15, -- потолок платного преимущества в матче (тест сверяет каждый эффект)
+	-- §15ъ покупки не теряются: сколько ждать профиль и политику игрока в ProcessReceipt (Roblox повторяет
+	-- неначисленные покупки при входе — профиль в это время грузится), опрос — раз в ReceiptPollSec.
+	ReceiptWaitSec = 30,
+	ReceiptPollSec = 0.5,
+	PassCheckTries = 3, -- проверка геймпассов при входе: попыток при сбое Roblox (пауза растёт: 1, 2 с)
 	Passes = {
 		HQ = { id = 2092296805, price = 399, recruitLines = 1, incomeMul = 1.05 },
 		Intel = { id = 2092686750, price = 249, intelCostMul = 0.5, intelDurationSec = 120 },

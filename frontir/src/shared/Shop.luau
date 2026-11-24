@@ -106,6 +106,12 @@ function Shop.productById(id: number): (string?, string?)
 	return nil, nil
 end
 
+-- §15ъ: Robux → медали по цене пакета «Медали» (возврат за повтор того, что уже есть).
+function Shop.robuxMedals(robux: number): number
+	local m = Config.Shop.Packs.Medals
+	return math.floor(robux * m.medals / m.price)
+end
+
 -- §15я Я3: выгода набора в процентах от цены частей (0 — не выгоднее). Части — в Robux.
 function Shop.saving(price: number, partsPrice: number): number
 	if partsPrice <= price or partsPrice <= 0 then

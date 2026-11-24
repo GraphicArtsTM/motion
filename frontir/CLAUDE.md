@@ -429,6 +429,9 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   `publishDirty`; приглашение — `info.invite` → `cs.invite` → `inviteFriends` в `Main.client` (`LaunchData`), в хабе —
   `routeToFriend` (`Places.invite`, `Places.serverOf`, `FollowUserId`). После матча — `sentHome` (в хаб через
   `Places.ResultsToHubSec`), новый матч сам не начинается.
+- §15ъ покупки: `ProcessReceipt` ждёт профиль и политику (`Shop.ReceiptWaitSec`), пропуска — `Shop.PassCheckTries`
+  попыток; повтор того, что уже есть (премиум, техника, вещи набора), — медалями `Shop.robuxMedals` в
+  `Profile.grantProduct` (тесты `Shop2.spec`). Новый «разовый» товар — решить, чем возвращать повтор.
 
 ## Платные части, пропуск, ящики (этап 9б)
 - Бусты `Guards`, `Airstrike` (цель — `cell`, `MatchSim.strikeAt`), `Squadron`, `AirWing` — в `MatchSim.useBoost`.

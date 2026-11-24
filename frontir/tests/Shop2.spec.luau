@@ -160,3 +160,69 @@ T.describe("Магазин 2.0: без противоречий (§15я Я1)", f
 		end
 	)
 end)
+
+T.describe("Повтор того, что уже есть, — медалями (§15ъ)", function()
+	T.it(
+		"премиум-дорога второй раз — её цена медалями; «Премиум + 10» поверх — уровни и медали",
+		function()
+			local back = Shop.robuxMedals(Config.Shop.Packs.PathPremium.price)
+			T.expect(back > 0).toBe(true)
+			local d = Profile.new()
+			T.expect(Profile.grantProduct(d, "pack", "PathPremium", "a", NOW)).toBe(true)
+			T.expect(d.medals).toBe(0)
+			T.expect(Profile.grantProduct(d, "pack", "PathPremium", "b", NOW)).toBe(true)
+			T.expect(d.medals).toBe(back)
+			T.expect(Profile.grantProduct(d, "pack", "PathPremiumPlus", "c", NOW)).toBe(true)
+			T.expect(d.medals).toBe(back * 2)
+			T.expect((Profile.levelOf(d.xp))).toBe(1 + Config.Shop.Packs.PathPremiumPlus.levels)
+			T.expect(Profile.grantProduct(d, "pack", "PathPremium", "b", NOW)).toBe(true) -- тот же id — ничего
+			T.expect(d.medals).toBe(back * 2)
+		end
+	)
+
+	T.it(
+		"техника уже открыта — её цена медалями; «Вся» при части открытой — доля цены",
+		function()
+			local d = Profile.new()
+			T.expect(Profile.grantProduct(d, "unlock", "Tanks", "t1", NOW)).toBe(true)
+			T.expect(d.medals).toBe(0)
+			T.expect(Profile.grantProduct(d, "unlock", "Tanks", "t2", NOW)).toBe(true)
+			T.expect(d.medals).toBe(Shop.robuxMedals(Config.Unlocks.Items.Tanks.price))
+			local before = d.medals
+			T.expect(Profile.grantProduct(d, "unlock", "All", "all", NOW)).toBe(true)
+			local total = 0
+			for _, k in Config.Unlocks.Order do
+				total += Config.Unlocks.Items[k].price
+				T.expect(Profile.unitUnlocked(d, k)).toBe(true)
+			end
+			local share = Config.Unlocks.All.price * Config.Unlocks.Items.Tanks.price / total
+			T.expect(d.medals - before).toBe(Shop.robuxMedals(share))
+			-- С нуля «Вся» — без медалей.
+			local fresh = Profile.new()
+			T.expect(Profile.grantProduct(fresh, "unlock", "All", "x", NOW)).toBe(true)
+			T.expect(fresh.medals).toBe(0)
+		end
+	)
+
+	T.it(
+		"«Парадный набор» второй раз — вещи не пропадают, их цена медалями",
+		function()
+			local d = Profile.new()
+			T.expect(Profile.grantProduct(d, "pack", "ParadeSet", "p1", NOW)).toBe(true)
+			T.expect(d.medals).toBe(0)
+			T.expect(Profile.grantProduct(d, "pack", "ParadeSet", "p2", NOW)).toBe(true)
+			T.expect(d.medals > 0).toBe(true)
+			for _, key in Config.Shop.Packs.ParadeSet.cosmetics do
+				T.expect(d.cosmetics[key]).toBe(true)
+			end
+		end
+	)
+
+	T.it("то, что копится, повтор начисляет как обычно", function()
+		local d = Profile.new()
+		T.expect(Profile.grantProduct(d, "pack", "Medals", "m1", NOW)).toBe(true)
+		T.expect(Profile.grantProduct(d, "pack", "Medals", "m2", NOW)).toBe(true)
+		T.expect(d.medals).toBe(Config.Shop.Packs.Medals.medals * 2)
+		T.expect(Shop.robuxMedals(Config.Shop.Packs.Medals.price)).toBe(Config.Shop.Packs.Medals.medals)
+	end)
+end)
