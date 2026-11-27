@@ -595,12 +595,14 @@ function Expansion.advance(
 	local cityAllowed = if hooks ~= nil then hooks.cityAllowed else nil
 	local record = if hooks ~= nil then hooks.record else nil
 	local costMul = if hooks ~= nil then hooks.costMul else nil
-	local front: { number }, touching: { [number]: number }
+	local front: { number }, touching: { [number]: number }, river: { [number]: boolean }
 	if line ~= nil then
-		front, touching = line.list, line.touching
+		front, touching, river = line.list, line.touching, line.river
 	else
-		front, touching = Expansion.frontier(g, attack.attacker, attack.target, cityAllowed ~= nil)
+		-- §6 (правка §15ь): граница людей тоже переходит узкую реку — с картой во фронтире.
+		front, touching, river = Expansion.frontier(g, attack.attacker, attack.target, cityAllowed ~= nil, map)
 	end
+	local riverCost = Config.Combat.RiverCrossCost
 	if #front == 0 then
 		return true, 0
 	end
@@ -617,6 +619,9 @@ function Expansion.advance(
 				continue
 			end
 			local cost = Expansion.cellCost(Config.Terrain[MapData.getTerrain(map, i)].captureCost)
+			if river[i] then
+				cost *= riverCost -- за рекой — медленно, как фронт
+			end
 			if costMul ~= nil then
 				cost *= costMul(i)
 			end

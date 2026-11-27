@@ -242,26 +242,81 @@ T.describe("Реки", function()
 		return rows
 	end
 
-	T.it("граница людей реку не переходит, фронт — переходит", function()
-		local m = pair(riverRows())
-		local list, _, river = Expansion.frontier(m.grid, 1, 2, true)
-		T.expect(#list).toBe(0) -- без реки соседства нет
-		list, _, river = Expansion.frontier(m.grid, 1, 2, true, m.map)
-		T.expect(#list).toBe(10)
-		for _, i in list do
-			T.expect(river[i]).toBe(true)
+	T.it(
+		"фронт переходит реку (линия с картой; без карты соседства нет)",
+		function()
+			local m = pair(riverRows())
+			local list, _, river = Expansion.frontier(m.grid, 1, 2, true)
+			T.expect(#list).toBe(0) -- без реки соседства нет
+			list, _, river = Expansion.frontier(m.grid, 1, 2, true, m.map)
+			T.expect(#list).toBe(10)
+			for _, i in list do
+				T.expect(river[i]).toBe(true)
+			end
+			Forces.add(m.nations[1].home, TANKS, 4000)
+			T.expect(select(2, MatchSim.applyIntent(m, 1, { kind = "declare", target = 2 }))).toBe(nil)
+			runFor(m, Config.War.MobilizationSec + 0.2)
+			T.expect((MatchSim.applyIntent(m, 1, { kind = "attack", target = 2, percent = 1 }))).toBe(true)
+			local before = Grid.cellsOf(m.grid, 1)
+			runFor(m, 20)
+			T.expect(Grid.cellsOf(m.grid, 1) > before).toBe(true)
+			-- Река осталась ничьей: фронт её перешёл, а не захватил.
+			T.expect(Grid.getOwner(m.grid, 5 * 30 + 15)).toBe(0)
+			T.expect(MapData.getTerrain(m.map, 5 * 30 + 15)).toBe(require("../src/shared/Types").Terrain.River)
 		end
-		Forces.add(m.nations[1].home, TANKS, 4000)
-		T.expect(select(2, MatchSim.applyIntent(m, 1, { kind = "declare", target = 2 }))).toBe(nil)
-		runFor(m, Config.War.MobilizationSec + 0.2)
-		T.expect((MatchSim.applyIntent(m, 1, { kind = "attack", target = 2, percent = 1 }))).toBe(true)
-		local before = Grid.cellsOf(m.grid, 1)
-		runFor(m, 20)
-		T.expect(Grid.cellsOf(m.grid, 1) > before).toBe(true)
-		-- Река осталась ничьей: фронт её перешёл, а не захватил.
-		T.expect(Grid.getOwner(m.grid, 5 * 30 + 15)).toBe(0)
-		T.expect(MapData.getTerrain(m.map, 5 * 30 + 15)).toBe(require("../src/shared/Types").Terrain.River)
-	end)
+	)
+
+	-- §6 (правка §15ь): держава в «кармане» у реки не стоит — граница людей переходит узкую реку, медленно.
+	T.it(
+		"граница людей переходит узкую реку на ничью землю — медленнее, чем по суше",
+		function()
+			local function solo(rows: { string }): MatchSim.Match
+				local map = TinyMap.fromRows(rows)
+				local w = map.width
+				local m = MatchSim.new(map, 9)
+				m.victory = false
+				MatchSim.addPlayer(m, 1, "A")
+				m.phase = "Play"
+				for y = 1, map.height - 2 do
+					for x = 1, 14 do
+						local i = y * w + x
+						if Grid.isCapturable(m.grid, i) then
+							Grid.setOwner(m.grid, i, 1)
+						end
+					end
+				end
+				local city = 6 * w + 3
+				Grid.setCity(m.grid, city, true)
+				m.cityOf[-1] = city
+				m.nations[1].capital = city
+				m.nations[1].people = 1e6
+				return m
+			end
+			local function grown(rows: { string }): number
+				local m = solo(rows)
+				local before = Grid.cellsOf(m.grid, 1)
+				T.expect((MatchSim.applyIntent(m, 1, { kind = "attack", target = 0, percent = 1 }))).toBe(true)
+				runFor(m, 1)
+				return Grid.cellsOf(m.grid, 1) - before
+			end
+			local m = solo(riverRows())
+			T.expect(Expansion.hasFrontier(m.grid, 1, 0, false)).toBe(false) -- по суше соседства нет
+			T.expect(Expansion.hasFrontier(m.grid, 1, 0, false, m.map)).toBe(true) -- за рекой — есть
+			local plainRows: { string } = { string.rep("~", 30) }
+			for _ = 1, 10 do
+				table.insert(plainRows, "~" .. string.rep(".", 28) .. "~")
+			end
+			table.insert(plainRows, string.rep("~", 30))
+			local overRiver, overPlain = grown(riverRows()), grown(plainRows)
+			T.expect(overRiver > 0).toBe(true)
+			T.expect(overRiver < overPlain).toBe(true)
+			-- Река осталась ничьей: граница её перешла, а не заняла.
+			local after = solo(riverRows())
+			assert(MatchSim.applyIntent(after, 1, { kind = "attack", target = 0, percent = 1 }))
+			runFor(after, 1)
+			T.expect(Grid.getOwner(after.grid, 5 * 30 + 15)).toBe(0)
+		end
+	)
 
 	T.it(
 		"за рекой фронт идёт медленнее, защитник на берегу сильнее",

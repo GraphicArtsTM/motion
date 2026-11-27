@@ -2074,9 +2074,8 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 		end
 	end
 	-- Города в соседстве считаются, если их есть чем брать: фронт против державы или войска с собой.
-	-- Фронт против страны видит и землю за рекой; граница людей реку не переходит.
-	local riverMap = if target ~= 0 then m.map else nil
-	if not Expansion.hasFrontier(m.grid, nationId, target, target ~= 0 or Forces.total(n.home) > 0, riverMap) then
+	-- Фронт против страны и граница людей (§6, правка §15ь) видят и землю за узкой рекой.
+	if not Expansion.hasFrontier(m.grid, nationId, target, target ~= 0 or Forces.total(n.home) > 0, m.map) then
 		-- Общей границы нет, а цель — на том же массиве суши за заливом или проливом: тоже десант (§15д).
 		-- Без точки удара (боты, кнопки) плывём к столице врага.
 		local point = focus
@@ -2605,9 +2604,13 @@ local function botView(m: Match, n: Nation): BotBrain.BotView
 	table.sort(neighbours, function(a: BotBrain.Neighbour, b: BotBrain.Neighbour): boolean
 		return a.id < b.id
 	end)
-	-- Ничья земля «рядом», если её можно взять: обычные клетки — людьми, ничейный город — войсками.
-	local hasNeutral = Expansion.hasFrontier(m.grid, n.id, 0, false)
-		or (Forces.total(n.home) >= Config.Combat.NeutralCityGarrison and Expansion.hasFrontier(m.grid, n.id, 0, true))
+	-- Ничья земля «рядом», если её можно взять: обычные клетки — людьми, ничейный город — войсками; и за узкой
+	-- рекой (§6, правка §15ь: без этого бот в «кармане» у реки считал, что расти некуда, и стоял).
+	local hasNeutral = Expansion.hasFrontier(m.grid, n.id, 0, false, m.map)
+		or (
+			Forces.total(n.home) >= Config.Combat.NeutralCityGarrison
+			and Expansion.hasFrontier(m.grid, n.id, 0, true, m.map)
+		)
 	return {
 		people = n.people,
 		maxPeople = MatchSim.maxPeopleOf(m, n.id),
@@ -3175,7 +3178,8 @@ local function stepAttacks(m: Match, simDt: number): number
 		if a.target == 0 then
 			local cityAllowed = neutralCityTaker(m, a)
 			Expansion.syncCache(cache, g) -- захваты этого тика (прежние атаки) уже в линии
-			local line = Expansion.line(cache, g, a.attacker, 0, cityAllowed ~= nil, nil, m.tick)
+			-- §6 (правка §15ь): граница людей переходит узкую реку (линия с картой, за рекой — ×RiverCrossCost).
+			local line = Expansion.line(cache, g, a.attacker, 0, cityAllowed ~= nil, m.map, m.tick)
 			-- Прорыв (§6.15): наступление на ничью землю тоже быстрее.
 			local d, cells =
 				Expansion.advance(m.map, g, m.nations, a, m.tick, m.seed, simDt * MatchSim.surgeMul(m, a.attacker), {

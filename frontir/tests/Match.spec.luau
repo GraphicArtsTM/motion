@@ -173,20 +173,25 @@ T.describe("Expansion", function()
 		end
 	)
 
-	T.it("река и вода — непреодолимая граница", function()
-		local map = TinyMap.fromRows({ "~~~~~~~", "~..r..~", "~..r..~", "~..r..~", "~~~~~~~" })
-		local g = Grid.new(map)
-		Grid.setOwner(g, 1 * 7 + 1, 1)
-		local attack: Types.Attack = attackOf(1, 0, 1000)
-		for tick = 1, 50 do
-			if Expansion.advance(map, g, { nation(1, 0) }, attack, tick, 1, DT) then
-				break
+	-- §6 (правка §15ь): узкую реку граница людей переходит (медленно), вода — непреодолимая граница.
+	T.it(
+		"узкая река — переходится, вода — непреодолимая граница",
+		function()
+			local map = TinyMap.fromRows({ "~~~~~~~~~~~", "~..r..~~~.~", "~..r..~~~.~", "~..r..~~~.~", "~~~~~~~~~~~" })
+			local g = Grid.new(map)
+			Grid.setOwner(g, 1 * 11 + 1, 1)
+			local attack: Types.Attack = attackOf(1, 0, 1e6)
+			for tick = 1, 200 do
+				if Expansion.advance(map, g, { nation(1, 0) }, attack, tick, 1, DT) then
+					break
+				end
 			end
+			T.expect(Grid.cellsOf(g, 1)).toBe(12) -- оба берега
+			T.expect(Grid.getOwner(g, 1 * 11 + 3)).toBe(0) -- река ничья
+			T.expect(Grid.getOwner(g, 1 * 11 + 9)).toBe(0) -- за морем — нет
+			T.expect(Expansion.hasFrontier(g, 1, 0, false, map)).toBe(false)
 		end
-		T.expect(Grid.cellsOf(g, 1)).toBe(6) -- только левый берег
-		T.expect(Grid.getOwner(g, 1 * 7 + 4)).toBe(0)
-		T.expect(Expansion.hasFrontier(g, 1, 0)).toBe(false)
-	end)
+	)
 
 	T.it(
 		"фронт идёт с заданной скоростью, а не захватывает всё сразу",
