@@ -2323,7 +2323,6 @@ local TABLE: { [string]: Entry } = {
 	["menu.server"] = { ru = "СЕЙЧАС НА СЕРВЕРЕ", en = "ON THIS SERVER" },
 	-- §15л ч.3 хаб: список матчей и переходы
 	["menu.matches"] = { ru = "ОПЕРАЦИИ", en = "OPERATIONS" },
-	["menu.online"] = { ru = "👥 %d онлайн", en = "👥 %d online" },
 	["menu.matchesCount"] = { ru = "серверов: %d", en = "servers: %d" },
 	["menu.row.join"] = { ru = "Войти", en = "Join" },
 	["menu.row.watch"] = { ru = "Смотреть", en = "Watch" },
@@ -2573,6 +2572,7 @@ local TABLE: { [string]: Entry } = {
 	["result.reward"] = { ru = "+%d опыта · +%d 🏅", en = "+%d XP · +%d 🏅" },
 	["result.levelUp"] = { ru = "НОВЫЙ УРОВЕНЬ: %d!", en = "LEVEL UP: %d!" },
 	["result.menu"] = { ru = "В меню", en = "Main menu" },
+	["result.nextMatch"] = { ru = "СЛЕДУЮЩИЙ МАТЧ", en = "NEXT MATCH" },
 	["dock.help"] = { ru = "Как играть", en = "How to play" },
 	-- Док (§15з).
 	["dock.build"] = { ru = "Стройка", en = "Build" },

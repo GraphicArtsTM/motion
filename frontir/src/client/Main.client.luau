@@ -437,9 +437,24 @@ local function runSession(mapId: string, resync: boolean)
 			fn()
 		end
 	end
-	local results = ResultsPanel.new(hudGui, cs, lang, function()
-		openMainMenu()
-	end, goPath)
+	local results = ResultsPanel.new(
+		hudGui,
+		cs,
+		lang,
+		function()
+			openMainMenu()
+		end,
+		goPath,
+		function()
+			-- §15ь «Следующий матч»: сервер матча — в хаб и сразу быстрый вход (идущий матч или новое лобби);
+			-- один сервер («как раньше») — «Играть» на нём же.
+			if cs.place == "match" then
+				send("nextMatch", {})
+			else
+				send("play", {})
+			end
+		end
+	)
 	results.refresh()
 	local diplomacy = DiplomacyPanel.new(hudGui, cs, lang, map, provinces, send, hud.toast, wars.offerDeclare)
 	nationWin.connect({ openDiplomacy = diplomacy.openFor, demand = diplomacy.demand })

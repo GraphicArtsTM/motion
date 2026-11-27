@@ -124,7 +124,8 @@ function ResultsPanel.new(
 	cs: ClientState,
 	lang: Strings.Lang,
 	onMenu: () -> (),
-	onPath: (() -> ())? -- §15я: «Забрать награды» — окно «Путь командира»
+	onPath: (() -> ())?, -- §15я: «Забрать награды» — окно «Путь командира»
+	onNext: (() -> ())? -- §15ь: «Следующий матч» — найти идущий или создать новый
 ): ResultsPanel
 	local muted = hex(Theme.Colors.Muted)
 
@@ -308,10 +309,33 @@ function ResultsPanel.new(
 	chartStroke.Parent = chart
 	-- Большая «В МЕНЮ» во всю ширину карточки, под ней — отсчёт, «Смотреть карту», «Подробнее».
 	-- §15ц Ц5б: «В МЕНЮ» — золотая главная кнопка, как в окнах шаблона.
-	local menuButton = MenuKit.button(panel, Strings.get("result.menu", lang), "primary", 56, 7)
-	menuButton.Size = UDim2.fromOffset(TILES_W, 56)
-	menuButton.TextSize = 20
+	-- §15ь: главная — «СЛЕДУЮЩИЙ МАТЧ» (быстрый вход: идущий матч или новое лобби), рядом — «В меню». Без таймера.
+	local actions = Instance.new("Frame")
+	actions.Name = "Actions"
+	actions.BackgroundTransparency = 1
+	actions.Size = UDim2.fromOffset(TILES_W, 56)
+	actions.LayoutOrder = 7
+	actions.Parent = panel
+	local actionsList = Instance.new("UIListLayout")
+	actionsList.FillDirection = Enum.FillDirection.Horizontal
+	actionsList.Padding = UDim.new(0, 10)
+	actionsList.SortOrder = Enum.SortOrder.LayoutOrder
+	actionsList.HorizontalFlex = Enum.UIFlexAlignment.Fill
+	actionsList.Parent = actions
+	local nextButton = MenuKit.button(actions, Strings.get("result.nextMatch", lang), "primary", 56, 1)
+	nextButton.Name = "NextMatch"
+	nextButton.TextSize = 20
+	nextButton.Size = UDim2.fromOffset(TILES_W * 0.6, 56)
+	local menuButton = MenuKit.button(actions, Strings.get("result.menu", lang), "normal", 56, 2)
+	menuButton.TextSize = 18
+	menuButton.Size = UDim2.fromOffset(TILES_W * 0.4, 56)
 	Session.connect(menuButton.Activated, onMenu)
+	Session.connect(nextButton.Activated, function()
+		if onNext ~= nil then
+			onNext()
+		end
+	end)
+	nextButton.Visible = onNext ~= nil
 	local footer = Instance.new("Frame")
 	footer.BackgroundTransparency = 1
 	footer.Size = UDim2.fromOffset(0, BUTTON)
@@ -616,7 +640,7 @@ function ResultsPanel.new(
 		local left = math.max(0, math.ceil(cs.phaseEndsAt - now))
 		if left ~= lastLeft then
 			lastLeft = left
-			countdown.Text = string.format(Strings.get("result.next", lang), left)
+			countdown.Text = "" -- §15ь: таймера «новый матч через N с» нет — следующий матч только по кнопке
 			drawReward()
 		end
 	end

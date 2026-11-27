@@ -111,7 +111,6 @@ function MainMenu.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, mapNa
 	local function t(key: string): string
 		return Strings.get(key, lang)
 	end
-	local onlineText: () -> string -- §15ь Л2: «N онлайн» (ниже)
 	local _ = mapName -- карта сервера приходит в строках списка (§15ц Ц2)
 
 	-- Затемнение карты: по центру (под карточкой) темнее, по краям карта видна.
@@ -669,16 +668,6 @@ function MainMenu.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, mapNa
 
 	------------------------------------------------------------------ обновление
 	local gold = Theme.Colors.Gold:ToHex()
-	-- §15ь Л2: сколько людей онлайн — этот сервер и игроки в матчах из списка (в хабе).
-	onlineText = function(): string
-		local n = #Players:GetPlayers()
-		if cs.place == "hub" then
-			for _, e in cs.servers do
-				n += e.players
-			end
-		end
-		return "\n" .. string.format(t("menu.online"), n)
-	end
 	local function rowsUpdate(now: number)
 		local going = travelling(now)
 		local open, live = 0, 0
@@ -805,7 +794,7 @@ function MainMenu.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, mapNa
 			elseif failed then t("menu.travelFailed")
 			elseif going then t("menu.connectingHint")
 			elseif watching then t("menu.watchHint")
-			else t("menu.quickHint") .. onlineText()
+			else t("menu.quickHint")
 		playHint.TextColor3 = if failed then Theme.Colors.Alert else Theme.Colors.Muted
 		tutorialButton.Visible = not hub
 			and (p == nil or not p.tutorialDone)
