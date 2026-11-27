@@ -563,7 +563,7 @@ function RanksPanel.new(
 		MenuKit.pad(tag, 4, 1)
 		MenuKit.corner(tag, 4)
 		if not bonus and level % 5 == 0 then
-			local star = MenuKit.label(f, "★", 14, Theme.Colors.Gold, true)
+			local star = MenuKit.label(f, "⭐", 14, Theme.Colors.Gold, true)
 			star.AnchorPoint = Vector2.new(1, 0)
 			star.Position = UDim2.new(1, -6, 0, 2)
 		end
@@ -899,7 +899,7 @@ function RanksPanel.new(
 					level = l,
 					art = key,
 					rank = nil,
-					name = "★ " .. name,
+					name = "⭐ " .. name,
 					color = Theme.Colors.Gold,
 					premium = true,
 				})

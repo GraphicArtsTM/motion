@@ -528,11 +528,12 @@ function CommanderPanel.new(
 			-- §15ё телефон: все удары — квадраты CPX, картинка во весь квадрат, снизу — цифра перезарядки или замок.
 			-- §15ъ Ч3: первой — кнопка «УДАРЫ»; плитки — только когда веер открыт.
 			fanButton.Position = UDim2.fromOffset(0, 0)
-			fanButton.Text = if fanOpen then "✕" else "💥"
+			fanButton.Text = if fanOpen then "×" else "💥"
+			-- Веер — всегда столбиком вниз от кнопки (строкой он закрывал верх матча).
 			local x = CPX + GAP
 			for _, tile in tiles do
 				tile.button.Visible = fanOpen
-				tile.button.Position = if vertical then UDim2.fromOffset(0, x) else UDim2.fromOffset(x, 0)
+				tile.button.Position = UDim2.fromOffset(0, x)
 				tile.button.Size = UDim2.fromOffset(CPX, CPX)
 				tile.art.Visible = true
 				tile.art.Position = UDim2.fromOffset(3, 3)
@@ -547,7 +548,7 @@ function CommanderPanel.new(
 			if not fanOpen then
 				x = CPX + GAP
 			end
-			bar.Size = if vertical then UDim2.fromOffset(CPX, x - GAP) else UDim2.fromOffset(x - GAP, CPX)
+			bar.Size = UDim2.fromOffset(CPX, x - GAP)
 			fitBar()
 			return
 		end

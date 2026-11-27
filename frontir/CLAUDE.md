@@ -442,6 +442,10 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   `Profile.setPrefs` (`hudDensity`, `autoNo`) → `MatchSim.setAutoNo` / `autoRefuses`. Чистая карта — камера
   двинулась → `focusCleanUntil` (столбик и `AttackArea`). Тесты — `HudFocus.spec`, `HudSpace.spec` (порог свободной
   карты: новый постоянный элемент HUD — добавить рамку в тест), `AutoNo.spec`, `TouchBuild.spec`.
+- §15ъ символы: на экране — только символы шрифта Montserrat или эмодзи; «✕ ✗ ▸ ▾ ▦ ≡ ◎ ↩ ★» — квадраты (тест
+  `Glyphs.spec`; новый значок — `MenuKit.icon` с PNG в `assets/icons/ui`). Телефон: окна (`WindowsToggle`, вниз),
+  инструменты у мини-карты (`ToolsToggle`, вверх), удары (`StrikesToggle`, вниз) — столбики не сдвигают раскладку
+  (`MapButtons.count / toolCount` на телефоне = 1). «Магазин» — на полосе (решение геймдизайнера).
 
 ## Платные части, пропуск, ящики (этап 9б)
 - Бусты `Guards`, `Airstrike` (цель — `cell`, `MatchSim.strikeAt`), `Squadron`, `AirWing` — в `MatchSim.useBoost`.

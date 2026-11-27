@@ -579,8 +579,6 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 	local shopIcon = MenuKit.icon(shopSlot, "shop", 3)
 	MenuKit.center(shopIcon)
 	Session.connect(shopButton.Activated, deps.shop)
-	-- §15ъ Ч2: в бою магазина на полосе нет — он в меню игры «≡» (место у большого пальца — игре).
-	shopButton.Visible = false
 
 	-- §15ё ящик: ряд клеток переезжает из своей группы в ящик и обратно.
 	local function placeRows()
@@ -635,7 +633,7 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 		+ MONEY_W
 		+ (4 * slotW + 12)
 		+ (#buildKinds * slotW + (#buildKinds - 1) * 4)
-		+ SHOP_W -- арсенал (§15ъ: магазин — в меню игры)
+		+ 2 * SHOP_W -- арсенал и магазин
 		+ GAP
 		+ 6 -- шесть разделителей по 1 px
 		+ 12 * GAP
@@ -644,7 +642,7 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 	-- §15ц Ц5в: нижняя строка на узком экране — войска, стройка, арсенал, магазин.
 	local second = (4 * slotW + 12)
 		+ (#buildKinds * slotW + (#buildKinds - 1) * 4)
-		+ SHOP_W
+		+ 2 * SHOP_W
 		+ 2 -- два разделителя
 		+ 4 * GAP
 		+ 2 * PAD
@@ -654,7 +652,7 @@ function CommandBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, dep
 		+ ATTACK_W
 		+ PHONE_MONEY_W
 		+ 2 * PHONE_TAB_W
-		+ PHONE_SHOP_W
+		+ 2 * PHONE_SHOP_W
 		+ 3 -- три разделителя
 		+ 9 * PHONE_GAP
 		+ 2 * phoneCfg.BarPad

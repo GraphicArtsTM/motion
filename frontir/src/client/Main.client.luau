@@ -1376,7 +1376,11 @@ local function runSession(mapId: string, resync: boolean)
 		local menuButton: GuiObject? = topRow[1]
 		if gear ~= nil and menuButton and menuButton:IsA("TextButton") then
 			gear.Visible = on
-			menuButton.Text = if on then "" else "≡"
+			menuButton.Text = ""
+			local menuIcon = menuButton:FindFirstChild("MenuIcon")
+			if menuIcon ~= nil and menuIcon:IsA("GuiObject") then
+				menuIcon.Visible = not on -- §15ъ: «≡» — картинкой (символа нет в шрифте)
+			end
 		end
 	end
 	local function topRowTo(layer: ScreenGui)
@@ -1792,7 +1796,9 @@ local function runSession(mapId: string, resync: boolean)
 		local st = camera.state
 		if st.x ~= camX or st.y ~= camY or st.zoom ~= camZoom then
 			camX, camY, camZoom = st.x, st.y, st.zoom
-			if cs.phase == "Play" then
+			-- Только живому игроку: зритель (после поражения) — камера идёт сама, лента и столбик нужны.
+			local mine = if cs.myNation ~= nil then cs.nations[cs.myNation] else nil
+			if cs.phase == "Play" and mine ~= nil and mine.alive then
 				focusCleanUntil = now + Config.Hud.CleanHoldSec
 			end
 		end

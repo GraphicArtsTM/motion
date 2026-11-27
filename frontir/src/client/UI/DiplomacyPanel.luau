@@ -846,7 +846,7 @@ function DiplomacyPanel.new(
 	local acceptButton = button(popupRow, "✓", BUTTON)
 	acceptButton.TextColor3 = Theme.Colors.Good
 	acceptButton.TextSize = 20
-	local refuseButton = button(popupRow, "✗", BUTTON)
+	local refuseButton = button(popupRow, "×", BUTTON)
 	refuseButton.TextColor3 = Theme.Colors.Alert
 	refuseButton.TextSize = 20
 	local neverButton = button(popupRow, "🚫", BUTTON)

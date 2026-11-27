@@ -232,7 +232,7 @@ function NationLabels.new(canvas: Frame, cs: ClientState, lang: Strings.Lang, ma
 				star.Position = UDim2.fromScale(0.88, 0.12)
 				star.Size = UDim2.fromScale(0.42, 0.42)
 				star.BackgroundTransparency = 1
-				star.Text = "★"
+				star.Text = "⭐"
 				star.TextScaled = true
 				star.FontFace = Theme.FontBold
 				star.TextColor3 = Theme.Colors.Gold

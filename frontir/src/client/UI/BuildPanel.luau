@@ -475,7 +475,7 @@ function BuildPanel.new(
 	local tapPx = Config.Render.MinTouchTargetPx
 	local confirmBuild = MenuKit.button(confirm, Strings.get("build.confirm", lang), "good", tapPx, 1)
 	confirmBuild.Size = UDim2.fromOffset(200, tapPx)
-	local confirmCancel = MenuKit.button(confirm, "✕", "danger", tapPx, 2)
+	local confirmCancel = MenuKit.button(confirm, "×", "danger", tapPx, 2)
 	confirmCancel.Size = UDim2.fromOffset(tapPx, tapPx)
 
 	local function cancel()

@@ -69,7 +69,7 @@ T.describe("Карта главнее (§15ъ)", function()
 			for _, size in { { 667, 300 }, { 740, 310 }, { 844, 332 }, { 932, 372 }, { 1024, 700 } } do
 				local w, h = size[1], size[2]
 				local lay =
-					PhoneLayout.hud(w, h, { strikes = 1, windows = 1, tools = 3, minimapW = 200, minimapH = 150 })
+					PhoneLayout.hud(w, h, { strikes = 1, windows = 1, tools = 1, minimapW = 200, minimapH = 150 })
 				local feedH = math.min(lay.feed.h, Config.Render.Phone.Hud.FeedLines * lineH)
 				local cardW = math.min(lay.centerMaxW, Config.Render.Offers.WidthPx)
 				local cardH = hud.CardMaxH * math.min(1, lay.centerMaxW / Config.Render.Offers.WidthPx)

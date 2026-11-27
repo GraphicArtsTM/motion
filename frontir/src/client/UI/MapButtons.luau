@@ -90,23 +90,30 @@ function MapButtons.new(
 	end
 
 	local compact = false
-	-- §15ъ Ч3: на телефоне кнопки окон — одна кнопка с веером (открыли окно — веер свернулся).
+	-- §15ъ Ч3: на телефоне кнопки окон — одна кнопка-значок; нажатие — квадраты окон столбиком вниз под ней (ничего
+	-- в верхней строке не сдвигают); открыли окно — столбик свернулся. Значок — картинкой («▦» шрифт не рисует).
+	local function fanToggle(parent: Instance, name: string, iconKey: string, order: number): (TextButton, Frame)
+		local b = Instance.new("TextButton")
+		b.Name = name
+		b.Text = ""
+		b.TextSize = 26
+		b.FontFace = Theme.FontBold
+		b.TextColor3 = Theme.Colors.Gold
+		b.LayoutOrder = order
+		b.BackgroundColor3 = Theme.Colors.PanelBg
+		b.BackgroundTransparency = 0.05
+		b.BorderSizePixel = 0
+		b.AutoButtonColor = true
+		b.Visible = false
+		b.Parent = parent
+		MenuKit.corner(b, 6)
+		MenuKit.stroke(b, Theme.Colors.Gold, 2)
+		local icon = MenuKit.icon(b, iconKey, 3)
+		MenuKit.center(icon)
+		return b, icon
+	end
 	local fanOpen = false
-	local fanButton = Instance.new("TextButton")
-	fanButton.Name = "WindowsToggle"
-	fanButton.Text = "▦"
-	fanButton.TextSize = 22
-	fanButton.FontFace = Theme.FontBold
-	fanButton.TextColor3 = Theme.Colors.Gold
-	fanButton.LayoutOrder = 1000 -- справа от квадратов окон (столбик прижат к правому краю)
-	fanButton.BackgroundColor3 = Theme.Colors.PanelBg
-	fanButton.BackgroundTransparency = 0.05
-	fanButton.BorderSizePixel = 0
-	fanButton.AutoButtonColor = true
-	fanButton.Visible = false
-	fanButton.Parent = frame
-	MenuKit.corner(fanButton, 6)
-	MenuKit.stroke(fanButton, Theme.Colors.Gold, 2)
+	local fanButton, fanIcon = fanToggle(frame, "WindowsToggle", "menu", -1)
 	local update: () -> () = function() end
 	Session.connect(fanButton.Activated, function()
 		fanOpen = not fanOpen
@@ -129,6 +136,14 @@ function MapButtons.new(
 	zoom.AutomaticSize = Enum.AutomaticSize.Y
 	zoom.Parent = gui
 	local zoomList = MenuKit.list(zoom, cfg.GapPx)
+	zoomList.VerticalAlignment = Enum.VerticalAlignment.Bottom
+	-- §15ъ: на телефоне квадраты у мини-карты (Угрозы, Метки, Логистика) — тоже одной кнопкой: столбиком вверх.
+	local toolsOpen = false
+	local toolsButton, toolsIcon = fanToggle(zoom, "ToolsToggle", "land", 1000)
+	Session.connect(toolsButton.Activated, function()
+		toolsOpen = not toolsOpen
+		update()
+	end)
 	type Tool = { button: TextButton, edge: UIStroke, item: Item, key: TextLabel }
 	local toolRows: { Tool } = {}
 	local toolItems: { Item } = tools or {}
@@ -153,6 +168,12 @@ function MapButtons.new(
 		key.Position = UDim2.new(1, -3, 1, -1)
 		key.TextXAlignment = Enum.TextXAlignment.Right
 		Session.connect(b.Activated, item.toggle)
+		Session.connect(b.Activated, function()
+			if compact and toolsOpen then
+				toolsOpen = false
+				update()
+			end
+		end)
 		table.insert(toolRows, { button = b, edge = edge, item = item, key = key })
 	end
 	type ZoomSpec = { text: string, dir: number }
@@ -184,13 +205,16 @@ function MapButtons.new(
 		compact = c
 		local w = if c then phoneCfg.WindowPx else cfg.WidthPx
 		local h = if c then phoneCfg.WindowPx else cfg.HeightPx
-		list.FillDirection = if c then Enum.FillDirection.Horizontal else Enum.FillDirection.Vertical
+		-- §15ъ: на телефоне — столбик вниз от кнопки-значка (раньше — строка квадратов, она сдвигала верх матча).
+		list.FillDirection = Enum.FillDirection.Vertical
+		list.VerticalAlignment = if c then Enum.VerticalAlignment.Top else Enum.VerticalAlignment.Bottom
 		list.Padding = UDim.new(0, if c then phoneCfg.Gap else cfg.GapPx)
-		frame.AutomaticSize = if c then Enum.AutomaticSize.X else Enum.AutomaticSize.Y
-		frame.Size = if c then UDim2.fromOffset(0, h) else UDim2.fromOffset(w, 0)
+		frame.AutomaticSize = Enum.AutomaticSize.Y
+		frame.Size = UDim2.fromOffset(w, 0)
 		fanButton.Size = UDim2.fromOffset(w, h)
 		if not c then
 			fanOpen = false
+			toolsOpen = false
 		end
 		for _, r in rows do
 			r.button.Size = UDim2.fromOffset(w, h)
@@ -209,10 +233,11 @@ function MapButtons.new(
 			(iconScale :: UIScale).Scale = if c then phoneCfg.WindowIconScale else 1
 		end
 		local t = if c then phoneCfg.ToolPx else cfg.ZoomPx
-		zoomList.FillDirection = if c then Enum.FillDirection.Horizontal else Enum.FillDirection.Vertical
+		zoomList.FillDirection = Enum.FillDirection.Vertical
 		zoomList.Padding = UDim.new(0, if c then phoneCfg.Gap else cfg.GapPx)
-		zoom.AutomaticSize = if c then Enum.AutomaticSize.X else Enum.AutomaticSize.Y
-		zoom.Size = if c then UDim2.fromOffset(0, t) else UDim2.fromOffset(t, 0)
+		zoom.AutomaticSize = Enum.AutomaticSize.Y
+		zoom.Size = UDim2.fromOffset(t, 0)
+		toolsButton.Size = UDim2.fromOffset(t, t)
 		for _, tool in toolRows do
 			tool.button.Size = UDim2.fromOffset(t, t)
 			tool.key.Visible = not c
@@ -235,12 +260,19 @@ function MapButtons.new(
 			r.edge.Color = if open then Theme.Colors.Gold else Theme.Colors.PanelBorder
 		end
 		fanButton.Visible = compact and any
-		fanButton.Text = if fanOpen then "✕" else "▦"
+		fanButton.Text = if fanOpen then "×" else ""
+		fanIcon.Visible = not fanOpen
+		local anyTool = false
 		for _, t in toolRows do
 			local fn = t.item.visible
-			t.button.Visible = fn == nil or fn()
+			local want = fn == nil or fn()
+			anyTool = anyTool or want
+			t.button.Visible = want and (not compact or toolsOpen)
 			t.edge.Color = if t.item.isOpen() then Theme.Colors.Gold else Theme.Colors.PanelBorder
 		end
+		toolsButton.Visible = compact and anyTool
+		toolsButton.Text = if toolsOpen then "×" else ""
+		toolsIcon.Visible = not toolsOpen
 	end
 	update()
 
@@ -248,19 +280,24 @@ function MapButtons.new(
 		frame = frame,
 		zoom = zoom,
 		height = function(): number
-			local n = if fanButton.Visible then 1 else 0
+			local n = 0
 			for _, r in rows do
 				if r.button.Visible then
 					n += 1
 				end
 			end
 			if compact then
+				n = if fanButton.Visible then 1 else 0
 				return if n == 0 then 0 else phoneCfg.WindowPx
 			end
 			return if n == 0 then 0 else n * cfg.HeightPx + (n - 1) * cfg.GapPx
 		end,
 		count = function(): number
-			local n = if fanButton.Visible then 1 else 0 -- §15ъ Ч3: телефон — кнопка веера
+			-- §15ъ: на телефоне место в верхней строке — одна кнопка-значок (квадраты окон — столбиком вниз).
+			if compact then
+				return if fanButton.Visible then 1 else 0
+			end
+			local n = 0
 			for _, r in rows do
 				if r.button.Visible then
 					n += 1
@@ -269,6 +306,9 @@ function MapButtons.new(
 			return n
 		end,
 		toolCount = function(): number
+			if compact then
+				return if toolsButton.Visible then 1 else 0 -- §15ъ: одна кнопка, квадраты — столбиком вверх
+			end
 			local n = 0
 			for _, tool in toolRows do
 				if tool.button.Visible then

@@ -63,7 +63,7 @@ function FinalePanel.new(
 	row.Padding = UDim.new(0, 10)
 	row.SortOrder = Enum.SortOrder.LayoutOrder
 	row.Parent = strip
-	local title = MenuKit.label(strip, "★ " .. t("finale.title"), 16, Theme.Colors.Gold, true, 1)
+	local title = MenuKit.label(strip, "⭐ " .. t("finale.title"), 16, Theme.Colors.Gold, true, 1)
 	local line = MenuKit.label(strip, "", 14, Theme.Colors.Text, true, 2)
 	local countHost = Instance.new("Frame")
 	countHost.Name = "Countdown"
@@ -100,7 +100,7 @@ function FinalePanel.new(
 	bannerList.Padding = UDim.new(0, 4)
 	bannerList.SortOrder = Enum.SortOrder.LayoutOrder
 	bannerList.Parent = banner
-	local bannerTitle = MenuKit.label(banner, "★ " .. t("finale.title") .. " ★", 44, Theme.Colors.Gold, true, 1)
+	local bannerTitle = MenuKit.label(banner, "⭐ " .. t("finale.title") .. " ⭐", 44, Theme.Colors.Gold, true, 1)
 	bannerTitle.FontFace = Theme.FontHeavy
 	bannerTitle.TextXAlignment = Enum.TextXAlignment.Center
 	local bannerText = MenuKit.wrapLabel(banner, "", 17, Theme.Colors.Text, 2)

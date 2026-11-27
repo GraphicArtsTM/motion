@@ -77,8 +77,11 @@ function GameMenu.new(
 	button.FontFace = Theme.FontBold
 	button.TextSize = 24
 	button.TextColor3 = Theme.Colors.Gold
-	button.Text = "≡"
+	button.Text = "" -- §15ъ: «≡» нет в шрифте (квадрат) — значок-картинка
 	button.Parent = hudGui
+	local menuIcon = MenuKit.icon(button, "menu", 3)
+	menuIcon.Name = "MenuIcon"
+	MenuKit.center(menuIcon)
 	MenuKit.corner(button, 8)
 	MenuKit.stroke(button, Theme.Colors.PanelBorder, 2)
 

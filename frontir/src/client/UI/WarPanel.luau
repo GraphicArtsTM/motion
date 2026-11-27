@@ -317,7 +317,7 @@ function WarPanel.new(
 	offerRow.Size = UDim2.fromOffset(OFFER_BUTTONS, BUTTON)
 	MenuKit.list(offerRow, 6, true)
 	local acceptButton = MenuKit.button(offerRow, "✓", "good", BUTTON, 1)
-	local declineButton = MenuKit.button(offerRow, "✗", "danger", BUTTON, 2)
+	local declineButton = MenuKit.button(offerRow, "×", "danger", BUTTON, 2)
 	local neverButton = MenuKit.button(offerRow, "🚫", "normal", BUTTON, 3) -- §15ъ Ч3 «Всегда нет»
 	for _, b in { acceptButton, declineButton, neverButton } do
 		b.Size = UDim2.fromOffset(BUTTON, BUTTON)

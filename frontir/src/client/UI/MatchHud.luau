@@ -199,6 +199,9 @@ function MatchHud.new(
 	top.Visible = false
 	top.Parent = banner
 	local bandTop = false -- §15ё Ё6: плашка в полосе Roblox — в баннере без строки «Режим: …»
+	-- §15ъ: в полосе Roblox место узкое — верх матча ужимается масштабом, чтобы влезал целиком (время не обрезалось).
+	local topScale = Instance.new("UIScale")
+	topScale.Parent = top
 	local compactTop = false -- §15ё Ё7: телефон — строка под полосой короче («с блоком» и «Лидер:» не пишем)
 	local topList = Instance.new("UIListLayout")
 	topList.FillDirection = Enum.FillDirection.Horizontal
@@ -1363,11 +1366,27 @@ function MatchHud.new(
 		end,
 		setDoom = function(text: string?)
 			doomLabel.Visible = text ~= nil
-			if text ~= nil and doomLabel.Text ~= text then
-				doomLabel.Text = text
+			-- Телефон: верх короткий — только «☢ 1:20» (полностью не влезало: время матча обрезалось слева).
+			local shown = if text ~= nil and (compactTop or bandTop)
+				then "☢ " .. (string.match(text, "(%d+:%d%d)$") or "")
+				else text
+			if shown ~= nil and doomLabel.Text ~= shown then
+				doomLabel.Text = shown
 			end
 		end,
 		setBell = function(count: number)
+			-- §15ъ: в полосе Roblox (телефон) — вписать верх матча в её ширину (колокольчик и «☢» добавили ширины).
+			local host = top.Parent
+			if bandTop and host ~= nil and host:IsA("GuiObject") and top.AbsoluteSize.X > 0 then
+				local room = host.AbsoluteSize.X - 20
+				local natural = top.AbsoluteSize.X / math.max(topScale.Scale, 0.01)
+				local want = math.clamp(room / natural, 0.6, 1)
+				if math.abs(want - topScale.Scale) > 0.02 then
+					topScale.Scale = want
+				end
+			elseif not bandTop and topScale.Scale ~= 1 then
+				topScale.Scale = 1
+			end
 			bell.Visible = count > 0
 			local text = "🔔 " .. tostring(count)
 			if bell.Text ~= text then

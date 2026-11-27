@@ -157,7 +157,7 @@ function AttackPanel.new(
 		action.FontFace = Theme.FontBold
 		action.TextSize = 18
 		action.TextColor3 = Theme.Colors.Text
-		action.Text = "↩"
+		action.Text = "←"
 		action.Parent = f
 		MenuKit.corner(action, 6)
 		MenuKit.stroke(action, Theme.Colors.PanelBorder, 1)
@@ -275,7 +275,7 @@ function AttackPanel.new(
 			.. (if counts.inc > 0
 				then string.format('<font color="#%s" size="15"><b>%s</b></font>', Theme.Colors.Alert:ToHex(), incText)
 				else incText)
-			.. (if collapsed then "  ▸" else "  ▾")
+			.. (if collapsed then "  ▶" else "  ▼")
 		-- §15ё телефон: свёрнутая панель узкая — заголовок одним значком, чтобы не налезал на счётчик.
 		title.Text = if compact and collapsed then "⚔" else "⚔  " .. t("attacks.title")
 		local anyHidden, anyOut, anyIn = false, false, false
@@ -297,7 +297,7 @@ function AttackPanel.new(
 				-- Голубая — наша сторона берёт верх, красная — уступает.
 				local winning = (out and r.advancing) or (not out and not r.advancing)
 				row.bar.fill.BackgroundColor3 = if winning then Theme.Colors.Sky else Theme.Colors.Alert
-				row.action.Text = if out then "↩" else "◎"
+				row.action.Text = if out then "←" else "◆"
 				row.action.TextColor3 = if out then Theme.Colors.Gold else Theme.Colors.Text
 				anyHidden = anyHidden or r.power < 0
 				anyOut = anyOut or out

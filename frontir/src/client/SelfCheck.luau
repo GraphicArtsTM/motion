@@ -494,7 +494,7 @@ local function run()
 				if count("MapButtons") < 4 and not visible({ "MapButtons", "WindowsToggle" }) then
 					table.insert(missing, "T / Y / N / F")
 				end
-				if count("ZoomButtons") < 3 then
+				if count("ZoomButtons") < 3 and not visible({ "ZoomButtons", "ToolsToggle" }) then
 					table.insert(missing, "L / G / I")
 				end
 				if not visible({ "CommandBar", "TroopsTab" }) then
@@ -503,9 +503,11 @@ local function run()
 				if not visible({ "CommandBar", "BuildTab" }) then
 					table.insert(missing, "1–0, B (СТРОЙКА)")
 				end
-				-- §15ъ Ч2: магазин в бою — в меню игры «≡» (не на полосе).
+				if not visible({ "CommandBar", "Shop" }) then
+					table.insert(missing, "M (Магазин)")
+				end
 				if not visible({ "MenuButton" }) then
-					table.insert(missing, "Tab, P, H, K, J, U, O, M (меню ≡)")
+					table.insert(missing, "Tab, P, H, K, J, U, O (меню)")
 				end
 				if not visible({ "HomeButton" }) then
 					table.insert(missing, "Space (🏠)")
