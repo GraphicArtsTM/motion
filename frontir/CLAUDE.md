@@ -477,6 +477,14 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
 - Режим `Tutorial` (`rules.tutorial`, `rules.events = false`), шаги — `MatchSim.tutorialDone` / `stepTutorial`
   (`m.tutorialStep`, `m.tutorialStart`), награда — `Profile.finishTutorial` на сервере по событию `tutorialDone`.
   Клиент: `UI/TutorialPanel`, `cs.tutorialStep`.
+- §15ь Л4 «Обучение 2.0»: 7 шагов (`Config.Tutorial.Steps`; «strike» — `m.commanders.ready[id] ~= nil`); в хабе —
+  `Lobbies.request({ tutorial = true })` (свой сервер «одному», режим Tutorial; после перехода — `mode = "Tutorial",
+  solo = true`), в Studio — `playTutorial`; кнопка в меню всегда (`startTutorial` в `Main.client`). Первый вход —
+  `UI/TutorialWelcome` (слой окон, `welcome.update` — до раннего выхода под меню) → `prefs { tutorialAsked }`.
+  `UI/TutorialPanel`: наставник (рамка `Tutorial`, фишка `TutorialChip`), прожектор `TutorialSpot` и рамка
+  `TutorialFocus` (цели — `Tutorial.Focus` / `PhoneFocus`, первая часть пути — в глубину; на касании сначала
+  телефонный список), окна `TutorialSkip` / `TutorialDone`. Новый шаг — строка в `Steps`, проверка в
+  `MatchSim.tutorialDone`, цели в `Focus` и `PhoneFocus` (тест требует), ключи `tutorial.<шаг>` и `tutorial.hint.<шаг>`.
 
 ## Звук и музыка (этап 10б)
 - Файлы звуков генерирует `tools/sfx_gen` (`tools/lib/Synth`, `tools/lib/SoundBank`) в `assets/audio`; в игру —

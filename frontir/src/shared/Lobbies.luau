@@ -124,6 +124,11 @@ function Lobbies.request(raw: any): Request?
 		return nil
 	end
 	local r = raw :: { [string]: any }
+	-- §15ь Л4: «Обучение» из меню хаба — свой сервер одного игрока, карта и режим — у обучения (то же приходит
+	-- на сервер матча в данных перехода: режим «Обучение» и «одному»).
+	if r.tutorial == true or (r.mode == "Tutorial" and r.solo == true) then
+		return { map = Config.Tutorial.Map, mode = "Tutorial", solo = true, level = nil }
+	end
 	local map, mode = r.map, r.mode
 	if type(map) ~= "string" or table.find(Config.MapVote.Pool, map) == nil then
 		return nil

@@ -796,9 +796,10 @@ function MainMenu.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, mapNa
 			elseif watching then t("menu.watchHint")
 			else t("menu.quickHint")
 		playHint.TextColor3 = if failed then Theme.Colors.Alert else Theme.Colors.Muted
-		tutorialButton.Visible = not hub
-			and (p == nil or not p.tutorialDone)
-			and (cs.demo or ((cs.phase == "Waiting" or cs.phase == "Lobby") and cs.myNation == nil))
+		-- §15ь Л4: «Обучение» — всегда в хабе (свой сервер) и в «как раньше», пока не в матче; пройдено — «✔».
+		tutorialButton.Visible = hub or (cs.place == "combined" and cs.myNation == nil)
+		tutorialButton.Text = t(if p ~= nil and p.tutorialDone then "menu.tutorialDone" else "menu.tutorial")
+		tutorialButton.Active = not going
 		soloButton.Active = not going
 		ownButton.Active = not going
 		layoutMore()

@@ -37,6 +37,7 @@ export type Data = {
 	questsBonus: boolean, -- жетон за все три уже выдан
 	elo: number,
 	tutorialDone: boolean, -- обучение пройдено (§5.5)
+	tutorialAsked: boolean, -- §15ь Л4: при первом входе уже спросили «пройти обучение?»
 	-- Этап 10б (§13): громкости игрока 0..1.
 	sfx: number,
 	music: number,
@@ -91,6 +92,7 @@ function Profile.new(): Data
 		questsBonus = false,
 		elo = Config.Elo.Start,
 		tutorialDone = false,
+		tutorialAsked = false,
 		sfx = Config.Audio.DefaultSfx,
 		music = Config.Audio.DefaultMusic,
 		noPaidRandom = false,
@@ -120,6 +122,11 @@ function Profile.setPrefs(d: Data, payload: any): (boolean, string?)
 			return false, "target"
 		end
 		d.hudDensity = payload.density
+		return true, nil
+	end
+	-- §15ь Л4: ответ на «пройти обучение?» при первом входе (любой — больше не спрашивать).
+	if payload.tutorialAsked == true then
+		d.tutorialAsked = true
 		return true, nil
 	end
 	if payload.resetAutoNo == true then
@@ -251,6 +258,7 @@ function Profile.migrate(raw: any): Data
 	end
 	d.elo = if type(raw.elo) == "number" and raw.elo == raw.elo then math.floor(raw.elo) else Config.Elo.Start
 	d.tutorialDone = raw.tutorialDone == true
+	d.tutorialAsked = raw.tutorialAsked == true or d.tutorialDone -- прошёл — спрашивать нечего
 	if not Profile.setVolumes(d, raw.sfx, raw.music) then
 		d.sfx, d.music = Config.Audio.DefaultSfx, Config.Audio.DefaultMusic
 	end

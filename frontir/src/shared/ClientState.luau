@@ -88,6 +88,7 @@ export type ProfileInfo = {
 	premium: boolean,
 	unlocked: { [string]: boolean }, -- открытые генералы
 	tutorialDone: boolean?, -- §15ф Ф1
+	tutorialAsked: boolean?, -- §15ь Л4: окно «пройти обучение?» уже было
 	arsenal: { owned: { [string]: boolean }, loadout: string?, commander: string?, used: boolean }?, -- §15л ч.6; генерал — §15ф Ф1
 	used: { [string]: boolean }, -- бусты, взятые в этом матче
 	boosts: boolean, -- бусты в этом матче разрешены

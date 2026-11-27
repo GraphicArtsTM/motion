@@ -124,6 +124,7 @@ local ArsenalPanel = require(UI:WaitForChild("ArsenalPanel"))
 local SceneBanner = require(UI:WaitForChild("SceneBanner"))
 local QuestsPanel = require(UI:WaitForChild("QuestsPanel"))
 local TutorialPanel = require(UI:WaitForChild("TutorialPanel"))
+local TutorialWelcome = require(UI:WaitForChild("TutorialWelcome"))
 local WorldPanel = require(UI:WaitForChild("WorldPanel"))
 local TerritoryLayer = require(Render:WaitForChild("TerritoryLayer"))
 local Theme = require(UI:WaitForChild("Theme"))
@@ -548,7 +549,7 @@ local function runSession(mapId: string, resync: boolean)
 		return true
 	end
 	local questsPanel = QuestsPanel.new(hudGui, cs, lang, hud.toast) -- задания и лидеры (§11.5)
-	local tutorial = TutorialPanel.new(hudGui, cs, lang, hud.toast) -- обучение (§5.5)
+	local tutorial = TutorialPanel.new(hudGui, cs, lang, send) -- обучение (§5.5, §15ь Л4: наставник и прожектор)
 	local soundPanel = SoundPanel.new(hudGui, cs, lang, send) -- громкости (§13)
 	-- §15ц Ц4б: «Как играть» (H) — окно шаблона; «Справочник: <группа>» открывает справочник (создаётся ниже).
 	local openHandbookAt: (tab: string) -> () = function(_tab: string) end
@@ -914,6 +915,21 @@ local function runSession(mapId: string, resync: boolean)
 	local openSound = opener(soundPanel.isOpen, soundPanel.toggle)
 	local openHelp = opener(howTo.isOpen, howTo.toggle)
 	local gameMenu: GameMenu.GameMenu? = nil
+	-- §15ь Л4: «Обучение» — в хабе свой сервер одного игрока (режим и карта обучения); «как раньше» (Studio) —
+	-- вступить в матч одному (§15ф Ф1: сервер ставит режим «Обучение»).
+	local function startTutorial()
+		if cs.place == "hub" then
+			if cs.travel == "going" then
+				return
+			end
+			cs.travel = "going"
+			cs.travelReason = nil
+			cs.travelAt = os.clock()
+			send("play", { tutorial = true })
+		elseif cs.place == "combined" and cs.myNation == nil then
+			send("playTutorial", {})
+		end
+	end
 	local mainMenu = MainMenu.new(menuGui, cs, lang, map.name, {
 		shop = openShop,
 		wardrobe = opener(wardrobe.isOpen, wardrobe.toggle),
@@ -952,12 +968,7 @@ local function runSession(mapId: string, resync: boolean)
 				send("joinMatch", {})
 			end
 		end,
-		tutorial = function()
-			-- §15ф Ф1: обучение — вступить в матч одному (сервер ставит режим «Обучение»).
-			if cs.place == "combined" and cs.myNation == nil then
-				send("playTutorial", {})
-			end
-		end,
+		tutorial = startTutorial,
 		invite = inviteFriends, -- §15л ч.7, §15ъ: на сервере матча — приглашение прямо в этот матч
 		privateCreate = function(req: MainMenu.Request?)
 			cs.travel = "going"
@@ -982,6 +993,7 @@ local function runSession(mapId: string, resync: boolean)
 	})
 	-- §15ь Л3 «Отряд»: плашка в колонке меню, окно «Пригласить» и приглашение — в слое окон (только хаб).
 	local partyPanel = PartyPanel.new(mainMenu.side, mainMenu.phoneSide, windowsGui, cs, lang, send, inviteFriends)
+	local welcome = TutorialWelcome.new(windowsGui, cs, lang, send, startTutorial) -- §15ь Л4
 	-- Сервер матча (§15л ч.3): главное меню — в хабе, переход туда; иначе — меню поверх матча.
 	local function toMainMenu()
 		if cs.place == "match" then
@@ -2543,6 +2555,7 @@ local function runSession(mapId: string, resync: boolean)
 					(g:IsDescendantOf(hudGui) or g:IsDescendantOf(windowsGui) or g:IsDescendantOf(menuGui))
 					and not g:IsDescendantOf(view.canvas)
 					and g.Name ~= "MapTooltip"
+					and (g.Parent == nil or g.Parent.Name ~= "TutorialSpot") -- §15ь Л4: прожектор обучения — не окно
 					and (g.BackgroundTransparency < 0.99 or g:IsA("GuiButton"))
 					and (g.AbsoluteSize.X < screen.X * 0.9 or g.AbsoluteSize.Y < screen.Y * 0.9)
 				then
@@ -2693,6 +2706,7 @@ local function runSession(mapId: string, resync: boolean)
 		local menuOn = mainMenu.isOpen()
 		mainMenu.update(now)
 		partyPanel.update(now) -- §15ь Л3: отряд (хаб)
+		welcome.update(mainMenu.isOpen()) -- §15ь Л4: «пройти обучение?» при первом входе
 		if menuOn and now - bgMapAt < 1 / Config.Render.Menu.BackgroundFps then
 			return
 		end

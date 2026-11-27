@@ -344,6 +344,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			end)(),
 			questsBonus = d.questsBonus,
 			tutorialDone = d.tutorialDone, -- §15ф Ф1: кнопка «Обучение» в меню
+			tutorialAsked = d.tutorialAsked, -- §15ь Л4: окно «пройти обучение?» при первом входе
 			dayLeft = 86400 - now % 86400,
 			elo = d.elo,
 			-- §15л ч.6 Арсенал: открытое, взятое в бой, применено ли в этом матче.

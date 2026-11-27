@@ -443,22 +443,32 @@ Config.Tutorial = {
 	ExpandMul = 3, -- шаг «Расширение»: земли во столько раз больше стартовой
 	RewardTokens = 2,
 	RewardMedals = 500,
-	Steps = { "start", "expand", "hire", "city", "build", "alliance" },
+	-- §15ь Л4: 7 шагов; «Здание» — раньше «Города» (город — самый трудный), «Удар» — способность генерала.
+	Steps = { "start", "expand", "hire", "build", "city", "strike", "alliance" },
 	Map = "Scandinavia", -- обучение всегда на этой карте (сводная правка)
+	-- §15ь Л4: прожектор — затемнение вокруг цели шага столько секунд (или до первого нажатия), потом рамка и палец.
+	SpotlightSec = 4,
+	SpotlightDark = 0.45, -- прозрачность затемнения (0 — чёрное)
+	DoneFlashSec = 1.4, -- «✔ Отлично!» на карточке после шага
 	-- §15ц Ц5б: что подсветить на экране для шага — путь рамки в HUD (FrontirHud), через точку; нет — не подсвечивать.
+	-- Первую часть пути ищем в глубину (рамка может стоять в столбике TopRight / TopCenter или в полосе Roblox).
 	Focus = {
 		expand = "CommandBar.Attack",
 		hire = "CommandBar.Hire.Slots.HireInfantry",
-		city = "MapButtons.Opendiplomacy",
 		build = "CommandBar.Build",
+		city = "CommandBar.Attack",
+		strike = "Abilities.Ability1",
 		alliance = "MapButtons.Opendiplomacy",
 	},
-	-- §15ё Ё3: телефон — найм и стройка в ящиках над полосой: подсветка — клетка в открытом ящике или кнопка ящика.
+	-- §15ё Ё3: телефон (и касание) — найм и стройка в ящиках над полосой, удары и окна — веерами: подсветка — первая
+	-- видимая рамка списка (кнопка «✔ Строить», клетка в открытом ящике, плитка в открытом веере, кнопка веера).
 	PhoneFocus = {
+		expand = { "CommandBar.Attack" },
 		hire = { "BarDrawer.Rows.Slots.HireInfantry", "CommandBar.TroopsTab" },
-		build = { "BarDrawer", "CommandBar.BuildTab" },
+		build = { "BuildConfirm", "BarDrawer", "CommandBar.BuildTab" },
+		city = { "CommandBar.Attack" },
+		strike = { "Abilities.Ability1", "Abilities.StrikesToggle" },
 		-- §15ъ Ч3: кнопки окон на телефоне — веером: подсветка — квадрат «Дипломатия» или кнопка веера.
-		city = { "MapButtons.Opendiplomacy", "MapButtons.WindowsToggle" },
 		alliance = { "MapButtons.Opendiplomacy", "MapButtons.WindowsToggle" },
 	},
 }

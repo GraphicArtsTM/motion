@@ -954,6 +954,8 @@ function MatchSim.tutorialDone(m: Match, n: Nation, step: number): boolean
 	elseif kind == "build" then
 		local o = MatchSim.ownedOf(m, n.id)
 		return o.factories + o.rigs + o.forts + o.ports + o.airfields + o.silos + o.barracks + o.housing > 0
+	elseif kind == "strike" then
+		return m.commanders.ready[n.id] ~= nil -- §15ь Л4: применил удар генерала (перезарядка пошла)
 	elseif kind == "alliance" then
 		return #Diplomacy.alliesOf(m.diplo, n.id) > 0
 	end

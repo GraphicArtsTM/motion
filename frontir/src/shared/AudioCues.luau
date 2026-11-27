@@ -60,6 +60,10 @@ function AudioCues.cueOf(e: { [string]: any }, me: number?): string?
 		or kind == "councilOpened"
 	then
 		return "Notify"
+	elseif kind == "tutorialDone" and mine then
+		return "Victory" -- §15ь Л4: обучение пройдено
+	elseif kind == "tutorial" and mine then
+		return "Coin" -- §15ь Л4: шаг обучения пройден
 	elseif (kind == "underdog" or (kind == "trophy" and e.capital == true)) and mine then
 		return "Victory" -- §15й Й2: фанфары — «Триумф» и «Давид и Голиаф»
 	elseif
