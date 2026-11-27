@@ -502,11 +502,9 @@ local function run()
 				if not visible({ "CommandBar", "BuildTab" }) then
 					table.insert(missing, "1–0, B (СТРОЙКА)")
 				end
-				if not visible({ "CommandBar", "Shop" }) then
-					table.insert(missing, "M (Магазин)")
-				end
+				-- §15ъ Ч2: магазин в бою — в меню игры «≡» (не на полосе).
 				if not visible({ "MenuButton" }) then
-					table.insert(missing, "Tab, P, H, K, J, U, O (меню ≡)")
+					table.insert(missing, "Tab, P, H, K, J, U, O, M (меню ≡)")
 				end
 				if not visible({ "HomeButton" }) then
 					table.insert(missing, "Space (🏠)")

@@ -217,6 +217,23 @@ function WarPanel.new(
 	barB.Size = UDim2.fromScale(0.5, 1)
 	barB.Parent = bar
 	local statsLabel = label(banner, 12, 3)
+	-- §15ъ Ч2: полоса тонкая — одна строка; перевес и счёт — по нажатию на строку (и снова — свернуть).
+	local details = false
+	bar.Visible = false
+	statsLabel.Visible = false
+	local titleTap = Instance.new("TextButton")
+	titleTap.Name = "Details"
+	titleTap.BackgroundTransparency = 1
+	titleTap.Text = ""
+	titleTap.Size = title.Size
+	titleTap.Position = title.Position
+	titleTap.ZIndex = title.ZIndex + 1
+	titleTap.Parent = titleRow
+	Session.connect(titleTap.Activated, function()
+		details = not details
+		bar.Visible = details
+		statsLabel.Visible = details
+	end)
 
 	-- Окна войны и мира (§15л ч.11): рамка с картинками, кнопки во всю ширину.
 	local function window(name: string, width: number, edge: Color3): Frame

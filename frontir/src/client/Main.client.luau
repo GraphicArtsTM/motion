@@ -1662,29 +1662,33 @@ local function runSession(mapId: string, resync: boolean)
 	-- §15ъ «Экран не мешает играть»: каждая карточка столбика — в своей оболочке; какие видны — решает HudFocus
 	-- (одна по порядку важности Config.Hud.Priority, остальные ждут — колокольчик). Видимость карточки решает её окно
 	-- (как раньше), видимость оболочки — фокус: окна ничего о нём не знают.
-	local focusGates: { [string]: { gate: Frame, card: GuiObject } } = {}
+	type Gate = { gate: Frame, card: GuiObject }
+	local focusGates: { [string]: Gate } = {}
+	local function wrapGate(card: GuiObject, order: number, target: Instance, align: Enum.HorizontalAlignment): Gate
+		local gate = Instance.new("Frame")
+		gate.Name = "Gate" .. card.Name
+		gate.BackgroundTransparency = 1
+		gate.BorderSizePixel = 0
+		gate.Size = UDim2.fromOffset(0, 0)
+		gate.AutomaticSize = Enum.AutomaticSize.XY
+		gate.LayoutOrder = order
+		gate.ZIndex = 1
+		gate.Visible = false
+		local l = Instance.new("UIListLayout")
+		l.SortOrder = Enum.SortOrder.LayoutOrder
+		l.HorizontalAlignment = align
+		l.Parent = gate
+		gate.Parent = target
+		card.AnchorPoint = Vector2.new(0, 0)
+		card.LayoutOrder = 0
+		card.Parent = gate
+		return { gate = gate, card = card }
+	end
 	local function stackGated(target: Frame, names: { string })
 		for order, name in names do
 			local g = hudGui:FindFirstChild(name, true)
 			if g ~= nil and g:IsA("GuiObject") then
-				local gate = Instance.new("Frame")
-				gate.Name = "Gate" .. name
-				gate.BackgroundTransparency = 1
-				gate.BorderSizePixel = 0
-				gate.Size = UDim2.fromOffset(0, 0)
-				gate.AutomaticSize = Enum.AutomaticSize.XY
-				gate.LayoutOrder = order
-				gate.ZIndex = 1
-				gate.Visible = false
-				local l = Instance.new("UIListLayout")
-				l.SortOrder = Enum.SortOrder.LayoutOrder
-				l.HorizontalAlignment = Enum.HorizontalAlignment.Center
-				l.Parent = gate
-				gate.Parent = target
-				g.AnchorPoint = Vector2.new(0, 0)
-				g.LayoutOrder = 0
-				g.Parent = gate
-				focusGates[name] = { gate = gate, card = g }
+				focusGates[name] = wrapGate(g, order, target, Enum.HorizontalAlignment.Center)
 			end
 		end
 	end
@@ -1715,10 +1719,62 @@ local function runSession(mapId: string, resync: boolean)
 			hintFrame.Parent = area
 		end
 	end
+	local rightColumn = column("TopRight", 1, UDim.new(1, -12), Enum.HorizontalAlignment.Right)
 	stackInto(
-		column("TopRight", 1, UDim.new(1, -12), Enum.HorizontalAlignment.Right),
+		rightColumn,
 		{ "PlaceChip", "GiantChip", "TriumphChip", "Attacks", "Leaders", "Auction" } -- §15й Й6; предложения — в центре (§15ъ)
 	)
+	-- §15ъ Ч2: справа одна плашка — «Сверхдержава» и «Триумф» значками под местом; полная плашка — по нажатию на
+	-- значок (на Hud.FocusHoldSec).
+	local badgeRow = Instance.new("Frame")
+	badgeRow.Name = "StatusBadges"
+	badgeRow.BackgroundTransparency = 1
+	badgeRow.AutomaticSize = Enum.AutomaticSize.XY
+	badgeRow.Size = UDim2.fromOffset(0, 0)
+	badgeRow.LayoutOrder = 2
+	badgeRow.ZIndex = 1
+	badgeRow.Parent = rightColumn
+	do
+		local l = Instance.new("UIListLayout")
+		l.FillDirection = Enum.FillDirection.Horizontal
+		l.HorizontalAlignment = Enum.HorizontalAlignment.Right
+		l.SortOrder = Enum.SortOrder.LayoutOrder
+		l.Padding = UDim.new(0, 6)
+		l.Parent = badgeRow
+	end
+	type Badge = { gate: Gate, button: TextButton, openUntil: number }
+	local badges: { Badge } = {}
+	for k, spec in { { name = "GiantChip", icon = "⚡" }, { name = "TriumphChip", icon = "🏆" } } do
+		local card = rightColumn:FindFirstChild(spec.name)
+		if card ~= nil and card:IsA("GuiObject") then
+			local b = MenuKit.button(badgeRow, spec.icon, "primary", 36, k)
+			b.Name = "Badge" .. spec.name
+			b.Size = UDim2.fromOffset(44, 36)
+			b.TextSize = 18
+			b.Visible = false
+			local badge: Badge = {
+				gate = wrapGate(card, 2 + k, rightColumn, Enum.HorizontalAlignment.Right),
+				button = b,
+				openUntil = 0,
+			}
+			Session.connect(b.Activated, function()
+				badge.openUntil = if os.clock() < badge.openUntil then 0 else os.clock() + Config.Hud.FocusHoldSec
+			end)
+			table.insert(badges, badge)
+		end
+	end
+	local function badgesTick(now: number)
+		for _, badge in badges do
+			local want = badge.gate.card.Visible
+			if badge.button.Visible ~= want then
+				badge.button.Visible = want
+			end
+			local open = want and now < badge.openUntil
+			if badge.gate.gate.Visible ~= open then
+				badge.gate.gate.Visible = open
+			end
+		end
+	end
 	-- §15ъ: фокус столбика — каждый кадр после всех окон (main loop → focus.tick). hold — вызванная колокольчиком.
 	local focusHold: string? = nil
 	local focusHoldUntil = 0
@@ -1758,6 +1814,7 @@ local function runSession(mapId: string, resync: boolean)
 			focusHoldUntil = os.clock() + Config.Hud.FocusHoldSec
 		end
 	end
+	Session.connect(hud.bell.Activated, focusCycle)
 	-- §15ё телефон: столбик по центру ужимается до места между колонками — пересчёт при смене его размера.
 	do
 		local center = hudGui:FindFirstChild("TopCenter")
@@ -2662,6 +2719,9 @@ local function runSession(mapId: string, resync: boolean)
 			minimap.update(now, camera.state)
 		end
 		focusTick(now) -- §15ъ: после всех окон — какие карточки столбика видны
+		badgesTick(now) -- §15ъ Ч2: «Сверхдержава» и «Триумф» — значками справа
+		hud.setBell(#focusWaiting) -- §15ъ Ч2: колокольчик — сколько карточек ждёт
+		hud.setDoom(doomBar.badge()) -- §15ъ Ч2: «Судный день» — значком в верхней полосе
 	end)
 
 	local netBytes, netAt, netRate = 0, os.clock(), 0

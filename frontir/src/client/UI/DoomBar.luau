@@ -17,6 +17,8 @@ type ClientState = ClientState.ClientState
 
 export type DoomBar = {
 	update: (now: number) -> (),
+	-- §15ъ Ч2: значок с таймером для верхней полосы (nil — часов нет); карточка — только когда под угрозой вы.
+	badge: () -> string?,
 }
 
 local DoomBar = {}
@@ -34,7 +36,8 @@ function DoomBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, totalL
 	frame.Size = UDim2.fromOffset(0, 0)
 	frame.AutomaticSize = Enum.AutomaticSize.XY
 	frame.BackgroundColor3 = Theme.Colors.PanelBg
-	frame.BackgroundTransparency = 0.15
+	frame.BackgroundTransparency = 0.03
+	local badgeText: string? = nil
 	frame.Visible = false
 	frame.Parent = gui
 	Theme.decorate(frame)
@@ -68,6 +71,7 @@ function DoomBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, totalL
 
 	local function update(now: number)
 		local doom = cs.world.doom
+		badgeText = nil
 		if doom == nil or cs.phase ~= "Play" then
 			frame.Visible = false
 			return
@@ -77,13 +81,15 @@ function DoomBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, totalL
 		if doom.wave == 0 then
 			-- До начала — только последняя минута.
 			local left = (doom.nextIn or math.huge) - passed
-			frame.Visible = left <= 60
+			frame.Visible = false -- §15ъ: отсчёт до начала — значком в верхней полосе
+			if left <= 60 then
+				badgeText = string.format(Strings.get("doom.badgeSoon", lang), clock(left))
+			end
 			main.Text = string.format(Strings.get("doom.soon", lang), clock(left))
 			warn.Visible = false
 			others.Visible = false
 			return
 		end
-		frame.Visible = true
 		local mine = 0
 		if me ~= nil and cs.stats ~= nil then
 			for _, s in cs.stats.nations do
@@ -118,13 +124,25 @@ function DoomBar.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, totalL
 		end
 		others.Visible = #names > 0
 		others.Text = "☠ " .. table.concat(names, " · ")
+		-- §15ъ: планка и следующая волна — значком в верхней полосе; карточка — только когда под угрозой вы.
+		badgeText = string.format(
+			Strings.get("doom.badge", lang),
+			doom.bar * 100,
+			if doom.nextIn ~= nil then clock(doom.nextIn - passed) else "—"
+		)
+		frame.Visible = warn.Visible
 		-- Красная вспышка, пока вы под угрозой.
 		frame.BackgroundColor3 = if warn.Visible and math.floor(now * 2) % 2 == 0
 			then Theme.Colors.Alert:Lerp(Theme.Colors.PanelBg, 0.6)
 			else Theme.Colors.PanelBg
 	end
 
-	return { update = update }
+	return {
+		update = update,
+		badge = function(): string?
+			return badgeText
+		end,
+	}
 end
 
 return table.freeze(DoomBar)

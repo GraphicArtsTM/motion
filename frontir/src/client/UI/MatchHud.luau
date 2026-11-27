@@ -29,6 +29,7 @@ local NationColors = require(Shared:WaitForChild("NationColors"))
 local Provinces = require(Shared:WaitForChild("Provinces"))
 local Strings = require(Shared:WaitForChild("Strings"))
 
+local MenuKit = require(script.Parent:WaitForChild("MenuKit"))
 local ResourceBar = require(script.Parent:WaitForChild("ResourceBar"))
 local Theme = require(script.Parent:WaitForChild("Theme"))
 local Session = require(script.Parent.Parent:WaitForChild("Session"))
@@ -51,6 +52,10 @@ export type Hud = {
 	-- §15ё Ё6 телефон: время и «Контроль суши» — в рамке host (полоса Roblox сверху); nil — обратно в баннер.
 	setBandTop: (host: GuiObject?) -> (),
 	topShown: () -> boolean, -- плашка «время | Контроль суши» сейчас нужна (идёт игра)
+	-- §15ъ Ч2: в верхней полосе — значок «Судного дня» с таймером (nil — нет) и колокольчик ждущих карточек.
+	setDoom: (text: string?) -> (),
+	setBell: (count: number) -> (),
+	bell: TextButton,
 }
 
 local MatchHud = {}
@@ -269,6 +274,42 @@ function MatchHud.new(
 	local controlText = richLabel(controlCol, 13)
 	controlText.LayoutOrder = 3
 	local topDivider = divider
+	-- §15ъ Ч2: справа в верхней полосе — значок «Судного дня» (таймер) и колокольчик (ждущие карточки по центру).
+	local extraCol = Instance.new("Frame")
+	extraCol.Name = "TopExtra"
+	extraCol.BackgroundTransparency = 1
+	extraCol.AutomaticSize = Enum.AutomaticSize.XY
+	extraCol.Size = UDim2.fromOffset(0, 0)
+	extraCol.LayoutOrder = 4
+	extraCol.Parent = top
+	do
+		local l = Instance.new("UIListLayout")
+		l.FillDirection = Enum.FillDirection.Horizontal
+		l.VerticalAlignment = Enum.VerticalAlignment.Center
+		l.SortOrder = Enum.SortOrder.LayoutOrder
+		l.Padding = UDim.new(0, 8)
+		l.Parent = extraCol
+	end
+	local doomLabel = richLabel(extraCol, 14)
+	doomLabel.Name = "DoomBadge"
+	doomLabel.FontFace = Theme.FontBold
+	doomLabel.TextColor3 = Theme.Colors.Alert
+	doomLabel.LayoutOrder = 1
+	doomLabel.Visible = false
+	local bell = Instance.new("TextButton")
+	bell.Name = "Bell"
+	bell.AutoButtonColor = true
+	bell.BackgroundColor3 = Theme.Colors.Gold
+	bell.TextColor3 = Theme.color("Ink")
+	bell.FontFace = Theme.FontBold
+	bell.TextSize = 15
+	bell.AutomaticSize = Enum.AutomaticSize.X
+	bell.Size = UDim2.fromOffset(BUTTON, 36)
+	bell.LayoutOrder = 2
+	bell.Visible = false
+	bell.Parent = extraCol
+	MenuKit.corner(bell, 18)
+	MenuKit.pad(bell, 10, 0)
 	-- Справа сверху — место по суше «#N · M%» (стоит первым в столбике TopRight, Main.client).
 	local placeChip = panel(gui, "PlaceChip")
 	placeChip.AnchorPoint = Vector2.new(1, 0)
@@ -1320,6 +1361,20 @@ function MatchHud.new(
 		topShown = function(): boolean
 			return top.Visible
 		end,
+		setDoom = function(text: string?)
+			doomLabel.Visible = text ~= nil
+			if text ~= nil and doomLabel.Text ~= text then
+				doomLabel.Text = text
+			end
+		end,
+		setBell = function(count: number)
+			bell.Visible = count > 0
+			local text = "🔔 " .. tostring(count)
+			if bell.Text ~= text then
+				bell.Text = text
+			end
+		end,
+		bell = bell,
 		setCompact = function(c: boolean, feedW: number)
 			local phoneCfg = Config.Render.Phone.Hud
 			feedMax = if c then phoneCfg.FeedLines else Config.Render.FeedLines

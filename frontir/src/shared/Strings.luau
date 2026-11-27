@@ -857,6 +857,8 @@ local TABLE: { [string]: Entry } = {
 		en = "Tap near it again or «Build here»",
 	},
 	["build.confirm"] = { ru = "✓ Построить здесь", en = "✓ Build here" },
+	["doom.badgeSoon"] = { ru = "☢ через %s", en = "☢ in %s" },
+	["doom.badge"] = { ru = "☢ планка %.0f%% · волна %s", en = "☢ bar %.0f%% · wave %s" },
 	["build.title"] = { ru = "СТРОЙКА", en = "BUILD" },
 	["build.keys"] = {
 		ru = "1–9 — выбрать · Shift+клик — ещё одно · Esc — отмена",
