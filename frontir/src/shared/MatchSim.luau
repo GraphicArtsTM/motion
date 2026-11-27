@@ -30,6 +30,7 @@ local Air = require("./Air")
 local BotBrain = require("./BotBrain")
 local Buildings = require("./Buildings")
 local Config = require("./Config")
+local Command = require("./Command")
 local Commanders = require("./Commanders")
 local Council = require("./Council")
 local Diplomacy = require("./Diplomacy")
@@ -71,6 +72,7 @@ type Attack = Types.Attack
 
 export type MatchEvent =
 	{ kind: "eliminated", nation: number, by: number }
+	| { kind: "commandTaken", nation: number } -- §15ь Л1: держава бота перешла к человеку
 	-- §15з «часы судного дня»: держава ниже планки (left — секунд до распада) и распад
 	| { kind: "doomWarning", nation: number, bar: number, left: number }
 	| { kind: "doomCollapse", nation: number, bar: number }
@@ -389,6 +391,8 @@ export type Match = {
 	finaleOff: boolean, -- без «Все против лидера» — только для замеров (tools/bot_arena noFinale)
 	-- §15й Й5: счётчики матча — сколько городов взяла держава и сколько денег трофеев получила.
 	citiesTaken: { [number]: number },
+	launched: { [number]: number }, -- §15ь Л1: сколько ракет и боеголовок пустила держава (боевой отчёт)
+	commandUsed: { [number]: boolean }, -- §15ь Л1: userId уже принимал командование в этом матче
 	trophyMoney: { [number]: number },
 	trophyOff: boolean, -- без трофеев, «Триумфа» и «Давида и Голиафа» — только для замеров (tools/bot_arena noTrophy)
 }
@@ -493,6 +497,8 @@ function MatchSim.new(map: MapData, seed: number): Match
 		triumphUntil = {},
 		trophyOff = false,
 		citiesTaken = {},
+		launched = {},
+		commandUsed = {},
 		trophyMoney = {},
 		finaleNear = false,
 		finaleBloc = nil,
@@ -4358,6 +4364,7 @@ function MatchSim.launch(m: Match, n: Nation, cell: number, warhead: Types.Warhe
 		warning = nuke.warningSec
 	end
 	m.missileReady[n.id] = m.simTime + cfg.cooldownSec
+	m.launched[n.id] = (m.launched[n.id] or 0) + 1
 	local radius = MatchSim.warheadRadius(m, kind) -- §15р: круг фиксируется при пуске
 	table.insert(
 		m.missiles,
@@ -7846,7 +7853,7 @@ function MatchSim.finishByTime(m: Match)
 end
 
 -- §15й Й5: счётчики матча державы — взято городов, деньги трофеев, выполнено задач, пик доли суши (%).
-export type MatchStats = { cities: number, trophies: number, tasks: number, peak: number }
+export type MatchStats = { cities: number, trophies: number, tasks: number, peak: number, warheads: number }
 function MatchSim.matchStats(m: Match, id: number): MatchStats
 	-- Пик — с точностью до десятых: «0.1%», а не «0%» у маленькой державы (точки графика — целые проценты).
 	local peak = Grid.cellsOf(m.grid, id) / math.max(1, m.grid.capturableCount) * 100
@@ -7861,7 +7868,54 @@ function MatchSim.matchStats(m: Match, id: number): MatchStats
 		trophies = math.floor(m.trophyMoney[id] or 0),
 		tasks = if st ~= nil then st.done else 0,
 		peak = peak,
+		warheads = m.launched[id] or 0,
 	}
+end
+
+-- §15ь Л1 «Принять командование»: держава бота для выбывшего (Command.candidate по суше живых держав).
+function MatchSim.commandCandidate(m: Match): number?
+	local rows: { Command.Row } = {}
+	for _, n in m.nations do
+		table.insert(rows, { id = n.id, land = Grid.cellsOf(m.grid, n.id), bot = n.isBot, alive = n.alive })
+	end
+	return Command.candidate(rows)
+end
+
+-- Игрок userId берёт под управление державу бота; вернёт её id или причину отказа (ключ reject.*).
+function MatchSim.takeCommand(m: Match, userId: number): (number?, string?)
+	local living = false
+	for _, n in m.nations do
+		if n.userId == userId and n.alive then
+			living = true
+		end
+	end
+	local limit = m.rules.timeLimitSec
+	local ok, why = Command.allowed({
+		phase = m.phase :: string,
+		duel = m.rules.duel == true,
+		tutorial = m.rules.tutorial == true,
+		secLeft = if limit > 0 then limit - m.time else math.huge,
+		used = m.commandUsed[userId] == true,
+		living = living,
+	})
+	if not ok then
+		return nil, why
+	end
+	local id = MatchSim.commandCandidate(m)
+	if id == nil then
+		return nil, "commandNoBot"
+	end
+	local n = m.nations[id]
+	n.isBot = false
+	n.userId = userId
+	n.botLevel = nil
+	n.personality = nil
+	m.botProfiles[id] = nil
+	m.botNextThink[id] = nil
+	m.commandUsed[userId] = true
+	m.infoDirty = true
+	table.insert(m.events, { kind = "commandTaken", nation = id })
+	return id, nil
 end
 
 -- «Охота на столицы» (§5.1): сколько исходных столиц врагов держит каждая живая держава; кто держит

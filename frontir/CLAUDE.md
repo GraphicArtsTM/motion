@@ -446,6 +446,9 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
   `Glyphs.spec`; новый значок — `MenuKit.icon` с PNG в `assets/icons/ui`). Телефон: окна (`WindowsToggle`, вниз),
   инструменты у мини-карты (`ToolsToggle`, вверх), удары (`StrikesToggle`, вниз) — столбики не сдвигают раскладку
   (`MapButtons.count / toolCount` на телефоне = 1). «Магазин» — на полосе (решение геймдизайнера).
+- §15ь Л1 боевой отчёт: `UI/DefeatScreen` (место — живые при выбывании + 1, `stats.warheads` ← `m.launched`);
+  «Принять командование» — чистый `Command`, `MatchSim.takeCommand / commandCandidate` (`m.commandUsed`), намерение
+  `command`; «Следующий матч» — намерение `nextMatch` → хаб с `TeleportData.quick` → быстрый вход. Тест `Command.spec`.
 
 ## Платные части, пропуск, ящики (этап 9б)
 - Бусты `Guards`, `Airstrike` (цель — `cell`, `MatchSim.strikeAt`), `Squadron`, `AirWing` — в `MatchSim.useBoost`.

@@ -1054,6 +1054,19 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		end
 		if isHub then
 			task.spawn(routeToFriend, player) -- §15ъ: пришёл по приглашению или «за другом» — сразу в его матч
+			-- §15ь Л1: пришёл «Следующим матчем» из боевого отчёта — сразу быстрый вход.
+			task.spawn(function()
+				local okJoin, join = pcall(function(): any
+					return player:GetJoinData()
+				end)
+				local data = if okJoin and type(join) == "table" then join.TeleportData else nil
+				if type(data) == "table" and data.quick == true and player.Parent == Players then
+					task.wait(Config.Places.QuickJoinDelaySec) -- профиль и список матчей успевают загрузиться
+					if player.Parent == Players then
+						travelToMatch(player, nil, nil)
+					end
+				end
+			end)
 		end
 		checkPrivate(player)
 		-- Профиль грузится в фоне (DataStore может ждать блокировку сессии).
@@ -1405,6 +1418,34 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			if role == "match" and (since == nil or os.clock() - since >= Config.Places.RetrySec) then
 				task.spawn(travel, { player }, Config.Places.Hub, nil)
 			end
+			return
+		end
+		-- §15ь Л1 «Следующий матч» из боевого отчёта: в хаб, там сразу быстрый вход (данные перехода quick).
+		if kind == "nextMatch" then
+			local since = travelling[player]
+			if role == "match" and (since == nil or os.clock() - since >= Config.Places.RetrySec) then
+				local options = Instance.new("TeleportOptions")
+				options:SetTeleportData({ quick = true })
+				task.spawn(travel, { player }, Config.Places.Hub, options)
+			end
+			return
+		end
+		-- §15ь Л1 «Принять командование»: выбывший (или зритель) берёт державу бота — сервер решает какую.
+		if kind == "command" then
+			if isHub or demoRunning then
+				return
+			end
+			local newId, why = MatchSim.takeCommand(m, player.UserId)
+			if newId == nil then
+				matchEvent:FireClient(player, { kind = "rejected", reason = why or "?", intent = kind })
+				return
+			end
+			nationOf[player] = newId
+			joined[player] = true
+			publishDirty = true
+			applyProfile(player)
+			sendInfoAll()
+			sendProfile(player)
 			return
 		end
 		if id == nil then

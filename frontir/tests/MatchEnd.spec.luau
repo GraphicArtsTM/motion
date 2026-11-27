@@ -84,7 +84,7 @@ T.describe("Счётчики матча (§15й Й5)", function()
 			ClientState.applyTask(cs, MatchStats.task(m, 1), 0)
 			local got = (
 					cs.task :: ClientState.TaskMessage
-				).stats :: { cities: number, trophies: number, tasks: number, peak: number }
+				).stats :: { cities: number, trophies: number, tasks: number, peak: number, warheads: number? }
 			T.expect(got.cities).toBe(2)
 			T.expect(got.trophies).toBe(st.trophies)
 		end

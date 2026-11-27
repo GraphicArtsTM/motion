@@ -224,7 +224,7 @@ export type TaskMessage = {
 	streak: number,
 	nextIn: number,
 	land: number, -- вся захватываемая суша карты (для «до N% суши»)
-	stats: { cities: number, trophies: number, tasks: number, peak: number }?, -- §15й Й5: счётчики матча
+	stats: { cities: number, trophies: number, tasks: number, peak: number, warheads: number? }?, -- §15й Й5: счётчики матча
 }
 
 -- Мир (§6.16, §6.9, этап 7г): шторм, аукцион наёмников, ракеты в полёте, новые нефтяные поля, своя шахта.
@@ -722,6 +722,7 @@ function ClientState.applyTask(cs: ClientState, msg: any, now: number)
 				trophies = math.max(0, num(msg.stats.trophies)),
 				tasks = math.max(0, num(msg.stats.tasks)),
 				peak = math.max(0, num(msg.stats.peak)),
+				warheads = math.max(0, num(msg.stats.warheads)), -- §15ь Л1: боевой отчёт
 			}
 			else nil,
 	}
