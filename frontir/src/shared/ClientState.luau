@@ -285,6 +285,11 @@ export type RailsState = {
 	seaway: { [number]: number }, -- §15ч Ч6: клетка моря на морской линии → держава
 }
 
+-- §15ь Л3 «Отряд»: участники (лидер первым) и входящее приглашение.
+export type PartyMember = { id: number, name: string, level: number }
+export type PartyInfo = { leader: number, members: { PartyMember } }
+export type PartyInviteInfo = { from: number, name: string, untilAt: number }
+
 export type ClientState = {
 	width: number,
 	height: number,
@@ -340,6 +345,8 @@ export type ClientState = {
 	place: string, -- §15л ч.3: роль сервера ("hub", "match", "combined")
 	demo: boolean, -- §15л ч.7: за меню — показательный бой
 	servers: { ServerRow }, -- хаб: серверы матча
+	party: PartyInfo?, -- §15ь Л3: отряд (nil — не в отряде)
+	partyInvite: PartyInviteInfo?, -- §15ь Л3: зовут в отряд
 	serversAt: number, -- когда пришёл список (часы клиента; для отсчётов)
 	travel: string?, -- переход в другое место: "going", "failed" или nil
 	travelReason: string?, -- почему не вышло ("badCode" — нет такого кода)
@@ -536,6 +543,8 @@ function ClientState.new(width: number, height: number): ClientState
 		place = "combined",
 		demo = false,
 		servers = {},
+		party = nil,
+		partyInvite = nil,
 		serversAt = 0,
 		travel = nil,
 		travelReason = nil,
@@ -1516,6 +1525,39 @@ function ClientState.victoryLeader(cs: ClientState): (number, number)
 		end
 	end
 	return best, math.max(bestLand, 0)
+end
+
+-- §15ь Л3: сообщение «party» — отряд (меньше двух участников или мусор — не в отряде).
+function ClientState.applyParty(cs: ClientState, msg: any)
+	cs.party = nil
+	if type(msg) ~= "table" or type(msg.leader) ~= "number" or type(msg.members) ~= "table" then
+		return
+	end
+	local members: { PartyMember } = {}
+	for _, m in msg.members do
+		if type(m) == "table" and type(m.id) == "number" and type(m.name) == "string" then
+			table.insert(members, {
+				id = m.id,
+				name = string.sub(m.name, 1, 40),
+				level = if type(m.level) == "number" then math.clamp(math.floor(m.level), 1, 999) else 1,
+			})
+		end
+		if #members >= Config.Party.Max then
+			break
+		end
+	end
+	if #members >= 2 then
+		cs.party = { leader = msg.leader, members = members }
+	end
+end
+
+-- §15ь Л3: сообщение «partyInvite» — кто зовёт; действует left секунд от now.
+function ClientState.applyPartyInvite(cs: ClientState, msg: any, now: number)
+	if type(msg) ~= "table" or type(msg.from) ~= "number" or type(msg.name) ~= "string" then
+		return
+	end
+	local left = if type(msg.left) == "number" then math.clamp(msg.left, 0, Config.Party.InviteSec) else 0
+	cs.partyInvite = { from = msg.from, name = string.sub(msg.name, 1, 40), untilAt = now + left }
 end
 
 return table.freeze(ClientState)

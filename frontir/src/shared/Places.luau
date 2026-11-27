@@ -130,16 +130,23 @@ end
 
 -- §15ъ: данные приглашения (LaunchData — JSON, который уже разобрал вызывающий) → куда вести: сервер (psid
 -- резервного сервера) или код своего матча. Что угодно другое — nil.
-function Places.invite(raw: any): { psid: string?, code: string? }?
+function Places.invite(raw: any): { psid: string?, code: string?, party: number? }?
 	if type(raw) ~= "table" then
 		return nil
 	end
 	local psid = if type(raw.psid) == "string" and #raw.psid > 0 and #raw.psid <= 64 then raw.psid else nil
 	local code = Places.normalizeCode(raw.code)
-	if psid == nil and code == nil then
+	-- §15ь Л3: зовут в отряд (UserId лидера) — в хабе друг сразу в его отряде.
+	local party = if type(raw.party) == "number"
+			and raw.party >= 1
+			and raw.party < 2 ^ 53
+			and raw.party % 1 == 0
+		then raw.party
+		else nil
+	if psid == nil and code == nil and party == nil then
 		return nil
 	end
-	return { psid = psid, code = code }
+	return { psid = psid, code = code, party = party }
 end
 
 function Places.action(e: Entry): Action

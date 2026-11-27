@@ -151,6 +151,10 @@ function MatchClient.connect(cs: ClientState, handlers: Handlers, mapId: string?
 				end
 			elseif msg.kind == "servers" then
 				ClientState.applyServers(cs, msg.list, os.clock()) -- §15л ч.3: список матчей в хабе
+			elseif msg.kind == "party" then
+				ClientState.applyParty(cs, msg) -- §15ь Л3: отряд
+			elseif msg.kind == "partyInvite" then
+				ClientState.applyPartyInvite(cs, msg, os.clock()) -- §15ь Л3: зовут в отряд
 			elseif msg.kind == "travel" then
 				cs.travel = if msg.state == "going" or msg.state == "failed" then msg.state else nil
 				cs.travelReason = if type(msg.reason) == "string" then msg.reason else nil

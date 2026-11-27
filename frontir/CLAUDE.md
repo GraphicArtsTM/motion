@@ -449,6 +449,9 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
 - §15ь Л1 боевой отчёт: `UI/DefeatScreen` (место — живые при выбывании + 1, `stats.warheads` ← `m.launched`);
   «Принять командование» — чистый `Command`, `MatchSim.takeCommand / commandCandidate` (`m.commandUsed`), намерение
   `command`; «Следующий матч» — намерение `nextMatch` → хаб с `TeleportData.quick` → быстрый вход. Тест `Command.spec`.
+- §15ь Л3 отряд (хаб): чистый `Party`, намерения `partyInvite / partyReply / partyLeave`, `sendParty`, с лидером едет
+  отряд (`companionsOf` в `travelToMatch`), уровень — атрибут `FrontirLevel`; приглашение друзей из хаба —
+  `LaunchData { party }`. Клиент — `UI/PartyPanel` (в `mainMenu.side` и слое окон), `ClientState.applyParty`.
 
 ## Платные части, пропуск, ящики (этап 9б)
 - Бусты `Guards`, `Airstrike` (цель — `cell`, `MatchSim.strikeAt`), `Squadron`, `AirWing` — в `MatchSim.useBoost`.

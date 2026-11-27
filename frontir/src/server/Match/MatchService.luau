@@ -41,6 +41,7 @@ local RateLimiter = require(Shared:WaitForChild("RateLimiter"))
 local ServerSettings = require(Shared:WaitForChild("ServerSettings"))
 local Cosmetics = require(Shared:WaitForChild("Cosmetics"))
 local Places = require(Shared:WaitForChild("Places"))
+local Party = require(Shared:WaitForChild("Party"))
 local Profile = require(Shared:WaitForChild("Profile"))
 local Quests = require(Shared:WaitForChild("Quests"))
 local Shop = require(Shared:WaitForChild("Shop"))
@@ -374,7 +375,43 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		local msg = profileMessage(player)
 		if msg ~= nil then
 			matchEvent:FireClient(player, msg)
+			player:SetAttribute("FrontirLevel", msg.level) -- §15ь Л3: уровень виден другим (окно «Пригласить»)
 		end
+	end
+	-- §15ь Л3 «Отряд» (хаб): состояние и сообщение «party» участникам (лидер, участники с уровнем).
+	local party = Party.new()
+	local function sendParty(users: { number })
+		for _, u in users do
+			local p = Players:GetPlayerByUserId(u)
+			if p ~= nil then
+				local list = {}
+				for _, id in Party.membersOf(party, u) do
+					local who = Players:GetPlayerByUserId(id)
+					if who ~= nil then
+						table.insert(list, {
+							id = id,
+							name = who.DisplayName,
+							level = tonumber(who:GetAttribute("FrontirLevel")) or 1,
+						})
+					end
+				end
+				matchEvent:FireClient(p, { kind = "party", leader = Party.leaderOf(party, u), members = list })
+			end
+		end
+	end
+	-- Кто едет с лидером: участники его отряда на этом сервере (кроме него).
+	local function companionsOf(player: Player): { Player }
+		local out: { Player } = {}
+		if Party.leaderOf(party, player.UserId) ~= player.UserId then
+			return out
+		end
+		for _, id in Party.membersOf(party, player.UserId) do
+			local who = Players:GetPlayerByUserId(id)
+			if who ~= nil and who ~= player then
+				table.insert(out, who)
+			end
+		end
+		return out
 	end
 	-- Перки пассов и открытые генералы игрока — в текущий матч.
 	local function applyProfile(player: Player)
@@ -641,6 +678,8 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		end
 	end
 	function travelToMatch(player: Player, serverId: string?, req: Lobbies.Request?)
+		-- §15ь Л3: лидер отряда едет с отрядом (не «одному»).
+		local companions: { Player } = if req ~= nil and req.solo then {} else companionsOf(player)
 		local since = travelling[player]
 		if since ~= nil and os.clock() - since < Config.Places.RetrySec then
 			return
@@ -684,7 +723,11 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				else
 					options.ServerInstanceId = e.id
 				end
-				travel({ player }, Places.matchPlace(), options)
+				local going = { player }
+				for _, c in companions do
+					table.insert(going, c)
+				end
+				travel(going, Places.matchPlace(), options)
 				return
 			end
 			-- Свободного матча нет — новый резервный сервер пары (карта и режим — в данных перехода); кто нажал за
@@ -697,11 +740,16 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				elseif req.solo then "solo:" .. player.UserId
 				else req.map .. "|" .. req.mode
 			local group: { Player } = { player }
+			for _, c in companions do
+				table.insert(group, c)
+			end
 			if req == nil or not req.solo then
 				local waiting = batches[key]
 				if waiting ~= nil then
-					table.insert(waiting, player)
-					matchEvent:FireClient(player, { kind = "travel", state = "going" })
+					for _, p in group do
+						table.insert(waiting, p)
+						matchEvent:FireClient(p, { kind = "travel", state = "going" })
+					end
 					return
 				end
 				batches[key] = group
@@ -984,13 +1032,23 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			return player:GetJoinData()
 		end)
 		local launch = if okJoin and type(join) == "table" then join.LaunchData else nil
-		local inv: { psid: string?, code: string? }? = nil
+		local inv: { psid: string?, code: string?, party: number? }? = nil
 		if type(launch) == "string" and #launch > 0 and #launch <= 500 then
 			local okJson, data = pcall(function(): any
 				return HttpService:JSONDecode(launch)
 			end)
 			if okJson then
 				inv = Places.invite(data)
+			end
+		end
+		-- §15ь Л3: позвали в отряд — лидер здесь: сразу в его отряде (ехать дальше не нужно).
+		if inv ~= nil and inv.party ~= nil and Players:GetPlayerByUserId(inv.party) ~= nil then
+			local now = os.clock()
+			if Party.invite(party, inv.party, player.UserId, now) and Party.reply(party, player.UserId, true, now) then
+				sendParty(Party.membersOf(party, player.UserId))
+			end
+			if inv.psid == nil and inv.code == nil then
+				return
 			end
 		end
 		local follow = player.FollowUserId
@@ -1132,6 +1190,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			end
 			MatchSim.removePlayer(m, id)
 		end
+		sendParty(Party.leave(party, player.UserId)) -- §15ь Л3: ушёл — отряд без него
 		nationOf[player] = nil
 		joined[player] = nil
 		limiters[player] = nil
@@ -1376,9 +1435,53 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			return
 		end
 		-- §15л ч.3: «В БОЙ» в хабе и «Главное меню» на сервере матча — переходы между местами.
+		-- §15ь Л3 «Отряд»: позвать игрока этого сервера, ответить, выйти.
+		if kind == "partyInvite" or kind == "partyReply" or kind == "partyLeave" then
+			if not isHub then
+				return
+			end
+			local now = os.clock()
+			if kind == "partyInvite" then
+				local to = if type(payload) == "table" then tonumber(payload.user) else nil
+				local target = if to ~= nil then Players:GetPlayerByUserId(to) else nil
+				if target == nil then
+					matchEvent:FireClient(player, { kind = "rejected", reason = "target", intent = kind })
+					return
+				end
+				local ok, why = Party.invite(party, player.UserId, target.UserId, now)
+				if not ok then
+					matchEvent:FireClient(player, { kind = "rejected", reason = why or "?", intent = kind })
+					return
+				end
+				matchEvent:FireClient(target, {
+					kind = "partyInvite",
+					from = player.UserId,
+					name = player.DisplayName,
+					left = Config.Party.InviteSec,
+				})
+			elseif kind == "partyReply" then
+				local accept = type(payload) == "table" and payload.accept == true
+				local leader, why = Party.reply(party, player.UserId, accept, now)
+				if leader ~= nil then
+					sendParty(Party.membersOf(party, player.UserId))
+				elseif why ~= nil then
+					matchEvent:FireClient(player, { kind = "rejected", reason = why, intent = kind })
+				end
+			else
+				sendParty(Party.leave(party, player.UserId))
+				sendParty({ player.UserId })
+			end
+			return
+		end
 		if kind == "play" then
 			local server = if type(payload) == "table" and type(payload.server) == "string" then payload.server else nil
 			local req = if server == nil then Lobbies.request(payload) else nil
+			-- §15ь Л3: в отряде в матч ведёт лидер (участник ждёт или выходит из отряда).
+			local leader = Party.leaderOf(party, player.UserId)
+			if isHub and leader ~= nil and leader ~= player.UserId and not (req ~= nil and req.solo) then
+				matchEvent:FireClient(player, { kind = "rejected", reason = "partyLeaderOnly", intent = kind })
+				return
+			end
 			if isHub then
 				travelToMatch(player, server, req)
 			elseif role == "combined" then

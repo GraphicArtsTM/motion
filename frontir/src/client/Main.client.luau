@@ -75,6 +75,7 @@ local ThreatPanel = require(UI:WaitForChild("ThreatPanel"))
 local LogisticsPanel = require(UI:WaitForChild("LogisticsPanel"))
 local GameMenu = require(UI:WaitForChild("GameMenu"))
 local MainMenu = require(UI:WaitForChild("MainMenu"))
+local PartyPanel = require(UI:WaitForChild("PartyPanel"))
 local RanksPanel = require(UI:WaitForChild("RanksPanel"))
 local HandbookPanel = require(UI:WaitForChild("HandbookPanel"))
 local HowToPlay = require(UI:WaitForChild("HowToPlay"))
@@ -557,6 +558,9 @@ local function runSession(mapId: string, resync: boolean)
 			local inv = cs.invite
 			if inv ~= nil then
 				options.LaunchData = HttpService:JSONEncode({ psid = inv.psid, code = inv.code })
+			elseif cs.place == "hub" then
+				-- §15ь Л3: из хаба — зовём в свой отряд (друг войдёт и сразу будет в нём).
+				options.LaunchData = HttpService:JSONEncode({ party = player.UserId })
 			end
 			pcall(function()
 				SocialService:PromptGameInvite(player, options)
@@ -961,6 +965,8 @@ local function runSession(mapId: string, resync: boolean)
 			end
 		end,
 	})
+	-- §15ь Л3 «Отряд»: плашка в колонке меню, окно «Пригласить» и приглашение — в слое окон (только хаб).
+	local partyPanel = PartyPanel.new(mainMenu.side, windowsGui, cs, lang, send, inviteFriends)
 	-- Сервер матча (§15л ч.3): главное меню — в хабе, переход туда; иначе — меню поверх матча.
 	local function toMainMenu()
 		if cs.place == "match" then
@@ -2721,6 +2727,7 @@ local function runSession(mapId: string, resync: boolean)
 		dock.update(now)
 		lobby.update(now)
 		mainMenu.update(now)
+		partyPanel.update(now) -- §15ь Л3: отряд (хаб)
 		-- Переход в хаб не удался (§15л ч.3) — сказать один раз.
 		if cs.travel == "failed" and cs.place ~= "hub" and travelToastAt ~= cs.travelAt then
 			travelToastAt = cs.travelAt
