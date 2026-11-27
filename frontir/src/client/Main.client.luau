@@ -966,7 +966,7 @@ local function runSession(mapId: string, resync: boolean)
 		end,
 	})
 	-- §15ь Л3 «Отряд»: плашка в колонке меню, окно «Пригласить» и приглашение — в слое окон (только хаб).
-	local partyPanel = PartyPanel.new(mainMenu.side, windowsGui, cs, lang, send, inviteFriends)
+	local partyPanel = PartyPanel.new(mainMenu.side, mainMenu.phoneSide, windowsGui, cs, lang, send, inviteFriends)
 	-- Сервер матча (§15л ч.3): главное меню — в хабе, переход туда; иначе — меню поверх матча.
 	local function toMainMenu()
 		if cs.place == "match" then

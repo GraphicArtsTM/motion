@@ -82,6 +82,12 @@ end
 -- user выходит (или ушёл с сервера). Вернёт участников, которым надо сообщить (кроме него).
 function Party.leave(st: State, user: number): { number }
 	st.invites[user] = nil
+	-- Его приглашения больше не действуют (иначе принявший попал бы в отряд без лидера на сервере).
+	for to, inv in st.invites do
+		if inv.from == user then
+			st.invites[to] = nil
+		end
+	end
 	local leader = st.of[user]
 	if leader == nil then
 		return {}

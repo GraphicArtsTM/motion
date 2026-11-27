@@ -37,7 +37,8 @@ local BUTTON = Config.Render.MinTouchTargetPx
 local WIN_W, ROW_H = 420, 52
 
 function PartyPanel.new(
-	side: Instance, -- колонка главного меню
+	side: GuiObject, -- колонка главного меню
+	phoneSide: GuiObject, -- на телефоне колонка слева скрыта — плашка в колонке справа (с логотипом и плитками)
 	windows: ScreenGui, -- слой окон
 	cs: ClientState,
 	lang: Strings.Lang,
@@ -289,6 +290,13 @@ function PartyPanel.new(
 		nextAt = now + 0.25
 		local hub = cs.place == "hub"
 		panel.Visible = hub
+		-- Телефон: колонка слева скрыта — плашка в колонке справа, уже и без подсказки.
+		local host = if side.Visible then side else phoneSide
+		if panel.Parent ~= host then
+			panel.Parent = host
+			panel.LayoutOrder = if host == phoneSide then 3 else 2
+			panel.Size = if host == phoneSide then UDim2.fromOffset(240, 0) else UDim2.fromScale(1, 0)
+		end
 		if not hub then
 			window.Visible = false
 			card.Visible = false
@@ -306,7 +314,7 @@ function PartyPanel.new(
 				l.Text = string.format(t("party.member"), m.name, m.level) .. lead
 			end
 		end
-		hint.Visible = party == nil
+		hint.Visible = party == nil and host == side
 		leaveButton.Visible = party ~= nil
 		local leadOrSolo = party == nil or party.leader == me.UserId
 		inviteButton.Visible = leadOrSolo and (party == nil or #party.members < Config.Party.Max)

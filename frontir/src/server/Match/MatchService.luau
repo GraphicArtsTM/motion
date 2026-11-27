@@ -795,7 +795,12 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				code = code,
 				lobby = if req ~= nil then { map = req.map, mode = req.mode } else nil,
 			})
-			local result = travel({ player }, Places.matchPlace(), options)
+			-- §15ь Л3: свой матч лидера — с отрядом.
+			local going = { player }
+			for _, c in companionsOf(player) do
+				table.insert(going, c)
+			end
+			local result = travel(going, Places.matchPlace(), options)
 			if result ~= nil then
 				list.savePrivate(code, {
 					access = result.ReservedServerAccessCode,
@@ -825,7 +830,12 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 			local options = Instance.new("TeleportOptions")
 			options.ReservedServerAccessCode = rec.access
 			options:SetTeleportData({ code = code })
-			travel({ player }, Places.matchPlace(), options)
+			-- §15ь Л3: лидер отряда входит по коду — с отрядом.
+			local going = { player }
+			for _, c in companionsOf(player) do
+				table.insert(going, c)
+			end
+			travel(going, Places.matchPlace(), options)
 		end)
 	end
 	-- Сервер матча: пришёл игрок с кодом — проверить код и стать «своим матчем» (владелец — создатель кода).

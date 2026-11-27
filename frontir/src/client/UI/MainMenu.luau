@@ -66,6 +66,7 @@ export type MainMenu = {
 	isOpen: () -> boolean,
 	update: (now: number) -> (),
 	side: Frame, -- §15ь Л3: колонка слева (плашка «Отряд»)
+	phoneSide: Frame, -- §15ь Л3: на телефоне колонка слева скрыта — плашка «Отряд» справа
 }
 
 local MainMenu = {}
@@ -870,6 +871,7 @@ function MainMenu.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, mapNa
 		end,
 		update = update,
 		side = left, -- §15ь Л3: колонка слева (плашка «Отряд»)
+		phoneSide = phoneSide,
 	}
 end
 

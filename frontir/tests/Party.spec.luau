@@ -41,6 +41,14 @@ T.describe("Отряд (§15ь Л3)", function()
 		end
 	)
 
+	T.it("ушёл позвавший — его приглашение больше не принять", function()
+		local st = Party.new()
+		Party.invite(st, 1, 2, 0)
+		Party.leave(st, 1)
+		T.expect(select(2, Party.reply(st, 2, true, 1))).toBe("partyExpired")
+		T.expect(Party.leaderOf(st, 2)).toBe(nil)
+	end)
+
 	T.it(
 		"ушёл лидер — лидер следующий; остался один — отряда нет",
 		function()

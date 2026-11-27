@@ -157,6 +157,7 @@ function DefeatScreen.new(
 
 	local shown = false
 	local commanded = false -- в этом матче уже принимали командование (Command.OncePerMatch)
+	local fallenId: number? = nil -- павшая своя держава (отчёт о ней)
 	local fellAt: number? = nil -- сколько держав было живо, когда пала своя (место)
 	local total = 0
 	Session.connect(watch.Activated, function()
@@ -263,6 +264,7 @@ function DefeatScreen.new(
 			end
 			if me ~= nil and not shown and type(e) == "table" and e.kind == "eliminated" and e.nation == me then
 				shown = true
+				fallenId = me
 				local by = tonumber(e.by) or 0
 				local lived = clock(ClientState.matchTime(cs, os.clock()))
 				nameLabel.Text = string.upper(nameOf(me))
@@ -294,7 +296,7 @@ function DefeatScreen.new(
 		if frame.Visible then
 			if cs.phase ~= "Play" then
 				frame.Visible = false
-			elseif mine ~= nil and mine.alive then
+			elseif mine ~= nil and mine.alive and cs.myNation ~= fallenId then
 				frame.Visible = false -- приняли командование: снова есть живая держава
 				shown = false
 				commanded = true
@@ -307,6 +309,7 @@ function DefeatScreen.new(
 			shown = false -- новый матч — новая карточка
 			fellAt = nil
 			commanded = false
+			fallenId = nil
 		end
 	end
 
