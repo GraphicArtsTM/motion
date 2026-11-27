@@ -35,7 +35,7 @@ function SirenPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang, foc
 	frame.Size = UDim2.fromOffset(560, 0)
 	frame.AutomaticSize = Enum.AutomaticSize.Y
 	frame.BackgroundColor3 = Theme.Colors.Alert
-	frame.BackgroundTransparency = 0.1
+	frame.BackgroundTransparency = 0.03 -- §15ъ: непрозрачная
 	frame.BorderSizePixel = 0
 	frame.Visible = false
 	frame.Parent = gui

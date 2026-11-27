@@ -124,7 +124,7 @@ function AttackPanel.new(
 		f.Name = "Row" .. k
 		f.Size = UDim2.new(1, 0, 0, cfg.RowPx)
 		f.BackgroundColor3 = Theme.Colors.Backdrop
-		f.BackgroundTransparency = 0.2
+		f.BackgroundTransparency = 0.05 -- §15ъ: текст карты не просвечивает
 		f.BorderSizePixel = 0
 		f.LayoutOrder = k
 		f.Visible = false

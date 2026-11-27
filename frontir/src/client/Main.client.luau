@@ -34,6 +34,7 @@ local MapIcons = require(Shared:WaitForChild("MapIcons"))
 local FreeArea = require(Shared:WaitForChild("FreeArea"))
 local AudioCues = require(Shared:WaitForChild("AudioCues"))
 local Config = require(Shared:WaitForChild("Config"))
+local HudFocus = require(Shared:WaitForChild("HudFocus"))
 local Flood = require(Shared:WaitForChild("Flood"))
 local MapDataModule = require(Shared:WaitForChild("MapData"))
 local Types = require(Shared:WaitForChild("Types"))
@@ -1459,14 +1460,7 @@ local function runSession(mapId: string, resync: boolean)
 		end
 		-- Столбики под верхней строкой: по центру — не шире места между колонками, справа — колонка.
 		local center = guiNamed("TopCenter")
-		-- §15й Й7: предложение бота на телефоне — первым в столбике сверху по центру (справа не помещалось, а внизу
-		-- закрывало полосу войны с кнопкой «Мир»).
-		local offer = hudGui:FindFirstChild("DiplomacyOffer", true)
-		if center ~= nil and offer ~= nil and offer:IsA("GuiObject") and offer.Parent ~= center then
-			offer.AnchorPoint = Vector2.new(0, 0)
-			offer.LayoutOrder = 0
-			offer.Parent = center
-		end
+		-- §15ъ: предложения (пакт, мир) — всегда в столбике по центру, в своих оболочках (HudFocus).
 		if center ~= nil then
 			center.Position = UDim2.fromOffset(lay.centerX, lay.topY)
 			local sc = scaleOf(center)
@@ -1570,13 +1564,6 @@ local function runSession(mapId: string, resync: boolean)
 				local right = guiNamed("TopRight")
 				if right ~= nil then
 					right.Position = UDim2.new(1, -12, 0, 8)
-					-- §15й Й7: предложение бота — обратно в столбик справа (после «Атак»).
-					local offer = hudGui:FindFirstChild("DiplomacyOffer", true)
-					if offer ~= nil and offer:IsA("GuiObject") then
-						offer.AnchorPoint = Vector2.new(0, 0)
-						offer.LayoutOrder = 5
-						offer.Parent = right
-					end
 				end
 				local center = guiNamed("TopCenter")
 				if center ~= nil then
@@ -1672,13 +1659,44 @@ local function runSession(mapId: string, resync: boolean)
 			end
 		end
 	end
-	stackInto(column("TopCenter", 0.5, UDim.new(0.5, 0), Enum.HorizontalAlignment.Center), {
+	-- §15ъ «Экран не мешает играть»: каждая карточка столбика — в своей оболочке; какие видны — решает HudFocus
+	-- (одна по порядку важности Config.Hud.Priority, остальные ждут — колокольчик). Видимость карточки решает её окно
+	-- (как раньше), видимость оболочки — фокус: окна ничего о нём не знают.
+	local focusGates: { [string]: { gate: Frame, card: GuiObject } } = {}
+	local function stackGated(target: Frame, names: { string })
+		for order, name in names do
+			local g = hudGui:FindFirstChild(name, true)
+			if g ~= nil and g:IsA("GuiObject") then
+				local gate = Instance.new("Frame")
+				gate.Name = "Gate" .. name
+				gate.BackgroundTransparency = 1
+				gate.BorderSizePixel = 0
+				gate.Size = UDim2.fromOffset(0, 0)
+				gate.AutomaticSize = Enum.AutomaticSize.XY
+				gate.LayoutOrder = order
+				gate.ZIndex = 1
+				gate.Visible = false
+				local l = Instance.new("UIListLayout")
+				l.SortOrder = Enum.SortOrder.LayoutOrder
+				l.HorizontalAlignment = Enum.HorizontalAlignment.Center
+				l.Parent = gate
+				gate.Parent = target
+				g.AnchorPoint = Vector2.new(0, 0)
+				g.LayoutOrder = 0
+				g.Parent = gate
+				focusGates[name] = { gate = gate, card = g }
+			end
+		end
+	end
+	stackGated(column("TopCenter", 0.5, UDim.new(0.5, 0), Enum.HorizontalAlignment.Center), {
 		"Alarm", -- §15ш Ш2: тревога — первой
 		"PhaseBanner",
 		"FinaleStrip", -- §15й Й3
 		"SpectateChip", -- §15й Й5
 		"Solo", -- §15ц Ц3: плашка «ПАУЗА · P — продолжить» (пауза и ×2 — в меню игры)
 		"Siren",
+		"PeaceOffer", -- §15ъ: предложение мира — строкой в столбике (было окно с картинками)
+		"DiplomacyOffer", -- §15ъ: пакт, союз, требование — тоже здесь (было справа)
 		"TaskCard", -- §15й Й1: задача матча
 		"ThreatLegend", -- §15х ч.4б
 		"LogisticsLegend", -- §15ч Ч5б
@@ -1699,8 +1717,47 @@ local function runSession(mapId: string, resync: boolean)
 	end
 	stackInto(
 		column("TopRight", 1, UDim.new(1, -12), Enum.HorizontalAlignment.Right),
-		{ "PlaceChip", "GiantChip", "TriumphChip", "Attacks", "DiplomacyOffer", "Leaders", "Auction" } -- §15й Й6
+		{ "PlaceChip", "GiantChip", "TriumphChip", "Attacks", "Leaders", "Auction" } -- §15й Й6; предложения — в центре (§15ъ)
 	)
+	-- §15ъ: фокус столбика — каждый кадр после всех окон (main loop → focus.tick). hold — вызванная колокольчиком.
+	local focusHold: string? = nil
+	local focusHoldUntil = 0
+	local focusWaiting: { string } = {}
+	local focusCleanUntil = 0 -- Ч3: чистая карта — пока двигают карту
+	local function focusDensity(): HudFocus.Density
+		local p = cs.profile :: any
+		local d = if p ~= nil then p.hudDensity else nil
+		return if d == "min" or d == "full" then d else "normal"
+	end
+	local function focusTick(now: number)
+		if focusHold ~= nil and now > focusHoldUntil then
+			focusHold = nil
+		end
+		local wanted: { [string]: boolean } = {}
+		for name, g in focusGates do
+			wanted[name] = g.card.Visible
+		end
+		local shown, waiting = HudFocus.pick(wanted, {
+			density = focusDensity(),
+			hold = focusHold,
+			clean = now < focusCleanUntil,
+		})
+		focusWaiting = waiting
+		for name, g in focusGates do
+			local on = shown[name] == true
+			if g.gate.Visible ~= on then
+				g.gate.Visible = on
+			end
+		end
+	end
+	-- Колокольчик (Ч2): показать следующую ждущую карточку на Hud.FocusHoldSec.
+	local function focusCycle()
+		local nextName = HudFocus.nextHold(focusWaiting, focusHold)
+		if nextName ~= nil then
+			focusHold = nextName
+			focusHoldUntil = os.clock() + Config.Hud.FocusHoldSec
+		end
+	end
 	-- §15ё телефон: столбик по центру ужимается до места между колонками — пересчёт при смене его размера.
 	do
 		local center = hudGui:FindFirstChild("TopCenter")
@@ -1726,7 +1783,7 @@ local function runSession(mapId: string, resync: boolean)
 	end
 	-- §15ё Ё8: нижние окна (стройка, здание, война, мир, фразы) — поверх ударов, мини-карты и полосы (на телефоне они
 	-- встают от низа экрана поверх полосы; с ZIndex 1 их перекрывали кнопки HUD).
-	for _, name in { "BuildMenu", "BuildingInfoPanel", "DeclareWar", "PeaceOffer", "Phrases" } do
+	for _, name in { "BuildMenu", "BuildingInfoPanel", "DeclareWar", "Phrases" } do
 		local sheet = hudGui:FindFirstChild(name)
 		if sheet ~= nil and sheet:IsA("GuiObject") and sheet.ZIndex < Config.Render.SheetZIndex then
 			sheet.ZIndex = Config.Render.SheetZIndex
@@ -2604,6 +2661,7 @@ local function runSession(mapId: string, resync: boolean)
 		if minimap ~= nil then
 			minimap.update(now, camera.state)
 		end
+		focusTick(now) -- §15ъ: после всех окон — какие карточки столбика видны
 	end)
 
 	local netBytes, netAt, netRate = 0, os.clock(), 0

@@ -823,7 +823,7 @@ function DiplomacyPanel.new(
 	-- Входящее предложение или требование. §15й Й6: справа в столбике (Main ставит рамку в TopRight), по одному —
 	-- самое срочное, «ещё N», полоса таймера (OfferQueue).
 	local popup = frame(gui, "DiplomacyOffer")
-	popup.Size = UDim2.fromOffset(360, 0)
+	popup.Size = UDim2.fromOffset(Config.Render.Offers.WidthPx, 0)
 	popup.AutomaticSize = Enum.AutomaticSize.Y
 	popup.ZIndex = 1 -- как соседи по столбику: с ZIndex выше содержимое (z1) рисовалось бы под фоном (ZIndex Global)
 	local popupPop = Instance.new("UIScale")

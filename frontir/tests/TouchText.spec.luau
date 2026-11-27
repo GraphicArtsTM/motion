@@ -30,6 +30,12 @@ T.describe("Текст для касания (§15ё)", function()
 			.toBe("Дипломатия у мини-карты → сосед")
 		T.expect(TouchText.strip("<b>Пехота</b> [Z]\n$1000")).toBe("<b>Пехота</b>\n$1000")
 		T.expect(TouchText.strip("Задания [J] и меню [Tab]")).toBe("Задания и меню")
+		T.expect(
+			TouchText.strip(
+				"Нанимайте войска: Z — пехота. Без войск страну не взять."
+			)
+		).toBe("Нанимайте войска: пехота. Без войск страну не взять.")
+		T.expect(TouchText.strip("Hire troops: Z — infantry.")).toBe("Hire troops: infantry.")
 		-- Без клавиш — не трогает (проценты, скобки с текстом, «ур. 3»).
 		local plain = "Атака 25% (ур. 3) — «Пехота» [готово]"
 		T.expect(TouchText.strip(plain)).toBe(plain)
@@ -40,7 +46,8 @@ T.describe("Текст для касания (§15ё)", function()
 			if string.sub(key, 1, 5) == "hint." or string.sub(key, 1, 10) == "strikeHow." then
 				local ru = TouchText.strip(entry.ru)
 				local en = TouchText.strip(entry.en)
-				if string.find(ru, "клавиш") ~= nil or string.find(en, "%f[%a]key%f[%A]") ~= nil then
+				local keyDash = string.find(ru, "%f[%a]%u — ") ~= nil or string.find(en, "%f[%a]%u — ") ~= nil
+				if string.find(ru, "клавиш") ~= nil or string.find(en, "%f[%a]key%f[%A]") ~= nil or keyDash then
 					error(key .. ": осталась клавиша — " .. ru .. " / " .. en)
 				end
 			end

@@ -66,7 +66,7 @@ local function panel(parent: Instance, name: string): Frame
 	local f = Instance.new("Frame")
 	f.Name = name
 	f.BackgroundColor3 = Theme.Colors.PanelBg
-	f.BackgroundTransparency = 0.1
+	f.BackgroundTransparency = 0.03 -- §15ъ: непрозрачная — текст снизу не просвечивает
 	f.BorderSizePixel = 0
 	f.Visible = false
 	local stroke = Instance.new("UIStroke")
@@ -251,11 +251,6 @@ function WarPanel.new(
 		b.TextSize = 15
 		return b
 	end
-	local function portraitKey(id: number?): string
-		local n = if id ~= nil then cs.nations[id] else nil
-		return "nation." .. (if n ~= nil and n.colorIndex >= 1 then n.colorIndex else 1)
-	end
-
 	-- Окно условий мира: три карточки с картинками.
 	local peacePanel = window("PeaceTerms", 3 * CardKit.CardW + 2 * CardKit.Gap + 24, Theme.Colors.Sky)
 	peacePanel.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -299,23 +294,15 @@ function WarPanel.new(
 	local keepButton = termButton("keep", 2)
 	local capitulateButton = termButton("capitulate", 3)
 
-	-- Входящее предложение мира: портрет державы, условия картинкой, «Принять» / «Отклонить».
-	local offerPanel = window("PeaceOffer", 460, Theme.Colors.Sky)
-	offerPanel.AnchorPoint = Vector2.new(0.5, 0)
-	offerPanel.Position = UDim2.new(0.5, 0, 0, 230)
-	local offerBody = MenuKit.box(offerPanel, "Body", 1)
-	offerBody.AutomaticSize = Enum.AutomaticSize.None
-	offerBody.Size = UDim2.new(1, 0, 0, 64)
-	local offerArt = CardKit.art(offerBody, "nation.1", 96, 64)
-	local termsArt = CardKit.art(offerBody, "peace.white", 96, 64)
-	termsArt.AnchorPoint = Vector2.new(1, 0)
-	termsArt.Position = UDim2.fromScale(1, 0)
-	local offerText = MenuKit.label(offerBody, "", 15, Theme.Colors.Text, true)
-	offerText.AutomaticSize = Enum.AutomaticSize.None
-	offerText.Position = UDim2.fromOffset(106, 0)
-	offerText.Size = UDim2.new(1, -212, 1, 0)
+	-- Входящее предложение мира. §15ъ: строкой в столбике сверху по центру (HudFocus — по одной карточке), без
+	-- картинок: «X предлагает мир: … · N с», «Принять» / «Отклонить».
+	local offerPanel = window("PeaceOffer", Config.Render.Offers.WidthPx, Theme.Colors.Sky)
+	offerPanel.BackgroundTransparency = 0.03
+	local offerText = MenuKit.label(offerPanel, "", 15, Theme.Colors.Text, true)
+	offerText.LayoutOrder = 1
+	offerText.AutomaticSize = Enum.AutomaticSize.Y
+	offerText.Size = UDim2.fromScale(1, 0)
 	offerText.TextWrapped = true
-	offerText.TextYAlignment = Enum.TextYAlignment.Center
 	local offerRow = buttonRow(offerPanel, 2)
 	local acceptButton = wideButton(offerRow, Strings.get("peace.accept", lang), "good", 1)
 	local declineButton = wideButton(offerRow, Strings.get("peace.decline", lang), "danger", 2)
@@ -417,8 +404,6 @@ function WarPanel.new(
 			for _, war in myWars() do
 				if war.proposalFrom ~= 0 and war.proposalFrom ~= me then
 					offerFrom = war.proposalFrom
-					CardKit.repaint(offerArt, portraitKey(war.proposalFrom))
-					CardKit.repaint(termsArt, "peace." .. war.proposalTerms)
 					local left = math.max(0, math.ceil(war.proposalLeft - (now - cs.warsAt)))
 					offerText.Text = string.format(
 						Strings.get("peace.offer", lang),

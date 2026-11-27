@@ -37,7 +37,7 @@ function HintPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang): Hin
 	panel.Size = UDim2.fromOffset(320, 0)
 	panel.AutomaticSize = Enum.AutomaticSize.Y
 	panel.BackgroundColor3 = Theme.Colors.PanelBg
-	panel.BackgroundTransparency = 0.08
+	panel.BackgroundTransparency = 0.03 -- §15ъ: непрозрачная
 	panel.BorderSizePixel = 0
 	panel.Visible = false
 	panel.Parent = gui
@@ -208,6 +208,11 @@ function HintPanel.new(gui: ScreenGui, cs: ClientState, lang: Strings.Lang): Hin
 		end
 		local f = facts(now)
 		local key = if f ~= nil then Hints.pick(f, dismissed) else nil
+		-- §15ъ: подсказки — только новичку (первые Hints.MaxMatches матчей) и не в «минимуме» интерфейса.
+		local p = cs.profile :: any
+		if p ~= nil and ((p.matches or 0) >= Config.Hints.MaxMatches or p.hudDensity == "min") then
+			key = nil
+		end
 		if key ~= current then
 			current = key
 			if key ~= nil then
