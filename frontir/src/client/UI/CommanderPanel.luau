@@ -204,6 +204,27 @@ function CommanderPanel.new(
 	local compact = false -- §15ё телефон: квадратики в верхней строке (место ставит Main.client)
 	local CPX = Config.Render.Phone.Hud.StrikePx
 	local vertical = false -- §15ё Ё7: на телефоне с полосой Roblox — столбиком у левого края
+	-- §15ъ Ч3: на телефоне — одна кнопка «УДАРЫ», по нажатию веер плиток (после удара — сворачивается).
+	local fanOpen = false
+	local fanButton = Instance.new("TextButton")
+	fanButton.Name = "StrikesToggle"
+	fanButton.Text = "💥"
+	fanButton.TextSize = 24
+	fanButton.FontFace = Theme.FontBold
+	fanButton.TextColor3 = Theme.Colors.Gold
+	fanButton.BackgroundColor3 = Theme.Colors.Backdrop
+	fanButton.BackgroundTransparency = 0.05
+	fanButton.BorderSizePixel = 0
+	fanButton.AutoButtonColor = true
+	fanButton.Size = UDim2.fromOffset(CPX, CPX)
+	fanButton.Visible = false
+	fanButton.Parent = bar
+	do
+		local c = Instance.new("UICorner")
+		c.CornerRadius = UDim.new(0, 10)
+		c.Parent = fanButton
+		stroke(fanButton, Theme.Colors.Gold).Thickness = 2
+	end
 	local function fitBar()
 		if compact then
 			barScale.Scale = 1
@@ -502,10 +523,15 @@ function CommanderPanel.new(
 			end
 			tile.name.Visible = not compact
 		end
+		fanButton.Visible = compact
 		if compact then
 			-- §15ё телефон: все удары — квадраты CPX, картинка во весь квадрат, снизу — цифра перезарядки или замок.
-			local x = 0
+			-- §15ъ Ч3: первой — кнопка «УДАРЫ»; плитки — только когда веер открыт.
+			fanButton.Position = UDim2.fromOffset(0, 0)
+			fanButton.Text = if fanOpen then "✕" else "💥"
+			local x = CPX + GAP
 			for _, tile in tiles do
+				tile.button.Visible = fanOpen
 				tile.button.Position = if vertical then UDim2.fromOffset(0, x) else UDim2.fromOffset(x, 0)
 				tile.button.Size = UDim2.fromOffset(CPX, CPX)
 				tile.art.Visible = true
@@ -518,9 +544,15 @@ function CommanderPanel.new(
 				tile.state.TextStrokeTransparency = 0.2
 				x += CPX + GAP
 			end
+			if not fanOpen then
+				x = CPX + GAP
+			end
 			bar.Size = if vertical then UDim2.fromOffset(CPX, x - GAP) else UDim2.fromOffset(x - GAP, CPX)
 			fitBar()
 			return
+		end
+		for _, tile in tiles do
+			tile.button.Visible = true
 		end
 		bar.Size = UDim2.fromOffset(bar.Size.X.Offset, barH)
 		for _, tile in tiles do
@@ -652,6 +684,21 @@ function CommanderPanel.new(
 				modeLine.Visible = false
 			end
 		end
+	end
+
+	-- §15ъ Ч3: веер ударов на телефоне — открыть / закрыть; после выбора удара — свернуть (карта свободна для прицела).
+	Session.connect(fanButton.Activated, function()
+		fanOpen = not fanOpen
+		layoutTiles()
+		update(os.clock())
+	end)
+	for _, b in buttons do
+		Session.connect(b.Activated, function()
+			if compact and fanOpen then
+				fanOpen = false
+				layoutTiles()
+			end
+		end)
 	end
 
 	local function refresh()

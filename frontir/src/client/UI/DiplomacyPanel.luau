@@ -128,21 +128,6 @@ local function button(parent: Instance, text: string, width: number): TextButton
 	return b
 end
 
-local function row(parent: Instance, order: number, wraps: boolean?): Frame
-	local f = Instance.new("Frame")
-	f.BackgroundTransparency = 1
-	f.Size = UDim2.new(1, 0, 0, BUTTON)
-	f.AutomaticSize = if wraps then Enum.AutomaticSize.Y else Enum.AutomaticSize.None
-	f.LayoutOrder = order
-	local layout = Instance.new("UIListLayout")
-	layout.FillDirection = Enum.FillDirection.Horizontal
-	layout.Padding = UDim.new(0, 6)
-	layout.Wraps = wraps == true
-	layout.Parent = f
-	f.Parent = parent
-	return f
-end
-
 function DiplomacyPanel.new(
 	gui: ScreenGui,
 	cs: ClientState,
@@ -828,22 +813,51 @@ function DiplomacyPanel.new(
 	popup.ZIndex = 1 -- как соседи по столбику: с ZIndex выше содержимое (z1) рисовалось бы под фоном (ZIndex Global)
 	local popupPop = Instance.new("UIScale")
 	popupPop.Parent = popup
-	local popupText = label(popup, 15, 1)
-	local popupLeft = label(popup, 12, 2)
+	-- §15ъ: одной строкой — текст слева (кто, что, сколько осталось, «ещё N»), справа ✓ / ✗ / 🚫 («Всегда нет»:
+	-- такие предложения этого вида дальше отклоняет сервер сам; сброс — в настройках), под строкой — полоса таймера.
+	local offerLine = Instance.new("Frame")
+	offerLine.BackgroundTransparency = 1
+	offerLine.Size = UDim2.fromScale(1, 0)
+	offerLine.AutomaticSize = Enum.AutomaticSize.Y
+	offerLine.LayoutOrder = 1
+	offerLine.Parent = popup
+	local OFFER_BUTTONS = 3 * BUTTON + 2 * 6
+	local textCol = Instance.new("Frame")
+	textCol.BackgroundTransparency = 1
+	textCol.Size = UDim2.new(1, -(OFFER_BUTTONS + 8), 0, 0)
+	textCol.AutomaticSize = Enum.AutomaticSize.Y
+	textCol.Parent = offerLine
+	local textList = Instance.new("UIListLayout")
+	textList.SortOrder = Enum.SortOrder.LayoutOrder
+	textList.Parent = textCol
+	local popupText = label(textCol, 14, 1)
+	local popupLeft = label(textCol, 12, 2)
 	popupLeft.TextColor3 = Theme.Colors.Muted
+	local popupRow = Instance.new("Frame")
+	popupRow.BackgroundTransparency = 1
+	popupRow.AnchorPoint = Vector2.new(1, 0)
+	popupRow.Position = UDim2.fromScale(1, 0)
+	popupRow.Size = UDim2.fromOffset(OFFER_BUTTONS, BUTTON)
+	popupRow.Parent = offerLine
+	local rowList = Instance.new("UIListLayout")
+	rowList.FillDirection = Enum.FillDirection.Horizontal
+	rowList.Padding = UDim.new(0, 6)
+	rowList.Parent = popupRow
+	local acceptButton = button(popupRow, "✓", BUTTON)
+	acceptButton.TextColor3 = Theme.Colors.Good
+	acceptButton.TextSize = 20
+	local refuseButton = button(popupRow, "✗", BUTTON)
+	refuseButton.TextColor3 = Theme.Colors.Alert
+	refuseButton.TextSize = 20
+	local neverButton = button(popupRow, "🚫", BUTTON)
+	neverButton.TextColor3 = Theme.Colors.Muted
+	neverButton.TextSize = 18
 	local timerHost = Instance.new("Frame")
 	timerHost.BackgroundTransparency = 1
-	timerHost.Size = UDim2.new(1, 0, 0, 6)
-	timerHost.LayoutOrder = 3
+	timerHost.Size = UDim2.new(1, 0, 0, 4)
+	timerHost.LayoutOrder = 2
 	timerHost.Parent = popup
-	local timerBar = MenuKit.bar(timerHost, 6, Theme.Colors.Gold)
-	local popupRow = row(popup, 4)
-	local acceptButton = button(popupRow, Strings.get("diplo.accept", lang), 170)
-	acceptButton.TextColor3 = Theme.Colors.Sky
-	local refuseButton = button(popupRow, Strings.get("diplo.refuse", lang), 170)
-	refuseButton.TextColor3 = Theme.Colors.Alert
-	local moreLabel = label(popup, 12, 5)
-	moreLabel.TextColor3 = Theme.Colors.Muted
+	local timerBar = MenuKit.bar(timerHost, 4, Theme.Colors.Gold)
 	local popupKey: string? = nil
 	local answered: { [string]: boolean } = {} -- уже ответили (ждём, пока сервер уберёт предложение)
 	local totals: { [string]: number } = {} -- сколько было времени, когда предложение пришло (полоса таймера)
@@ -871,6 +885,14 @@ function DiplomacyPanel.new(
 	Session.connect(refuseButton.Activated, function()
 		reply(false)
 	end)
+	Session.connect(neverButton.Activated, function()
+		local o = currentOffer()
+		if o ~= nil and table.find(Config.Hud.AutoNoKinds, o.kind) ~= nil then
+			send("prefs", { autoNo = o.kind, on = true })
+			toast(Strings.get("offer.neverSet", lang))
+		end
+		reply(false)
+	end)
 
 	local function drawPopup()
 		local list = if playing() then pendingOffers() else {}
@@ -895,20 +917,18 @@ function DiplomacyPanel.new(
 				local p = if o.province ~= nil then provinces.list[o.province] else nil
 				local pname = if p ~= nil then (if lang == "en" then p.nameEn else p.name) else "?"
 				popupText.Text = string.format(Strings.get("diplo.offer.demand", lang), nameOf(o.from), escape(pname))
-				acceptButton.Text = Strings.get("diplo.cede", lang)
 			else
 				popupText.Text = string.format(Strings.get("diplo.offer." .. o.kind, lang), nameOf(o.from))
-				acceptButton.Text = Strings.get("diplo.accept", lang)
 			end
 		end
 		local secLeft = left / math.max(cs.speed, 1e-3)
 		popupLeft.Text = string.format(Strings.get("diplo.offer.left", lang), math.ceil(secLeft))
+			.. if #list > 1 then " · " .. string.format(Strings.get("diplo.offer.more", lang), #list - 1) else ""
 		timerBar.set(OfferQueue.share(left, totals[key]))
 		timerBar.fill.BackgroundColor3 = if secLeft <= Config.Render.Offers.UrgentSec
 			then Theme.Colors.Alert
 			else Theme.Colors.Gold
-		moreLabel.Visible = #list > 1
-		moreLabel.Text = string.format(Strings.get("diplo.offer.more", lang), #list - 1)
+		neverButton.Visible = table.find(Config.Hud.AutoNoKinds, o.kind) ~= nil -- требование — нельзя (отказ — война)
 		popup.Visible = true
 	end
 

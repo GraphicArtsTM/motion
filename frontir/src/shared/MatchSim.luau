@@ -365,6 +365,8 @@ export type Match = {
 	-- Магазин и профиль (§11.1, §11.2, этап 9а): перки геймпассов, бусты за матч, открытые генералы.
 	perks: { [number]: Shop.Perks },
 	boostsUsed: { [number]: { [string]: boolean } },
+	-- §15ъ Ч3 автоответы игрока: какие предложения ему (вид; "peace" — мир) отклоняются сразу (Config.Hud.AutoNoKinds).
+	autoNo: { [number]: { [string]: boolean } },
 	arsenal: { [number]: string }, -- §15л ч.6: предмет Арсенала, взятый державой в бой
 	arsenalUsed: { [number]: boolean }, -- …и применён ли он в этом матче
 	unlocked: { [number]: { [string]: boolean } }, -- держава игрока → открытые генералы (нет записи — все)
@@ -546,6 +548,7 @@ function MatchSim.new(map: MapData, seed: number): Match
 		settings = nil,
 		perks = {},
 		boostsUsed = {},
+		autoNo = {},
 		arsenal = {},
 		arsenalUsed = {},
 		unlocked = {},
@@ -1881,6 +1884,16 @@ function MatchSim.applyIntent(m: Match, nationId: number, intent: Types.Intent):
 			target = intent.target,
 			terms = intent.terms,
 		})
+		-- §15ъ Ч3: у адресата автоответ «мир — всегда нет» — отказ сразу.
+		if MatchSim.autoRefuses(m, intent.target, "peace") then
+			war.proposal = nil
+			table.insert(m.events, {
+				kind = "peaceRejected",
+				nation = intent.target,
+				target = nationId,
+				expired = false,
+			})
+		end
 		return true, nil
 	end
 
@@ -2909,7 +2922,31 @@ function MatchSim.offer(
 	end
 	Diplomacy.offer(m.diplo, from, to, kind, m.simTime, province)
 	table.insert(m.events, { kind = "offerMade", nation = from, target = to, offer = kind, province = province })
+	-- §15ъ Ч3: у адресата автоответ на этот вид — отказ сразу (требования — никогда: отказ от них — война).
+	if MatchSim.autoRefuses(m, to, kind) then
+		local made = Diplomacy.offerBetween(m.diplo, from, to)
+		if made ~= nil then
+			MatchSim.resolveOffer(m, made, false, false)
+		end
+	end
 	return true, nil
+end
+
+-- §15ъ Ч3 автоответы: держава отказывается от такого предложения сама (вид — из Config.Hud.AutoNoKinds).
+function MatchSim.autoRefuses(m: Match, nationId: number, kind: string): boolean
+	local set = m.autoNo[nationId]
+	return set ~= nil and set[kind] == true and table.find(Config.Hud.AutoNoKinds, kind) ~= nil
+end
+
+-- Автоответы игрока (из профиля, MatchService.applyProfile).
+function MatchSim.setAutoNo(m: Match, nationId: number, set: { [string]: boolean })
+	local copy: { [string]: boolean } = {}
+	for _, kind in Config.Hud.AutoNoKinds do
+		if set[kind] then
+			copy[kind] = true
+		end
+	end
+	m.autoNo[nationId] = copy
 end
 
 -- Провинция переходит от from к to целиком (с городом) — уступка по требованию.

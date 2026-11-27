@@ -457,6 +457,9 @@ Config.Tutorial = {
 	PhoneFocus = {
 		hire = { "BarDrawer.Rows.Slots.HireInfantry", "CommandBar.TroopsTab" },
 		build = { "BarDrawer", "CommandBar.BuildTab" },
+		-- §15ъ Ч3: кнопки окон на телефоне — веером: подсветка — квадрат «Дипломатия» или кнопка веера.
+		city = { "MapButtons.Opendiplomacy", "MapButtons.WindowsToggle" },
+		alliance = { "MapButtons.Opendiplomacy", "MapButtons.WindowsToggle" },
 	},
 }
 
@@ -1909,6 +1912,16 @@ Config.Hud = {
 	MinOnly = { "Siren", "PeaceOffer", "DiplomacyOffer" },
 	FocusHoldSec = 6, -- колокольчик (Ч2): показанная по нажатию карточка держится столько
 	CleanHoldSec = 0.8, -- чистая карта (Ч3): после движения карты столбик возвращается через столько
+	-- Ч3 тест «карта главнее»: в худшем случае свободно не меньше FreeShare экрана; оценка высоты одной карточки
+	-- столбика (строка предложения: текст в две строки, полоса таймера, кнопки) и колонки справа (место, значки, атаки).
+	FreeShare = 0.7, -- ПК (над полосой)
+	FreeSharePhone = 0.35, -- телефон 667×300 … (было 20–53%, стало 38–76%: дальше мешают полоса, мини-карта, лента)
+	CardMaxH = 76,
+	SideColumnH = 130,
+	SideColumnW = 240,
+	-- Автоответы (Ч3): на какие предложения можно ответить «всегда нет» (требование — нельзя: отказ — война).
+	AutoNoKinds = { "pact3", "pact5", "alliance", "trade", "trust", "peace" },
+	Densities = { "min", "normal", "full" },
 }
 
 Config.Hints = {

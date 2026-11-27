@@ -194,6 +194,47 @@ function SoundPanel.new(
 		draw()
 	end)
 	MenuKit.wrapLabel(window, Strings.get("sound.hint", lang), 12, Theme.Colors.Muted, 6)
+
+	-- §15ъ Ч3: настройки интерфейса — плотность (Минимум / Обычно / Всё) и сброс автоответов «всегда нет».
+	MenuKit.label(window, Strings.get("settings.density", lang), 14, Theme.Colors.Gold, true, 7)
+	local densityRow = MenuKit.box(window, "Density", 8)
+	densityRow.AutomaticSize = Enum.AutomaticSize.None
+	densityRow.Size = UDim2.new(1, 0, 0, BUTTON)
+	local dl = MenuKit.list(densityRow, 8, true)
+	dl.HorizontalFlex = Enum.UIFlexAlignment.Fill
+	local densityButtons: { [string]: TextButton } = {}
+	for k, d in Config.Hud.Densities do
+		local b = MenuKit.button(densityRow, Strings.get("settings.density." .. d, lang), "normal", BUTTON, k)
+		b.TextSize = 14
+		densityButtons[d] = b
+		Session.connect(b.Activated, function()
+			send("prefs", { density = d })
+		end)
+	end
+	MenuKit.wrapLabel(window, Strings.get("settings.densityHint", lang), 12, Theme.Colors.Muted, 9)
+	local resetAuto = MenuKit.button(window, "", "normal", BUTTON, 10)
+	resetAuto.Size = UDim2.new(1, 0, 0, BUTTON)
+	resetAuto.TextSize = 14
+	Session.connect(resetAuto.Activated, function()
+		send("prefs", { resetAutoNo = true })
+	end)
+	local function drawPrefs()
+		local p = cs.profile
+		local density = if p ~= nil and p.hudDensity ~= nil then p.hudDensity else "normal"
+		for d, b in densityButtons do
+			b.BackgroundColor3 = if d == density then Theme.Colors.Gold else Theme.Colors.PanelBg
+			b.TextColor3 = if d == density then Theme.color("Ink") else Theme.Colors.Text
+		end
+		local n = 0
+		if p ~= nil and p.autoNo ~= nil then
+			for _ in p.autoNo do
+				n += 1
+			end
+		end
+		resetAuto.Visible = n > 0
+		resetAuto.Text = string.format(Strings.get("settings.resetAutoNo", lang), n)
+	end
+	drawPrefs()
 	local function toggle()
 		window.Visible = not window.Visible
 		if window.Visible then
@@ -210,6 +251,7 @@ function SoundPanel.new(
 			apply(false)
 		end
 		draw()
+		drawPrefs()
 	end
 	draw()
 	return {

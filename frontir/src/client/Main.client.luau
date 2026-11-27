@@ -1393,7 +1393,7 @@ local function runSession(mapId: string, resync: boolean)
 		local tools = mapButtons.toolCount() + (if home ~= nil then 1 else 0)
 		local bandX, bandH = UiScale.topbar()
 		local lay = PhoneLayout.hud(size.X, size.Y, {
-			strikes = 4,
+			strikes = 1, -- §15ъ Ч3: удары на телефоне — одна кнопка с веером
 			windows = mapButtons.count(),
 			tools = tools,
 			minimapW = if mapFrame ~= nil then mapFrame.Size.X.Offset else 0,
@@ -1785,7 +1785,24 @@ local function runSession(mapId: string, resync: boolean)
 		local d = if p ~= nil then p.hudDensity else nil
 		return if d == "min" or d == "full" then d else "normal"
 	end
+	-- Ч3 чистая карта: камеру двигают (палец, мышь, колесо, «К фронту») — столбик сверху, подсказка и лента прячутся
+	-- и возвращаются через Hud.CleanHoldSec после последнего движения.
+	local camX, camY, camZoom = 0, 0, 0
 	local function focusTick(now: number)
+		local st = camera.state
+		if st.x ~= camX or st.y ~= camY or st.zoom ~= camZoom then
+			camX, camY, camZoom = st.x, st.y, st.zoom
+			if cs.phase == "Play" then
+				focusCleanUntil = now + Config.Hud.CleanHoldSec
+			end
+		end
+		local area = hudGui:FindFirstChild("AttackArea")
+		if area ~= nil and area:IsA("GuiObject") then
+			local on = now >= focusCleanUntil
+			if area.Visible ~= on then
+				area.Visible = on
+			end
+		end
 		if focusHold ~= nil and now > focusHoldUntil then
 			focusHold = nil
 		end

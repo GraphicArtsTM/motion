@@ -487,10 +487,11 @@ local function run()
 					end
 					return node ~= nil and node:IsA("GuiObject") and shown(node)
 				end
-				if count("Abilities") < 4 then
+				-- §15ъ Ч3: удары и окна — веером: кнопка веера или сами квадраты (веер открыт).
+				if count("Abilities") < 4 and not visible({ "Abilities", "StrikesToggle" }) then
 					table.insert(missing, "Q / E / R / налёт")
 				end
-				if count("MapButtons") < 4 then
+				if count("MapButtons") < 4 and not visible({ "MapButtons", "WindowsToggle" }) then
 					table.insert(missing, "T / Y / N / F")
 				end
 				if count("ZoomButtons") < 3 then

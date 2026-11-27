@@ -432,6 +432,16 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
 - §15ъ покупки: `ProcessReceipt` ждёт профиль и политику (`Shop.ReceiptWaitSec`), пропуска — `Shop.PassCheckTries`
   попыток; повтор того, что уже есть (премиум, техника, вещи набора), — медалями `Shop.robuxMedals` в
   `Profile.grantProduct` (тесты `Shop2.spec`). Новый «разовый» товар — решить, чем возвращать повтор.
+- §15ъ стройка пальцем: `TouchBuild.confirms` (второе касание рядом с призраком, `Render.TouchConfirmPx`),
+  `BuildPanel.tap(cell, zoom)`, кнопки `BuildConfirm` (ставит Main над полосой). Палец/мышь — по последнему вводу.
+- §15ъ «экран не мешает»: карточки столбика `TopCenter` — в оболочках `Gate<имя>` (`stackGated`), видимость —
+  чистый `HudFocus.pick` в `focusTick` (конец кадра): новая карточка сверху по центру — имя в `Config.Hud.Priority`
+  (или `Always`) и в список `stackGated`. Колокольчик — `hud.bell` → `focusCycle`; «Судный день» — `DoomBar.badge`
+  → `hud.setDoom`; ⚡ / 🏆 — `StatusBadges` (TopRight). Предложения — одной строкой в столбике (`DiplomacyOffer`,
+  `PeaceOffer`). Телефон: веера `StrikesToggle` / `WindowsToggle`. Настройки — намерение `prefs` →
+  `Profile.setPrefs` (`hudDensity`, `autoNo`) → `MatchSim.setAutoNo` / `autoRefuses`. Чистая карта — камера
+  двинулась → `focusCleanUntil` (столбик и `AttackArea`). Тесты — `HudFocus.spec`, `HudSpace.spec` (порог свободной
+  карты: новый постоянный элемент HUD — добавить рамку в тест), `AutoNo.spec`, `TouchBuild.spec`.
 
 ## Платные части, пропуск, ящики (этап 9б)
 - Бусты `Guards`, `Airstrike` (цель — `cell`, `MatchSim.strikeAt`), `Squadron`, `AirWing` — в `MatchSim.useBoost`.

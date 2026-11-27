@@ -353,6 +353,8 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 				used = id ~= nil and m.arsenalUsed[id] == true,
 			},
 			volume = { sfx = d.sfx, music = d.music }, -- громкости (§13)
+			hudDensity = d.hudDensity, -- §15ъ Ч3: плотность интерфейса
+			autoNo = d.autoNo, -- §15ъ Ч3: автоответы «всегда нет»
 			-- Гардероб (§11.4): что открыто, что надето, флаг.
 			wardrobe = (function(): { [string]: any }
 				local owned: { [string]: boolean } = {}
@@ -392,6 +394,7 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 		local open = Profile.unlockedCommanders(session.data, passes.AllCommanders == true)
 		MatchSim.setUnlocked(m, id, open)
 		MatchSim.setUnitUnlocks(m, id, Profile.unlockedUnits(session.data, passes)) -- §15э Э1, Э1б
+		MatchSim.setAutoNo(m, id, session.data.autoNo) -- §15ъ Ч3: автоответы игрока
 		local chosen = Commanders.of(m.commanders, id)
 		if chosen ~= nil and not open[chosen] and m.phase ~= "Play" then
 			Commanders.choose(m.commanders, id, "Marshal")
@@ -1275,6 +1278,24 @@ function MatchService.start(firstMap: MapData, loadMap: (mapId: string) -> MapDa
 					m.infoDirty = true
 				end
 			end
+			return
+		end
+		-- §15ъ Ч3: настройки игрока — плотность интерфейса и автоответы (в профиль и сразу в матч).
+		if kind == "prefs" then
+			local session = profiles.get(player.UserId)
+			if session == nil then
+				return
+			end
+			local ok, why = Profile.setPrefs(session.data, payload)
+			if not ok then
+				matchEvent:FireClient(player, { kind = "rejected", reason = why or "?", intent = kind })
+				return
+			end
+			local id = nationOf[player]
+			if id ~= nil then
+				MatchSim.setAutoNo(m, id, session.data.autoNo)
+			end
+			sendProfile(player)
 			return
 		end
 		if kind == "volume" then

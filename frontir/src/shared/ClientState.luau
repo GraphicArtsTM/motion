@@ -122,6 +122,8 @@ export type ProfileInfo = {
 	dayLeft: number,
 	elo: number,
 	volume: { sfx: number, music: number }?, -- громкости (§13, этап 10б)
+	hudDensity: string?, -- §15ъ Ч3: плотность интерфейса ("min" | "normal" | "full")
+	autoNo: { [string]: boolean }?, -- §15ъ Ч3: автоответы «всегда нет» по виду предложения
 }
 
 -- Таблицы лидеров (§11.5).

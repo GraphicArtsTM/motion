@@ -254,20 +254,6 @@ function WarPanel.new(
 		UiScale.fitSheet(gui, f, scale, width, 8, 0.45) -- §15ё: на телефоне — и по высоте
 		return f
 	end
-	local function buttonRow(parent: Instance, order: number): Frame
-		local r = MenuKit.box(parent, "Buttons", order)
-		r.AutomaticSize = Enum.AutomaticSize.None
-		r.Size = UDim2.new(1, 0, 0, BUTTON)
-		local l = MenuKit.list(r, 8, true)
-		l.HorizontalFlex = Enum.UIFlexAlignment.Fill
-		return r
-	end
-	local function wideButton(parent: Instance, text: string, style: MenuKit.ButtonStyle, order: number): TextButton
-		local b = MenuKit.button(parent, text, style, BUTTON, order)
-		b.Size = UDim2.new(0, 120, 1, 0)
-		b.TextSize = 15
-		return b
-	end
 	-- Окно условий мира: три карточки с картинками.
 	local peacePanel = window("PeaceTerms", 3 * CardKit.CardW + 2 * CardKit.Gap + 24, Theme.Colors.Sky)
 	peacePanel.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -315,14 +301,28 @@ function WarPanel.new(
 	-- картинок: «X предлагает мир: … · N с», «Принять» / «Отклонить».
 	local offerPanel = window("PeaceOffer", Config.Render.Offers.WidthPx, Theme.Colors.Sky)
 	offerPanel.BackgroundTransparency = 0.03
-	local offerText = MenuKit.label(offerPanel, "", 15, Theme.Colors.Text, true)
-	offerText.LayoutOrder = 1
+	-- Одной строкой: текст слева, справа ✓ / ✗ / 🚫 («Всегда нет»).
+	local offerLine = MenuKit.box(offerPanel, "Line", 1)
+	offerLine.AutomaticSize = Enum.AutomaticSize.Y
+	offerLine.Size = UDim2.fromScale(1, 0)
+	local OFFER_BUTTONS = 3 * BUTTON + 2 * 6
+	local offerText = MenuKit.label(offerLine, "", 14, Theme.Colors.Text, true)
 	offerText.AutomaticSize = Enum.AutomaticSize.Y
-	offerText.Size = UDim2.fromScale(1, 0)
+	offerText.Size = UDim2.new(1, -(OFFER_BUTTONS + 8), 0, 0)
 	offerText.TextWrapped = true
-	local offerRow = buttonRow(offerPanel, 2)
-	local acceptButton = wideButton(offerRow, Strings.get("peace.accept", lang), "good", 1)
-	local declineButton = wideButton(offerRow, Strings.get("peace.decline", lang), "danger", 2)
+	local offerRow = MenuKit.box(offerLine, "Buttons", 2)
+	offerRow.AutomaticSize = Enum.AutomaticSize.None
+	offerRow.AnchorPoint = Vector2.new(1, 0)
+	offerRow.Position = UDim2.fromScale(1, 0)
+	offerRow.Size = UDim2.fromOffset(OFFER_BUTTONS, BUTTON)
+	MenuKit.list(offerRow, 6, true)
+	local acceptButton = MenuKit.button(offerRow, "✓", "good", BUTTON, 1)
+	local declineButton = MenuKit.button(offerRow, "✗", "danger", BUTTON, 2)
+	local neverButton = MenuKit.button(offerRow, "🚫", "normal", BUTTON, 3) -- §15ъ Ч3 «Всегда нет»
+	for _, b in { acceptButton, declineButton, neverButton } do
+		b.Size = UDim2.fromOffset(BUTTON, BUTTON)
+		b.TextSize = 20
+	end
 	local offerFrom: number? = nil
 
 	local function myWars(): { Protocol.WarStats }
@@ -550,6 +550,15 @@ function WarPanel.new(
 	Session.connect(declineButton.Activated, function()
 		if offerFrom ~= nil then
 			send("peaceReply", { target = offerFrom, accept = false })
+			offerPanel.Visible = false
+		end
+	end)
+	-- §15ъ Ч3: «Всегда нет» — мир дальше отклоняет сервер сам (сброс — в настройках).
+	Session.connect(neverButton.Activated, function()
+		if offerFrom ~= nil then
+			send("prefs", { autoNo = "peace", on = true })
+			send("peaceReply", { target = offerFrom, accept = false })
+			toast(Strings.get("offer.neverSet", lang))
 			offerPanel.Visible = false
 		end
 	end)

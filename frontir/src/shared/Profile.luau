@@ -56,6 +56,9 @@ export type Data = {
 	pathBonusPaid: number,
 	xpBoostUntil: number, -- §15я: ускоритель опыта действует до (unix; 0 — нет)
 	unlocks: { [string]: boolean }, -- §15э Э1: техника, купленная навсегда (Config.Unlocks; по уровню — само)
+	-- §15ъ Ч3: плотность интерфейса ("min" | "normal" | "full") и автоответы («всегда нет» на вид предложения).
+	hudDensity: string,
+	autoNo: { [string]: boolean },
 }
 
 -- Награда (пропуск, ящик, ежедневная, набор).
@@ -101,7 +104,40 @@ function Profile.new(): Data
 		pathBonusPaid = 0,
 		xpBoostUntil = 0,
 		unlocks = {},
+		hudDensity = "normal",
+		autoNo = {},
 	}
+end
+
+-- §15ъ Ч3 настройки игрока: плотность интерфейса, «всегда нет» на вид предложения, сброс автоответов.
+-- payload: { density = "min"|"normal"|"full" } | { autoNo = вид, on = true|false } | { resetAutoNo = true }.
+function Profile.setPrefs(d: Data, payload: any): (boolean, string?)
+	if type(payload) ~= "table" then
+		return false, "target"
+	end
+	if payload.density ~= nil then
+		if table.find(Config.Hud.Densities, payload.density) == nil then
+			return false, "target"
+		end
+		d.hudDensity = payload.density
+		return true, nil
+	end
+	if payload.resetAutoNo == true then
+		table.clear(d.autoNo)
+		return true, nil
+	end
+	if type(payload.autoNo) == "string" and type(payload.on) == "boolean" then
+		if table.find(Config.Hud.AutoNoKinds, payload.autoNo) == nil then
+			return false, "target"
+		end
+		if payload.on then
+			d.autoNo[payload.autoNo] = true
+		else
+			d.autoNo[payload.autoNo] = nil
+		end
+		return true, nil
+	end
+	return false, "target"
 end
 
 -- §15ф Ф1: генерал по умолчанию — только открытый (уровень или пропуск «Все генералы»).
@@ -238,6 +274,16 @@ function Profile.migrate(raw: any): Data
 	d.arsenal, d.loadout = Arsenal.migrate(raw.arsenal, raw.loadout)
 	if type(raw.commander) == "string" and table.find(Types.CommanderIds, raw.commander) ~= nil then
 		d.commander = raw.commander
+	end
+	if type(raw.hudDensity) == "string" and table.find(Config.Hud.Densities, raw.hudDensity) ~= nil then
+		d.hudDensity = raw.hudDensity
+	end
+	if type(raw.autoNo) == "table" then
+		for _, kind in Config.Hud.AutoNoKinds do
+			if raw.autoNo[kind] == true then
+				d.autoNo[kind] = true
+			end
+		end
 	end
 	return d
 end

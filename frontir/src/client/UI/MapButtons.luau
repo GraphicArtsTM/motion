@@ -90,6 +90,36 @@ function MapButtons.new(
 	end
 
 	local compact = false
+	-- §15ъ Ч3: на телефоне кнопки окон — одна кнопка с веером (открыли окно — веер свернулся).
+	local fanOpen = false
+	local fanButton = Instance.new("TextButton")
+	fanButton.Name = "WindowsToggle"
+	fanButton.Text = "▦"
+	fanButton.TextSize = 22
+	fanButton.FontFace = Theme.FontBold
+	fanButton.TextColor3 = Theme.Colors.Gold
+	fanButton.LayoutOrder = 1000 -- справа от квадратов окон (столбик прижат к правому краю)
+	fanButton.BackgroundColor3 = Theme.Colors.PanelBg
+	fanButton.BackgroundTransparency = 0.05
+	fanButton.BorderSizePixel = 0
+	fanButton.AutoButtonColor = true
+	fanButton.Visible = false
+	fanButton.Parent = frame
+	MenuKit.corner(fanButton, 6)
+	MenuKit.stroke(fanButton, Theme.Colors.Gold, 2)
+	local update: () -> () = function() end
+	Session.connect(fanButton.Activated, function()
+		fanOpen = not fanOpen
+		update()
+	end)
+	for _, r in rows do
+		Session.connect(r.button.Activated, function()
+			if compact and fanOpen then
+				fanOpen = false
+				update()
+			end
+		end)
+	end
 
 	local zoom = Instance.new("Frame")
 	zoom.Name = "ZoomButtons"
@@ -158,6 +188,10 @@ function MapButtons.new(
 		list.Padding = UDim.new(0, if c then phoneCfg.Gap else cfg.GapPx)
 		frame.AutomaticSize = if c then Enum.AutomaticSize.X else Enum.AutomaticSize.Y
 		frame.Size = if c then UDim2.fromOffset(0, h) else UDim2.fromOffset(w, 0)
+		fanButton.Size = UDim2.fromOffset(w, h)
+		if not c then
+			fanOpen = false
+		end
 		for _, r in rows do
 			r.button.Size = UDim2.fromOffset(w, h)
 			r.name.Visible = not c
@@ -188,14 +222,20 @@ function MapButtons.new(
 		end
 	end
 
-	local function update()
+	update = function()
+		local any = false
 		for _, r in rows do
 			local fn = r.item.visible
 			-- §15ё: на телефоне «Меню» не дублируем — есть «≡» слева сверху.
-			r.button.Visible = (fn == nil or fn()) and not (compact and r.item.icon == "menu")
+			local want = (fn == nil or fn()) and not (compact and r.item.icon == "menu")
+			any = any or want
+			-- §15ъ Ч3: на телефоне — только когда веер открыт.
+			r.button.Visible = want and (not compact or fanOpen)
 			local open = r.item.isOpen()
 			r.edge.Color = if open then Theme.Colors.Gold else Theme.Colors.PanelBorder
 		end
+		fanButton.Visible = compact and any
+		fanButton.Text = if fanOpen then "✕" else "▦"
 		for _, t in toolRows do
 			local fn = t.item.visible
 			t.button.Visible = fn == nil or fn()
@@ -208,7 +248,7 @@ function MapButtons.new(
 		frame = frame,
 		zoom = zoom,
 		height = function(): number
-			local n = 0
+			local n = if fanButton.Visible then 1 else 0
 			for _, r in rows do
 				if r.button.Visible then
 					n += 1
@@ -220,7 +260,7 @@ function MapButtons.new(
 			return if n == 0 then 0 else n * cfg.HeightPx + (n - 1) * cfg.GapPx
 		end,
 		count = function(): number
-			local n = 0
+			local n = if fanButton.Visible then 1 else 0 -- §15ъ Ч3: телефон — кнопка веера
 			for _, r in rows do
 				if r.button.Visible then
 					n += 1
