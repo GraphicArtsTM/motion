@@ -852,7 +852,11 @@ local TABLE: { [string]: Entry } = {
 		en = "%s: pick a spot on your land",
 	},
 	["build.ok"] = { ru = "Построить: %s", en = "Build: %s" },
-	["build.tapAgain"] = { ru = "Нажмите ещё раз — построить", en = "Tap again to build" },
+	["build.tapAgain"] = {
+		ru = "Нажмите рядом ещё раз или «Построить здесь»",
+		en = "Tap near it again or «Build here»",
+	},
+	["build.confirm"] = { ru = "✓ Построить здесь", en = "✓ Build here" },
 	["build.title"] = { ru = "СТРОЙКА", en = "BUILD" },
 	["build.keys"] = {
 		ru = "1–9 — выбрать · Shift+клик — ещё одно · Esc — отмена",

@@ -1440,6 +1440,8 @@ local function runSession(mapId: string, resync: boolean)
 		local chipsBottom = if lay.inBand then lay.chips.y + lay.chips.h else barTop - g
 		put(guiNamed("AttackChips"), Vector2.new(1, 1), lay.chips.x + lay.chips.w, chipsBottom)
 		commandBar.drawer.Position = UDim2.new(0.5, 0, 0, barTop - g)
+		build.confirm.AnchorPoint = Vector2.new(0.5, 1) -- §15ъ «✓ Построить здесь» — где ящик (ящик уже закрыт)
+		build.confirm.Position = UDim2.new(0.5, 0, 0, barTop - g)
 		-- §15ё Ё2: нижние окна на телефоне — от низа экрана поверх полосы (вписаны по высоте — UiScale.fitSheet).
 		for _, name in { "BuildMenu", "Phrases", "BuildingInfoPanel", "AirPanel", "NavalPanel", "DeclareWar" } do
 			local sheet = guiNamed(name)
@@ -1517,6 +1519,7 @@ local function runSession(mapId: string, resync: boolean)
 		at("AttackChips", Vector2.new(0.5, 1), UDim.new(0.5, 0), 0) -- §15ф Ф2: фишки своих атак
 		at("Minimap", Vector2.new(1, 1), UDim.new(1, -12), 0)
 		at("BuildMenu", Vector2.new(0.5, 1), UDim.new(0.5, 0), 0)
+		at("BuildConfirm", Vector2.new(0.5, 1), UDim.new(0.5, 0), 0) -- §15ъ: планшет — «✓ Построить здесь»
 		at("Phrases", Vector2.new(0.5, 1), UDim.new(0.5, 0), 0)
 		at("BuildingInfoPanel", Vector2.new(0.5, 1), UDim.new(0.5, 0), 0)
 		at("AirPanel", Vector2.new(0.5, 1), UDim.new(0.5, 0), 0)
@@ -2337,7 +2340,7 @@ local function runSession(mapId: string, resync: boolean)
 				local handled = arsenalTap(cell) -- цель Арсенала (§15л ч.6)
 					or shopPanel.tap(cell) -- цель «Авиаудара» (§11.3)
 					or commanderPanel.tap(cell)
-					or build.tap(cell)
+					or build.tap(cell, camera.state.zoom) -- §15ъ: телефон — второе касание рядом с призраком
 					or diplomacy.tap(cell)
 					or pings.tap(cell)
 					or naval.tap(cell, camera.state.zoom)

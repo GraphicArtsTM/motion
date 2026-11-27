@@ -4,8 +4,9 @@
 	(значок, название, цена, что даёт; клавиши 1–9 и 0; не хватает денег или технологии — блёкло).
 	Выбор здания → режим стройки: за курсором идёт «призрак» (Render/BuildGhost) — зелёный можно, красный нельзя
 	и почему, у радара / ПВО / аэродрома круг действия. Проверка — тот же Buildings.check, что на сервере.
-	ПК: клик строит (Shift — строить ещё такое же); телефон: первое нажатие ставит призрак, второе туда же —
-	строит. Esc или кнопка — отмена. Все кнопки от 44 px.
+	ПК: клик строит (Shift — строить ещё такое же); телефон: первое нажатие ставит призрак, второе рядом с ним
+	(TouchBuild, §15ъ) или кнопка «✓ Построить здесь» над полосой — строит. Esc, «✕» или кнопка — отмена.
+	Все кнопки от 44 px.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -24,6 +25,7 @@ local NationColors = require(Shared:WaitForChild("NationColors"))
 local Provinces = require(Shared:WaitForChild("Provinces"))
 local Rails = require(Shared:WaitForChild("Rails"))
 local Strings = require(Shared:WaitForChild("Strings"))
+local TouchBuild = require(Shared:WaitForChild("TouchBuild"))
 local Types = require(Shared:WaitForChild("Types"))
 
 local CardKit = require(script.Parent:WaitForChild("CardKit"))
@@ -37,7 +39,7 @@ type ClientState = ClientState.ClientState
 
 export type BuildPanel = {
 	refresh: () -> (),
-	tap: (cell: number) -> boolean, -- true — нажатие ушло на стройку
+	tap: (cell: number, zoom: number?) -> boolean, -- true — нажатие ушло на стройку; zoom — пикселей на клетку
 	hover: (cell: number?) -> (), -- курсор над клеткой (ПК)
 	active: () -> boolean, -- идёт выбор места
 	onBuildings: () -> (), -- здания поменялись (эффект постройки)
@@ -54,6 +56,7 @@ export type BuildPanel = {
 	selected: () -> Types.BuildingKind?,
 	canBuild: () -> boolean,
 	color: () -> Color3, -- цвет своей державы (значки)
+	confirm: Frame, -- §15ъ «✓ Построить здесь» / «✕» (телефон, пока стоит призрак; ставит Main над полосой)
 }
 
 local BuildPanel = {}
@@ -145,7 +148,10 @@ function BuildPanel.new(
 	local lastHover: number? = nil
 	local lastCheckAt = 0
 	local docks: { [number]: number }? = nil
-	local touch = UserInputService.TouchEnabled and not UserInputService.MouseEnabled
+	-- §15ъ: палец или мышь — по последнему вводу (планшет с мышью, ноутбук с экраном).
+	local function isTouch(): boolean
+		return UserInputService:GetLastInputType() == Enum.UserInputType.Touch
+	end
 
 	local function canBuild(): boolean
 		local me = if cs.myNation ~= nil then cs.nations[cs.myNation] else nil
@@ -342,7 +348,7 @@ function BuildPanel.new(
 				if lang == "en" then name.en else name.ru,
 				Strings.formatInt(cost)
 			)
-			if touch then
+			if isTouch() then
 				label ..= "\n" .. Strings.get("build.tapAgain", lang)
 			end
 		else
@@ -366,7 +372,7 @@ function BuildPanel.new(
 					math.ceil(Buildings.siteSec(kind, near) / math.max(cs.speed, 1e-6)) -- секунды матча
 				)
 			end
-			if touch then
+			if isTouch() then
 				label ..= "\n" .. Strings.get("build.tapAgain", lang)
 			end
 		end
@@ -449,9 +455,33 @@ function BuildPanel.new(
 	gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	gridLayout.Parent = grid
 
+	-- §15ъ: телефон — пока стоит призрак, над полосой «✓ Построить здесь» / «✕».
+	local confirm = Instance.new("Frame")
+	confirm.Name = "BuildConfirm"
+	confirm.AnchorPoint = Vector2.new(0.5, 1)
+	confirm.Position = UDim2.new(0.5, 0, 1, -140)
+	confirm.AutomaticSize = Enum.AutomaticSize.XY
+	confirm.Size = UDim2.fromOffset(0, 0)
+	confirm.BackgroundColor3 = Theme.Colors.Backdrop
+	confirm.BackgroundTransparency = 0.02
+	confirm.BorderSizePixel = 0
+	confirm.Visible = false
+	confirm.ZIndex = 12
+	confirm.Parent = gui
+	MenuKit.corner(confirm, 10)
+	MenuKit.stroke(confirm, Theme.Colors.Gold, 2)
+	MenuKit.pad(confirm, 8, 6)
+	MenuKit.list(confirm, 8, true)
+	local tapPx = Config.Render.MinTouchTargetPx
+	local confirmBuild = MenuKit.button(confirm, Strings.get("build.confirm", lang), "good", tapPx, 1)
+	confirmBuild.Size = UDim2.fromOffset(200, tapPx)
+	local confirmCancel = MenuKit.button(confirm, "✕", "danger", tapPx, 2)
+	confirmCancel.Size = UDim2.fromOffset(tapPx, tapPx)
+
 	local function cancel()
 		selected = nil
 		pending = nil
+		confirm.Visible = false
 		menu.Visible = false
 		ghost.hide()
 		main.Text = Strings.get("build.button", lang)
@@ -487,7 +517,7 @@ function BuildPanel.new(
 		local key = if kind == "City" then "build.pickCity" else "build.pick"
 		toast(string.format(Strings.get(key, lang), Strings.get("building." .. kind, lang)))
 		main.Text = string.format(Strings.get("build.cancel", lang), Strings.get("building." .. kind, lang))
-		if lastHover ~= nil and not touch then
+		if lastHover ~= nil and not isTouch() then
 			showGhost(lastHover)
 		end
 	end
@@ -616,14 +646,14 @@ function BuildPanel.new(
 			c.name.TextColor3 = if can then Theme.Colors.Text else Theme.Colors.Muted
 			c.dim.Visible = not can
 		end
-		if selected ~= nil and lastHover ~= nil and not touch then
+		if selected ~= nil and lastHover ~= nil and not isTouch() then
 			showGhost(lastHover)
 		end
 	end
 
 	local function hover(cell: number?)
 		lastHover = cell
-		if selected == nil or touch then
+		if selected == nil or isTouch() then
 			return
 		end
 		if cell == nil then
@@ -638,33 +668,50 @@ function BuildPanel.new(
 		showGhost(cell)
 	end
 
-	local function tap(cell: number): boolean
+	local function tap(cell: number, zoom: number?): boolean
 		local kind: Types.BuildingKind? = selected
 		if kind == nil or not canBuild() then
 			return false
 		end
-		local spot, reason = check(kind, cell)
+		local touch = isTouch()
+		-- §15ъ: второе касание рядом с призраком — строить там, где призрак (палец не попадает в ту же клетку).
+		local at = cell
+		if touch and pending ~= nil and TouchBuild.confirms(pending, cell, map.width, zoom or 0) then
+			at = pending :: number
+		end
+		local spot, reason = check(kind, at)
 		if spot == nil then
 			-- Нельзя — сразу причина (сервер всё равно проверит сам).
-			showGhost(cell)
+			pending = nil
+			confirm.Visible = false
+			showGhost(at)
 			toast(Strings.get("reject." .. (reason or "focus"), lang))
 			return true
 		end
 		if touch and pending ~= spot then
 			pending = spot
-			showGhost(cell)
+			showGhost(spot)
+			confirm.Visible = true
 			return true
 		end
 		send("build", { building = kind, cell = spot })
 		local shift = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift)
 			or UserInputService:IsKeyDown(Enum.KeyCode.RightShift)
-		if shift and not touch then
+		if shift and not isTouch() then
 			pending = nil
 		else
 			cancel()
 		end
 		return true
 	end
+
+	Session.connect(confirmBuild.Activated, function()
+		local spot = pending
+		if spot ~= nil then
+			tap(spot, nil)
+		end
+	end)
+	Session.connect(confirmCancel.Activated, cancel)
 
 	-- Эффект постройки: новые здания (сравнение с прошлым списком), своё — «−$цена».
 	local known: { [number]: string } = {}
@@ -729,6 +776,7 @@ function BuildPanel.new(
 		end,
 		canBuild = canBuild,
 		color = myColor,
+		confirm = confirm,
 	}
 end
 
