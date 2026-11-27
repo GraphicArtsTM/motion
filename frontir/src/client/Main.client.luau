@@ -2642,6 +2642,7 @@ local function runSession(mapId: string, resync: boolean)
 	end
 	local cloudsAt = os.clock()
 	local railAt = os.clock() -- §15ч Ч2: поезда едут по игровому времени между кадрами
+	local bgMapAt, bgHudAt = 0, 0 -- §15ь: когда под меню последний раз обновлялись карта и панели матча
 	local frameConn = Session.connect(RunService.RenderStepped, function()
 		local now = os.clock()
 		tour(now)
@@ -2672,6 +2673,15 @@ local function runSession(mapId: string, resync: boolean)
 				timeLeft = if limit > 0 then limit - ClientState.matchTime(cs, now) else nil,
 			}))
 		end
+		-- §15ь «Лобби не тормозит»: под главным меню бой — фон за затемнением. Карта и её слои — Menu.BackgroundFps раз в
+		-- секунду, скрытые панели матча — раз в Menu.HiddenHudSec (HUD выключен). Меню, отряд, облёт — каждый кадр.
+		local menuOn = mainMenu.isOpen()
+		mainMenu.update(now)
+		partyPanel.update(now) -- §15ь Л3: отряд (хаб)
+		if menuOn and now - bgMapAt < 1 / Config.Render.Menu.BackgroundFps then
+			return
+		end
+		bgMapAt = now
 		if now - fogAt >= Config.Fog.RefreshSec then
 			refreshFog(now)
 		end
@@ -2684,6 +2694,21 @@ local function runSession(mapId: string, resync: boolean)
 		railLayer.update(now, math.clamp(now - railAt, 0, 0.25), camera.state) -- §15ч Ч2: дороги вдали и поезда
 		buildingLayer.sites(now) -- §15ч Ч5а: леса и полоса готовности строек
 		railAt = now
+		if menuOn then
+			-- Под меню: только слои карты (бои, удары, корабли), панели матча — редко.
+			markerLayer.update(now, camera.state)
+			warFx.update(now, camera.state)
+			battleFx.update(now, camera.state)
+			strikeFx.update(now, camera.state)
+			spectacle.update(now, camera.state)
+			if minimap ~= nil then
+				minimap.update(now, camera.state)
+			end
+			if now - bgHudAt < Config.Render.Menu.HiddenHudSec then
+				return
+			end
+		end
+		bgHudAt = now
 		-- §15ш Ш1: числа в подсказке живые и без движения мыши; §15ё — не поверх открытого окна механики.
 		if anyWindowOpen() then
 			tooltip.show(nil, 0, 0, 0)
@@ -2726,8 +2751,6 @@ local function runSession(mapId: string, resync: boolean)
 		doomBar.update(now)
 		dock.update(now)
 		lobby.update(now)
-		mainMenu.update(now)
-		partyPanel.update(now) -- §15ь Л3: отряд (хаб)
 		-- Переход в хаб не удался (§15л ч.3) — сказать один раз.
 		if cs.travel == "failed" and cs.place ~= "hub" and travelToastAt ~= cs.travelAt then
 			travelToastAt = cs.travelAt

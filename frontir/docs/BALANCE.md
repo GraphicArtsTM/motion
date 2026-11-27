@@ -668,6 +668,7 @@
 | 2026-11-27 | Hud (Ч3) | — | AutoNoKinds (pact3, pact5, alliance, trade, trust, peace), FreeShare 0.7 / FreeSharePhone 0.35, CardMaxH 76 | §15ъ: автоответы без требований (отказ — война); пороги свободной карты — по замеру `HudSpace.spec` |
 | 2026-11-27 | Command | — | OncePerMatch true, MinSecLeft 120 | §15ь Л1: выбывший берёт бота со срединной сушей — раз за матч, не под конец |
 | 2026-11-27 | Party, Places.QuickJoinDelaySec | — | Max 4, InviteSec 60; 2 с | §15ь Л3: отряд до 4 игроков; «Следующий матч» — быстрый вход в хабе через 2 с |
+| 2026-11-27 | Hub.DemoNations, Hub.DemoSpeed, Hub.DemoMaps; Render.Menu | 12, 2, с «Миром» | 8, 1.5, без «Мира»; BackgroundFps 15, HiddenHudSec 0.25 | §15ь: лобби тормозило — показательный бой легче, фон под меню реже |
 | 2026-11-14 | Path.Premium.PassRefund / UnitRefund | — | 1500 / 1000 медалей | §15я Я1: дубль улучшения или техники на дороге — медалями |
 | 2026-11-23 | Commanders.StrikeScorchRadius / StrikeScorchSec | — | 3 клетки / 30 с | §15ъ: авиаудар выжигает землю врага во внутреннем круге (ничья, занять может только ударивший); боты: 12 ударов за 3 матча «Европы», в среднем 14 клеток за удар |
 

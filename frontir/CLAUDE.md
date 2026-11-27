@@ -452,6 +452,9 @@ CI (`.github/workflows/ci.yml`) гоняет StyLua, Selene, luau-lsp analyze (s
 - §15ь Л3 отряд (хаб): чистый `Party`, намерения `partyInvite / partyReply / partyLeave`, `sendParty`, с лидером едет
   отряд (`companionsOf` в `travelToMatch`), уровень — атрибут `FrontirLevel`; приглашение друзей из хаба —
   `LaunchData { party }`. Клиент — `UI/PartyPanel` (в `mainMenu.side` и слое окон), `ClientState.applyParty`.
+- §15ь лобби не тормозит: в кадре `Main.client` под главным меню — ранний выход: карта и её слои раз в
+  `Render.Menu.BackgroundFps`, панели HUD раз в `Render.Menu.HiddenHudSec` (`bgMapAt / bgHudAt`). Новое, что должно
+  работать и под меню каждый кадр, — ставить до этой проверки (как `mainMenu.update`, `partyPanel.update`).
 
 ## Платные части, пропуск, ящики (этап 9б)
 - Бусты `Guards`, `Airstrike` (цель — `cell`, `MatchSim.strikeAt`), `Squadron`, `AirWing` — в `MatchSim.useBoost`.
